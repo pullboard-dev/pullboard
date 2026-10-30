@@ -354,7 +354,7 @@ function recordEventContract() {
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
   escalate(board, first, { agentId: builder, note: 'attempted once', attempt: '1' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
-  release(board, first, builder);
+  release(board, first, builder, 'Recorded format example returns the claim before refreezing.', undefined, 'OTHER');
   editItem(board, first, { agentId: coordinator, criterion: 'Updated after claim', reason: 'the claimed bar named the wrong field' });
   refreeze(board, first, { agentId: coordinator, freeze: freeze('second') });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });

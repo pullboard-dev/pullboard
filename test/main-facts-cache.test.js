@@ -87,7 +87,7 @@ test('two real claims derive main inputs once and preserve HEAD, index and worki
     assert.deepEqual(readFileSync(join(box.web, 'SPEC.md')), spec);
     assert.equal(readFileSync(scratch, 'utf8'), 'untracked claim input\n');
     assert.deepEqual(worktreeBytes(box.web), bytes);
-    const released = box.run(box.web, 'release', id, '--no-next', '--note', 'Exercise the next independent claim');
+    const released = box.run(box.web, 'release', id, '--no-next', '--reason', 'OTHER', '--note', 'Exercise the next independent claim');
     assert.equal(released.code, 0, released.err || released.out);
   }
   assert.equal(db.prepare('SELECT n FROM observed_derivations').get().n, 1);

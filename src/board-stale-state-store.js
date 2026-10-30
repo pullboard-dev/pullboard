@@ -4,6 +4,7 @@ import { IN_STATE } from './machine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { LEASE_LAPSE_ENGINE } from './lease-lapse-engine.js';
 import { STALE_STATE_ENGINE } from './stale-state-engine.js';
+import { RELEASE_REASONS_ENGINE } from '../packages/state/index.js';
 import {
   staleInstant,
   staleStateLimits,
@@ -111,6 +112,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
       const reason = `Review idle for 30 minutes; last observed activity ${row.lastActivity}.`;
       setItem(board, row.id, { item_review_by: null, item_review_until: null });
       logEvent(board, agentId, 'release', row.id, { review: true, reason,
+        ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
         stale: { reviewer: row.reviewer, reservedAt: row.reservedAt, lastActivity: row.lastActivity } });
       notice(row.reviewer, `Released your idle review reservation on #${row.id}: ${reason} The item is available for independent review.`, row.id);
       result.reviews.push(row.id);
@@ -140,6 +142,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           set: () => ({ item_owner: null, item_lease_until: null }),
         });
         logEvent(board, agentId, 'release', row.id, { reason: 'Lapsed claim idle past its stale interval.',
+          ...((board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE ? { reasonCode: 'OTHER' } : {}),
           expiredClaim: { holder: row.actor, leaseUntil: row.leaseUntil, lastActivity: row.lastActivity, observedAt: snapshot.observedAt, leaseEventId: row.leaseEventId },
           reopenFirstRefusal: window });
         notice(row.actor, `Your lapsed idle claim on #${row.id} returned to open; first refusal remains yours until ${window.until}.`, row.id);
