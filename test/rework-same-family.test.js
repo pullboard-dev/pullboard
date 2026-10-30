@@ -103,7 +103,7 @@ test('[H16] returned work waits for its builder until gone, then prefers live sa
   assert.equal(applyEngineMove(f.board, move, { sequence: 1, at: f.board.clock.now().toISOString() }).error, undefined);
   const fact = store.itemThread(f.board, id).find(row => row.type === 'fact' && row.id === routingPolicy.factId);
   assert.ok(fact, 'the sealed fact identity is used for fallback');
-  assert.match(fact.text, /checked families: Claude, OpenAI/u);
+  assert.match(fact.text, /checked families: claude, openai/u);
 });
 
 test('[H16] an unknown recorded family returns to the ordinary queue without a family fact', t => {
