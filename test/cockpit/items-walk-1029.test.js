@@ -1,48 +1,37 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** Native event-import fixture proves presentation only, never independent review assurance [N26]. */
+/** Real private native lifecycle proves presentation only, never independent review assurance [N26]. */
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { renameSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
-import { exportBoard, importBoard } from '../../src/exchange.js';
-import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
+import { machine, project, build, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
-/** Add historical native-shaped review and sentinel events to the private presentation fixture. */
-function seedHistory(box, demo, head) {
-  const file = join(demo.repo, '.git/pullboard/board.sqlite');
-  let document;
-  // @pullboard-board-file journey: authenticated HTTP later reads this private native export/import.
-  const board = openBoard(file);
+/** Record real health transitions after the private fixture's native review. */
+function seedHealth(demo) {
+  // @pullboard-board-file journey: native health moves are read through authenticated HTTP and real Chrome.
+  const board = openBoard(join(demo.repo, '.git/pullboard/board.sqlite'));
   try {
-    document = exportBoard(board);
-    const subject = document.tables.item.find(row => row.item_id === 1);
-    subject.item_status = 'open'; subject.item_owner = null; subject.item_lease_until = null;
-    subject.item_verdict = JSON.stringify({ decision: 'REJECT', by: 'coordinator', at: new Date().toISOString(), commit: head, reason: 'BEHAVIOR_MISMATCH', note: 'Reviewed submitted ' + head });
-    const rows = document.tables.event;
-    const kinds = ['submit', 'reserve', 'reject', 'health-failure', 'health-resolved'];
-    const base = Date.now() - 600_000;
-    for (const [index, kind] of kinds.entries()) rows.push({ event_id: rows.at(-1).event_id + 1,
-      event_at: new Date(base + index * 60_000).toISOString(), event_by: kind.startsWith('health') ? 'sentinel' : kind === 'submit' ? 'web-1' : 'coordinator',
-      item_id: 1, event_kind: kind, event_detail: JSON.stringify({ commit: head, reason: 'BEHAVIOR_MISMATCH', note: 'Fixture review history', key: 'items-walk-fixture' }) });
-    document.tables.sqlite_sequence.find(row => row.name === 'event').seq = rows.at(-1).event_id;
+    const finding = { key: 'items-walk-fixture', cause: 'NO_REVIEWER', item: 1, subject: '#1', title: 'needs a review',
+      since: new Date().toISOString(), why: 'This private fixture exercises native health presentation.', next: 'Review the fixture.' };
+    store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision: store.events(board).at(-1).event_id, findings: [finding] });
+    store.recordHealthFindings(board, { agentId: 'coordinator', observedRevision: store.events(board).at(-1).event_id, findings: [] });
   } finally { store.closeBoard(board); }
-  renameSync(file, join(demo.repo, '.git/pullboard/items-walk-original.sqlite'));
-  // @pullboard-board-file journey: native import needs an empty destination, preserving the original private fixture.
-  const restored = openBoard(file);
-  try { importBoard(restored, document); } finally { store.closeBoard(restored); }
 }
 
 test('Items walk renders short context hashes, plain waiting chips and colored history in the person clock in Chrome [N26]', { timeout: 120_000 }, async () => { // budget: real native fixture, authenticated HTTP and desktop/phone Chrome.
   const box = machine(), demo = project(box, 'items-walk');
   for (const [title, extra] of [['History subject', []], ['Dependency', []], ['Waiting item', ['--after', '2']]])
     box.run(demo.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'Render this private fixture.', ...extra);
-  box.run(demo.web, 'claim', '1');
-  const head = box.git(demo.repo, 'rev-parse', 'HEAD');
+  build(box, demo, 1, 'items-walk.txt');
+  const head = box.git(demo.web, 'rev-parse', 'HEAD');
   box.run(demo.web, 'fact', '1', 'note', 'Keep this original note and full source ' + head + '.');
-  seedHistory(box, demo, head);
+  const reviewer = JSON.parse(box.run(demo.repo, 'worktree', 'web', '--model', 'Items walk reviewer fixture', '--json'));
+  box.git(reviewer.path, 'switch', '--detach', head);
+  box.run(reviewer.path, 'next', '--verify', '1');
+  box.run(reviewer.path, 'verify', '1', 'reject', '--reason', 'BEHAVIOR_MISMATCH', '--clause', 'Render this private fixture.', '--note', 'Reviewed submitted ' + head, '--no-next');
+  seedHealth(demo);
   const server = await startView(box);
   let chrome;
   try {

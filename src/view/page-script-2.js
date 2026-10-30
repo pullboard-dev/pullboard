@@ -283,7 +283,7 @@ const esc = (text) => String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&am
 // is in columns, as a terminal counts them: CJK, full-width and emoji characters take two.
 const wideChar = (c) => { const p = c.codePointAt(0); return (p >= 0x1100 && p <= 0x115f) || (p >= 0x2e80 && p <= 0xa4cf) || (p >= 0xac00 && p <= 0xd7a3) || (p >= 0xf900 && p <= 0xfaff) || (p >= 0xfe30 && p <= 0xfe4f) || (p >= 0xff00 && p <= 0xff60) || (p >= 0xffe0 && p <= 0xffe6) || (p >= 0x1f300 && p <= 0x1faff) || (p >= 0x20000 && p <= 0x3fffd); };
 const columns = (text) => [...String(text)].reduce((n, c) => n + (wideChar(c) ? 2 : 1), 0);
-const codeChip = (text, kind = '') => kind === 'sha' && String(text).length > 10
+const codeChip = (text, kind = '') => (kind === 'sha' || /^[0-9a-fA-F]{40}$/.test(String(text))) && String(text).length > 10
   ? '<button class="hash-copy" type="button" title="' + esc(text) + '" aria-label="Copy full hash ' + esc(text) + '" data-copy="' + esc(text) + '"><code class="inline sha" title="' + esc(text) + '">' + esc(String(text).slice(0, 12)) + '</code></button>'
   : '<code class="inline' + (kind ? ' ' + kind : '') + (columns(text) > 24 ? ' long" title="' + esc(text) : '') + '">' + esc(text) + '</code>';
 // An age said in words, as a shout's card shows it: now, 2m ago, 1h ago.
