@@ -17,9 +17,10 @@ function observe(t, live) {
   const box = helpers.project('true');
   const bin = join(box.dir, 'probe-bin'), home = join(box.dir, 'remote-home');
   const root = join(home, '.pullboard-runner'), machineHome = join(home, '.pullboard');
+  const worker = join(box.dir, 'worker');
   const requests = join(box.dir, 'requests.jsonl');
-  for (const directory of [bin, root, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
-  installSshStandIn({ bin, worker: join(box.dir, 'worker'), home, machineHome, requests,
+  for (const directory of [bin, worker, root, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
+  installSshStandIn({ bin, worker, home, machineHome, requests,
     nodeCommand: process.execPath, healthFailures: 1 });
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const script = `
