@@ -127,7 +127,7 @@ const ROWS = [
 ];
 
 // The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; test/settings-descriptions.test.js holds this equal to help.js SETTING_FORMS.
-const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.runnersOnly', 'gate.runnerWaitMs']);
+const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs']);
 
 export const SETTING_DESCRIPTIONS = Object.freeze(Object.fromEntries(ROWS.map(([key, label, description, group, unit]) => [key, Object.freeze({ label, description, group, unit, cli: CLI_FORMS.has(key) ? key : null })])));
 export const CLI_SETTABLE = Object.freeze([...CLI_FORMS]);

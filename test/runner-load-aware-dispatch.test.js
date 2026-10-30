@@ -19,6 +19,7 @@ import { HOST } from './runner-ssh-fixture.js';
 function box(t) {
   const helpers = createE2eHelpers();
   const project = helpers.project('true');
+  mkdirSync(project.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   const keys = ['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME', 'PATH'];
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   for (const key of keys) process.env[key] = project.env[key];
