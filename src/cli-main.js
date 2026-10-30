@@ -349,7 +349,7 @@ async function runMain(argv, streams) {
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
+          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, await import('./relay.js')) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
         (await import('./person.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }
