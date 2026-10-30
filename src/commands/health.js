@@ -1,3 +1,6 @@
+import { recentReceipts } from '../gate-receipt.js';
+import { runnerLossHealth } from '../runner-loss-health.js';
+import { runnerLossLines } from '../runner-loss-health.js';
 import { maintenanceTimerHealth } from '../worktree-maintenance-scheduler.js';
 import { flakeQuarantines } from '../quarantine.js';
 /** The pullboard health command, in its own module so an item adding another command never edits these lines. */
@@ -22,6 +25,7 @@ import { runnerLeaseHealth } from '../../packages/resources/index.js';
 export async function run(io) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth, machineSettings: loadMachineSettings() });
+  report.runnerTransportLosses = runnerLossHealth(recentReceipts(ctx.info.root, ctx.clock.now().getTime()), ctx.clock.now().getTime());
   report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
   report.autoQuarantines = automaticQuarantines(ctx.file);
   const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
@@ -41,6 +45,7 @@ export async function run(io) {
     io.say(`maintenance timer: ${timer.state}; key ${timer.key ?? 'unknown'}; pid ${timer.pid ?? 'unknown'}; last run ${timer.lastRun?.completedAt ?? 'unknown'}${timer.cause ? '; ' + timer.cause : ''}`);
   }
   for (const line of healthLines(report)) io.say(line);
+  for (const line of runnerLossLines(report.runnerTransportLosses)) io.say(line);
   for (const lease of report.overdueRunnerLeases) io.say(`runner execution deadline ${new Date(lease.deadline).toISOString()} passed; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; controller pid ${lease.controllerPid}; ${lease.repo}`);
   for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
