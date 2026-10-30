@@ -102,10 +102,14 @@ test('settings default off, validate percentages and health names only fresh run
   assert.throws(() => validateRunner(runner('bad-host', -1)), { code: 'BAD_RUNNER' });
   writeFileSync(file, JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { loadAwareDispatch: true },
     runners: [runner('busy-host', 95), runner('quiet-host', 30), runner('stale-host', 0, new Date(Date.now() - 60_000).toISOString())] }));
-  const report = healthReport({ db: null, root: project.repo, now: new Date() });
+  assert.equal(healthReport({ db: null, root: project.repo, now: new Date() }).runnerCpu, undefined, 'omitted data port cannot invent runner observations');
+  const report = healthReport({ db: null, root: project.repo, now: new Date(), machineSettings: loadMachineSettings() });
   assert.equal(report.runnerCpu.spread, 65);
   assert.deepEqual(report.runnerCpu.readings.map(row => row.host), ['busy-host', 'quiet-host']);
   assert.ok(report.stuck.some(row => row.cause === 'RUNNER_CPU_SPREAD'));
+  const command = project.run(project.repo, 'health', '--json');
+  const actual = JSON.parse(command.out);
+  assert.equal(actual.runnerCpu.spread, 65, 'the real CLI binds its validated machine-settings snapshot');
 });
 
 test('existing nonce health transport measures remote CPU counters and refresh forwards only runner observations [C7,O5]', async t => {

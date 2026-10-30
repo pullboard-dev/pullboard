@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from './board.js';
 import { healthReport } from '../packages/health/index.js';
 import { healthSentinelEnabled } from './settings.js';
+import { loadMachineSettings } from './settings.js';
 import { Refused } from './refused.js';
 import { agentCpuFindings } from './sentinel-cpu.js';
 import {
@@ -19,7 +20,7 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
   try {
     db.exec('BEGIN');
     const observedRevision = db.prepare('SELECT COALESCE(MAX(event_id), 0) AS revision FROM event').get().revision;
-    const report = healthReport({ db, root, config, now, dispatchHealth });
+    const report = healthReport({ db, root, config, now, dispatchHealth, machineSettings: loadMachineSettings() });
     const { dispatch } = dispatchHealth({ db, clock: { now: () => now } }, config);
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
     const processes = cpu(db);

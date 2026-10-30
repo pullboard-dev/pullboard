@@ -25,7 +25,6 @@ import {
   sep,
 } from 'node:path';
 import { join } from 'node:path';
-import { validRunnerCpuLoad } from './settings-read.js';
 import { guiSession } from './gui-session.js';
 import { processCensus } from './runner-custody.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
@@ -75,8 +74,11 @@ export async function probeRunnerTransport(runner, { observeGui = false, observe
   const version = /^(\d+)\.(\d+)\./u.exec(reply?.node ?? '');
   const healthy = !error && !timedOut && result.code === 0 && !result.signal && reply?.nonce === nonce
     && version && (Number(version[1]) > 22 || Number(version[1]) === 22 && Number(version[2]) >= 13);
+  const cpu = reply?.cpuLoad;
+  const measured = cpu && Number.isFinite(Date.parse(cpu.at)) && Number.isFinite(cpu.busyPercent) && cpu.busyPercent >= 0 && cpu.busyPercent <= 100
+    && Array.isArray(cpu.average) && cpu.average.length === 3 && cpu.average.every(n => Number.isFinite(n) && n >= 0);
   // Arbitrary stderr is deliberately not returned by a health-only probe; the failed job retains its sanitized diagnostics.
-  return { healthy: Boolean(healthy), ...(healthy && observeLoad && validRunnerCpuLoad(reply?.cpuLoad) ? { cpuLoad: reply.cpuLoad } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
+  return { healthy: Boolean(healthy), ...(healthy && observeLoad && measured ? { cpuLoad: cpu } : {}), ...(observeGui ? { gui: healthy && typeof reply?.gui === 'boolean' ? reply.gui : null,
     ...(healthy && Number.isSafeInteger(reply?.cores) && reply.cores > 0 && Number.isSafeInteger(reply?.memoryMB) && reply.memoryMB > 0 ? { cores: reply.cores, memoryMB: reply.memoryMB } : {}) } : {}), command: ['ssh', ...args.slice(0, -1), `${runner.node ?? 'node'} [nonce health observation]`],
     ...result, error, timedOut, stderrBytes: Buffer.byteLength(stderr), reason: healthy ? 'configured Node answered nonce' : 'transport health not confirmed' };
 }

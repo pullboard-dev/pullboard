@@ -20,7 +20,6 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { loadMachineSettings } from '../../../../src/settings-read.js';
 import { machineHome } from '../../../../src/machine-home.js';
 import { runnerRecoveryStatus } from '../../../../src/runner-recovery.js';
 import { missedJobFindings } from '../../../../src/board-recurring-jobs.js';
@@ -80,13 +79,13 @@ export function healthThresholds(config = {}) {
  * @param {{ root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
  * @returns {ReturnType<typeof healthReport>}
  */
-export function boardHealth(file, { root, config, now, dispatchHealth }) {
-  if (!existsSync(file)) return healthReport({ db: null, root, config, now, dispatchHealth });
+export function boardHealth(file, { root, config, now, dispatchHealth, machineSettings }) {
+  if (!existsSync(file)) return healthReport({ db: null, root, config, now, dispatchHealth, machineSettings });
   const startedAt = Date.now();
   let db;
   try {
     db = openBoardReadOnly(file);
-    return healthReport({ db, root, config, now, dispatchHealth });
+    return healthReport({ db, root, config, now, dispatchHealth, machineSettings });
   } catch (error) {
     throw boardBusyError(file, startedAt, error);
   } finally {
@@ -100,7 +99,7 @@ export function boardHealth(file, { root, config, now, dispatchHealth }) {
  * @param {{ db: any, root: string, config?: any, now: Date, dispatchHealth: Function }} options Explicit upper-layer dispatch observation.
  * @returns {{ asOf: string, thresholds: { stuck: string, holds: string, release: string }, stuck: Finding[], waiting: Finding[] }}
  */
-export function healthReport({ db, root, config, now, dispatchHealth }) {
+export function healthReport({ db, root, config, now, dispatchHealth, machineSettings }) {
   const limits = healthThresholds(config);
   const asOf = now.toISOString();
   const report = { asOf, thresholds: { stuck: limits.stuck, holds: limits.holds, release: limits.release }, stuck: [], waiting: [] };
@@ -123,8 +122,8 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
       owner: { role: 'coordinator', who: COORDINATOR }, detail: { step, code, roundTripMs: canary.roundTripMs, p95Ms: canary.p95Ms },
     }));
   }
-  const settings = loadMachineSettings();
-  if (settings.gate?.loadAwareDispatch === true) {
+  const settings = machineSettings;
+  if (settings?.gate?.loadAwareDispatch === true) {
     const fresh = (settings.runners ?? []).filter(runner => {
       const age = now.getTime() - Date.parse(runner.cpuLoad?.at);
       return Number.isFinite(age) && age >= 0 && age <= 30_000;
