@@ -1028,7 +1028,7 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
       `add response must include its nested item\n${movedStep.evidence}`);
     assert.equal(movedStep.document.result.item.item_title, '--help', movedStep.evidence);
     assert.equal(movedStep.document.event.event_kind, 'add', movedStep.evidence);
-    assert.equal(movedStep.document.event.event_id, eventsStep.document.events.at(-1)?.event_id + 1, movedStep.evidence);
+    assert.equal(movedStep.document.event.event_id, (await (await apiFetch(api, `${boardPath}/events?after=${eventsStep.document.events.at(-1)?.event_id ?? 0}`)).json()).events.at(-1)?.event_id, `the add is the newest event; an empty next may record next-idle first (#1818)\n${movedStep.evidence}`);
     assert.equal(api.stderr(), '', movedStep.evidence);
   } catch (error) {
     error.message = `${error.message}\n${lastStepEvidence}`;
