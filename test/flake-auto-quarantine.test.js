@@ -70,7 +70,7 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   const second = submit(box);
   assert.equal(second.code, 1, JSON.stringify(second.document));
   const state = snapshot(box);
-  assert.equal(state.quarantines.length, 1);
+  assert.equal(state.quarantines.length, 1, JSON.stringify({ quarantines: state.quarantines, runs: state.runs.map(({ id, kind, proof, testOutcomes }) => ({ id, kind, proof, testOutcomes })) }));
   const entry = state.quarantines[0];
   assert.equal(entry.autoSubmit, true);
   assert.equal(entry.name, TITLE);
