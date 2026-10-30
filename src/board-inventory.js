@@ -1,13 +1,12 @@
 /** Authorized device-local team and private BoardRefs for cross-board commands [E14,E15,H16]. */
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import { listProjects } from './projects.js';
 import { withPrivateBoard } from './projects.js';
 import { Refused } from './refused.js';
 import { boardReference } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Read a private board's exact durable reference without creating storage or inferring its owner. */
-async function privateReference(project) {
+async function privateReference(project, { openBoard }) {
   if (!project.boardId) return null;
   try {
     return await withPrivateBoard(project.boardId, board => {
@@ -23,8 +22,8 @@ async function privateReference(project) {
   } catch { return null; }
 }
 
-/** Load only registry-recorded team identities and private references from existing private files. */
-export async function localBoardInventory() {
+/** Load only registry-recorded identities and existing private files through the caller's native opener. */
+export async function localBoardInventory({ openBoard }) {
   const projects = listProjects();
   const rows = new Map();
   for (const project of projects) {
@@ -34,7 +33,7 @@ export async function localBoardInventory() {
         rows.set(`${reference.boardId}:team`, { ...reference, kind: 'team', root: project.root });
       } catch { /* An invalid local record cannot authorize a board reference. */ }
     }
-    const privateBoard = await privateReference(project);
+    const privateBoard = await privateReference(project, { openBoard });
     if (privateBoard) rows.set(`${privateBoard.boardId}:private`, privateBoard);
   }
   return [...rows.values()];

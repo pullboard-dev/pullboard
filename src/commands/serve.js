@@ -34,7 +34,7 @@ export async function serveHere(io, values) {
   traceServeStartup('serve-context-ready');
   const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
   traceServeStartup('serve-registration-start');
-  await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io, undefined, projectLinkPorts);
+  await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io, undefined, projectLinkPorts());
   traceServeStartup('serve-registration-ready');
   const port = values.port === undefined ? 0 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
