@@ -471,6 +471,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   const chips = `See #1 in src/cockpit.js at ${sha}; run pullboard check --json, then \`npm test\`.`;
   const long = lines('A long note that folds.', 12);
   const mixed = 'Moved #2 along.';
+  const bodyOnly = 'Body-only #2 goes to Farewell.';
   const longCommand = 'node bin/run-tests.js test/relay-person-requests.test.js', longPath = 'test/relay-person-requests.test.js';
   const longerPath = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
   const longChips = `Ran \`${longCommand}\` on ${longPath} and ${longerPath} today.`;
@@ -486,6 +487,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
   box.run(alpha.web, 'shout', 'all', chips);
   box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
+  box.run(alpha.web, 'shout', 'all', bodyOnly);
   box.run(alpha.web, 'shout', 'all', longChips);
   box.run(alpha.web, 'shout', 'all', refsShout);
   box.run(alpha.web, 'shout', 'all', blockShout);
@@ -517,12 +519,12 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
           classes: e.className, avatars: e.querySelectorAll('.avatar').length,
           who: { text: who.textContent, color: style(who).color, model: who.title }, to: e.querySelector('.to')?.textContent, item: document.querySelector('#feed .conversation-heading b')?.textContent ?? null,
           item_color: e.querySelector('header .item') && style(e.querySelector('header .item')).color, ink: style(text).color,
-          time: { text: time.textContent, title: time.title, box: box(time) }, header: box(e.querySelector('header')), text: { box: box(text), lines: Math.round(text.clientHeight / parseFloat(style(text).lineHeight)), clamped: text.scrollHeight > text.clientHeight + 1 },
+          time: { text: time.textContent, title: time.title, box: box(time) }, header: box(e.querySelector('header')), text: { content: text.textContent, box: box(text), lines: Math.round(text.clientHeight / parseFloat(style(text).lineHeight)), clamped: text.scrollHeight > text.clientHeight + 1 },
           more: (() => { const m = e.querySelector('.more'); return m && style(m).display !== 'none' ? m.textContent : null; })(),
           band: e.querySelector('.band') ? { text: e.querySelector('.band').textContent, done: e.querySelector('.band').classList.contains('done'), href: e.querySelector('.band a')?.getAttribute('href') ?? null } : null,
           receipt: e.querySelector('.receipt') ? { badge: e.querySelector('.receipt .badge').textContent, outcome: e.querySelector('.receipt .outcome').textContent, foot: e.querySelector('.receipt-foot').textContent,
             sha: e.querySelector('.receipt-foot code.sha')?.textContent, shaTitle: e.querySelector('.receipt-foot code.sha')?.title } : null,
-          answer: e.querySelector('.answer')?.textContent ?? null, edges,
+          answer: e.querySelector('.answer')?.textContent ?? null, bodyLinks: [...e.querySelectorAll('.text a.ref[data-go]')].map(link => [link.textContent, link.dataset.go]), edges,
         };
       };
       const chip = (selector) => { const e = document.querySelector('#feed #shout-${ids[chips]} .text ' + selector); return e && { text: e.textContent, title: e.title, display: style(e).display, rects: e.getClientRects().length, color: style(e).color, background: style(e).backgroundColor }; };
@@ -535,7 +537,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         heads: [...document.querySelectorAll('#decisions .head')].map((h) => h.textContent),
         decisions: [...document.querySelectorAll('#decisions .shout')].map((e) => e.dataset.shoutId),
         feed: { older: card('#feed', ${ids[older]}), colour: card('#feed', ${ids[colour]}), ship: card('#feed', ${ids[ship]}), chips: card('#feed', ${ids[chips]}), long: card('#feed', ${ids[long]}),
-          receipt: card('#feed', ${ids['the page loads in 80ms']}), answer: card('#feed', ${answerId}), friday: card('#feed', ${ids['Launch on Friday?']}), mixed: card('#feed', ${ids[mixed]}) },
+          receipt: card('#feed', ${ids['the page loads in 80ms']}), answer: card('#feed', ${answerId}), friday: card('#feed', ${ids['Launch on Friday?']}), mixed: card('#feed', ${ids[mixed]}), bodyOnly: card('#feed', ${ids[bodyOnly]}) },
         longs: [...document.querySelectorAll('#feed #shout-${ids[longChips]} .text code.inline')].map((e) => {
           const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect();
           return { text: e.textContent, title: e.title, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5, cut: e.scrollWidth > e.clientWidth + 1, ends: getComputedStyle(e).textOverflow };
@@ -582,12 +584,12 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         for (const [key, thread] of Object.entries(r.threads)) assert.ok(thread.page.scroll <= thread.page.width && thread.page.body <= thread.page.width,
           `${at} ${key}: no sideways scroll: ${JSON.stringify(thread.page)}`);
         const expectedThreads = {
-          'item:1': [ids[older], ids[ship], answerId, ids['the page loads in 80ms'], ids[chips]],
-          'item:2': [ids[mixed]],
+          'item:1': [ids[older], ids[ship], answerId, ids['the page loads in 80ms'], ids[chips], ids[mixed]],
+          'item:2': [ids[bodyOnly]],
           none: [ids[colour], ids[longChips], ids[refsShout], ids[blockShout], ids['Launch on Friday?'], ids[long]],
         };
         for (const [key, expected] of Object.entries(expectedThreads)) assert.deepEqual(r.threads[key].messageIds, expected.sort((a,b)=>a-b),
-          `${at}: exact native ${key} membership, including answer inheritance and first-item precedence`);
+          `${at}: exact native ${key} membership, including answer inheritance and explicit native item recipient precedence`);
         assert.deepEqual(Object.values(r.threads).flatMap(thread => thread.messageIds).sort((a,b)=>a-b), stamps.map(([id]) => id).sort((a,b)=>a-b),
           `${at}: every original native message is measured exactly once`);
         const { older: old, colour: asking, ship: shipped, chips: chipCard, long: folded, receipt, answer, friday, mixed: both } = r.feed;
@@ -604,8 +606,11 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.equal(asking.who.color, old.who.color, `${at}: agent names use the same approved violet`);
         assert.notEqual(answer.who.color, old.who.color, `${at}: the coordinator uses the accent color`);
         assert.ok(answer.classes.includes('lead') && answer.who.text === 'coordinator', `${at}: a native coordinator answer keeps its identity`);
-        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1 Greeting', '#1 Greeting', '#1 Greeting', 'No item', '#2 Farewell'],
-          `${at}: real item titles identify the conversation, including unknown #99 and text #2 over evidence #1`);
+        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1 Greeting', '#1 Greeting', '#1 Greeting', 'No item', '#1 Greeting'],
+          `${at}: native item recipients decide the conversation while unknown #99 stays No item`);
+        assert.equal(r.feed.bodyOnly.item, '#2 Farewell', `${at}: absent an item recipient, the first real body item decides`);
+        assert.deepEqual(both.bodyLinks, [['#2', 'item:2']], `${at}: the original mixed receipt still navigates its exact body reference`);
+        assert.equal(both.text.content, mixed, `${at}: the native words are never rewritten to match the recipient`);
         const clockOf = id => {
           const date = new Date(stamps.find(([key]) => key === id)[1]), hour = date.getHours();
           return (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
