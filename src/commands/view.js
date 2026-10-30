@@ -181,8 +181,10 @@ export async function viewHere(io, values) {
   }
   io.flush?.(0);
   if (!values['no-open'] && process.env.PULLBOARD_VIEW_BACKGROUND_CHILD !== '1') {
-    const opener = process.platform === 'darwin' ? ['open', [view.url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', view.url]] : ['xdg-open', [view.url]];
-    spawn(opener[0], opener[1], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+    // The OS URL opener, named as literals so the browser census can see it never starts Chrome itself (#2021).
+    const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'cmd' : 'xdg-open';
+    const openerArgs = process.platform === 'win32' ? ['/c', 'start', '', view.url] : [view.url];
+    spawn(opener, openerArgs, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
   }
   await new Promise((stop) => {
     process.once('SIGINT', stop);
