@@ -1034,11 +1034,10 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   mkdirSync(ciKeychainBin, { mode: 0o700 });
   // Keep these two private tools inside the all-file audit, without following links outside its origin.
   assert.deepEqual(readdirSync(box.env.PATH).sort(), ['git', 'node'], 'the CI tool source is exactly the two native executables');
-  for (const name of ['git', 'node']) {
-    const tool = join(ciKeychainBin, name);
-    copyFileSync(join(box.env.PATH, name), tool);
-    chmodSync(tool, 0o700);
-  }
+  copyFileSync(join(box.env.PATH, 'git'), join(ciKeychainBin, 'git'));
+  chmodSync(join(ciKeychainBin, 'git'), 0o700);
+  copyFileSync(join(box.env.PATH, 'node'), join(ciKeychainBin, 'node'));
+  chmodSync(join(ciKeychainBin, 'node'), 0o700);
   for (const name of ['security', 'secret-tool']) {
     writeFileSync(join(ciKeychainBin, name), '#!/bin/sh\ncase "$1" in search) exit 1;; find-generic-password|lookup) printf %s "$PULLBOARD_RELAY_KEY"; exit 0;; esac\nexit 0\n', { mode: 0o755 });
   }
