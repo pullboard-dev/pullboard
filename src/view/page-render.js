@@ -145,7 +145,8 @@ function render() {
     }];
   }));
   const needsPanel = ${needsPanelHtml.toString()};
-  if (view.tab === 'dashboard') dashboardView.draw(p, needsPanel({...needsModel,compact:true},needsPresentation), {
+  if (view.tab === 'dashboard') dashboardView.draw(p, needsPanel({...needsModel,compact:true,headerSeparately:true},needsPresentation), {
+    needsHeader: needsPanel({...needsModel,compact:true,headerOnly:true},needsPresentation),
     rules: homeRules(p.spec),
     capacity: homeCapacity(p.capacityForecast),
   });

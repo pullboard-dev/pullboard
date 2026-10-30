@@ -1,3 +1,4 @@
+/** @pullboard-test-input src/view.css src/view/dashboard.css */
 /** @pullboard-test-gui */
 /** @pullboard-test-input src/view.css src/view/cost.css */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
@@ -156,11 +157,12 @@ test("the authenticated local view assembles its shared and private styles [N26]
     const css = await fetchPage(view, '/view.css');
     assert.equal(css.status, 200);
     assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
-    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8');
+    const dashboardCss = readFileSync(new URL('../../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd();
+    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss);
     const privateCss = readFileSync(new URL('../../src/view/cost.css', import.meta.url), 'utf8');
     assert.equal(sharedCss.split('/* @private-view-css src/view/cost.css */').length - 1, 1, 'the local view has one private-style insertion point');
     const expectedCss = sharedCss.replace('/* @private-view-css src/view/cost.css */', privateCss);
-    assert.equal(await css.text(), expectedCss, 'the authenticated view assembles its shared and private stylesheets');
+    assert.equal(await css.text(), expectedCss, 'the authenticated view assembles shared Dashboard and private styles in source order');
     assert.equal((await fetchLive(`${view.base}/view.css`)).status, 403, 'nothing without the secret');
     const stranger = await new Promise((done, fail) => {
       request({ host: '127.0.0.1', port: view.link.port, path: `/view.css?k=${view.key}`, headers: { host: 'pullboard.example' } }, (res) => done(res.statusCode)).on('error', fail).end();
