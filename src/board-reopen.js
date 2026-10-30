@@ -1,4 +1,3 @@
-import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { pipelineCause } from '../packages/kernel/index.js';
 import { boardWriteSnapshot } from './board-write-preparation.js';
 import { requireBoardWriteSnapshot } from './board-write-preparation.js';
@@ -118,7 +117,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
       ? board.nativePorts.deriveRigorCause(board, item, { cause, conflict, landingFailure, agentId }) : cause != null ? { cause } : {};
     const returnedWithCause = currentEngine >= RIGOR_AUTO_ENGINE ? { ...returned, ...derivedCause } : { ...derivedCause, ...returned };
     const trigger = logEvent(board, agentId, 'reopen', id, { ...(sourceAdvanceReturn ? { sourceAdvanceReturn } : {}), commit: submittedCommit, note: note.trim() || conflictNote(conflict), judgment: null, ...reservation,
-      ...returnedWithCause, ...(currentEngine >= PIPELINE_CAUSE_ENGINE ? { pipelineCause: pipelineCause({ ...derivedCause, conflict, landingFailure, note }) } : {}) }, returnedAt);
+      ...returnedWithCause, ...(currentEngine >= board.enginePorts.pipelineCauseEngines().pipeline ? { pipelineCause: pipelineCause({ ...derivedCause, conflict, landingFailure, note }) } : {}) }, returnedAt);
     tellFirstRefusal(board, item, reservation, persistShout);
     if (!reservation.reopenFirstRefusal && forMerge && supersedes === undefined && item.item_built_by) persistShout(board, { from: agentId, to: item.item_built_by, text: returnedHeadNotice(id, submittedCommit, conflict) });
     postRigorNotices(board, trigger);

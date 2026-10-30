@@ -190,7 +190,7 @@ test('incomplete engine capabilities refuse before storage exists [C7,B1]', t =>
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
   const ports = native.nativeBoardPorts();
-  for (const key of ['store', 'registry', 'sealSourceAdvance', 'submitHandoffEngines', 'firstRefusalDetail', 'itemPatchDigest']) {
+  for (const key of ['store', 'registry', 'sealSourceAdvance', 'submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest']) {
     const enginePorts = { ...ports.enginePorts };
     delete enginePorts[key];
     assert.throws(() => {
@@ -353,7 +353,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.equal(calls, 1);
   assert.deepEqual(legacy.events(board), before);
   assert.equal(original.store.recordTrainLanding, recordTrainLanding, 'another connection keeps the native provider');
-  for (const name of ['submitHandoffEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor']) {
+  for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor']) {
     const missing = { ...providers };
     delete missing[name];
     assert.throws(() => boardEnginePorts(missing), error => error.code === 'NO_POLICY' && error.message.includes(name));
