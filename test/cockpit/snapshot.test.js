@@ -363,10 +363,11 @@ test("the static export's Pause keeps its box through a press [A10,N26,C7]", { t
         })()`);
         assert.equal(before.playing, true, `${width}: Pause is aimed while replay is running`);
         assert.equal(before.disabled, false, `${width}: Pause starts enabled`);
+        assert.equal(before.label, 'Pause replay', `${width}: the icon-only control keeps its accessible label`);
         await press(chrome, "document.querySelector('#replay-pause')");
         const seen = await chrome.stable('({ witness: window.__pauseEndWitness, total: snapshotReplay.events.length })');
         assert.equal(seen.witness.moves, 1, `${width}: native pointer movement delivers the controlled interleaving`);
-        assert.deepEqual(seen.witness.after, { index: seen.total, playing: false, disabled: true, label: 'Pause' },
+        assert.deepEqual(seen.witness.after, { index: seen.total, playing: false, disabled: true, label: 'Pause replay' },
           `${width}: actual replay end disables the same Pause label during the press`);
         console.log('PULLBOARD_499_END_PRESS ' + JSON.stringify({ width, ...seen }));
       }
