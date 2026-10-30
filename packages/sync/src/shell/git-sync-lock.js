@@ -1,7 +1,23 @@
 /** Git transport leases fence expired writers without changing the generic relay lock [H11,C7]. */
 import { randomUUID } from 'node:crypto';
-import { constants, closeSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import {
+  constants,
+  closeSync,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  basename,
+  dirname,
+  join,
+} from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../src/refused.js';
 

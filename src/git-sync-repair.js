@@ -1,9 +1,21 @@
 /** Recover conflicting local Git-sharing artifacts without rewriting board history [H11,C7]. */
 import { randomUUID } from 'node:crypto';
-import { lstatSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  lstatSync,
+  mkdirSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { gitSyncCompatibility, inspectGitSyncLock, withGitSyncLock } from '../packages/sync/index.js';
-import { gitSyncFiles, readGitSyncMarker } from './git-sync-files.js';
+import {
+  gitSyncCompatibility,
+  inspectGitSyncLock,
+  withGitSyncLock,
+} from '../packages/sync/index.js';
+import {
+  gitSyncFiles,
+  readGitSyncMarker,
+} from './git-sync-files.js';
 import { Refused } from './refused.js';
 
 /** Retain one exact conflicting marker under its own immutable recovery summary. */

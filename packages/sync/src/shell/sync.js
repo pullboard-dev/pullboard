@@ -30,7 +30,10 @@ import {
 } from "../../../../src/git.js";
 import { withGitSyncLock } from './git-sync-lock.js';
 import { Refused } from "../../../../src/refused.js";
-import { gitSyncFiles, gitSyncMarkerLinked } from '../../../../src/git-sync-files.js';
+import {
+  gitSyncFiles,
+  gitSyncMarkerLinked,
+} from '../../../../src/git-sync-files.js';
 import {
   GIT_BOARD_REF,
   validateGitBoardCommit,

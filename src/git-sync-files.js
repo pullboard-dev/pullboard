@@ -1,6 +1,15 @@
 /** Read local Git-sharing metadata without loading transport or touching board state [H11,C7]. */
 import { createHash } from 'node:crypto';
-import { constants, closeSync, existsSync, fstatSync, lstatSync, openSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  constants,
+  closeSync,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
 
