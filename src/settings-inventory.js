@@ -15,7 +15,7 @@ import { repoInfo } from './git.js';
 import {
   machineHome,
   machineSettingsFile,
-} from './machine-home.js';
+} from '../packages/resources/index.js';
 import {
   LINE_SETTING_DEFINITIONS,
   validateLineSetting,

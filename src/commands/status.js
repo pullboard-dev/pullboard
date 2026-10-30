@@ -18,10 +18,8 @@ import { unlinkedRelayStatus } from '../relay-status-fields.js';
 import { ruleProofCounts } from '../rule-proof-counts.js';
 import { memoryHeldRuns } from '../memory-held.js';
 import { readRunnerUtilization } from '../runner-utilization.js';
-import {
-  runnerDeadlineLine,
-  runnerDeadlineRuns,
-} from '../runner-wait.js';
+import { runnerDeadlineLine } from '../../packages/resources/index.js';
+import { runnerDeadlineRuns } from '../runner-wait.js';
 import { reviewQueueLine } from '../review-queue-line.js';
 import {
   productLine,

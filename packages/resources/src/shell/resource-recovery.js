@@ -1,6 +1,11 @@
 /** Shared SQLite generations keep transport recovery separate from cleanup and capacity policy [C7]. */
 import { randomUUID } from 'node:crypto';
-import { recoveryIdentity } from './runner-transport.js';
+
+/** Accept only controller-issued exact-job identities; absence is legacy custody, never proof of cleanup. */
+export function recoveryIdentity(value) {
+  return value?.version === 1 && (value.launchFence === undefined || value.launchFence === 1) && /^[A-Za-z0-9_-]{1,100}$/u.test(value.request ?? '')
+    && /^[a-f0-9-]{36}$/u.test(value.nonce ?? '') && /^[a-f0-9]{64}$/u.test(value.tooling ?? '');
+}
 
 /** Extend existing queues without rewriting legacy holds or changing configured capacity. */
 export function initializeRunnerRecovery(db) {
