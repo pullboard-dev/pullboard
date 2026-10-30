@@ -24,6 +24,7 @@ import { readPlan } from './cells-plan.js';
 import { shardFile } from './cells-plan.js';
 import { unplanned } from './cells-plan.js';
 import { stalePlanRows } from './cells-plan.js';
+import { engineStayTransition } from './cells-engine-stays.js';
 
 /** Exact multiset subtraction keeps duplicate diagnostics from borrowing one old allowance. */
 function additions(before, after) {
@@ -65,8 +66,10 @@ function refuse(problems) {
 }
 
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
-function policyProblems(before, after, beforeMap, afterMap, candidateRoot) {
+function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot) {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
+  const engineStays = engineStayTransition({ beforeRoot: mainRoot, afterRoot: candidateRoot, before, after, afterMap });
+  problems.push(...engineStays.problems);
   const entryProblems = entryPlacementProblems(candidateRoot, after);
   problems.push(...entryProblems);
   const afterEntries = Array.isArray(after.entries) ? after.entries : [];
@@ -103,7 +106,7 @@ function policyProblems(before, after, beforeMap, afterMap, candidateRoot) {
     for (const row of cell.paths) {
       const current = rows.get(row[0]);
       const retired = after.retired?.some(entry => entry.cell === cell.name && JSON.stringify(entry.row) === JSON.stringify(row));
-      if (!current && !retired) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
+      if (!current && !retired && !engineStays.rows.has(row[0])) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
       if (current && current.cell.order > cell.order && !entries.has(row[0])) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
     }
   }
@@ -188,7 +191,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const before = readPlan(mainRoot);
   const after = candidatePlan(candidateRoot);
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
-  const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot);
+  const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot);
   policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));
   policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
