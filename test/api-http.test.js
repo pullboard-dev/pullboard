@@ -1156,12 +1156,12 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   const review = await box.call(box.path + '/moves', { verb: 'next', agent: two.agent, args: { verify: true } });
   assert.equal(review.status, 200, JSON.stringify(review.document));
   assert.equal(review.document.result.item.item_id, id);
-  const missingNote = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: two.agent });
+  const missingNote = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: two.agent, args: { reason: 'BLOCKED' } });
   assert.equal(missingNote.status, 409);
   assert.equal(missingNote.document.error.code, 'NOTE_REQUIRED');
-  const release = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: two.agent, args: { note: 'reviewed the wrong tree' } });
+  const release = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: two.agent, args: { note: 'reviewed the wrong tree', reason: 'OTHER' } });
   assert.equal(release.status, 200, JSON.stringify(release.document));
-  assert.deepEqual(JSON.parse(release.document.event.event_detail), { review: true, reason: 'reviewed the wrong tree', model: 'Test Model' });
+  assert.deepEqual(JSON.parse(release.document.event.event_detail), { review: true, reason: 'reviewed the wrong tree', reasonCode: 'OTHER', model: 'Test Model' });
 });
 
 test('[A2,V2,H16] board-state JSON retains pending and red baselines and removes cleared observations', async (t) => {
