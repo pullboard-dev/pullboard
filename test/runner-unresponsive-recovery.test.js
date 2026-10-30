@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
@@ -22,6 +23,9 @@ function observe(t, live) {
   for (const directory of [bin, worker, root, join(root, 'jobs'), machineHome]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests,
     nodeCommand: process.execPath, healthFailures: 1, stderrLog });
+  const ssh = join(bin, 'ssh'), failure = 'record({ healthProbeFailed: true, stdinBytes }); process.exit(255);';
+  writeFileSync(ssh, readFileSync(ssh, 'utf8').replaceAll(failure,
+    `process.stderr.write(${JSON.stringify('fixture worker start refused\n')}); ${failure}`));
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const script = `
     import { DatabaseSync } from 'node:sqlite';
@@ -75,10 +79,15 @@ test('an unresponsive exact worker restarts through the pinned idle proof on the
   const { actual, probes, healthLine } = observe(t, false);
   assert.equal(actual.recovered, true, JSON.stringify(actual));
   assert.equal(actual.held, undefined);
-  assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'available']);
-  assert.equal(actual.events[1].detail.priorReason, 'WORKER_UNRESPONSIVE');
-  assert.equal(actual.events[1].detail.probe.idle, true);
-  assert.equal(actual.events[1].detail.probe.writable, true);
+  assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'worker-probe-failed', 'available']);
+  assert.equal(actual.events[1].detail.failedProbe.diagnostic.host, HOST);
+  assert.equal(actual.events[1].detail.failedProbe.diagnostic.exitCode, 255);
+  assert.equal(actual.events[1].detail.failedProbe.diagnostic.workerReady, false);
+  assert.equal(actual.events[1].detail.failedProbe.diagnostic.stderr, 'fixture worker start refused\n');
+  assert.equal(actual.events[1].detail.workerState.idle, true);
+  assert.equal(actual.events[2].detail.priorReason, 'WORKER_UNRESPONSIVE');
+  assert.equal(actual.events[2].detail.probe.idle, true);
+  assert.equal(actual.events[2].detail.probe.writable, true);
   assert.equal(probes.length, 2);
   assert.equal(probes[0].healthProbeFailed, true);
   assert.equal(probes[1].code, 0);
@@ -90,6 +99,10 @@ test('an unresponsive worker with a live job stays held and names its actual pid
   assert.equal(actual.recovered, false);
   assert.equal(actual.held.detail, 'WORKER_UNRESPONSIVE');
   assert.match(actual.held.failure.latestProbe.reason, new RegExp('pid ' + actual.owner + '(?:\\D|$)', 'u'));
-  assert.deepEqual(actual.events.map(event => event.kind), ['unavailable']);
+  assert.deepEqual(actual.events.map(event => event.kind), ['unavailable', 'worker-probe-failed']);
+  assert.equal(actual.events[1].detail.failedProbe.diagnostic.host, HOST);
+  assert.equal(actual.events[1].detail.failedProbe.diagnostic.exitCode, 255);
+  assert.equal(actual.events[1].detail.workerState.idle, false);
+  assert.match(actual.events[1].detail.workerState.reason, new RegExp('pid ' + actual.owner + '(?:\\D|$)', 'u'));
   assert.equal(probes.length, 2);
 });
