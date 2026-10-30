@@ -75,7 +75,7 @@ function project(disableRefresh) {
   if (disableRefresh) {
     const file = join(box.repo, 'src/landing-step-merge.js');
     const source = readFileSync(file, 'utf8');
-    const call = 'for (const file of refreshLandingDocs(batch.root)) if (!engines.files.includes(file)) engines.files.push(file);';
+    const call = 'for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
     writeFileSync(file, source.replace(call, '// Mutation control: landing documentation refresh removed.'));
   }
