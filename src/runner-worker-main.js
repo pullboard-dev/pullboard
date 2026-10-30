@@ -1,3 +1,4 @@
+import { scheduledChromeCloneSweep } from './chrome-clone-cleanup.js';
 /** Execute one remote job end to end; stdout is reserved for raw command bytes and stderr for one receipt [C7]. */
 import { checkoutHistory } from './runner-worker-checkout.js';
 import { installDependencies } from './runner-worker-checkout.js';
@@ -166,6 +167,11 @@ export async function main(S) {
       await tracker.verifyAfterGroups();
       tracker.stopMonitoring();
       S.activeDescendantTracker = null;
+    }
+    if (recoveryRoot && !S.transportLost && !S.cleanupTimedOut && Date.now() < S.cleanupDeadline) {
+      S.cleanupStage = 'Chrome clone sweep';
+      try { await scheduledChromeCloneSweep(recoveryRoot, { deadline: S.cleanupDeadline }); }
+      catch { process.stderr.write('PULLBOARD_CHROME_CLONE_SWEEP unavailable\n'); }
     }
     if (lease) {
       S.cleanupStage = 'lease release';
