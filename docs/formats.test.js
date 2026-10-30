@@ -1,4 +1,5 @@
 /** @pullboard-test-input source-tree */
+import { submitHandoffEventContract } from '../test/generated-doc-handoff-fixture.js';
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
 import { recordRelayExclusionIntent } from '../src/relay-exclusion-state.js';
 import assert from 'node:assert/strict';
@@ -777,7 +778,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
 
   const { rows, actors } = recordEventContract();
   const repairedRows = exerciseUpgrade();
-  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract()];
+  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...await submitHandoffEventContract(t)];
   const actual = {};
   const actorByKind = {
     join: 'joining agent',
@@ -814,6 +815,8 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     'sentinel-failure': 'sentinel',
     person_proposal: 'proposing agent',
     source_advanced: 'coordinator',
+    'submit-handoff': 'queued builder',
+    submit_handoff_returned: 'queued builder',
   };
   for (const row of actualRows) {
     const kind = row.event_kind;

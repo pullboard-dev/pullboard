@@ -230,8 +230,11 @@
   ["src/known-main-owner-pattern-engine.js","packages/state/src/shell/known-main-owner-pattern-engine.js","rule"],
   ["src/move-history/179.json","packages/state/src/shell/move-history/179.json","rule"],
   ["src/move-history/180.json","packages/state/src/shell/move-history/180.json","rule"],
+  ["src/submit-handoff-engine.js","packages/state/src/core/submit-handoff-engine.js","rule"],
+  ["src/engine-move-queue-submit-handoff.js","packages/state/src/shell/engine-move-queue-submit-handoff.js","rule"],
   ["src/train-check-repoint-engine.js","packages/state/src/core/train-check-repoint-engine.js","rule"],
-  ["src/move-history/181.json","packages/state/src/shell/move-history/181.json","rule"]
+  ["src/move-history/181.json","packages/state/src/shell/move-history/181.json","rule"],
+  ["src/move-history/182.json","packages/state/src/shell/move-history/182.json","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",

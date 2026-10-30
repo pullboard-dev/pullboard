@@ -1,3 +1,4 @@
+import { isSubmitHandoffWorker } from '../submit-handoff-origin.js';
 /** Helpers for `pullboard submit`: changed files, stacked work and the submission record. Split from src/cli.js, which re-exports it [C7]. */
 import { reviewerStartup } from '../next-steps.js';
 import * as store from '../board.js';
@@ -76,7 +77,7 @@ export async function reportSubmission(ctx, id, commit, gate, doctrine = []) {
   git(root, ['update-ref', pin, commit]);
   const submission = { id, commit, pin, gate, ...(doctrine.length ? { doctrine } : {}) };
   if (ctx.submissionResult) ctx.submissionResult.value = submission;
-  try {
+  if (!isSubmitHandoffWorker(ctx)) try {
     const { deliverActivity, activityDeliveryLines } = await import('../../packages/activity/index.js');
     const delivery = await deliverActivity(ctx, { afterSubmit: true, directShouts: false }, { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard });
     submission.activity = { ...delivery.activity, budget: delivery.budget };

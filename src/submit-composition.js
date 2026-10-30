@@ -25,7 +25,7 @@ const MAX_MOVES = 5;
  *
  * @param {string} root the submitting worktree
  * @param {{ id: number, proofCommit: string, proved: string, item: any, check: string|null, readTrunk: () => { commit: string } }} proof
- * @param {{ selectAffectedTests: Function, explicitCheckFiles: Function }} services
+ * @param {{ selectAffectedTests: Function, explicitCheckFiles: Function, onMergeFailure?: (error: Error) => void }} services
  * @returns {Promise<{ commit: string, evidence: null | { proofCommit: string, merge: string, from: string, to: string, moved: string[] } }>}
  */
 export async function composeAfterProof(root, { id, proofCommit, proved, item, check, readTrunk }, services) {
@@ -45,6 +45,7 @@ export async function composeAfterProof(root, { id, proofCommit, proved, item, c
     try {
       git(root, ['merge', '--no-ff', '--no-edit', '-m', `Merge main ${trunk.commit.slice(0, 12)} into #${id} after its proof; the main move touched none of its files`, trunk.commit]);
     } catch (error) {
+      services.onMergeFailure?.(error);
       try { git(root, ['merge', '--abort']); } catch { /* Nothing was left to abort; the refusal below names the failed merge. */ }
       throw new Refused('MAIN_NOT_COMPOSED', `main moved to ${trunk.commit.slice(0, 12)} during the submission proof and merging it failed (${String(error.stderr || error.message).trim().split('\n')[0]}); merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
     }

@@ -1,3 +1,12 @@
+import { ENGINE_VERSION } from './engine-metadata.js';
+import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
+import { firstRefusalDetail } from './claims.js';
+import { itemPatchDigest } from './item-patch-state.js';
+/** Supply current native engine thresholds without duplicating their values. */
+function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE }; }
+
+import { submitHandoffBoardRoot } from './submit-handoff-origin.js';
+import { sealSubmitHandoffQueue } from './submit-handoff-seal.js';
 import {
   validateQuarantineProofIds,
   quarantineVerdictSnapshot,
@@ -261,13 +270,14 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    submitHandoffEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
     beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,
