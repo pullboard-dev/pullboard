@@ -1,4 +1,4 @@
-import { isSubmitHandoffWorker, copySubmitHandoffOrigin, submitHandoffPolicy } from '../submit-handoff-origin.js';
+import { isSubmitHandoffWorker, copySubmitHandoffOrigin, submitHandoffPolicy, requireSubmitHandoffExecution } from '../submit-handoff-origin.js';
 import { blockingFailures } from '../quarantine-verdict.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
@@ -331,6 +331,7 @@ export async function submitHere(ctx, id, infra) {
     }
     return prepareItemPatchSubmit(root, board, held, commit);
   });
+  withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
   await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.

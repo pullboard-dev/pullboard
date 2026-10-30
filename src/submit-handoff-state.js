@@ -1,3 +1,4 @@
+import { boardWriteSnapshot, requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { insertShout } from './board-shout.js';
 import { submitHandoff, pendingSubmitHandoff } from './submit-handoff-read.js';
 export { submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './submit-handoff-read.js';
@@ -10,6 +11,7 @@ import { getItem, now } from './board-query.js';
 import { Refused } from './refused.js';
 
 const PREFIX = 'submit_handoff:';
+const PREPARED = new WeakMap();
 const SHA = /^[a-f0-9]{40}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const JOB = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
@@ -34,10 +36,27 @@ function candidate(value) {
   }
 }
 
+/** Capture source outside the writer and bind the prepared values to one native connection and snapshot. */
+export function prepareQueueSubmitHandoff(board, id, options) {
+  candidate(options);
+  const previous = PREPARED.get(options);
+  if (previous?.board === board && previous.id === id) return options;
+  const snapshot = boardWriteSnapshot(board);
+  board.enginePorts.sealSubmitHandoffQueue(board, id, options);
+  requireBoardWriteSnapshot(board, snapshot, 'queueSubmitHandoff');
+  const prepared = Object.freeze({ ...options });
+  PREPARED.set(prepared, { board, id, snapshot });
+  return prepared;
+}
+
 /** Record one candidate for the existing live holder; repeated sends never schedule another gate. */
 export function queueSubmitHandoff(board, id, options) {
   candidate(options);
+  const prepared = board.executionEngineVersion === undefined ? prepareQueueSubmitHandoff(board, id, options) : options;
+  const snapshot = PREPARED.get(prepared)?.snapshot;
+  options = prepared;
   return atomic(board, () => {
+    if (snapshot) requireBoardWriteSnapshot(board, snapshot, 'queueSubmitHandoff');
     const item = getItem(board, id);
     const until = Date.parse(item.item_lease_until);
     if (item.item_status !== 'claimed' || item.item_owner !== options.agentId

@@ -54,6 +54,8 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
   const check = `${word(process.execPath)} ${word(script)}`;
   const id = document(box.run(box.repo, 'add', 'web', 'Captured submit source', '--specs', 'G1',
     '--criterion', 'The captured candidate passes its real gate.', '--check', check, '--wait', '--json')).item.item_id;
+  const third = document(box.run(box.repo, 'add', 'web', 'Third ordinary build', '--specs', 'G1',
+    '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
   const second = document(box.run(box.repo, 'add', 'web', 'Independent second build', '--specs', 'G1',
     '--criterion', 'The second build remains separate.', '--check', 'true', '--wait', '--json')).item.item_id;
   document(box.run(box.web, 'claim', String(id), '--json'));
@@ -65,12 +67,38 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
     const job = state(box, id).job;
     if (job) await helpers.waitFor(() => {
       const current = state(box, id).job;
-      return current && !['queued', 'running'].includes(current.state)
-        && !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id, 'source'));
-    }, 'queued worker completion and normal temporary worktree removal', 120000);
+      return current && !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.id, 'source'));
+    }, `normal queued worker cleanup: ${workerDiagnostic(box, id)}`);
     helpers.cleanup();
   });
-  return { ...box, helpers, id, second, commit, release, started };
+  return { ...box, helpers, id, second, third, commit, release, started };
+}
+
+
+/** Retain a bounded native failure witness before cleanup can hide a failed worker result. */
+function workerDiagnostic(box, id) {
+  const current = state(box, id);
+  if (!current.job) return JSON.stringify(current);
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.job.id);
+  const log = join(directory, 'worker.log');
+  return JSON.stringify({ item: current.item.item_status, job: current.job,
+    worker: existsSync(log) ? readFileSync(log, 'utf8').slice(-6000) : null });
+}
+
+/** Wait for a real terminal state, exposing a stopped worker's retained refusal instead of hiding it in teardown. */
+async function waitJob(box, expected) {
+  try { await box.helpers.waitFor(() => {
+    const current = state(box, box.id);
+    if (current.job?.state === expected) return true;
+    if (current.job) {
+      const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.job.id);
+      if (existsSync(join(directory, 'refusal.json')) && !existsSync(join(directory, 'source'))) {
+        assert.fail(`worker stopped before native completion: ${workerDiagnostic(box, box.id)}`);
+      }
+    }
+    return false;
+  }, `native ${expected} result`, 120000); }
+  catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, box.id)}`, { cause: error }); }
 }
 
 test('queued submit returns before its gate and remains bound when the builder commits and claims again [V4,H16,E18]', async t => {
@@ -94,6 +122,9 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(state(box, box.id).item.item_status, 'claimed', 'unproved work is never reviewable');
   assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
   document(box.run(box.web, 'claim', String(box.second), '--json'));
+  const third = box.run(box.web, 'claim', String(box.third), '--json');
+  assert.equal(third.code, 1);
+  assert.equal(JSON.parse(third.out).error.code, 'ONE_CLAIM');
   const duplicate = state(box, box.id).job;
   assert.equal(duplicate.commit, box.commit);
   writeFileSync(box.release, 'release\n');
@@ -121,7 +152,7 @@ test('a queued red retains the exact canonical refusal and builder first refusal
   await box.helpers.waitFor(() => existsSync(box.started), 'actual red candidate execution', 120000);
   document(box.run(box.web, 'claim', String(box.second), '--json'));
   writeFileSync(box.release, 'release\n');
-  await box.helpers.waitFor(() => state(box, box.id).job?.state === 'red', 'canonical gate refusal', 120000);
+  await waitJob(box, 'red');
   const completed = state(box, box.id);
   assert.equal(completed.item.item_status, 'open');
   assert.equal(completed.job.error.code, 'GATE_RED');

@@ -465,4 +465,4 @@ export function claim(board, id, options) {
   return applyPreparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
 
-export { queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './submit-handoff-state.js';
+export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './submit-handoff-state.js';

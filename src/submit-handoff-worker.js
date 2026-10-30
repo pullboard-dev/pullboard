@@ -7,7 +7,7 @@ import { gitSpawnSync } from './git-adapter.js';
 import { cleanGitEnvironment } from './git.js';
 import { context, withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
-import { bindSubmitHandoffOrigin, submitHandoffRoot } from './submit-handoff-origin.js';
+import { bindSubmitHandoffOrigin, submitHandoffRoot, isSubmitHandoffWorker } from './submit-handoff-origin.js';
 import { submitHandoff } from './submit-handoff-read.js';
 import { submitHere } from './commands/submit.js';
 import { Refused } from './refused.js';
@@ -50,7 +50,7 @@ export async function runSubmitHandoffWorker(requestFile) {
   } catch (error) {
     const failure = { code: 1, ...refusalDocument(error, { caller: 'seat' }) };
     writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
-    if (ctx) {
+    if (ctx && isSubmitHandoffWorker(ctx)) {
       try {
         const job = withBoard(ctx, board => submitHandoff(board, request.item));
         if (job?.id === request.job) await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [request.item,

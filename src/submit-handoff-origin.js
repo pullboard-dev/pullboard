@@ -81,3 +81,12 @@ export function submitHandoffPolicy(ctx) {
   if (!contains(ctx.info.root, origin.main, mainPolicy(ctx.info.root).commit)) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'current main no longer contains the queued accepted policy');
   return policyAt(ctx.info.root, origin.main);
 }
+
+/** Require the captured execution tree again after canonical companion preparation, before any proof. */
+export function requireSubmitHandoffExecution(ctx, board, commit, tree) {
+  const origin = CONTEXTS.get(ctx);
+  if (!origin) return;
+  submitHandoffActor(ctx, board);
+  const job = submitHandoff(board, origin.itemId);
+  if (job.executionCommit !== commit || job.executionTree !== tree) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'the deterministic composition differs from the immutable queued execution source');
+}
