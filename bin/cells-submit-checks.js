@@ -91,8 +91,7 @@ function touchedCells(files, before, after, inventories) {
   if (files.some(sharedPolicy)) return after.cells.map(cell => cell.name);
   const known = file => [before, after].some(plan => plan.cells.some(cell => file === cell.frontDoor || file.startsWith(cell.root + '/')
     || cell.paths.some(row => row[0] === file || row[1] === file)));
-  if (files.some(file => !known(file))) return after.cells.map(cell => cell.name);
-  const affected = new Set(files);
+  const affected = new Set(files.filter(known));
   let grew = true;
   while (grew) {
     grew = false;
@@ -149,6 +148,9 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
   if (policy.length) return { cells: [], problems: policy };
+  const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
+  const direct = touchedCells(changed, before, after, []);
+  if (!direct.length) return { cells: [], problems: [] };
   const oldInventory = cellInventory(mainRoot, parsers), newInventory = cellInventory(candidateRoot, parsers);
   const oldReport = cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
@@ -156,7 +158,6 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   newReport.transition = oldReport.transition;
   const baseline = existsSync(join(mainRoot, CELL_BASELINE_DESCRIPTOR)) ? readCellLintBaseline(mainRoot) : null;
   if (!baseline) throw new Refused('CELLS_SUBMIT', 'accepted main lacks a complete cell lint baseline');
-  const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
   const problems = cellLintGrowth(newReport, baseline, { enforcedOnly: true })
     .map(row => `cell lint ${row.metric}:${row.key} rose to ${row.actual} over ${row.allowed}`);
@@ -165,6 +166,9 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     const oldCuts = previous ? checkCuts(mainRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory }) : [];
     const newCuts = checkCuts(candidateRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory });
     problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}`));
+    const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
+      .some(([from, to]) => [mainMap, candidateMap][index].get(from) === to));
+    if (!moved) continue;
     const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline }) : [];
     const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline });
     problems.push(...additions(oldMoved, newMoved).map(problem => `${name} --moved: ${problem}`));

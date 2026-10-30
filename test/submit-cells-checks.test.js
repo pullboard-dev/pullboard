@@ -266,7 +266,7 @@ test('accessor arrays and generator callers retain ordinary real binding computa
 test('eligible runtime context changes require a fresh real binding compiler observation [C7,D3]', t => {
   const calls = bindingCompilerCalls(t), before = process.env.NODE_OPTIONS;
   const owned = new URL('../src/browser-slot-guard.js', import.meta.url).href;
-  const next = before === `--import=${owned}` ? `--import ${owned}` : `--import=${owned}`;
+  const next = `${before ?? ''} --import=${owned}`.trim();
   try {
     withBindingReadCache(() => {
       bindingReadsForModules(bindingModules());
@@ -281,6 +281,10 @@ test('eligible runtime context changes require a fresh real binding compiler obs
 
 test('cached and canonically bypassed complete submit diagnostics agree with actual parser and binding work [C7,D3,CD64]', async t => {
   const box = plannedFixture(t, box => {
+    box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+    box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
+    box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
     box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nexport function observe(root) { return readFileSync(join(root, 'src/refused.js'), 'utf8'); }\n");
     git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');
   });
@@ -326,4 +330,28 @@ test('submit reads canonical 100-order shards and refuses alternate shard identi
     await assert.rejects(requireSubmitCells(box.root, box.main, forged, box.item), /CELLS_PLAN_SHARD/u,
       'an extra zero or mismatched name cannot change canonical shard identity');
   }
+});
+
+
+test('scheduled rows stay unmoved while mapped cells retain real missing-body checks [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
+  box.put('src/new.css', 'body { color: red; }\n');
+  kernel.paths.push(['src/new.css', 'packages/kernel/src/shell/new.css', 'rule']);
+  writePlan(box.root, plan);
+  assert.deepEqual((await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)).problems, [],
+    'a scheduled asset in an unmoved cell does not require its future body');
+  box.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --moved: missing/u,
+    'an actual mapped move still refuses missing implementation bytes');
+});
+
+test('outside-cell changes do not widen touched cells but still refuse unplaced source [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  box.put('test/ordinary.test.js', '// real outside-cell test change\n');
+  const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
+  assert.deepEqual(result.cells, []);
+  assert.deepEqual(result.problems, []);
+  box.put('src/unplanned.js', 'export const value = 1;\n');
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
 });
