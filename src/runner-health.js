@@ -10,18 +10,20 @@ import { shellWord } from './runner-remote-tooling.js';
 import { sshEnvironment } from './runner-remote-tooling.js';
 import { trustedTooling } from './runner-remote-tooling.js';
 import { probeRunnerTransport } from './runner-transport.js';
+import { effectiveRunners } from './runner-slots.js';
+import { refreshRunnerMeasurements } from './runner-slots.js';
 import { transportText } from './runner-result.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
 /** Ask the pinned worker for exact cleanup or an explicitly requested idle and writable proof. */
-export async function probeRunnerHealth(runner, previous, { idle = false } = {}) {
+export async function probeRunnerHealth(runner, previous, { idle = false, restart = false } = {}) {
   runner = validateRunner(runner);
   const { worker, tooling, runtime } = trustedTooling();
   const nonce = randomUUID();
-  const request = { nonce, ...(idle ? { idle: true, ...(previous === undefined ? {} : { previous }) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
+  const request = { nonce, ...(idle || restart ? { idle: true, ...(previous === undefined ? {} : { previous }) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
   const remote = remoteWorkerCommand(runner, worker, tooling, runtime,
-    ' --health ' + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
+    (restart ? ' --restart ' : ' --health ') + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
     '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=2', '--', runner.host, remote];
   const child = spawn('ssh', args, { env: sshEnvironment(), stdio: ['ignore', 'pipe', 'pipe'] });
@@ -38,18 +40,19 @@ export async function probeRunnerHealth(runner, previous, { idle = false } = {})
   try { reply = JSON.parse(output); } catch { /* Unknown or foreign replies do not attest health. */ }
   const workerReady = !error && !timedOut && result.code === 0 && !result.signal
     && reply?.version === 1 && reply.nonce === nonce && reply.worker === true;
-  return { healthy: Boolean(workerReady && (idle ? reply.idle === true && reply.writable === true : reply.cleanup === true)),
+  return { healthy: Boolean(workerReady && (idle || restart ? reply.idle === true && reply.writable === true : reply.cleanup === true)),
     ...(!workerReady ? { diagnostic: { host: runner.host, at: new Date().toISOString(), workerReady: false,
       exitCode: result.code, signal: result.signal, timedOut, error: failure,
       stderr: transportText(stderr), stderrBytes, responseBytes: Buffer.byteLength(output) } } : {}),
     ...(workerReady && reply.idleRequired === true ? { idleRequired: true } : {}),
-    ...(idle ? { idle: workerReady && reply.idle === true, writable: workerReady && reply.writable === true } : {}),
-    step: !workerReady ? 'worker readiness' : idle ? 'idle proof' : 'cleanup',
+    ...(idle || restart ? { idle: workerReady && reply.idle === true, writable: workerReady && reply.writable === true } : {}),
+    ...(restart && workerReady ? { restarted: Array.isArray(reply.restarted) ? reply.restarted.filter(Number.isSafeInteger).slice(0, 32) : [] } : {}),
+    step: !workerReady ? 'worker readiness' : idle || restart ? 'idle proof' : 'cleanup',
     reason: workerReady ? reply.reason : 'pinned worker did not answer health request', ...result, timedOut, error };
 }
 
 /** Supply canonical late-bound runner operations to an actual higher gate composition root. */
 export function runnerExecutionServices(front = { runOnRunner, runOnRunnerAsync, probeRunnerHealth }) {
   return Object.freeze({ runOnRunner: front.runOnRunner, runOnRunnerAsync: front.runOnRunnerAsync, sampleRunnerLoad, localRunnerDescriptor,
-    carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth: front.probeRunnerHealth });
+    carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth: front.probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements });
 }

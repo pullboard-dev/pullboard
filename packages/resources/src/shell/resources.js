@@ -659,12 +659,12 @@ function timingDrainEvents(db) {
 }
 
 /** Start due health work on its own connection so a free executor never waits for another host's probe. */
-function startRunnerRecovery(db, file, runners, probe, idleProbe) {
+function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe) {
   if (typeof probe !== 'function' || !db.prepare('SELECT 1 FROM runner_unavailable WHERE probe_after<=? AND probe_until<=? LIMIT 1').get(Date.now(), Date.now())) return;
   let recovery;
   try { recovery = open(file); }
   catch { process.stderr.write('runner recovery storage unavailable; failed hosts remain unavailable\n'); return; }
-  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe }).finally(() => recovery.close())
+  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe, restartProbe }).finally(() => recovery.close())
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
@@ -739,7 +739,7 @@ export function recordRunnerGui(host, gui) {
 }
 
 /** Serialize runner changes with admission; removal may drain active leases instead of refusing. */
-export function updateRunnerSettings(host, persist, { drain = false } = {}) {
+export function updateRunnerSettings(host, persist, { drain = false, observation = false } = {}) {
   if (typeof host !== 'string' || !host.trim() || host.trim() !== host || typeof persist !== 'function') {
     throw new Refused('BAD_RUNNER_SETTINGS', 'a runner host and settings persistence callback are required');
   }
@@ -752,6 +752,8 @@ export function updateRunnerSettings(host, persist, { drain = false } = {}) {
       const draining = drain && held && db.prepare('SELECT runner FROM runner_draining WHERE host = ?').get(host);
       if (draining) return { ...JSON.parse(draining.runner), draining: true };
       const result = persist();
+      // A capacity observation is not cleanup evidence or an explicit host registration.
+      if (observation) return result;
       if (drain && held) {
         // Dispatch settings no longer name this host. Keep its tombstone even after the last
         // release, so a stale provider cannot offer it again; explicit registration clears it.
@@ -1162,7 +1164,7 @@ export async function takeResource(options) {
       }));
       lateAdmissionClosed ||= Boolean(acquired.state.runnerDeadline);
       if (acquired.acquired) {
-        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe);
+        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe);
         runnerDispatched ||= Boolean(acquired.runner);
         lateRunnerDispatch = acquired.lateRunnerDispatch ?? lateRunnerDispatch;
         if (acquired.state.runnerDeadline && !acquired.runner) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
@@ -1282,7 +1284,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe })) continue;
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe })) continue;
       await pause(POLL_MS);
     }
   } catch (error) {

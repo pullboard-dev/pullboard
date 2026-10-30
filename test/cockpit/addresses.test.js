@@ -369,7 +369,15 @@ test('back, forward and reload keep the place [N38,N26]', { timeout: 180_000 }, 
       ['[data-tab="items"]', '/items/pipeline', 'items'], ['[data-items-view="list"]', '/items', 'items'],
       ['#chain .row[data-item="2"]', '/items/2', 'items'],
     ];
-    for (const [selector, address, pane] of steps) journey.push(await onePlace(chrome, `document.querySelector(${JSON.stringify(selector)})`, address, pane, alpha.repo));
+    for (const [selector, address, pane] of steps) {
+      if (selector === `#feed #shout-${shout.shout_id} .text`) {
+        const beforeConversation = await history(chrome);
+        await press(chrome, 'document.querySelector(\'[data-shout-thread="none"]\')');
+        await settled(chrome, `!!document.querySelector('#feed #shout-${shout.shout_id} .text')`);
+        assert.deepEqual(await history(chrome), beforeConversation, 'opening a conversation preserves the current Shouts address');
+      }
+      journey.push(await onePlace(chrome, `document.querySelector(${JSON.stringify(selector)})`, address, pane, alpha.repo));
+    }
     const unchanged = await history(chrome);
     await press(chrome, 'document.querySelector(\'#chain .row[data-item="2"]\')');
     await settled(chrome, SCRIPT);
@@ -440,7 +448,7 @@ async function shoutLayout(chrome, id) {
       return { left: rect.left + scrollX, top: rect.top + scrollY, width: rect.width, height: rect.height };
     };
     const heading = card?.querySelector('h2');
-    return { card: box(card), avatar: box(card?.querySelector('.avatar')), header: box(card?.querySelector('header')),
+    return { card: box(card), avatar: box(card?.querySelector('.avatar')), text: box(card?.querySelector('.text')), header: box(card?.querySelector('header')),
       heading: heading ? { tag: heading.tagName, text: heading.textContent } : null,
       found: card?.classList.contains('found') ?? false };
   })())`));
@@ -461,8 +469,11 @@ test('an addressed shout is highlighted without changing its layout [N26,N38]', 
         await chrome.waitFor(`innerWidth === ${width}`);
         await openAddress(chrome, server, '/shouts');
         await assertPlace(chrome, '/shouts', 'shouts', alpha.repo);
+        await press(chrome, 'document.querySelector(\'[data-shout-thread="none"]\')');
+        await settled(chrome, `!!document.querySelector('#shout-${shout.shout_id} .text')`);
         const before = await shoutLayout(chrome, shout.shout_id);
-        assert.ok(before.card && before.avatar && before.header, `${width}px ${scheme}: the unaddressed shout has its layout boxes`);
+        assert.ok(before.card && before.text && before.header, `${width}px ${scheme}: the opened conversation has its message layout boxes`);
+        assert.equal(before.avatar, null, 'the approved conversation has no avatar');
         assert.equal(before.heading, null, `${width}px ${scheme}: the unaddressed shout has no detail heading`);
         await openAddress(chrome, server, `/shouts/${shout.shout_id}`);
         await assertPlace(chrome, `/shouts/${shout.shout_id}`, 'shouts', alpha.repo);
@@ -473,7 +484,8 @@ test('an addressed shout is highlighted without changing its layout [N26,N38]', 
         assert.equal(after.heading?.text, `Shout #${shout.shout_id}`, `${width}px ${scheme}: heading names the shout`);
         assert.equal(after.found, true, `${width}px ${scheme}: addressed card is highlighted`);
         assert.deepEqual(after.card, before.card, `${width}px ${scheme}: addressed card keeps its document-space box`);
-        assert.deepEqual(after.avatar, before.avatar, `${width}px ${scheme}: avatar stays in place`);
+        assert.equal(after.avatar, null, 'addressing never adds an avatar');
+        assert.deepEqual(after.text, before.text, `${width}px ${scheme}: the native message text stays in place`);
         assert.deepEqual(after.header, before.header, `${width}px ${scheme}: header stays in place`);
       }
     }

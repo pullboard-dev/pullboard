@@ -1,4 +1,3 @@
-import { validateQuarantineGate } from './quarantine.js';
 import { flakeLedger as nativeFlakeLedger } from './flakes.js';
 /** Coordinator landing parallel step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
@@ -37,7 +36,7 @@ function savedCandidateResult(state, candidate) {
   if (candidate.error) throw new Refused(candidate.error.code, candidate.error.message);
   const gate = candidate.gate;
   if (gate?.blockingVerdict) {
-    try { validateQuarantineGate(state.board, gate); } catch { return null; }
+    try { state.landingPorts.validateQuarantineGate(state.board, gate); } catch { return null; }
   }
   return { batch: candidate.snapshot, gate: gate ? { ...gate, output: readFileSync(gate.logPath, 'utf8') } : null };
 }
@@ -98,7 +97,7 @@ async function parallelPrefixes(state, entries) {
         if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
         let cached = recorded?.affectedGate === affectedGate ? recorded : null;
         if (cached?.blockingVerdict) {
-          try { validateQuarantineGate(state.board, cached); } catch { cached = null; }
+          try { state.landingPorts.validateQuarantineGate(state.board, cached); } catch { cached = null; }
         }
         if (cached && (completeGate(cached) || !coveredFailures(state, cached))) return { cached };
         const prior = claims.get(tree);
