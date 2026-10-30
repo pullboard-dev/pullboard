@@ -41,7 +41,10 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
   box.run(alpha.repo, 'milestone', 'add', '0.9.3', '--note', 'PRIVATE shipment note must never appear in Last shipped.\nSecond line.', '--items', '6');
   box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--note', 'Current release.', '--items', '1,2,3,4,5');
   box.run(alpha.repo, 'milestone', 'ship', '0.9.3', '--next', '0.9.4: Restructure for Speed and Cost');
-  const shipped = JSON.parse(box.run(alpha.repo, 'roadmap', '--json')).milestones.find(milestone => milestone.name === '0.9.3');
+  const roadmap = JSON.parse(box.run(alpha.repo, 'roadmap', '--json'));
+  const shipped = roadmap.milestones.find(milestone => milestone.name === '0.9.3');
+  const currentRelease = roadmap.milestones.find(milestone => milestone.name === '0.9.4: Restructure for Speed and Cost');
+  const queuePositionById = new Map(currentRelease.items.map(item => [`#${item.id}`, String(item.position)]));
   const shippedDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(Date.parse(shipped.shipped.at)) + ' · on npm';
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-roadmap-redesign-'));
@@ -88,7 +91,8 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       const rowsById = new Map(result.rows.map(row => [row.id, row]));
       assert.equal(rowsById.size, 5, `${width}: the release shows each of its five items once`);
       assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Ready', 'Building', 'In review', 'Sent back'], `${width}: each item has its approved plain lifecycle chip`);
-      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.order), ['1', '2', '3', '4', '5'], `${width}: each item shows its own take-order number`);
+      assert.equal(queuePositionById.size, 5, `${width}: the roadmap API gives every release item a queue position`);
+      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.order), ['#1', '#2', '#3', '#4', '#5'].map(id => queuePositionById.get(id)), `${width}: each item shows its authoritative queue position`);
       assert.ok(result.rows.every(row => row.icon && row.titleLines === 1), `${width}: each row has a state icon and one-line title`);
       const dependent = result.rows.find(row => row.id === '#2');
       assert.equal(dependent.after, 'after #1', `${width}: the dependency is shown quietly after its title`);
