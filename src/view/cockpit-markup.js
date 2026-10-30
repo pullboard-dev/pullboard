@@ -31,7 +31,6 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 <header class="top">
   <nav class="tabs" id="tabs" aria-label="Board">
     <button class="tab" data-tab="dashboard" type="button">Dashboard</button>
-    <button class="tab" data-tab="home" type="button">Home</button>
     <button class="tab" data-tab="items" type="button">Items</button>
     <button class="tab" data-tab="shouts" type="button">Shouts</button>
     <button class="tab" data-tab="spec" type="button">Spec</button>
@@ -71,7 +70,6 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </section>
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="dashboard" id="dashboard" class="dashboard" aria-label="Dashboard"></section>
-  <section data-pane="home" class="home" aria-label="Home"><section class="card-panel home-card" id="home-rules" aria-label="Your rules"></section><section class="card-panel home-card home-capacity" id="home-capacity" aria-label="Useful agent capacity"></section><section class="card-panel home-card" aria-label="Needs you"><h2>Needs you</h2><ol class="needs home-needs" id="home-needs"></ol><p class="empty" id="home-calm" hidden>Nothing needs you.</p></section></section>
   <section data-pane="items" class="two">
     <div class="primary">
       <section class="card-panel proof-stats" id="proof-stats" aria-label="Board proof stats" hidden></section>

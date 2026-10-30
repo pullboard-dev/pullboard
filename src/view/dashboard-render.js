@@ -1,5 +1,13 @@
-/** Render the approved Dashboard; all numbers come from its snapshot model, never mockup values [N26]. */
-export function dashboardHtml(model, { needs = '', progress = '', deferQuiet, floorHref = null, locale = 'en-US', timeZone = 'UTC' } = {}) {
+/**
+ * Render the approved Dashboard; all numbers come from its snapshot model, never mockup values [N26].
+ * @param {object} model - The Dashboard snapshot model.
+ * @param {object} options - Prepared person-facing cards and presentation settings.
+ * @param {string} options.needs - Shared Needs-you markup.
+ * @param {string} options.rules - Rules-card markup retained from the retired Home pane.
+ * @param {string} options.capacity - Capacity-card markup retained from the retired Home pane.
+ * @returns {string} Dashboard markup.
+ */
+export function dashboardHtml(model, { needs = '', progress = '', rules = '', capacity = '', deferQuiet, floorHref = null, locale = 'en-US', timeZone = 'UTC' } = {}) {
   const m = model;
   /** Escape both text and attribute values supplied by a board. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
@@ -28,6 +36,8 @@ export function dashboardHtml(model, { needs = '', progress = '', deferQuiet, fl
   const six = m.pace ? m.pace.last6h/6 : null, two = m.pace ? m.pace.last2h/2 : null;
   const hero = '<section class="dash-card dash-hero"><div><h1 title="Agents building, reviewing, or between items in the current board snapshot">'+m.totals.working+(m.totals.working===1?' agent at work.':' agents at work.')+'</h1><p class="dash-accent" title="Items landed during the last 24 hours">'+count(m.totals.day)+' landed in the last 24 hours.</p><div class="dash-chips"><span>'+icon('clock')+'Last 4 hours</span>'+[['recent','landed','land','Items landed during the last 4 hours'],['passed','passed review','pass','Recorded review acceptances during the last 4 hours'],['sentBack','sent back to fix','back','Recorded rejections and reopenings during the last 4 hours'],['shouts','shouts to you','msg','Shouts addressed to you during the last 4 hours']].map(([key,label,symbol,source])=>'<span title="'+source+'">'+icon(symbol)+count(m.totals[key])+' '+label+'</span>').join('')+'</div></div><div class="dash-rate" title="Recorded item landings: hourly pace over the last 6 and 2 hours, and the all-time total"><b data-dashboard-stat="pace6" data-value="'+esc(six)+'">'+(six===null?'—':six.toFixed(1))+'</b> items an hour<small>today’s pace, the last 6 hours</small><small>'+(two===null?'—':two.toFixed(1))+' /h last 2 h · '+count(m.totals.allTime)+' landed all time</small></div><span class="visually-hidden" data-dashboard-stat="building" data-value="'+m.claims.length+'">'+m.claims.length+' building</span></section>';
   const needsCard = card('Needs you', needs ? '<ol class="needs home-needs">'+needs+'</ol>' : '<p><b>Nothing needs you.</b> When a decision is yours, it shows up here and on your phone.</p>');
+  const rulesCard = rules ? '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">'+rules+'</section>' : '';
+  const capacityCard = capacity ? '<section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">'+capacity+'</section>' : '';
   /** Current holding actors and elapsed stays come from the same claims as the headline. */
   const flight = (label, entries, kind) => {
     /** Render a real in-flight row without changing its holding state. */
@@ -84,5 +94,5 @@ export function dashboardHtml(model, { needs = '', progress = '', deferQuiet, fl
     const caption = '<p data-stats-as-of="'+esc(current.until)+'">As of '+esc(stamp(current.until))+'; '+esc(observed.durationMinutes)+'-minute windows: '+esc(stamp(current.since))+' to '+esc(stamp(current.until))+' versus '+esc(stamp(previous.since))+' to '+esc(stamp(previous.until))+'.</p>';
     return card('Window comparison', '<details class="dash-comparison" data-dashboard-disclosure="comparison"><summary>Compare the last two windows</summary>'+caption+'<table><thead><tr><th>Metric</th><th>Current</th><th>Previous</th><th>Change</th></tr></thead><tbody>'+totals+idle+stages+'</tbody></table><p>Idle reasons use all observed seat-hours as their denominator and add up to the idle share; older reasons remain unknown. Stage shares use the five recorded stage durations. Rework is time returned to open. Share changes are percentage points.</p></details>');
   };
-  return hero+needsCard+comparison()+shipping+'<div class="dash-two">'+card('Landed per hour',m.complete?bars:'<p>Loading complete landing history…</p>')+card('Agent time',m.complete?split:'<p>Loading complete agent history…</p>')+'</div>'+agents+landing+'<div class="dash-three">'+listCard('Just landed',m.landed.map(row=>({entry:row.item,at:row.at})),'All landed in Activity','data-tab="activity"')+listCard('In review',m.inReview.map(entry=>({entry,at:m.last(entry,'submit')})),'All in review, oldest first','data-dashboard-list="review"')+listCard('Next up',m.next.map(entry=>({entry,at:Date.parse(entry.updatedAt)||m.now})),'All ready, in rank order','data-dashboard-list="next"')+'</div>';
+  return hero+needsCard+comparison()+shipping+'<div class="dash-two">'+card('Landed per hour',m.complete?bars:'<p>Loading complete landing history…</p>')+card('Agent time',m.complete?split:'<p>Loading complete agent history…</p>')+'</div>'+agents+landing+'<div class="dash-three">'+listCard('Just landed',m.landed.map(row=>({entry:row.item,at:row.at})),'All landed in Activity','data-tab="activity"')+listCard('In review',m.inReview.map(entry=>({entry,at:m.last(entry,'submit')})),'All in review, oldest first','data-dashboard-list="review"')+listCard('Next up',m.next.map(entry=>({entry,at:Date.parse(entry.updatedAt)||m.now})),'All ready, in rank order','data-dashboard-list="next"')+'</div><div class="dash-two dash-reference">'+rulesCard+capacityCard+'</div>';
 }
