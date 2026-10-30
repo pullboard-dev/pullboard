@@ -1,3 +1,4 @@
+import { apiBoardOpeners } from './board-fixture.js';
 import { openBoard } from '../src/native-board.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
@@ -92,7 +93,7 @@ test('an item waits across repos [B24,H16]', async t => {
   await announce(1);
   blocked(dependent, 'service#1');
   const builds = [];
-  const localApi = await serveApi({ refusalDocument, port: 0, runCommand: main, stateDetail: 'full',
+  const localApi = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, port: 0, runCommand: main, stateDetail: 'full',
     projects: () => [{ root: parent.root, name: 'app', project: 'fixture', added: '2026-10-25T00:00:00Z' }],
     onItemBuild: entry => builds.push(entry.itemId) });
   t.after(() => localApi.close());

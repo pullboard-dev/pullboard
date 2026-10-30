@@ -1,3 +1,4 @@
+import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Local API projection for private relay-canary alerts; never part of the sealed relay view. */
 import assert from 'node:assert/strict';
@@ -49,7 +50,7 @@ test('local API refreshes private relay health without adding it to a sealed pre
   await withFixtureEnvironment(box.env, async () => {
     const secret = randomBytes(24).toString('base64url');
     let port = 0;
-    const handler = createLocalApiHandler({ refusalDocument,
+    const handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
       secret,
       getPort: () => port,
       runCommand: main,

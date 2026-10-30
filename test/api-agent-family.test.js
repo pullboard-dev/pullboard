@@ -1,4 +1,6 @@
 /** The public agents payload names the same canonical vendor as native eligibility [A1,V4,B26]. */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
@@ -34,7 +36,7 @@ test('agents API returns canonical declared and historically derived families [A
     for (const id of [declared, derived, unknown]) expected.set(id, seatFamily(board, id));
     assert.deepEqual([...expected.values()], ['OpenAI', 'Claude', null], 'ordered declarations retain their canonical vendor after a historical clear');
   } finally { store.closeBoard(board); }
-  api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'Family fixture' }] });
+  api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'Family fixture' }] });
   const url = new URL(api.url), connection = { origin: url.origin, secret: url.searchParams.get('k') };
   const listed = await apiFetch(connection, '/api/v1/boards');
   assert.equal(listed.status, 200);

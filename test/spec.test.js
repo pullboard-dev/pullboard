@@ -554,7 +554,9 @@ function viewMove(box, move, channel, env) {
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
-    const response = await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, ${JSON.stringify(channel)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const apiBoardOpeners = { openBoard, openBoardForRead };
+    const response = await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, ${JSON.stringify(channel)}, undefined, apiBoardOpeners);
     process.stdout.write(JSON.stringify(response));
   `;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.root, env, encoding: 'utf8' });

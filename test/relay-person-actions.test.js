@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** A paired person can use narrow CLI actions; agents cannot impersonate those actions [H12,H16,B26]. */
+import { apiBoardOpeners } from './board-fixture.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadavg } from 'node:os';
@@ -269,11 +270,11 @@ test('a person action completes with late native snapshots after 8 seconds [H12,
 
 test('local view attribution is person-only and an agent token cannot seal person-attributed holds [H12,H16,B26]', async t => {
   const box = await relayClientFixture(t);
-  const localHold = await executeMove(box.root, { verb: 'hold', args: { lane: box.lane, reason: 'LOCAL_PERSON_HOLD_FIXTURE' } }, main);
+  const localHold = await executeMove(box.root, { verb: 'hold', args: { lane: box.lane, reason: 'LOCAL_PERSON_HOLD_FIXTURE' } }, main, undefined, undefined, undefined, apiBoardOpeners);
   assert.equal(localHold.status, 200);
   assert.equal(localHold.body.event.event_by, 'person');
   assert.equal(JSON.parse(localHold.body.event.event_detail).channel, 'view');
-  const localRelease = await executeMove(box.root, { verb: 'hold', args: { lane: box.lane, off: true } }, main);
+  const localRelease = await executeMove(box.root, { verb: 'hold', args: { lane: box.lane, off: true } }, main, undefined, undefined, undefined, apiBoardOpeners);
   assert.equal(localRelease.status, 200);
   assert.equal(localRelease.body.event.event_by, 'person');
   assert.equal(JSON.parse(localRelease.body.event.event_detail).channel, 'view');

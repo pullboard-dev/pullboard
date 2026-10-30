@@ -1,5 +1,6 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/machine.js */
 /** Rigor: a repeated failure cause is noticed from structured fields, never from notes [D1,V1]. */
+import { apiBoardOpeners } from './board-fixture.js';
 import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
@@ -647,7 +648,7 @@ test('a repeated cause becomes a draft row with its proof [D1,D3,S1,P6]', async 
   const drafted = [doctrineRow.id, specRow.id];
   const agentApprove = runFixtureChild(process.execPath, [BIN, 'spec', 'approve', specRow.id, '--json'], { cwd: box.repo, env: { ...box.env, CLAUDECODE: '1' }, encoding: 'utf8' });
   refused(agentApprove, 'B26_PERSON_CHANNEL', 'an agent shell cannot approve a drafted row');
-  const api = await executeMove(box.repo, { verb: 'spec-approve', args: { ids: drafted.join(',') } }, main, true, 'api');
+  const api = await executeMove(box.repo, { verb: 'spec-approve', args: { ids: drafted.join(',') } }, main, true, 'api', undefined, apiBoardOpeners);
   assert.equal(api.body.error?.code, 'B26_PERSON_CHANNEL', 'the standalone API cannot approve a drafted row');
   assert.throws(() => refusePersonMove('spec_approve'), (error) => error.code === 'HUMAN_REQUIRED', 'MCP cannot approve a drafted row');
   const sealedBoard = openBoard(box.file);
