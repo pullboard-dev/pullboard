@@ -938,7 +938,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.claim(board, dependency, { agentId: 'web-1', lane: 'web', leaseMs: 7_200_000, freeze });
     submitFixture(board, dependency, { agentId: 'web-1', commit: SHA_A, tree: 'tree' });
     store.holdLane(board, 'web', { agentId: 'coordinator', reason: 'pause' });
-    store.holdItem(board, target, { agentId: 'coordinator', reason: 'item pause' }); store.setRoutingRule(board, { agentId: 'coordinator', act: 'build', scope: { item: target }, effect: 'bar-seat', value: strong, source: 1 });
+    store.holdItem(board, target, { agentId: 'coordinator', reason: 'item pause' });
     const fired = [claimAs(999, light, 'api'), claimAs(done, light, 'api')];
     store.setBarReady(board, { agentId: 'coordinator', enabled: true });
     store.editItem(board, target, { agentId: 'coordinator', brief: 'Unsigned bar edge' });
@@ -946,7 +946,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.setBarReady(board, { agentId: 'coordinator', enabled: false });
     fired.push(claimAs(target, light, 'api'));
     store.releaseItemHold(board, target, { agentId: 'coordinator' });
-    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'), (store.setRoutingRule(board, { agentId: 'coordinator', revoke: 1 }), claimAs(target, strong, 'web')));
+    fired.push(claimAs(target, light, 'api'), claimAs(target, light, 'web'), claimAs(target, strong, 'web'));
     verdictOn(board, dependency, 'web-2', 'ACCEPT');
     fired.push(claimAs(target, strong, 'web'), claimAs(returned, strong, 'web'));
     store.editItem(board, target, { agentId: 'coordinator', criterion: 'Pending correction before the lane guard.' });
@@ -963,7 +963,7 @@ test('claim refuses in the declared order, one failure peeled at a time, on a re
     store.release(board, spare, strong, 'Release the spare fixture claim before checking the next guard.', undefined, 'OTHER');
     fired.push(claimAs(target, strong, 'web'), claimAs(target, strong, 'web', freeze));
     assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'claim'), 'ok']);
-    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'ROUTING_RULE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
+    assert.deepEqual(fired, ['NO_ITEM', 'NOT_CLAIMABLE', 'BAR_NOT_READY', 'ITEM_HELD', 'WRONG_LANE', 'ROUTE', 'BLOCKED', 'HELD', 'REOPEN_HELD_FOR_BUILDER', 'PENDING_REFREEZE', 'LANE_HELD', 'LINE_WIP_LIMIT', 'ONE_CLAIM', 'UNKNOWN_SPEC', 'ok']);
   } finally {
     lab.done();
   }

@@ -186,10 +186,10 @@ test('native and ordered releases require a reason code while historical release
 });
 
 test('computed session identity rejects shared parents and shared author sessions across native review paths [C7,V1,H16]', t => {
-  for (const [reviewer, parent, session] of [['core-5', 'a', 'd'], ['core-6', 'd', 'a']]) {
+  for (const [reviewer, parent, session, family] of [['core-5', 'a', 'd', 'claude'], ['core-6', 'd', 'a', 'codex']]) {
     const f = fixture(t), id = f.add();
     f.submit(id);
-    f.join(reviewer, 'claude', parent, session);
+    f.join(reviewer, family, parent, session);
     if (parent === 'a') assert.equal(effectiveAgentParent(f.board, reviewer), effectiveAgentParent(f.board, 'core-1'));
     else assert.notEqual(effectiveAgentParent(f.board, reviewer), effectiveAgentParent(f.board, 'core-1'));
     assertComputedReview(f, id, reviewer, 'SELF_SESSION_VERIFY');
