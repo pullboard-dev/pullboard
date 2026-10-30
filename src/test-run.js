@@ -19,7 +19,7 @@ import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from './registry-guards.js';
 import { mainPolicy } from './trusted-policy-read.js';
 import {
-  runProfiledShellAsync,
+  runProfiledShell,
   withGateSlot,
 } from './gate.js';
 import {
@@ -158,7 +158,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
     if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
-    return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }),
+    return withGateSlot(checkout, (lease) => runProfiledShell(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }),
       { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, item, itemCheck: Boolean(item), kind: 'test', onWait });
   }, withMainCheckout);
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });

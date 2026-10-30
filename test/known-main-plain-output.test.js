@@ -36,7 +36,7 @@ test('identical main case is first in text and structured in test and submit, wi
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
   const report = JSON.parse(tested.stdout);
   assert.equal(report.green, false, 'guidance does not turn a red test green');
-  assert.equal(report.mainFailures.length, 1);
+  assert.equal(report.mainFailures.length, 1, JSON.stringify(report));
   notice(report.mainFailures[0], box);
   const plain = text(box, 'test', FILE);
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
@@ -67,6 +67,7 @@ test('a unique repair owner appears at the top of submit text and in test JSON [
   const owner = fileMainRed(box);
   const tested = cli(box, box.builder, 'test', FILE);
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
+  assert.equal(JSON.parse(tested.stdout).mainFailures.length, 1, tested.stdout);
   notice(JSON.parse(tested.stdout).mainFailures[0], box, { owner });
   const submitted = text(box, 'submit', String(box.item), '--no-next');
   assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
@@ -81,6 +82,7 @@ test('candidate-only failures stay red, are first in text, and remain structured
   const box = fixture(t, { main: 1, candidate: 2 });
   const tested = cli(box, box.builder, 'test', FILE);
   assert.equal(tested.status, 1, tested.stdout + tested.stderr);
+  assert.equal(JSON.parse(tested.stdout).mainFailures.length, 1, tested.stdout);
   notice(JSON.parse(tested.stdout).mainFailures[0], box, { only: true });
   const plain = text(box, 'test', FILE);
   assert.equal(plain.status, 1, plain.stdout + plain.stderr);
