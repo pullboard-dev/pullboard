@@ -3,8 +3,10 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, api, boardPath, current, redraw, summary, floor = null }) {
+export function dashboardRuntime({ model, html, api, boardPath, current, redraw, summary, floor = null, firstRun = null }) {
   const histories = new Map();
+  // The first-run tour keeps its stop across live redraws, so a refresh never sends it back to the start.
+  const tour = { index: 0, auto: true, timer: null };
   let drawnFloor = null;
   let lastNeeds = { root: null, html: '', header: '' };
   /** Read missing history once per prefix; never draw one board's history over another board. */
@@ -59,7 +61,13 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     const note = held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'';
     let quietRows;
     const quietOpen = expanded.includes('quiet');
-    region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone }) : html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') }))+note;
+    // Until its checklist is complete, or the person hides it, the first-run page is the Dashboard; the usual cards follow once work has landed.
+    const started = firstRun && !onFloor ? firstRun.kit.model(project, held.events.filter(event=>event.event_id<=prefix)) : null;
+    const showFirstRun = Boolean(started && !started.done && !firstRun.hidden(project.root));
+    const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
+    region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
+      : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
+    if (showFirstRun) startTour();
     region.classList?.toggle('floor-page', onFloor);
     // Opening or leaving the floor starts at its top; a live redraw of the same page keeps the reader's place.
     if (drawnFloor !== null && drawnFloor !== onFloor) globalThis.scrollTo?.(0, 0);
@@ -78,5 +86,23 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     }
     for (const disclosure of region.querySelectorAll('details')) if (expanded.includes(disclosure.dataset.dashboardDisclosure)) disclosure.open = true;
   }
-  return { draw };
+  /** Advance the tour on its own, one stop per reading time, until the person steps it by hand or the page is left. */
+  function startTour() {
+    if (tour.timer || !firstRun || globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const wait = () => { tour.timer = setTimeout(() => {
+      const region = document.getElementById('dashboard');
+      if (!region?.querySelector('[data-first-run-tour]')) { tour.timer = null; return; }
+      if (tour.auto) { tour.index = (tour.index + 1) % firstRun.kit.steps.length; firstRun.kit.paint(region, tour.index); }
+      wait();
+    }, firstRun.kit.dwell(tour.index)); };
+    wait();
+  }
+  /** The arrows step the tour by hand, which stops it advancing itself. */
+  function tourStep(by) {
+    const stops = firstRun.kit.steps.length;
+    tour.auto = false;
+    tour.index = (tour.index + by + stops) % stops;
+    firstRun.kit.paint(document.getElementById('dashboard'), tour.index);
+  }
+  return { draw, tourStep };
 }
