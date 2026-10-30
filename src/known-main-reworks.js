@@ -50,7 +50,7 @@ function selects(item, name) {
  */
 export function ownersOf(failure, items, exclude, modern = true) {
   // A case defined in a helper is owned by a repair naming the helper or the test file that runs it (#2064).
-  const named = items.filter(item => covers(item, [failure.file, failure.ran].filter(Boolean), exclude));
+  const named = items.filter(item => covers(item, [failure.file, ...[].concat(failure.ran ?? [])], exclude));
   const titles = [failure.name, failure.name.replace(/\s*\[[^\]]*\]\s*$/u, '')].filter(Boolean);
   if (!modern) {
     if (named.length <= 1) return named;

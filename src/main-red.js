@@ -486,6 +486,22 @@ function matchingReworks(root, board, commit, files, loaded = null) {
   return matches;
 }
 
+/**
+ * Name the test files whose import closure reaches the helper that defines a matched case, so a repair naming the test file
+ * that runs it still owns the case. A closure that cannot be computed adds nothing and never widens ownership (#2064).
+ */
+export function withRunningFiles(root, commit, matched) {
+  if (!matched) return matched;
+  let closures;
+  try { ({ closures } = testClosures(root, commit)); }
+  catch { return matched; }
+  return { ...matched, failures: matched.failures.map(failure => {
+    const running = new Set([].concat(failure.ran ?? []));
+    for (const [test, closure] of closures) if (test !== failure.file && Array.isArray(closure.files) && closure.files.includes(failure.file)) running.add(test);
+    return running.size ? { ...failure, ran: [...running].sort() } : failure;
+  }) };
+}
+
 /** Present only complete case comparisons with a retained native receipt; these words grant no authority. */
 export function mainFailureNotices(root, failures, comparison, { items = [], exclude } = {}) {
   if (!failures?.length || !comparison?.main || comparison.unavailable) return [];

@@ -152,6 +152,7 @@ import { failureSignatures } from '../main-failure-matches.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../main-failure-matches.js';
 import { matchingMainFailures } from '../main-failure-matches.js';
 import { mainFailureNotices } from '../main-red.js';
+import { withRunningFiles } from '../main-red.js';
 import { linkKnownMainReworks } from '../known-main-reworks.js';
 import { unownedMainReds } from '../known-main-reworks.js';
 import { ambiguousMainReds } from '../known-main-reworks.js';
@@ -394,7 +395,7 @@ export async function submitHere(ctx, id, infra) {
       rememberComparison(comparison);
       criterionNotices = mainFailureNotices(root, criterionCases, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
-      const matched = matchingMainFailures(criterionCases, comparison, mainFailureBase);
+      const matched = withRunningFiles(root, commit, matchingMainFailures(criterionCases, comparison, mainFailureBase));
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Cases with a unique open Main red repair link to it; the rest are recorded as unowned for the coordinator, never filed here.
       const missing = matched ? unownedMainReds(matched, rows(), id) : null;
@@ -443,7 +444,7 @@ export async function submitHere(ctx, id, infra) {
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
         { items: withBoard(ctx, board => store.listItems(board, { all: true })), exclude: id });
-      const matched = matchingMainFailures(failures, comparison, mainFailureBase);
+      const matched = withRunningFiles(root, commit, matchingMainFailures(failures, comparison, mainFailureBase));
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Affected cases are judged like the frozen check (#1917, #1986): owned reds link to their repair, unowned ones are recorded for the coordinator.
       const missing = matched ? unownedMainReds(matched, rows(), id) : null;

@@ -26,7 +26,6 @@ for (const owned of ['test/helper-cases.js', 'test/affected.test.js']) {
     const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
     assert.equal(result.status, 0, result.stdout + result.stderr);
     const known = JSON.parse(result.stdout).gate.knownMainReworks;
-    assert.ok(known, result.stdout.slice(0, 3000));
     assert.deepEqual(known.map(row => [row.name, row.item]), [['helper case [G1]', owner]], 'one failure, owned once');
   });
 }
