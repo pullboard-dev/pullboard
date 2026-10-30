@@ -1,3 +1,4 @@
+import { pendingSubmitHandoff } from './submit-handoff-read.js';
 /** Native claim preparation and mutation preserve the same declared guards [B2,C7,V2]. */
 import {
   boardWriteSnapshot,
@@ -105,14 +106,15 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       },
       lineCapacity: found => capacity.claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown }),
       oneLiveClaim: (found) => {
-        if (found.item_parent_id !== null || isRework(found)) return null;
+        if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
         const other = board.db
           .prepare(
             `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
                AND item_lease_until > ? AND item_id != ? AND item_parent_id IS NULL
                AND NOT (COALESCE(item_verdict, '') = 'REJECT' AND COALESCE(item_built_by, '') = ?)`,
           )
-          .get(agentId, now(board), id, agentId);
+          .all(agentId, now(board), id, agentId)
+          .find(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
         return other ? new Refused('ONE_CLAIM', `you already hold #${other.item_id}; submit or release it first (child items are free)`) : null;
       },
       rowsInForce: (found) => {

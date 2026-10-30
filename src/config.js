@@ -307,9 +307,12 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (!config.submit || typeof config.submit !== 'object' || Array.isArray(config.submit)
-      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds'].includes(key))
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
+  }
+  if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
+    problems.push('"submit.handoff" is a boolean; false keeps synchronous submit');
   }
   // Absent, a check already green on main is only a warning, as on boards made before the setting.
   if (config.checks !== undefined && (typeof config.checks !== 'object' || config.checks === null || Array.isArray(config.checks)

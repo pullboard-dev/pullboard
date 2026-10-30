@@ -1,3 +1,4 @@
+import { pendingSubmitHandoff } from './submit-handoff-read.js';
 import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
 import { firstRefusal } from './board-item-read.js';
@@ -108,7 +109,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     return empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] });
   }
-  const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
+  const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   if (held && plannedRelease === null) return { item: held, reasons: [] };
