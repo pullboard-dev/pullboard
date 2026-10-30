@@ -329,3 +329,26 @@ test('cache evicts old commits transactionally and reclaims its configured size 
     if (previousRecent === undefined) delete process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS; else process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = previousRecent;
   }
 });
+
+test('legacy oversized cache is reclaimed and a smaller limit never changes derived values [B6,C7]', () => {
+  const box = e2e.project();
+  const directory = join(box.repo, '.git', 'pullboard-main-facts');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const file = join(directory, 'facts.sqlite');
+  const legacy = new DatabaseSync(file);
+  legacy.exec('CREATE TABLE facts(key TEXT PRIMARY KEY, body TEXT NOT NULL, digest TEXT NOT NULL)');
+  legacy.prepare('INSERT INTO facts VALUES (?,?,?)').run('old', 'x'.repeat(150000), 'old');
+  legacy.close();
+  const prior = process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES;
+  process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = '65536';
+  try {
+    assert.deepEqual(cachedMainFact(box.repo, 'legacy', ['new'], () => ({ actual: true }), value => value?.actual === true), { actual: true });
+    const db = cache(box);
+    try {
+      assert.ok(db.prepare('PRAGMA page_count').get().page_count * db.prepare('PRAGMA page_size').get().page_size <= 65536);
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM facts WHERE key='old'").get().n, 0);
+    } finally { db.close(); }
+  } finally {
+    if (prior === undefined) delete process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES; else process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = prior;
+  }
+});
