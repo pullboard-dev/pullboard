@@ -19,8 +19,8 @@ function causeOf(kind, detail) {
   const value = detail.cause ?? detail.code ?? detail.reason;
   if (typeof value !== 'string') return 'unknown';
   if (value.startsWith('conflict:')) return 'conflict';
-  const known = { RUNNER_WAIT_DEADLINE: 'runner-wait', RUNNER_INFRA_RETRY_EXHAUSTED: 'runner-wait',
-    FLAKE: 'flake', MAIN_RED: 'main-red', CRITERIA_CHANGED: 'bar-change', ITEM_PATCH_CHANGED: 'companion-wait',
+  const known = { RUNNER_WAIT_DEADLINE: 'runner-wait',
+    FLAKE: 'flake', MAIN_RED: 'main-red', CRITERIA_CHANGED: 'bar-change',
     'runner wait': 'runner-wait', 'bar change': 'bar-change', 'main red': 'main-red', 'companion wait': 'companion-wait' };
   return CAUSES.includes(value) ? value : known[value] ?? 'unknown';
 }
