@@ -426,6 +426,10 @@
     {
       "path": "bin/cells-submit-checks.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/cells-cache.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
