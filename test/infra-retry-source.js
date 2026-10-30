@@ -4,11 +4,12 @@ export function deadlineRetrySource(gateUrl, resourcesUrl, runner, shellCommand,
 ${servicesSource}
 import { takeResource } from ${JSON.stringify(resourcesUrl)};
 const runner = ${JSON.stringify(runner)};
-const blocker = await takeResource({name:'gate',root:process.cwd(),capacity:0,remote:true,scope:'machine',runnerProvider:()=>[runner],runnerWaitMs:1000,agent:'infra-retry-blocker',kind:'submit',itemCheck:true});
-const releaseTimer = setTimeout(() => blocker.release(), 260);
+const blocker = await takeResource({name:'runner:'+runner.host,root:process.cwd(),capacity:1,remote:false,scope:'machine',agent:'infra-retry-blocker',kind:'submit',itemCheck:true});
+const deadline = Date.now() + 75;
+const releaseTimer = setTimeout(() => blocker.release(), 250);
 const receipts = [];
 const result = await withGateSlot(process.cwd(), lease => runProfiledShellAsync(process.cwd(), ${JSON.stringify(shellCommand)}, {gateLease:lease}),
-  {executionServices,remote:true,runnerWaitMs:200,itemCheck:true,agent:'infra-retry-test',kind:'submit',item:'fixture',onWait(){},onReceipt:receipt=>receipts.push(receipt)});
+  {executionServices,remote:true,runnerWaitMs:15000,runnerDeadlineAt:deadline,itemCheck:true,agent:'infra-retry-test',kind:'submit',item:'fixture',onWait(){},onReceipt:receipt=>receipts.push(receipt)});
 clearTimeout(releaseTimer);
 const pool = (await import(${JSON.stringify(resourcesUrl)})).listResources({scope:'machine'}).find(row=>row.name==='gate');
 console.log(JSON.stringify({green:result.isGreen,output:result.output,receipts,pool:{holders:pool.holders.length,line:pool.line.length}}));`;
