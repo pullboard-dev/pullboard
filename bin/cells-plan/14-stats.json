@@ -54,9 +54,7 @@
   {"cell":"verify","imports":4,"before":false},
   {"cell":"store","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"seats","imports":1,"edges":["src/line-capacity.js->src/stats-flow-window.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -1,
   "shims": 6,

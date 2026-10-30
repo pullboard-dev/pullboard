@@ -114,9 +114,7 @@
   {"cell":"health","imports":5,"before":true},
   {"cell":"app:cli","imports":2,"before":false}
  ],
- "cuts": [
-  {"cell":"store","imports":1,"edges":["src/board-engine-ports.js->src/move-registry.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -78,
   "shims": 5,

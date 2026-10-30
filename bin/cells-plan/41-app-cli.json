@@ -257,7 +257,6 @@
   ["src/documentation/events/submit_handoff_returned.json","apps/cli/src/shell/documentation/events/submit_handoff_returned.json","rule"],
   ["src/submit-handoff-origin.js","apps/cli/src/shell/submit-handoff-origin.js","rule"],
   ["src/submit-handoff-seal.js","apps/cli/src/shell/submit-handoff-seal.js","rule"],
-
   ["src/worktree-maintenance.js","apps/cli/src/shell/worktree-maintenance.js","rule"],
   ["src/worktree-maintenance-observation.js","apps/cli/src/shell/worktree-maintenance-observation.js","rule"],
   ["src/worktree-maintenance-command.js","apps/cli/src/shell/worktree-maintenance-command.js","rule"],
@@ -331,28 +330,7 @@
   {"cell":"app:runner","imports":1,"before":true}
  ],
  "cuts": [
-  {
-   "cell": "seats",
-   "imports": 5,
-   "edges": [
-    "src/agent-hook-work.js->src/cli-presence.js",
-    "src/agent-hook-work.js->src/cli.js",
-    "src/agent-hook-work.js->src/cli.js",
-    "src/line-settings-cli.js->src/cli.js",
-    "src/seat-checkout.js->src/commands/worktree.js"
-   ]
-  },
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
-  {"cell":"store","imports":1,"edges":["src/exchange.js->src/command-phase.js"]},
-  {
-   "cell": "person",
-   "imports": 3,
-   "edges": [
-    "src/person-bar-cli.js->src/cli.js",
-    "src/person-confirmation.js->src/cli-main.js",
-    "src/person-signing-cli.js->src/cli.js"
-   ]
-  },
   {
    "cell": "link",
    "imports": 6,

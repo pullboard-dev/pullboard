@@ -21,10 +21,20 @@
   {"cell":"app:cli","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"store","imports":1,"edges":["src/board.js->src/native-board.js"]},
-  {"cell":"link","imports":1,"edges":["src/relay.js->src/native-board.js"]},
+  {"cell":"link","imports":3,"edges":["src/relay-join.js->src/native-board.js","src/relay-setup.js->src/native-board.js","src/relay.js->src/native-board.js"]},
   {"cell":"app:view","imports":1,"edges":["src/serve.js->src/native-board.js"]},
-  {"cell":"app:cli","imports":1,"edges":["src/cli-context.js->src/native-board.js"]}
+  {
+   "cell": "app:cli",
+   "imports": 6,
+   "edges": [
+    "src/cli-context.js->src/native-board.js",
+    "src/cli-support.js->src/native-board.js",
+    "src/commands/decisions.js->src/native-board.js",
+    "src/commands/init.js->src/native-board.js",
+    "src/commands/roadmap.js->src/native-board.js",
+    "src/generated-docs.js->src/native-board.js"
+   ]
+  }
  ],
  "ratchets": {
   "legacySource": -1,
