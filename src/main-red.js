@@ -345,7 +345,9 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
           coarse[path] = { file: path, result: run.isGreen ? 'green' : 'red', ...(receiptId ? { receiptId } : {}) };
-          const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
+          const named = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
+          // A case defined in an imported helper names the helper; the file main ran stays beside it so either one finds the case (#2064).
+          const failures = named?.map(row => row.file === path ? row : { ...row, ran: path }) ?? named;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
           return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}), ...(receiptId ? { receiptId } : {}) };
         }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });

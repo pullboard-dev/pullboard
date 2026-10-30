@@ -158,6 +158,11 @@ export function fitTargets(blueprint, spec, items) {
     ids[question.key] = row.id;
     targets.set(row.id, { kind: 'question', key: question.key, target: row.id, source: questionText(question), current: row.text, ask: question.ask.trim(), choices });
   }
+  // Facts supply starter citations, but are not proposals waiting for approval.
+  for (const entry of blueprint.defaults ?? []) {
+    const row = findDraft({ status: 'fact', test: (row) => row.text === entry.text.trim() });
+    if (row) ids[entry.key] = row.id;
+  }
   for (const starter of blueprint.items) {
     const cites = starter.cites.map((key) => ids[key]).filter(Boolean).join(',');
     const item = items.find((entry) => entry.item_status === 'open' && entry.item_title === starter.title.trim() && (entry.item_spec_ids ?? '') === cites);

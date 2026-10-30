@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
 import * as maintenanceSettings from './worktree-maintenance-config.js';
+import { knownConfigKeys } from './config-forward-compat.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 export const COORDINATOR = 'coordinator';
@@ -413,7 +414,9 @@ export function configFromSource(source) {
   let raw;
   try { raw = JSON.parse(source); }
   catch { throw new Refused('BAD_CONFIG', 'pullboard.json is not valid JSON; restore the coordinator configuration'); }
-  const config = merge(defaults(), raw);
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Refused('BAD_CONFIG', 'pullboard.json must contain a configuration object');
+  const base = defaults();
+  const config = merge(base, knownConfigKeys(raw, base));
   const problems = configProblems(config);
   if (problems.length) throw new Refused('BAD_CONFIG', `${CONFIG_FILE}: ${problems.join('; ')}`);
   const timeout = CHECK_TIMEOUT_RE.exec(config.check.timeout);

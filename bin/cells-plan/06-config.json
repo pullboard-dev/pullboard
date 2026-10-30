@@ -27,7 +27,9 @@
   ["src/git-sync-files.js","packages/config/src/shell/git-sync-files.js","rule"],
   ["src/settings-descriptions.js","packages/config/src/shell/settings-descriptions.js","rule"],
   ["src/worktree-maintenance-config.js","packages/config/src/core/worktree-maintenance-config.js","rule"],
-  ["test/worktree-maintenance-config.fixture.js","packages/config/tests/worktree-maintenance-config.fixture.js","rule"]
+  ["test/worktree-maintenance-config.fixture.js","packages/config/tests/worktree-maintenance-config.fixture.js","rule"],
+  ["src/config-forward-compat.js","packages/config/src/shell/config-forward-compat.js","rule"],
+  ["test/config-forward-compat.test.js","packages/config/tests/config-forward-compat.test.js","rule"]
  ],
  "reexports": [
   "src/command-declaration-read.js",

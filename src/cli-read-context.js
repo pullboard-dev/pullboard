@@ -9,6 +9,7 @@ import {
  * imports only this pays for nothing it does not run [C7].
  */
 import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import {
   isAbsolute,
   join,
@@ -27,6 +28,8 @@ import {
   codeIsFromMain,
   differFromHead,
   headCommit,
+  gitReadSignature,
+  invalidateGitFacts,
   mainCheckout,
   repoInfo,
   resolveCommit,
@@ -254,23 +257,128 @@ function declaredFamilies(root) {
   }
 }
 
+/** Read the exact ref bytes as well as the canonical filesystem signature; missing refs remain observable. */
+function policyRefBytes(file) {
+  try { return readFileSync(file, 'utf8'); }
+  catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null; throw error; }
+}
+
+/** Observe primary and retained policy identities without invoking Git under SQLite admission. */
+function writePolicySignature(ctx, ref) {
+  if (ref && (!ref.startsWith('refs/heads/') || ref.includes('\\')
+    || ref.split('/').some(part => !part || part === '.' || part === '..'))) return null;
+  const primary = gitReadSignature(resolve(ctx.info.commonDir, '..'), []);
+  const local = gitReadSignature(ctx.info.root, []);
+  const runner = gitReadSignature(ctx.info.root, [relative(ctx.info.root, join(ctx.info.gitDir, 'pullboard-runner-policy.json'))]);
+  const loose = ref ? policyRefBytes(join(ctx.info.commonDir, ref)) : null;
+  // Symbolic ref chains and alternate backends retain their original guarded reader until explicitly supported.
+  if (loose?.startsWith('ref: ')) return null;
+  const exact = [policyRefBytes(join(ctx.info.commonDir, 'HEAD')), ref, loose,
+    policyRefBytes(join(ctx.info.commonDir, 'packed-refs'))];
+  return primary && local && runner ? JSON.stringify([primary, local, runner, exact]) : null;
+}
+
+/** Scope accepted-source preparation to this CLI board; mutable family and approval facts stay live. */
+function installWritePolicy(ctx, board) {
+  const names = ['quarantineEnabled', 'familyAliases', 'prepareWritePolicy'];
+  const descriptors = names.map(name => Object.getOwnPropertyDescriptor(board, name));
+  let quarantine, aliases, active;
+  /** Diagnose only an actual lazy input evaluation inside an exceptional write, without changing its result. */
+  function noteFallback(input) {
+    if (!active?.fallback) return;
+    try { ctx.io.err?.(`PULLBOARD_WRITE_POLICY_FALLBACK input=${input}`); }
+    catch { /* Diagnostic failure cannot replace the original authority guard. */ }
+  }
+  /** Unavailable preparation retains the original guard instead of retaining a premature refusal [#2051]. */
+  function fallback() {
+    const frame = {
+      fallback: true,
+      /** No guessed accepted-source value is used on this compatibility path. */
+      current() { return true; },
+      /** Original lazy guards retain their existing live reads and refusals. */
+      assertCurrent() {},
+      /** Mark only the actual transaction, never read-only CLI queries. */
+      enter() { active = frame; },
+      /** Never retain a fallback state across writes. */
+      leave() { if (active === frame) active = undefined; },
+    };
+    return frame;
+  }
+  /** Preserve lazy read behavior outside a prepared write, including original refusal order. */
+  const readQuarantine = () => {
+    if (active?.quarantine !== undefined) return active.quarantine;
+    if (quarantine === undefined) noteFallback('quarantine');
+    return quarantine ??= mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
+  };
+  board.quarantineEnabled = readQuarantine;
+  Object.defineProperty(board, 'familyAliases', { configurable: true, enumerable: true, get() {
+    if (active?.aliases !== undefined) return active.aliases;
+    if (aliases === undefined) noteFallback('familyAliases');
+    return aliases ??= familyIndex(declaredFamilies(ctx.info.root));
+  } });
+  Object.defineProperty(board, 'prepareWritePolicy', { configurable: true, enumerable: false, value() {
+    let preparedContext;
+    try { preparedContext = ctx.info.commonDir && ctx.info.gitDir ? ctx : { ...ctx, info: repoInfo(ctx.info.root) }; }
+    catch { return fallback(); }
+    invalidateGitFacts();
+    // Resolve source selection outside BEGIN; the under-lock witness reads only these exact owned metadata files.
+    let ref;
+    try { ref = mainCheckout(ctx.info.root)?.branch ?? trunkRef(ctx.info.root); }
+    catch { return fallback(); }
+    let before;
+    try { before = writePolicySignature(preparedContext, ref); } catch { return fallback(); }
+    if (!before) return fallback(); // Unsupported Git metadata retains original guards, never a guessed policy.
+    let nextQuarantine, nextAliases;
+    // Do not retain a refusal: a command may establish policy before the original consuming guard.
+    try {
+      if (board.quarantineEnabled === readQuarantine) nextQuarantine = mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
+      nextAliases = familyIndex(declaredFamilies(ctx.info.root));
+    } catch { return fallback(); }
+    let after;
+    try { after = writePolicySignature(preparedContext, ref); } catch { return fallback(); }
+    if (!after) return fallback();
+    /** A changed source aborts before work; a change during work refuses without replaying work. */
+    const current = () => {
+      try { return before === after && after === writePolicySignature(preparedContext, ref); }
+      catch { return false; }
+    };
+    const frame = {
+      quarantine: nextQuarantine, aliases: nextAliases,
+      current,
+      /** Refuse a mid-transaction source change without invoking Git or retrying arbitrary work. */
+      assertCurrent() {
+        if (!current()) throw new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed during this write; retry the command against current main');
+      },
+      /** Activate only after the pre-work source comparison succeeds under BEGIN. */
+      enter() { active = frame; },
+      /** Never leave a prepared frame installed across transactions or rollback. */
+      leave() { if (active === frame) active = undefined; },
+    };
+    return frame;
+  } });
+  /** Restore caller-owned providers/getters even when work or close throws. */
+  return () => names.forEach((name, index) => {
+    if (descriptors[index]) Object.defineProperty(board, name, descriptors[index]);
+    else delete board[name];
+  });
+}
+
 /** Run work on an opened board with the same caller, quarantine, event and close lifecycle. */
 export function withOpenedBoard(ctx, work, board) {
-  // Whether a proven flake stops blocking a landing is the coordinator's setting, read from accepted main on first use.
-  let quarantine;
-  board.quarantineEnabled = () => quarantine ??= mainPolicy(ctx.info.root).config.flakes?.quarantine === true;
-  // The explicit vendor alias list comes from accepted main, as quarantine does; it is read on first family comparison [#1762].
-  let aliases;
-  Object.defineProperty(board, 'familyAliases', { configurable: true, enumerable: true, get: () => aliases ??= familyIndex(declaredFamilies(ctx.info.root)) });
+  const restorePolicy = installWritePolicy(ctx, board);
   const firstEvent = board.emittedEvents?.length ?? 0;
   /** Forward committed events before releasing either synchronous or asynchronous work. */
   const finish = () => {
-    for (const event of board.emittedEvents?.slice(firstEvent) ?? []) ctx.io.onEvent?.(event);
-    // The migration belongs to the committing command, never a later read or a write-lock callback.
-    const notice = board.reviewDefaultNotice;
-    delete board.reviewDefaultNotice;
-    for (const line of notice ?? []) ctx.io.err(line);
-    store.closeBoard(board);
+    try {
+      for (const event of board.emittedEvents?.slice(firstEvent) ?? []) ctx.io.onEvent?.(event);
+      // The migration belongs to the committing command, never a later read or a write-lock callback.
+      const notice = board.reviewDefaultNotice;
+      delete board.reviewDefaultNotice;
+      for (const line of notice ?? []) ctx.io.err(line);
+    } finally {
+      try { store.closeBoard(board); }
+      finally { restorePolicy(); }
+    }
   };
   let result;
   try {
