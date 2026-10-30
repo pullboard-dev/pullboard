@@ -1,7 +1,8 @@
 /** SSH runner entry point in a pinned capsule with a static trusted resource graph. */
 // The front door: each worker step lives in its own module; this file only creates this copy's state and dispatches.
 import { createWorkerState } from './runner-worker-state.js';
-import { serveHealth, serveRestart } from './runner-worker-health.js';
+import { serveHealth } from './runner-worker-health.js';
+import { serveRestart } from './runner-worker-health.js';
 import { main } from './runner-worker-main.js';
 import { failedWorker } from './runner-worker-receipt.js';
 
