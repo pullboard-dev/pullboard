@@ -6,6 +6,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
+import { conditionalHoldFloor } from '../packages/health/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
@@ -429,7 +430,7 @@ test('conditional hold replay retains the trigger and refuses a writer below its
   const replayLift = store.events(replica, { itemId: id }).findLast(event => event.event_kind === 'unhold_item');
   assert.deepEqual(replayLift, lift, 'trigger and hold event IDs survive ordered replay exactly');
   assert.deepEqual(applyRelayMove(replica, move, options), outcome, 'duplicate delivery cannot lift twice');
-  assert.throws(() => applyRelayMove(older, { ...move, engine: move.engine - 1 }, options),
+  assert.throws(() => applyRelayMove(older, { ...move, engine: conditionalHoldFloor(older) - 1 }, options),
     error => error.code === 'RELAY_MOVE' && error.message.includes('checked-composition snapshot'));
   assert.ok(store.itemHold(older, id), 'an older writer cannot skip the modern condition');
 });

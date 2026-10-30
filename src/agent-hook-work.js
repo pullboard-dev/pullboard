@@ -9,11 +9,12 @@ async function work(event) {
   if (event === 'SessionEnd') return;
   // This explicit native heartbeat may claim work; ordinary read commands never do.
   const { main: dispatch } = await import('./cli.js');
-  await dispatch(['heartbeat'], { cwd: process.cwd(),
-    stdout: process.stdout, stderr: process.stderr, stdin: process.stdin });
+  await dispatch(['heartbeat'], { cwd: process.cwd(), nextActions: false,
+    // Heartbeat is an internal observation, not part of the hook's context payload.
+    stdout: { write() {} }, stderr: process.stderr, stdin: process.stdin });
   if (event === 'SessionStart') {
     const { main } = await import('./cli.js');
-    process.exitCode = await main(['resume'], { cwd: process.cwd(),
+    process.exitCode = await main(['resume'], { cwd: process.cwd(), nextActions: false,
       stdout: process.stdout, stderr: process.stderr, stdin: process.stdin });
     return;
   }

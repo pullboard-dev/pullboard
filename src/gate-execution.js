@@ -6,6 +6,7 @@ import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
 import { quarantineRunVerdict } from './quarantine-run-verdict.js';
 import { sourcePreparationFields } from './runner-overhead.js';
+import { gateRunnerAdmission } from './settings.js';
 import { gitChildEnv } from './git.js';
 import { invalidateGitFacts } from './git.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -496,11 +497,15 @@ export function pinRunMain(lease, observer) {
  * @returns {Promise<{ isGreen: boolean, isCached: boolean, output: string, seconds: number, log: string, profile?: object, profilePath?: string }>}
  */
 export async function runGate(root, config, { trustStamp = true, onWait, landing = false, runnerOnly = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, agent, item = '', stages = false, waivers = [], quarantines = [], proofContext, onFailure, executionServices } = {}) {
+  const runnerAdmission = gateRunnerAdmission();
   const releaseStartedAt = releaseRequest ? new Date().toISOString() : null;
   if (releaseRequest && (!landing || !collectAll || trustStamp || auditBatchId !== undefined
     || releaseRequest.version !== 1 || !/^[a-f0-9-]{36}$/u.test(releaseRequest.id ?? '')
     || !Array.isArray(releaseRequest.executors) || releaseRequest.executors.length < 1)) {
     throw new Refused('GATE_RUN_EVIDENCE', 'a release needs fresh full collection and its distinct native executor request');
+  }
+  if (releaseRequest && (runnerOnly || runnerAdmission.runnerOnly === true)) {
+    throw new Refused('RUNNER_SOURCE', 'runner-only landing refuses the required local release executor; run this captured release on a machine allowing local tests');
   }
   if (auditBatchId !== undefined && (!landing || !collectAll || !/^[a-zA-Z0-9_-]{1,80}$/u.test(auditBatchId))) {
     throw new Refused('GATE_RUN_EVIDENCE', 'a main audit needs its exact landing batch and full collection mode');
@@ -526,7 +531,8 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
     await recordRun(onFailure, run);
     return run;
   }, {
-    executionServices, landing, runnerOnly, browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
+    executionServices, landing, ...runnerAdmission, runnerOnly: runnerOnly || runnerAdmission.runnerOnly === true,
+    browser: true, gui: projectNeedsGui(root), agent, item, kind: landing ? 'landing' : 'gate', onWait,
     ...(releaseRequest ? { requiredExecutor: { kind: 'local' } } : {}),
   });
 }

@@ -151,6 +151,7 @@ import { matchingMainFailures } from '../main-failure-matches.js';
 import { mainFailureNotices } from '../main-red.js';
 import { linkKnownMainReworks } from '../known-main-reworks.js';
 import { unownedMainReds } from '../known-main-reworks.js';
+import { ambiguousMainReds } from '../known-main-reworks.js';
 import { submitReferenceReminders } from '../reference-lines.js';
 import { waitForSubmissionVerdict } from '../submit-wait.js';
 
@@ -334,7 +335,7 @@ export async function submitHere(ctx, id, infra) {
   if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
-  const infraRecord = infraNotes.infraNote({ root, claimHead, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
+  const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   const doctrine = hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
     ? await withGateSlot(root, lease => {
@@ -372,6 +373,8 @@ export async function submitHere(ctx, id, infra) {
   let criterionKnown = null;
   let criterionMatched = null;
   let criterionUnowned = [];
+  // Known main reds with several candidate owners and none naming the case alone; the refusal lists them (#2016).
+  const ambiguous = [];
   let criterionProblem = '';
   const companionAllowsMain = failures => !companion || companionMainFailuresUntouched(root,
     { base: mainFailureBase, source: commit, composed: companion.commit }, failures);
@@ -386,6 +389,7 @@ export async function submitHere(ctx, id, infra) {
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Cases with a unique open Main red repair link to it; the rest are recorded as unowned for the coordinator, never filed here.
       const missing = matched ? unownedMainReds(matched, rows(), id) : null;
+      if (matched && !missing) ambiguous.push(...ambiguousMainReds(matched, rows(), id));
       if (missing) {
         criterionMatched = matched;
         criterionUnowned = missing;
@@ -433,6 +437,7 @@ export async function submitHere(ctx, id, infra) {
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Affected cases are judged like the frozen check (#1917, #1986): owned reds link to their repair, unowned ones are recorded for the coordinator.
       const missing = matched ? unownedMainReds(matched, rows(), id) : null;
+      if (matched && !missing) ambiguous.push(...ambiguousMainReds(matched, rows(), id));
       if (missing) {
         proofMatched = matched;
         proofUnowned = missing;
@@ -450,7 +455,8 @@ export async function submitHere(ctx, id, infra) {
   const knownMainFailures = criterionKnown && proofKnown ? { main: proofKnown.main, failures: [...criterionKnown.failures, ...proofKnown.failures] }
     : criterionKnown ?? proofKnown;
   if (redCriterion || !gate.isGreen && !waived && !proofMatched) {
-    const accountingNote = checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '';
+    const accountingNote = (checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '')
+      + (ambiguous.length ? `\nknown main red with several candidate owners, none naming the case alone: ${ambiguous.map(row => `${row.file} (${row.name}): ${row.candidates.map(item => `#${item}`).join(', ')}`).join('; ')}; name the exact case in one repair's criterion` : '');
     const message = `${plainMainFailures ? plainMainFailures + "\n" : ""}the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${displayedReport}${accountingNote}${criterionProblem}`;
     // No submission can follow this verdict. Read-only main comparisons must not retain the seat's write lease.
     CHECKOUT_LEASES.get(ctx.io)?.release();

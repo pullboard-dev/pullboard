@@ -1280,7 +1280,8 @@ async function main(args) {
   }
   const gui = testsNeedGui(process.cwd(), guiFiles);
   const { cpuRunnerRequired } = await import('../src/cpu-load-admission.js');
-  const runnerOnly = cpuRunnerRequired(process.cwd(), guiFiles);
+  const runnerAdmission = (await import('../src/settings.js')).gateRunnerAdmission();
+  const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
   timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
     fullSuite && !testSelectionPatterns(args, optionTakesValue).length && !args.some(arg => /^--test[-_](?:shard|skip[-_]pattern|only)(?:=|$)/u.test(arg)));
   timing.phase('selectionMs', selectionAt);
@@ -1336,6 +1337,7 @@ async function main(args) {
         const { parseProcessCensus } = await import('../packages/kernel/src/core/process-census.js');
         const { testsNeedBrowser } = await import('../src/browser-admission.js');
         const result = await runLandingShards({ root: process.cwd(), runner, files, count, inherited, fullScope: fullSuite, parseProcessCensus,
+          runnerAdmission: { ...runnerAdmission, runnerOnly },
           needsBrowser: shardFiles => testsNeedBrowser(process.cwd(), shardFiles), timing });
         timing.sharded(result, files);
         process.exitCode = result.isGreen ? 0 : 1;
@@ -1360,7 +1362,7 @@ async function main(args) {
       let announced = false;
       const runnerPath = relative(process.cwd(), runner);
       const canShipRunner = runnerPath && runnerPath !== '..' && !runnerPath.startsWith(`..${sep}`);
-      if (runnerOnly && !canShipRunner) throw new Error('CPU-load tests require a committed runner inside the checkout; no local fallback is allowed while runners are registered');
+      if (runnerOnly && !canShipRunner) throw new Error('Runner-only tests require a committed runner inside the checkout; no local fallback is allowed');
       await withGateSlot(process.cwd(), async (lease) => {
         if (!lease.runner) return run(gateSlotEnvironment(lease));
         const { runOnRunner } = await import('../src/runners.js');
@@ -1374,7 +1376,7 @@ async function main(args) {
         process.exitCode = result.exitCode;
       }, {
         executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
-        remote: Boolean(canShipRunner), runnerOnly,
+        ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
         onWait: ({ holders, runnerUnavailable }) => {
           if (runnerUnavailable) {
             process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; requeueing the run\n`);

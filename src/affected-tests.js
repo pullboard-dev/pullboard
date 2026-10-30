@@ -61,15 +61,21 @@ function globPattern(glob) {
  *
  * @returns {string[] | null}
  */
-function declaredLoads(source, modulePaths, declaration = LOADS, strict = false) {
+function declaredPaths(source, declaration, strict) {
   const header = headerLines(source);
   if (strict && header.some(line => line.includes('@pullboard-module-loads') && !declaration.test(line))) return null;
   const declared = header.map(line => declaration.exec(line)).filter(Boolean)
     .flatMap(match => match[1].trim().split(/\s+/u)).map(path => posix.normalize(path));
   if (strict && declared.some(path => path.startsWith('../') || path.startsWith('/'))) return null;
-  const inRepo = declared.filter(path => !path.startsWith('../') && !path.startsWith('/'));
+  return declared.filter(path => !path.startsWith('../') && !path.startsWith('/'));
+}
+
+/** Expand the same canonical declaration paths over actual committed module identities. */
+function declaredLoads(source, modulePaths, declaration = LOADS, strict = false) {
+  const paths = declaredPaths(source, declaration, strict);
+  if (paths === null) return null;
   const loads = [];
-  for (const path of inRepo) {
+  for (const path of paths) {
     if (!/[*?[\]{}]/u.test(path)) {
       if (strict && (!MODULE.test(path) || !modulePaths.includes(path))) return null;
       if (MODULE.test(path)) loads.push(path);
@@ -87,6 +93,11 @@ function declaredLoads(source, modulePaths, declaration = LOADS, strict = false)
 /** Resolve strict source loader declarations; malformed or unmatched declarations remain unknown. */
 export function declaredSourceLoads(source, modulePaths) {
   return declaredLoads(source, modulePaths, SOURCE_LOADS, true);
+}
+
+/** Return canonical source patterns only after the complete declaration resolves against its actual snapshot. */
+export function declaredSourcePatterns(source, modulePaths) {
+  return declaredSourceLoads(source, modulePaths) === null ? null : declaredPaths(source, SOURCE_LOADS, true);
 }
 
 /** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
