@@ -103,7 +103,7 @@ test('pipeline real CLI and authenticated API expose identical read-only native 
   const { root, board, history } = fixture(t, cycle(1));
   const cli = await command(root, ['stats', 'pipeline', '--limit', '20', '--json']);
   assert.equal(cli.code, 0, cli.stderr);
-  assert.deepEqual(JSON.parse(cli.stdout), { version: 1, pipeline: pipelineStats(history) });
+  assert.deepEqual(JSON.parse(cli.stdout), { version: 1, pipeline: pipelineStats(history), next: 'pullboard next --wait 1' });
   const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root, name: 'Pipeline fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url), headers = { 'x-pullboard-key': url.searchParams.get('k') };
