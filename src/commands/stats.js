@@ -1,3 +1,4 @@
+import { pipelineLimit, pipelineStats, pipelineLines } from '../stats-pipeline.js';
 import { loadMachineSettings } from '../settings-read.js';
 import { localUsage } from '../cost-prices.js';
 import { dollarText } from '../cost-prices.js';
@@ -39,8 +40,17 @@ import {
 } from '../cli.js';
 
 /** Run `pullboard stats` and return its exit code. */
-export function run(io, { values }) {
+export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
+  if (first !== undefined && first !== 'pipeline') throw new Refused('USAGE', 'use pullboard stats or pullboard stats pipeline --limit 20');
+  if (first === 'pipeline') {
+    if (second !== undefined || rest?.length || values.since !== undefined || values.window !== undefined || values.compare) throw new Refused('USAGE', 'select landed items with pullboard stats pipeline --limit 20; time windows belong to pullboard stats --window');
+    const limit = pipelineLimit(values.limit);
+    const pipeline = withBoard(ctx, board => pipelineStats(store.events(board), { limit }));
+    io.result?.({ pipeline });
+    for (const line of pipelineLines(pipeline)) io.say(line);
+    return 0;
+  }
   const prices = loadMachineSettings().costPrices;
   if (values.since !== undefined && values.window !== undefined) {
     throw new Refused('USAGE', 'choose either --since <date> or --window <duration>, for example pullboard stats --window 6h');
