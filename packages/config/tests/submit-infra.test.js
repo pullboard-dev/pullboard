@@ -3,14 +3,24 @@
  * Submit asks why when a change edits an existing test or gate file, and a new test file needs no reason [C7,V4].
  */
 import assert from 'node:assert/strict';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { appendFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { after, test } from 'node:test';
-import { configFromSource } from '../src/config.js';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { configFromSource } from '../src/shell/config.js';
 
-const BIN = join(import.meta.dirname, '../bin/pullboard.js');
+const BIN = join(import.meta.dirname, '../../../bin/pullboard.js');
 const SPEC = '# Submit proof fixture\n\n## G · Goals\n- G1 [approved, must] The selected test proves the change. | gate: test\n';
 const dirs = [];
 

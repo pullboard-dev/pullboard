@@ -3,9 +3,11 @@
 /** Maintenance remains opt-in and invalid known coordinator settings never become cleanup authority [B3,C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { configFromSource } from '../src/config.js';
-import { maintenanceDefaults, maintenanceConfigProblems, maintenanceDurations } from '../src/worktree-maintenance-config.js';
-import { describeSetting } from '../src/settings-descriptions.js';
+import { configFromSource } from '../src/shell/config.js';
+import { maintenanceDefaults } from '../src/core/worktree-maintenance-config.js';
+import { maintenanceConfigProblems } from '../src/core/worktree-maintenance-config.js';
+import { maintenanceDurations } from '../src/core/worktree-maintenance-config.js';
+import { describeSetting } from '../src/shell/settings-descriptions.js';
 
 export function registerMaintenanceConfigTests() {
   test('worktree maintenance defaults off with a fresh exclusion list and preserves legacy placement [B3,C7,N26]', () => {

@@ -2,17 +2,31 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { hostname, loadavg, tmpdir } from 'node:os';
-import { delimiter, join, resolve } from 'node:path';
+import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
+import { loadavg } from 'node:os';
+import { tmpdir } from 'node:os';
+import { delimiter } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { after, test } from 'node:test';
-import { reserveReview } from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { followBoard } from '../packages/shouts/index.js';
-import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { reserveReview } from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
+import { followBoard } from '../../shouts/index.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const folders = [];
 
 after(() => {
@@ -422,7 +436,7 @@ test('help watch and the generated agent instructions teach seats to listen with
     'Any other harness: run it as a long-running command and treat each stdout line as an event.',
     'next: pullboard status',
   ], 'the original two harness instructions and the final interactive help action stay exact');
-  const { agentsBlock } = await import('../src/doctrine.js');
+  const { agentsBlock } = await import('../../../src/doctrine.js');
   const listen = agentsBlock().split('\n').find((line) => line.startsWith('**Listen.**'));
   assert.ok(listen, 'the AGENTS.md that init writes has a Listen paragraph');
   assert.match(listen, /run `pullboard watch --to <your id>` there/u);
