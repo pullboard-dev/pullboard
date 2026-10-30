@@ -1,6 +1,8 @@
 /** Shared local/relay item-list fields, derived once from the declared lifecycle [A2,N26,H17]. */
 import { MACHINE } from './machine.js';
-import { lifecycleMove } from './lifecycle-move.js';
+import { lifecycleSteps } from './lifecycle-move.js';
+import { recordedWithdrawalFrom } from './lifecycle-move.js';
+export { lifecycleEvent } from './lifecycle-move.js';
 export { lifecycleMove } from './lifecycle-move.js';
 
 /** Match the first local milestone name exactly as the state list projection does. */
@@ -17,45 +19,12 @@ export function milestoneNamesByItem(milestones) {
 
 /** What a board-state item summary keeps: what the lists and the roadmap read (A2, N26). */
 const SUMMARY_FIELDS = Object.freeze(['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy',
-  'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'imported', 'verdict', 'verdictState']);
+  'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'imported', 'verdict', 'verdictState', 'withdrawnReason', 'withdrawnFrom']);
 export const SUMMARY_KEYS = new Set(SUMMARY_FIELDS);
-const CLOCK_MOVES = MACHINE.moves.filter((move) => move.by.includes('clock'));
 
-/** Preserve the lifecycle facts recorded by the board without exposing unrelated event details. */
-export function lifecycleEvent(event) {
-  const projected = { kind: event.event_kind, by: event.event_by, at: event.event_at };
-  if (event.event_kind === 'refreeze' && JSON.parse(event.event_detail).retainedClaim === true) projected.retainedClaim = true;
-  return projected;
-}
-
-/**
- * Replay an item's recorded events through the declared lifecycle, as the view's timeline does
- * (M1). The board logs a claim on a claimed item as renew, and never the clock's lapse, so a move
- * that cannot start where the replay stands, or a status the history does not reach, puts the
- * lapse in first.
- *
- * @param {{ kind: string, at: string }[]} history
- * @param {string} status
- * @returns {{ from: string, move: object | null, at: string | null }[]}
- */
-function lifecycleSteps(history, status) {
-  const steps = [];
-  let at = MACHINE.initial;
-  /** Record where the replay stands and the move it makes, if any, then follow that move. */
-  const step = (move, event) => {
-    steps.push({ from: at, move, at: event ? event.at : null });
-    if (move) at = move.to;
-  };
-  for (const event of history) {
-    /** Use the same native-event matcher as snapshot replay. */
-    const fits = state => lifecycleMove(MACHINE, state, event);
-    const lapse = fits(at) ? null : CLOCK_MOVES.find((move) => move.from.includes(at) && fits(move.to));
-    if (lapse) step(lapse, null);
-    step(fits(at) || null, event);
-  }
-  const lapse = at === status ? null : CLOCK_MOVES.find((move) => move.from.includes(at) && move.to === status);
-  if (lapse) step(lapse, null);
-  return steps;
+/** Derive the withdrawal origin through the same canonical lifecycle used by list stages. */
+export function withdrawnFrom(history, status) {
+  return recordedWithdrawalFrom(MACHINE, history, status);
 }
 
 /** When an item arrived in its list stage; edits, review reservations and renewals do not restart it. */
@@ -88,7 +57,7 @@ export function withListFields(state, leases, { previous = null, dirtyIds = new 
     let contribution = previous?.itemMoveCounts.get(item.id);
     let projected = item;
     if (!previous || dirtyIds.has(item.id) || !previous.items.has(item.id)) {
-      const steps = lifecycleSteps(item.history, item.status);
+      const steps = lifecycleSteps(MACHINE, item.history, item.status);
       contribution = {};
       for (const step of steps) {
         const key = step.move && step.from + '>' + step.move.to + ':' + step.move.verb;
