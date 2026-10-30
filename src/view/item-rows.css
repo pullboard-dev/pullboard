@@ -1,3 +1,4 @@
+.row.item-row > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; }
 /* Approved Items rows keep two copy lines beside a whole seat address [N26]. */
 .row.item-row { grid-template-areas: none; gap: var(--space-3); padding: var(--space-3); }
 .row.item-row > .dot { grid-area: auto; background: var(--surface-2); color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--line); }
