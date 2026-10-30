@@ -85,6 +85,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .repos { display: grid; gap: 1px; margin-left: var(--space-3); padding-left: var(--space-3); border-left: 1px solid var(--line); }
 .repo-error { margin: var(--space-1) 0 var(--space-2) var(--space-3); padding: var(--space-2) var(--space-3); color: var(--ink-faint); font-size: var(--text-xs); line-height: var(--leading-snug); overflow-wrap: anywhere; }
 .repo-error b { color: var(--ink-muted); }
+.unreadable-projects { margin: var(--space-2) var(--space-3); color: var(--ink-faint); font-size: var(--text-xs); }
+.unreadable-projects summary { cursor: pointer; }
+.unreadable-projects ul { list-style: none; padding: 0; margin: var(--space-2) 0; display: grid; gap: var(--space-1); }
+.unreadable-projects li { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.unreadable-copy { display: flex; align-items: baseline; gap: var(--space-2); flex: 1; min-width: 0; white-space: nowrap; }
+.unreadable-copy b { flex: 0 1 auto; min-width: 0; max-width: 45%; font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
+.unreadable-copy code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: var(--text-2xs) var(--mono); }
+.unreadable-projects button { flex: none; min-height: var(--tap); padding-inline: var(--space-2); color: var(--ink-muted); font-size: var(--text-xs); }
 .group-view { display: grid; gap: var(--space-5); max-width: 1000px; }
 .group-panel { padding: var(--space-5) var(--space-5); }
 .group-panel h2 { margin: 0 0 var(--space-4); font-size: var(--text-xl); }
