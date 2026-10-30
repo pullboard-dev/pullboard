@@ -30,7 +30,7 @@ test('a fresh claim behind free earlier work retains its rank inversion [N2,B13]
 
 test('a genuine native check receipt since the claim protects proved work without changing its receipt [N2,B13,C7]', async t => {
   const { box, later } = await ranked(t);
-  const result = await cli(box, box.seats.actor.path, ['check', String(later)]);
+  const result = await cli(box, box.seats.actor.path, ['check', String(later), '--yes']);
   assert.equal(result.code, 0, JSON.stringify(result));
   const receipts = store.proofReceipts(box.board, later);
   assert.ok(receipts.length, 'the actual native check must produce its immutable receipt');
@@ -41,7 +41,7 @@ test('a genuine native check receipt since the claim protects proved work withou
 test('rejected work nudges its active last builder instead of an occupied holder [N2,B13]', async t => {
   const { box, earlier, later } = await ranked(t);
   box.submit(earlier); // Explicit synthetic board-state setup; it claims no gate execution.
-  store.verify(box.board, earlier, { agentId: box.seats.outside.id, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Synthetic lifecycle fixture rejection' });
+  store.verify(box.board, earlier, { agentId: box.seats.outside.id, decision: 'REJECT', digest: store.getItem(box.board, earlier).item_frozen_digest, reason: 'TEST_FAILURE', note: 'Synthetic lifecycle fixture rejection' });
   heartbeatSeat(box.board, box.seats.builder.id);
   const rows = findings(box);
   assert.ok(!rows.some(row => row.key === `RANK_INVERSION:item:${later}`));
