@@ -50,7 +50,14 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("data?.project?.milestones?.some(milestone => milestone.name.startsWith('0.9.4'))");
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
-    await pressedInto(chrome, "!document.querySelector('[data-pane=roadmap]').hidden && document.querySelector('#roadmap-list > .milestone')");
+    try {
+      await pressedInto(chrome, "!document.querySelector('[data-pane=roadmap]').hidden && document.querySelector('#roadmap-list > .milestone')");
+    } catch (error) {
+      const state = await chrome.stable(`JSON.stringify({dataRoot:data?.root??null,viewRoot:view?.root??null,hasProject:!!data?.project,
+        projectName:data?.project?.name??null,milestones:data?.project?.milestones?.map(milestone=>milestone.name)??null,
+        paneHidden:document.querySelector('[data-pane=roadmap]')?.hidden??null,listHtmlLength:document.querySelector('#roadmap')?.innerHTML.length??null})`);
+      throw new Error(`${error.message}; Roadmap render state ${state}; page exceptions ${JSON.stringify(chrome.exceptions)}`, { cause: error });
+    }
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#roadmap-list > .milestone')`);
