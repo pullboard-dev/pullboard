@@ -1,3 +1,7 @@
+import { policyAt } from './trusted-policy-read.js';
+import { frozenCheck } from './trusted-policy.js';
+import { itemPolicy } from './trusted-policy.js';
+import { requireTrunkMerge } from './trusted-policy.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
 import { firstRefusalDetail } from './claims.js';
@@ -270,6 +274,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    sandboxPolicyReads: Object.freeze({ policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,

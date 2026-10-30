@@ -1,3 +1,7 @@
+import { policyAt } from '../src/trusted-policy-read.js';
+import { frozenCheck } from '../src/trusted-policy.js';
+import { itemPolicy } from '../src/trusted-policy.js';
+import { requireTrunkMerge } from '../src/trusted-policy.js';
 import { firstRefusalDetail } from '../src/claims.js';
 import { itemPatchDigest } from '../src/item-patch-state.js';
 import { ENGINE_VERSION } from '../src/engine-metadata.js';
@@ -330,6 +334,8 @@ test('the native operation bag and counted public bridge retain actual authority
 test('native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
   const board = fixtureBoard(t);
   const original = native.nativeBoardPorts().enginePorts;
+  assert.deepEqual(original.sandboxPolicyReads, { policyAt, frozenCheck, itemPolicy, requireTrunkMerge });
+  assert.ok(Object.isFrozen(original.sandboxPolicyReads));
   assert.equal(original.firstRefusalDetail, firstRefusalDetail);
   assert.equal(original.itemPatchDigest, itemPatchDigest);
   assert.deepEqual(original.submitHandoffEngines(), { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE });
@@ -349,6 +355,13 @@ test('native engine composition keeps supplied upper operations and refuses miss
   const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider, MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor };
   const composed = boardEnginePorts(providers);
   assert.equal(composed.store.recordTrainLanding, trainProvider);
+  assert.equal(composed.sandboxPolicyReads, original.sandboxPolicyReads, 'the root passes exact canonical function identities without a cache or fallback');
+  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+    const missingReads = { ...original.sandboxPolicyReads };
+    delete missingReads[name];
+    assert.throws(() => boardEnginePorts({ ...providers, sandboxPolicyReads: missingReads }),
+      error => error.code === 'NO_POLICY' && error.message.includes(`sandboxPolicyReads.${name}`));
+  }
   assert.throws(() => composed.store.recordTrainLanding(board, { agentId: 'coordinator' }), error => error === refusal);
   assert.equal(calls, 1);
   assert.deepEqual(legacy.events(board), before);
