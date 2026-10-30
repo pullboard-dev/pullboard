@@ -18,7 +18,7 @@ function historicalMinimumEngine(args, board, at) {
 }
 
 /** News combines every applicable floor; old arguments retain their historical replay condition order. */
-function minimumEngine(args, board, at) {
+function existingMinimumEngine(args, board, at) {
   const laneFloor = laneMessageFloor(board, args[0]);
   const optionsFloor = Math.max(args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1,
     args[0]?.effects !== undefined ? RULING_OWNER_ENGINE : 1);
@@ -34,7 +34,7 @@ function minimumEngine(args, board, at) {
 function actor(move) { return move.args[0]?.from ?? null; }
 
 export default Object.freeze({ operation: "shout", order: 23, engine: 1,
-  itemIdFirstArgument: false, minimumEngine, actor,
+  itemIdFirstArgument: false, minimumEngine: existingMinimumEngine, actor,
   nextSteps: Object.freeze({
   RULING_EFFECTS: 'declare one to 64 concrete effects on a decision request with --decision --effects',
   RULING_EFFECT: 'use a supported effect operation with its exact row, item or decision target; omit caller owner and status fields',

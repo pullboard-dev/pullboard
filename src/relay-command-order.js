@@ -7,6 +7,7 @@ export function orderedMoveCommand(io) {
   const command = io.relayCommand;
   if (command?.cliOperation === 'patch') return ['attach', 'remove'].includes(command.positionals?.[0]);
   if (command?.cliOperation === 'request') return Boolean(command.positionals?.[0] && command.positionals[0] !== 'list');
+  if (command?.cliOperation === 'rule') return Boolean(command.positionals?.[0] && command.positionals[0] !== 'list');
   if (command?.cliOperation === 'spec') return ['approve', 'decline', 'apply'].includes(command.positionals?.[0]);
   return ORDERED_MOVE_COMMANDS.has(command?.cliOperation);
 }

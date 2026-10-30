@@ -186,7 +186,7 @@ test('no-session shells are one session and markerless terminals retain their wr
   assert.equal(terminalRead.status, 0, `${terminalRead.stdout}${terminalRead.stderr}`);
   assert.equal(JSON.parse(terminalRead.stdout).item_status, 'claimed');
   const beforeIdentified = boardSnapshot(box.boardFile);
-  const identified = box.run(box.web, ['release', '1', '--json'], { session: 'identified-after-sentinel-273', sessionKey: 'CODEX_SESSION_ID' });
+  const identified = box.run(box.web, ['release', '1', '--reason', 'BLOCKED', '--json'], { session: 'identified-after-sentinel-273', sessionKey: 'CODEX_SESSION_ID' });
   assert.equal(identified.status, 1);
   assert.equal(JSON.parse(identified.stdout).error.code, 'NOT_YOUR_CHECKOUT');
   assert.deepEqual(boardSnapshot(box.boardFile), beforeIdentified);

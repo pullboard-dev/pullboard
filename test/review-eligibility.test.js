@@ -67,7 +67,7 @@ test("a helper's posted fact does not make a seat ineligible [V4,B26]", t => {
   const f = fixture(t), id = f.add();
   store.claim(f.board, id, { agentId: 'core-2', lane: 'core', leaseMs: LEASE, freeze });
   store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'Diagnostic only; no submitted commit.' });
-  store.release(f.board, id, 'core-2');
+  store.release(f.board, id, 'core-2', 'Diagnostic work is finished without a submitted commit.', 'OTHER');
   const item = f.submit(id);
   assert.deepEqual(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible, ['coordinator', 'core-2', 'core-3', 'core-5']);
   assert.equal(f.reserve(id, 'core-3').item_review_by, 'core-3', 'a released claim without a commit is not Standard authorship');
@@ -371,7 +371,7 @@ test('routing activation fences vendor-rule downgrades while genuine historical 
     assert.equal(first.error, undefined, 'the historical known-vendor policy allowed this untouched session');
     const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
     delete f.board.executionEngineVersion;
-    store.release(f.board, id, 'core-4', 'Release the historical review before routing activation.');
+    store.release(f.board, id, 'core-4', 'Release the historical review before routing activation.', 'OTHER');
     assert.throws(() => store.reserveReview(f.board, id, options), { code: 'REVIEW_COOLDOWN' });
     // Honor the real release cooldown before asking the independent vendor guard to decide.
     f.board.clock = { now: () => new Date('2026-10-27T01:03:00.000Z') };
@@ -480,7 +480,7 @@ test('aliases and the strict builder rule apply only from their engine; an older
   assert.equal(first.error, undefined, 'recorded before aliases existed, OpenAI and codex were two vendors');
   const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
   delete f.board.executionEngineVersion;
-  store.release(f.board, id, 'core-6', 'Release the historical review before the alias engine applies.');
+  store.release(f.board, id, 'core-6', 'Release the historical review before the alias engine applies.', 'OTHER');
   f.board.clock = { now: () => new Date('2026-10-28T01:03:00.000Z') };
   const fresh = prepareEngineMove(f.board, 'reserveReview', [id, options]);
   assert.equal(applyEngineMove(f.board, fresh, { sequence: 2, at: '2026-10-28T01:04:00.000Z' }).error?.code, 'O2_FAMILY_MATCH', 'the current engine applies the alias');
