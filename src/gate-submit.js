@@ -155,7 +155,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     lease.quarantines = proofContext?.quarantines ?? [];
     if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
-      ...(!hasFinalProof && proofContext.admission?.id ? { submitAdmission: proofContext.admission.id } : {}) };
+      ...(proofContext.admission?.id ? { submitAdmission: proofContext.admission.id } : {}) };
     pinRunMain(lease, onFailure);
     lease.pinnedMain = trunk ?? null;
     const startedAt = Date.now();

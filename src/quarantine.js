@@ -1,3 +1,5 @@
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from './auto-submit-quarantine-engine.js';
+import { submitFlakePairs } from './auto-submit-quarantine.js';
 import { proofReceipts } from './board-query.js';
 import { nativeProofBlockingGreen } from './quarantine-verdict.js';
 import { landingGateRecords } from './quarantine-verdict.js';
@@ -58,15 +60,19 @@ export function flakeQuarantines(board) {
   for (const row of board.db.prepare("SELECT event_id, item_id, event_detail FROM event WHERE event_kind = 'test-quarantine' ORDER BY event_id").all()) {
     const detail = JSON.parse(row.event_detail);
     latest.set(testKey(detail.file, detail.name), { file: detail.file, name: detail.name, item: row.item_id, tree: detail.tree, runs: detail.runs, eventId: row.event_id,
-      ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}) });
+      ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}),
+      ...(detail.autoSubmit === true ? { autoSubmit: true } : {}) });
   }
   const nativeRuns = [...latest.values()].some(entry => entry.nativeCore) ? gateRuns(board) : [];
   return [...latest.values()].map(entry => {
     const state = getItem(board, entry.item).item_status;
-    const clean = entry.nativeCore ? cleanRunRelease(nativeRuns, entry) : null;
-    const lifted = state === 'verified' || !entry.nativeCore && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
-    const closing = lifted ? board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind IN ('accept','withdraw')").get(entry.item).id : null;
-    return { ...entry, ...(entry.nativeCore ? { cleanRuns: clean.count } : {}),
+    const clean = entry.nativeCore && !entry.autoSubmit ? cleanRunRelease(nativeRuns, entry) : null;
+    const item = getItem(board, entry.item);
+    const lifted = entry.autoSubmit ? Boolean(item.item_merged_commit) : state === 'verified' || !entry.nativeCore && state === 'withdrawn' || clean?.releasedAt !== null && clean?.releasedAt !== undefined;
+    const closing = lifted ? (entry.autoSubmit
+      ? board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind='merged'")
+      : board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id = ? AND event_kind IN ('accept','withdraw')")).get(entry.item).id : null;
+    return { ...entry, ...(entry.nativeCore ? { cleanRuns: clean?.count ?? 0 } : {}),
       status: lifted ? 'lifted' : 'quarantined', since: Math.max(entry.eventId, closing ?? 0, clean?.releasedAt ?? 0) };
   });
 }
@@ -199,9 +205,11 @@ export function validateQuarantineLandingProof(board, batch) {
 }
 
 /** The open repair item the older paired-rerun ledger already holds for this test, so one test never gets two. */
-function existingRepair(board, file, name) {
+function existingRepair(board, file, name, landedOnly = false) {
   const row = flakeLedger(board).find(entry => entry.file === file && entry.name === name && entry.item !== null);
-  return row && !['verified', 'withdrawn'].includes(getItem(board, row.item).item_status) ? row.item : null;
+  if (!row) return null;
+  const item = getItem(board, row.item);
+  return (landedOnly ? !item.item_merged_commit && item.item_status !== 'withdrawn' : !['verified', 'withdrawn'].includes(item.item_status)) ? row.item : null;
 }
 
 /**
@@ -254,17 +262,19 @@ function gateRunValue(board, { agentId, receipt }) {
  * @param {{ agentId: string, receipt: object, lane: string, owners?: Record<string,string> }} request
  * @returns {{ run: object, duplicate?: boolean, quarantined: {file: string, name: string, item: number}[] }}
  */
-export function recordGateRun(board, { agentId, receipt, lane, owners }) {
+export function recordGateRun(board, { agentId, receipt, lane, owners, autoSubmit }) {
   const value = gateRunValue(board, { agentId, receipt });
   // A caller's own run must be the receipt its gate stored. A sealed move being replayed was checked where it was made
   // (prepareEngineMove), because another machine holds no copy of that receipt; quarantineWaivers checks again here.
   if (board.executionEngineVersion === undefined) requireBound(board, value);
-  return recordSealedGateRun(board, { agentId, receipt: value, lane, owners });
+  return recordSealedGateRun(board, { agentId, receipt: value, lane, owners, autoSubmit });
 }
 
 /** Append a gate already bound by the native origin adapter; callers retain pure current-event revalidation. */
-export function recordSealedGateRun(board, { agentId, receipt, lane, owners }) {
+export function recordSealedGateRun(board, { agentId, receipt, lane, owners, autoSubmit }) {
   const value = gateRunValue(board, { agentId, receipt });
+  if (autoSubmit !== undefined && (autoSubmit !== true || value.version !== 2 || !['submit', 'check'].includes(value.kind) || value.kind === 'check' && (value.proof.submitPhase !== 'diagnostic' || value.proof.frozenDigest !== null) || !value.proof.submitAdmission)) throw new Refused('GATE_RUN_EVIDENCE', 'automatic quarantine needs a genuine admitted native Submit receipt');
+  if (autoSubmit && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTO_SUBMIT_QUARANTINE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording automatic Submit quarantine');
   return atomic(board, () => {
     if (Object.hasOwn(value, 'collection')) {
       if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator records a landed batch audit');
@@ -281,12 +291,13 @@ export function recordSealedGateRun(board, { agentId, receipt, lane, owners }) {
       return { run: stored, duplicate: true, quarantined: [] };
     }
     validateQuarantineVerdict(board, value);
-    const engine = Math.max(value.testOutcomes ? QUARANTINE_CORE_ENGINE : GATE_RUN_ENGINE,
+    const engine = Math.max(autoSubmit ? AUTO_SUBMIT_QUARANTINE_ENGINE : 1, value.testOutcomes ? QUARANTINE_CORE_ENGINE : GATE_RUN_ENGINE,
       value.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'collection') ? MAIN_AUDIT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'environment') ? LANDING_ENVIRONMENT_ENGINE : GATE_RUN_ENGINE,
       Object.hasOwn(value, 'timing') ? RUN_TIMING_ENGINE : GATE_RUN_ENGINE);
-    logEvent(board, agentId, 'gate-run', null, { engine, run: value });
+    logEvent(board, agentId, 'gate-run', null, { engine, run: value, ...(autoSubmit ? { autoSubmit: true } : {}) });
+    if (autoSubmit) return { run: value, quarantined: recordSubmitQuarantines(board, agentId, value) };
     if (value.testOutcomes) return { run: value, quarantined: recordStructuredQuarantines(board, agentId, value, lane, owners) };
     // Only the coordinator's runs prove a flake: its landing and main-checkout gates run accepted work, and no seat can
     // send a move as the coordinator. A seat's runs stay on the board as evidence of what it saw [C7,D1].
@@ -341,6 +352,33 @@ function recordStructuredQuarantines(board, agentId, value, lane, owners) {
       file: outcome.file, name: outcome.name, tree: value.tree, runs: [red.id, green.id] });
     filed.push({ file: outcome.file, name: outcome.name, item });
     known.set(key, { status: 'quarantined' });
+  }
+  return filed;
+}
+
+/** File one core repair only after two separately admitted native Submit contradictions within the rolling day. */
+function recordSubmitQuarantines(board, agentId, value) {
+  const marked = new Set(board.db.prepare("SELECT event_detail FROM event WHERE event_kind='gate-run'").all()
+    .map(row => JSON.parse(row.event_detail)).filter(row => row.autoSubmit === true).map(row => row.run.id));
+  const runs = gateRuns(board).filter(run => marked.has(run.id));
+  const known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]));
+  const filed = [];
+  for (const outcome of value.testOutcomes ?? []) {
+    if (outcome.skipped) continue;
+    const prior = known.get(testKey(outcome.file, outcome.name));
+    if (prior?.status === 'quarantined') continue;
+    const pairs = submitFlakePairs(runs.filter(run => run.eventId > (prior?.since ?? 0)), outcome.file, outcome.name, value.at);
+    if (pairs.length < 2) continue;
+    const evidence = pairs.slice(-2).flat();
+    const item = existingRepair(board, outcome.file, outcome.name, true) ?? addItem(board, { by: agentId, lane: 'core', route: 'strong',
+      title: `Flaky test: ${outcome.file} :: ${outcome.name}`.slice(0, 240),
+      criterion: `Correct why ${outcome.file} :: ${outcome.name} fails then passes at unchanged source in separate submits; retain the raw failures and prove the correction without retries.`,
+      brief: 'Automatic quarantine after two admitted Submit pairs within 24 hours. The actual failed result and stack remain in each native run log. Quarantine ends only after this repair lands.\n\n'
+        + evidence.map(run => `Native receipt ${run.id}; admission ${run.proof.submitAdmission}; tree ${run.tree}; ${run.green ? 'pass' : 'fail'}; ${run.at}`).join('\n') });
+    logEvent(board, agentId, 'test-quarantine', item, { engine: AUTO_SUBMIT_QUARANTINE_ENGINE, autoSubmit: true,
+      file: outcome.file, name: outcome.name, tree: value.tree, runs: evidence.map(run => run.id) });
+    filed.push({ file: outcome.file, name: outcome.name, item });
+    known.set(testKey(outcome.file, outcome.name), { status: 'quarantined' });
   }
   return filed;
 }

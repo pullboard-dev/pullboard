@@ -1,3 +1,4 @@
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../auto-submit-quarantine-engine.js';
 import { MAIN_AUDIT_ENGINE } from '../main-audit-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by recordGateRun, discovered without a shared registry edit [C7,V4,H16]. */
@@ -20,7 +21,8 @@ function existingEngine(args, board, at) {
 
 /** New collection evidence may not be silently dropped while historical first-match floors remain intact. */
 function minimumEngine(args, board, at) {
-  return Math.max(Object.hasOwn(args[0]?.receipt ?? {}, 'collection') ? MAIN_AUDIT_ENGINE : 1,
+  return Math.max(args[0]?.autoSubmit === true ? AUTO_SUBMIT_QUARANTINE_ENGINE : 1,
+    Object.hasOwn(args[0]?.receipt ?? {}, 'collection') ? MAIN_AUDIT_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'blockingVerdict') ? QUARANTINE_VERDICT_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'testOutcomes') ? QUARANTINE_CORE_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'timing') || Object.hasOwn(args[0]?.receipt ?? {}, 'full') ? RUN_TIMING_ENGINE : 1,

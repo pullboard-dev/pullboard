@@ -10,7 +10,8 @@
   ["src/native-flake-cli.js","packages/flakes/src/shell/native-flake-cli.js","seed"],
   ["src/native-flake-receipts.js","packages/flakes/src/shell/native-flake-receipts.js","rule"],
   ["src/native-flakes.js","packages/flakes/src/shell/native-flakes.js","seed"],
-  ["src/quarantine.js","packages/flakes/src/shell/quarantine.js","seed"]
+  ["src/quarantine.js","packages/flakes/src/shell/quarantine.js","seed"],
+  ["src/auto-submit-quarantine.js","packages/flakes/src/core/auto-submit-quarantine.js","rule"]
  ],
  "reexports": ["src/flakes.js","src/native-flake-cli.js","src/native-flakes.js","src/quarantine.js"],
  "imports": [

@@ -36,6 +36,7 @@ import {
 } from './trusted-policy.js';
 import { fileURLToPath } from 'node:url';
 import { runProfiledShell } from './gate.js';
+import { runFrozenProof } from './gate.js';
 import {
   committedTest,
   tapTests,
@@ -135,11 +136,11 @@ function targetResults(run, root, names) {
 }
 
 /** Run an exact-target private source comparison, preserving the trusted check's full receipt. */
-function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit) {
-  const item = { item_id: 0, item_commit: commit, item_claim_head: policyCommit, item_frozen: JSON.stringify({ check: command }) };
-  const check = checkAtCommit(root, item, { gateLease: lease });
+function privateProbe(root, commit, command, lease, policyCommit, checkAtCommit, submitDiagnostic = false) {
+  const item = { item_id: submitDiagnostic ? lease.proof.item : 0, item_commit: commit, item_claim_head: policyCommit, item_frozen: JSON.stringify({ check: command }) };
+  const check = submitDiagnostic ? runFrozenProof(root, item, { gateLease: lease, diagnostic: true }, { checkAtCommit }) : checkAtCommit(root, item, { gateLease: lease });
   const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : '';
-  return { isGreen: check.state === 'pass', unverified: check.state === 'unverified', output, log: check.outputPath,
+  return { ...(check.proofReceiptId ? { proofReceiptId: check.proofReceiptId } : {}), isGreen: check.state === 'pass', unverified: check.state === 'unverified', output, log: check.outputPath,
     executionRoot: check.executionRoot, executionSourceUnchanged: check.executionSourceUnchanged, profilePath: check.profilePath, profile: check.profile,
     executionRunner: check.executionRunner, executionLoad: check.executionLoad, executionMain: check.executionMain,
     executionSource: check.executionSource, environment: check.environment,
@@ -185,7 +186,7 @@ function diagnosticCode(error) {
  * persist one typed result per case without changing its verdict. Batching keeps a 33-case red file to two probes
  * instead of 66 [#1899]; each case still keeps its own evidence directory, receipts and classification.
  */
-async function observeFailure({ root, config, pin, run, command, lease, kind, record, recordBatch, checkAtCommit }) {
+async function observeFailure({ root, config, pin, run, command, lease, kind, record, recordBatch, recordRun, checkAtCommit }) {
   if (run.isGreen || !pin.head || !pin.tree) return;
   const started = Date.now();
   const observedAt = new Date().toISOString();
@@ -218,7 +219,11 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
       groups.set(entry.failure.file, group);
     }
   }
-  for (const [file, group] of groups) probeFile(root, pin, lease, prefix, checkAtCommit, file, group);
+  const pairedReceipts = [];
+  for (const [file, group] of groups) {
+    const pairedRun = probeFile(root, pin, lease, prefix, checkAtCommit, file, group);
+    if (kind === 'submit' && pairedRun?.proofReceiptId) pairedReceipts.push(pairedRun.proofReceiptId);
+  }
   const observations = [];
   const pending = [];
   for (const entry of cases) {
@@ -235,6 +240,8 @@ async function observeFailure({ root, config, pin, run, command, lease, kind, re
   }
   run.flakeDiagnostics = { wallMs: Date.now() - started, observations };
   await recordObservations(pending, observations, { record, recordBatch });
+  // The typed repair link and raw stacks exist before automatic receipt-based quarantine chooses its owner.
+  if (typeof recordRun === 'function') for (const id of pairedReceipts) await recordRun(id);
   run.flakeDiagnostics = { wallMs: Date.now() - started, observations };
 }
 
@@ -246,7 +253,8 @@ function probeFile(root, pin, lease, prefix, checkAtCommit, file, group) {
   const names = group.map(entry => entry.failure.name);
   const pattern = '^(?:' + names.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|') + ')$';
   const selected = prefix + ' --test-name-pattern ' + word(pattern) + ' ' + word(file);
-  const pairRun = pin.privateCheck ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit)
+  const submitDiagnostic = lease?.proof?.kind === 'submit' && Boolean(lease.proof.submitAdmission);
+  const pairRun = pin.privateCheck || submitDiagnostic ? privateProbe(root, pin.head, selected, lease, pin.main ?? pin.head, checkAtCommit, submitDiagnostic)
     : runProfiledShell(root, selected, { gateLease: lease });
   // Every remote receipt a classification rests on carries both facts, the paired rerun's and main's included; a
   // probe that ran in a local private copy has no remote receipt to check.
@@ -274,6 +282,7 @@ function probeFile(root, pin, lease, prefix, checkAtCommit, file, group) {
     else entry.reason = gaps[0] ?? 'A probe did not establish the exact target at its pinned source; it remains unclassified.';
     if (moved) { entry.classification = 'unclassified'; entry.reason = 'The source changed during diagnostics; no unchanged-head classification is claimed.'; }
   }
+  return pairRun;
 }
 
 /**

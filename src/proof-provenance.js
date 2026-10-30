@@ -141,7 +141,7 @@ function identity(value, limit = 512) {
 /** Validate the native facts attached to a version-two gate receipt. */
 export function proofFields(value) {
   const hasPhase = Object.hasOwn(value ?? {}, 'submitPhase');
-  if (hasPhase && !['criterion', 'proof'].includes(value.submitPhase)) return null;
+  if (hasPhase && !['criterion', 'proof', 'diagnostic'].includes(value.submitPhase)) return null;
   const hasAdmission = Object.hasOwn(value ?? {}, 'submitAdmission');
   if (hasAdmission && !/^[a-f0-9-]{36}$/u.test(value.submitAdmission ?? '')) return null;
   if (!value || !Number.isSafeInteger(value.item) || value.item < 1
