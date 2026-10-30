@@ -1,3 +1,4 @@
+import { apiBoardOpeners } from './board-fixture.js';
 import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
 import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
 /** Rule proof counts come from trunk gate evidence, not a row merely naming a test [S1,A1,A2]. */
@@ -98,7 +99,7 @@ test('the server reports how many rule rows are proven, unproven and contradicte
   ] });
   seedRun(box, { green: false, days: 8, failures: [{ file: 'test/unproven.test.js', name: 'too old' }] });
   seedRun(box, { green: false, main: box.original, failures: [{ file: 'test/unproven.test.js', name: 'branch failure' }] });
-  const api = await serveApi({ refusalDocument, runCommand: main, isMain: true,
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, isMain: true,
     projects: () => [{ root: box.root, name: 'Rule proof fixture' }, { root: empty.root, name: 'Empty rule fixture' }] });
   t.after(() => api.close());
   const before = await documents(box, api);
@@ -234,7 +235,7 @@ test('a gate command with npm flags counts as opaque [S1,A1,A2]', async (t) => {
     box.head = box.git(box.root, 'rev-parse', 'HEAD').trim();
     // These historical records are seeded classification inputs, never a claim that npm ran the script.
     seedRun(box, { command });
-    const api = await serveApi({ refusalDocument, runCommand: main, isMain: true,
+    const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, isMain: true,
       projects: () => [{ root: box.root, name: 'Npm gate proof fixture' }] });
     try {
       const seen = await documents(box, api);

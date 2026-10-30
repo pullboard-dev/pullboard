@@ -968,7 +968,7 @@ function reportRecoveredReply(record, io) {
 }
 
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
-const ordering = relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord,
+const ordering = relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard,
   flush: (root, file, state, io, senderPolicy) => flushOutbox(outboxLink(root, file, state, io, senderPolicy)) });
 const { applyRecords, fetchCheckpoint, catchUp, postPending, sendPending } = ordering;
 
