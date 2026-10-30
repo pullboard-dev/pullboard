@@ -55,6 +55,15 @@ import { relayLinked } from '../relay.js';
 import { relayOperation } from '../relay.js';
 import { relayRecovered } from '../relay.js';
 import { coordinatorFile } from './spec.js';
+import { isReturnedRework } from '../rework-family-routing.js';
+import { reworkRoutingWindows } from '../rework-family-routing.js';
+import { sealReworkRoutingPolicy } from '../rework-family-routing.js';
+
+/** Capture accepted coordinator retirement grace beside the native line takeover window. */
+export function currentReworkRoutingPolicy(ctx, board) {
+  if (store.lineSettings(board).reworkSameFamily !== true) return null;
+  return reworkRoutingWindows(board, mainPolicy(ctx.info.root).config);
+}
 
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
 async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, personIdentity.agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, personIdentity.agentSessionDigest()); return result; }
@@ -170,8 +179,13 @@ export async function ordered(ctx, board, operation, args) {
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
+  const returnedRework = store.lineSettings(board).reworkSameFamily === true && isReturnedRework(board, args[0]);
+  const routingWindows = returnedRework ? currentReworkRoutingPolicy(ctx, board) : null;
+  if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
+  const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
+    ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
 }
 

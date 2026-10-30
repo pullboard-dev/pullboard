@@ -41,6 +41,8 @@ import { foreignBlockers } from './board.js';
 import { reviewReleaseCooldown } from './board.js';
 import { reviewerChecks } from './board.js';
 import { buildOrder } from './board-build-order.js';
+import { lineSettings } from '../packages/state/index.js';
+import { reworkFamilyRoute } from './rework-family-routing.js';
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
@@ -58,7 +60,7 @@ import { buildOrder } from './board-build-order.js';
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null }) {
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -135,6 +137,11 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     .filter((entry) => !itemHold(board, entry.item_id))
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
     .sort((first, second) => compare(first.entry, second.entry));
+  const familyRework = lineSettings(board).reworkSameFamily === true;
+  if (familyRework) for (const candidate of mine) {
+    const routing = reworkFamilyRoute(board, candidate.entry, { listAgents, routeOf, canTake, policy: reworkRoutingPolicy });
+    if (routing.applies) candidate.reworkRouting = routing;
+  }
   // Move only evidenced reworks ahead of their own tier; with no evidence, normal order is exact.
   for (const route of lineOrderEnabled(board) ? [] : ROUTES) {
     const routeTier = ROUTES.indexOf(route);
@@ -154,11 +161,15 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }
   }
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
-  for (const { entry, shared } of mine) {
+  for (const { entry, shared, reworkRouting: rework } of mine) {
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
-    const reserved = firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
+    if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {
+      reasons.push(rework.mode === 'policy-unknown' ? `#${entry.item_id} waits for accepted takeover and maintenance policy` : `#${entry.item_id} is reserved for ${rework.mode === 'builder' ? rework.builder : `the ${rework.builderFamily} family`}`);
+      continue;
+    }
+    const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
     if (reserved) { reasons.push(reserved); continue; }
     const collisions = itemFileCollisions(entry, inFlight);
     if (collisions.length) { reasons.push(...collisions); continue; }

@@ -1,12 +1,16 @@
-import { lineSettings } from '../packages/state/index.js';
 import { prepareFreeze } from './engine-move-freeze.js';
 import { restoreFreeze } from './engine-move-freeze.js';
+import { isReturnedRework } from './rework-family-routing.js';
+import { lineSettings } from '../packages/state/index.js';
 
 /** Mark a claim made under line capacity settings, so replicas apply the same capacity rule [H16]. */
 export function prepareBefore(board, values) {
-  if (['wipPerReviewer', 'takeoverMinutes'].some(key => typeof lineSettings(board)[key] === 'number')) {
-    values[1] = { ...values[1], lineCapacity: true };
-  }
+  const settings = lineSettings(board);
+  const markers = {
+    ...(['wipPerReviewer', 'takeoverMinutes'].some(key => typeof settings[key] === 'number') ? { lineCapacity: true } : {}),
+    ...(values[1]?.reworkRoutingPolicy && isReturnedRework(board, values[0]) ? { reworkSameFamily: true } : {}),
+  };
+  if (Object.keys(markers).length) values[1] = { ...values[1], ...markers };
 }
 
 /** Seal the frozen criterion in place of the caller's freeze callback [H3]. */
