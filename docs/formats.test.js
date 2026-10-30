@@ -23,6 +23,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { submitFixture } from '../test/board-submit-fixture.js';
 import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
+import { reviewDefaultEventContract } from '../test/generated-doc-review-default-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation, openBoard, draftSpecRow } from '../src/native-board.js';
 import { recordNextIdle } from '../src/board.js';
@@ -776,7 +777,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
 
   const { rows, actors } = recordEventContract();
   const repairedRows = exerciseUpgrade();
-  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t)];
+  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract()];
   const actual = {};
   const actorByKind = {
     join: 'joining agent',
