@@ -38,6 +38,7 @@ function setup(t) {
   declare(box, 'codex');
   const directory = join(box.repo, '.git', 'policy-lock-test');
   mkdirSync(directory);
+  // @pullboard-board-file locking: a separate SQLite connection must observe the actual writer lease.
   const board = openBoard(join(directory, 'board.sqlite'));
   const peer = new DatabaseSync(join(directory, 'board.sqlite'));
   peer.exec('PRAGMA busy_timeout=0');
