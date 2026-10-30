@@ -22,7 +22,7 @@ export function reviewOffer(board, { agentId, lane, policy = 'any', familyPolicy
   const held = offered.item && reviewHolder(board, offered.item) === agentId;
   if (reviewRoutingEnabled(board) && held) return { item: offered.item, queue, ratio, urgent: 'held-review', held: true };
   const urgent = held ? { item: null } : nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, omitIds, priority: [],
-    skipIds: [...skipIds, ...listItems(board).filter(item => !overdueReview(board, item, starveMinutes)).map(item => item.item_id)] });
+    skipIds: [...skipIds, ...listItems(board).filter(item => !overdueReview(board, item, starveMinutes, { reviewHolder })).map(item => item.item_id)] });
   if (urgent.item) return { item: urgent.item, queue, ratio, urgent: 'age', starveMinutes };
   if (!held && reviewRoutingEnabled(board) && offered.item && priority.includes(offered.item.item_id)) return { item: offered.item, queue, ratio, urgent: 'main-red' };
   const settings = capacitySettings(board);

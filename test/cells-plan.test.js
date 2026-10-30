@@ -34,6 +34,7 @@ const PLAN = readPlan(ROOT);
 function cellIndex(plan, map) {
   const index = new Map();
   for (const cell of plan.cells) for (const [from, to] of cell.paths) for (const path of [from, to, mappedPath(map, from)]) index.set(path, cell.name);
+  for (const entry of plan.entries ?? []) index.set(entry.path, entry.cell);
   return index;
 }
 

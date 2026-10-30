@@ -1,7 +1,6 @@
 import { reviewPatchAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
-import { reviewHolder } from './board-query.js';
 /** Board moves read a seat's one derived family through the review routing they already use (#1783). */
 export { seatFamily };
 /** Shared review urgency and tier adapter for selection and reservation [C7,V1,B3]. */
@@ -43,15 +42,15 @@ function reviewSubmission(board, item) {
 }
 
 /** Observe the current submission's unreserved wait, including strict work and expired reservations. */
-export function reviewWait(board, item) {
-  if (item.item_status !== 'submitted' || !reviewRoutingEnabled(board) || reviewHolder(board, item)) return null;
+export function reviewWait(board, item, reads = board.nativePorts) {
+  if (item.item_status !== 'submitted' || !reviewRoutingEnabled(board) || reads.reviewHolder(board, item)) return null;
   const submission = reviewSubmission(board, item);
   return submission ? { since: new Date(submission.at).toISOString(), ageMs: board.clock.now().getTime() - submission.at } : null;
 }
 
 /** A free eligible seat interrupts new work after the configured wait; reservation guards still decide eligibility. */
-export function overdueReview(board, item, starveMinutes = 10) {
-  const wait = reviewWait(board, item);
+export function overdueReview(board, item, starveMinutes = 10, reads = board.nativePorts) {
+  const wait = reviewWait(board, item, reads);
   return Boolean(wait && wait.ageMs > starveMinutes * 60_000);
 }
 
