@@ -228,25 +228,46 @@ export function recordRunnerOwner(directory) {
     { mode: 0o600, flag: 'wx' });
 }
 
-/** Observe live owners and job working directories; old files alone are not running jobs. */
-function runnerProcessesIdle(root, diagnostic) {
+/** Recognize only an actual pinned worker command at the canonical path boundary, excluding health probes. */
+export function runnerWorkerMatcher(root, { exactEntrypoint = false } = {}) {
+  const canonicalRoot = realpathSync(root);
+  const roots = [...new Set([root, canonicalRoot])].map(value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'));
+  const source = '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/src/runner-worker\\.js';
+  if (exactEntrypoint) {
+    const entry = new RegExp('^' + source + '$', 'u');
+    /** A positive entrypoint proof matches the complete argv path, never the conservative busy substring. */
+    return command => entry.exec(command)?.[0] === command;
+  }
+  const entry = new RegExp('(?:^|\\s|["\'])' + source + '(?=\\s|$)', 'u');
+  /** Keep selection and the canonical idle guard on the same exact worker predicate. */
+  return command => {
+    const worker = entry.exec(command);
+    return Boolean(worker && !/^\s+--health(?:\s|$)/u.test(command.slice(worker.index + worker[0].length)));
+  };
+}
+
+/** Observe live owners and job working directories; restart may exclude only exact census-bound worker identities from the worker-presence check. */
+export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = {}) {
   const options = { encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
     env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C', TZ: 'UTC' } };
   const commands = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,args='], options);
   if (commands.error || commands.status !== 0 || commands.signal) return false;
   const census = parseProcessCensus(commands.stdout);
   if (!census) return false;
+  if (!Array.isArray(ignoredWorkers) || ignoredWorkers.some(expected => {
+    const actual = census.get(expected?.pid);
+    return !actual || actual.started !== expected.started || actual.processSha256 !== expected.processSha256;
+  })) return false;
+  const ignored = new Set(ignoredWorkers.map(row => row.pid));
   const pids = [...census.values()].filter(row => row.pid !== process.pid && !row.state.startsWith('Z')).map(row => row.pid);
   const canonicalRoot = realpathSync(root);
-  const roots = [...new Set([root, canonicalRoot])].map(value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'));
-  const entry = new RegExp('(?:^|\\s|["\'])' + '(?:' + roots.join('|') + ')/runtime/[a-f0-9]{64}/src/runner-worker\\.js(?=\\s|$)', 'u');
+  const isWorker = runnerWorkerMatcher(root);
   for (const line of commands.stdout.trim().split('\n')) {
     const row = /^\s*([1-9][0-9]*)\s+\d+\s+\d+\s+[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}\s+\S+\s+(.+)$/u.exec(line);
     if (!row) return false;
     const actual = census.get(Number(row[1]));
     if (!actual || actual.pid === process.pid || actual.state.startsWith('Z')) continue;
-    const worker = entry.exec(row[2]);
-    if (worker && !/^\s+--health(?:\s|$)/u.test(row[2].slice(worker.index + worker[0].length))) { diagnostic.pid = actual.pid; return false; }
+    if (isWorker(row[2]) && !ignored.has(actual.pid)) { diagnostic.pid = actual.pid; return false; }
   }
   const jobs = join(canonicalRoot, 'jobs');
   let directories;

@@ -38,6 +38,10 @@ export async function probeRunnerHealth(runner, previous, { idle = false, restar
   try { reply = JSON.parse(output); } catch { /* Unknown or foreign replies do not attest health. */ }
   const workerReady = !error && !timedOut && result.code === 0 && !result.signal
     && reply?.version === 1 && reply.nonce === nonce && reply.worker === true;
+  const reason = workerReady ? reply.reason : 'pinned worker did not answer health request';
+  if (restart && !(workerReady && reply.idle === true && reply.writable === true))
+    process.stderr.write('pullboard runner-restart refused runner=' + JSON.stringify(runner.host)
+      + ' root=' + JSON.stringify(runner.root ?? '(default runner root)') + ' reason=' + JSON.stringify(transportText(reason)) + '\n');
   return { healthy: Boolean(workerReady && (idle || restart ? reply.idle === true && reply.writable === true : reply.cleanup === true)),
     ...(!workerReady ? { diagnostic: { host: runner.host, at: new Date().toISOString(), workerReady: false,
       exitCode: result.code, signal: result.signal, timedOut, error: failure,
@@ -45,8 +49,11 @@ export async function probeRunnerHealth(runner, previous, { idle = false, restar
     ...(workerReady && reply.idleRequired === true ? { idleRequired: true } : {}),
     ...(idle || restart ? { idle: workerReady && reply.idle === true, writable: workerReady && reply.writable === true } : {}),
     ...(restart && workerReady ? { restarted: Array.isArray(reply.restarted) ? reply.restarted.filter(Number.isSafeInteger).slice(0, 32) : [] } : {}),
+    ...(restart && workerReady ? { signalAttempts: Array.isArray(reply.signalAttempts) && reply.signalAttempts.every(row =>
+      Number.isSafeInteger(row?.pid) && row.pid > 0 && ['SIGTERM', 'SIGKILL'].includes(row.signal))
+      ? reply.signalAttempts.map(row => ({ pid: row.pid, signal: row.signal })) : [] } : {}),
     step: !workerReady ? 'worker readiness' : idle || restart ? 'idle proof' : 'cleanup',
-    reason: workerReady ? reply.reason : 'pinned worker did not answer health request', ...result, timedOut, error };
+    reason, ...result, timedOut, error };
 }
 
 /** Supply canonical late-bound runner operations to an actual higher gate composition root. */
