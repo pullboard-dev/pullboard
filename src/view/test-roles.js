@@ -135,6 +135,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "Actual native summary/history HTTP shape, complete prefix, claim/review lease and merge receipt binding"
   },
+  "test/cockpit/pipeline-panel.test.js": {
+    "kind": "journey",
+    "reason": "A private landed native item is rendered in real Chrome and its stage times, retry causes, totals and unmeasured gaps are compared with the exact API projection."
+  },
   "test/cockpit/dashboard-clock.test.js": {
     "kind": "journey",
     "reason": "dashboard-clock: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
