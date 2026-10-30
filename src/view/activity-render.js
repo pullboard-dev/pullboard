@@ -39,7 +39,7 @@ export function activityHtml(model, { filter = 'all', open = [], controls = true
       if (Array.isArray(detail.items) && detail.items.length) lines.push('Items: ' + detail.items.map(id => '#' + id).join(', '));
       if (typeof detail.sha === 'string') lines.push('Main at ' + detail.sha.slice(0, 12));
     }
-    return lines.map(line => '<p class="activity-evidence">' + esc(line) + '</p>').join('');
+    return lines.map(line => '<p class="activity-evidence">' + esc(line).replaceAll('\n', '<br>') + '</p>').join('');
   };
   const row = entry => {
     let tone = 'note', glyph = 'note', content;
