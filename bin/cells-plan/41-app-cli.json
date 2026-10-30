@@ -238,7 +238,8 @@
   ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"],
   ["src/pinned-tool-build.js","apps/cli/src/shell/pinned-tool-build.js","rule"],
   ["src/pinned-tool-publish.js","apps/cli/src/shell/pinned-tool-publish.js","rule"],
-  ["src/commands/tool-build.js","apps/cli/src/shell/commands/tool-build.js","rule"]
+  ["src/commands/tool-build.js","apps/cli/src/shell/commands/tool-build.js","rule"],
+  ["src/command-docs/tool-build.json","apps/cli/src/shell/command-docs/tool-build.json","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
