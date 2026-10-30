@@ -19,6 +19,17 @@ import { stableChrome } from './stable.js';
 import { BIN, tapTarget, SPEC, machine, project, build, sendBack, startView, openPage, agentEntries, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, earlier, shoutsAt, press, settled, chooseFilter } from './fixture.js';
 
 
+/** Open the actual native thread before checking its full messages and agent filter. */
+async function openConversation(chrome, key = 'none') {
+  if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) {
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+  }
+  const selector = '#feed [data-shout-thread="' + key + '"]';
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`);
+  await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+  await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
+}
+
 test('the agents panel says what each agent holds [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -90,6 +101,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.agents?.length >= 4 && data.project.shouts.length >= 2');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #agents [data-agent]")');
+    await openConversation(chrome);
     assert.equal(await chrome.stable("document.querySelectorAll('#agents .agent-pill').length + ':' + document.querySelector('#agents .fold-line[data-fold=\"idle\"]').getAttribute('aria-expanded')"), '0:false', 'the idle agents start folded');
     await chrome.stable("(document.querySelector('.fold-line[data-fold=\"idle\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.fold-line[data-fold=\"idle\"]'))").then(open => open ? chrome.click("document.querySelector('.fold-line[data-fold=\"idle\"]')") : undefined);
     const agents = await chrome.stable('data.project.agents.length');
@@ -102,7 +114,9 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         rows: [...list.querySelectorAll('.agent-card')].map((card) => {
           const row = card.querySelector('.agent-row');
           return { id: row.dataset.agent, text: row.innerText.replace(/\\s+/g, ' ').trim(), title: row.title, height: box(row).height, on: card.classList.contains('on'),
-            face: getComputedStyle(row.querySelector('.avatar')).color, name: getComputedStyle(row.querySelector('.agent-who b')).color,
+            avatars: row.querySelectorAll('.avatar').length, name: row.querySelector('.agent-who b').textContent, model: row.querySelector('.agent-model').textContent,
+            state: row.querySelector('.agent-state').textContent, item: row.querySelector('.agent-what').textContent.trim(),
+            whoBottom: row.querySelector('.agent-who').getBoundingClientRect().bottom, itemTop: row.querySelector('.agent-doing').getBoundingClientRect().top,
             work: [...card.querySelectorAll('.agent-work[data-item]')].map((work) => [work.dataset.item, box(work).height]) };
         }),
         pills: [...list.querySelectorAll('.agent-pill')].map((pill) => ({ id: pill.dataset.agent, title: pill.title, height: box(pill).height, on: pill.classList.contains('on') })),
@@ -118,11 +132,12 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         const at = `${width}px ${scheme}`;
         const p = await panel();
         assert.ok(p.page.scroll <= p.page.width && p.page.body <= p.page.width, `${at}: no sideways scroll: ${JSON.stringify(p.page)}`);
-        // The agent holding work is one row: avatar, name, age, its first thing with that item's state, and how many more.
+        // The approved entry keeps identity and time/state above its held item, with extra holds on hover.
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
-        assert.match(row.text, /^W1 web-1 \(Test Model\) building \+1 (?:now|\d+[mhd]) #1 Header$/, `${at}: what the row says: ${row.text}`);
-        assert.equal(row.face, row.name, `${at}: the name is in its avatar's colour, as in the feed`);
+        assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
+        assert.match(row.state, /^(?:now|\d+[mhd])building$/, `${at}: native age and state stay together`);
+        assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
         // Agents holding nothing are pills in the idle fold; one that has not moved in the last hour waits behind show all.
@@ -137,13 +152,13 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
     await shoutsAt(chrome, 1280, 'light');
     await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
     let p = await panel();
-    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1 (Test Model)', 'coordinator and you']]],
+    assert.deepEqual([p.rows[0].on, p.rows[0].work.map(([id]) => id), p.chip, p.to, p.cards], [true, ['1', '2'], 'to web-1 (Test Model)×', 'web-1', [['web-1', 'coordinator and you']]],
       `the picked row opens to what it holds, the feed shows its shouts and the composer is addressed to it: ${JSON.stringify(p)}`);
     assert.ok(p.rows[0].work.every(([, height]) => height >= tapTarget(1280)), 'each thing it holds is a target');
     // A pill does the same.
     await chrome.click(`document.querySelector('#agents .agent-pill[data-agent="web-2"]')`);
     p = await panel();
-    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2 (Test Model)×', [['web-2 (Test Model)', 'coordinator and you']]], 'a pill filters and addresses too');
+    assert.deepEqual([p.pills.find((pill) => pill.id === 'web-2').on, p.chip, p.cards], [true, 'to web-2 (Test Model)×', [['web-2', 'coordinator and you']]], 'a pill filters and addresses too');
     // And a thing an agent holds opens its item.
     await chrome.click(`document.querySelector('#agents .agent-row[data-agent="web-1"]')`);
     await chrome.click(`document.querySelector('#agents .agent-work[data-item="2"]')`);
@@ -172,14 +187,20 @@ test('the shout feed names a seat broadcast and an item shout in product words [
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 2');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
-    await chrome.waitFor('document.querySelectorAll("#feed .shout").length >= 2');
+    await chrome.waitFor('document.querySelectorAll("#feed .conversation-row").length === 2');
     for (const width of [1280, 375]) {
       await shoutsAt(chrome, width, 'light');
       const at = `${width}px`;
-      const feed = JSON.parse(await chrome.stable(`JSON.stringify({
-        tos: [...document.querySelectorAll('#feed .shout .to')].map((to) => to.textContent),
-        link: document.querySelector('#feed .shout .to a.ref')?.dataset.go ?? null,
-        text: document.querySelector('#feed').innerText }) `));
+      const snapshots = [];
+      for (const key of ['none', 'item:1']) {
+        await openConversation(chrome, key);
+        snapshots.push(JSON.parse(await chrome.stable(`JSON.stringify({
+          tos: [...document.querySelectorAll('#feed .shout .to')].map((to) => to.textContent),
+          link: document.querySelector('#feed .shout .to a.ref')?.dataset.go ?? null,
+          text: document.querySelector('#feed').innerText }) `)));
+      }
+      const feed = { tos: snapshots.flatMap(snapshot => snapshot.tos), link: snapshots.find(snapshot => snapshot.link)?.link,
+        text: snapshots.map(snapshot => snapshot.text).join('\n') };
       assert.ok(feed.tos.includes('→ coordinator and you'), `${at}: a seat broadcast reads coordinator and you: ${JSON.stringify(feed.tos)}`);
       assert.ok(feed.tos.includes('→ #1'), `${at}: an item shout reads its id: ${JSON.stringify(feed.tos)}`);
       assert.equal(feed.link, 'item:1', `${at}: the item id links to the item`);
