@@ -23,13 +23,14 @@ import { foreignNodeOptions } from '../src/test-isolation.js';
 function accepted(t) {
   const box = fixture(t);
   const paths = ['src/sample-engine.js', 'src/engine-next.js', 'src/engine-numbers.js', 'src/ordinary.js',
-    'src/misleading-engine.js', 'src/forwarded-engine.js'];
+    'src/misleading-engine.js', 'src/forwarded-engine.js', 'src/move-history/152.json'];
   box.put(paths[0], 'export const SAMPLE_ENGINE = 17;\n');
   box.put(paths[1], 'export function unassignedEngine() { return 18; }\n');
   box.put(paths[2], 'export function nextEngineNumber() { return 18; }\n');
   box.put(paths[3], 'export function ordinary() { return 1; }\n');
   box.put(paths[4], 'export function ordinaryEngine() { return 1; }\n');
   box.put(paths[5], "export { SAMPLE_ENGINE } from './sample-engine.js';\n");
+  box.put(paths[6], '{"version":1,"engine":152,"name":"sample","declarations":{}}\n');
   const seed = JSON.parse(readFileSync(join(box.root, 'bin/cells-plan/seed.json'), 'utf8'));
   seed.order.splice(1, 0, 'state');
   seed.cells.state = paths;
@@ -63,7 +64,7 @@ async function inspect(box) {
 }
 
 test('listed canonical engine leaves and the two bootstrap supports stay without changing source [C7,CD64]', async t => {
-  const box = accepted(t), paths = box.paths.slice(0, 3);
+  const box = accepted(t), paths = [...box.paths.slice(0, 3), box.paths[6]];
   const original = paths.map(file => readFileSync(join(box.root, file), 'utf8'));
   box.plan = retainEnginePaths({ root: box.root, plan: box.plan, cellName: 'state', paths, pathMap: new Map() });
   assert.deepEqual(box.plan.engineStays.map(entry => entry.row[0]), paths);
@@ -99,7 +100,7 @@ test('candidate edits cannot manufacture engine stay authority from accepted ord
 test('an engine-looking filename or imported engine export cannot manufacture declaration authority [C7,CD64]', async t => {
   const box = accepted(t), cell = box.plan.cells.find(value => value.name === 'state');
   box.plan.engineStays = [];
-  for (const file of box.paths.slice(4)) {
+  for (const file of box.paths.slice(4, 6)) {
     assert.throws(() => retainEnginePaths({ root: box.root, plan: box.plan, cellName: 'state', paths: [file], pathMap: new Map() }),
       error => error.code === 'CELLS_ENGINE_STAY');
     const row = cell.paths.find(value => value[0] === file);

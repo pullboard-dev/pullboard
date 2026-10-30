@@ -2,18 +2,24 @@
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { engineDeclarationNames } from '../src/engine-folder.js';
+import { engineBindings } from '../packages/state/core.js';
+import { lex } from '../src/js-lex.js';
 import { Refused } from '../src/refused.js';
 
 const SUPPORT = new Set(['src/engine-next.js', 'src/engine-numbers.js']);
+const HISTORY = /^src\/move-history\/(?:legacy|[1-9][0-9]*)\.json$/u;
 const REASON = 'canonical engine identity retained in src during package moves';
 
 /** Read only a regular canonical root leaf; symlinks cannot supply accepted source authority. */
 function rootSource(root, file) {
-  if (!/^src\/[A-Za-z0-9._-]+\.[cm]?js$/u.test(file)) return null;
+  if (!/^src\/[A-Za-z0-9._-]+\.[cm]?js$/u.test(file) && !HISTORY.test(file)) return null;
   try {
-    const directory = lstatSync(join(root, 'src')), stat = lstatSync(join(root, file));
-    if (!directory.isDirectory() || directory.isSymbolicLink() || !stat.isFile() || stat.isSymbolicLink()) return null;
+    for (const parent of HISTORY.test(file) ? ['src', 'src/move-history'] : ['src']) {
+      const directory = lstatSync(join(root, parent));
+      if (!directory.isDirectory() || directory.isSymbolicLink()) return null;
+    }
+    const stat = lstatSync(join(root, file));
+    if (!stat.isFile() || stat.isSymbolicLink()) return null;
     return readFileSync(join(root, file), 'utf8');
   } catch { return null; }
 }
@@ -26,8 +32,8 @@ function present(root, file) {
 
 /** Classify the accepted bytes, never a candidate-added declaration that would manufacture an exemption. */
 function engineLeaf(row, source) {
-  return source !== null && (SUPPORT.has(row[0])
-    || engineDeclarationNames(source).length > 0);
+  return source !== null && (SUPPORT.has(row[0]) || HISTORY.test(row[0])
+    || engineBindings(lex(source).code).length > 0);
 }
 
 /** Validate exact row custody and unchanged new stays before the submit guard excuses a missing placement. */
