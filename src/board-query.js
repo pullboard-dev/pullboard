@@ -1,6 +1,8 @@
 import { withDerivedFamily } from './family-declaration.js';
 import { withDerivedFamilies } from './family-declaration.js';
 import { effectiveItemHead } from './source-advance-state.js';
+import { agentParent } from './seat-parent.js';
+export { agentParent } from './seat-parent.js';
 import { projectReviewFamily } from './required-review-family.js';
 import { withSeatPresence } from './seat-presence.js';
 import { projectItemDecisions } from './item-decision-queue.js';
@@ -467,11 +469,6 @@ export function relatedItems(board, item, limit = 3) {
     .filter((entry) => entry.shared.length)
     .sort((first, second) => second.shared.length - first.shared.length || second.item.item_id - first.item.item_id)
     .slice(0, limit);
-}
-
-/** Read a seat's immutable parent session digest; unknown parents remain separate seats. */
-export function agentParent(board, id) {
-  return board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(`agent_parent_session:${id}`)?.meta_value ?? null;
 }
 
 /** Every stamped receipt for one item, in recorded order. */

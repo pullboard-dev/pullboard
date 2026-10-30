@@ -1,10 +1,12 @@
 /** Local presence filters new advice only; sealed claims keep their recorded semantics [B3,N2,H16]. */
 import { COORDINATOR } from './config.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
-import { withLocalSeatPresence } from './seat-presence.js';
 
-/** A current read may withhold new work; an ordered operation never depends on private heartbeat state. */
-export function liveRouteProblem(board, agentId) {
+/**
+ * A current read may withhold new work; an ordered operation never depends on private heartbeat state.
+ * The store supplies its local presence projection, so seat routing never loads the presence reader.
+ */
+export function liveRouteProblem(board, agentId, { withLocalSeatPresence }) {
   if (board.executionEngineVersion !== undefined || !lineSettings(board)['route.liveOnly']) return null;
   const [seat] = withLocalSeatPresence(board, [{ agent_id: agentId }]);
   return seat.presence === 'live' ? null

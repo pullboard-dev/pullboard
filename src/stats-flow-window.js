@@ -2,6 +2,8 @@
 import { Refused } from './refused.js';
 import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
 import { NEXT_IDLE_ENGINE } from './next-idle-engine.js';
+import { flowWindowBounds } from './flow-window-bounds.js';
+export { flowWindowBounds } from './flow-window-bounds.js';
 
 const MINUTE = 60_000;
 export const WINDOW_STAGES = ['build', 'reviewWait', 'review', 'sendBackIdle', 'mergeWait'];
@@ -153,15 +155,6 @@ export function flowWindowLines(flowWindow) {
         ...row.tail.map(item => `  #${item.id}: ${time(item.minutes)} · ${item.cause}${item.eligibility ? ' (eligibility unmeasured; check eligible reviewers)' : ''}`)];
     }),
     `constraint: ${flowWindow.constraint.stage ? LABELS[flowWindow.constraint.stage] : 'none measured over target'} · ${time(flowWindow.constraint.overTargetMinutes)} over target`];
-}
-
-/** Share exact validated window boundaries with line-capacity decisions. */
-export function flowWindowBounds(minutes, now) {
-  if (!(minutes > 0) || !Number.isFinite(minutes) || !Number.isFinite(new Date(now - minutes * MINUTE).getTime())) {
-    throw new Refused('USAGE', 'use pullboard stats --window with a positive finite duration, for example --window 6h');
-  }
-  const since = now - minutes * MINUTE;
-  return { since: new Date(since).toISOString(), until: new Date(now).toISOString(), durationMinutes: minutes };
 }
 
 const HOUR = 3_600_000;

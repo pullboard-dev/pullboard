@@ -1,4 +1,4 @@
-import { agentById } from './seats.js';
+import { agentById } from './board-query.js';
 import * as handoffMoves from './handoff.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
