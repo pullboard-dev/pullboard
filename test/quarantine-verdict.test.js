@@ -49,7 +49,7 @@ test('unrelated positive [C7]',()=>assert.notEqual(mode,'mixed'));\n`);
 const DRIVER = `import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {git} from './src/git.js';
-import {runGate,runProfiledShell,withGateSlot} from './src/gate.js';
+import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from './src/gate.js';
 import {receiptRecorder} from './src/native-flake-receipts.js';
 import {context,ordered,withBoard,resourceAgent,freezer} from './src/cli.js';
 import {runnerExecutionServices} from './src/runners.js';
@@ -67,6 +67,7 @@ import {sourceAdvanceProblem} from './src/source-advance.js';
 import {sourceAdvanceEpisode,sourceAdvanceReviewEpisode} from './src/source-advance-state.js';
 import {itemPatchDigest} from './src/item-patch-state.js';
 import {proofCounts} from './src/proof-provenance.js';
+import {checkAtCommit} from './src/runner-private-check.js';
 import * as store from './src/board.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 const ctx=context({cwd:root,say(){},err(){}}),agentId=resourceAgent(ctx);
@@ -148,6 +149,27 @@ assert.ok(guards.proofReceiptId,'a selective landing exception keeps its own act
 const deferred=await runDeferredAffectedTests(root,{...config,affectedTests:'node bin/run-tests.js'},['test/control.test.js'],
  {directory:root+'/../logs',quarantines,proofContext:{...proofContext,kind:'land'}});
 assert.equal(deferred.isGreen,true);assert.equal(deferred.exitCode,1);assert.ok(deferred.proofReceiptId);
+const checkedItem=await withBoard(ctx,async board=>{
+ const id=store.addItem(board,{by:agentId,lane:'web',title:'Quarantined actual private criterion',
+  criterion:'The real committed test still executes while its active native quarantine changes only blocking authority.',check:config.gate});
+ await ordered(ctx,board,'refreeze',[id,{agentId,freeze:freezer(ctx,{board})}]);
+ return {...store.getItem(board,id),item_commit:git(root,['rev-parse','HEAD'])};
+});
+const privateRun=await withGateSlot(root,lease=>{
+ lease.quarantines=quarantines;lease.proof={seat:agentId};
+ return runFrozenProof(root,checkedItem,{gateLease:lease},{checkAtCommit});
+},{executionServices,agent:agentId,kind:'review'});
+assert.equal(privateRun.state,'pass',JSON.stringify(privateRun));
+assert.equal(privateRun.exitCode,1);assert.equal(privateRun.rawState,'red');
+const privateReceipt=readGateReceipt(receiptStore(root),privateRun.proofReceiptId);
+assert.equal(privateReceipt.kind,'verdict');assert.equal(privateReceipt.proof.exitCode,1);
+assert.equal(privateReceipt.green,false);assert.equal(receiptBlockingGreen(privateReceipt),true);
+const submit=await runSubmitGate(root,{...config,staticChecks:'',submitGate:'landing',submitInvariants:[],registryGuards:[],affectedTests:null},
+ {base:git(root,['rev-parse','HEAD^']),trunk:git(root,['rev-parse','HEAD']),check:config.gate,agent:agentId,
+  proofContext:{item:checkedItem.item_id,frozenDigest:checkedItem.item_frozen_digest,seat:agentId,quarantines},onFailure:observer,executionServices});
+assert.equal(submit.isGreen,true);assert.equal(submit.check.green,true);
+assert.equal(submit.check.rawExitCode,1);assert.equal(submit.phaseVerdicts[0].blockingVerdict.green,true);
+assert.equal(readGateReceipt(receiptStore(root),submit.proofReceiptIds[0]).proof.exitCode,1);
 const unchanged=receiptBody(nativeReceipt);
 assert.equal(receiptFields({...nativeReceipt,blockingVerdict:null}),null);
 assert.equal(receiptFields({...nativeReceipt,proof:{...nativeReceipt.proof,exitCode:0}}),null);
@@ -167,7 +189,7 @@ withBoard(ctx,board=>{
  assert.equal(proofRunReceipt(board,{agentId,itemId:item.item_id,receiptId:native.proofReceiptId}).existing.id,nativeReceipt.id);
 });
 assert.equal(receiptBody(readGateReceipt(receiptStore(root),nativeReceipt.id)),unchanged);
-console.log(JSON.stringify({actualGate:true,nativeProof:true,sourceAdvance:true,landing:true,rawExit:1,closed:true}));
+console.log(JSON.stringify({actualGate:true,nativeProof:true,sourceAdvance:true,landing:true,privateVerify:true,submit:true,rawExit:1,closed:true}));
 `;
 
 test('every native quarantine verdict reader retains real raw red and rejects uncovered or expired authority [C7,H16]', async t => {
@@ -175,7 +197,7 @@ test('every native quarantine verdict reader retains real raw red and rejects un
   const result = await runFixtureChildAsync(process.execPath, ['quarantine-driver.mjs'], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr + result.stdout);
   const report = JSON.parse(result.stdout.trim().split('\n').at(-1));
-  assert.deepEqual(report, { actualGate: true, nativeProof: true, sourceAdvance: true, landing: true, rawExit: 1, closed: true });
+  assert.deepEqual(report, { actualGate: true, nativeProof: true, sourceAdvance: true, landing: true, privateVerify: true, submit: true, rawExit: 1, closed: true });
 });
 
 
