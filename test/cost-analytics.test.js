@@ -110,22 +110,30 @@ test('recorded event model survives later seat relabeling [N26]', () => {
 });
 
 
-test('the same cohort projection reads a seeded native SQLite board [N26]', t => {
+test('a seeded native board yields actual cohorts, Wilson bounds and verdicts [N26]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-cost-cohort-'));
   const board = openBoard(join(dir, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
   const coordinator = store.register(board, { lane: 'coordinator', path: dir });
-  const builder = store.register(board, { lane: 'core', path: join(dir, 'builder'), model: 'Alpha' });
+  const alpha = store.register(board, { lane: 'core', path: join(dir, 'alpha'), model: 'Alpha' });
+  const beta = store.register(board, { lane: 'core', path: join(dir, 'beta'), model: 'Beta' });
   const verifier = store.register(board, { lane: 'review', path: join(dir, 'verifier'), model: 'Reviewer' });
-  const id = store.addItem(board, { by: coordinator, lane: 'core', title: 'Seeded native item' });
   const at = new Date('2026-10-30T12:00:00Z');
-  logEvent(board, builder, 'submit', id, {}, at);
-  logEvent(board, verifier, 'accept', id, {}, at);
-  logEvent(board, builder, 'usage', null, { item: id, revision: 1, records: [{ model: 'Alpha', wallMs: 1000, inputTokens: 10 }] }, at);
-  logEvent(board, coordinator, 'merged', id, {}, at);
+  for (let index = 0; index < 60; index++) {
+    const builder = index < 30 ? alpha : beta, model = index < 30 ? 'Alpha' : 'Beta';
+    const id = store.addItem(board, { by: coordinator, lane: 'core', title: `Seeded ${index}` });
+    logEvent(board, builder, 'submit', id, {}, at);
+    if (index >= 30 && index < 50) { logEvent(board, verifier, 'reject', id, {}, at); logEvent(board, builder, 'submit', id, {}, at); }
+    logEvent(board, verifier, 'accept', id, {}, at);
+    logEvent(board, builder, 'usage', null, { item: id, revision: 1, records: [{ model, wallMs: 1000, inputTokens: 10 }] }, at);
+    logEvent(board, coordinator, 'merged', id, {}, at);
+  }
   const result = costAnalytics({ items: store.listItems(board), agents: store.listAgents(board), events: store.events(board), window: 'today', now: new Date('2026-10-30T14:00:00Z'), timeZone: 'UTC', modelPresentation: presentation });
-  assert.equal(result.totals.itemCount, 1);
-  assert.equal(result.totals.agentMs, 1000);
-  assert.equal(result.builders.rows[0].model, 'alpha');
-  assert.equal(result.verifiers.rows[0].accepts, 1);
+  assert.equal(result.totals.itemCount, 60);
+  assert.equal(result.totals.agentMs, 60000);
+  assert.equal(result.totals.sentBack.items, 20);
+  assert.equal(result.builders.verdict, 'clear');
+  assert.equal(result.builders.best, 'alpha');
+  assert.deepEqual({ low: result.builders.rows[1].low, high: result.builders.rows[1].high }, wilson(10, 30));
+  assert.equal(result.verifiers.rows[0].accepts, 60);
 });
