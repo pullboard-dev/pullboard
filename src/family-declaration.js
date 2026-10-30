@@ -11,6 +11,16 @@ import { createHash } from 'node:crypto';
 const ACTIVE = 'family_declare:active';
 const LAST = Number.MAX_SAFE_INTEGER;
 const RECEIPTS = new WeakMap();
+/**
+ * Limit a LIKE on board_meta keys to the keys starting with one letter, in either case. LIKE keeps its historical
+ * case-insensitive match. Why: the two ranges are index seeks, where a bare LIKE scanned every row, and nearly
+ * all of the board's 150,000 keys are `local:` ones that can never match.
+ */
+function startsWith(letter) {
+  return `((meta_key >= '${letter}' AND meta_key < '${String.fromCharCode(letter.charCodeAt(0) + 1)}') OR (meta_key >= '${letter.toUpperCase()}' AND meta_key < '${String.fromCharCode(letter.toUpperCase().charCodeAt(0) + 1)}'))`;
+}
+const AGENT_KEY = startsWith('a');
+const RECEIPT_KEY = startsWith('r');
 
 /** The first ordered move at the declaration engine fences every later fresh registration to that engine. */
 export function recordFamilyDeclareActivation(board, engine) {
@@ -48,11 +58,11 @@ export function originalSession(board, id, declared = null) {
  * family field and whose family has since been changed, which is when the receipt is the first record.
  */
 function receiptRegistrations(board) {
-  const count = board.db.prepare("SELECT COUNT(*) AS n FROM board_meta WHERE meta_key GLOB 'relay_receipt_*'").get().n;
+  const count = board.db.prepare(`SELECT COUNT(*) AS n FROM board_meta WHERE ${RECEIPT_KEY} AND meta_key LIKE 'relay\\_receipt\\_%' ESCAPE '\\'`).get().n;
   const cached = RECEIPTS.get(board.db);
   if (cached?.count === count) return cached.paths;
   const rows = [];
-  for (const row of board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key GLOB 'relay_receipt_*'").all()) {
+  for (const row of board.db.prepare(`SELECT meta_value FROM board_meta WHERE ${RECEIPT_KEY} AND meta_key LIKE 'relay\\_receipt\\_%' ESCAPE '\\' ORDER BY rowid`).all()) {
     const receipt = parsed(row.meta_value);
     const move = typeof receipt?.move === 'string' ? parsed(receipt.move) : null;
     if (move?.operation !== 'register' || receipt.outcome?.error || typeof move.args?.[0]?.path !== 'string') continue;
@@ -92,7 +102,7 @@ function seatRecords(board, id, { inserting = false } = {}, snapshot = null) {
 export function derivedFamily(board, id, { session = null, inserting = false } = {}) {
   const original = id ? originalSession(board, id, session) : session;
   const seats = new Set(id ? [id] : []);
-  if (original) for (const row of board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'agent_session:*' AND meta_value=?").all(original)) {
+  if (original) for (const row of board.db.prepare(`SELECT meta_key FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`).all(original)) {
     seats.add(row.meta_key.slice('agent_session:'.length));
   }
   let first = null;
@@ -141,7 +151,7 @@ export function withDerivedFamily(board, row) {
 function familySnapshot(board) {
   const seats = new Map(board.db.prepare('SELECT agent_id, agent_path, agent_family FROM agent').all().map(row => [row.agent_id, row]));
   const sessions = new Map(), peers = new Map(), joins = new Map(), families = new Map();
-  for (const row of board.db.prepare("SELECT meta_key, meta_value FROM board_meta WHERE meta_key GLOB 'agent_session:*' ORDER BY rowid").all()) {
+  for (const row of board.db.prepare(`SELECT meta_key, meta_value FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' ORDER BY rowid`).all()) {
     const id = row.meta_key.slice('agent_session:'.length);
     if (row.meta_key === 'agent_session:' + id) sessions.set(id, row.meta_value);
     if (!peers.has(row.meta_value)) peers.set(row.meta_value, []);
