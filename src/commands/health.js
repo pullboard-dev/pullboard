@@ -18,7 +18,7 @@ import { loadMachineSettings } from '../settings-read.js';
 import { runnerLeaseHealth } from '../../packages/resources/index.js';
 
 /** Run `pullboard health` and return its exit code. */
-export function run(io) {
+export async function run(io) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth, machineSettings: loadMachineSettings() });
   report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
@@ -26,6 +26,12 @@ export function run(io) {
   const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
   report.overdueRunnerLeases = runnerHealth.filter(row => row.deadline !== undefined);
   report.runnerLifecycleProblems = runnerHealth.filter(row => row.problem);
+  report.dirtyWorktrees = [];
+  if (ctx.config.worktreeMaintenance?.enabled === true) {
+    const { maintenanceHealth } = await import('../worktree-maintenance.js');
+    const { readMaintenanceSnapshot } = await import('../worktree-maintenance-command.js');
+    report.dirtyWorktrees = maintenanceHealth(ctx.info.commonDir, await readMaintenanceSnapshot(ctx), ctx.clock.now().getTime());
+  }
   report.blocks = blockReport(readBlocks(ctx.info.commonDir, { since: new Date(ctx.clock.now().getTime() - 86_400_000) }), seatsByPath(ctx.file));
   io.result?.(report);
   for (const line of healthLines(report)) io.say(line);
@@ -34,7 +40,10 @@ export function run(io) {
   for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
   for (const line of blockLines(report.blocks)) io.say(line);
-  return report.stuck.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length ? 1 : 0;
+  for (const row of report.dirtyWorktrees) io.say(row.kind === 'withdrawal-retained'
+    ? `withdrawal cleanup deferred for #${row.item}: ${JSON.stringify(row.path)}; ${row.reason}`
+    : `worktree has uncommitted work since ${row.since} without a live seat: ${JSON.stringify(row.path)}`);
+  return report.stuck.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length || report.dirtyWorktrees.length ? 1 : 0;
 
 }
 

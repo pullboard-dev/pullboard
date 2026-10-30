@@ -169,5 +169,6 @@
     "rerun": true,
     "quarantine": true
   },
-  "relay": { "outbox": true }
+  "relay": { "outbox": true },
+  "worktreeMaintenance": { "enabled": true, "every": "1h", "grace": "1d", "exclude": ["/Users/coreyolson/Code/Open Source/pullboard-local-core-24"] }
 }

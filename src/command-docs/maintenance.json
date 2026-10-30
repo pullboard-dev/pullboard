@@ -1,0 +1,5 @@
+{
+  "name": "maintenance",
+  "help": "  pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true\n",
+  "required": { "enabled": "boolean", "counts": "object", "pruned": "number", "archived": "number" }
+}
