@@ -44,7 +44,7 @@ test('a live old pool resizes to registered limits with queued work and admits w
       onWait: state => { if (state.line.some(row => row.agent === 'queued-runner-job')) queuedResolve(); } })
       .then(lease => ({ lease }), error => ({ error }));
     await Promise.race([queued, new Promise((_, reject) => {
-      queueTimer = setTimeout(() => reject(new Error('the fixture runner waiter did not enter the queue')), 10_000);
+      queueTimer = setTimeout(() => reject(new Error('the fixture runner waiter did not enter the queue')), 10_000); // budget: hang ceiling for native waiter visibility; leaves 5s of 15s for owned cleanup.
     })]);
     clearTimeout(queueTimer);
 
