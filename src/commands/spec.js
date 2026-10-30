@@ -8,7 +8,7 @@ import {
   planRowVerificationApply,
   rowVerificationFindings,
 } from '../spec-verdicts.js';
-import { planAutomaticRigorApply } from '../rigor-auto-apply.js';
+import { planAutomaticRigorApply } from '../../packages/rigor/index.js';
 import {
   planSpecRevision,
   prepareSpecRevisionDecisions,
