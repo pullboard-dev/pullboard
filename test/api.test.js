@@ -1022,13 +1022,16 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
     const httpVerifyStep = await observedApiStep('verify an unknown item through HTTP', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'verify', item: 999, args: { decision: 'accept', as: 'coordinator', note: 'checked the API' } }) }), box.env, 409);
     assert.deepEqual(errorDocument(httpVerifyStep), verifierRefusal, `${httpVerifyStep.evidence}\nCLI evidence:\n${cliVerifyStep.evidence}`);
 
+    // An empty next records one next-idle event [#1818], so the add follows the newest event, not the first read's last.
+    const latestStep = await observedApiStep('read the newest board event before the add', apiFetch(api, `${boardPath}/events?after=${eventsStep.document.events.at(-1)?.event_id ?? 0}`), box.env);
+    const latestEventId = latestStep.document.events.at(-1)?.event_id ?? eventsStep.document.events.at(-1)?.event_id;
     const movedStep = await observedApiStep('add a move with a dash-prefixed title', apiFetch(api, `${boardPath}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'add', args: { lane: 'app', title: '--help' } }) }), box.env);
     assertRequiredShape(movedStep.document, JSON_SHAPES.http.move.required, `move response\n${movedStep.evidence}`);
     assert.ok(movedStep.document.result?.item && typeof movedStep.document.result.item === 'object',
       `add response must include its nested item\n${movedStep.evidence}`);
     assert.equal(movedStep.document.result.item.item_title, '--help', movedStep.evidence);
     assert.equal(movedStep.document.event.event_kind, 'add', movedStep.evidence);
-    assert.equal(movedStep.document.event.event_id, eventsStep.document.events.at(-1)?.event_id + 1, movedStep.evidence);
+    assert.equal(movedStep.document.event.event_id, latestEventId + 1, movedStep.evidence);
     assert.equal(api.stderr(), '', movedStep.evidence);
   } catch (error) {
     error.message = `${error.message}\n${lastStepEvidence}`;
