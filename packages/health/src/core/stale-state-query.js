@@ -27,15 +27,23 @@ function observedSeats(board, actors) {
   } catch { return new Map(); }
 }
 
-/** Combine only actually observed activity; absent work/heartbeat evidence never proves silence. */
+/**
+ * Combine only actually observed activity. For a review, absent work or heartbeat evidence never proves silence.
+ * A claim belongs to its seat id (#1933, coordinator 30 Oct): only board writes, shouts, proofs and heartbeats under
+ * that id count, so a seat with no presence reads as absent and a checkout's file activity, which a reused or gone
+ * checkout cannot attribute to the seat, is neither required nor read.
+ */
 function activity(board, item, actor, anchor, kind, seats, workObservation, now) {
   const unknown = [];
+  const seatOnly = kind === 'claim';
   const heartbeat = seats.get(actor)?.heartbeatAt;
-  if (!heartbeat || staleInstant(heartbeat, now) === null) unknown.push('heartbeat unavailable or future');
-  let work;
-  try { work = workObservation(actor, item, kind); }
-  catch { work = null; }
-  if (work?.available !== true || work.at !== null && staleInstant(work?.at, now) === null) unknown.push('work observation unavailable or future');
+  if (heartbeat ? staleInstant(heartbeat, now) === null : !seatOnly) unknown.push('heartbeat unavailable or future');
+  let work = null;
+  if (!seatOnly) {
+    try { work = workObservation(actor, item, kind); }
+    catch { work = null; }
+    if (work?.available !== true || work.at !== null && staleInstant(work?.at, now) === null) unknown.push('work observation unavailable or future');
+  }
   const proof = board.db.prepare(`SELECT event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind='proof-run'
     ${kind === 'review' ? "AND json_extract(event_detail,'$.receipt.commit')=?" : ''} ORDER BY event_id DESC LIMIT 1`)
     .get(item.item_id, actor, ...(kind === 'review' ? [item.item_commit] : []));

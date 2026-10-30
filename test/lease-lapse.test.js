@@ -1,6 +1,8 @@
 /** @pullboard-test-input source-tree */
 /** Lapsed claims expire through captured native writes, preserving activity and original ownership [B4,C7,H16]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../src/board.js';
@@ -20,11 +22,11 @@ const MINUTE = 60_000;
 async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   const box = await fixture(t);
   box.advance(Math.ceil(Date.now() / 1000) * 1000 + 10_000 - box.clock.now().getTime());
-  const unknownIds = [];
+  const unknownIds = [], prefixHolders = [];
   for (let n = 0; n < unknownPrefix; n++) {
     const holder = store.register(box.board, { lane: 'web', path: box.root + '-unknown-' + n, family: 'Fixture unknown work' });
     const pending = box.add('Unknown work prefix ' + n);
-    unknownIds.push(pending);
+    unknownIds.push(pending); prefixHolders.push(holder);
     store.claim(box.board, pending, { agentId: holder, lane: 'web', leaseMs: MINUTE,
       freeze: item => ({ text: item.item_title, digest: 'unknown-prefix-fixture' }) });
     heartbeatSeat(box.board, holder);
@@ -34,6 +36,8 @@ async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   store.claim(box.board, id, { agentId: box.seats.builder.id, lane: 'web', leaseMs,
     freeze: item => ({ text: item.item_title, digest: 'lease-lapse-fixture' }) });
   box.advance(62 * MINUTE);
+  // Prefix holders stay live under their own seat ids, so the scan must step past them without expiring them.
+  for (const holder of prefixHolders) heartbeatSeat(box.board, holder);
   return { box, id, unknownIds };
 }
 
@@ -63,7 +67,7 @@ test('coordinator release --stale succeeds once on an unchanged expired lease wh
   assert.equal(minimumMoveEngine('release', [id, 'coordinator', 'new', { staleClaim: {}, leaseLapse: true }]), LEASE_LAPSE_ENGINE);
 });
 
-test('a live holder heartbeat vetoes expiry and unknown work observations never prove abandonment [B3,B4,C7]', async t => {
+test('a live holder heartbeat vetoes expiry, and a gone checkout with no activity under its seat id frees [B3,B4,C7]', async t => {
   const { box, id } = await lapsed(t);
   heartbeatSeat(box.board, box.seats.builder.id);
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write retains active holder.']);
@@ -76,10 +80,36 @@ test('a live holder heartbeat vetoes expiry and unknown work observations never 
   store.claim(box.board, id, { agentId: missing, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'private', digest: 'private' }) });
   heartbeatSeat(box.board, missing);
   box.advance(62 * MINUTE);
-  const unknown = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write keeps unknown work evidence.']);
-  assert.equal(unknown.code, 0, unknown.out + unknown.err);
-  assert.equal(itemById(box.board, id).item_owner, missing);
-  assert.equal(itemById(box.board, id).item_status, 'claimed');
+  // The claim belongs to the seat id: a missing worktree is absence, never unknown evidence (#1933).
+  const gone = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write frees a gone checkout.']);
+  assert.equal(gone.code, 0, gone.out + gone.err);
+  assert.equal(itemById(box.board, id).item_status, 'open');
+  assert.equal(firstRefusal(box.board, id).builder, missing);
+});
+
+test('a seat with no presence at all frees on the next write, and release --stale takes one call [B4,C7]', async t => {
+  const { box } = await lapsed(t);
+  const ghost = store.register(box.board, { lane: 'web', path: box.root + '-never-seen', family: 'Fixture gone seat' });
+  const id = box.add('Private claim held by a seat that never reported presence');
+  store.claim(box.board, id, { agentId: ghost, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'private', digest: 'private' }) });
+  box.advance(62 * MINUTE);
+  const released = await cli(box, box.root, ['release', String(id), '--stale', '--note', 'Private claim of a gone seat.', '--no-next']);
+  assert.equal(released.code, 0, released.out + released.err);
+  assert.equal(itemById(box.board, id).item_status, 'open');
+  const again = box.add('Second private claim of the same gone seat');
+  store.claim(box.board, again, { agentId: ghost, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'private', digest: 'private' }) });
+  box.advance(62 * MINUTE);
+  const write = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write frees a gone seat.']);
+  assert.equal(write.code, 0, write.out + write.err);
+  assert.equal(itemById(box.board, again).item_status, 'open');
+});
+
+test('fresh file activity in a lapsed holder checkout is not seat activity and never keeps the claim [B4,C7]', async t => {
+  const { box, id } = await lapsed(t);
+  writeFileSync(join(box.seats.builder.path, 'private-recent-edit.txt'), 'edited by some other process\n');
+  const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write ignores checkout files.']);
+  assert.equal(result.code, 0, result.out + result.err);
+  assert.equal(itemById(box.board, id).item_status, 'open');
 });
 
 test('sealed lapsed-claim expiry replays identically despite fresh replica-local heartbeat and refuses a changed revision [B4,H16]', async t => {
@@ -104,14 +134,14 @@ test('sealed lapsed-claim expiry replays identically despite fresh replica-local
 test('bounded expiry scans advance past thirty-two unknown claims instead of starving a later proven idle holder [B4,C7]', async t => {
   const { box, id, unknownIds } = await lapsed(t, { unknownPrefix: 33 });
   const snapshot = captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id);
-  assert.equal(snapshot.claims.length, 0, 'the first captured batch contains only unknown evidence');
+  assert.equal(snapshot.claims.length, 0, 'the first captured batch contains only live holders');
   const first = store.maintainStaleState(box.board, { agentId: box.seats.actor.id, snapshot, health: {}, claimsOnly: true });
   assert.deepEqual(first.claims, [], 'one native batch advances without inventing an expiry');
-  assert.equal(itemById(box.board, id).item_status, 'claimed', 'the first bounded batch contains only unknown evidence');
+  assert.equal(itemById(box.board, id).item_status, 'claimed', 'the first bounded batch contains only live holders');
   const second = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Second bounded private expiry scan.']);
   assert.equal(second.code, 0, second.out + second.err);
   assert.equal(itemById(box.board, id).item_status, 'open', 'the recorded cursor advances despite no expiry in the first batch');
-  assert.ok(unknownIds.every(pending => itemById(box.board, pending).item_status === 'claimed'), 'every unknown holder remains protected in authoritative raw state');
+  assert.ok(unknownIds.every(pending => itemById(box.board, pending).item_status === 'claimed'), 'every live holder remains protected in authoritative raw state');
 });
 
 test('new lapsed support retains valid live-but-idle coordinator release [B4,H16]', async t => {
