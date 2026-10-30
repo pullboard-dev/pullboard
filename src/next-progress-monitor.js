@@ -40,6 +40,17 @@ function observePhases() {
 
 if (!isMainThread && workerData?.kind === 'next-progress') observePhases();
 
+/** A file-backed Worker cannot inherit the parent eval input type; retain every other argument verbatim. */
+function monitorExecArgv() {
+  const args = [];
+  for (let index = 0; index < process.execArgv.length; index++) {
+    const value = process.execArgv[index];
+    if (value === '--input-type') { index++; continue; }
+    if (!value.startsWith('--input-type=')) args.push(value);
+  }
+  return args;
+}
+
 /** Start one acknowledged diagnostic worker before native routing; callers await close only after ordered work settles. */
 export async function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
   // Only the actual CLI stream permits descriptor writes; an adapter can expose fd 2 while capturing write().
@@ -48,7 +59,7 @@ export async function startNextProgressMonitor(io, { phaseMs = 10_000 } = {}) {
   if (!Number.isSafeInteger(fd) || fd < 0) return null;
   const shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT), state = new Int32Array(shared);
   const worker = new Worker(new URL('./next-progress-monitor.js', import.meta.url),
-    { workerData: { kind: 'next-progress', state: shared, fd, phaseMs } });
+    { execArgv: monitorExecArgv(), workerData: { kind: 'next-progress', state: shared, fd, phaseMs } });
   let failure = null, generation = 0, current = null;
   worker.on('error', error => { failure = error; });
   try {
