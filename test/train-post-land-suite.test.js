@@ -188,16 +188,11 @@ test('a real landed batch files a newly red case and a green batch files nothing
         },
       },
       };
-      try {
-        await finishTrunk(state);
-        assert.equal(store.landingBatches(board).find(row => row.id === batchId).state, 'landed');
-      } finally {
-        box.git(box.repo, 'worktree', 'remove', '--force', candidate);
-      }
+      await finishTrunk(state);
+      assert.equal(store.landingBatches(board).find(row => row.id === batchId).state, 'landed');
       return { id, batchId };
-    } catch (error) {
-      try { box.git(box.repo, 'worktree', 'remove', '--force', candidate); } catch {}
-      throw error;
+    } finally {
+      box.git(box.repo, 'worktree', 'remove', '--force', candidate);
     }
   }
 
