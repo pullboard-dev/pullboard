@@ -1,7 +1,7 @@
 /** Automatic repairs preserve exact-main matching and ordinary claim authority [V4,B3,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readdirSync } from 'node:fs';
+import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openBoard } from '../src/native-board.js';
 import * as store from '../src/board.js';
@@ -32,7 +32,7 @@ test('opted-in submit files one linked repair for an identical unowned main fail
   const repairs = rows(box, "SELECT * FROM item WHERE item_title LIKE 'Main red:%'");
   assert.equal(repairs.length, 1);
   assert.ok(repairs[0].item_criterion.includes(box.main));
-  assert.ok(repairs[0].item_criterion.includes('frozen case [G1]'));
+  assert.ok(repairs[0].item_criterion.includes('affected case [G1]'));
   assert.ok(repairs[0].item_criterion.includes(`submit #${box.item}`));
   assert.ok(repairs[0].item_check.includes('test/affected.test.js'));
   assert.equal(report.gate.green, false, 'the original red never becomes a green run');
@@ -123,4 +123,20 @@ test('a captured submit keeps its item binding when an offline source item is re
   entry.refs = bindRefs(outbox, entry.move);
   assert.equal(entry.refs.length, 2);
   assert.deepEqual(resolveMove(entry, outbox).move.args, [12, { autoMainReds: { candidates: [{ proof: { item: 12 } }] } }]);
+});
+
+
+test('an opted-in submit with a real docs companion files its untouched main failure [V4,B3]', t => {
+  const box = fixture(t, { autoFileMainReds: true, companion: true });
+  const author = JSON.parse(cli(box, box.builder, 'whoami').stdout).id;
+  const patch = join(box.directory, 'autofile-companion.patch');
+  writeFileSync(patch, 'diff --git a/docs/companion.md b/docs/companion.md\n--- a/docs/companion.md\n+++ b/docs/companion.md\n@@ -1 +1 @@\n-Before.\n+After.\n');
+  const attached = cli(box, box.root, 'patch', 'attach', String(box.item), patch, '--key', 'autofile-docs', '--author', author, '--source', box.head);
+  assert.equal(attached.status, 0, attached.stdout + attached.stderr);
+  const result = submit(box);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.gate.knownMainFailures.main, box.main);
+  assert.deepEqual(report.gate.knownMainReworks.map(row => row.file), ['test/affected.test.js']);
+  assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 1);
 });

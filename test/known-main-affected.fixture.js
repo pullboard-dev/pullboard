@@ -57,7 +57,7 @@ function source(expected) {
 }
 
 /** A claimed item with a green frozen check whose affected test/affected.test.js is red or green on main per `main`. */
-export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false } = {}) {
+export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled = false, affected, autoFileMainReds = false, companion = false } = {}) {
   const directory = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-known-affected-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = join(directory, 'repo');
@@ -83,7 +83,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled 
   assert.equal(result.status, 0, result.stdout + result.stderr);
   put(root, 'package.json', '{"type":"module"}\n');
   put(root, 'pullboard.json', JSON.stringify({ gate: 'node test/runner.js', affectedTests: 'node test/runner.js', submit: { autoFileMainReds },
-    lanes: { core: { owns: ['test/', 'change.txt'], specs: ['G'] } } }));
+    lanes: { core: { owns: ['test/', 'change.txt', ...(companion ? ['docs/'] : [])], specs: ['G'] } } }));
   put(root, 'SPEC.md', '# Fixture\n\n## G · Goals\n- G1 [approved, must] The change works. | gate: test/frozen.test.js\n');
   put(root, 'test/frozen.test.js', source(1));
   put(root, 'test/affected.test.js', affected ?? (cancelled
@@ -96,6 +96,7 @@ export function fixture(t, { main = 2, candidate = 2, check = FROZEN, cancelled 
     "process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? '');",
     'process.exitCode = run.status ?? 1;',
   ].join('\n') + '\n');
+  if (companion) put(root, 'docs/companion.md', 'Before.\n');
   box.main = commit(box, root);
   result = cli(box, root, 'add', 'core', 'Change behind a red affected case', '--specs', 'G1', '--route', 'mid',
     '--criterion', 'The change works.', '--check', check, '--brief', 'Files: change.txt, test/\nTest: affected known main');

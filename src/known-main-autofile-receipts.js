@@ -16,14 +16,17 @@ export function sealKnownMainAutofile(board, id, options) {
   const request = options.autoMainReds;
   const root = board.gitRoot;
   const policy = policyAt(root, options.policyCommit);
-  if (!contains(root, options.policyCommit, mainPolicy(root).commit)
-    || tryGit(root, ['merge-base', options.companion?.commit ?? options.commit, options.policyCommit]).stdout.trim() !== request.main) throw refused();
+  const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
+  // Match submit's bare-source comparison boundary; companions do not become the historical base.
+  const source = options.companion?.source ?? options.commit;
+  const base = source === options.policyCommit ? item.item_claim_head
+    : tryGit(root, ['merge-base', source, options.policyCommit]).stdout.trim();
+  if (!contains(root, options.policyCommit, mainPolicy(root).commit) || base !== request.main) throw refused();
   if (policy.config.submit?.autoFileMainReds !== true) throw refused();
   const read = ids => {
     if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) throw refused();
     return ids.map(id => { const receipt = readGateReceipt(boardReceiptStore(board), id); if (!receipt) throw refused(); return receipt; });
   };
-  const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
   const candidates = read(request.candidateReceiptIds);
   for (const receipt of candidates) board.enginePorts.boundProofReceipt(board, { receiptId: receipt.id });
   const config = submitGateConfig(policyAt(root, options.companion?.commit ?? options.commit).config, policy.config);
