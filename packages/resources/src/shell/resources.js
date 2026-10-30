@@ -1400,8 +1400,8 @@ export function overdueRunnerLeases(now = Date.now()) { return runnerLeaseHealth
 export function runnerBoardFile(root, hops = 3) {
   let info;
   try { info = repoInfo(root); } catch { return null; }
-  const file = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (existsSync(file)) return file;
+  const boardFile = join(info.commonDir, 'pullboard', 'board.sqlite');
+  if (existsSync(boardFile)) return boardFile;
   if (hops <= 0) return null;
   const origin = spawnSync('git', ['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   const url = origin.status === 0 ? origin.stdout.trim() : '';
@@ -1413,9 +1413,9 @@ export function runnerItemState(root, item) {
   if (!/^[1-9][0-9]*$/u.test(String(item ?? ''))) return null;
   const id = Number(item);
   if (!Number.isSafeInteger(id)) return null;
-  const file = runnerBoardFile(root);
-  if (!file) return null;
-  const db = new DatabaseSync(file, { readOnly: true });
+  const boardFile = runnerBoardFile(root);
+  if (!boardFile) return null;
+  const db = new DatabaseSync(boardFile, { readOnly: true });
   try {
     const row = db.prepare("SELECT meta.meta_value AS board, item.item_id, item.item_status, item.item_merged_commit FROM item JOIN board_meta meta ON meta.meta_key='board_id' WHERE item.item_id=? AND NOT EXISTS(SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)").get(id);
     if (!row) return null;
