@@ -91,3 +91,14 @@ test('private local endpoint serves analytics and refuses hosted origins and mis
   assert.notEqual((await fetchFresh(base + path, { headers: { ...headers, origin: 'https://app.pullboard.dev' } })).status, 200);
   assert.notEqual((await fetchFresh(base + path)).status, 200);
 });
+
+
+test('recorded event model survives later seat relabeling [N26]', () => {
+  const input = seeded([['Old', 1, 0]]);
+  input.events.find(event => event.event_kind === 'submit').event_detail = JSON.stringify({ model: 'Old' });
+  input.agents.find(agent => agent.agent_id === 'b1').model = 'New';
+  input.events.push({ event_id: 1000, event_kind: 'model', event_by: 'b1', event_detail: JSON.stringify({ model: 'New' }) });
+  const result = costAnalytics(input);
+  assert.equal(result.builders.rows[0].model, 'old');
+  assert.equal(result.unknownBuilderModelShare, 0);
+});
