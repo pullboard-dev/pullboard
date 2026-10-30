@@ -1,4 +1,5 @@
 /** @pullboard-test-loads src/worktree-maintenance.js src/worktree-maintenance-observation.js src/worktree-maintenance-archive.js */
+/** @pullboard-test-loads packages/state/src/core/handoff-state.js */
 /** Private Git/native-board integration cases for the owning maintenance test [B3,C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -8,7 +9,8 @@ import { join, relative } from 'node:path';
 import * as store from '../src/board.js';
 import { closeBoard, openBoard } from '../src/native-board.js';
 import { repoInfo } from '../src/git.js';
-import { withLocalSeatPresence } from '../src/seat-presence.js';
+import { heartbeatSeat, withLocalSeatPresence } from '../src/seat-presence.js';
+import { agentHandoff } from '../packages/state/src/core/handoff-state.js';
 import { cleanMaintenanceSeat, maintenanceHealth, runWorktreeMaintenance } from '../src/worktree-maintenance.js';
 import { maintenanceGit, maintenanceSnapshot } from '../src/worktree-maintenance-archive.js';
 import { writeMaintenanceState } from '../src/worktree-maintenance-observation.js';
@@ -37,10 +39,13 @@ function project(t, { born = BORN, grace = '1s' } = {}) {
     fs.mkdirSync(join(path, '..'), { recursive: true });
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', path, 'main');
     const agent = seat ? store.register(board, { lane: 'web', path, family: box.declareFamily(path) }) : null;
+    if (agent) assert.equal(heartbeatSeat(board, agent), true, 'fixture records a local heartbeat on the controllable native board clock');
     return { path, agent };
   }
   /** Read current seat and item projections from the private native board SDK. */
-  const readSnapshot = async () => ({ seats: withLocalSeatPresence(board, store.listAgents(board)), items: store.listItems(board, { all: true }) });
+  const readSnapshot = async () => ({ seats: withLocalSeatPresence(board, store.listAgents(board)).map(seat => ({
+    ...seat, completedTakeoverAt: agentHandoff(board, seat.agent_id)?.takenAt ?? null,
+  })), items: store.listItems(board, { all: true }) });
   const archives = [];
   /** Append an actual native fact before the engine can remove its source worktree. */
   async function recordArchive(record) {
@@ -60,6 +65,12 @@ function claimItem(fx, agent, title) {
   store.claim(fx.board, id, { agentId: agent, lane: 'web', leaseMs: 2 * HOUR,
     freeze: item => ({ text: item.item_title, digest: `fixture:${item.item_title}` }) });
   return id;
+}
+
+/** Record a takeover through canonical native events and return its board-clock timestamp. */
+function completeTakeover(fx, outgoing, incoming) {
+  const handoff = store.openHandoff(fx.board, { agentId: outgoing });
+  return store.takeHandoff(fx.board, { agentId: incoming, item: handoff.item }).takenAt;
 }
 
 /** Add binary staged and unstaged edits plus untracked and ignored files. */
@@ -119,11 +130,13 @@ export function registerMaintenanceEngineTests() {
     const fx = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
     const live = fx.addTree('live-seat', { seat: true });
     const claimed = fx.addTree('claimed-seat', { seat: true });
+    assert.equal((await fx.readSnapshot()).seats.find(row => row.agent_id === live.agent)?.presence, 'live');
     const claim = claimItem(fx, claimed.agent, 'Claim retained by maintenance fixture');
     const liveDirty = makeDirty(fx.box, live.path), claimedDirty = makeDirty(fx.box, claimed.path);
     const report = await runWorktreeMaintenance(fx.box.repo, fx.config, fx.ports, { now: fx.now() });
     assert.equal(report.pruned, 0);
     assert.equal(report.archived, 0);
+    assert.equal(report.entries.find(row => row.path === live.path).reason, 'seat-live', 'the local heartbeat guard, rather than grace age, retains this tree');
     for (const [tree, before] of [[live, liveDirty], [claimed, claimedDirty]]) {
       assert.equal(fs.existsSync(tree.path), true);
       assert.equal(maintenanceSnapshot(tree.path, { includeMetadata: true }).signature, before.signature);
@@ -262,5 +275,51 @@ export function registerMaintenanceEngineTests() {
     assert.equal(await cleanMaintenanceSeat(held.path, excluded, fx.ports,
       { path: held.path, item: releasedAgain, agent: held.agent, now: fx.now() }), null);
     assert.equal(maintenanceSnapshot(held.path).signature, liveBefore);
+  });
+
+  test('retired takeover cleanup needs a complete clear process census before and after archival [B3,C7]', async t => {
+    const setup = (fx, name) => {
+      const retired = fx.addTree(`${name}-retired`, { seat: true });
+      const incoming = fx.addTree(`${name}-incoming`, { seat: true });
+      const claim = claimItem(fx, retired.agent, `${name} released checkout`);
+      store.release(fx.board, claim, retired.agent);
+      fs.writeFileSync(join(retired.path, 'untracked.bin'), Buffer.from([0, 31, 255]));
+      const takenAt = completeTakeover(fx, retired.agent, incoming.agent);
+      return { retired, claim, takenAt, before: maintenanceSnapshot(retired.path, { includeMetadata: true }).signature };
+    };
+
+    const clean = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
+    const safe = setup(clean, 'safe-census');
+    assert.equal((await clean.readSnapshot()).seats.find(row => row.agent_id === safe.retired.agent)?.completedTakeoverAt, safe.takenAt);
+    let safeScans = 0;
+    const safePorts = { ...clean.ports, completedTakeover: true, workingDirectories() { safeScans++; return []; } };
+    const cleaned = await cleanMaintenanceSeat(safe.retired.path, clean.config, safePorts,
+      { path: safe.retired.path, item: safe.claim, agent: safe.retired.agent, retired: true, now: clean.now() });
+    assert.equal(cleaned.clean, true);
+    assert.equal(safeScans, 2, 'empty native working-directory results are checked on both sides of archival');
+    assert.equal(maintenanceSnapshot(safe.retired.path).dirty, false);
+
+    const unknown = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
+    const unknownCase = setup(unknown, 'unknown-census');
+    const unknownResult = await cleanMaintenanceSeat(unknownCase.retired.path, unknown.config,
+      { ...unknown.ports, completedTakeover: true, workingDirectories: () => null },
+      { path: unknownCase.retired.path, item: unknownCase.claim, agent: unknownCase.retired.agent, retired: true, now: unknown.now() });
+    assert.equal(unknownResult, null);
+    assert.equal(maintenanceSnapshot(unknownCase.retired.path, { includeMetadata: true }).signature, unknownCase.before);
+    assert.deepEqual(archiveFacts(unknown), []);
+
+    const changed = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
+    const changedCase = setup(changed, 'changed-census');
+    let changedScans = 0;
+    const changedPorts = { ...changed.ports, completedTakeover: true, workingDirectories() {
+      changedScans++;
+      return changedScans === 1 ? [] : [{ pid: 4321, path: join(changedCase.retired.path, 'nested') }];
+    } };
+    const changedResult = await cleanMaintenanceSeat(changedCase.retired.path, changed.config, changedPorts,
+      { path: changedCase.retired.path, item: changedCase.claim, agent: changedCase.retired.agent, retired: true, now: changed.now() });
+    assert.equal(changedResult, null);
+    assert.equal(changedScans, 2);
+    assert.equal(maintenanceSnapshot(changedCase.retired.path, { includeMetadata: true }).signature, changedCase.before);
+    assert.equal(archiveFacts(changed).length, 1, 'the archive fact is retained, while the newly occupied source is not reset');
   });
 }

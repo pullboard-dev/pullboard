@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { classifyMaintenanceTree } from '../src/worktree-maintenance-classify.js';
 
@@ -78,6 +80,19 @@ export function registerMaintenanceClassificationTests() {
     assert.equal(inside.oldEnough, true);
   });
 
+  test('maintenance classification always protects the retained recovery checkout and overlapping paths [B3,I4,I16]', () => {
+    const protectedRoot = join(homedir(), 'Code', 'pullboard');
+    const paths = [protectedRoot, join(protectedRoot, 'nested-checkout'), join(homedir(), 'Code')];
+    for (const path of paths) {
+      const context = input({ tree: { path, locked: false, bare: false },
+        config: { worktrees: 'beside', worktreeMaintenance: { enabled: true, grace: '1ms', exclude: [] } } });
+      const result = classifyMaintenanceTree(context.tree, context);
+      assert.equal(result.kind, 'active');
+      assert.equal(result.protected, true);
+      assert.equal(result.reason, 'recovery-checkout');
+    }
+  });
+
   test('maintenance classification uses native gone age and exact grace boundaries, never inventing age from mtime [B3,I4,I16]', () => {
     const base = input();
     const tree = base.tree;
@@ -122,5 +137,24 @@ export function registerMaintenanceClassificationTests() {
     assert.equal(scratch.oldEnough, true);
     const futureFirstSeen = classifyMaintenanceTree(base.tree, { ...base, previous: { firstSeenAt: NOW + 1 } });
     assert.equal(futureFirstSeen.oldEnough, false);
+  });
+
+  test('native completed takeover ages retired live seats but claims and process directories still protect them [B3,I4,I16]', () => {
+    const base = input();
+    const seat = { agent_id: 'core-1', path: base.tree.path, presence: 'live',
+      heartbeatAt: NOW - 2 * DAY, completedTakeoverAt: NOW - DAY };
+    for (const presence of ['live', 'idle']) {
+      const retired = classifyMaintenanceTree(base.tree, { ...base, seats: [{ ...seat, presence }] });
+      assert.equal(retired.protected, false);
+      assert.equal(retired.oldEnough, true);
+    }
+    const claimed = classifyMaintenanceTree(base.tree, { ...base, seats: [seat],
+      items: [{ item_id: 81, item_owner: seat.agent_id, item_status: 'claimed' }] });
+    assert.equal(claimed.protected, true);
+    assert.equal(claimed.reason, 'claim');
+    const inUse = classifyMaintenanceTree(base.tree, { ...base, seats: [seat],
+      workingDirectories: [{ pid: 1234, path: join(base.tree.path, 'nested') }] });
+    assert.equal(inUse.protected, true);
+    assert.equal(inUse.reason, 'process-working-directory');
   });
 }
