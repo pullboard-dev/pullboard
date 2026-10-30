@@ -1,3 +1,4 @@
+import { acceptedCutItems } from './cells-plan-fixture.js';
 /** Immutable submit census composes later accepted placement authority [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -11,7 +12,7 @@ import { withMainCheckout } from '../src/main-red.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
 
 const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
-  cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) };
+  readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) };
 const item = { item_frozen: JSON.stringify({ criterion: 'Preserve accepted placement authority and all cell boundaries.' }) };
 
 /** Commit only actual fixture files through ordinary Git. */
