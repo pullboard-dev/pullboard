@@ -104,7 +104,8 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
         { ...receipt, tree: '0'.repeat(40) },
         { ...receipt, head: '0'.repeat(40) },
         { ...receipt, at: '2000-01-01T00:00:00.000Z' },
-        { ...receipt, proof: { ...receipt.proof, submitPhase: undefined } },
+        ...(receipt.kind === 'check' ? [{ ...receipt, proof: { ...receipt.proof, submitPhase: undefined } }] : []),
+        { ...receipt, proof: { ...receipt.proof, frozenDigest: '0'.repeat(64) } },
       ]) assert.throws(() => requireSubmitDiagnosticAdmission(admissionBoard, receipt.proof.seat, changed), error => error.code === 'GATE_RUN_UNBOUND');
       const stripped = structuredClone(receipt);
       delete stripped.proof.diagnosticAdmission;

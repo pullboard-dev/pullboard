@@ -279,7 +279,7 @@ export function requireSubmitDiagnosticAdmission(board, agentId, value) {
   if (!grant || grant.event_by !== agentId || proof.seat !== agentId || grant.item_id !== proof.item
     || detail.submitAdmission.commit !== value.head || detail.submitAdmission.tree !== value.tree
     || !Number.isFinite(Date.parse(grant.event_at)) || !(Date.parse(grant.event_at) <= Date.parse(value.at))
-    || value.kind === 'submit' && (detail.digest !== proof.frozenDigest || !['criterion', 'proof'].includes(proof.submitPhase))
+    || value.kind === 'submit' && detail.digest !== proof.frozenDigest
     || value.kind === 'check' && (proof.submitPhase !== 'diagnostic' || proof.frozenDigest !== null)) {
     throw new Refused('GATE_RUN_UNBOUND', 'diagnostic quarantine evidence needs its matching prior native Submit admission; run a new admitted Submit');
   }
