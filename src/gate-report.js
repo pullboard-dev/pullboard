@@ -60,6 +60,11 @@ export function timingDigest(profile) {
 export function gateReport(gate) {
   const timings = timingDigest(gate.profile);
   const profilePath = timings && gate.profilePath ? `\ntiming profile: ${gate.profilePath}` : '';
+  if (gate.blockingVerdict) {
+    const refs = gate.blockingVerdict.quarantines.slice(0, 8).map(row => `#${row.item}/event ${row.eventId}: ${row.file.slice(0, 200)} :: ${row.name.slice(0, 240)}`).join('; ');
+    const omitted = Math.max(0, gate.blockingVerdict.quarantines.length - 8);
+    return `gate blocking verdict ${gate.isGreen ? 'green' : 'red'}; raw exit ${gate.exitCode}; quarantined failures: ${refs}${omitted ? `; ${omitted} more in receipt ${gate.proofReceiptId ?? gate.receiptId}` : ''}\nraw output: ${gate.log}${timings ? `\n${timings}` : ''}${profilePath}`;
+  }
   if (gate.isGreen) {
     const summary = gate.isCached ? 'gate green (this tree already passed)' : `gate green in ${gate.seconds}s`;
     if (!gate.profile?.files?.length) return timings ? `${summary}; ${timings.replaceAll('\n', '; ')}${gate.profilePath ? `; timing profile: ${gate.profilePath}` : ''}` : summary;

@@ -1,3 +1,6 @@
+import { validateQuarantineVerdict } from './quarantine.js';
+import { quarantineBatchGates } from './quarantine-verdict.js';
+import { validateQuarantineGate } from './quarantine.js';
 import { now } from './board-query.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
@@ -36,6 +39,8 @@ export function recordLandingBatch(board, { agentId, batch, revision = 0, landin
     board.nativePorts.landingEnvironment.requireRevision(board, previous, batch);
     preserveInvariantEvidence(previous, evidence, board.executionEngineVersion ?? ENGINE_VERSION);
     validateLandingRevision(previous, batch, revision);
+    if (batch.proof?.receipt) validateQuarantineVerdict(board, batch.proof.receipt, { historical: true });
+    for (const gate of quarantineBatchGates(batch)) validateQuarantineGate(board, gate, { historical: true });
     const recorded = { ...batch, revision: revision + 1, updatedAt: now(board) };
     delete recorded.invariantEvidence;
     if (evidence) recorded.invariantEvidence = evidence;

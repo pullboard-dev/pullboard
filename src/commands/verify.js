@@ -1,3 +1,5 @@
+import { boundProofReceipt } from '../proof-receipts.js';
+import { sealQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../review-composition.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
@@ -137,6 +139,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   const { root } = ctx.info;
   let verificationProfile = null;
   let verificationOutput = null;
+  let verificationQuarantine = null;
   let accepted = null;
   let acceptedLandingCommit = null;
   let approvalRows = [];
@@ -209,6 +212,9 @@ export async function verifyHere(ctx, id, { second, values }) {
         invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
         refuseSandboxBlocked(check);
         verificationProfile = check.profile ?? null;
+        verificationQuarantine = check.blockingVerdict ? { rawExitCode: check.exitCode, proofReceiptId: check.proofReceiptId,
+          coveredCases: check.blockingVerdict.quarantines.length, eventIds: check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId),
+          omittedEvents: Math.max(0, check.blockingVerdict.quarantines.length - 8) } : null;
         if (check.checked) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
@@ -246,11 +252,14 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }));
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
+    if (decision === 'ACCEPT' && check?.blockingVerdict) {
+      sealQuarantineVerdict(board, boundProofReceipt(board, { receiptId: check.proofReceiptId }));
+    }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
@@ -262,6 +271,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(companionDigest ? { companionDigest } : {}),
       environment: check?.environment ?? null,
       ...(decision === 'ACCEPT' ? { check: check.checked ? 'green' : 'none' } : {}),
+      ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
     }]);
   };
@@ -273,12 +283,12 @@ export async function verifyHere(ctx, id, { second, values }) {
     }
     return verdict;
   });
-  const primary = { id, ...result, ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
+  const primary = { id, ...result, ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
-    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
+    ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
   if (accepted) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
   if (ctx.verdictResult) ctx.verdictResult.value = primary;

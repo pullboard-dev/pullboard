@@ -1,3 +1,5 @@
+import { receiptBlockingGreen } from './quarantine-verdict.js';
+import { validateQuarantineVerdict } from './quarantine.js';
 /** A late worker cannot reopen a new submission, bar, patch set or review episode [C7,V4,H16]. */
 import { Refused } from './refused.js';
 
@@ -18,11 +20,15 @@ export function sourceAdvanceReturnProblem(board, item, request) {
     && Array.isArray(proof.phases) && proof.phases.length === 0) return null;
   if (proof.outcome === 'red' && Array.isArray(proof.phases) && proof.phases.length === 1) {
     const receipt = board.runtimePorts.sourceAdvanceReceipts.receiptFields(proof.phases[0]?.receipt);
+    const held = receipt?.blockingVerdict?.quarantines ?? [];
+    const failures = receipt?.failures?.filter(failure => !held.some(row => row.file === failure.file && row.name === failure.name)) ?? [];
+    try { if (receipt) validateQuarantineVerdict(board, receipt); }
+    catch { return new Refused('SOURCE_ADVANCE_PROOF', 'the measured red needs current quarantine event references'); }
     if (receipt?.version === 2 && receipt.kind === 'submit' && receipt.head === proof.head && receipt.tree === proof.tree && receipt.main === proof.trunk
       && receipt.proof.item === item.item_id && receipt.proof.seat === 'coordinator' && receipt.proof.frozenDigest === proof.bar
-      && receipt.proof.sourceClean && receipt.green === false && receipt.proof.exitCode !== null && receipt.proof.exitCode !== 0
-      && receipt.proof.counts.failed > 0 && receipt.failures.length > 0
-      && JSON.stringify([...new Set(receipt.failures.map(row => row.file))].sort()) === JSON.stringify(proof.files)) return null;
+      && receipt.proof.sourceClean && !receiptBlockingGreen(receipt) && receipt.green === false && receipt.proof.exitCode !== null && receipt.proof.exitCode !== 0
+      && receipt.proof.counts.failed > 0 && failures.length > 0
+      && JSON.stringify([...new Set(failures.map(row => row.file))].sort()) === JSON.stringify(proof.files)) return null;
   }
   return new Refused('SOURCE_ADVANCE_PROOF', 'unknown infrastructure is incomplete; returning work requires actual conflict or named red evidence');
 }

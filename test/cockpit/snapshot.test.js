@@ -350,23 +350,24 @@ test("the static export's Pause keeps its box through a press [A10,N26,C7]", { t
           clearTimeout(snapshotReplay.timer);
           const pause = document.querySelector('#replay-pause');
           window.__pauseEndWitness = { before: { index: snapshotReplay.index, playing: snapshotReplay.playing,
-            disabled: pause.disabled, label: pause.textContent }, moves: 0 };
+            disabled: pause.disabled, label: pause.getAttribute('aria-label') }, moves: 0 };
           /** Finish the actual replay between the original shared press's aim and assertion. */
           pause.addEventListener('mousemove', () => {
             window.__pauseEndWitness.moves++;
             while (snapshotReplay.playing) { clearTimeout(snapshotReplay.timer); advanceReplay(); }
             clearTimeout(snapshotReplay.timer);
             window.__pauseEndWitness.after = { index: snapshotReplay.index, playing: snapshotReplay.playing,
-              disabled: pause.disabled, label: pause.textContent };
+              disabled: pause.disabled, label: pause.getAttribute('aria-label') };
           }, { once: true });
           return window.__pauseEndWitness.before;
         })()`);
         assert.equal(before.playing, true, `${width}: Pause is aimed while replay is running`);
         assert.equal(before.disabled, false, `${width}: Pause starts enabled`);
+        assert.equal(before.label, 'Pause replay', `${width}: the icon-only control keeps its accessible label`);
         await press(chrome, "document.querySelector('#replay-pause')");
         const seen = await chrome.stable('({ witness: window.__pauseEndWitness, total: snapshotReplay.events.length })');
         assert.equal(seen.witness.moves, 1, `${width}: native pointer movement delivers the controlled interleaving`);
-        assert.deepEqual(seen.witness.after, { index: seen.total, playing: false, disabled: true, label: 'Pause' },
+        assert.deepEqual(seen.witness.after, { index: seen.total, playing: false, disabled: true, label: 'Pause replay' },
           `${width}: actual replay end disables the same Pause label during the press`);
         console.log('PULLBOARD_499_END_PRESS ' + JSON.stringify({ width, ...seen }));
       }
@@ -533,7 +534,7 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
           sheet.insertRule('.snapshot-controls, .snapshot-controls * { letter-spacing: .12em !important; }', sheet.cssRules.length);
         })()`);
         const spacing = JSON.parse(await chrome.stable(`JSON.stringify(
-          ['#snapshot-controls > span', '#replay-play', '#replay-pause', '#replay-speed', '#replay-progress']
+          ['#snapshot-controls', '#replay-play', '#replay-pause', '#replay-speed', '#replay-progress']
             .map(selector => getComputedStyle(document.querySelector(selector)).letterSpacing)
         )`));
         assert.ok(spacing.every(value => Number.parseFloat(value) > 0),
@@ -546,7 +547,7 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
         speed.dispatchEvent(new Event('change', { bubbles: true }));
       })()`);
       const atStart = await readControlBoxes(width, 'start');
-      assert.equal(await chrome.stable("document.querySelector('#replay-play').textContent"), 'Play',
+      assert.equal(await chrome.stable("document.querySelector('#replay-play').getAttribute('aria-label')"), 'Play',
         `${width}: the start-state label is the short Play label`);
       await press(chrome, "document.querySelector('#replay-play')");
       assert.equal(await chrome.stable('snapshotReplay.playing'), true, `${width}: native Play starts replay`);
@@ -563,7 +564,7 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
       assert.equal(await chrome.stable('snapshotReplay.index'), total, `${width}: final Play renders the end state`);
       assert.equal(await chrome.stable('snapshotReplay.playing'), false, `${width}: replay stops at its final event`);
       const atEnd = await readControlBoxes(width, 'end');
-      assert.equal(await chrome.stable("document.querySelector('#replay-play').textContent"), 'Play from first event',
+      assert.equal(await chrome.stable("document.querySelector('#replay-play').getAttribute('aria-label')"), 'Play from first event',
         `${width}: the end-state label exercises the longer Play text`);
       for (const [state, boxes] of Object.entries({ whilePlaying, whilePaused, atEnd })) {
         assert.deepEqual(boxes, atStart, `${width}: every interactive replay control keeps its box unchanged ${state}`);
@@ -572,6 +573,27 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
     for (const width of (wideFonts ? [375] : [375, 1280])) {
       await verifyWidth(width);
     }
+    /** Verify that a larger replay counter cannot move the fixed Play, Pause, and speed tracks. */
+    const countLayout = async (index) => {
+      await chrome.stable(`(() => {
+        snapshotReplay.events = new Array(123456);
+        snapshotReplay.index = ${index};
+        replayControls();
+        return true;
+      })()`);
+      return JSON.parse(await chrome.stable(`JSON.stringify({
+        count: document.querySelector('#replay-progress').textContent,
+        boxes: Object.fromEntries(['#replay-play', '#replay-pause', '#replay-speed'].map(selector => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return [selector, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+        }))
+      })`));
+    };
+    const shortCount = await countLayout(0);
+    const longCount = await countLayout(1234);
+    assert.equal(shortCount.count, 'event 0 of 123,456', 'the initial counter has a short current index and full denominator');
+    assert.equal(longCount.count, 'event 1,234 of 123,456', 'the running counter grows to four current-index digits');
+    assert.deepEqual(longCount.boxes, shortCount.boxes, 'a growing counter leaves Play, Pause, and speed in their original boxes');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await host.close();
