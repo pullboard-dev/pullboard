@@ -102,8 +102,12 @@ test('pure front-door validation refuses alternate paths, executable entry code 
 });
 
 test('only a declared pure entry fits cell anatomy and a real falling baseline keeps undeclared core stray [C7,D3]', t => {
-  const { root, plan, cell, problems } = moved(t);
+  const { root, plan, cell, problems, put } = moved(t);
+  put('bin/cells-plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': BODY }));
+  git(root, 'add', 'bin/cells-plan/path-map/kernel.json');
+  git(root, 'commit', '-q', '-m', 'fixture records the completed kernel move');
   const report = () => cellLintReport(root, { importsIn, commonJsIn });
+  assert.equal(report().transition.active, false, 'a recorded real move leaves the legacy advisory transition');
   assert.ok(!report().metrics.strays.findings.some(row => row.key === CORE));
   const baseline = planCellLintBaseline(report());
   writeCellLintBaseline(root, baseline.baseline, { initialize: true });
