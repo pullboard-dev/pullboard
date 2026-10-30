@@ -151,7 +151,7 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     await page.fire('shout-form', 'submit');
     await page.run('refresh()');
     page.run("view.shoutThread = 'none'; render();");
-    const cards = () => [...page.show('feed').matchAll(/<b class="who" title="([^"]*)">([^<]*)<\/b><span class="to">→ ([^<]*)<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
+    const cards = () => [...page.show('feed').matchAll(/<b class="who"[^>]* title="([^"]*)">([^<]*)<\/b><span class="to">→ (?:<span[^>]*>)?([^<]*)(?:<\/span>)?<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
     assert.deepEqual(cards(), [
       ['Test Model', 'web-1', 'coordinator and you', 'web-1 is on the greeting'],
       ['unknown', 'you', 'coordinator', 'Hello from the person'],

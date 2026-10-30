@@ -304,7 +304,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
       'the shared Questions segment retains the one native pending ask');
     page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
     const waitingMessage = conversationMessage(page, 1);
-    assert.match(waitingMessage, /<b class="who" title="Test Model">web-1<\/b><span class="to">→ coordinator<\/span>/,
+    assert.match(waitingMessage, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
       'the opened native question retains its exact author, model hover and recipient');
     assert.match(waitingMessage, new RegExp('<div class="text">' + question + '</div>'), 'its entire escaped question remains visible');
     assert.match(waitingMessage, /<div class="band">Decision needed<\/div>/, 'the native pending status is retained');
@@ -367,7 +367,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     await page.run('refresh()');
     page.run("openTab('shouts'); view.shoutThread = 'none'; render();");
     const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who" title="Test Model">web-1<\/b><span class="to">→ coordinator<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
     assert.match(feed, /<b class="who" title="unknown">you<\/b><span class="to">→ coordinator<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     page.run("openTab('items'); render();");
     assert.match(page.show('needs'), /data-go="decide:46"/);
@@ -431,7 +431,7 @@ test("needs-you holds only the person's calls; the rest show on the board with w
 
     // Each of the rest is on the board, with who holds it.
     page.run("openTab('shouts'); view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
-    assert.match(page.show('feed'), /<b class="who" title="Test Model">web-1<\/b><span class="to">→ coordinator<\/span>/,
+    assert.match(page.show('feed'), /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
       "the native agent question waits on its coordinator in the Questions conversation");
     page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');

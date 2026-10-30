@@ -373,11 +373,13 @@ function render() {
     return model;
   };
   const modelOf = id => modelLabel(p.agents.find(agent => agent.agent_id === id)?.model);
+  /** Share the original native notice formatting between previews and full messages, preserving authored words. */
+  const messageText = message => findingWords({ why: message.shout_text }, message.shout_from !== 'sentinel').text;
   /** A message keeps the exact native words; only references and disclosure add presentation. */
   const card = (x, tail = '') => '<article class="shout' + (lead(x.shout_from) ? ' lead' : '') + (openShouts.has(x.shout_id) ? ' open' : '') + (x.shout_id === view.shout ? ' found' : '') + '" id="shout-' + x.shout_id + '" data-shout-id="' + x.shout_id + '"><div class="shout-main">'
     + (x.shout_id === view.shout ? '<h2 class="visually-hidden">Shout #' + x.shout_id + '</h2>' : '')
     + '<header><b class="who" data-agent-address="' + esc(x.shout_from) + '" role="group" aria-label="' + esc(agentName(x.shout_from)) + '" title="' + esc(modelOf(x.shout_from)) + '">' + esc(x.shout_from === 'person' ? 'you' : x.shout_from) + '</b><span class="to">→ ' + shoutTo(x.shout_to) + '</span>' + mark(x) + '<time title="' + esc(when(x.shout_at)) + '">' + esc(clock(x.shout_at)) + '</time></header>'
-    + '<div class="text">' + rich(x.shout_text, titles) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + band(x) + evidence(x) + heardBy(x) + tail + '</div></article>';
+    + '<div class="text">' + rich(messageText(x), titles) + (x.options ? '<ol>' + x.options.map(option => '<li>' + esc(option) + '</li>').join('') + '</ol>' : '') + '</div><button class="more" data-more type="button" aria-expanded="' + openShouts.has(x.shout_id) + '">' + (openShouts.has(x.shout_id) ? 'Show less' : 'Show all') + '</button>' + band(x) + evidence(x) + heardBy(x) + tail + '</div></article>';
   // Native pending-question lists are authoritative: answered or stale asks never keep a thread amber.
   const uniqueShouts = new Map([...heard, ...questions].map(x => [x.shout_id, x]));
   /** Replies inherit their original question's item even when the answer names no item. */
@@ -411,7 +413,7 @@ function render() {
   const conversationRow = thread => {
     const last = thread.messages.at(-1), title = thread.item ? titles.get(String(thread.item)) : 'No item';
     return '<button class="conversation-row" data-shout-thread="' + esc(thread.key) + '" type="button"><span class="conversation-copy"><span class="conversation-title">'
-      + (thread.item ? '<code>#' + esc(thread.item) + '</code> ' : '') + esc(title || 'Item #' + thread.item) + '</span><span class="conversation-preview">' + esc(last.shout_from + ': ' + last.shout_text) + '</span></span><span class="conversation-meta"><time class="long" data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + agoLong(last.shout_at) + '</time><span class="chip' + (thread.open ? ' warn' : '') + '">' + (thread.open ? 'Question open' : thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages')) + '</span></span></button>';
+      + (thread.item ? '<code>#' + esc(thread.item) + '</code> ' : '') + esc(title || 'Item #' + thread.item) + '</span><span class="conversation-preview">' + esc(last.shout_from + ': ' + messageText(last)) + '</span></span><span class="conversation-meta"><time class="long" data-ago="' + esc(last.shout_at) + '" title="' + esc(when(last.shout_at)) + '">' + agoLong(last.shout_at) + '</time><span class="chip' + (thread.open ? ' warn' : '') + '">' + (thread.open ? 'Question open' : thread.messages.length + (thread.messages.length === 1 ? ' message' : ' messages')) + '</span></span></button>';
   };
   const rows = threads.filter(thread => filter === 'all' || (filter === 'questions' ? thread.open : thread.toYou));
   const missingAddress = view.shout !== null && !selected ? '<p class="empty" id="shout-address-status" role="status">' + esc(addressed?.error || 'Loading shout #' + view.shout + '…') + '</p>' : '';
