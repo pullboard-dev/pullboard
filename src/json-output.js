@@ -74,6 +74,22 @@ export function commandName(argv) {
   return flags.find(arg => !arg.startsWith('-')) ?? null;
 }
 
+/** Preserve byte-oriented exports and long-running protocols; finite interactive commands own one final action. */
+export function interactiveNext(command) {
+  return !['export', 'hook', 'mcp', 'view', 'watch', 'serve', 'relay'].includes(command);
+}
+
+/** Choose one immediate action from acknowledged output, without reserving work or guessing a verdict. */
+export function successfulNext(command, result) {
+  const following = result?.next;
+  if (typeof following === 'string' && following.trim()) return following;
+  const item = following?.item ?? (command === 'next' ? result?.item : null);
+  if (item?.item_id) return `pullboard show ${item.item_id}`;
+  if (command === 'claim') return 'git status';
+  if (['help', 'version', 'tour'].includes(command)) return 'pullboard status';
+  return 'pullboard next --wait 1';
+}
+
 /** The longest single default-text line in UTF-8 bytes; one agents: line once ran to 54 KB [#1885]. */
 export const LINE_BUDGET = 1024;
 
@@ -130,6 +146,11 @@ export function selectFields(document, fields) {
  * Long-running view explicitly flushes its address before waiting for a shutdown signal.
  */
 export function commandOutput(argv, streams, { version = 1, refusalDocument: suppliedRenderer, loadRefusal } = {}) {
+  const command = commandName(argv);
+  const guidanceCommand = command === 'help' || argv.includes('--help') || !command && !argv.includes('--version') ? 'help' : command;
+  // Installed Git hooks use --version's last line as a protocol handshake, unlike interactive `version`.
+  const finalAction = guidanceCommand === 'help' || interactiveNext(command) && !argv.includes('--version');
+  let explicitNext;
   let renderer = suppliedRenderer;
   let preparing;
   /** Load recovery declarations only when this command actually needs a refusal document. */
@@ -166,6 +187,10 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
   };
   /** Write one default-text line within the budget, keeping only a count (and a final next step) of the rest. */
   const say = (line) => {
+    if (finalAction && /^next:[ \t]*\S/u.test(String(line)) && !String(line).includes('\n')) {
+      explicitNext = String(line).replace(/^next:[ \t]*/u, '');
+      return;
+    }
     if (enabled) return emit(streams.stdout, messages, line);
     // A whole JSON document printed as text (export) is machine-readable: cutting it would only corrupt it.
     if (budget === Infinity || /^\s*[[{]/u.test(String(line))) return streams.stdout.write(`${line}\n`);
@@ -183,10 +208,14 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     }
   };
   const flush = (code) => {
-    if (!enabled && withheld && !written) {
+    if (!enabled && !written) {
       written = true;
-      streams.stdout.write(`${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json\n`);
-      if (withheldNext) streams.stdout.write(`${withheldNext}\n`);
+      if (withheld) streams.stdout.write(`${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json\n`);
+      if (!code && !refusal && finalAction) {
+        const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
+        streams.stdout.write(`${cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`)}\n`);
+      }
+      else if (withheldNext) streams.stdout.write(`${withheldNext}\n`);
       return;
     }
     if (!enabled || written) return;
@@ -215,6 +244,10 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     // A refusal keeps its whole shape; only a successful read is trimmed to the requested keys.
     if (fields && !refusal && !document.error) document = selectFields(document, fields);
     if (remote) document.remote = remote;
+    // Existing cursor metadata stays intact; field projection owns its exact selected shape.
+    if (!code && !refusal && !document.error && finalAction && !fields && typeof document.next === 'number') {
+      document.nextAction = explicitNext ?? successfulNext(guidanceCommand, result);
+    }
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
   return {
