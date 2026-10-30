@@ -85,6 +85,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "GIT_SYNC_REMOTE": "restore read/write access to origin, then retry the original command or run pullboard sync; keep its pending sealed move",
   "GIT_SYNC_LOCAL_CHANGED": "run pullboard export to preserve local moves, then ask the coordinator to reconcile the local and remote prefixes before syncing",
   "GIT_SYNC_LINKED": "use pullboard sync for a Git-shared board, or keep the existing relay linked; do not enable a second move order",
+  "GIT_SYNC_LOCK_LOST": "rerun the same command; another writer took the Git sync lock, and your pending move is kept",
   "EXCLUDED_REPOSITORY": "restore the GitHub origin of each excluded project, then run pullboard relay on --all",
   "EXCLUDED_INVENTORY": "restore at most 256 excluded boards and their active paired devices, then run pullboard relay on --all",
   "WHY_GIT": "run pullboard why from inside the repository, with a path that git can read",
