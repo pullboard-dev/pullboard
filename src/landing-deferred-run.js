@@ -1,6 +1,4 @@
 import { getItem } from './board.js';
-import { quarantineVerdictSnapshot } from './quarantine.js';
-import { validateQuarantineGate } from './quarantine.js';
 import { readGateReceipt } from './gate-run-receipt.js';
 import { receiptStore } from './gate-run-receipt.js';
 import {
@@ -86,14 +84,14 @@ export async function runDeferredGuards(state, { deferredSelections, landingFail
   const commit = headCommit(root);
   const item = getItem(state.board, state.batch.items[0].id);
   const run = await runDeferredAffectedTests(root, state.config, files,
-    { directory: join(dirname(root), 'logs'), onWait: state.onWait, quarantines: quarantineVerdictSnapshot(state.board),
+    { directory: join(dirname(root), 'logs'), onWait: state.onWait, quarantines: state.landingPorts.quarantineVerdictSnapshot(state.board),
       proofContext: { item: item.item_id, frozenDigest: item.item_frozen_digest, seat: 'coordinator', kind: 'land' } });
   const gate = { ...run, tree };
   if (run.blockingVerdict) {
     const receipt = readGateReceipt(receiptStore(root), run.proofReceiptId);
     if (!receipt) throw new Refused('PROOF_RUN_UNBOUND', 'deferred exceptions need their actual native receipt');
     await state.write('recordGateRun', [{ agentId: 'coordinator', receipt, lane: item.item_lane }]);
-    validateQuarantineGate(state.board, gate);
+    state.landingPorts.validateQuarantineGate(state.board, gate);
   }
   // The same pin as the full landing gate: a result only counts for the exact merged tree it ran on.
   if (headCommit(root) !== commit || headTree(root) !== tree || !isClean(root)) {
@@ -103,7 +101,7 @@ export async function runDeferredGuards(state, { deferredSelections, landingFail
     ...(state.batch.deferredGateResults ?? []), { tree, isGreen: run.isGreen, exitCode: run.exitCode,
       blockingVerdict: run.blockingVerdict, quarantineFailures: run.quarantineFailures, proofReceiptId: run.proofReceiptId, logPath: run.logPath }
   ] } : {}) });
-  if (run.blockingVerdict) validateQuarantineGate(state.board, gate);
+  if (run.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, gate);
   if (run.isGreen) { state.say(run.blockingVerdict
     ? `deferred affected tests: blocking verdict green; raw exit ${run.exitCode}; quarantine events ${run.blockingVerdict.quarantines.map(row => row.eventId).join(', ')}; log ${run.logPath}`
     : `deferred affected tests: ${files.length} file(s) green on the merged tree`); return; }

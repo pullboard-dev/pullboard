@@ -178,7 +178,7 @@ await withBoard(ctx,async board=>{
  const state={board,config:{...config,affectedTests:null,registryGuards:[],submitInvariants:[]},
   batch:{version:1,id:randomUUID(),state:'merging',root,base:commit,tip:commit,branch:'refs/heads/main',
    owner:'coordinator-fixture',logPath:root+'/../logs/qfixture.log',items:[{id:item.item_id,commit}],revision:0},
-  gates:new Map(),say(){},checkAtCommit,landingPorts:{flakeSource,observeNativeFailure,quarantineWaivers},
+  gates:new Map(),say(){},checkAtCommit,landingPorts:{flakeSource,observeNativeFailure,quarantineWaivers,quarantineVerdictSnapshot,validateQuarantineGate},
   write:(operation,args)=>ordered(ctx,board,operation,args)};
  const grouped=await gateGroup(state,'qfixture',{});
  assert.equal(grouped.isGreen,true);assert.equal(grouped.exitCode,1);
