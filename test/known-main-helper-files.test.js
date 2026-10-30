@@ -31,29 +31,33 @@ function fileMainRed(box, file) {
   });
 }
 
-/** TAP for one failed case reported twice: once nested from a run outside this root, once at the top. */
-const TAP = `TAP version 13
-    not ok 1 - dup case
-      ---
-      location: '/tmp/elsewhere/repo/test/a.test.js:3:1'
-      failureType: 'testCodeFailure'
-      error: 'boom'
-      ...
-not ok 1 - dup case
+/** Two distinct failures that share a file and a title: only their errors differ. */
+const TWINS = `TAP version 13
+not ok 1 - twin case
   ---
   location: '/repo/test/a.test.js:3:1'
   failureType: 'testCodeFailure'
-  error: 'boom'
+  error: 'first error'
   ...
-1..1
+not ok 2 - twin case
+  ---
+  location: '/repo/test/a.test.js:9:1'
+  failureType: 'testCodeFailure'
+  error: 'second error'
+  ...
+1..2
 # tests 2
 # fail 2
 `;
 
-test('a nested copy of a case with no file in this root is the same case, counted once [V4,B3]', () => {
-  const failures = failureSignatures({ isGreen: false, executionRoot: '/repo', stages: [{ status: 1, output: TAP }] }, '/repo');
-  assert.equal(failures?.length, 1, 'one named failure, not two and not a refusal');
-  assert.deepEqual([failures[0].file, failures[0].name], ['test/a.test.js', 'dup case']);
+test('two distinct failures with one file and title stay two, and main failing only one never masks the other [V4,B3]', () => {
+  const failures = failureSignatures({ isGreen: false, executionRoot: '/repo', stages: [{ status: 1, output: TWINS }] }, '/repo');
+  assert.equal(failures?.length, 2, 'both failures are kept, not collapsed by file and title');
+  assert.notEqual(failures[0].signature, failures[1].signature);
+  const comparison = { main: 'm', files: [{ file: 'test/a.test.js', result: 'red', failures: [failures[0]] }] };
+  assert.equal(matchingMainFailures([failures[0]], comparison, 'm')?.failures.length, 1, 'the failure main has is known');
+  assert.equal(matchingMainFailures(failures, comparison, 'm'), null, 'the candidate-only twin is not masked by main\'s');
+  assert.equal(matchingMainFailures([failures[1]], comparison, 'm'), null);
 });
 
 test('a failure whose file is a helper matches main under the test file that ran it [V4,B3]', () => {

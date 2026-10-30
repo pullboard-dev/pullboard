@@ -53,20 +53,12 @@ export function failureSignatures(run, root, { raw = false } = {}) {
     try { executionRoot = realpathSync(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
-  const accounted = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
-  if (!accounted) return null;
+  const failures = accountedFailures({ ...run, ...(raw ? { isGreen: run.rawIsGreen ?? run.isGreen } : {}), executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
+  if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
   const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot))
     .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
-  if (details.length !== accounted.length) return null;
-  const failures = [], kept = [];
-  for (const [index, failure] of accounted.entries()) {
-    // A nested copy of a named case that reports no file inside this root is that case again, never a second failure (#2064).
-    if (!failure.file && accounted.some(other => other.file && other.name === failure.name)) continue;
-    if (failures.some(seen => seen.file === failure.file && seen.name === failure.name)) continue;
-    failures.push(failure); kept.push(details[index]);
-  }
-  details.splice(0, details.length, ...kept);
+  if (details.length !== failures.length) return null;
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => ({ ...failure, signature: details[index].signature })) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
