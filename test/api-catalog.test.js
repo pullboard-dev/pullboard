@@ -299,6 +299,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assert.ok(Number.isFinite(Date.parse(heartbeat.heartbeatAt)), 'an explicit hook returns its real local observation');
   await json(box, repo, 'stats');
   assert.equal((await json(box, repo, 'stats', ['pipeline', '--limit', '5'], 'pipeline')).pipeline.limit, 5);
+  assert.equal((await json(box, repo, 'stats', ['moves', '--limit', '5'], 'moves')).moves.limit, 5);
   const capacity = await json(box, repo, 'capacity');
   assert.equal(capacity.report.suite.minutes, null);
   assert.equal(capacity.report.files.lowerBound, true);
@@ -878,7 +879,9 @@ catalogCase('[A1,C7] map exposes its main stamp and every rendered view through 
   assert.match(slice.map, /src\/map-fixture\.js/u);
   const plain = await box.run(box.repo, 'map', 'mapFixture');
   assert.equal(plain.status, 0, plain.stderr);
-  assert.equal(plain.stdout, `${card.map}\n`, 'JSON carries exactly the ordinary rendered card');
+  assert.match(plain.stdout, /\nnext: pullboard next --wait 1\n$/u, 'the text-only footer is present');
+  assert.equal(plain.stdout.replace(/\nnext: pullboard next --wait 1\n$/u, '\n'), `${card.map}\n`,
+    'JSON carries exactly the ordinary rendered card, excluding only its trailing text action');
 });
 
 catalogCase('[A1] intake records a real outside pull request through the CLI', async (t) => {
