@@ -1,13 +1,31 @@
 /** Private native claim anchors feed authenticated numeric records, never transcript bytes [N2,C7]. */
 import { createHash } from 'node:crypto';
-import { constants, closeSync, fstatSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  constants,
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { sessionSource, sessionSnapshot, usageDifference } from './cost-session.js';
+import {
+  sessionSource,
+  sessionSnapshot,
+  usageDifference,
+} from './cost-session.js';
 import { nativeToolCallIds } from './exit-rules-calls.js';
-import { parentSessionDigest, runtimeSessionIdentity } from './parent-session.js';
+import {
+  parentSessionDigest,
+  runtimeSessionIdentity,
+} from './parent-session.js';
 import { exitedSessionIdentity } from './exit-rules-continuation.js';
 import { Refused } from './refused.js';
-import { exitClaim, requireExitActive } from './exit-rules-state.js';
+import {
+  exitClaim,
+  requireExitActive,
+} from './exit-rules-state.js';
 import { mainPolicy } from './trusted-policy.js';
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */

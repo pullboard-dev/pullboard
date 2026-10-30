@@ -1,9 +1,15 @@
-import { familyName, familyAliasesOf } from '../packages/verify/index.js';
+import {
+  familyName,
+  familyAliasesOf,
+} from '../packages/verify/index.js';
 import { EXIT_RULES_ENGINE } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 /** Native family/session continuation metadata has no store writer dependency [B3,C7]. */
 import { createHash } from 'node:crypto';
-import { originalSession, seatFamily } from '../packages/items/index.js';
+import {
+  originalSession,
+  seatFamily,
+} from '../packages/items/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 /** Only a native board's original session record supplies continuation identity. */

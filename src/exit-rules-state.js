@@ -1,10 +1,17 @@
 /** Native per-claim exit progress and atomic handoffs; no private transcript data is shared [B3,C7,N2]. */
 import { createHash } from 'node:crypto';
-import { atomic, logEvent } from './board-event-log.js';
+import {
+  atomic,
+  logEvent,
+} from './board-event-log.js';
 import { appendFact } from './board-append-fact.js';
 import { itemById } from './board-query.js';
 import { seatFamily } from '../packages/items/index.js';
-import { exitSessionIdentity, exitedSession, exitedSessionIdentity } from './exit-rules-continuation.js';
+import {
+  exitSessionIdentity,
+  exitedSession,
+  exitedSessionIdentity,
+} from './exit-rules-continuation.js';
 export { exitedSession, exitContinuationSummary } from './exit-rules-continuation.js';
 import { exitRulesDecision } from '../packages/stats/index.js';
 import { exitRulesConfigProblems } from '../packages/config/index.js';

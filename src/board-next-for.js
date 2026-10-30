@@ -1,4 +1,7 @@
-import { exitContinuationSummary, exitContinuationProblem } from './exit-rules-continuation.js';
+import {
+  exitContinuationSummary,
+  exitContinuationProblem,
+} from './exit-rules-continuation.js';
 import { committedItemAuthors } from './review-independence.js';
 import { strictReviewProblem } from './review-independence.js';
 import { firstRefusal } from './board-item-read.js';

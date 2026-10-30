@@ -8,7 +8,11 @@ import {
 import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
-import { exitRulesDefaults, exitRulesConfigProblems, mergeExitRules } from './exit-rules-config.js';
+import {
+  exitRulesDefaults,
+  exitRulesConfigProblems,
+  mergeExitRules,
+} from './exit-rules-config.js';
 import * as maintenanceSettings from './worktree-maintenance-config.js';
 import { knownConfigKeys } from './config-forward-compat.js';
 
