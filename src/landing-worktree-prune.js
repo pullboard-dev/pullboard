@@ -84,7 +84,7 @@ export function parseWorkingDirectoryCensus(output) {
 }
 
 /** Observe supported native cwd metadata without trusting a caller's PATH replacement for lsof. */
-function workingDirectories() {
+export function workingDirectories() {
   const executable = process.platform === 'darwin' ? '/usr/sbin/lsof'
     : process.platform === 'linux' ? '/usr/bin/lsof' : null;
   if (!executable || !existsSync(executable)) return null;
