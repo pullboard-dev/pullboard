@@ -354,3 +354,35 @@ test('legacy oversized cache is reclaimed and a smaller limit never changes deri
     if (prior === undefined) delete process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES; else process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = prior;
   }
 });
+
+test('current main retains all namespace facts while older commits rotate [B6,C7]', () => {
+  const box = e2e.project();
+  const current = box.git(box.repo, 'rev-parse', 'HEAD');
+  const prior = process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS;
+  process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = '1';
+  try {
+    const derive = () => ({ value: true }), valid = result => result?.value === true;
+    cachedMainFact(box.repo, 'criterion', [current, 'tool'], derive, valid);
+    cachedMainFact(box.repo, 'affected', { commit: current, tool: 'tool' }, derive, valid);
+    for (let n = 0; n < 4; n++) cachedMainFact(box.repo, 'criterion', [`older-${n}`], derive, valid);
+    const db = cache(box);
+    try {
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM facts WHERE commit_id=?').get(current).n, 2);
+      assert.ok(db.prepare('SELECT COUNT(DISTINCT commit_id) AS n FROM facts').get().n <= 3);
+    } finally { db.close(); }
+  } finally {
+    if (prior === undefined) delete process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS; else process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = prior;
+  }
+});
+
+test('a non-private cache is skipped without changing the computed result [B6,C7]', () => {
+  const box = e2e.project();
+  const directory = join(box.repo, '.git', 'pullboard-main-facts');
+  mkdirSync(directory, { recursive: true, mode: 0o755 });
+  chmodSync(directory, 0o755);
+  let calls = 0;
+  const value = cachedMainFact(box.repo, 'private', ['commit'], () => { calls++; return { actual: true }; }, result => result?.actual === true);
+  assert.deepEqual(value, { actual: true });
+  assert.equal(calls, 1);
+  assert.equal(existsSync(join(directory, 'facts.sqlite')), false);
+});
