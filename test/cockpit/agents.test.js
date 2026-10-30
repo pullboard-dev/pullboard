@@ -54,8 +54,8 @@ test('the agents panel says what each agent holds [N26]', async () => {
     const agents = agentEntries(page.show('agents'));
     assert.deepEqual(agents.map((agent) => [agent.id, agent.holds, agent.more, agent.idle]), [
       // An agent holding work is a row with its first thing: the claim, then work sent back, then work waiting for a verdict.
-      ['web-1', ['#1 Header: building'], 1, false],
-      ['web-2', ['#2 Farewell: sent back'], 1, false],
+      ['web-1', ['#1 Header: Building'], 1, false],
+      ['web-2', ['#2 Farewell: Ready · Sent back'], 1, false],
       // One holding nothing is a pill.
       ['coordinator', [], 0, true],
     ]);
@@ -63,8 +63,8 @@ test('the agents panel says what each agent holds [N26]', async () => {
     assert.deepEqual(agents.map((agent) => agent.path), [alpha.web, second, alpha.repo], 'each path is on hover');
     // Picked, an agent's row opens to every thing it holds, in that order.
     const opened = (id) => { page.run(`view.agent = ${JSON.stringify(id)}; render();`); return agentEntries(page.show('agents')).find((agent) => agent.id === id).holds; };
-    assert.deepEqual(opened('web-1'), ['#1 Header: building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: to verify']);
-    assert.deepEqual(opened('web-2'), ['#2 Farewell: sent back', '#4 Footer: to verify']);
+    assert.deepEqual(opened('web-1'), ['#1 Header: Building', '#3 Greeting &lt;b&gt;bold&lt;/b&gt;: In review']);
+    assert.deepEqual(opened('web-2'), ['#2 Farewell: Ready · Sent back', '#4 Footer: In review']);
     page.run('view.agent = null; render();');
     for (const agent of agents) assert.ok(!agent.text.includes(agent.path), `${agent.id}'s path is not in the text`);
 
@@ -136,7 +136,7 @@ test('the agents panel is rows for work and pills for idle [N26]', { timeout: 12
         assert.deepEqual(p.rows.map((row) => row.id), ['web-1'], `${at}: only an agent holding work takes a row`);
         const [row] = p.rows;
         assert.deepEqual([row.avatars, row.name, row.model, row.item], [0, 'web-1', 'Test Model', '#1 Header'], `${at}: complete native identity and held item: ${row.text}`);
-        assert.match(row.state, /^(?:now|\d+[mhd])building$/, `${at}: native age and state stay together`);
+        assert.match(row.state, /^(?:now|\d+[mhd])Buildingby web-1 \(Test Model\)$/, `${at}: native age stays beside the approved stage and full holder name`);
         assert.ok(row.itemTop >= row.whoBottom && row.title.includes('+1 more item') && !row.text.includes('+1'), `${at}: the item occupies its own line and additional work is on hover`);
         assert.ok(row.height >= tapTarget(width), `${at}: the row is a target`);
         assert.ok(!/strong/.test(row.text) && row.title.includes('web · strong') && row.title.includes(alpha.web), `${at}: lane, route and path are on hover, not in the row: ${row.title}`);
@@ -297,6 +297,10 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await tab('items');
         await chooseFilter(chrome, 'state:active');
         await settled(chrome, '!!document.querySelector("#chain [data-item=\\"1\\"]")');
+        assert.match(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').getAttribute('aria-label')"), /^Building:/u, `${at}: held item stage is accessible`);
+        assert.ok((await text('#chain [data-item="1"] .stage-detail')).includes(expected.builder), `${at}: item row names its holder`);
+        assert.match(await chrome.stable("document.querySelector('#chain [data-item=\"3\"] .item-seat').getAttribute('aria-label')"), /^Building:/u, `${at}: unknown model held stage is accessible`);
+        assert.ok((await text('#chain [data-item="3"] .stage-detail')).includes(expected.unknown), `${at}: unknown model remains visible in its detail`);
         assert.equal(await text('#chain [data-item="1"] .item-seat'), 'web-1', `${at}: accepted compact row keeps the native holder`);
         assert.ok(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .item-seat').title.includes(" + JSON.stringify(displayModel) + ")"), `${at}: the private row model is canonical on hover`);
         assert.equal(await text('#chain [data-item="3"] .chip'), expected.unknown, `${at}: unknown model row`);
@@ -374,15 +378,22 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         for (const key of opened) await press(chrome, `document.querySelector('#roadmap .milestone-item[data-roadmap-key="${key}"]')`);
         const collapsed = JSON.parse(await chrome.stable(`JSON.stringify((() => {
           const rows = [...document.querySelectorAll('#roadmap .milestone-item')];
-          return { visible: document.querySelector('#roadmap').innerText, rows: rows.map(row => {
+          /** Read all collapsed copy except the single approved stage detail and hidden disclosure bodies. */
+          const outsideStageDetail = element => {
+            const copy = element.cloneNode(true);
+            copy.querySelectorAll('[hidden], .stage-detail').forEach(node => node.remove());
+            return copy.textContent;
+          };
+          return { outsideDetail: outsideStageDetail(document.querySelector('#roadmap')), rows: rows.map(row => {
             const detail = row.parentElement.querySelector('.milestone-why');
-            return { text: row.textContent, expanded: row.getAttribute('aria-expanded'), hidden: detail.hidden, rendered: detail.getClientRects().length > 0 };
+            return { key: row.dataset.roadmapKey, outsideDetail: outsideStageDetail(row), stageDetails: [...row.querySelectorAll('.stage-detail')].map(node => node.textContent), expanded: row.getAttribute('aria-expanded'), hidden: detail.hidden, rendered: detail.getClientRects().length > 0 };
           }) };
         })())`));
         assert.equal(collapsed.rows.length, 3, `${at}: all fixture rows are checked`);
-        assert.doesNotMatch(collapsed.visible, /web-[12]|coordinator/, `${at}: collapsed roadmap page text names no agents`);
+        assert.doesNotMatch(collapsed.outsideDetail, /web-[12]|coordinator/, `${at}: collapsed Roadmap names agents only in the approved stage detail`);
         for (const row of collapsed.rows) {
-          assert.doesNotMatch(row.text, /web-[12]|coordinator/, `${at}: collapsed row headers name no agents`);
+          assert.doesNotMatch(row.outsideDetail, /web-[12]|coordinator/, `${at}: collapsed row headers add no names outside their stage detail`);
+          assert.deepEqual(row.stageDetails, [({ 'i:#1': 'by ' + expected.builder, 'i:#3': 'by ' + expected.unknown, 'i:#2': 'queued for the train' })[row.key]], `${at}: each row has exactly its one truthful stage detail`);
           assert.deepEqual([row.expanded, row.hidden, row.rendered], ['false', true, false], `${at}: collapsed details are hidden and unrendered`);
         }
         const roadmapRow = "document.querySelector('#roadmap .milestone-item[data-roadmap-key=\"i:#1\"]')";
