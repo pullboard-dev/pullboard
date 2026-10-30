@@ -264,7 +264,8 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.ok(detail.indexOf('<h3>Criterion</h3>') > 0, 'the criterion is shown');
     assert.match(top, /<h3>Sent back<\/h3>/);
     assert.match(top, /<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/);
-    assert.match(top, new RegExp(`coordinator · (\\w+ \\d+ )?${time} · at ${verdict.commit.slice(0, 12)}`), 'who sent it back, when, and at which commit');
+    const verdictHash = `at <button class="hash-copy" type="button" title="${verdict.commit}" aria-label="Copy full hash ${verdict.commit}" data-copy="${verdict.commit}"><code class="inline sha" title="${verdict.commit}">${verdict.commit.slice(0, 12)}</code></button>`;
+    assert.ok(top.includes('coordinator ·') && top.includes(verdictHash), 'who sent it back, when, and at which commit');
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
     assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));

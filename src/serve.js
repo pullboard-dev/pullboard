@@ -1,6 +1,6 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
-import { landingPace } from './roadmap.js';
+import { landingPace } from '../packages/roadmap/index.js';
 /** @pullboard-test-input src/view.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
@@ -51,7 +51,7 @@ import {
   doctrineHistory,
   loadDoctrine,
   standardDoctrine,
-} from './doctrine.js';
+} from '../packages/doctrine/index.js';
 import {
   codeIsFromMain,
   repoInfo,
@@ -64,8 +64,8 @@ import {
   listApiProjects,
   registryFile,
 } from './projects.js';
-import { fetchLocal } from './local-fetch.js';
-import { Refused } from './refused.js';
+import { fetchLocal } from '../packages/sync/index.js';
+import { Refused } from '../packages/kernel/index.js';
 import { refusalDocument } from './next-step-words.js';
 import { relayLinkAvailability } from './relay.js';
 import { personNeeds } from './row-decision-text.js';
@@ -309,7 +309,16 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const head = resolveCommit(info.root, 'HEAD');
     const rows = (file) => {
       const ages = rowAges(info.root, file, head);
-      return loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({ id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0 }));
+      return loadSpec(info.root, { ...config, spec: file }).rows.map(({ id, status: state, tier, text, gate, serves, section }) => ({
+        id, status: state, tier, text, gate, serves, section, added: ages.get(id) ?? 0,
+        gateFiles: gate ? gate.split(',').map(value => value.trim()).filter(Boolean).map(name => {
+          const path = resolve(info.root, name);
+          const inside = !isAbsolute(name) && !relative(info.root, path).split(/[\\/]/u).includes('..');
+          let exists = false;
+          try { exists = inside && statSync(path).isFile(); } catch { /* A missing gate is visible evidence, not a failed board read. */ }
+          return { file: name, exists, ref: exists && head ? name + ':1@' + head : null };
+        }) : [],
+      }));
     };
     const doctrine = loadDoctrine(info.root, config);
     // A standard rule was never added to this repo, so it has no age here; the repo's own rows have.

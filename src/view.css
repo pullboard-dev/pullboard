@@ -16,7 +16,8 @@
   /* One scale for every screen [C12]: type, space and shape. Write these, never a raw size; the Rigor check
    * bin/checks/ui-sizes.js counts the sizes still typed by hand, and the count only goes down. */
   --text-2xs: 11px; --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-lg: 15px; --text-xl: 17px; --text-2xl: 22px; --text-3xl: 28px;
-  --leading-tight: 1.15; --leading-snug: 1.3; --leading-body: 1.5; --tracking-tight: -.02em; --tracking-label: .07em;
+  --leading-tight: 1.15; --leading-snug: 1.3; --leading-body: 1.5; --text-spec-heading: 13.5px; --text-spec-title: 17px;
+  --tracking-tight: -.02em; --tracking-label: .07em;
   --space-0: 2px; --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 12px; --space-5: 16px; --space-6: 20px; --space-7: 24px; --space-8: 32px; --space-9: 48px;
   /* --round sets how rounded every corner is, from 0 (square) up; one number tunes the whole app. */
   --round: .75;
@@ -86,14 +87,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .group-view { display: grid; gap: var(--space-5); max-width: 1000px; }
 .group-panel { padding: var(--space-5) var(--space-5); }
 .group-panel h2 { margin: 0 0 var(--space-4); font-size: var(--text-xl); }
-.home { display: grid; gap: var(--space-5); max-width: 760px; }
-.home-card { padding: var(--space-5) var(--space-5); }
-.home-card h2 { margin: 0 0 var(--space-4); font-size: var(--text-xl); }
-.home-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0 0 var(--space-4); }
-.home-counts dt { color: var(--ink-muted); font-size: var(--text-sm); }
-.home-counts dd { margin: var(--space-0) 0 0; font-size: var(--text-3xl); font-weight: 600; font-variant-numeric: tabular-nums; }
-.home-needs { margin: 0; padding: 0; border-bottom: 0; }
-.home-capacity p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
+#dashboard .home-needs { margin: 0; padding: 0; border-bottom: 0; }
+#dashboard-rules .home-counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); margin: 0 0 var(--space-4); }
+#dashboard-rules .home-counts dt { color: var(--ink-muted); font-size: var(--text-sm); }
+#dashboard-rules .home-counts dd { margin: var(--space-0) 0 0; font-size: var(--text-3xl); font-weight: 600; font-variant-numeric: tabular-nums; }
+#dashboard-capacity p { margin: var(--space-2) 0; overflow-wrap: anywhere; }
 .capacity-main strong { font-size: var(--text-3xl); font-variant-numeric: tabular-nums; }
 .capacity-note, .capacity-curve figcaption { color: var(--ink-muted); font-size: var(--text-xs); }
 .capacity-warning { color: var(--warn); }
@@ -652,6 +650,7 @@ button.ref[data-code] { display: inline-flex; max-width: 100%; vertical-align: b
 button.ref[data-code] .ref-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 button.ref[data-code] .ref-at { flex: none; }
 code.inline { padding: 0 var(--space-1); border-radius: var(--radius-xs); background: color-mix(in srgb, var(--ink) 8%, var(--surface)); font: .92em var(--mono); white-space: nowrap; }
+.hash-copy { display: inline; min-height: 0; border: 0; padding: 0; background: none; vertical-align: baseline; cursor: copy; }
 code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* A brief's '- ' lines, wherever text is drawn: tight bullets, nested ones indented under their parent. */
 .text-list { list-style: disc; margin: 0; padding-left: 1.35em; }
@@ -1434,3 +1433,33 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
   #settings-content .settings-scopes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; overflow: visible; }
   #settings-content .settings-scopes button { min-width: 0; white-space: normal; }
 }
+
+/* Spec keeps the shared row frame, with its tier and citation count in one right column. */
+#spec-list .spec-section-head { border-top: 1px solid var(--line); padding-top: var(--space-5); margin-top: var(--space-5); }
+#spec-list .spec-section-head:first-child { border-top: 0; margin-top: var(--space-2); padding-top: 0; }
+#spec-list h4 { font-size: var(--text-spec-heading); font-weight: 600; color: var(--ink); }
+#spec-list .spec-record { display: grid; grid-template-columns: var(--space-6) minmax(0, 1fr) auto; grid-template-areas: "dot main side"; gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+#spec-list .spec-record > div:first-of-type { grid-area: main; min-width: 0; display: block; }
+#spec-list .spec-record > .dot { width: var(--space-6); height: var(--space-6); display: grid; place-items: center; color: var(--warn); background: var(--warn-soft); font-size: var(--text-xs); }
+#spec-list .spec-record.s-verified > .dot { color: var(--accent-strong); background: var(--accent-soft); }
+#spec-list .spec-record.s-back > .dot { color: var(--reject); background: var(--reject-soft); }
+#spec-list .spec-record .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.row-id { font-family: var(--mono); margin-right: var(--space-3); font-weight: 500; }
+#spec-list .spec-record .meta { display: flex; flex-wrap: nowrap; gap: var(--space-3); }
+.spec-gate { display: inline-flex; align-items: center; gap: var(--space-1); min-width: 0; color: var(--ink-muted); }
+.spec-gate code { font: var(--text-xs) var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spec-gate.missing { color: var(--reject); }
+#spec-list .spec-row-side { display: grid; grid-area: side; display: grid; justify-items: end; align-content: start; gap: var(--space-1); }
+.spec-row-side small { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
+.spec-row-side .chip, #spec-detail .tier-must, #spec-detail .tier-aim { background: none; color: var(--ink-muted); }
+.spec-row-side .tier-must, #spec-detail .tier-must { border: 1px solid var(--line-strong); }
+.spec-detail-content { display: grid; gap: var(--space-5); }
+.spec-detail-section { color: var(--ink-faint); font: var(--text-2xs) var(--mono); text-transform: uppercase; letter-spacing: var(--tracking-label); }
+#spec-detail h2 { font-size: var(--text-spec-title); line-height: 1.5; margin: 0; }
+.spec-fact { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-5); border-top: 1px solid var(--line); padding-top: var(--space-4); font-size: var(--text-xs); }
+.spec-fact > span { color: var(--ink-faint); }
+.spec-fact > div { display: grid; gap: var(--space-2); min-width: 0; }
+.spec-fact .spec-gate { flex-wrap: wrap; }
+.spec-fact button { margin-left: auto; background: none; border: 0; color: var(--accent-strong); cursor: pointer; min-height: var(--tap); }
+.spec-detail-actions .detail-decision-actions { margin: 0; flex-wrap: wrap; }
+.spec-authority { margin: 0; color: var(--ink-faint); font-size: var(--text-2xs); }

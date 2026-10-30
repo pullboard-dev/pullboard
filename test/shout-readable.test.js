@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const fixtures = createE2eHelpers();
@@ -10,7 +11,7 @@ after(fixtures.cleanup);
 
 test('a run-together shout is refused with the next step and a readable one is sent [B7,A2]', () => {
   const box = fixtures.project('true');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const before = store.events(board);
     const shouts = store.allShouts(board);

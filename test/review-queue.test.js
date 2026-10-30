@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -38,7 +39,7 @@ function fixture(t, { reviewerFamilies = ['Alpha', 'Beta'] } = {}) {
     now: () => new Date(milliseconds),
     advance: (duration) => { milliseconds += duration; },
   };
-  const board = store.openBoard(':memory:', clock);
+  const board = openBoard(':memory:', clock);
   t.after(() => store.closeBoard(board));
   const agents = {
     coordinator: store.register(board, { lane: 'coordinator', path: '/fixture/main', family: 'Fixture Coordinator Vendor' }),
@@ -270,11 +271,11 @@ test('a fresh same-lane seat cannot reopen submitted conflicts under its grant [
   const fresh = join(box.dir, 'fresh-web-conflict-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', fresh, 'main');
   const actor = json(box.run(fresh, 'join', 'web', '--json')).agent;
-  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let snapshot;
   try { snapshot = exportBoard(source); } finally { store.closeBoard(source); }
   for (const name of ['coordinator-one', 'coordinator-two', 'agent-one', 'agent-two']) {
-    const board = store.openBoard(join(box.dir, `${name}.sqlite`));
+    const board = openBoard(join(box.dir, `${name}.sqlite`));
     copies.push(board);
     importBoard(board, snapshot);
   }
@@ -309,7 +310,7 @@ test('recorded pre-grant submitted-conflict moves retain joined-seat authority [
   const legacyExchange = await import(pathToFileURL(join(directory, 'src/exchange.js')).href);
   const legacyEngine = await import(pathToFileURL(join(directory, 'src/engine.js')).href);
   const legacy = legacyStore.openBoard(':memory:');
-  const copies = [store.openBoard(':memory:'), store.openBoard(':memory:')];
+  const copies = [openBoard(':memory:'), openBoard(':memory:')];
   t.after(() => { legacyStore.closeBoard(legacy); copies.forEach(board => store.closeBoard(board)); });
   legacyStore.register(legacy, { lane: 'coordinator', path: join(directory, 'main') });
   const builder = legacyStore.register(legacy, { lane: 'web', path: join(directory, 'builder') });
@@ -342,7 +343,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
   const copies = [];
   t.after(() => copies.forEach(board => store.closeBoard(board)));
   const { box, json, conflicted, reviewer, build } = staleHeadFixture(t);
-  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   copies.push(source);
   const actor = store.agentAt(source, reviewer).agent_id;
   const original = exportBoard(source);
@@ -369,7 +370,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
   assert.deepEqual(exportBoard(source), original, 'evidence preparation and refusals do not change the board');
   /** Each independent SQLite replica verifies the recorded objects, without choosing its own current trunk. */
   const replica = name => {
-    const board = store.openBoard(join(box.dir, `${name}.sqlite`));
+    const board = openBoard(join(box.dir, `${name}.sqlite`));
     copies.push(board); importBoard(board, original); return board;
   };
   for (const [name, options] of [
@@ -406,7 +407,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
   // Main now contains the submitted head, while the recorded earlier trunk remains conflicting.
   box.git(box.repo, 'merge', '-q', '--no-edit', '-s', 'ours', evidence.head);
   const recordedCopies = ['sealed-left', 'sealed-right'].map(name => {
-    const board = store.openBoard(join(box.dir, `${name}.sqlite`));
+    const board = openBoard(join(box.dir, `${name}.sqlite`));
     copies.push(board); importBoard(board, sealed); return board;
   });
   const results = recordedCopies.map(board => applyEngineMove(board, move, receipt));
@@ -427,7 +428,7 @@ test('automatic conflict returns bind native evidence and replay without caller 
 /** Fresh requests cannot borrow an earlier conflict after the native trunk has made the submission clean. */
 test('fresh conflict requests refuse an older trunk after main advances [V4,H16]', t => {
   const { box, conflicted, reviewer } = staleHeadFixture(t);
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const actor = store.agentAt(board, reviewer).agent_id;
   const prepared = prepareEngineMove(board, 'reopen', [conflicted, { agentId: actor, automaticConflict: true }]);
@@ -447,7 +448,7 @@ test('fresh conflict requests refuse an older trunk after main advances [V4,H16]
   assert.throws(() => store.reopen(board, conflicted, { agentId: actor, computedConflict: stale }),
     error => error.code === 'COORDINATOR_ONLY', 'the direct mutation independently enforces the current trunk');
   assert.deepEqual(exportBoard(board), original, 'both fresh refusals leave the submission and event prefix unchanged');
-  const replica = store.openBoard(join(box.dir, 'fresh-stale-replica.sqlite'));
+  const replica = openBoard(join(box.dir, 'fresh-stale-replica.sqlite'));
   t.after(() => store.closeBoard(replica));
   importBoard(replica, original);
   const result = applyEngineMove(replica, { ...prepared, id: 'fresh-stale-request',
@@ -460,7 +461,7 @@ test('fresh conflict requests refuse an older trunk after main advances [V4,H16]
 /** A cached immutable merge is not permission to replay through a locally overridden object graph. */
 test('automatic conflict returns reject local history overrides before replay [V4,H16]', t => {
   const { box, conflicted, reviewer } = staleHeadFixture(t);
-  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const copies = [source];
   t.after(() => copies.forEach(board => store.closeBoard(board)));
   const actor = store.agentAt(source, reviewer).agent_id;
@@ -470,7 +471,7 @@ test('automatic conflict returns reject local history overrides before replay [V
   const receipt = { sequence: 1, at: new Date().toISOString() };
   const results = [];
   for (const kind of ['grafts', 'replace']) {
-    const board = store.openBoard(join(box.dir, `history-${kind}.sqlite`));
+    const board = openBoard(join(box.dir, `history-${kind}.sqlite`));
     copies.push(board); importBoard(board, snapshot);
     // This positive preparation also warms the normal per-board immutable-object verification cache.
     assert.ok(prepareEngineMove(board, 'reopen', [conflicted, { agentId: actor, computedConflict: evidence }]));
@@ -508,7 +509,7 @@ test('a recorded automatic conflict return first replays after the replica trunk
   json(box.run(replica, 'sync', '--json'));
   const before = json(box.run(replica, 'export'));
   assert.equal(before.tables.item.find(item => item.item_id === conflicted).item_status, 'submitted');
-  const origin = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const origin = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(origin));
   const head = store.getItem(origin, conflicted).item_commit;
   const offered = box.run(reviewer, 'next', '--verify', '--json');
@@ -524,7 +525,7 @@ test('a recorded automatic conflict return first replays after the replica trunk
   box.git(replica, 'fetch', box.repo, 'main');
   box.git(replica, 'merge', '-q', '--ff-only', 'FETCH_HEAD');
   assert.notEqual(box.git(replica, 'rev-parse', 'HEAD'), JSON.parse(record.move).args[1].computedConflict.trunk);
-  const fresh = store.openBoard(join(box.dir, 'fresh-stale-return.sqlite'));
+  const fresh = openBoard(join(box.dir, 'fresh-stale-return.sqlite'));
   try {
     importBoard(fresh, before);
     const wire = JSON.parse(record.move);

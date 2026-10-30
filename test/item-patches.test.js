@@ -4,6 +4,7 @@ import { twoTierReviews } from '../src/review-independence.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { parentSessionDigest } from '../src/parent-session.js';
@@ -20,7 +21,7 @@ const COMMIT = 'a'.repeat(40);
 const PATCH = 'diff --git a/src/example.js b/src/example.js\n--- a/src/example.js\n+++ b/src/example.js\n@@ -1 +1 @@\n-old\n+new\n';
 /** Build a real native submitted item; its synthetic state receipt is not claimed runtime evidence. */
 function fixture(t) {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/patch-domain' });
   const builder = store.register(board, { lane: 'web', path: '/patch-domain/web', session: 'patch-builder', parent: 'patch-parent' });
@@ -119,7 +120,7 @@ test('changed inputs revoke acceptance, preserve the bar and retain a live revie
 
 test('native patch moves replay exactly and reject downgrade or foreign actors before mutations [V4,H16]', t => {
   const { board, id, builder } = fixture(t);
-  const peer = store.openBoard(':memory:');
+  const peer = openBoard(':memory:');
   t.after(() => store.closeBoard(peer));
   importBoard(peer, exportBoard(board));
   const move = prepareEngineMove(board, 'attachItemPatch', [id, input(builder)], { id: 'patch-native' });
@@ -213,7 +214,7 @@ test('ordered direct-companion author refusals retain their historical code and 
   const move = prepareEngineMove(seed, 'reserveReview', [id, { agentId: author, leaseMs: 60_000, policy: 'any' }], { id: 'direct-patch-author-review' });
   assert.ok(move.engine >= PATCH_AUTHOR_IDENTITY_ENGINE);
   for (const engine of [PATCH_AUTHOR_IDENTITY_ENGINE - 1, PATCH_AUTHOR_IDENTITY_ENGINE]) {
-    const replica = store.openBoard(':memory:');
+    const replica = openBoard(':memory:');
     t.after(() => store.closeBoard(replica));
     importBoard(replica, exportBoard(seed));
     const before = store.getItem(replica, id);

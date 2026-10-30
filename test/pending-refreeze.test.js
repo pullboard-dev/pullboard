@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyRelayMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import {
@@ -55,7 +56,7 @@ function refusal(result, code, itemId, pendingFields) {
 test("the coordinator corrects a claimed item's criterion without release [V2]", (t) => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
 
   const added = box.run(box.repo, 'add', 'web', 'Correct a live bar', '--specs', 'G1', '--route', 'strong', '--criterion', 'the original criterion', '--check', 'true', '--json');
@@ -131,7 +132,7 @@ test("the coordinator corrects a claimed item's criterion without release [V2]",
 test("edit adds and clears an item's dependencies [B3,V2]", (t) => {
   const box = e2e.project('true');
   t.after(e2e.cleanup);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   /** Add one independent item through the real CLI and return its public id. */
   const add = (title) => {
@@ -207,7 +208,7 @@ async function checkDependencyLegacyClients(cleanup, directory, snapshot, target
     const legacyMachine = await import(pathToFileURL(join(source, 'src/machine.js')).href);
     assert.equal(legacyMachine.ENGINE_VERSION, version, 'the archived executable has the claimed engine');
     const old = legacyStore.openBoard(join(directory, `client-${version}.sqlite`));
-    const current = store.openBoard(join(directory, `current-from-${version}.sqlite`));
+    const current = openBoard(join(directory, `current-from-${version}.sqlite`));
     cleanup.push(() => { legacyStore.closeBoard(old); store.closeBoard(current); });
     legacyExchange.importBoard(old, snapshot);
     importBoard(current, snapshot);
@@ -277,7 +278,7 @@ test('dependency edits replay the same on every engine [B3,V2,H16]', async (t) =
   });
   /** Open a private, file-backed SQLite board and optionally import its real snapshot. */
   function open(name, snapshot) {
-    const board = store.openBoard(join(directory, `${name}.sqlite`));
+    const board = openBoard(join(directory, `${name}.sqlite`));
     cleanup.push(() => store.closeBoard(board));
     if (snapshot) importBoard(board, snapshot);
     return board;
@@ -368,7 +369,7 @@ test('ordered refreeze corrections retain engine-7 history and engine-8 live cla
   const currentClock = '2026-10-10T13:00:00.000Z';
   /** Open and track one isolated file-backed replica with its deterministic clock. */
   const openBoardWithClock = (name, at) => {
-    const board = store.openBoard(join(replicaDirectory, `${name}.sqlite`), { now: () => new Date(at) });
+    const board = openBoard(join(replicaDirectory, `${name}.sqlite`), { now: () => new Date(at) });
     replicaBoards.push(board);
     return board;
   };

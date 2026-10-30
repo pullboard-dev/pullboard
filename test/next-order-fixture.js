@@ -1,5 +1,6 @@
 /** Shared real board and Git setup for ordering regressions [N2,B13,H16]. */
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';
@@ -16,7 +17,7 @@ export const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item
 
 /** Open a real SQLite board and register a coordinator plus strong builder and reviewer agents. */
 export function boardFixture() {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'strong' });
   const reviewer = store.register(board, { lane: 'review', path: '/reviewer', route: 'strong' });
@@ -43,7 +44,7 @@ export function lineOrderFixture(t) {
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
   box.git(root, 'commit', '--allow-empty', '-qm', 'test: seed the private line-order repository');
-  const board = store.openBoard(join(root, 'board.sqlite'));
+  const board = openBoard(join(root, 'board.sqlite'));
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), route: 'strong', parent: 'builder-P', session: 'builder-child' });
   const reviewer = store.register(board, { lane: 'review', path: join(root, 'reviewer'), route: 'strong', parent: 'reviewer-R', session: 'reviewer-child' });

@@ -9,7 +9,7 @@ test('verdict presentation keeps prepared note links and escapes every plain met
     agentLabel: 'tests & model', timeLabel: '<noon>', noteHtml: '<a class="ref" href="#spec/G1">checked</a>' });
   assert.match(accepted, /class="verdict yes"/u);
   assert.match(accepted, /ACCEPT PASS &amp; &lt;safe&gt;/u);
-  assert.match(accepted, /tests &amp; model · &lt;noon&gt; · at abcdef123456/u);
+  assert.match(accepted, /tests &amp; model · &lt;noon&gt; · at <button class="hash-copy"[^>]*data-copy="abcdef1234567890"><code[^>]*>abcdef123456<\/code><\/button>/u);
   assert.match(accepted, /<a class="ref" href="#spec\/G1">checked<\/a>/u);
   const rejected = verdictHtml({ verdict: { decision: 'REJECT', reason: "TEST_FAILURE'", commit: null },
     agentLabel: 'tests-1', timeLabel: '12:01', noteHtml: 'first line<br>second line' });

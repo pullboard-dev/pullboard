@@ -1,6 +1,7 @@
 import { seatFamily } from './family-declaration.js';
 /** Select a repo's device-local board for an add without changing the shared repo board [E11,E13]. */
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import { withPrivateBoard } from './projects.js';
 import { originRepository } from './github-origin.js';
 import { relayMachineOwner } from './relay-machine.js';
@@ -43,6 +44,6 @@ export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, 
       } finally {
         if (privateIo.recordedMove) ctx.io.recordedMove = true;
       }
-    }, { create: true, clock: ctx.clock, reference: repository ? { handle: repoName, organization: repoOwner, owner: signedOwner } : null, store });
+    }, { create: true, clock: ctx.clock, reference: repository ? { handle: repoName, organization: repoOwner, owner: signedOwner } : null, store: { ...store, openBoard } });
   });
 }

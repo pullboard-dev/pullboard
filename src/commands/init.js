@@ -8,6 +8,7 @@ import {
   readBlueprints,
 } from '../blueprint-set.js';
 import * as store from '../board.js';
+import { openBoard } from '../native-board.js';
 import {
   COORDINATOR,
   loadConfig,
@@ -76,7 +77,7 @@ export async function run(io, { values }) {
     model,
     permissions: !values['no-permissions'],
     agentHooks: !values['no-hooks'],
-    openBoardHere: () => store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), io.clock, { isMain: codeIsFromMain() }),
+    openBoardHere: () => openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), io.clock, { isMain: codeIsFromMain() }),
     /** Keep a linked coordinator's canonical identity without writing a clone-local path. */
     register: (board, options) => {
       if (!linked) {

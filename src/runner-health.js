@@ -18,7 +18,7 @@ export async function probeRunnerHealth(runner, previous, { idle = false } = {})
   runner = validateRunner(runner);
   const { worker, tooling, runtime } = trustedTooling();
   const nonce = randomUUID();
-  const request = { nonce, ...(idle ? { idle: true } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
+  const request = { nonce, ...(idle ? { idle: true, ...(previous === undefined ? {} : { previous }) } : { previous }), ...(runner.root ? { root: runner.root } : {}) };
   const remote = remoteWorkerCommand(runner, worker, tooling, runtime,
     ' --health ' + shellWord(Buffer.from(JSON.stringify(request)).toString('base64')));
   const args = ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
@@ -38,6 +38,7 @@ export async function probeRunnerHealth(runner, previous, { idle = false } = {})
   const workerReady = !error && !timedOut && result.code === 0 && !result.signal
     && reply?.version === 1 && reply.nonce === nonce && reply.worker === true;
   return { healthy: Boolean(workerReady && (idle ? reply.idle === true && reply.writable === true : reply.cleanup === true)),
+    ...(workerReady && reply.idleRequired === true ? { idleRequired: true } : {}),
     ...(idle ? { idle: workerReady && reply.idle === true, writable: workerReady && reply.writable === true } : {}),
     step: !workerReady ? 'worker readiness' : idle ? 'idle proof' : 'cleanup',
     reason: workerReady ? reply.reason : 'pinned worker did not answer health request', ...result, timedOut, error };

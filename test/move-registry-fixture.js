@@ -1,12 +1,13 @@
 /** Real independent SQLite states used by the fixed accepted-main floor snapshot [H3,H16]. */
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { join } from 'node:path';
 
 export const REGISTRY_AT = '2026-10-01T00:00:00.000Z';
 
 /** Recreate only the named private snapshot input; never open an operational board. */
 export function registryFixtureBoard(directory, state) {
-  const board = store.openBoard(join(directory, `${state.replaceAll(':', '-')}.sqlite`), { now: () => new Date(REGISTRY_AT) });
+  const board = openBoard(join(directory, `${state.replaceAll(':', '-')}.sqlite`), { now: () => new Date(REGISTRY_AT) });
   store.register(board, { lane: 'coordinator', path: '/fixture/main' });
   store.register(board, { lane: 'web', path: '/fixture/web' });
   store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Move registry snapshot' });

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 
 const COMMIT = 'a'.repeat(40);
@@ -15,7 +16,7 @@ const TRUNK = 'b'.repeat(40);
 function fixture(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-reopen-'));
   let at = Date.parse('2026-01-01T00:00:00Z');
-  const board = store.openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(directory, 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: '/repo' });
   const builder = store.register(board, { lane: 'core', path: '/builder', family: 'Fixture Clock Builder Vendor', route: 'mid' });

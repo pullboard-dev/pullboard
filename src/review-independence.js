@@ -1,3 +1,6 @@
+import { compositionReviews } from './review-composition.js';
+import { compositionAuthors } from './review-composition.js';
+import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
 /** Native review policy and explanations replace prose lineage screening [V4,B26,H16]. */
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
@@ -53,6 +56,7 @@ export function saveItemReviewPolicy(board, id, policy) {
 
 /** Only native submissions binding exact commits establish Standard authorship; a claim or fact does not. */
 export function committedItemAuthors(board, item) {
+  if (compositionReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'strict') return compositionAuthors(board, item);
   const authors = new Set(item.item_built_by ? [item.item_built_by] : []);
   for (const event of board.db.prepare("SELECT event_by,event_detail FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id").all(item.item_id)) {
     if (/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(JSON.parse(event.event_detail).commit ?? '')) authors.add(event.event_by);
@@ -71,6 +75,7 @@ function reviewProtocol(event) {
 /** Strict adds every other native item write by this persisted session, including helper facts and claims. */
 export function strictReviewProblem(board, item, reviewer) {
   if (!twoTierReviews(board) || itemReviewPolicy(board, item.item_id).tier !== 'strict') return null;
+  if (compositionReviews(board)) return null; // Current material parent/session exclusions are enforced by itemAuthorProblem.
   const session = effectiveAgentParent(board, reviewer);
   const touched = board.db.prepare('SELECT event_id,event_by,event_kind,event_detail FROM event WHERE item_id=? ORDER BY event_id').all(item.item_id)
     .find(event => effectiveAgentParent(board, event.event_by) === session && !reviewProtocol(event));
@@ -88,7 +93,8 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
     return new Refused('O2_FAMILY_MATCH', 'this board requires declared vendor families for fresh reviews; declare --family when starting each seat, then resubmit if the submitted builder family was unknown');
   }
   // One canonical family per declared spelling [#1762]; the comparison stays case-insensitive.
-  if (familyPolicy === 'require' && !familiesDiffer(board, declared, item.item_builder_family)) {
+  const fallback = compositionFamilyFallback(board, item);
+  if (familyPolicy === 'require' && !(fallback ? family && family !== fallback.family : familiesDiffer(board, declared, item.item_builder_family))) {
     return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`);
   }
   if (policy.reviewFamily && family !== familyName(policy.reviewFamily, familyAliasesOf(board))) {

@@ -109,7 +109,7 @@ function nextPick(ctx, board, values) {
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
+    familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   if (offer?.item && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };

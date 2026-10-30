@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { DECISION_ORIGIN_ENGINE } from '../src/decision-origin-engine.js';
@@ -97,7 +98,7 @@ test('a decision records its origin and pullboard why names the decisions behind
     [[answerOther, 'agent', 'coordinator'], [inherited, 'inherited', 'unknown'], [person, 'person', 'person']],
     'actual person answers and agent answers retain their authority; an inherited decider stays unknown');
 
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     let queries = 0;
     const db = { prepare(sql) { queries += 1; return board.db.prepare(sql); } };

@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from "../../../../src/board.js";
+import { openBoard } from '../../../../src/native-board.js';
 import { exportBoard } from "../../../../src/exchange.js";
 import {
   codeIsFromMain,
@@ -42,7 +43,7 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
   const { fitFile } = ports;
   const info = repoInfo(root);
   const isMain = codeIsFromMain();
-  const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain });
+  const board = providedBoard ?? openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain });
   try {
     const boardId = store.boardId(board);
     const config = loadConfig(root);
@@ -51,7 +52,7 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
-      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, ports);
+      const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { ...ports, openBoard });
       return { ...built.state, sequence: built.sequence,
         statsComparison: compareFlowWindows(built.history, { now: clock, windowMinutes: 120, complete: true }) };
     };
@@ -105,7 +106,7 @@ function readRelaySnapshot(root, providedBoard, observedAt, ports) {
   const info = repoInfo(root);
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = providedBoard ? null : relayPresentation(info.root, { observedAt }, ports);
-    const board = providedBoard ?? store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+    const board = providedBoard ?? openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
     let native;
     try { native = exportBoard(board); } finally { if (!providedBoard) store.closeBoard(board); }
     const presentation = relayPresentation(info.root, { board: providedBoard, observedAt }, ports);

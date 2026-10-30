@@ -1,5 +1,6 @@
 /** Authorized device-local team and private BoardRefs for cross-board commands [E14,E15,H16]. */
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import { listProjects } from './projects.js';
 import { withPrivateBoard } from './projects.js';
 import { Refused } from './refused.js';
@@ -18,7 +19,7 @@ async function privateReference(project) {
           || typeof value.organization !== 'string' || typeof value.handle !== 'string') return null;
       return { ...boardReference({ boardId: store.boardId(board), organization: value.organization, handle: value.handle }),
         kind: 'private', root: project.root, repoBoardId: project.boardId };
-    }, { create: false, store });
+    }, { create: false, store: { ...store, openBoard } });
   } catch { return null; }
 }
 

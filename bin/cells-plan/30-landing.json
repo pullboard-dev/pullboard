@@ -50,7 +50,8 @@
   ["src/landing-step-publish.js","packages/landing/src/shell/landing-step-publish.js","rule"],
   ["src/landing-step-trunk.js","packages/landing/src/shell/landing-step-trunk.js","rule"],
   ["src/landing-step-parallel.js","packages/landing/src/shell/landing-step-parallel.js","rule"],
-  ["src/landing-step-batch.js","packages/landing/src/shell/landing-step-batch.js","rule"]
+  ["src/landing-step-batch.js","packages/landing/src/shell/landing-step-batch.js","rule"],
+  ["src/landing-history-plan.js","packages/landing/src/shell/landing-history-plan.js","rule"]
  ],
  "reexports": [
   "src/computed-conflict-receipt.js",

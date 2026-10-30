@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { commitCitations } from '../src/cli/spec.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { frozenCriterion, parseSpec } from '../src/spec.js';
 import { rowEvidence } from '../src/evidence.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -81,7 +82,7 @@ test('mixed Git history cannot replace show, ledger or coverage board authority 
   const source = box.git(root, 'rev-parse', 'HEAD').trim();
   const initialized = box.run(root, 'init');
   assert.equal(initialized.code, 0, initialized.err);
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   let id;
   let item;
   try {

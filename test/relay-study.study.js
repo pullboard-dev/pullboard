@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** A measured private relay study, with explicit coverage limits rather than inferred parity [H5,H17]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -19,7 +19,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 test('relay study measures seeded native and API2 reader parity [H5,H17]', { timeout: 180_000 }, async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const item = store.addItem(board, { by: 'coordinator', lane: box.lane, title: 'Study seeded item',
     criterion: 'Full detail survives relay paging.', brief: 'A seeded detail field.', specIds: [] });
@@ -53,7 +53,7 @@ test('relay study measures seeded native and API2 reader parity [H5,H17]', { tim
 test('relay study measures 1k 10k and 50k native-event sync and private request saturation [H5,H17]', { timeout: 300_000 }, async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   for (const target of [1000, 10_000, 50_000]) {
     let events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;

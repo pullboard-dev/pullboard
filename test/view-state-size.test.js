@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone } from '../src/board-milestones.js';
 import { atomic } from '../src/board-event-log.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
@@ -31,7 +33,7 @@ function generatedTitle(index) {
 
 /** Seed varied native lifecycle data; synthetic submissions describe state, not an executed gate. */
 function seedVariedItems(board, ids, agents, now, setAt) {
-  for (let group = 0; group < 12; group += 1) store.addMilestone(board, {
+  for (let group = 0; group < 12; group += 1) addMilestone(board, {
     agentId: 'coordinator', name: `Generated milestone ${group}`, note: 'Generated size fixture only',
     items: ids.filter((id, index) => index % 7 !== 0 && index % 12 === group),
   });
@@ -73,7 +75,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0, var
   let now = Date.now() + 8 * 3_600_000;
   let at = now - 8 * 3_600_000;
   // @pullboard-board-file journey: the API and actual moves share the private CLI-initialized board.
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), { now: () => new Date(at) });
   t.after(() => store.closeBoard(board));
   const agents = [], ids = [];
   const lanes = ['web', 'api', 'core', 'docs'];

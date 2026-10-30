@@ -4,13 +4,14 @@ import {
   sentinelCommand,
 } from '../sentinel-command.js';
 import {
-  context,
+  main,
   ordered,
   whoAmI,
   withBoard,
 } from '../cli.js';
+import { personCommandContext } from '../cli-context.js';
 
 /** Run `pullboard sentinel` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  return await sentinelCommand({ ctx: context(io), words: [first, second, ...rest].filter(value => value !== undefined), values, withBoard, whoAmI, ordered, parseProcessCensus });
+  return await sentinelCommand({ ctx: personCommandContext(io, { main, ordered }), words: [first, second, ...rest].filter(value => value !== undefined), values, withBoard, whoAmI, ordered, parseProcessCensus });
 }

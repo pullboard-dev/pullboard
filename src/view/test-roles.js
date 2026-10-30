@@ -1,10 +1,12 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/spec-redesign.test.js': { kind: 'journey', reason: 'Native Git approvals, actual existing/missing gate files and native citations are rendered and opened in authenticated real Chrome at desktop and phone widths; person confirmation and change composition retain native authority.' },
   'test/cockpit/view-startup.test.js': { kind: 'adapter', reason: 'A genuine large native registration history drives a separately owned CLI view process, authenticated HTTP page and initial board state under the frozen startup budget; no browser rendering claim.' },
   'test/cockpit/count-consistency.test.js': { kind: 'journey', reason: 'Real native items, milestones, rules and event-stream updates are compared with rendered counts in every tab, filter choices, Pipeline and the Dashboard floor.' },
   'test/cockpit/roadmap-count.test.js': { kind: 'journey', reason: 'Real native milestones, acceptance and recorded trunk landing update an authenticated live Chrome Roadmap and its remaining-work browser title through the event stream.' },
   'test/cockpit/plain-words.test.js': { kind: 'journey', reason: 'Genuine legacy model-less seat, ordered native health/review/fact events, authenticated HTTP and Chrome scan of person-visible names, words and chart hover text; pure label assertions retain explicit timestamp inputs.' },
   'test/cockpit/item-timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
+  'test/cockpit/timeline-notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Needs you and item details, including full-hash copy.' },
   "test/cockpit/needs-actions-pure.test.js": {
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."

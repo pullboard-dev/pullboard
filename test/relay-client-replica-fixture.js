@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 import { syncRelay } from '../src/relay.js';
 import * as store from '../src/board.js';
+import { openBoardForRead } from '../src/native-board.js';
 
 /** Read local events directly so inspection itself cannot drain the durable retry queue. */
 export function localEvents(file) {
@@ -50,8 +51,8 @@ export async function relayUploadSummary(uploads, key, boardId) {
 /** Bind stacked submit, synchronization, and retry uploads to their exact durable outcomes [H16]. */
 export async function assertRecoveredStackUploads({ uploads, bounds, key, boardId, replicaFiles,
   stackedA, stackedB, firstRecoveryCommit, recoveredStackCommit, pendingOutcome }) {
-  const stackBoardA = store.openBoardForRead(replicaFiles[0]);
-  const stackBoardB = store.openBoardForRead(replicaFiles[1]);
+  const stackBoardA = openBoardForRead(replicaFiles[0]);
+  const stackBoardB = openBoardForRead(replicaFiles[1]);
   let stackOwnerA;
   let stackOwnerB;
   try {

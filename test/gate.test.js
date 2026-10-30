@@ -18,6 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main as cli } from '../src/cli.js';
 import { digestOf, testConcurrency } from '../src/gate.js';
 import { runGate } from '../src/gate.js';
@@ -649,14 +650,14 @@ function flakeRepo(t, policy = {}) {
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
   /** Open the repo's board the way a landing reads it: quarantine comes from accepted main's pullboard.json. */
   const open = () => {
-    const board = store.openBoard(file);
+    const board = openBoard(file);
     board.quarantineEnabled = () => mainPolicy(root).config.flakes?.quarantine === true;
     t.after(() => store.closeBoard(board));
     return board;
   };
   const receipts = join(root, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(dirname(file), { recursive: true });
-  const setup = store.openBoard(file);
+  const setup = openBoard(file);
   store.ensureCoordinator(setup, root);
   store.closeBoard(setup);
   return { root, git, commit, gate, open, receipts, marker };
@@ -840,7 +841,7 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
 
 /** Read a fixture's real board through its public interface. */
 function onLocalBoard(box, action) {
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { return action(board); } finally { store.closeBoard(board); }
 }
 

@@ -7,6 +7,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone } from '../src/board-milestones.js';
 import { DIGEST_MAX_BYTES } from '../src/digest.js';
 import { exportBoard } from '../src/exchange.js';
 import { registerProject } from '../src/projects.js';
@@ -37,7 +39,7 @@ function fixture(t, name, extra = {}) {
   runFixtureGit(['commit', '-q', '-m', 'chore: start the digest fixture'], { cwd: repo, env });
   const commonDir = join(repo, '.git');
   const file = join(commonDir, 'pullboard', 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: repo });
   store.register(board, { lane: 'web', path: join(dir, 'builder') });
@@ -111,7 +113,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   submitFixture(box.board, first, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'fixture-tree' });
   store.verify(box.board, first, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE',
     note: 'The upload test fails on an empty file', clause: 'A person uploads a file and sees it listed', head: 'a'.repeat(40), digest: 'digest:briefing', policy: 'any' });
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
 
   const before = snapshot(box);
   const markdown = cli(box, 'digest');

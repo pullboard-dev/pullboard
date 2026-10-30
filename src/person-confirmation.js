@@ -1,9 +1,7 @@
 import { getItem } from './board.js';
 /** Wait for one passkey-confirmed terminal request to finish through the ordinary native executor [E22,H16]. */
 import { setTimeout as delay } from 'node:timers/promises';
-import { syncRelay } from './relay.js';
-import { executePersonRequests } from './relay-request-execution.js';
-import { personRequestRecords } from './relay-requests.js';
+import { personRequestRecords } from './person-request.js';
 import { Refused } from './refused.js';
 import { loadMachineSettings } from './settings.js';
 
@@ -32,13 +30,15 @@ function confirmedResult(record, board) {
  * Native executor elects/records the existing executor and checks the signed intent; this creates no authority.
  * The caller returns immediately after this resolves: it must never run the original unsigned action again.
  * waitMs bounds polling, not a transport already in flight; existing transport deadlines remain authoritative.
+ * The CLI supplies relay sync, request execution and its command entry point through the options object.
  */
-export async function awaitPersonConfirmation(ctx, board, request, where, { waitMs = 120_000 } = {}) {
+export async function awaitPersonConfirmation(ctx, board, request, where, { waitMs = 120_000, syncRelay, executePersonRequests, main } = {}) {
+  if (typeof syncRelay !== 'function' || typeof executePersonRequests !== 'function' || typeof main !== 'function') {
+    throw new Refused('PERSON_CONFIRMATION_PORT', 'the CLI caller must provide relay sync and native request execution');
+  }
   const waiting = `pullboard: confirm request ${request.id} with your passkey at ${where}; this terminal is waiting`;
   // A waiting terminal says where to confirm while it waits, even when its result is one JSON document at the end.
   if (typeof ctx.io.stderr?.write === 'function') ctx.io.stderr.write(`${waiting}\n`); else ctx.io.err(waiting);
-  // Current trunk owns main in cli-main.js, unlike the old 015ae feature's monolithic cli.js.
-  const { main } = await import('./cli-main.js');
   const until = Date.now() + waitMs;
   for (;;) {
     await syncRelay(ctx.info.root, ctx.io);

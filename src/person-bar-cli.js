@@ -1,12 +1,11 @@
 import { itemCheckBaseline } from './board-query.js';
 /** Native signed bar commands reuse sealed normalized values and recheck their displayed revision [E22,V1]. */
-import { personMode } from './cli.js';
 import { getItem } from './board.js';
 import {
   barDigest,
   barReadiness,
 } from './bar-readiness.js';
-import { personRequestRecords } from './relay-requests.js';
+import { personRequestRecords } from './person-request.js';
 import { requireSignedPerson } from './person-signing-cli.js';
 import { personSigning } from './person-signing.js';
 import {
@@ -45,8 +44,8 @@ export async function confirmBarEffect(ctx, board, me, intent, value, asPerson) 
   return requireSignedPerson(ctx, board, me, intent, undefined, effect);
 }
 
-/** Signed terminals propose from any checkout; the authenticated executor alone supplies person authority. */
-export function personBarMode(ctx, board, me, values) {
+/** Signed terminals propose from any checkout; the caller supplies person-mode authority and the executor supplies the authenticated action. */
+export function personBarMode(ctx, board, me, values, personMode) {
   return personSigning(board).signed && (values.as === 'person' || ctx.io.personRequest?.phase === 'execute')
     ? true : personMode(ctx, me, values);
 }

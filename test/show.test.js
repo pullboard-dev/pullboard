@@ -10,6 +10,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { loadConfig } from '../src/config.js';
 import { frozenCriterion, loadSpec } from '../src/spec.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -37,7 +38,7 @@ test('the board stamps every proof receipt and show prints the chain [C7,H16]', 
   box.git(box.repo, 'add', 'web/proof.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'test(web): seed a real proof [G1]');
   box.git(box.web, 'merge', '--ff-only', 'main');
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   const builder = proofDocument(box.run(box.web, 'whoami', '--json')).id;
   const builderParent = 'b'.repeat(64);
@@ -147,7 +148,7 @@ test('show prints the latest verdict in full and earlier ones as one line; --his
   execFileSync('git', ['commit', '-q', '-m', 'chore: a spec'], { cwd: repo, env });
 
   const freeze = (item) => frozenCriterion(loadSpec(repo, loadConfig(repo)), item);
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     store.register(board, { lane: 'coordinator', path: repo });
     store.register(board, { lane: 'web', path: join(dir, 'web-1') });

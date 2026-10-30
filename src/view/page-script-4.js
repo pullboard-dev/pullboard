@@ -23,7 +23,7 @@ function showTab() {
 
 /** Read the selected repo, tab and detail from a path or the hosted page's fragment. */
 function placeAtAddress(page = data) {
-  const tabs = ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
+  const tabs = ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings'];
   const hash = location.hash || '';
   let path = routed ? location.pathname || '/' : hash.slice(1);
   if (hash === '#items/pipeline' || hash === '#roadmap') path = hash.slice(1);
@@ -33,10 +33,11 @@ function placeAtAddress(page = data) {
   catch { parts = []; }
   const repo = page?.projects.find((entry) => entry.ok && entry.name === parts[0]);
   const group = page?.groups.find((entry) => entry.name === parts[0]);
-  const named = (repo || group) && tabs.includes(parts[1]);
+  const named = (repo || group) && (tabs.includes(parts[1]) || parts[1] === 'home');
   const root = named ? repo?.root || group.key : null;
   if (named) parts.shift();
-  const tab = tabs.includes(parts[0]) ? parts.shift() : (!path && transportModule && globalThis.history?.state?.tab) || homeTab(page);
+  const requested = tabs.includes(parts[0]) || parts[0] === 'home' ? parts.shift() : (!path && transportModule && globalThis.history?.state?.tab) || landingTab(page);
+  const tab = requested === 'home' ? 'dashboard' : requested;
   return { root, tab, detail: parts[0] ?? null };
 }
 
@@ -44,7 +45,7 @@ function placeAtAddress(page = data) {
 function tabHref(tab) {
   if (snapshot) {
     const detail = tab === 'items' && view.itemsView === 'pipeline' ? 'pipeline' : view.addressDetail;
-    if (tab === 'items' && detail === null && !location.hash) return location.pathname + location.search;
+    if (['dashboard', 'items'].includes(tab) && detail === null && !location.hash) return location.pathname + location.search;
     return location.pathname + location.search + '#' + tab + (detail === null ? '' : '/' + encodeURIComponent(String(detail)));
   }
   const repo = data?.projects.find((entry) => entry.root === view.root);
@@ -72,7 +73,7 @@ function address(push = true) {
 /** Apply a parsed selection without recording another history entry. */
 function applyPlace(place, kept = null) {
   if (place.root) view.root = place.root;
-  view.tab = place.tab;
+  view.tab = place.tab === 'home' ? 'dashboard' : place.tab;
   view.addressDetail = place.detail;
   view.item = place.tab === 'items' && place.detail !== null && place.detail !== 'pipeline' ? Number(place.detail) : null;
   view.itemsView = place.tab === 'items' && place.detail === 'pipeline' ? 'pipeline' : 'list';
@@ -102,7 +103,7 @@ function fromAddress(event) {
   }
   if (snapshot) {
     const kept = event?.state || {};
-    const place = location.hash ? placeAtAddress() : { root: null, tab: kept.tab || homeTab(data), detail: kept.detail ?? null };
+    const place = location.hash ? placeAtAddress() : { root: null, tab: kept.tab || landingTab(), detail: kept.detail ?? null };
     applyPlace(place, kept);
     if (kept.root && kept.root !== view.root) return switchTo(kept.root, view.item, false);
   } else {
@@ -120,7 +121,8 @@ function fromAddress(event) {
 
 /** Pick a tab or an explicit detail and record the complete place once. */
 function openTab(tab, detail = null) {
-  view.tab = tab;
+  view.tab = tab === 'home' ? 'dashboard' : tab;
+  tab = view.tab;
   view.addressDetail = detail;
   view.shout = tab === 'shouts' && detail !== null ? Number(detail) : null;
   view.scrollPlace = detail !== null;
@@ -473,14 +475,16 @@ function sentinelDraftActions(row) {
   return canDecide ? '<div class="sentinel-decision-actions actions"><button class="approve-row" data-sentinel-decision="approve" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Approve</button><button class="decline-row" data-sentinel-decision="decline" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Decline</button></div>' : '';
 }
 
+/** Show one unapproved sentinel with its cited evidence and complete copyable proof hashes. */
 function sentinelDraftRow(row) {
-  const side = (label, proof) => label + ' commit ' + proof.commit.slice(0, 12) + ' exit ' + proof.exit;
+  /** Display a short proof hash while keeping its full value available for hover and copy. */
+  const side = (label, proof) => label + ' commit <button class="hash-copy" type="button" title="' + esc(proof.commit) + '" aria-label="Copy full hash ' + esc(proof.commit) + '" data-copy="' + esc(proof.commit) + '"><code class="inline sha" title="' + esc(proof.commit) + '">' + esc(proof.commit.slice(0, 12)) + '</code></button> exit ' + esc(proof.exit);
   const evidence = row.evidence;
-  const proof = evidence && evidence.proof ? 'Proof: ' + evidence.proof.check + ', ' + side('red', evidence.proof.red) + ', ' + side('green', evidence.proof.green) + '.' : '';
+  const proof = evidence && evidence.proof ? 'Proof: ' + esc(evidence.proof.check) + ', ' + side('red', evidence.proof.red) + ', ' + side('green', evidence.proof.green) + '.' : '';
   const repeats = evidence ? 'Drafted from ' + evidence.occurrences + (evidence.occurrences === 1 ? ' repeat of ' : ' repeats of ') + evidence.key + (evidence.items.length ? ' on ' + evidence.items.map((item) => '#' + item.id).join(', ') : '') + '.' : 'Proposed by an agent with no repeat cited.';
   const actions = sentinelDraftActions(row);
   return '<li class="row ask" data-sentinel-draft="' + esc(row.ref) + '"><span class="dot ask"></span><div><div class="t"><span>' + esc(row.ref) + '</span>' + esc(row.text) + '</div>'
-    + '<div class="muted sentinel-proof">' + esc(repeats + (proof ? ' ' + proof : '')) + '</div>'
+    + '<div class="muted sentinel-proof">' + esc(repeats) + (proof ? ' ' + proof : '') + '</div>'
     + '<div class="muted">Command: <code>' + esc(row.check) + '</code></div><div class="muted">Directory: ' + esc(row.directory) + '</div>'
     + '<div class="muted">Schedule: ' + esc(row.every) + '</div><div class="muted">Owner: ' + esc(row.owner) + '</div>'
     + '<div class="meta"><span class="why"><b>NEEDS YOU</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
@@ -543,7 +547,8 @@ function askConfirmNeeds(value, anchor) {
 }
 
 function askApproveAll(section) {
-  const ids = data.project.spec.filter((row) => row.section === section && ['pending', 'draft'].includes(row.status) && !row.decision).map((row) => row.id);
+  const pending = ruleListModel(data.project.spec, { kind: 'spec', filter: 'decide', approvalIds: personNeeds(data.project).filter(row => row.kind === 'agent-approved').map(row => row.id) });
+  const ids = pending.shown.filter(row => row.section === section).map(row => row.id);
   // Every row was decided after the last redraw; this one drops the stale control.
   if (!ids.length) { render(); return; }
   // The confirmation belongs to the board it was opened on: its rows are that board's, and only that board records them.
@@ -856,7 +861,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
@@ -918,6 +923,13 @@ document.addEventListener('click', (event) => {
   }
   else if (t.hasAttribute('data-needs-list')) { view.state='active'; view.lane=null; openTab('items'); render(); $('needs').scrollIntoView({block:'start'}); }
   else if (t.dataset.needsConfirm) askConfirmNeeds(t.dataset.needsConfirm,t);
+  else if (t.dataset.rowChange) {
+    const row = data.project.spec.find(entry => entry.id === t.dataset.rowChange);
+    if (!row || snapshot || readOnly && !requests) return;
+    answer(null); addressTo('coordinator');
+    $('shout-text').value = 'Please propose a change to Spec row ' + row.id + ': ' + row.text + '\\nRequested change: ';
+    openTab('shouts'); showTab(); $('shout-text').focus();
+  }
   else if (t.dataset.rowDecision) {
     const id = t.dataset.rowId, kind = t.dataset.rowKind;
     if (t.dataset.rowDecision === 'approve') decideRow(kind, 'spec-approve', { ids: id }, t);
@@ -1164,6 +1176,17 @@ $('local-note').addEventListener('click', async (event) => {
   const button = event.target instanceof Element ? event.target.closest('button[data-copy]') : null;
   if (!button || !button.dataset.copy) return;
   button.textContent = await copyWords(button.dataset.copy) ? 'Copied' : 'Select and copy';
+});
+/** Copy a displayed short hash through the same clipboard path used by hosted notes. */
+document.addEventListener('click', async (event) => {
+  const button = event.target?.closest?.('button.hash-copy[data-copy]');
+  if (!button) return;
+  const fullHash = button.dataset.copy;
+  const originalTitle = fullHash;
+  button.title = await copyWords(fullHash) ? 'Copied full hash' : 'Could not copy full hash';
+  /** Restore the original hover text once the brief copy confirmation has passed. */
+  const restoreTitle = () => { if (button.isConnected) button.title = originalTitle; };
+  setTimeout(restoreTitle, 1400);
 });
 /**
  * Look for this machine's view again, by itself, while a screen waits on it or a signed-in person waits for a board:

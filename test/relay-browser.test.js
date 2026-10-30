@@ -1,6 +1,6 @@
 /** @pullboard-test-gui */
 /** Real Chrome reads and follows device-sealed boards; the relay never receives its key [H5,H15,H18]. */
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 import assert from 'node:assert/strict';
 import { AssertionError } from 'node:assert';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -14,7 +14,7 @@ import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.j
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
-import { addItem, answerDecision, closeBoard, openBoard, shout } from '../src/board.js';
+import { addItem, answerDecision, closeBoard, shout } from '../src/board.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { pairStudioPhone, phoneExpiry, readApprovalCard, studioCommand, studioProject } from './relay-studio-fixture.js';

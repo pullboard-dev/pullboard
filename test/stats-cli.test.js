@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { proofStats } from '../src/stats.js';
 import { serveApi } from '../src/api.js';
@@ -39,7 +40,7 @@ function fixture(t) {
   writeFileSync(join(root, 'PRACTICE.md'), '');
   let now = new Date('2026-10-08T12:00:00.000Z');
   const clock = { now: () => now };
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'web', path: join(root, 'web') });

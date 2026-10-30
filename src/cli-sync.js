@@ -9,7 +9,11 @@ import { retryCheckBaselines } from './check-baseline-worker.js';
 import { relayOutboxSetting } from './cli.js';
 import { displayedRefusal } from './cli-context.js';
 import { Refused } from './refused.js';
-import { syncRelay } from './relay.js';
+import {
+  DEFAULT_RELAY,
+  relayStatus,
+  syncRelay,
+} from './relay.js';
 import { executePersonRequests } from './relay-request-execution.js';
 import { autoLinkProject } from './relay-setup.js';
 import {
@@ -26,6 +30,7 @@ import {
 import {
   context,
   withBoard,
+  withBoardRead,
 } from './cli-context.js';
 
 /** Codes a checkout with no board refuses with, which the sync around a command keeps quiet. */
@@ -85,7 +90,9 @@ export async function retrySync(io) {
   try {
     if (io.relayCommand?.cliOperation !== 'sync' && gitSyncLinked(io.cwd)) {
       const ctx = context(io);
-      await withBoard(ctx, board => import('./sync.js').then(sync => sync.syncGitBoard(io.cwd, board, io)));
+      const sync = await import('./sync.js');
+      const compatible = withBoardRead(ctx, board => sync.gitSyncCompatibility(io.cwd, board).compatible);
+      if (compatible) await withBoard(ctx, board => sync.syncGitBoard(io.cwd, board, io));
     }
     io.relayOutbox ??= () => relayOutboxSetting(io.cwd);
     await syncRelay(io.cwd, io);
@@ -106,7 +113,7 @@ export async function syncBefore(io, main) {
   }
   await retrySync(io);
   // An off that only the relay can vouch for is checked against the relay's own authority before anything reads it (#408).
-  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io); }
+  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io, { DEFAULT_RELAY, relayStatus }); }
   catch (error) { reportQuietly(io, error); }
   try { await executePersonRequests(io.cwd, io, main); }
   catch (error) { await reportQuietly(io, error); }

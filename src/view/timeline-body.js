@@ -27,7 +27,7 @@ export function timelineBodyHtml(text, { itemHref, codeLink, timeLabel, commit =
       const sha = parts[4] || commit;
       html += safe && sha ? codeLink(path + ':' + (parts[2] || '1') + (parts[3] ? '-' + parts[3] : '') + '@' + sha, value) : esc(value);
     } else if (/^[0-9a-f]{12,64}$/u.test(value)) {
-      html += '<code class="inline sha" title="' + esc(value) + '" data-copy="' + esc(value) + '">' + value.slice(0, 12) + '</code>';
+      html += '<button class="hash-copy" type="button" title="' + esc(value) + '" aria-label="Copy full hash ' + esc(value) + '" data-copy="' + esc(value) + '"><code class="inline sha" title="' + esc(value) + '">' + value.slice(0, 12) + '</code></button>';
     } else if (/^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/u.test(value)) {
       const title = refusalTitles[value] || value.toLowerCase().replaceAll('_', ' ');
       html += '<code class="inline refusal" title="' + esc(title) + '">' + esc(value) + '</code>';

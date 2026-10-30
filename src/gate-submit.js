@@ -144,7 +144,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const checkLog = `${log}.check.log`;
     const proofLog = `${log}.proof.log`;
     const criterion = check ? runProfiledShell(root, check, {
-      waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease,
+      waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true,
     }) : { isGreen: true, output: '', seconds: 0 };
     if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
     await recordRun(onFailure, criterion);
@@ -174,7 +174,10 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (!criterion.isGreen) {
       writeFileSync(log, criterion.output);
       if (onFailure) await onFailure({ ...criterion, log: checkLog }, { root, command: check, lease });
-      return finish({ isGreen: false, sandboxBlocked: criterion.sandboxBlocked, isCached: false, output: criterion.output, seconds: 0, log: '' });
+      // The red criterion's stage accounting travels with the refusal so submit can compare its cases with main (#1917).
+      const red = finish({ isGreen: false, sandboxBlocked: criterion.sandboxBlocked, isCached: false, output: criterion.output, seconds: 0, log: '' });
+      return { ...red, criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
+        executionRoot: criterion.executionRoot, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
     }
     // The proof already owns this lease: its phase profile has no additional queue wait.
     if (hasFinalProof && proofContext?.admission?.id) lease.proof.submitAdmission = proofContext.admission.id;

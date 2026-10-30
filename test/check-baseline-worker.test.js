@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
@@ -21,7 +22,7 @@ function pendingBaseline(command, request = randomUUID(), main = MAIN) {
 
 /** Open an in-memory board and register it for node:test cleanup. */
 function memoryBoard(t) {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   return board;
 }

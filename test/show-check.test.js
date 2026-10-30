@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { loadConfig } from '../src/config.js';
 import { frozenCriterion, loadSpec } from '../src/spec.js';
 import { runFixtureExecFile, runFixtureChild } from './fixture-child.js';
@@ -25,7 +26,7 @@ test('show prints a frozen check exactly as stored, with no added escaping [N30,
     writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## Goals\n- G1 [approved, must] Show the check. | gate: test\n');
     runFixtureExecFile('git', ['add', '-A'], { cwd: repo, env });
     runFixtureExecFile('git', ['commit', '-q', '-m', 'chore: private fixture'], { cwd: repo, env });
-    const board = store.openBoard(join(repo, '.git/pullboard/board.sqlite'));
+    const board = openBoard(join(repo, '.git/pullboard/board.sqlite'));
     let digest;
     try {
       store.register(board, { lane: 'coordinator', path: repo });

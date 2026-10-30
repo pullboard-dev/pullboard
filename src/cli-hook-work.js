@@ -19,8 +19,9 @@ async function inspect() {
   const { repoInfo, headCommit, tryGit } = await import('./git.js');
   const { join } = await import('node:path');
   const store = await import('./board.js');
+  const nativeBoard = await import('./native-board.js');
   const info = repoInfo(process.cwd());
-  const board = store.openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = nativeBoard.openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) return;
   try {
     const agent = store.agentAt(board, info.root), head = headCommit(info.root);

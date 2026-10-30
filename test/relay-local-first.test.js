@@ -9,6 +9,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { ACCESS_WINDOW_MS } from '../relay/auth.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { captureBoardChanges } from '../src/board-capture.js';
 import { SENDER_WORKER } from '../src/relay-sender-main.js';
 import { outboxGuardFile } from '../src/relay-outbox-guard.js';
@@ -402,7 +403,7 @@ test('a conflict found on sync is refused at replay with a code naming the winne
 test('a queued move is taken back row for row, its item status and row counters included, so the relay\'s order replays onto the board it was made on [H21,H16]', async t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-undo-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const board = store.openBoard(join(directory, 'board.sqlite'));
+  const board = openBoard(join(directory, 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, directory);
   store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Made before the outage' });

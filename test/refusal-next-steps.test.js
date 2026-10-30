@@ -21,7 +21,7 @@ function succeeded(result) {
 /** File a real build with a frozen check that fails only when the fixture arms its gate. */
 function addBuild(box, repo, title, check) {
   const result = succeeded(box.run(repo, 'add', 'web', title, '--specs', 'G1',
-    '--criterion', 'the real fixture gate passes', '--check', check, '--json'));
+    '--criterion', 'the real fixture gate passes', '--check', check, '--wait', '--json'));
   return JSON.parse(result.out).item.item_id;
 }
 

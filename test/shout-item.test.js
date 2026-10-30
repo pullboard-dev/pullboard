@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 
 test('item decisions authorize participants, retain their thread and can pass to the person [B7,B21,B27]', (t) => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   for (const [lane, path] of [['coordinator', '/item-root'], ['web', '/item-root/web-1'], ['web', '/item-root/web-2'], ['api', '/item-root/api-1']]) store.register(board, { lane, path });
   const lanes = ['coordinator', 'web', 'api'];

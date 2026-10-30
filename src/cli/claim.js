@@ -14,6 +14,7 @@ import { barReadiness } from '../bar-readiness.js';
 import { barCoverageCommand } from '../bar-coverage.js';
 import { barCoverageForPolicy } from '../bar-coverage.js';
 import { gitSyncLinked } from '../local-state.js';
+import { gitSyncRecoveryNeeded } from '../git-sync-files.js';
 import { createHash } from 'node:crypto';
 import * as itemSessions from '../item-sessions.js';
 import * as store from '../board.js';
@@ -94,6 +95,9 @@ export async function ordered(ctx, board, operation, args) {
     };
     const actor = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
     requireHandoffActive(board, actor, operation, args);
+    if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
+      await (await import('../git-sync-repair.js')).repairGitSync(ctx.info.root, board, ctx.io);
+    }
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);
     if (initialBaseline && actor) await recordBaseline(actor);
