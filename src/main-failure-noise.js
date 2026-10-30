@@ -1,5 +1,5 @@
 /** Canonicalize recognized runtime noise while retaining assertion values and path relationships [V4,B3]. */
-export const MAIN_FAILURE_SIGNATURE_VERSION = 2;
+export const MAIN_FAILURE_SIGNATURE_VERSION = 3;
 
 /** Only native temporary roots and mkdtemp-style directories lose their per-run spelling. */
 function temporaryPath(value, alias, locations) {
@@ -16,7 +16,15 @@ function temporaryPath(value, alias, locations) {
   return locations ? path.replace(/:\d+(?::\d+)?(?=[),;]?\s*$)/u, ':<location>') : path;
 }
 
-/** Share aliases within one failure so equal and distinct UUIDs, ports and fixture directories stay distinguishable. */
+/** Normalize labeled Git identities, never bare hexadecimal assertion values or arbitrary ref-looking text. */
+function sourceIdentities(value, alias) {
+  value = value.replace(/(\b(?:pinned as|ref|reference)\s+)(refs\/([\w.-]+)\/[\w./-]+)/gu,
+    (whole, label, ref, namespace) => label + 'refs/' + namespace + '/' + alias('ref', ref));
+  return value.replace(/(\b(?:source|short|commit|head|revision|object|HEAD is now at|submitted #\d+ at)\s*(?:[:=]\s*|\s+))([a-f\d]{40}|[a-f\d]{12})(?![\w])/giu,
+    (whole, label, hash) => /[a-f]/iu.test(hash) ? label + alias('sha', hash) : whole);
+}
+
+/** Share aliases within one failure so distinct source identities, UUIDs, ports and fixture roots stay distinguishable. */
 export function normalizedFailureDiagnostics(lines, root) {
   const aliases = new Map();
   const counts = new Map();
@@ -36,6 +44,7 @@ export function normalizedFailureDiagnostics(lines, root) {
     if (header) field = header[1];
     const locations = field === 'error' && /^\s+(?:at\s|stderr:)/u.test(line);
     let value = line.replaceAll(root, '<root>');
+    value = sourceIdentities(value, alias);
     if (locations) value = value.replace(/((?:file:\/\/)?<root>\/[^:\s"'\\<>]+):\d+(?::\d+)?(?=[),;]?\s*$)/gu, '$1:<location>');
     value = value.replace(/(?:file:\/\/)?\/[^\s"'\\<>]+/gu, path => temporaryPath(path, alias, locations));
     value = value.replace(/\b[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}\b/giu, id => alias('uuid', id));
