@@ -162,5 +162,5 @@ test('the light collector preserves prepared JSON refusal documents and a single
   io.result({ release: '0.9.2' });
   io.flush(0);
   io.flush(0);
-  assert.deepEqual(JSON.parse(text), { version: 1, release: '0.9.2' }, 'success needs no refusal preparation and flushes once');
+  assert.deepEqual(JSON.parse(text), { version: 1, release: '0.9.2', next: 'pullboard status' }, 'success needs no refusal preparation, names one next action and flushes once');
 });
