@@ -1,3 +1,4 @@
+/** @pullboard-test-loads packages/resources/index.js */
 /** Recover an unresponsive pinned worker only with exact launch fencing and a fresh idle proof [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -35,7 +36,7 @@ function observe(t, live) {
     import { existsSync, mkdirSync } from 'node:fs';
     import { join } from 'node:path';
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
-    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('runner-recovery.js'))};
+    import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root: ${JSON.stringify(root)}, slots: 1, browser: 0 };
     const db = new DatabaseSync(':memory:');
     db.exec('CREATE TABLE runner_unavailable(host TEXT PRIMARY KEY,since TEXT NOT NULL,detail TEXT NOT NULL);CREATE TABLE runner_draining(host TEXT PRIMARY KEY,runner TEXT NOT NULL)');

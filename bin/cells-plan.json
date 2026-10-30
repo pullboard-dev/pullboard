@@ -788,6 +788,22 @@
         "apps/cli/src/core/help-version.js",
         "imports"
       ]
+    },
+    {
+      "cell": "config",
+      "row": [
+        "src/machine-home.js",
+        "packages/config/src/shell/machine-home.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "runners",
+      "row": [
+        "src/runner-recovery.js",
+        "packages/runners/src/shell/runner-recovery.js",
+        "rule"
+      ]
     }
   ],
   "entries": [

@@ -18,7 +18,7 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
-import { machineHome } from './machine-home.js';
+import { machineHome } from '../packages/resources/index.js';
 import { Refused } from './refused.js';
 
 const asyncOffers = new WeakMap();

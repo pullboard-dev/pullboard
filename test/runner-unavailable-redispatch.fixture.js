@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads packages/resources/index.js */
-/** @pullboard-test-loads src/runner-recovery.js */
+/** @pullboard-test-loads packages/resources/index.js */
 /** A runner quarantined before READY releases its lease for one healthy dispatch [C7,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -51,7 +51,7 @@ function fixture(t) {
 /** Register a real pre-READY quarantine/requeue case without starting a nested test command. */
 export function registerRunnerUnavailableRedispatchTests() {
   test('a pre-READY unavailable runner releases its lease and dispatches once to a healthy runner [C7,H16]', async t => {
-    const box = fixture(t), gate = sourceURL('src/gate.js'), recovery = sourceURL('src/runner-recovery.js');
+    const box = fixture(t), gate = sourceURL('src/gate.js'), recovery = sourceURL('packages/resources/index.js');
     const source = `import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

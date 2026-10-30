@@ -1,11 +1,15 @@
 import { recordFamilyDeclareActivation } from './family-declaration.js';
 import { withDerivedFamily } from './family-declaration.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
+import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
 import { firstRefusalDetail } from './claims.js';
 import { itemPatchDigest } from './item-patch-state.js';
 /** Supply current native engine thresholds without duplicating their values. */
 function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE }; }
+
+/** Provide exact native engine thresholds for typed pipeline observations. */
+function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
 import { submitHandoffBoardRoot } from './submit-handoff-origin.js';
 import { sealSubmitHandoffQueue } from './submit-handoff-seal.js';
@@ -273,7 +277,7 @@ export function nativeBoardPorts() {
   });
   const enginePorts = boardEnginePorts({
     recordFamilyDeclareActivation, withDerivedFamily,
-    submitHandoffEngines, firstRefusalDetail, itemPatchDigest,
+    submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
     beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
