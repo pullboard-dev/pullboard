@@ -363,9 +363,10 @@ function mappedProducer(identity) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const mapped = mappedWorkingSource(root, identity);
   const files = new Map([[mapped.implementationPath, mapped.body], ...(mapped.shimPath ? [[mapped.shimPath, mapped.shimBody]] : [])]);
-  const front = mapped.shimPath && mapped.implementationPath.startsWith('packages/')
-    ? mapped.implementationPath.split('/').slice(0, 2).join('/') + '/index.js' : null;
-  if (front) files.set(front, readFileSync(join(root, front), 'utf8'));
+  if (mapped.shimPath && mapped.implementationPath.startsWith('packages/seats/')) {
+    const front = mappedWorkingSource(root, 'packages/seats/index.js');
+    files.set(front.implementationPath, front.body);
+  }
   return file => {
     assert.ok(files.has(file) && files.get(file) !== null, 'this fixture supplies exactly its actual imported producer source');
     return { source: files.get(file).toString('utf8'), object: runFixtureGit(['rev-parse', `HEAD:${file}`], { cwd: root }) };
