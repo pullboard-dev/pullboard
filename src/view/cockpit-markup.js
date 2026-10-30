@@ -1,6 +1,6 @@
 /** Return the original markup section of the self-contained cockpit document. */
 export function cockpitMarkup(sections) {
-  const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
+  const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -37,6 +37,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <button class="tab" data-tab="doctrine" type="button">Doctrine</button>
     <button class="tab" data-tab="activity" type="button">Activity</button>
     <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
+    ${privateCost ? '<button class="tab" data-tab="cost" type="button">Cost</button>' : ''}
   </nav>
   <div class="top-find"><input id="q" type="search" placeholder="Search" aria-label="Search items, Spec, Doctrine and shouts" autocomplete="off"><div class="find-results" id="find-results" role="listbox" aria-label="Search results" hidden></div></div>
 </header>
@@ -119,6 +120,7 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </section>
   ${settingsMarkup()}
   <section data-pane="roadmap" class="roadmap-layout" id="roadmap" aria-label="Roadmap"></section>
+  ${privateCost ? '<section data-pane="cost" id="cost" aria-label="Cost"></section>' : ''}
   ${hostedLocal && !snapshot ? starMarkup() : ''}
 </main>
 </div>
