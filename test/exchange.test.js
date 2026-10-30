@@ -21,6 +21,7 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   exportBoard,
   importBoard,
@@ -40,7 +41,7 @@ const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_t
  * @returns {any}
  */
 function populatedBoard(file) {
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   store.register(board, { lane: 'coordinator', path: '/source' });
   for (let index = 1; index <= 5; index += 1) store.register(board, { lane: 'web', path: `/source/web-${index}` });
   /** Add one open item before driving it into a lifecycle state. */
@@ -86,7 +87,7 @@ function gitRepo(root) {
 test('round trips every board row, state, history and AUTOINCREMENT counter [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(join(directory, 'source.sqlite'));
-  const target = store.openBoard(join(directory, 'target.sqlite'));
+  const target = openBoard(join(directory, 'target.sqlite'));
   try {
     const document = exportBoard(source);
     const result = importBoard(target, document);
@@ -110,7 +111,7 @@ test('round trips every board row, state, history and AUTOINCREMENT counter [A7]
 test('[A5] imported event logs refuse future formats and upgrade older formats', () => {
   const directory = tempDirectory();
   const source = populatedBoard(join(directory, 'source.sqlite'));
-  const target = store.openBoard(join(directory, 'target.sqlite'));
+  const target = openBoard(join(directory, 'target.sqlite'));
   try {
     const before = exportBoard(target);
     const future = structuredClone(exportBoard(source));
@@ -142,8 +143,8 @@ test('[A5] imported event logs refuse future formats and upgrade older formats',
 test('export keeps a single SQLite snapshot while another connection writes [A7]', () => {
   const directory = tempDirectory();
   const file = join(directory, 'shared.sqlite');
-  const source = store.openBoard(file);
-  const writer = store.openBoard(file);
+  const source = openBoard(file);
+  const writer = openBoard(file);
   try {
     store.register(source, { lane: 'coordinator', path: '/shared' });
     store.register(source, { lane: 'web', path: '/shared/web-1' });
@@ -169,7 +170,7 @@ test('export keeps a single SQLite snapshot while another connection writes [A7]
         return typeof value === 'function' ? value.bind(target) : value;
       },
     });
-    const duringWrite = JSON.stringify(exportBoard({ db }));
+    const duringWrite = JSON.stringify(exportBoard({ db }, source.nativePorts));
     assert.equal(wrote, true, 'the second connection wrote after the item table was read');
     assert.equal(duringWrite, before, 'every exported table came from the same pre-write snapshot');
     assert.equal(exportBoard(writer).tables.item.length, 2, 'the legitimate write committed to the board');
@@ -195,7 +196,7 @@ function writeAcceptedItem(board) {
 test('import refuses a board with rows and leaves it unchanged [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(join(directory, 'source.sqlite'));
-  const target = store.openBoard(join(directory, 'target.sqlite'));
+  const target = openBoard(join(directory, 'target.sqlite'));
   try {
     store.register(target, { lane: 'coordinator', path: '/target' });
     store.addItem(target, { by: 'coordinator', lane: 'web', title: 'real work makes this board nonempty' });
@@ -212,7 +213,7 @@ test('import refuses a board with rows and leaves it unchanged [A7]', () => {
 test('import refuses an export from another version before writing [A7]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(join(directory, 'source.sqlite'));
-  const target = store.openBoard(join(directory, 'target.sqlite'));
+  const target = openBoard(join(directory, 'target.sqlite'));
   try {
     const document = exportBoard(source);
     const before = exportBoard(target);
@@ -232,7 +233,7 @@ test('export and import CLI commands exchange a versioned document between real 
   const targetRoot = join(directory, 'target');
   gitRepo(sourceRoot);
   gitRepo(targetRoot);
-  const source = store.openBoard(join(sourceRoot, '.git', 'pullboard', 'board.sqlite'));
+  const source = openBoard(join(sourceRoot, '.git', 'pullboard', 'board.sqlite'));
   store.register(source, { lane: 'coordinator', path: sourceRoot });
   store.closeBoard(source);
   const env = {
@@ -266,7 +267,7 @@ test('export and import CLI commands exchange a versioned document between real 
     assert.equal(reexported.status, 0, reexported.stderr || reexported.stdout);
     assert.deepEqual(JSON.parse(reexported.stdout), document, 'a board initialized by pullboard can receive the full export');
 
-    const importedBoard = store.openBoard(join(targetRoot, '.git', 'pullboard', 'board.sqlite'));
+    const importedBoard = openBoard(join(targetRoot, '.git', 'pullboard', 'board.sqlite'));
     try {
       assert.deepEqual(JSON.parse(JSON.stringify(exportBoard(importedBoard))), document);
     } finally {
@@ -290,7 +291,7 @@ test('import preserves other metadata and refuses malformed fresh identities [A2
       "INSERT INTO board_meta VALUES ('retained', 'repo setting')",
       "UPDATE board_meta SET meta_value = 'invalid' WHERE meta_key = 'board_id'",
     ].entries()) {
-      const target = store.openBoard(join(directory, `target-${index}.sqlite`));
+      const target = openBoard(join(directory, `target-${index}.sqlite`));
       try {
         store.register(target, { lane: 'coordinator', path: '/target' });
         target.db.exec(change);
@@ -311,7 +312,7 @@ test('import preserves other metadata and refuses malformed fresh identities [A2
 test('fresh-init approval baselines are disposable only with exact setup history [A2,A7,S1]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(join(directory, 'source.sqlite'));
-  const setup = store.openBoard(join(directory, 'setup.sqlite'));
+  const setup = openBoard(join(directory, 'setup.sqlite'));
   /** An exact valid source snapshot, deliberately different on the two boards. */
   const baseline = text => ({ version: 1, file: 'SPEC.md', anchor: null,
     rows: [{ id: 'G1', text, source: `- G1 [approved, must] ${text}` }] });
@@ -321,7 +322,7 @@ test('fresh-init approval baselines are disposable only with exact setup history
     store.register(setup, { lane: 'coordinator', path: '/fresh' });
     store.recordSpecApprovalBaseline(setup, { agentId: 'coordinator', baseline: baseline('Local setup is disposable.') });
     for (let index = 0; index < 6; index += 1) {
-      const target = store.openBoard(join(directory, `fresh-${index}.sqlite`));
+      const target = openBoard(join(directory, `fresh-${index}.sqlite`));
       try {
         // A trusted restore can carry malformed old state; no append-only guard is bypassed here.
         const initial = exportBoard(setup);
@@ -356,7 +357,7 @@ test('fresh-init approval baselines are disposable only with exact setup history
 test('fresh-init grant markers permit pairing without admitting other history [A2,A7,E21]', () => {
   const directory = tempDirectory();
   const source = populatedBoard(join(directory, 'source.sqlite'));
-  const setup = store.openBoard(join(directory, 'setup.sqlite'));
+  const setup = openBoard(join(directory, 'setup.sqlite'));
   try {
     store.register(setup, { lane: 'coordinator', path: '/fresh' });
     const incoming = exportBoard(source);
@@ -374,7 +375,7 @@ test('fresh-init grant markers permit pairing without admitting other history [A
       { detail: { lane: 'coordinator', grantEngine: AGENT_GRANT_ENGINE, grant: 'stored authority' }, allowed: false },
     ];
     for (const [index, entry] of cases.entries()) {
-      const target = store.openBoard(join(directory, `marker-${index}.sqlite`));
+      const target = openBoard(join(directory, `marker-${index}.sqlite`));
       try {
         const initial = exportBoard(setup);
         initial.tables.event[0].event_detail = JSON.stringify(entry.detail);
@@ -395,4 +396,10 @@ test('fresh-init grant markers permit pairing without admitting other history [A
     store.closeBoard(source);
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+
+test('raw exports require the real command-phase provider before reading the database [A7,C7]', () => {
+  assert.throws(() => exportBoard({ get db() { throw new Error('database touched'); } }),
+    { name: 'TypeError', message: 'exportBoard needs beginCommandPhase' });
 });

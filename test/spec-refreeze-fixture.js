@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { COORDINATOR, loadConfig } from '../src/config.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
@@ -19,7 +20,7 @@ import { submitFixture } from './board-submit-fixture.js';
 export function assertSpecCorrectionRefreezesCitations(t) {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => {
     store.closeBoard(board);
     helpers.cleanup();
@@ -169,7 +170,7 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
 
   const move = correctionMove(box, box.board, 'spec-refreeze-replay-valid');
   const prefix = exportBoard(box.board);
-  const replica = store.openBoard(':memory:', box.clock);
+  const replica = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(replica));
   importBoard(replica, prefix);
   assert.deepEqual(exportBoard(replica), prefix, 'the receiver starts from the exact imported decision/item prefix');
@@ -185,14 +186,14 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
   assert.deepEqual(applyRelayMove(replica, move, order), replayed, 'a duplicate returns the same apply receipt');
   assert.deepEqual(exportBoard(replica), applied, 'duplicate replay does not refreeze or notify twice');
 
-  const omittedMarker = store.openBoard(':memory:', box.clock);
+  const omittedMarker = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(omittedMarker));
   importBoard(omittedMarker, prefix);
   const omitted = structuredClone(move);
   delete omitted.args[0].refreezes;
   assertNoDomainApply(omittedMarker, omitted, order, 'ROW_DECISION');
 
-  const legacy = store.openBoard(':memory:', box.clock);
+  const legacy = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(legacy));
   importBoard(legacy, prefix);
   const historical = structuredClone(omitted);
@@ -202,7 +203,7 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
   assert.equal(historicalResult.error, undefined, 'historical marker-free decisions retain their recorded apply behavior');
   assert.deepEqual(store.getItem(legacy, id), legacyItem, 'old-engine replay does not invent new refreeze semantics');
 
-  const newCitation = store.openBoard(':memory:', box.clock);
+  const newCitation = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(newCitation));
   importBoard(newCitation, prefix);
   store.addItem(newCitation, { by: COORDINATOR, lane: 'web', title: 'Late G1 citation',
@@ -210,21 +211,21 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
     brief: 'Files: web/late.js\nTest: the late item cites G1.' });
   assertNoDomainApply(newCitation, structuredClone(move), order, 'STALE_ROW_DECISION');
 
-  const staleSnapshot = store.openBoard(':memory:', box.clock);
+  const staleSnapshot = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(staleSnapshot));
   importBoard(staleSnapshot, prefix);
   const staleBefore = structuredClone(move);
   staleBefore.args[0].refreezes[0].before.status = 'submitted';
   assertNoDomainApply(staleSnapshot, staleBefore, order, 'STALE_ROW_DECISION');
 
-  const badHash = store.openBoard(':memory:', box.clock);
+  const badHash = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(badHash));
   importBoard(badHash, prefix);
   const tamperedHash = structuredClone(move);
   tamperedHash.args[0].refreezes[0].frozen.digest = '0'.repeat(64);
   assertNoDomainApply(badHash, tamperedHash, order, 'ROW_DECISION');
 
-  const nullPayload = store.openBoard(':memory:', box.clock);
+  const nullPayload = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(nullPayload));
   importBoard(nullPayload, prefix);
   const malformed = structuredClone(move);
@@ -233,7 +234,7 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
   assert.throws(() => applyRelayMove(nullPayload, malformed, order), error => error.code === 'ROW_DECISION');
   assert.deepEqual(exportBoard(nullPayload), beforeMalformed, 'a null marker is rejected before any receipt or domain write');
 
-  const oldEngine = store.openBoard(':memory:', box.clock);
+  const oldEngine = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(oldEngine));
   importBoard(oldEngine, prefix);
   const belowFloor = structuredClone(move);
@@ -251,7 +252,7 @@ export async function assertSpecRefreezeReplay(t, { fixture, cli }) {
   const emptyMove = correctionMove(box, box.board, 'spec-refreeze-replay-empty');
   assert.deepEqual(emptyMove.args[0].refreezes, [], 'a changed approved row with zero cited items still carries the protocol marker');
   const emptyPrefix = exportBoard(box.board);
-  const emptyReplica = store.openBoard(':memory:', box.clock);
+  const emptyReplica = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(emptyReplica));
   importBoard(emptyReplica, emptyPrefix);
   const emptyOrder = { ...order, sequence: 2, at: box.clock.now().toISOString() };

@@ -19,8 +19,11 @@ import { runCliInProcess } from './cli-in-process-fixture.js';
 const LEASE = 3_600_000;
 
 /** Real production board guards receive explicit synthetic identities, source inventories and lifecycle records. */
-function fixture(t) {
+function fixture(t, { historical = false } = {}) {
   const board = fixtureBoard(t);
+  // These original classification contracts replay the engine that introduced automatic Strict.
+  // Current explicit-only defaults and their migration have their own native contract suite.
+  if (historical) board.executionEngineVersion = REVIEW_TIER_ENGINE;
   for (const [id, family, parent] of [['coordinator', 'human', 'e'], ['core-1', 'OpenAI', 'a'],
     ['core-2', 'OpenAI', 'b'], ['core-3', 'Anthropic', 'c'], ['core-4', 'Anthropic', 'd']]) {
     store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core', path: `/fixture/${id}`,
@@ -65,7 +68,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
 });
 
 test('quarantine inventory drives show eligibility and next without relaxing author, session or vendor exclusions [V4,B26]', t => {
-  const f = fixture(t), id = f.add();
+  const f = fixture(t, { historical: true }), id = f.add();
   store.appendFact(f.board, id, { agentId: 'core-3', kind: 'note', text: 'Synthetic native helper write counts as material participation.' });
   const item = f.submit(id, ['src/quarantine.js']);
   assert.equal(itemReviewPolicy(f.board, id).tier, 'strict');
@@ -97,7 +100,7 @@ test('ordinary board, review, person and test-family work permits Standard same-
 });
 
 test('an active source-bound gate companion makes docs work Strict without changing its submitted inventory [V4,B26,H16]', t => {
-  const f = fixture(t), id = f.add();
+  const f = fixture(t, { historical: true }), id = f.add();
   const item = f.submit(id, ['README.md']);
   assert.equal(itemReviewPolicy(f.board, id).tier, 'standard');
   const patch = 'diff --git a/src/quarantine.js b/src/quarantine.js\n--- a/src/quarantine.js\n+++ b/src/quarantine.js\n@@ -1 +1 @@\n-old\n+new\n';
@@ -110,7 +113,7 @@ test('an active source-bound gate companion makes docs work Strict without chang
 });
 
 test('unsafe companion headers refuse classification rather than silently selecting Standard [V4,H16]', t => {
-  const f = fixture(t), id = f.add();
+  const f = fixture(t, { historical: true }), id = f.add();
   const item = f.submit(id, ['README.md']);
   const patch = 'diff --git a/../escape.js b/../escape.js\n--- a/../escape.js\n+++ b/../escape.js\n@@ -1 +1 @@\n-old\n+new\n';
   store.attachItemPatch(f.board, id, { agentId: 'coordinator', key: 'unsafe-companion', commit: item.item_commit,
@@ -155,7 +158,7 @@ test('coordinator strengthening of submitted work retains frozen proof and reser
 });
 
 test('real preactivation reservations replay unchanged and fresh lower-engine reviews cannot evade classification [V4,H16]', t => {
-  const f = fixture(t), id = f.add();
+  const f = fixture(t, { historical: true }), id = f.add();
   f.board.clock = { now: () => new Date('2026-10-27T00:02:00.000Z') };
   f.board.executionEngineVersion = REVIEW_TIER_ENGINE - 1;
   f.submit(id, ['src/quarantine.js']);

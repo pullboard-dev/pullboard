@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard, draftSpecRow, nativeBoardPorts } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -17,7 +18,6 @@ import { ITEM_SHOUT_ENGINE } from '../src/item-shout-engine.js';
 import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';
 import shoutMove from '../src/moves/shout.js';
 import { ACTIVITY_DELIVERY_ENGINE } from '../src/activity-delivery-engine.js';
-import { nativeBoardPorts } from '../src/native-board.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { prepareSpecRefreezes } from '../src/spec-refreeze.js';
 import { fixtureBoard } from './board-fixture.js';
@@ -77,7 +77,7 @@ test('inbox reads leave the writer available and acknowledge only after selectio
 test('a recorded submit stays successful when its later activity delivery fails [N26,H16,V4]', () => {
   const box = e2e.project('true');
   const boardPath = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const board = store.openBoard(boardPath);
+  const board = openBoard(boardPath);
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Submission survives a delivery failure',
     criterion: 'The private file is committed.' });
   store.closeBoard(board);
@@ -85,7 +85,7 @@ test('a recorded submit stays successful when its later activity delivery fails 
   assert.equal(claimed.code, 0, claimed.out + claimed.err);
   const committed = e2e.commitFile(box, box.web, 'web/delivery-failure.txt', 'private proof\n', 'feat(web): delivery failure fixture [G1]');
   assert.equal(committed.status, 0, committed.stderr);
-  const broken = store.openBoard(boardPath);
+  const broken = openBoard(boardPath);
   // Corrupt only this private derived read state; the authoritative item and move log remain genuine.
   broken.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?)').run('activity:web-1:cursor:', '{');
   store.closeBoard(broken);
@@ -97,7 +97,7 @@ test('a recorded submit stays successful when its later activity delivery fails 
   assert.equal(document.activity.receipt.recorded, false);
   assert.equal(document.activity.receipt.code, 'ACTIVITY_DELIVERY_FAILED');
   assert.match(document.diagnostics.join('\n'), /submitted .*activity delivery failed.*inbox/u);
-  const after = store.openBoard(boardPath);
+  const after = openBoard(boardPath);
   try {
     assert.equal(store.getItem(after, id).item_status, 'submitted');
     assert.equal(store.getItem(after, id).item_commit, document.commit);
@@ -118,7 +118,7 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
   assert.equal(committed.status, 0, committed.stderr);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'activity-reviewer'), family: 'Fixture Activity Reviewer Vendor' });
@@ -174,7 +174,7 @@ test('an agent feed shows only activity that touches its items files rows and la
   const tree = git.git(git.web, 'rev-parse', 'HEAD^{tree}');
   let leaseTime = Date.now();
   // Only this private board's lease clock advances; admission and elapsed-time clocks stay real.
-  const board = store.openBoard(':memory:', { now: () => new Date(leaseTime) });
+  const board = openBoard(':memory:', { now: () => new Date(leaseTime) });
   t.after(() => store.closeBoard(board));
   for (const [lane, path] of [['coordinator', '/feed-fixture'], ['web', '/feed-fixture/web-1'],
     ['web', '/feed-fixture/web-2'], ['api', '/feed-fixture/api-1']]) store.register(board, { lane, path, family: `Fixture Feed Vendor ${path}` });
@@ -241,7 +241,7 @@ test('an agent feed shows only activity that touches its items files rows and la
   };
   const refreezes = prepareSpecRefreezes(rowRecords, store.listItems(board, { all: true }), correctedFreeze);
   store.applyRowDecisions(board, { agentId: 'coordinator', events: rowRecords.map(record => record.event), refreezes });
-  store.draftSpecRow(board, { agentId: 'web-1', row: { id: 'G1', text: 'Private cited-row draft',
+  draftSpecRow(board, { agentId: 'web-1', row: { id: 'G1', text: 'Private cited-row draft',
     gate: 'private fixture gate', tier: 'should', section: 'Goals' } });
   const answer = store.answerDecision(board, question, { agentId: 'api-1', text: 'Use the narrow path.', lanes });
   store.answerDecision(board, otherQuestion, { agentId: 'api-1', text: 'Unrelated answer must stay private.', lanes });
@@ -304,7 +304,7 @@ test('an agent feed shows only activity that touches its items files rows and la
 
 
 test('activity cursors leave events arriving during an observation pending [N26]', (t) => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/feed-cursor-fixture' });
   store.register(board, { lane: 'web', path: '/feed-cursor-fixture/web-1' });
@@ -362,7 +362,7 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
   assert.ok(observed.files.includes('web/untracked\nname.js'), 'real NUL-delimited Git output preserves newline names');
   assert.equal(activityWorkingFiles(box.web, [{ item_claim_head: 'missing' }]).unknown, true);
 
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Private CLI feed item',
     specIds: ['G1'], brief: 'Files: web/feed-rows.md\nTest: private fixture\n' });
   store.claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 3_600_000, head: base, freeze });
@@ -390,7 +390,7 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
   assert.equal(continued.code, 0, continued.err);
   assert.deepEqual(JSON.parse(continued.out).activity.entries, []);
   assert.deepEqual(JSON.parse(continued.out).activity.digests, []);
-  const again = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const again = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const secondNews = store.shout(again, { from: 'coordinator', to: 'all', text: 'Next private release.', lanes, news: true });
   store.closeBoard(again);
   const sameSession = box.run(box.web, 'inbox', '--json');
@@ -420,7 +420,7 @@ test('inbox delivery uses real Git paths and board-bound cursors without consumi
 });
 
 test('old ordinary shout replay does not become newly typed news [H16,N26]', (t) => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/private-legacy-feed' });
   store.register(board, { lane: 'web', path: '/private-legacy-feed/web-1' });
@@ -457,7 +457,7 @@ test('old ordinary shout replay does not become newly typed news [H16,N26]', (t)
   const typed = applyEngineMove(board, typedMove, { sequence: 4, at: new Date().toISOString() });
   assert.equal(typed.error, undefined);
   assert.equal(typed.events[0].event_kind, 'shout_news', 'only the new-engine typed path emits the new native kind');
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
   assert.deepEqual(store.events(replica), store.events(board), 'native export/import preserves old and new exact event rows');
@@ -478,7 +478,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
   // A real sibling commit keeps this rejected fixture out of the later item's ancestry.
   const rejectedCommit = box.git(box.repo, 'commit-tree', tree, '-p', base, '-m', 'private rejected sibling');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'interrupt-reviewer'), family: 'Fixture Interrupt Reviewer Vendor' });
@@ -552,7 +552,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
 
 
 test('interrupt receipts replay once and only their recipient can acknowledge delivered work [N26,H2,H16]', t => {
-  const boards = ['origin', 'left', 'right'].map(() => store.openBoard(':memory:'));
+  const boards = ['origin', 'left', 'right'].map(() => openBoard(':memory:'));
   t.after(() => { for (const board of boards) store.closeBoard(board); });
   const [source, left, right] = boards;
   store.register(source, { lane: 'coordinator', path: '/interrupt-replay' });
@@ -666,7 +666,7 @@ test('an inbox check over its budget summarizes the rest and names what it left 
   config.inbox = { tokenBudget: 1024 };
   writeFileSync(configPath, JSON.stringify(config));
   // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   for (let index = 0; index < 12; index++) store.shout(board, { from: 'coordinator', to: 'web-1',
     text: `Private budget message ${index}: ${'界'.repeat(350)}`, lanes: ['web', 'api'] });
   const before = exportBoard(board);
@@ -686,7 +686,7 @@ test('an inbox check over its budget summarizes the rest and names what it left 
   const continued = JSON.parse(again.out);
   assert.equal(continued.shouts.length, 0, 'summarized messages are acknowledged rather than repeated forever');
   // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
-  const unchanged = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const unchanged = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.deepEqual(exportBoard(unchanged).tables.event.filter(event => event.event_kind !== 'activity-delivered'),
     before.tables.event, 'budgeting preserves original immutable events while allowing canonical delivery receipts');
   assert.deepEqual(exportBoard(unchanged).tables.shout, before.tables.shout, 'budgeting preserves original message bodies');
@@ -700,7 +700,7 @@ test('inbox budgets retain small deliveries and bound text without clipping mess
   config.inbox = { tokenBudget: 1024 };
   writeFileSync(configPath, JSON.stringify(config));
   // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.shout(board, { from: 'coordinator', to: 'web-1', text: 'An oversized message: ' + '界'.repeat(350), lanes: ['web'] });
   store.closeBoard(board);
   const text = box.run(box.web, 'inbox');
@@ -711,7 +711,7 @@ test('inbox budgets retain small deliveries and bound text without clipping mess
   config.inbox.tokenBudget = 2048;
   writeFileSync(configPath, JSON.stringify(config));
   // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
-  const reopened = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const reopened = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.shout(reopened, { from: 'coordinator', to: 'web-1', text: 'Ready.', lanes: ['web'] });
   store.closeBoard(reopened);
   const small = box.run(box.web, 'inbox', '--json');
@@ -732,7 +732,7 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   config.inbox = { tokenBudget: 1024 };
   writeFileSync(configPath, JSON.stringify(config));
   // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const question = store.shout(board, { from: 'web-1', to: 'coordinator', text: 'Which bounded path?',
     decision: true, lanes: ['web', 'api'] });
   store.answerDecision(board, question, { agentId: 'coordinator', text: '界'.repeat(350), lanes: ['web', 'api'] });
@@ -748,7 +748,7 @@ test('inbox budgets withhold interrupt receipts until the whole interrupt is ren
   assert.equal(withheld.budget.omitted.interrupt, 1);
   assert.match(withheld.budget.summary, /1 interrupt/u);
   // @pullboard-board-file journey: the real CLI subprocess reads and persists this project board between inbox checks
-  const recorded = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const recorded = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.ok(store.events(recorded).filter(event => event.event_kind === 'activity-delivered')
     .every(event => !JSON.parse(event.event_detail).interrupts.includes(id)), 'a summary is not an interrupt delivery receipt');
   assert.deepEqual(exportBoard(recorded).tables.shout, bodies, 'canonical source bodies stay intact');

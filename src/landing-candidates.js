@@ -4,6 +4,7 @@ import {
   join,
 } from 'node:path';
 import * as store from './board.js';
+import { openBoardForRead } from './native-board.js';
 import {
   invalidateGitFacts,
   mainCheckout,
@@ -109,7 +110,7 @@ function candidateMain(options, { checkAtCommit, landingPorts }) {
   };
   /** Keep the shared board read-only here; all receipts are acknowledged through the parent. */
   const run = async () => {
-    const board = store.openBoardForRead(join(repoInfo(options.root).commonDir, 'pullboard', 'board.sqlite'));
+    const board = openBoardForRead(join(repoInfo(options.root).commonDir, 'pullboard', 'board.sqlite'));
     if (!board) throw new Refused('LAND_CANDIDATE', 'the candidate cannot read its landing board; restore it before adopting');
     try {
       const { runLandingCandidate } = await import('./land.js');

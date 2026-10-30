@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { proofStats } from '../src/stats.js';
@@ -34,7 +35,7 @@ function submission(id, lines) {
 function fixture(t, entries) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-flow-report-'));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
-  const seed = store.openBoard(join(root, '.git', 'seed.sqlite'));
+  const seed = openBoard(join(root, '.git', 'seed.sqlite'));
   store.register(seed, { lane: 'coordinator', path: root });
   store.register(seed, { lane: 'core', path: join(root, 'builder') });
   store.register(seed, { lane: 'review', path: join(root, 'reviewer') });
@@ -51,7 +52,7 @@ function fixture(t, entries) {
       item_id: item, event_detail: JSON.stringify(detail),
     }));
   document.tables.sqlite_sequence.find(row => row.name === 'event').seq = document.tables.event.length;
-  const board = store.openBoard(join(root, '.git', 'flow.sqlite'));
+  const board = openBoard(join(root, '.git', 'flow.sqlite'));
   importBoard(board, document);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   return board;

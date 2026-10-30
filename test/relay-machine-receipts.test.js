@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestStageText } from '../src/relay-requests.js';
@@ -17,7 +18,7 @@ const machine = { kind: 'machine', userId: 'private-person', machine: 'private-m
 function replicas(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-machine-receipts-'));
   const boards = ['first', 'second'].map(name => {
-    const board = store.openBoard(join(directory, name + '.sqlite'), { now: () => new Date(at) });
+    const board = openBoard(join(directory, name + '.sqlite'), { now: () => new Date(at) });
     store.ensureCoordinator(board, '/private/coordinator');
     return board;
   });

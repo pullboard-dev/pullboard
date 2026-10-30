@@ -1,6 +1,7 @@
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
+import { join } from 'node:path';
 import { JSON_SHAPES } from '../src/json.js';
 import { fetchFresh } from './http-fixture.js';
 
@@ -65,3 +66,30 @@ async function nextSseEvent(reader, pending = { text: '' }) {
 }
 
 export { apiFetch, apiError, assertRequiredShape, hasType, nextSseEvent, timedMs };
+
+/** Build the actual HTTP fixture child's private terminal and Git identity. */
+export function apiFixtureEnvironment(directory, bin) {
+  return {
+    ...process.env, HOME: join(directory, 'home'), PULLBOARD_HOME: join(directory, 'home'),
+    PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
+    PATH: bin + ':' + process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'HTTP Agent', GIT_AUTHOR_EMAIL: 'agent@example.invalid',
+    GIT_COMMITTER_NAME: 'HTTP Agent', GIT_COMMITTER_EMAIL: 'agent@example.invalid',
+  };
+}
+
+/** Capture one ambient pool per test, even when it creates several boards, and restore it at test teardown. */
+const fixtureMachineTests = new WeakSet();
+
+/** Bind in-process API commands as well as child commands to a fixture-owned machine pool. */
+export function bindApiFixtureMachine(t, env) {
+  if (!fixtureMachineTests.has(t)) {
+    const previous = process.env.PULLBOARD_MACHINE_HOME;
+    fixtureMachineTests.add(t);
+    t.after(() => {
+      if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+      else process.env.PULLBOARD_MACHINE_HOME = previous;
+    });
+  }
+  process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
+}

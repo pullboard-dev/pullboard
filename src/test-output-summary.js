@@ -1,4 +1,5 @@
 /** Test presentation reads full native logs; compact words never become proof [C7,V10]. */
+import { testOutcomeFields } from './test-outcomes.js';
 import { randomUUID } from 'node:crypto';
 import {
   mkdirSync,
@@ -50,8 +51,19 @@ export function testOutputSummary(logPath, { root = process.cwd(), profile } = {
       if (!multiline) errors[current] = scalar(error[1]);
     } else if (multiline && line.trim()) { errors[current] = scalar(line.trim()); multiline = false; }
   }
+  const outcomes = testOutcomeFields(profile?.testOutcomes) ?? [];
+  const failedTitles = new Map();
+  for (const row of rows) {
+    if (!row.passed && !row.skip) failedTitles.set(row.name, (failedTitles.get(row.name) ?? 0) + 1);
+  }
+  /** A remote location may use a unique failed source identity, never the first of several title matches. */
+  function outcomeFile(name) {
+    if (failedTitles.get(name) !== 1) return null;
+    const matches = outcomes.filter(test => test.name === name);
+    return matches.length === 1 && !matches[0].passed && !matches[0].skipped ? matches[0].file : null;
+  }
   const failed = rows.flatMap((row, index) => row.passed || row.skip ? [] : [{
-    file: short(row.file ?? profile?.testOutcomes?.find(test => test.name === row.name)?.file) || null,
+    file: short(row.file ?? outcomeFile(row.name)) || null,
     name: short(row.name), error: short(errors[index] || row.failureType || 'no error line recorded'),
   }]);
   const unstructured = !rows.length || rows.some((row, index) => !row.passed && !row.skip && (!errors[index] || /^test failed$/iu.test(errors[index])));

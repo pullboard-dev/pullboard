@@ -1,3 +1,4 @@
+import { blockingFailures } from './quarantine-verdict.js';
 /** Match completely accounted test failures without granting a file-wide main-red exemption [V4,B3]. */
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
@@ -48,13 +49,15 @@ export function failureSignatures(run, root) {
     try { executionRoot = realpathSync(executionRoot); }
     catch { /* An unavailable path cannot invent a failure location. */ }
   }
-  const failures = accountedFailures({ ...run, executionRoot }, executionRoot);
+  const failures = accountedFailures({ ...run, executionRoot }, executionRoot, { nativeLeaves: Boolean(run.blockingVerdict) });
   if (!failures) return null;
   const stages = run.stages.flatMap(stage => stage.pipeline ?? [stage]);
-  const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot));
+  const details = stages.filter(stage => stage.status !== 0).flatMap(stage => diagnostics(stage.output ?? '', executionRoot))
+    .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
   if (details.length !== failures.length) return null;
-  return failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
+  const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
     .every(row => row.file && row.signature) ? failures.map((failure, index) => ({ ...failure, signature: details[index].signature })) : null;
+  return signed ? blockingFailures(run, signed) : null;
 }
 
 /** Every actual candidate failure must match the exact main test and its failure details. */

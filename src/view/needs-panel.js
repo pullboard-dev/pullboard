@@ -12,8 +12,10 @@ export function needsPanelModel(calls, project, { compact = false, person = fals
     if (!evidence) return [];
     const fields = [['Repeated cause', evidence.key], ['Cited items', (evidence.items ?? []).map(item => '#'+item.id).join(', ') || 'None recorded']];
     if (evidence.proof) fields.push(['Proof command', evidence.proof.check, true],
-      ['Red proof', String(evidence.proof.red?.commit ?? 'Unavailable').slice(0,12)+' · exit '+evidence.proof.red?.exit, true],
-      ['Green proof', String(evidence.proof.green?.commit ?? 'Unavailable').slice(0,12)+' · exit '+evidence.proof.green?.exit, true]);
+      ['Red proof', String(evidence.proof.red?.commit ?? 'Unavailable')+' · exit '+evidence.proof.red?.exit, true,
+        { title: evidence.proof.red?.commit, copy: evidence.proof.red?.commit }],
+      ['Green proof', String(evidence.proof.green?.commit ?? 'Unavailable')+' · exit '+evidence.proof.green?.exit, true,
+        { title: evidence.proof.green?.commit, copy: evidence.proof.green?.commit }]);
     return fields;
   };
   /** Describe each call once for both browser presentation and HTML. */
@@ -21,11 +23,16 @@ export function needsPanelModel(calls, project, { compact = false, person = fals
     const source = row.kind === 'agent-approved' ? project.spec?.find(entry => entry.id === row.id) : null;
     const approval = source?.agentApproval ?? row;
     if (row.kind === 'agent-approved') return { kind: 'approval', id: row.id, title: source?.text ?? 'Row text unavailable', context: 'Approved in Git · gate ' + (source?.gate || 'not recorded'), action: 'Confirm', fields: [
-      ['Gate', source?.gate || 'Not recorded', true], ['Approved in Git', approval.agent || 'Unknown author', false, { date: approval.approvedAt }], ['Commit', approval.commit ? approval.commit.slice(0, 12) : 'Unavailable', true, { title: approval.commit }]], body: source?.text ?? '' };
+      ['Gate', source?.gate || 'Not recorded', true], ['Approved in Git', approval.agent || 'Unknown author', false, { date: approval.approvedAt }], ['Commit', approval.commit ? approval.commit.slice(0, 12) : 'Unavailable', true, { title: approval.commit, copy: approval.commit }]], body: source?.text ?? '' };
     if (row.kind === 'sentinel-draft') return { kind: 'sentinel', id: row.ref, title: 'Run ' + row.check + ' ' + row.every + ', reporting to ' + row.owner, context: 'Sentinel draft · not watching until you approve', action: 'Approve or decline', fields: [
       ['Command', row.check, true], ['Directory', row.directory, true], ['Schedule', row.every], ['Owner', row.owner], ['Proposed by', row.evidence ? 'An agent · ' + row.evidence.occurrences + ' repeats' : 'An agent, with no repeat cited'], ...evidenceFields(row)], body: '' };
     if (row.kind === 'rigor-draft') return { kind: 'question', id: row.ref, title: row.text, context: (row.unproved ? 'an unproved Rigor proposal' : 'a proved Rigor draft') + (row.evidence ? ', repeated ' + row.evidence.occurrences + ' times' : ''), action: 'Review', fields: [['Next step', row.what], ...evidenceFields(row)], body: row.text };
     if (row.kind === 'spec-revision') return { kind: 'question', id: row.ref ?? row.id, title: row.reason || 'Review the proposed row revision', context: 'Proposed spec revision · ' + (row.what || 'approve or decline'), action: 'Review', fields: [['Current row', row.source], ['Proposed row', row.replacement]], body: row.reason };
+    if (row.kind === 'decision' && compact) {
+      const cited = [...String(row.text ?? '').matchAll(/#(\d+)/gu)].map(match => (project.items || []).find(item => String(item.id) === match[1])).find(Boolean);
+      return { kind: 'question', id: cited ? '#' + cited.id : '', title: cited ? 'Decide: ' + cited.title : 'Decision from ' + row.ref,
+        context: 'Asked by ' + row.ref, action: 'Decide', fields: [['Asked by', row.ref]], body: row.text };
+    }
     return { kind: 'question', id: row.kind === 'decision' ? '#' + row.id : row.ref, title: String(row.text ?? '').split(/\n/u)[0], context: row.kind === 'decision' ? 'Asked by ' + row.ref : row.what, action: row.kind === 'decision' ? 'Decide' : row.kind === 'relay-health' ? 'Inspect' : row.kind === 'block' ? 'Next step' : 'Review', fields: [...(row.kind === 'decision' ? [['Asked by', row.ref]] : row.what ? [['Next step', row.what]] : []), ...evidenceFields(row)], body: row.text };
   };
   const rows = sorted.map(row => {
@@ -53,7 +60,15 @@ export function needsPanelHtml(model, presentation = new Map()) {
     const comparison = revision ? '<div class="revision-columns"><section data-revision-before><h3>Current row</h3><pre>'
       + escape(row.source.source) + '</pre></section><section data-revision-after><h3>Proposed row</h3><pre>'
       + escape(row.source.replacement) + '</pre></section></div><p class="revision-reason">' + escape(row.source.reason) + '</p>' : '';
-    const detailHtml = '<div class="needs-detail">' + (revision ? comparison : (row.body ? '<p>' + (shown.bodyHtml ?? escape(row.body)) + '</p>' : '') + (row.fields.length ? '<dl>' + row.fields.map(([label, value, code, meta]) => '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>' : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(shown.approvalDateLabel || 'Date unknown')+'</time>':'Date unknown'):'') + '</dd>').join('') + '</dl>' : ''))
+    /** Render a code field with its short hash and full-value copy action when it carries a commit. */
+    const fieldHtml = ([label, value, code, meta]) => {
+      const hash = meta?.copy && /^[a-f0-9]{40,64}$/u.test(meta.copy) ? meta.copy : '';
+      const suffix = hash && String(value).startsWith(hash) ? String(value).slice(hash.length) : '';
+      const codeHtml = hash ? '<button class="hash-copy" type="button" title="' + escape(hash) + '" aria-label="Copy full hash ' + escape(hash) + '" data-copy="' + escape(hash) + '"><code class="inline sha" title="' + escape(hash) + '">' + escape(hash.slice(0, 12)) + '</code></button>' + escape(suffix)
+        : '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>';
+      return '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? codeHtml : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(shown.approvalDateLabel || 'Date unknown')+'</time>':'Date unknown'):'') + '</dd>';
+    };
+    const detailHtml = '<div class="needs-detail">' + (revision ? comparison : (row.body ? '<p>' + (shown.bodyHtml ?? escape(row.body)) + '</p>' : '') + (row.fields.length ? '<dl>' + row.fields.map(fieldHtml).join('') + '</dl>' : ''))
       + (shown.feedbackHtml || '') + (shown.controlsHtml || '') + '</div>';
     return sharedRowHtml({ variant: 'needs', state: row.kind, id: row.id, title: row.title, meta: row.context, chip: row.action,
       iconHtml: ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[row.kind], timeHtml: row.ageAt ? shown.ageHtml || '' : '',
@@ -67,7 +82,9 @@ export function needsPanelHtml(model, presentation = new Map()) {
     : '<span>' + draftCopy + '</span>') + '</li>' : '';
   if (model.compact) {
     const shown = [...model.questions, ...model.approvals].slice(0, 3), more = model.sortedCount - shown.length;
-    return shown.map(rowHtml).join('') + (more || model.drafts ? '<li class="needs-more"><button type="button" data-needs-list>' + more + ' more' + (model.drafts ? ' and ' + model.drafts + ' draft rows' : '') + ' in Needs you</button></li>' : '');
+    const text = more + ' more' + (model.drafts ? ' and ' + model.drafts + ' draft rows' : '');
+    if (model.headerOnly) return more || model.drafts ? '<button class="needs-more" type="button" data-needs-list>' + text + ' →</button>' : '';
+    return shown.map(rowHtml).join('') + (model.headerSeparately ? '' : more || model.drafts ? '<li class="needs-more"><button type="button" data-needs-list>' + text + ' in Needs you</button></li>' : '');
   }
   const confirmable = model.approvals.filter(row => row.confirmable);
   const group = (label, rows, extra = '') => rows.length ? '<li class="needs-group"><div class="needs-group-head"><h3>' + label + ' · ' + rows.length + '</h3>' + extra + '</div><ol>' + rows.map(rowHtml).join('') + '</ol></li>' : '';

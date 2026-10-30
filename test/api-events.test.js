@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { main } from '../src/cli.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 const sandboxes = [];
 
@@ -22,6 +23,7 @@ async function project(t) {
   mkdirSync(repo);
   const env = {
     PULLBOARD_HOME: join(directory, 'home'),
+    PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
     GIT_CONFIG_GLOBAL: '/dev/null',
     GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'API Events Test',
@@ -69,7 +71,7 @@ test('[A2, R2] a command emits its inserted event when another connection writes
   const result = await command(repo, ['add', 'app', 'Original move', '--json'], {
     onEvent(event) {
       emitted = event;
-      const other = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+      const other = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
       try {
         assert.equal(other.lastEvent, undefined, 'a new connection has no copy of another connection\'s last event');
         store.addItem(other, { by: 'coordinator', lane: 'app', title: 'Concurrent move' });
@@ -85,7 +87,7 @@ test('[A2, R2] a command emits its inserted event when another connection writes
   assert.equal(emitted.event_kind, 'add');
   assert.equal(emitted.event_by, 'coordinator');
   assert.ok(laterEvent.event_id > emitted.event_id, 'the second connection appended a later event');
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const events = store.events(board);
     assert.equal(events.at(-2).event_id, emitted.event_id);
@@ -100,7 +102,7 @@ test('[A2, R2] a refused command emits no move event', async (t) => {
   const { repo } = await project(t);
   const successful = await command(repo, ['add', 'app', 'Existing move', '--json']);
   assert.equal(successful.code, 0, successful.stderr);
-  const before = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const before = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   let beforeCount;
   try { beforeCount = store.events(before).length; } finally { store.closeBoard(before); }
 
@@ -109,14 +111,14 @@ test('[A2, R2] a refused command emits no move event', async (t) => {
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.stdout).error.code, 'NO_LANE');
   assert.equal(emitted, 0);
-  const after = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const after = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.equal(store.events(after).length, beforeCount); } finally { store.closeBoard(after); }
 });
 
 
 test('[A2, R2] rolling back a transaction also discards its captured events', async (t) => {
   const { repo } = await project(t);
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const item = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Committed move' });
     const rows = store.events(board);

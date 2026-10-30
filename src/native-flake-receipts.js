@@ -24,7 +24,7 @@ export function receiptRecorder(ctx, { agentId, acceptedConfig, board, ordered, 
       const active = flakeQuarantines(target).filter(row => row.nativeCore && row.status === 'quarantined');
       for (const row of receipt.testOutcomes) {
         const entry = active.find(value => value.file === row.file && value.name === row.name);
-        if (entry && !row.skipped) ctx.io.say(`quarantined: ${row.file} :: ${row.name} (repair #${entry.item}); actual ${row.passed ? 'pass' : 'fail'}, blocking verdict unchanged`);
+        if (entry && !row.skipped) ctx.io.say(`quarantined: ${row.file} :: ${row.name} (repair #${entry.item}); actual ${row.passed ? 'pass' : 'fail'}, ${receipt.blockingVerdict ? `blocking verdict ${receipt.blockingVerdict.green ? 'green' : 'red'}, event ${entry.eventId}` : 'blocking verdict unchanged'}`);
       }
     };
     await (board ? write(board) : withBoard(ctx, write));

@@ -76,9 +76,10 @@ test('a real SQLite export blocked by a private writer names local export work [
   // Budget: private SQLite waits 60s so the unchanged 25s child watchdog captures the actual blocked export.
   const script = `import { DatabaseSync } from 'node:sqlite';
 import { exportBoard } from ${JSON.stringify(module)};
+import { beginCommandPhase } from ${JSON.stringify(new URL('../src/command-phase.js', import.meta.url).href)};
 const db = new DatabaseSync(${JSON.stringify(file)});
 db.exec('PRAGMA busy_timeout=60000');
-exportBoard({db});`;
+exportBoard({db}, { beginCommandPhase });`;
   try { await assertStallPhase(t, box, script, 'local-export'); }
   finally { db.exec('ROLLBACK'); db.close(); }
 });

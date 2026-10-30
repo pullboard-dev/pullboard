@@ -2,7 +2,7 @@
 import { runnerPolicyRecord } from './runner-policy.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import { recoveryIdentity } from './runner-transport.js';
-import { runnerLaunchAllowed } from './runner-transport.js';
+import { claimRunnerWorker } from './runner-transport.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
@@ -77,7 +77,9 @@ export async function readSpec(S) {
   }
   if (value.timeoutMs !== undefined && (value.landing !== true || !Number.isSafeInteger(value.timeoutMs) || value.timeoutMs < 1 || value.timeoutMs > 2_147_483_647)) throw new Error('invalid landing timeout');
   if (value.stageMarker !== undefined && !/^PULLBOARD_STAGE_[a-f0-9]{32}$/u.test(value.stageMarker)) throw new Error('invalid stage marker');
-  if (value.waivers !== undefined && (!Array.isArray(value.waivers) || value.waivers.some(entry => !entry || !['file', 'name'].includes(entry.kind) || typeof entry.test !== 'string' || !entry.test || Object.keys(entry).some(key => !['kind', 'test'].includes(key))))) throw new Error('invalid continuation projection');
+  if (value.waivers !== undefined && (!Array.isArray(value.waivers) || value.waivers.some(entry => !entry || !['file', 'name', 'case'].includes(entry.kind) || typeof entry.test !== 'string' || !entry.test || Object.keys(entry).some(key => !(entry.kind === 'case' ? ['kind', 'test', 'file'] : ['kind', 'test']).includes(key))
+    || entry.kind === 'case' && (typeof entry.file !== 'string' || !entry.file || entry.file.startsWith('/')
+      || /[\\\r\n\0]/u.test(entry.file) || entry.file.split('/').some(part => !part || part === '.' || part === '..'))))) throw new Error('invalid continuation projection');
   if (value.origin !== undefined) {
     if (typeof value.origin !== 'string') throw new Error('invalid work specification');
     let origin;
@@ -133,7 +135,7 @@ export async function readSpec(S) {
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
   if (value.recovery?.launchFence === 1) {
     const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
-    if (!runnerLaunchAllowed(root, value.recovery)) throw new Error('runner launch was fenced or unclaimed');
+    if (!claimRunnerWorker(root, value.recovery)) throw new Error('runner launch was fenced or unclaimed');
   }
   return value;
 }

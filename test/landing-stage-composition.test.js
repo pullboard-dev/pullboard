@@ -39,6 +39,32 @@ function composed(root, original) {
   return runShell(root, `(\n${original}\n) && '${process.execPath}' affected.cjs`, { stages: true, pipefail: true });
 }
 
+test('compound shell conditionals keep their actual branches and exit status without guessed accounting [C7,V4,B3]', t => {
+  const root = fixture(t);
+  writeFileSync(join(root, 'armed'), 'yes');
+  const command = "printf initial > before.txt && if test -f armed; then printf branch >> branch.txt; fi && if test -f absent; then exit 9; fi";
+  const plain = runShell(root, command);
+  const observed = runShell(root, command, { stages: true });
+  assert.equal(plain.isGreen, true);
+  assert.equal(observed.isGreen, true, observed.output);
+  assert.equal(readFileSync(join(root, 'before.txt'), 'utf8'), 'initial');
+  assert.equal(readFileSync(join(root, 'branch.txt'), 'utf8'), 'branchbranch', 'each actual invocation executes its branch exactly once');
+  assert.equal(observed.stages, null, 'an opaque compound never receives a guessed stage account');
+  const red = runShell(root, 'if test -f armed; then false; else true; fi', { stages: true });
+  assert.equal(red.isGreen, false);
+  assert.equal(red.exitCode, 1);
+  assert.equal(red.stages, null);
+  assert.equal(accountedFailures(red, root), null, 'an opaque red command cannot borrow a waiver account');
+});
+
+test('quoted shell keywords remain ordinary arguments in actual staged execution [C7,V4]', t => {
+  const root = fixture(t);
+  const run = runShell(root, "printf '%s\\n' 'if then fi' && false", { stages: true });
+  assert.equal(run.isGreen, false);
+  assert.deepEqual(run.stages.map(stage => stage.status), [0, 1]);
+  assert.match(run.output, /if then fi/u);
+});
+
 test('generated phases retain original directory changes and separate affected failures [C7,V4]', t => {
   const root = fixture(t);
   const run = composed(root, `cd work && '${process.execPath}' ../floor.cjs`);

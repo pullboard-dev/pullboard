@@ -1,3 +1,4 @@
+import { validateQuarantineProofIds } from './quarantine.js';
 import { committedItemAuthors } from './review-independence.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';
@@ -44,7 +45,7 @@ import { moveItem } from './board.js';
  * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, mergeOnly: recordedCarry }) {
+export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, quarantineProofIds, mergeOnly: recordedCarry }) {
   let recordedProof;
   let recordedSize;
   if (companion) {
@@ -56,6 +57,9 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
     throw new Refused('USAGE', 'a submission note, when present, is one nonempty line');
   }
   atomic(board, () => { reviewRouting.requireStrictBuilderFamily(board, id, agentId);
+    if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
+    if (quarantineProofIds !== undefined) validateQuarantineProofIds(board, getItem(board, id),
+      { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
     const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
     const mergeOnly = modern ? board.executionEngineVersion === undefined
@@ -118,6 +122,6 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
       set: found => submissionItemValues(board, found, { agentId, commit, tree, files, carry, basis }),
     });
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra,
-      modern, gateGreen, companion, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
+      modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
   });
 }

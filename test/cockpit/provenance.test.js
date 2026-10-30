@@ -13,6 +13,7 @@ import { test } from 'node:test';
 import { addItem, closeBoard } from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
+import { beginCommandPhase } from '../../src/command-phase.js';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
 
 /** Copy the actual candidate into a private primary repo and linked source checkout. */
@@ -68,7 +69,7 @@ function fixture(t) {
   /** Export every persistent board table through a read-only SQLite connection. */
   const snapshot = () => {
     const db = new DatabaseSync(join(root, '.git', 'pullboard', 'board.sqlite'), { readOnly: true });
-    try { return exportBoard({ db }); }
+    try { return exportBoard({ db }, { beginCommandPhase }); }
     finally { db.close(); }
   };
   /** Change exactly one version constant in linked source, leaving the primary source untouched. */

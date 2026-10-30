@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, engineReceipt } from '../src/engine.js';
 import { unpackRelease } from './release-archive.js';
@@ -56,7 +57,7 @@ test('an actual engine12 person waiver keeps its exact receipt and history on bo
     head: commit, digest, policy: 'any', familyPolicy: 'off', check: 'green' });
   const seed = oldExchange.exportBoard(old);
   for (let index = 0; index < 2; index++) {
-    const board = store.openBoard(':memory:');
+    const board = openBoard(':memory:');
     replicas.push(board);
     importBoard(board, seed);
   }

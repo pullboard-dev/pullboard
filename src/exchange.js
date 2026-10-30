@@ -3,7 +3,6 @@ import { AGENT_GRANT_ENGINE } from './agent-grant-engine.js';
 import { LANDING_LOCAL_PREFIX } from './board-landing-local-lease.js';
 import { PROOF_COUNTER_PREFIX } from './proof-counters.js';
 import { exportedMeta } from './board-person-authority-schema.js';
-import { beginCommandPhase } from './command-phase.js';
 import { rebuildProofCounters } from './proof-counters.js';
 import { importSeatObservations } from './seat-presence.js';
 import {
@@ -61,13 +60,13 @@ function nativeRows(db, table) {
   return db.prepare(`SELECT * FROM ${identifier(table)} ORDER BY ${table === 'sqlite_sequence' ? 'name' : 'rowid'}`).all();
 }
 
-/**
- * The phase and filter an export uses. An opened board supplies its native root's ports; a public
- * {db} caller gets the same kernel phase journal and store-owned AUTHORITY filter, never an unfiltered export.
- * @param {{ db: any, nativePorts?: any }} board
- */
-function exportPorts(board) {
-  return board.nativePorts ?? { beginCommandPhase, exportedMeta };
+/** Require the real phase provider at the native or raw-database composition root. */
+function exportPorts(board, supplied) {
+  const ports = board.nativePorts ?? supplied;
+  if (typeof ports?.beginCommandPhase !== 'function') {
+    throw new TypeError('exportBoard needs beginCommandPhase');
+  }
+  return { beginCommandPhase: ports.beginCommandPhase, exportedMeta: ports.exportedMeta ?? exportedMeta };
 }
 
 /**
@@ -75,8 +74,8 @@ function exportPorts(board) {
  * @param {{ db: any }} board
  * @returns {{ version: number, tables: Record<string, any[]> }}
  */
-export function exportBoard(board) {
-  const ports = exportPorts(board);
+export function exportBoard(board, ports) {
+  ports = exportPorts(board, ports);
   const finishPhase = ports.beginCommandPhase('local-export');
   try {
     const db = board.db;

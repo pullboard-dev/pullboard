@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -57,7 +58,7 @@ async function project(t) {
   box.builder = join(dir, 'builder'); box.reviewer = join(dir, 'reviewer');
   git(root, 'worktree', 'add', '-q', box.builder, '-b', 'web/one');
   git(root, 'worktree', 'add', '-q', box.reviewer, '-b', 'review/one');
-  box.board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  box.board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(box.board));
   box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture Builder Vendor' });
   box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, family: 'Fixture Reviewer Vendor' });
@@ -138,7 +139,7 @@ test('a lone newcomer starts a reviewer with one command [V1,B26]', t => {
   assert.equal(independent.status, 0, independent.context);
   assert.match(independent.stdout, /next to verify: #1 Ready for review/u,
     'the printed line reserves the submitted item from the new independent fixture session');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const item = store.getItem(board, 1);
     assert.equal(item.item_status, 'submitted', 'startup reserves a review without writing a verdict');

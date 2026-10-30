@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { assertLandingLease, guardLandingWrite, LANDING_LEASE_MS } from '../src/board-landing-lease.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -15,7 +16,7 @@ import { landingRelayCallbacks } from '../src/landing-relay.js';
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-landing-lease-'));
   let at = Date.parse('2026-10-22T00:00:00.000Z');
-  const boards = [0, 1].map(index => store.openBoard(join(dir, `${index}.sqlite`), { now: () => new Date(at) }));
+  const boards = [0, 1].map(index => openBoard(join(dir, `${index}.sqlite`), { now: () => new Date(at) }));
   store.register(boards[0], { lane: 'coordinator', path: '/private-fixture/coordinator' });
   importBoard(boards[1], exportBoard(boards[0]));
   t.after(() => { for (const board of boards) store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });

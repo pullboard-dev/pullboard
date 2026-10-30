@@ -522,15 +522,21 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       const start = Math.max(0, runners.findIndex(runner => runner.host === cursor));
       const ordered = runnersFirst ? [...runners.slice(start), ...runners.slice(0, start)] : runners;
       const compatible = ordered.filter(runner => {
-        if (waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor).host !== runner.host) return false;
+        if (!runnerAllowed(waiter, runner)) return false;
         if (!runnerCompatible(db, runner, waiter, unavailable)) return false;
         if (drain && (waiter.token === drain.token ? runner.host !== drain.host : runner.host === drain.host)) return false;
         const used = usage.get(runner.host);
         return !used.timing && (waiter.timing !== 1 || used.slots === 0)
           && used.slots < runner.slots && (waiter.browser !== 1 || used.browsers < runner.browser);
       });
-      // Existing landing balancing stays intact when the opt-in rotation is off.
-      if (!runnersFirst && waiter.landing === 1) compatible.sort((left, right) => usage.get(left.host).slots - usage.get(right.host).slots);
+      const restriction = waiter.requiredExecutor && JSON.parse(waiter.requiredExecutor);
+      // An explicit preference wins when available; fallback hosts retain existing queue ordering/balancing.
+      if (restriction?.kind === 'ssh' && restriction.hosts) {
+        compatible.sort((left, right) => Number(right.host === restriction.host) - Number(left.host === restriction.host));
+      } else if (!runnersFirst && waiter.landing === 1) {
+        // Existing landing balancing stays intact when the opt-in rotation is off.
+        compatible.sort((left, right) => usage.get(left.host).slots - usage.get(right.host).slots);
+      }
       if (!compatible.length) return null;
       const selected = compatible[0];
       const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(selected.host);
@@ -580,7 +586,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       if (waiter.timing !== 1 || waiter.remote !== 1 || !Number.isFinite(waited) || waited < 120_000
         || blockedByLanding(waiter) || available(waiter)) continue;
       const candidates = runners.filter(runner => (!waiter.requiredExecutor || JSON.parse(waiter.requiredExecutor).kind === 'ssh'
-        && JSON.parse(waiter.requiredExecutor).host === runner.host) && runnerCompatible(db, runner, waiter, unavailable)
+        && runnerAllowed(waiter, runner)) && runnerCompatible(db, runner, waiter, unavailable)
         && !usage.get(runner.host).timing).sort((a, b) => usage.get(a.host).slots - usage.get(b.host).slots);
       if (!candidates.length) continue;
       drain = { token: waiter.token, host: candidates[0].host, since: new Date(now).toISOString(), wait_ms: waited, stage: 'draining', agent: waiter.agent, item: waiter.item };
@@ -624,7 +630,7 @@ function currentTimingDrain(db, waiters, runners, unavailable, now) {
   if (held) return drain;
   const runner = runners.find(runner => runner.host === drain.host);
   if (owner?.timing === 1 && owner.remote === 1 && runner
-    && (!owner.requiredExecutor || JSON.parse(owner.requiredExecutor).kind === 'ssh' && JSON.parse(owner.requiredExecutor).host === runner.host)
+    && (!owner.requiredExecutor || JSON.parse(owner.requiredExecutor).kind === 'ssh' && runnerAllowed(owner, runner))
     && runnerCompatible(db, runner, owner, unavailable)) return drain;
   timingDrainEvent(db, drain.stage === 'exclusive' ? 'exclusive-finished' : 'drain-cancel', drain, owner, now,
     owner ? 'executor no longer compatible' : 'request or holder left the queue');
@@ -667,6 +673,20 @@ function unavailableRunnerHosts(db, now) {
       .filter(row => runnerUnavailable(row, now)).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
+}
+
+/** Return the durable runner allowlist; legacy restrictions continue to name only their preferred host. */
+function requiredRunnerHosts(waiter) {
+  if (!waiter?.requiredExecutor) return null;
+  const restriction = typeof waiter.requiredExecutor === 'string' ? JSON.parse(waiter.requiredExecutor) : waiter.requiredExecutor;
+  if (restriction?.kind !== 'ssh') return null;
+  return restriction.hosts ?? [restriction.host];
+}
+
+/** A preferred-host restriction narrows only this waiter, never the machine-wide runner registry. */
+function runnerAllowed(waiter, runner) {
+  const hosts = requiredRunnerHosts(waiter);
+  return hosts === null || hosts.includes(runner.host);
 }
 
 /** Capability/availability permits a remote executor even when every compatible slot is currently busy. */
@@ -889,16 +909,22 @@ export function requiredExecutorOf(value) {
   if (value === undefined) return null;
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || value.kind === 'local' && Object.keys(value).some(key => key !== 'kind')
-    || value.kind === 'ssh' && (Object.keys(value).some(key => !['kind', 'host'].includes(key))
-      || typeof value.host !== 'string' || !value.host.trim() || value.host.trim() !== value.host || /[\r\n\0]/u.test(value.host))
+    || value.kind === 'ssh' && (Object.keys(value).some(key => !['kind', 'host', 'hosts'].includes(key))
+      || typeof value.host !== 'string' || !value.host.trim() || value.host.trim() !== value.host || /[\r\n\0]/u.test(value.host)
+      || value.hosts !== undefined && (!Array.isArray(value.hosts) || value.hosts.length < 1 || value.hosts.length > 64
+        || Reflect.ownKeys(value.hosts).length !== value.hosts.length + 1
+        || Array.from({ length: value.hosts.length }, (_, index) => index).some(index => !Object.hasOwn(value.hosts, index))
+        || value.hosts.some(host => typeof host !== 'string' || !host.trim() || host.trim() !== host || /[\r\n\0]/u.test(host))
+        || new Set(value.hosts).size !== value.hosts.length || !value.hosts.includes(value.host)))
     || !['local', 'ssh'].includes(value.kind)) throw new Refused('BAD_RESOURCE_METADATA', 'requiredExecutor must name local or one registered SSH host');
-  return value.kind === 'local' ? { kind: 'local' } : { kind: 'ssh', host: value.host };
+  return value.kind === 'local' ? { kind: 'local' } : { kind: 'ssh', host: value.host,
+    ...(value.hosts === undefined ? {} : { hosts: [...value.hosts] }) };
 }
 
 /**
  * Join the queue in its admission class (landing, review, submit, other), aging up over time; FIFO by ticket within a class.
  *
- * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
+ * @param {{ name: string, capacity: number, capacityProvider?: () => number, shortCapacityProvider?: () => number, browserCapacityProvider?: () => number, scope?: 'machine'|'repo'|'board', root?: string, agent?: string, repo?: string, landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerDeadlineAt?: number, runnerExecution?: boolean, timing?: boolean, runnerProvider?: () => Array<{host:string,slots:number,browser:number}>, item?: string, kind?: string, onWait?: (state: object) => any | Promise<any>, allowIdleCapacityUpdate?: boolean, memory?: () => Promise<{ checked: boolean, held: boolean, line: string, warning?: string }>, infrastructureRetry?: boolean, _resume?: object }} options - Resource identity, queue class, short-slot eligibility, optional remote executor pool and memory check. An awaited wait callback may return {leaseUntil} and then receives a final {admitted:true} callback before work starts.
  *   memory, when given, is read before each admission: a held verdict blocks ordinary and short local
  *   executors while compatible remote slots remain eligible; an unchecked one is passed to onWait once
  *   so the caller can warn.
@@ -975,12 +1001,15 @@ export async function takeResource(options) {
   let lateRunnerDispatch = resume?.lateRunnerDispatch ?? null;
   let priorWaitMs = resume?.priorWaitMs ?? 0;
   let waitStartedAt = resume?.waitStartedAt ?? Date.now();
+  const infrastructureAttempts = [...(resume?.infrastructureAttempts ?? [])];
+  const infrastructureRetryCount = resume?.infrastructureRetryCount ?? 0;
   const pid = process.pid;
   const agent = options.agent ?? process.env.PULLBOARD_AGENT ?? `pid-${pid}`;
   const started = processStarted(pid);
   const repo = options.repo ?? repoRoot(root);
   let queuedAt = resume?.queuedAt ?? new Date().toISOString();
   let leaseUntil = '';
+  let initialTicket = resume?.ticket;
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
     const result = await options.onWait?.(state);
@@ -995,7 +1024,6 @@ export async function takeResource(options) {
     }
   };
   try {
-    let initialTicket = resume?.ticket;
     await retryLockedSlotDatabase(file, () => update(db, () => {
       const currentCapacity = options.capacityProvider?.() ?? capacity;
       const currentShortCapacity = options.shortCapacityProvider?.() ?? 0;
@@ -1052,11 +1080,13 @@ export async function takeResource(options) {
         // after taking the same SQLite write lock used by updateRunnerSettings so an
         // older pre-lock snapshot cannot overwrite a newer configured capacity.
         const runners = runnerProvider ? validatedRunners(runnerProvider()) : [];
-        if (restriction?.kind === 'ssh' && !runners.some(runner => runner.host === restriction.host)) throw new Refused('BAD_RUNNER_POOL', 'the required SSH executor is not registered');
+        if (restriction?.kind === 'ssh' && !requiredRunnerHosts({ requiredExecutor: restriction }).some(host => runners.some(runner => runner.host === host))) {
+          throw new Refused('BAD_RUNNER_POOL', 'none of the allowed SSH executors is registered');
+        }
         const runnersFirst = runnersFirstProvider?.() === true;
         if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
-        const waiter = db.prepare('SELECT ticket, remote, browser, gui, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
+        const waiter = db.prepare('SELECT ticket, remote, browser, gui, required_executor AS requiredExecutor, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
           if (resume && initialTicket) {
             db.prepare('INSERT OR IGNORE INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(initialTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
@@ -1078,13 +1108,14 @@ export async function takeResource(options) {
         waiter.remote = Number(remoteEligible);
         const unavailable = unavailableRunnerHosts(db, now);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
-          || !runners.some(runner => runnerCompatible(db, runner, waiter, unavailable))));
+          || !runners.some(runner => runnerAllowed(waiter, runner) && runnerCompatible(db, runner, waiter, unavailable))));
         db.prepare('UPDATE waiter SET memory_held = ? WHERE token = ?').run(Number(memoryHeld), token);
         const limit = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name).capacity;
         let runnerDeadline;
         if (runnerDeadlineAt && (runnerDeadlinePassed || !waiter.runnerWaitBranch)) {
           const state = snapshot(db, name, order, now);
-          runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, runners, { ...waiter, timing: Number(timing) }, unavailable),
+          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowed({ requiredExecutor: restriction }, runner)) : runners;
+          runnerDeadline = { at: runnerDeadlineAt, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable),
             branch: localWaitBranch({ capacity: limit, browserCapacity: options.browserCapacityProvider?.() ?? 1,
               runnerOnly, browser, timing, memoryHeld: memory?.held === true, holders: state.holders }) };
           db.prepare('UPDATE waiter SET runner_wait_branch = ?, runner_wait_reasons = ? WHERE token = ?')
@@ -1105,7 +1136,9 @@ export async function takeResource(options) {
         if (runnerDeadlinePassed && !executor?.host) {
           db.prepare('UPDATE waiter SET remote = 0 WHERE token = ?').run(token);
           if (!executor && (runnerOnly || restriction?.kind === 'ssh' || runnerDeadline.branch === 'no local capacity')) {
-            throw new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; ${runnerOnly ? 'register or restore a compatible runner' : 'restore safe local capacity or check the named runners'}, then retry`, runnerOnly ? 'restore or register a compatible runner with pullboard runner add, then retry' : undefined);
+            const refused = new Refused('RUNNER_WAIT_DEADLINE', `${runnerDeadlineLine(runnerDeadline)}; ${runnerOnly ? 'register or restore a compatible runner' : 'restore safe local capacity or check the named runners'}, then retry`, runnerOnly ? 'restore or register a compatible runner with pullboard runner add, then retry' : undefined);
+            refused.infrastructureAttempt = { kind: 'runner-wait', code: 'RUNNER_WAIT_DEADLINE', runners: runnerDeadline.runners };
+            throw refused;
           }
         }
         if (executor) {
@@ -1178,7 +1211,8 @@ export async function takeResource(options) {
           }
         };
         /** Quarantine a failed remote host and retry this exact ticket on another executor, or only locally. */
-        const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic } = {}) => {
+        const requeueRunner = async (reason = 'transport-lost', { local = false, quarantine = true, diagnostic: transportDiagnostic,
+          infrastructureRetryCount = 0, infrastructureAttempts: priorInfrastructureAttempts = [] } = {}) => {
           if (!acquired.runner) throw new Refused('LOCAL_RUNNER_REQUEUE', 'only a remote lease can be returned to the runner queue');
           if (released || transferred || lost) throw new Refused('RESOURCE_LEASE_LOST', `resource lease for "${name}" is no longer held`);
           transferred = true;
@@ -1217,11 +1251,18 @@ export async function takeResource(options) {
             throw error;
           }
           db.close();
+          const retryingInfrastructure = infrastructureRetryCount > 0;
           return takeResource({ ...options, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
-            queuedAt, requestedAt, runnerDeadlineAt, runnerDispatched, lateAdmissionClosed, lateRunnerDispatch,
-            priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now() } });
+            queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
+            runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,
+            runnerDispatched: retryingInfrastructure ? false : runnerDispatched,
+            lateAdmissionClosed: retryingInfrastructure ? false : lateAdmissionClosed,
+            lateRunnerDispatch: retryingInfrastructure ? null : lateRunnerDispatch,
+            priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now(), infrastructureRetryCount,
+            infrastructureAttempts: priorInfrastructureAttempts } });
         };
         return { name, scope, token, pool, browser, timing, runnerExecution: options.runnerExecution === true, admittedAt: acquired.admittedAt, capacity: acquired.capacity, slotClass: acquired.shortSlot ? 'short' : 'gate', ...(acquired.runner ? { runner: acquired.runner } : {}),
+          ...(infrastructureAttempts.length ? { infrastructureAttempts: [...infrastructureAttempts] } : {}),
           waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
           ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, timingEvidence,
           ...(acquired.runner ? { requeueRunner } : {}) };
@@ -1232,6 +1273,22 @@ export async function takeResource(options) {
       await pause(POLL_MS);
     }
   } catch (error) {
+    if (error?.code === 'RUNNER_WAIT_DEADLINE' && options.infrastructureRetry === true && infrastructureRetryCount < 1 && initialTicket) {
+      const attempt = { kind: 'runner-wait', code: error.code, runner: error.infrastructureAttempt?.runners?.[0]?.host ?? null,
+        runners: error.infrastructureAttempt?.runners ?? [], at: new Date().toISOString(), message: error.message };
+      const nextAttempts = [...infrastructureAttempts, attempt];
+      const waited = Math.max(0, Date.now() - waitStartedAt);
+      db.close();
+      return takeResource({ ...options, _resume: { token, ticket: initialTicket, queueTicket: resume?.queueTicket ?? null,
+        queuedAt, requestedAt: Date.now(), runnerDeadlineAt: 0, runnerDispatched: false, lateAdmissionClosed: false,
+        lateRunnerDispatch: null, priorWaitMs: priorWaitMs + waited, waitStartedAt: Date.now(),
+        infrastructureRetryCount: infrastructureRetryCount + 1, infrastructureAttempts: nextAttempts } });
+    }
+    if (error?.code === 'RUNNER_WAIT_DEADLINE' && infrastructureAttempts.length) {
+      error.infrastructureAttempts = [...infrastructureAttempts, { kind: 'runner-wait', code: error.code,
+        runner: error.infrastructureAttempt?.runners?.[0]?.host ?? null, runners: error.infrastructureAttempt?.runners ?? [],
+        at: new Date().toISOString(), message: error.message }];
+    }
     try { update(db, () => db.prepare('DELETE FROM waiter WHERE token = ?').run(token)); } catch { /* Preserve the original error. */ }
     db.close();
     throw error;

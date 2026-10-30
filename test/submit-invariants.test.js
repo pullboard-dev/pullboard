@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   appliedSequence,
   applyEngineMove,
@@ -25,7 +26,7 @@ after(e2e.cleanup);
 
 /** Read a fixture's real board through its public interface. */
 function onBoard(box, action) {
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
@@ -210,7 +211,7 @@ test('a landing escape is proposed as a submit invariant [C7,V4]', async () => {
 
 test('submission selection replays on two replicas and legacy history remains unknown [C7,V4,H16]', t => {
   const box = e2e.sandbox();
-  const source = store.openBoard(join(box.dir, 'source.sqlite'));
+  const source = openBoard(join(box.dir, 'source.sqlite'));
   const copies = [];
   t.after(() => { for (const board of [source, ...copies]) store.closeBoard(board); });
   // Engine 12's proofless positive control must start from the joins and claim it could have written.
@@ -221,7 +222,7 @@ test('submission selection replays on two replicas and legacy history remains un
     freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }) }]);
   const document = exportBoard(source);
   for (let index = 0; index < 4; index += 1) {
-    const board = store.openBoard(join(box.dir, `replica-${index}.sqlite`));
+    const board = openBoard(join(box.dir, `replica-${index}.sqlite`));
     importBoard(board, document); copies.push(board);
   }
   const options = { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40),
@@ -260,10 +261,10 @@ test('submission selection replays on two replicas and legacy history remains un
 // Maintains the independent public receiver control from outside rejection 1061.
 test('a landing escape is proposed as a submit invariant only when modern submits carry their receipt [C7,V4,H16]', t => {
   const box = e2e.sandbox();
-  const source = store.openBoard(join(box.dir, 'modern-source.sqlite'));
-  const target = store.openBoard(join(box.dir, 'modern-replica.sqlite'));
-  const legacyTarget = store.openBoard(join(box.dir, 'legacy37-replica.sqlite'));
-  const replica = store.openBoard(join(box.dir, 'modern-second-replica.sqlite'));
+  const source = openBoard(join(box.dir, 'modern-source.sqlite'));
+  const target = openBoard(join(box.dir, 'modern-replica.sqlite'));
+  const legacyTarget = openBoard(join(box.dir, 'legacy37-replica.sqlite'));
+  const replica = openBoard(join(box.dir, 'modern-second-replica.sqlite'));
   t.after(() => {store.closeBoard(source);store.closeBoard(target);store.closeBoard(legacyTarget);store.closeBoard(replica);});
   const historicalEngine = SUBMISSION_PROOF_ENGINE - 1;
   replayHistoricalSeatMove(source,historicalEngine,'register',[{lane:'coordinator',path:'/fixture/main'}]);
@@ -326,8 +327,8 @@ test('a landing escape is proposed as a submit invariant only when modern submit
 for (const operation of ['recordLandingBatch', 'finishLandingBatch']) {
   test(`a landing escape is proposed as a submit invariant: retained landing receipts require their original engine for ${operation} [C7,V4,H16]`, t => {
     const box = e2e.sandbox();
-    const current = store.openBoard(join(box.dir, 'retained-current.sqlite'));
-    const legacy = store.openBoard(join(box.dir, 'retained-legacy37.sqlite'));
+    const current = openBoard(join(box.dir, 'retained-current.sqlite'));
+    const legacy = openBoard(join(box.dir, 'retained-legacy37.sqlite'));
     t.after(() => { store.closeBoard(current); store.closeBoard(legacy); });
     for (const board of [current, legacy]) store.register(board, { lane: 'coordinator', path: '/fixture/main' });
     const batch = { version: 1, id: 'retained-receipt', base: 'a'.repeat(40), tip: 'b'.repeat(40),

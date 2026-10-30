@@ -462,10 +462,21 @@ function closuresInGraph(graph) {
     }
     closures.set(test, reason ? { files: null, reason } : { files: [...reached].sort(), helpers: [...helpers].sort(), reason: '' });
   }
-  /** Every file reachable from these entries. Unresolved loaders are skipped: a harness's are caller-supplied reporters and guards. */
-  const reach = entries => {
+  /** Reach conservative edges, except the runner's caller-selected universe when the caller separately keys selected files and refuses custom reporters. */
+  const reach = (entries, { withoutSelectedRunnerModules = false } = {}) => {
     const reached = new Set(entries.filter(path => graph.blobs.has(path)));
-    for (const path of reached) for (const dependency of forward.get(path) ?? []) reached.add(dependency);
+    for (const path of reached) {
+      let dependencies = forward.get(path) ?? [];
+      if (withoutSelectedRunnerModules && ['bin/run-tests.js', 'src/test-file-dispatch.js'].includes(path)) {
+        // These two ** declarations admit caller-selected reporters and test files. The caller
+        // refuses custom reporters and keys each selected test's own complete closure. Keep every literal import and URL guard, and all other modules'
+        // conservative discovery edges; ordinary affected-test selection still follows **.
+        const targets = (graph.imports.get(path) ?? []).filter(target => target.startsWith('.') || target.startsWith('#'));
+        for (const match of (graph.modules.get(path) ?? '').matchAll(/new\s+URL\(\s*(['"`])([^'"`\\$\r\n]+)\1\s*,\s*import\.meta\.url\s*\)/gu)) targets.push(match[2]);
+        dependencies = targets.map(target => repositoryImport(path, target, graph.importMap)).filter(target => graph.blobs.has(target));
+      }
+      for (const dependency of dependencies) reached.add(dependency);
+    }
     return [...reached].sort();
   };
   return { closures, modules: graph.modules, blobs: graph.blobs, reach };

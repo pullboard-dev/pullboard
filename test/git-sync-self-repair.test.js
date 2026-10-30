@@ -7,6 +7,7 @@ import { readGitSyncRepairs } from '../src/git-sync-files.js';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { syncGitBoard } from '../packages/sync/index.js';
 
 /** Demand a successful fixture CLI result without including its synthetic relay credentials. */
@@ -114,7 +115,7 @@ test('an internal retry refuses relay history before creating a marker or starti
   runFixtureGit(['remote', 'remove', 'origin'], { cwd: box.root, env: box.env, encoding: 'utf8' });
   const metadata = commonPullboard(box);
   // @pullboard-board-file journey: open the same isolated native board to call the internal transport adapter.
-  const board = store.openBoard(join(metadata, 'board.sqlite'));
+  const board = openBoard(join(metadata, 'board.sqlite'));
   try {
     await assert.rejects(syncGitBoard(box.root, board, { relayCommand: { cliOperation: 'submit' } }), { code: 'GIT_SYNC_LINKED' });
     assert.equal(existsSync(join(metadata, 'git-sync.json')), false);

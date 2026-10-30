@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { editMilestoneItems, editMilestone } from '../src/board-milestones.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 
@@ -53,7 +55,7 @@ function fixture(t) {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: initialize fixture');
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
@@ -129,9 +131,9 @@ test('[N26,H16] caps validate edits, shipment carry and historical replay withou
   const currentEngine = box.board.executionEngineVersion;
   try {
     box.board.executionEngineVersion = 1;
-    store.editMilestoneItems(box.board, 'target', { agentId: 'coordinator', add: [second] });
+    editMilestoneItems(box.board, 'target', { agentId: 'coordinator', add: [second] });
     assert.deepEqual(store.milestones(box.board)[1].items, [first, second], 'historical uncapped moves replay unchanged');
-    assert.throws(() => store.editMilestone(box.board, 'target', { agentId: 'coordinator', limit: 3 }), { code: 'ENGINE_VERSION' });
-    assert.throws(() => store.editMilestoneItems(box.board, 'target', { agentId: 'coordinator', add: ['other#1'], swap: [first] }), { code: 'ENGINE_VERSION' });
+    assert.throws(() => editMilestone(box.board, 'target', { agentId: 'coordinator', limit: 3 }), { code: 'ENGINE_VERSION' });
+    assert.throws(() => editMilestoneItems(box.board, 'target', { agentId: 'coordinator', add: ['other#1'], swap: [first] }), { code: 'ENGINE_VERSION' });
   } finally { box.board.executionEngineVersion = currentEngine; }
 });

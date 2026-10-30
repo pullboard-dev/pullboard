@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import {
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -295,7 +296,7 @@ test('real Git streaming implementation preserves child output and completion [C
 });
 
 test('literal Git launch ratchet counts code and aliases, rejects growth, and reports the remaining migration [C7]', () => {
-  const baseline = JSON.parse(readFileSync(join(ROOT, 'src/git-launch-baseline.json'), 'utf8'));
+  const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/shell/git-launch-baseline.json'), 'utf8'));
   const report = gitLaunchReport(ROOT);
   assert.ok(report.total <= 81, 'this slice migrates all eight direct src/git.js launches from the original 89');
   assert.equal(report.total, Object.values(baseline.files).reduce((sum, count) => sum + count, 0), 'lower the committed allowance when a caller migrates');
@@ -313,4 +314,34 @@ test('literal Git launch ratchet counts code and aliases, rejects growth, and re
   const lowered = loweredGitLaunchBaseline({ ...report, files: rest }, baseline).baseline;
   assert.equal(lowered.files[first], undefined);
   assert.equal(lowered.originalTotal, 89);
+});
+
+/** The scan covers packages at their true paths, so a launcher cannot hide in a cell. */
+test('the Git launch scan counts package launchers at their true path and fails a planted one naming the file [C7,doctrine:CD64]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-package-git-launch-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const moved = join(root, 'packages/git/src/shell');
+  const cell = join(root, 'packages/widget/src/shell');
+  mkdirSync(join(root, 'src'));
+  mkdirSync(moved, { recursive: true });
+  mkdirSync(cell, { recursive: true });
+  mkdirSync(join(root, 'packages/widget/tests'));
+  writeFileSync(join(root, 'src/legacy.js'), "spawnSync('git', ['status']);\n");
+  writeFileSync(join(moved, 'git-adapter.js'), "spawn('git', []);\n");
+  writeFileSync(join(root, 'packages/widget/tests/fixture.js'), "spawnSync('git', ['init']);\n");
+  const allowed = { 'src/legacy.js': 1 };
+  const report = gitLaunchReport(root);
+  assert.deepEqual(Object.keys(report.files), ['src/legacy.js'], 'the adapter and test fixtures are excluded');
+  assert.deepEqual(gitLaunchGrowth(report, allowed), []);
+  writeFileSync(join(cell, 'planted.js'), "import { execFileSync } from 'node:child_process';\nexecFileSync('git', ['log']);\n");
+  const planted = gitLaunchReport(root);
+  assert.equal(planted.total, 2);
+  assert.deepEqual(gitLaunchGrowth(planted, allowed), [{ file: 'packages/widget/src/shell/planted.js', actual: 1, allowed: 0 }]);
+  assert.deepEqual(loweredGitLaunchBaseline(planted, { files: allowed }).growth.map(entry => entry.file), ['packages/widget/src/shell/planted.js']);
+});
+
+test('the committed Git launch allowance names only files that still launch Git at that path [C7]', () => {
+  const baseline = JSON.parse(readFileSync(join(ROOT, 'packages/git/src/shell/git-launch-baseline.json'), 'utf8'));
+  const report = gitLaunchReport(ROOT);
+  assert.deepEqual(Object.keys(baseline.files).filter(file => !report.files[file]), [], 'a moved or migrated file leaves a stale allowance');
 });

@@ -1,3 +1,5 @@
+import { sealQuarantineVerdict } from './quarantine.js';
+import { receiptBlockingGreen } from './quarantine-verdict.js';
 import { effectiveItemHead } from './source-advance-state.js';
 import { itemPolicy } from './trusted-policy.js';
 import { requireTrunkMerge } from './trusted-policy.js';
@@ -111,6 +113,7 @@ export function sealSourceAdvance(board, id, request) {
   for (const phase of prepared.proof.phases ?? []) {
     const stored = readGateReceipt(boardReceiptStore(board), phase.receipt.id);
     if (!stored || receiptBody(stored) !== receiptBody(phase.receipt)) throw new Refused('SOURCE_ADVANCE_PROOF', 'restore the unchanged gate-owned receipt before completing this source advance');
+    sealQuarantineVerdict(board, stored);
   }
   return { agentId: 'coordinator', proof: prepared.proof };
 }
@@ -138,10 +141,11 @@ export function prepareSourceAdvanceReturn(root, board, item, basis, { compositi
     const failed = phases.map(phase => phase.receipt).find(receipt => receipt?.version === 2 && receipt.head === composition.head
       && receipt.tree === composition.tree && receipt.main === basis.trunk && receipt.proof.sourceClean
       && receipt.proof.item === item.item_id && receipt.proof.seat === 'coordinator' && receipt.proof.frozenDigest === basis.bar
-      && commands.includes(receipt.command) && receipt.green === false && Number.isSafeInteger(receipt.proof.exitCode)
+      && commands.includes(receipt.command) && !receiptBlockingGreen(receipt) && receipt.green === false && Number.isSafeInteger(receipt.proof.exitCode)
       && receipt.proof.exitCode !== 0 && receipt.proof.counts.failed > 0 && receipt.failures.length > 0);
     if (!failed) throw new Refused('SOURCE_ADVANCE_PROOF', 'infrastructure or unknown output cannot reopen an item as a measured test failure');
-    const failures = [...new Map(failed.failures.map(row => [JSON.stringify([row.file,row.name]), row])).values()];
+    const held = failed.blockingVerdict?.quarantines ?? [];
+    const failures = [...new Map(failed.failures.filter(failure => !held.some(row => row.file === failure.file && row.name === failure.name)).map(row => [JSON.stringify([row.file,row.name]), row])).values()];
     const note = failures.map(row => `${row.file}: ${JSON.stringify(row.name)}`).join('; ') + `; merge commit ${composition.head}`;
     if (Buffer.byteLength(note, 'utf8') > 65536) throw new Refused('SOURCE_ADVANCE_PROOF', 'the complete measured failure list needs a bounded native diagnostic before return');
     action = { note, quotedLandingFailure: true };
