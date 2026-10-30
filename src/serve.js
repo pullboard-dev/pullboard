@@ -1,7 +1,7 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css src/view/cost.css */
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -80,8 +80,8 @@ import { publicSnapshot } from './view/public-export.js';
 import { openBoardForRead } from './board-read-open.js';
 import { loadMachineSettings } from './settings-read.js';
 
-/** Shared and private-local styles stay separate until the authenticated view assembles its sheet. */
-const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
+/** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
+const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd());
 const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
 const PRIVATE_VIEW_CSS_MARKER = '/* @private-view-css src/view/cost.css */';
 const VIEW_CSS = SHARED_VIEW_CSS.replace(PRIVATE_VIEW_CSS_MARKER, PRIVATE_COST_CSS);
@@ -355,7 +355,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), board.clock.now().getTime(), store),
       dashboardLanded: all.filter(item => item.item_status === 'verified' && item.item_merged_commit)
         .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
-      agents: store.listAgents(board).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
+      agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
       // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
       itemHolds: all.filter((item) => item.item_hold_reason).map((item) => ({ item: item.item_id, reason: item.item_hold_reason, by: item.item_hold_by, at: item.item_hold_at })),
