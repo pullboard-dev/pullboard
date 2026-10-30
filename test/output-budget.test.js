@@ -24,6 +24,7 @@ const DEFAULT_ARGS = { list: ['web'], show: ['1'], log: [], why: ['1'] };
 const EXCLUDED = Object.freeze({
   view: 'serves until stopped', watch: 'streams until stopped', serve: 'serves until stopped', relay: 'links a relay',
   mcp: 'serves MCP on stdio until stopped', hook: 'is a git hook entry that reads its hook arguments', loop: 'loops until stopped',
+  ship: 'commits staged work, merges main, runs checks and submits while waiting for a verdict',
   land: 'lands accepted work', publish: 'pushes to the remote', sync: 'syncs with the remote', runner: 'registers runners',
   test: 'runs the test suite', check: 'runs an item check', gate: 'runs the gate', run: 'runs a command',
   sweep: 'releases and reopens board work', init: 'initializes a repository', takeover: 'takes over the coordinator seat',
