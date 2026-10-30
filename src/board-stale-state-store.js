@@ -57,7 +57,7 @@ function observedExpiry(row, limit, observedAt) {
 
 /** Apply one pure captured plan under coordinator authority and the ordinary board transaction. */
 export function applyStaleState(board, { agentId, snapshot, health = {}, claimsOnly = false }, dependencies) {
-  const { atomic, getItem, setItem, releaseItemHold, logEvent, insertShout, moveItem } = dependencies;
+  const { atomic, getItem, itemById, setItem, releaseItemHold, logEvent, insertShout, moveItem } = dependencies;
   if (claimsOnly !== false && claimsOnly !== true) invalid();
   if (claimsOnly && (board.executionEngineVersion ?? ENGINE_VERSION) < LEASE_LAPSE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic lapsed-claim expiry');
   if (claimsOnly && !board.db.prepare('SELECT 1 FROM agent WHERE agent_id=?').get(agentId)) throw new Refused('NOT_JOINED', 'join a lane before maintaining lapsed claims');
@@ -118,7 +118,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
     if (claimsOnly) {
       // Validate the complete batch against one event prefix before the first release appends another event.
       const claims = snapshot.claims.map(row => {
-        const item = getItem(board, row.id);
+        const item = itemById(board, row.id);
         const lease = board.db.prepare("SELECT event_id,event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
         const leaseMs = Date.parse(item.item_lease_until) - Date.parse(lease?.event_at);
         if (!lease || item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId

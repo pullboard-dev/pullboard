@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../src/board.js';
+import { itemById, firstRefusal } from '../src/board-item-read.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { healthReport } from '../packages/health/index.js';
@@ -19,9 +20,11 @@ const MINUTE = 60_000;
 async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   const box = await fixture(t);
   box.advance(Math.ceil(Date.now() / 1000) * 1000 + 10_000 - box.clock.now().getTime());
+  const unknownIds = [];
   for (let n = 0; n < unknownPrefix; n++) {
     const holder = store.register(box.board, { lane: 'web', path: box.root + '-unknown-' + n, family: 'Fixture unknown work' });
     const pending = box.add('Unknown work prefix ' + n);
+    unknownIds.push(pending);
     store.claim(box.board, pending, { agentId: holder, lane: 'web', leaseMs: MINUTE,
       freeze: item => ({ text: item.item_title, digest: 'unknown-prefix-fixture' }) });
     heartbeatSeat(box.board, holder);
@@ -31,15 +34,15 @@ async function lapsed(t, { leaseMs = MINUTE, unknownPrefix = 0 } = {}) {
   store.claim(box.board, id, { agentId: box.seats.builder.id, lane: 'web', leaseMs,
     freeze: item => ({ text: item.item_title, digest: 'lease-lapse-fixture' }) });
   box.advance(62 * MINUTE);
-  return { box, id };
+  return { box, id, unknownIds };
 }
 
 test('the next native write frees a lapsed idle claim with one original lease of builder first refusal and named health [B4,C7]', async t => {
   const { box, id } = await lapsed(t);
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private fixture write observes lapsed work.']);
   assert.equal(result.code, 0, result.out + result.err);
-  assert.equal(store.getItem(box.board, id).item_status, 'open');
-  const window = store.firstRefusal(box.board, id);
+  assert.equal(itemById(box.board, id).item_status, 'open');
+  const window = firstRefusal(box.board, id);
   assert.equal(window.builder, box.seats.builder.id);
   assert.equal(Date.parse(window.until) - box.clock.now().getTime(), MINUTE, 'the original lease duration, not the stale age or current configuration');
   const report = healthReport({ db: box.board.db, root: box.root, config: box.config, now: box.clock.now(), dispatchHealth: () => ({ findings: [] }) });
@@ -47,15 +50,15 @@ test('the next native write frees a lapsed idle claim with one original lease of
   assert.throws(() => store.claim(box.board, id, { agentId: box.seats.actor.id, lane: 'web', leaseMs: MINUTE, freeze: () => ({ text: 'new', digest: 'new' }) }),
     error => error.code === 'REOPEN_HELD_FOR_BUILDER');
   store.release(box.board, id, box.seats.builder.id);
-  assert.equal(store.firstRefusal(box.board, id), null, 'the builder can explicitly free its reservation');
+  assert.equal(firstRefusal(box.board, id), null, 'the builder can explicitly free its reservation');
 });
 
 test('coordinator release --stale succeeds once on an unchanged expired lease while legacy floors retain live-only behavior [B4,H16]', async t => {
   const { box, id } = await lapsed(t);
   const result = await cli(box, box.root, ['release', String(id), '--stale', '--note', 'Private expired idle fixture claim.', '--no-next']);
   assert.equal(result.code, 0, result.out + result.err);
-  assert.equal(store.getItem(box.board, id).item_status, 'open');
-  assert.equal(store.firstRefusal(box.board, id).builder, box.seats.builder.id);
+  assert.equal(itemById(box.board, id).item_status, 'open');
+  assert.equal(firstRefusal(box.board, id).builder, box.seats.builder.id);
   assert.equal(minimumMoveEngine('release', [id, 'coordinator', 'old', { staleClaim: {} }]), STALE_STATE_ENGINE);
   assert.equal(minimumMoveEngine('release', [id, 'coordinator', 'new', { staleClaim: {}, leaseLapse: true }]), LEASE_LAPSE_ENGINE);
 });
@@ -65,7 +68,7 @@ test('a live holder heartbeat vetoes expiry and unknown work observations never 
   heartbeatSeat(box.board, box.seats.builder.id);
   const result = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write retains active holder.']);
   assert.equal(result.code, 0, result.out + result.err);
-  assert.equal(store.getItem(box.board, id).item_status, 'claimed');
+  assert.equal(itemById(box.board, id).item_status, 'claimed');
   assert.equal(captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id).claims.length, 0);
   box.advance(62 * MINUTE);
   const missing = store.register(box.board, { lane: 'web', path: box.root + '-missing-worktree', family: 'Fixture unknown work' });
@@ -75,8 +78,8 @@ test('a live holder heartbeat vetoes expiry and unknown work observations never 
   box.advance(62 * MINUTE);
   const unknown = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Private write keeps unknown work evidence.']);
   assert.equal(unknown.code, 0, unknown.out + unknown.err);
-  assert.equal(store.getItem(box.board, id).item_owner, missing);
-  assert.equal(store.getItem(box.board, id).item_status, 'claimed');
+  assert.equal(itemById(box.board, id).item_owner, missing);
+  assert.equal(itemById(box.board, id).item_status, 'claimed');
 });
 
 test('sealed lapsed-claim expiry replays identically despite fresh replica-local heartbeat and refuses a changed revision [B4,H16]', async t => {
@@ -91,29 +94,31 @@ test('sealed lapsed-claim expiry replays identically despite fresh replica-local
   const applied = applyRelayMove(replica, move, { sequence: appliedSequence(replica) + 1, at: box.clock.now().toISOString(),
     kind: 'move', sender: { kind: 'agent', agent: box.seats.actor.id, userId: 'fixture-user' } });
   assert.equal(applied.error, undefined, JSON.stringify(applied));
-  assert.equal(store.getItem(replica, id).item_status, 'open');
+  assert.equal(itemById(replica, id).item_status, 'open');
   store.appendFact(box.board, id, { agentId: 'coordinator', kind: 'note', text: 'A real native change invalidates the captured event prefix.' });
   assert.throws(() => store.maintainStaleState(box.board, { agentId: box.seats.actor.id, snapshot, health: {}, claimsOnly: true }), error => error.code === 'STALE_STATE_CHANGED');
-  assert.equal(store.getItem(box.board, id).item_status, 'claimed');
+  assert.equal(itemById(box.board, id).item_status, 'claimed');
 });
 
 
 test('bounded expiry scans advance past thirty-two unknown claims instead of starving a later proven idle holder [B4,C7]', async t => {
-  const { box, id } = await lapsed(t, { unknownPrefix: 33 });
-  const first = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'First bounded private expiry scan.']);
-  assert.equal(first.code, 0, first.out + first.err);
-  assert.equal(store.getItem(box.board, id).item_status, 'claimed', 'the first bounded batch contains only unknown evidence');
+  const { box, id, unknownIds } = await lapsed(t, { unknownPrefix: 33 });
+  const snapshot = captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id);
+  assert.equal(snapshot.claims.length, 0, 'the first captured batch contains only unknown evidence');
+  const first = store.maintainStaleState(box.board, { agentId: box.seats.actor.id, snapshot, health: {}, claimsOnly: true });
+  assert.deepEqual(first.claims, [], 'one native batch advances without inventing an expiry');
+  assert.equal(itemById(box.board, id).item_status, 'claimed', 'the first bounded batch contains only unknown evidence');
   const second = await cli(box, box.seats.actor.path, ['shout', 'all', '--kind', 'idea', 'Second bounded private expiry scan.']);
   assert.equal(second.code, 0, second.out + second.err);
-  assert.equal(store.getItem(box.board, id).item_status, 'open', 'the recorded cursor advances despite no expiry in the first batch');
-  assert.ok(store.listItems(box.board).some(item => item.item_status === 'claimed' && item.item_id !== id), 'unknown work remains protected');
+  assert.equal(itemById(box.board, id).item_status, 'open', 'the recorded cursor advances despite no expiry in the first batch');
+  assert.ok(unknownIds.every(pending => itemById(box.board, pending).item_status === 'claimed'), 'every unknown holder remains protected in authoritative raw state');
 });
 
 test('new lapsed support retains valid live-but-idle coordinator release [B4,H16]', async t => {
   const live = await lapsed(t, { leaseMs: 120 * MINUTE });
   const released = await cli(live.box, live.box.root, ['release', String(live.id), '--stale', '--note', 'Private live but idle claim retains established release.', '--no-next']);
   assert.equal(released.code, 0, released.out + released.err);
-  assert.equal(store.getItem(live.box.board, live.id).item_status, 'open');
+  assert.equal(itemById(live.box.board, live.id).item_status, 'open');
 });
 
 test('an expired claim cannot be released without the new explicit feature flag [B4,H16]', async t => {
@@ -121,5 +126,5 @@ test('an expired claim cannot be released without the new explicit feature flag 
   const snapshot = captureLapsedClaims({ info: { root: expired.box.root }, config: expired.box.config, clock: expired.box.clock }, expired.box.board, expired.box.seats.actor.id);
   const captured = { staleClaim: snapshot.claims[0], observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: {} };
   assert.throws(() => store.release(expired.box.board, expired.id, 'coordinator', 'No new feature flag.', captured), error => error.code === 'NOT_YOURS');
-  assert.equal(store.getItem(expired.box.board, expired.id).item_status, 'claimed');
+  assert.equal(itemById(expired.box.board, expired.id).item_status, 'claimed');
 });
