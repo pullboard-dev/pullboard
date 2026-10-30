@@ -166,10 +166,10 @@ test('claim states header and infra rules once in text and preserves JSON [C7,V4
 
 test('finite output ends with one next move while raw export and refusal wire retain their contracts [A1,A2,C7]', () => {
   /** Exercise the actual collector with a deterministic refusal renderer. */
-  const output = (args, work, code = 0) => {
+  const output = (args, work, code = 0, options = {}) => {
     let text = '', errors = '';
     const io = commandOutput(args, { stdout: { write(value) { text += value; } }, stderr: { write(value) { errors += value; } } },
-      { refusalDocument: error => ({ version: 1, error }) });
+      { refusalDocument: error => ({ version: 1, error }), ...options });
     work(io); io.flush(code); io.flush(code);
     return { text, errors };
   };
@@ -187,6 +187,11 @@ test('finite output ends with one next move while raw export and refusal wire re
   })).text);
   assert.deepEqual(selected, { version: 1, commit: 'candidate' },
     'field selection never restores omitted handoff metadata or adds guidance');
+  assert.equal(output(['heartbeat'], io => io.result({ seat: 'fixture' }), 0, { nextActions: false }).text, '',
+    'an internal observation adds no synthetic text to its caller payload');
+  assert.equal(output(['resume'], io => { io.say('resume: fixture'); io.say('next: original context action'); },
+    0, { nextActions: false }).text, 'resume: fixture\nnext: original context action\n',
+    'internal context retains its native body and adds no footer');
   const raw = '{"version":1,"tables":{}}';
   assert.equal(output(['export'], io => io.say(raw)).text, raw + '\n');
   assert.deepEqual(JSON.parse(output(['export', '--json'], io => io.say(raw)).text), JSON.parse(raw));
