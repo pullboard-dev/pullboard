@@ -463,7 +463,7 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
     .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
     .map(({ path, label }) => {
       const lines = stagedChangedLines(root, path);
-      return `outside the ${agent.agent_lane} lane: ${label}${lines.length ? ` at ${lines.join(', ')}` : ''}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}; only static import changes or canonical rows for owned new files are permitted mechanically; shout its owner for any other edit`;
+      return `outside the ${agent.agent_lane} lane: ${label}; shout its owner instead${lines.length ? `; changed lines: ${lines.join(', ')}` : ''}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}; only static import changes or canonical rows for owned new files are permitted mechanically`;
     }));
   return problems;
 }
