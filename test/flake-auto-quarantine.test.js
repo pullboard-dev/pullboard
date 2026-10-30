@@ -10,6 +10,9 @@ import { commitFixtureFiles } from './package-copy-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { openBoard, flakeQuarantines, gateRuns } from '../src/native-board.js';
 import * as store from '../src/board.js';
+import { recordGateRun, requireSubmitDiagnosticAdmission } from '../src/quarantine.js';
+import recordGateRunMove from '../src/moves/recordGateRun.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
 import { proofRunReceipt } from '../src/proof-receipts.js';
 import { submitFlakePairs } from '../src/auto-submit-quarantine.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
@@ -85,6 +88,30 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   assert.equal(new Set(receipts.map(receipt => receipt.proof.diagnosticAdmission)).size, 2);
   assert.equal(state.admissions.length, 2, 'each actually acquired Submit lease creates exactly one authenticated native witness');
   assert.ok(receipts.every(receipt => state.admissions.some(admission => admission.id === receipt.proof.diagnosticAdmission)));
+  // These are synthetic validator inputs copied from actual sealed native bytes, never execution receipts or writes.
+  // @pullboard-board-file journey: challenge authenticated grants on the actual private fixture board without altering events
+  const admissionBoard = openBoard(join(box.root, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
+  try {
+    for (const receipt of receipts) {
+      requireSubmitDiagnosticAdmission(admissionBoard, receipt.proof.seat, receipt);
+      const request = { agentId: receipt.proof.seat, receipt };
+      assert.ok(recordGateRunMove.minimumEngine([request]) >= AUTO_SUBMIT_QUARANTINE_ENGINE, 'omitted auto flag cannot downgrade marked evidence');
+      assert.equal(recordGateRun(admissionBoard, request).duplicate, true, 'omitted auto flag preserves native automatic mode');
+      for (const changed of [
+        { ...receipt, proof: { ...receipt.proof, diagnosticAdmission: '00000000-0000-0000-0000-000000000000' } },
+        { ...receipt, proof: { ...receipt.proof, item: box.id + 1 } },
+        { ...receipt, proof: { ...receipt.proof, seat: 'core-unrelated' } },
+        { ...receipt, tree: '0'.repeat(40) },
+        { ...receipt, head: '0'.repeat(40) },
+        { ...receipt, at: '2000-01-01T00:00:00.000Z' },
+        { ...receipt, proof: { ...receipt.proof, submitPhase: undefined } },
+      ]) assert.throws(() => requireSubmitDiagnosticAdmission(admissionBoard, receipt.proof.seat, changed), error => error.code === 'GATE_RUN_UNBOUND');
+      const stripped = structuredClone(receipt);
+      delete stripped.proof.diagnosticAdmission;
+      assert.throws(() => recordGateRun(admissionBoard, { ...request, receipt: stripped }), error => error.code === 'GATE_RUN_UNBOUND', 'removing purpose cannot reuse sealed bytes as legacy inference');
+      assert.throws(() => recordGateRun(admissionBoard, { ...request, autoSubmit: false }), error => error.code === 'GATE_RUN_EVIDENCE');
+    }
+  } finally { store.closeBoard(admissionBoard); }
   for (const receipt of receipts.filter(receipt => receipt.kind === 'check')) {
     assert.equal(receipt.proof.submitPhase, 'diagnostic');
     assert.equal(receipt.proof.frozenDigest, null, 'a diagnostic cannot attest the frozen Submit bar');

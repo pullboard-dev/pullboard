@@ -270,12 +270,30 @@ export function recordGateRun(board, { agentId, receipt, lane, owners, autoSubmi
   return recordSealedGateRun(board, { agentId, receipt: value, lane, owners, autoSubmit });
 }
 
+/** Require a diagnostic marker to name an authenticated native grant made before this execution [C7,H16]. */
+export function requireSubmitDiagnosticAdmission(board, agentId, value) {
+  const proof = value.proof;
+  const rows = board.db.prepare("SELECT event_by, item_id, event_at, event_detail FROM event WHERE event_kind IN ('claim','renew') AND json_valid(event_detail) AND json_extract(event_detail,'$.submitAdmission.id')=?").all(proof.diagnosticAdmission);
+  const grant = rows.length === 1 ? rows[0] : null;
+  const detail = grant && JSON.parse(grant.event_detail);
+  if (!grant || grant.event_by !== agentId || proof.seat !== agentId || grant.item_id !== proof.item
+    || detail.submitAdmission.commit !== value.head || detail.submitAdmission.tree !== value.tree
+    || !Number.isFinite(Date.parse(grant.event_at)) || !(Date.parse(grant.event_at) <= Date.parse(value.at))
+    || value.kind === 'submit' && (detail.digest !== proof.frozenDigest || !['criterion', 'proof'].includes(proof.submitPhase))
+    || value.kind === 'check' && (proof.submitPhase !== 'diagnostic' || proof.frozenDigest !== null)) {
+    throw new Refused('GATE_RUN_UNBOUND', 'diagnostic quarantine evidence needs its matching prior native Submit admission; run a new admitted Submit');
+  }
+}
+
 /** Append a gate already bound by the native origin adapter; callers retain pure current-event revalidation. */
 export function recordSealedGateRun(board, { agentId, receipt, lane, owners, autoSubmit }) {
   const value = gateRunValue(board, { agentId, receipt });
+  const marked = Object.hasOwn(value.proof ?? {}, 'diagnosticAdmission');
+  if (marked && autoSubmit === undefined) autoSubmit = true;
   if (autoSubmit !== undefined && (autoSubmit !== true || value.version !== 2 || !['submit', 'check'].includes(value.kind) || value.kind === 'check' && (value.proof.submitPhase !== 'diagnostic' || value.proof.frozenDigest !== null))) throw new Refused('GATE_RUN_EVIDENCE', 'automatic quarantine needs a genuine admitted native Submit receipt');
   if (autoSubmit && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTO_SUBMIT_QUARANTINE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording automatic Submit quarantine');
   return atomic(board, () => {
+    if (marked) requireSubmitDiagnosticAdmission(board, agentId, value);
     if (Object.hasOwn(value, 'collection')) {
       if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator records a landed batch audit');
       const batch = landingBatches(board).find(entry => entry.id === value.collection.batchId);

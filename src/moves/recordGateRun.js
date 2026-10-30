@@ -21,7 +21,7 @@ function existingEngine(args, board, at) {
 
 /** New collection evidence may not be silently dropped while historical first-match floors remain intact. */
 function minimumEngine(args, board, at) {
-  return Math.max(args[0]?.autoSubmit === true ? AUTO_SUBMIT_QUARANTINE_ENGINE : 1,
+  return Math.max(args[0]?.autoSubmit === true || Object.hasOwn(args[0]?.receipt?.proof ?? {}, 'diagnosticAdmission') ? AUTO_SUBMIT_QUARANTINE_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'collection') ? MAIN_AUDIT_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'blockingVerdict') ? QUARANTINE_VERDICT_ENGINE : 1,
     Object.hasOwn(args[0]?.receipt ?? {}, 'testOutcomes') ? QUARANTINE_CORE_ENGINE : 1,
