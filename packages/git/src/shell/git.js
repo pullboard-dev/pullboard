@@ -135,8 +135,12 @@ function configNeedsFallback(path, { attribution = false } = {}) {
   }
 }
 
-/** Describe worktree discovery and ref files without invoking Git, so a warm read can validate facts. */
-function repositorySignature(cwd, info = null, includeHead = false, { attribution = false } = {}) {
+/**
+ * Describe worktree discovery and ref files without invoking Git, so a warm read can validate facts.
+ * `directories: false` leaves out the root and Git directory stats, which change whenever any command creates and
+ * removes a lock or scratch file there; every file that carries policy or refs keeps its own marker.
+ */
+function repositorySignature(cwd, info = null, includeHead = false, { attribution = false, directories = true } = {}) {
   const markers = [];
   try { markers.push(['physical-cwd', realpathSync.native(cwd)]); }
   catch (error) { markers.push(['physical-cwd', error.code ?? 'ERROR']); }
@@ -193,7 +197,7 @@ function repositorySignature(cwd, info = null, includeHead = false, { attributio
   if (!gitDir || !commonDir) return includeHead ? null : JSON.stringify(markers);
   const configPaths = [join(gitDir, 'config'), join(commonDir, 'config'), join(gitDir, 'config.worktree')];
   if (configPaths.some(path => configNeedsFallback(path, { attribution }))) return null;
-  for (const path of [rootPath, gitDir, commonDir]) markers.push([path, fileSignature(path, false)]);
+  if (directories) for (const path of [rootPath, gitDir, commonDir]) markers.push([path, fileSignature(path, false)]);
   for (const path of [join(gitDir, 'commondir'), ...configPaths]) {
     markers.push([path, fileSignature(path, attribution || basename(path) === 'commondir')]);
   }
@@ -286,10 +290,13 @@ function readCacheContext({ attribution = false } = {}) {
   return JSON.stringify({ cwd: process.cwd(), values, home: env.HOME ?? null, xdg: env.XDG_CONFIG_HOME ?? null, files: fileMarkers });
 }
 
-/** Describe a stable read input without Git processes; unsupported attribution settings disable reuse. */
-export function gitReadSignature(root, files, { attribution = false } = {}) {
+/**
+ * Describe a stable read input without Git processes; unsupported attribution settings disable reuse.
+ * `directories: false` ignores directory churn (locks, scratch files) so a command's own Git reads cannot change it [#2081].
+ */
+export function gitReadSignature(root, files, { attribution = false, directories = true } = {}) {
   const context = readCacheContext({ attribution });
-  const repository = repositorySignature(root, null, true, { attribution });
+  const repository = repositorySignature(root, null, true, { attribution, directories });
   if (context === null || repository === null) return null;
   const paths = new Set(files.map(file => join(root, file)));
   if (attribution) {
