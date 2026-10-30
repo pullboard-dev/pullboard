@@ -47,7 +47,7 @@ export function qualityRows(root, config) {
  * @returns {string}
  */
 export function qualityCommand(root, key) {
-  const bin = existsSync(join(root, 'bin/pullboard.js')) && existsSync(join(root, 'src/rigor-quality.js')) ? 'node bin/pullboard.js' : 'pullboard';
+  const bin = existsSync(join(root, 'bin/pullboard.js')) && existsSync(join(root, 'packages/rigor/src/shell/rigor-quality.js')) ? 'node bin/pullboard.js' : 'pullboard';
   return `${bin} rigor quality --rule ${key}`;
 }
 

@@ -177,7 +177,7 @@ export async function seedPersonSigning(context) {
   assert.equal(board.enginePorts.store.personSigning(board).signed, true, 'a proposal grants no authority to turn signing off');
 }
 
-/** Synthetic unknown summaries exercise native projection; no provider execution or measured usage is claimed. */
+/** Synthetic numeric summaries exercise native projection; no provider execution or measured usage is claimed. */
 export async function seedUsage(context) {
   const { board, box, store, exercise, agent, reviewer, item, claim } = context;
   const peerItem = store.addItem(board, { by: 'coordinator', lane: 'tests', title: 'Usage projection peer',
@@ -187,7 +187,15 @@ export async function seedUsage(context) {
   const records = [{ model: 'synthetic-unknown-projection', inputTokens: null, outputTokens: null,
     wallMs: 0, knownInputTokens: 0, knownOutputTokens: 0, unknownReasons: ['native-session-unavailable'] }];
   await exercise('recordUsage', () => store.recordUsage(board, { agentId: agent, item, revision: 1, observedAt, records }));
-  await exercise('recordSharedUsage', () => store.recordSharedUsage(board, { agentId: agent, id: randomUUID(),
+  const sharedId = randomUUID();
+  await exercise('recordSharedUsage', () => store.recordSharedUsage(board, { agentId: agent, id: sharedId,
     seats: [agent, reviewer], allocations: [{ seat: agent, item }, { seat: reviewer, item: peerItem }],
     revision: 1, observedAt, records }));
+  const batch = await exercise('recordUsageBatch', () => store.recordUsageBatch(board, { agentId: agent,
+    items: [2, 3].map(revision => ({ agentId: agent, item, revision, observedAt: observedAt + revision, records })),
+    sharedSessions: [{ id: sharedId, seats: [agent, reviewer],
+      allocations: [{ seat: agent, item }, { seat: reviewer, item: peerItem }],
+      revision: 2, observedAt: observedAt + 2, records }] }));
+  assert.deepEqual(batch, { items: [{ recorded: true }, { recorded: true }], sharedSessions: [{ recorded: true }] },
+    'every batch entry advances its existing item or shared-session revision before complete reader parity');
 }
