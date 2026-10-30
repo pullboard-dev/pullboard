@@ -879,7 +879,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
         return {
           ids: [...timeline.querySelectorAll('[data-event-id]')].map((row) => Number(row.dataset.eventId)),
           rows: timeline.querySelectorAll('li').length,
-          kinds: [...timeline.querySelectorAll('.tl-kind')].map((chip) => chip.textContent),
+          kinds: [...timeline.querySelectorAll('.tl-fact .tl-kind')].map((chip) => chip.textContent),
           authors: [...timeline.querySelectorAll('.tl-fact .tl-who')].map((name) => name.textContent),
           ages: timeline.querySelectorAll('.tl-fact small time[data-ago]').length,
           oldClass: old?.className,

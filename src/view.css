@@ -1496,3 +1496,5 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .spec-fact button { margin-left: auto; background: none; border: 0; color: var(--accent-strong); cursor: pointer; min-height: var(--tap); }
 .spec-detail-actions .detail-decision-actions { margin: 0; flex-wrap: wrap; }
 .spec-authority { margin: 0; color: var(--ink-faint); font-size: var(--text-2xs); }
+
+.spec-fact .spec-citing { border: 0; background: none; padding: 0; }
