@@ -18,7 +18,7 @@ import { healthReport } from '../packages/health/index.js';
 import { loadConfig } from '../src/config.js';
 import { personNeedsSummary } from '../src/needs-summary.js';
 import { resumeNeeds } from '../src/resume-needs.js';
-import { undraftedRigor } from '../src/rigor-notices.js';
+import { undraftedRigor } from '../packages/rigor/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { recordSchemaStamp } from '../src/board-migrate.js';

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import * as serve from '../../src/serve.js';
 import { projectItemState } from '../../src/api.js';
 import { machine, project, build, sendBack, accept } from './fixture.js';
@@ -78,7 +79,7 @@ test('the item projector matches the full projection [A2,N26]', () => {
   box.run(p.repo, 'withdraw', String(withdrawn), 'a duplicate of the open item');
 
   const file = join(p.repo, '.git', 'pullboard', 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));

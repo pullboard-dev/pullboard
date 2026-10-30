@@ -10,7 +10,8 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { addItem, closeBoard, openBoard } from '../../src/board.js';
+import { addItem, closeBoard } from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
 

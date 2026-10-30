@@ -63,7 +63,7 @@ const SAFE_CHILD_PROCESS_MODULES = new Map([
   ['test/fixture-child.js', 'shared fixture runner for explicit fixture commands'],
   ['src/git.js', 'runs Git commands for repository inspection'],
   ['src/module-imports.js', 'runs the Node parser in an isolated child'],
-  ['src/resources.js', 'reads process identity with /bin/ps'],
+  ['packages/resources/index.js', 'reads process identity with /bin/ps'],
 ]);
 /** Reviewed generic executors and fixed Git/Node calls retain prior import behavior; all other calls stay conservative. */
 const REVIEWED_EXECUTORS = new Map([
@@ -73,7 +73,7 @@ const REVIEWED_EXECUTORS = new Map([
   ['src/sentinel-runner.js', [{ function: 'executeSentinel',
     site: "spawn(row.check, { cwd: directory, env: environment, shell: true, stdio: ['ignore', 'pipe', 'pipe'] })",
     reason: 'the Windows sentinel executor runs an approved check only when explicitly invoked' }]],
-  ['src/rigor-proof.js', [{ function: 'runOwnedCheck',
+  ['packages/rigor/src/shell/rigor-proof.js', [{ function: 'runOwnedCheck',
     site: "spawn(runner?.executable ?? '/bin/sh', runner?.args ?? ['-c', check], { cwd: tree, env: environment, detached: true, stdio: ['ignore', 'pipe', 'pipe'], })",
     reason: 'prepareCauseProof validates the named runner executable against the real process.execPath' }]],
   ['test/cli-startup.test.js', [{ function: 'fixture',

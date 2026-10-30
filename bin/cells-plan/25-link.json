@@ -122,8 +122,7 @@
     "src/person-signing-presentation.js->src/relay-requests.js",
     "src/person-signing.js->src/relay-requests.js"
    ]
-  },
-  {"cell":"pages","imports":1,"edges":["src/relay-page-client.js->src/relay-storage.js"]}
+  }
  ],
  "ratchets": {
   "legacySource": -9,

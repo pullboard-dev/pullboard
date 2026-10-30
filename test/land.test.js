@@ -558,7 +558,7 @@ test('land diagnostics inherit their browser gate lease [C7]', () => {
   const box = landProject();
   const marker = join(box.dir, 'land-diagnostic-lease.json');
   const inspector = join(box.dir, 'inspect-land-diagnostic-lease.mjs');
-  const resourcesUrl = new URL('../src/resources.js', import.meta.url).href;
+  const resourcesUrl = new URL('../packages/resources/index.js', import.meta.url).href;
   writeFileSync(inspector, [
     "import { writeFileSync } from 'node:fs';",
     `import { inheritedGateSlot } from ${JSON.stringify(resourcesUrl)};`,

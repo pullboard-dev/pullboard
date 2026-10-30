@@ -39,7 +39,7 @@ import {
 } from './trusted-policy.js';
 import { parseSpec } from './spec.js';
 import { listItems } from './board.js';
-import { takeResource } from './resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { Refused } from './refused.js';
 import {
   failureSignatures,

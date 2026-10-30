@@ -763,15 +763,16 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* Keep the replay viewport width fixed when its event list grows a classic scrollbar. */
 :root:has(body.snapshot) { overflow-y: scroll; }
 /* Changing Play and event labels occupy their own tracks, so they cannot rewrap a tap target. */
-.snapshot-controls:not([hidden]) { display: grid; grid-template-columns: minmax(0, 18rem) max-content max-content; align-items: center; gap: var(--space-4); margin-bottom: var(--space-5); padding: var(--space-4) var(--space-5); }
-.snapshot-controls > span { grid-column: 1 / -1; font-weight: 600; }
+.snapshot-controls:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); margin-bottom: var(--space-5); padding: var(--space-4) var(--space-5); }
+.snapshot-controls > span { font-weight: 600; }
+.snapshot-control-actions { display: grid; grid-template-columns: minmax(0, 18rem) max-content max-content; align-items: center; gap: var(--space-4); }
 #replay-play { grid-column: 1; min-inline-size: 0; }
 /* Reserve Pause's tap box as replay ends, independently of its intrinsic text width. */
 #replay-pause { grid-column: 2; inline-size: 5rem; }
 .snapshot-controls label { grid-column: 3; display: flex; align-items: center; gap: var(--space-2); }
-.snapshot-controls output { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; color: var(--ink-muted); font: var(--text-xs)/1.5 var(--mono); }
+.snapshot-controls output { min-width: 0; overflow-wrap: anywhere; color: var(--ink-muted); font: var(--text-xs)/1.5 var(--mono); }
 @media (width < 600px) {
-  .snapshot-controls:not([hidden]) { grid-template-columns: minmax(0, 1fr) max-content; }
+  .snapshot-control-actions { grid-template-columns: minmax(0, 1fr) max-content; }
   #replay-play { grid-column: 1 / -1; }
   #replay-pause { grid-column: 1; justify-self: start; }
   .snapshot-controls label { grid-column: 2; }

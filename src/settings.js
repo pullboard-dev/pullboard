@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import {
   setResourceCapacity,
   updateRunnerSettings,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import { validateRunner } from './settings-read.js';
 import { loadMachineSettings } from './settings-read.js';
 export { loadMachineSettings };

@@ -18,19 +18,8 @@
   ["src/rigor-splits.js","packages/rigor/src/shell/rigor-splits.js","seed"]
  ],
  "reexports": [
-  "src/rigor-auto-apply.js",
   "src/rigor-auto-source.js",
-  "src/rigor-auto.js",
-  "src/rigor-conflicts.js",
-  "src/rigor-counter-state.js",
-  "src/rigor-counters.js",
-  "src/rigor-draft.js",
-  "src/rigor-notices.js",
-  "src/rigor-proof.js",
-  "src/rigor-quality-draft.js",
-  "src/rigor-quality.js",
   "src/rigor-source.js",
-  "src/rigor-splits.js",
   "src/rigor.js"
  ],
  "imports": [
