@@ -181,6 +181,8 @@ Work
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--wait] [--no-next]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
+    submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
+    The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]
@@ -368,6 +370,7 @@ Lifecycle, read from src/machine.js
 
 Additional commands
   pullboard heartbeat                 record this seat's local session activity; no board move
+  pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
 

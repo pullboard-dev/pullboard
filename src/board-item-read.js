@@ -26,7 +26,10 @@ export function itemById(board, id) {
 
 /** Read the latest return's window, ignoring review releases and earlier submissions. */
 export function firstRefusal(board, id, at = board.clock.now()) {
-  const history = board.db.prepare("SELECT event_id, event_kind, event_detail, event_by FROM event WHERE item_id = ? AND event_kind IN ('reject', 'reopen', 'submit', 'release', 'reject_returned') ORDER BY event_id DESC").all(id);
+  const kinds = (board.executionEngineVersion ?? ENGINE_VERSION) >= board.enginePorts.submitHandoffEngines().handoff
+    ? "'reject', 'reopen', 'submit', 'release', 'reject_returned', 'submit_handoff_returned'"
+    : "'reject', 'reopen', 'submit', 'release', 'reject_returned'";
+  const history = board.db.prepare(`SELECT event_id, event_kind, event_detail, event_by FROM event WHERE item_id = ? AND event_kind IN (${kinds}) ORDER BY event_id DESC`).all(id);
   const releases = [];
   const returned = new Set();
   for (const event of history) {

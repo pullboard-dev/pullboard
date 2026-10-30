@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-input src/view.css */
+/** @pullboard-test-input src/view.css src/view/item-rows.css */
 /** Shared rows preserve accepted variants and provide native in-place expansion [N26]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -21,7 +21,7 @@ test('shared row variants retain their layout and the default row expands in pla
   const item = sharedRowHtml({ id: '#27', title: 'A long item title that must stay on one line '.repeat(10), meta: 'view · N26',
     time: '9:12 PM', chip: 'view-213', state: 'open', attributes: { id: 'item-row', 'data-item': 27 },
     detailHtml: '<p id="expanded-content">The item expands here.</p>' });
-  const css = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../../src/view/item-rows.css', import.meta.url), 'utf8'));
   const html = '<!doctype html><meta charset="utf-8"><style>' + css + '\n#component-rows{width:min(32rem,90vw);list-style:none}</style>'
     + '<ol id="component-rows">' + needs + activity + item + '</ol>';
   const server = createServer((_request, response) => response.writeHead(200, { 'content-type': 'text/html' }).end(html));
@@ -36,7 +36,7 @@ test('shared row variants retain their layout and the default row expands in pla
       const title = document.querySelector('#item-row .t');
       return { activityTime:rect('#activity-row time'), activityCircle:rect('#activity-row .activity-verb'),
         needsAge:rect('#needs-row .needs-age'), needsAction:rect('#needs-row .needs-action'),
-        itemCircle:rect('#item-row .dot'), itemTime:rect('#item-row .row-age'), itemChip:rect('#item-row > .chip'),
+        itemCircle:rect('#item-row .dot'), itemTime:rect('#item-row .row-age'), itemChip:rect('#item-row > .row-side > .chip'),
         title:rect('#item-row .t'), clips:title.scrollWidth > title.clientWidth, ellipsis:getComputedStyle(title).textOverflow };
     })()`);
     assert.equal(layout.activityCircle.width, 22, 'Activity retains its accepted circle size');

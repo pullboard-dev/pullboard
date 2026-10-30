@@ -583,8 +583,9 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
       'MOON_PHASE is raised by accept and reject but not declared there',
+      'MOON_PHASE is raised by release but not declared there',
       'MOON_PHASE is raised by reopen but not declared there',
-    ], 'a new refusal outside the historical parser catch still reaches lifecycle moves');
+    ], 'the native summary fact keeps release in the rigor-source refusal audit alongside existing lifecycle moves');
   }
 
   const inFreeze = editedSource('spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");

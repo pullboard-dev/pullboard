@@ -1,7 +1,7 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css */
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -39,6 +39,7 @@ import {
 } from 'node:path';
 import * as store from './board.js';
 import { openBoard } from './native-board.js';
+import { openBoardForRead as nativeOpenBoardForRead } from './native-board.js';
 import { releaseHeadlinesBetween } from './release-headlines.js';
 import { VERSION } from './release-version.js';
 import { displayAgentName } from './agent-names.js';
@@ -83,7 +84,7 @@ import { openBoardForRead } from './board-read-open.js';
 import { loadMachineSettings } from './settings-read.js';
 
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
-const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd());
+const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('./view/item-rows.css', import.meta.url), 'utf8').trimEnd());
 const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
 const SHARED_DOCTRINE_CSS = readFileSync(new URL('./view/doctrine.css', import.meta.url), 'utf8');
 const SHARED_ITEM_PANEL_CSS = readFileSync(new URL('./view/item-panel.css', import.meta.url), 'utf8');
@@ -153,7 +154,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
   const { serveApi } = await import('./api.js');
-  const api = await serveApi({ port: 0, projects: () => [registered], runCommand, refusalDocument });
+  const api = await serveApi({ port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead } });
   let listing;
   let state;
   let events;
@@ -482,7 +483,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('./relay-setup.js');
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead }, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -564,7 +565,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       const registered = listApiProjects();
       const selected = body.board === undefined ? null : registered.find(project => createHash('sha256').update(project.root).digest('hex') === body.board);
       if (body.board !== undefined && !selected) throw new Refused('BAD_REQUEST', 'choose a board from this view and refresh before trying again');
-      const listing = apiBoardListing(() => registered, undefined, refusalDocument);
+      const listing = apiBoardListing(() => registered, undefined, refusalDocument, { openBoard, openBoardForRead: nativeOpenBoardForRead });
       const unreadable = listing.warnings
         .filter((warning) => warning.error?.error?.code === 'BOARD_UNAVAILABLE' && (!selected || warning.root === selected.root));
       const forgotten = unreadable.filter((project) => forgetProject(project.root)).length;

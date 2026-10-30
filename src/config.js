@@ -1,6 +1,5 @@
 /**
- * `pullboard.json`: the gate, the spec file, the lanes and the commit rules. Read once per command,
- * merged over defaults, and checked, so a typo refuses with its field name instead of misbehaving.
+ * `pullboard.json`: repo settings, merged over defaults and checked once per command.
  */
 import {
   existsSync,
@@ -9,6 +8,12 @@ import {
 import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
+import {
+  exitRulesDefaults,
+  exitRulesConfigProblems,
+  mergeExitRules,
+} from './exit-rules-config.js';
+import * as maintenanceSettings from './worktree-maintenance-config.js';
 import { knownConfigKeys } from './config-forward-compat.js';
 
 export const CONFIG_FILE = 'pullboard.json';
@@ -36,11 +41,7 @@ const COMMIT_TYPES = [
   'revert',
 ];
 
-/**
- * Every setting a repo gets without saying otherwise.
- *
- * @returns {object}
- */
+/** Every setting a repo gets without saying otherwise. @returns {object} */
 export function defaults() {
   return {
     spec: 'SPEC.md',
@@ -53,15 +54,18 @@ export function defaults() {
     registryGuards: [],
     staticChecks: '',
     lease: '2h',
-    claims: { releaseGone: false },
+    claims: { releaseGone: false }, exitRules: exitRulesDefaults(),
     reviewLease: '30m',
     worktrees: 'beside',
+    worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
     review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
     // Off by default: next and claim print an item's code map slice only when map.slice is true [1203].
     map: { slice: false },
+    // Off by default: the cells checks replay a saved answer for an unchanged commit, tree and diff [#2076].
+    cells: { cache: false },
     agents: { names: 'suffix' },
     inbox: { tokenBudget: 8192 },
     check: { install: '', timeout: '5m' },
@@ -114,7 +118,10 @@ function merge(base, raw) {
   if (spec && Object.keys(spec).some(key => !['file', 'agentApproval'].includes(key))) throw new Refused('BAD_CONFIG', '"spec" has only "file" and "agentApproval"');
   return {
     ...base,
-    ...raw,
+    ...raw, exitRules: mergeExitRules(base.exitRules, raw.exitRules),
+    worktreeMaintenance: raw.worktreeMaintenance === undefined ? base.worktreeMaintenance
+      : raw.worktreeMaintenance && typeof raw.worktreeMaintenance === 'object' && !Array.isArray(raw.worktreeMaintenance)
+        ? { ...base.worktreeMaintenance, ...raw.worktreeMaintenance } : raw.worktreeMaintenance,
     testEconomics: raw.testEconomics === undefined ? base.testEconomics
       : raw.testEconomics && typeof raw.testEconomics === 'object' && !Array.isArray(raw.testEconomics)
         ? { ...base.testEconomics, ...raw.testEconomics } : raw.testEconomics,
@@ -123,6 +130,8 @@ function merge(base, raw) {
     commits: { ...base.commits, ...(raw.commits ?? {}) },
     protect: { ...base.protect, ...(raw.protect ?? {}) },
     map: raw.map && typeof raw.map === 'object' && !Array.isArray(raw.map) ? { ...base.map, ...raw.map } : base.map,
+    cells: raw.cells === undefined ? base.cells
+      : raw.cells && typeof raw.cells === 'object' && !Array.isArray(raw.cells) ? { ...base.cells, ...raw.cells } : raw.cells,
     verify: typeof raw.verify === 'string'
       ? { ...base.verify, policy: raw.verify }
       : { ...base.verify, ...(raw.verify ?? {}) },
@@ -190,7 +199,7 @@ function laneProblems(name, lane) {
  * @returns {string[]}
  */
 export function configProblems(config) {
-  const problems = [];
+  const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))
@@ -222,6 +231,8 @@ export function configProblems(config) {
   if (config.flakes !== undefined && (!config.flakes || typeof config.flakes !== 'object' || Array.isArray(config.flakes)
       || ['rerun', 'quarantine'].some(key => config.flakes[key] !== undefined && typeof config.flakes[key] !== 'boolean')
       || Object.keys(config.flakes).some(key => !['rerun', 'quarantine'].includes(key)))) problems.push('"flakes" has only the optional booleans "rerun" and "quarantine", each off by default');
+  if (config.cells !== undefined && (!config.cells || typeof config.cells !== 'object' || Array.isArray(config.cells)
+      || typeof config.cells.cache !== 'boolean' || Object.keys(config.cells).some(key => key !== 'cache'))) problems.push('"cells" has only the boolean "cache", off by default');
   if (config.rigor !== undefined && (!config.rigor || typeof config.rigor !== 'object' || Array.isArray(config.rigor)
       || config.rigor.budget !== undefined && (!Number.isSafeInteger(config.rigor.budget) || config.rigor.budget < 0)
       || Object.keys(config.rigor).some(key => key !== 'budget'))) problems.push('"rigor" has only the optional whole number "budget", the lines of non-test code one change may add; 400 by default');
@@ -308,9 +319,12 @@ export function configProblems(config) {
     problems.push('"check" is an object with optional "install" and "timeout" fields');
   }
   if (!config.submit || typeof config.submit !== 'object' || Array.isArray(config.submit)
-      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds'].includes(key))
+      || Object.keys(config.submit).some(key => !['requireInfraNote', 'autoFileMainReds', 'handoff'].includes(key))
       || typeof config.submit.requireInfraNote !== 'boolean' || typeof config.submit.autoFileMainReds !== 'boolean') {
     problems.push('"submit" is an object with boolean "requireInfraNote" and "autoFileMainReds" settings');
+  }
+  if (config.submit?.handoff !== undefined && typeof config.submit.handoff !== 'boolean') {
+    problems.push('"submit.handoff" is a boolean; false keeps synchronous submit');
   }
   // Absent, a check already green on main is only a warning, as on boards made before the setting.
   if (config.checks !== undefined && (typeof config.checks !== 'object' || config.checks === null || Array.isArray(config.checks)

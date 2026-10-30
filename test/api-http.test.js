@@ -1,4 +1,6 @@
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
@@ -179,6 +181,8 @@ try {
   const provenanceChecks = [];
   if (codeMetadataMarker) {
     const { apiBoards } = await import(new URL('../api.js', pathToFileURL(serveFile)));
+    const { openBoard, openBoardForRead } = await import(new URL('../native-board.js', pathToFileURL(serveFile)));
+    const apiBoardOpeners = { openBoard, openBoardForRead };
     const { withGitReadFacts } = await import(new URL('../git.js', pathToFileURL(serveFile)));
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID
     // diagnostic before measuring provenance; ordinary warmed reads still require zero children.
@@ -201,7 +205,7 @@ try {
       utimesSync(codeMetadataMarker, changed, changed);
       let listed;
       counting = true;
-      try { listed = withGitReadFacts(() => apiBoards(() => projects, status)); }
+      try { listed = withGitReadFacts(() => apiBoards(() => projects, status, apiBoardOpeners)); }
       finally { counting = false; }
       assert.equal(listed.length, projects.length, 'authority controls read the actual private boards');
       provenanceChecks.push({ status: currentRoute, processes: { ...counters, methods: { ...counters.methods } } });
@@ -712,7 +716,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.equal(servedState.status, 200);
   assert.deepEqual((await servedState.json()).state.items, summaryState.document.state.items, 'pullboard serve sends the same summaries');
   let pagePort;
-  const pageHandler = createLocalApiHandler({ refusalDocument, secret: 'page-fixture-secret', getPort: () => pagePort, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
+  const pageHandler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument, secret: 'page-fixture-secret', getPort: () => pagePort, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   const page = createServer(pageHandler);
   await new Promise((done) => page.listen(0, '127.0.0.1', done));
   pagePort = page.address().port;
@@ -863,7 +867,7 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   // A restarted server that has only read an item, or searched, never sent a snapshot: it cannot
   // extend the held one, even when a change with no event leaves the sequence where it was.
   writeFileSync(join(box.root, 'DOCTRINE.md'), '# Local rules\n\n## Team Rules\n\n- LOCAL1 [approved, must] A restarted server knows only what it sent. | gate: true\n');
-  const restarted = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
+  const restarted = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   t.after(() => restarted.close());
   const restartedUrl = new URL(restarted.url);
   /** Read through the restarted server with its own key. */
@@ -992,7 +996,7 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
   writeFileSync(secondConfigFile, JSON.stringify({ ...secondConfig, name: 'Saved second', project: 'Saved group' }));
   registerProject(second, new Date('2026-02-03T04:05:06.000Z'));
 
-  const api = await serveApi({ refusalDocument, runCommand: main });
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');
@@ -1467,7 +1471,7 @@ test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
     name: `pullboard_view_${randomUUID().replaceAll('-', '')}`,
     value: randomBytes(24).toString('base64url'),
   };
-  assert.throws(() => createLocalApiHandler({ refusalDocument,
+  assert.throws(() => createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
     secret,
     getPort: () => 1,
     runCommand: main,
@@ -1475,7 +1479,7 @@ test('[A2,N39] the view cookie check catches a weakened compare', async (t) => {
     sessionCookie: { name: sessionCookie.name, value: randomBytes(8).toString('base64url') },
   }), /at least 128 bits/u, 'session cookies need capacity for at least 128 random bits');
   let bound;
-  const handler = createLocalApiHandler({ refusalDocument,
+  const handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
     secret,
     getPort: () => bound,
     runCommand: main,
@@ -1801,7 +1805,7 @@ async (t) => {
   assert.equal(box.cli(box.root, 'log').events.length, before);
   await stopServer();
   // Denial belongs to the interface, even when the server has no agent-shell marker.
-  const plain = await serveApi({ refusalDocument, port: 0, runCommand: main, projects: () => [{ root: box.root, name: 'Plain API fixture' }] });
+  const plain = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, port: 0, runCommand: main, projects: () => [{ root: box.root, name: 'Plain API fixture' }] });
   t.after(() => plain.close());
   const plainAddress = new URL(plain.url);
   const plainReply = await fetchFresh(plainAddress.origin + path + '/moves', {

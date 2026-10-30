@@ -1,3 +1,7 @@
+import {
+  submitHandoffActor,
+  isSubmitHandoffWorker,
+} from '../submit-handoff-origin.js';
 import { captureLapsedClaims } from '../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../board-query.js';
@@ -16,6 +20,7 @@ import { barCoverageCommand } from '../bar-coverage.js';
 import { barCoverageForPolicy } from '../bar-coverage.js';
 import { gitSyncLinked } from '../local-state.js';
 import { gitSyncRecoveryNeeded } from '../git-sync-files.js';
+import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import * as itemSessions from '../item-sessions.js';
 import * as store from '../board.js';
@@ -113,7 +118,7 @@ export async function ordered(ctx, board, operation, args) {
           () => store.recordSpecApprovalBaseline(board, ...values))
         : store.recordSpecApprovalBaseline(board, ...values);
     };
-    const actor = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
+    const actor = ctx.info.isMain ? COORDINATOR : (submitHandoffActor(ctx, board, operation, args) ?? store.agentAt(board, ctx.info.root))?.agent_id;
     requireHandoffActive(board, actor, operation, args);
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
       await (await import('../git-sync-repair.js')).repairGitSync(ctx.info.root, board, ctx.io);
@@ -155,7 +160,7 @@ export async function ordered(ctx, board, operation, args) {
   const boardOnlyOperation = (boardOnly === 'shout' && operation === 'shout') || (boardOnly === 'fact' && operation === 'appendFact');
   const boardOnlyAgent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
   if (boardOnlyOperation && digest && localSessionMatches(ctx.info, { agent: boardOnlyAgent, digest })) return execute();
-  if (CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
+  if (isSubmitHandoffWorker(ctx) || CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
   const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
   const lease = await bindLocalSession(ctx.info, { agent, digest, keepLease: true });
   try { return await execute(); }
@@ -166,9 +171,12 @@ export async function ordered(ctx, board, operation, args) {
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
-  return await ordered(ctx, board, 'claim', [args[0], { ...args[1],
+  const exitRules = mainPolicy(ctx.info.root).config.exitRules;
+  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
+  if (!result.renewed && exitRules?.enabled) (await import('../exit-rules-runtime.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
+  return result;
 }
 
 /**

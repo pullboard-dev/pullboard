@@ -1,3 +1,4 @@
+import { maintenanceTimerWarning } from './worktree-maintenance-diagnostics.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 /**
  * The command line's entry: parse the arguments, bind the checkout, run the relay and baseline work around the
@@ -238,6 +239,7 @@ async function runCommand(argv, io) {
     }
     const load = COMMANDS[command];
     if (!load) return (await import('./cli-help.js')).unknownCommand(io, command);
+    await (await import('./exit-rules-runtime.js')).enforceExitBoundary(io, command);
     return await (await load()).run(io, args);
   } catch (error) {
     error = recordedMoveRefusal(io, error);
@@ -323,6 +325,7 @@ async function runMain(argv, streams) {
   let checkoutSession;
   let auditAfterCommand = false;
   let advanceAfterCommand = false;
+  let maintenanceAfterCommand;
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
@@ -352,7 +355,8 @@ async function runMain(argv, streams) {
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, await import('./relay.js')) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
+          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, { ...(await import('./relay.js')),
+            openBoard: (await import('./cli-context.js')).nativeBoardOpeners().openBoard }) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
         (await import('./person.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }
@@ -388,6 +392,10 @@ async function runMain(argv, streams) {
     }
     if (code === 0) await (await syncWork())?.retrySync(io);
     const status = io.exitCode(code);
+    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance') {
+      // The foreground command already read this configuration; disabled maintenance adds no second context read.
+      maintenanceAfterCommand = io.worktreeMaintenanceContext;
+    }
     if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
@@ -396,12 +404,17 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
+    if (maintenanceAfterCommand) {
+      try { await (await import('./worktree-maintenance-scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
+      catch (error) { io.err(maintenanceTimerWarning(error)); }
+    }
     if (advanceAfterCommand) {
       try {
         let eligible = true;
         try {
           const { landingLeaseState } = await import('./board-landing-lease.js');
-          eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState });
+          eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
+            openBoardForRead: (await import('./cli-context.js')).nativeBoardOpeners().openBoardForRead });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
         await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, {
@@ -411,7 +424,7 @@ async function runMain(argv, streams) {
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
-      try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd); }
+      try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd, new URL('../bin/main-audit.js', import.meta.url)); }
       catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
     }
   }

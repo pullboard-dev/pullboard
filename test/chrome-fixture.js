@@ -1,3 +1,6 @@
+import { CHROME_GUARDIAN_SOURCE } from './chrome-graceful-shutdown.js';
+import { chromeLeaderIdentity } from './chrome-graceful-shutdown.js';
+import { quitOwnedChrome } from './chrome-graceful-shutdown.js';
 import { chromeLaunchArgs } from './chrome-launch-args.js';
 /** Shared isolated Chrome launcher with bounded startup and complete process-group cleanup [C7]. */
 import { execFileSync, spawn as spawnGuardian } from 'node:child_process';
@@ -151,22 +154,6 @@ export function requireBrowserSlot() {
   if (process.env.PULLBOARD_TEST_BROWSER_SLOT === 'none') throw browserSlotRefusal('through test/chrome-fixture.js');
 }
 
-/**
- * The guardian program: poll the watched pids and, once any is gone, take down the Chrome process group.
- * It runs in its own session so the owner's death, by any signal, cannot take it along, and it ends by itself
- * once the group is empty. Escalating to SIGKILL after two seconds covers Chrome helpers that ignore SIGTERM.
- */
-const GUARDIAN_SOURCE = `
-const [group, ...watched] = process.argv.slice(1).map(Number);
-const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === 'EPERM'; } };
-let signalledAt = 0;
-setInterval(() => {
-  if (!alive(-group)) process.exit(0);
-  if (watched.every(alive)) return;
-  if (!signalledAt) { signalledAt = Date.now(); try { process.kill(-group, 'SIGTERM'); } catch {} }
-  else if (Date.now() - signalledAt >= 2000) { try { process.kill(-group, 'SIGKILL'); } catch {} }
-}, 250);
-`;
 
 let runnerAncestor;
 
@@ -213,10 +200,10 @@ function parentPid(pid) {
  * guardian that kills the group within about a second of the owner, or the runner above it, disappearing.
  * The group leader's pid is the group id.
  */
-export function guardChromeGroup(groupId, { ownerPid = process.pid } = {}) {
+export function guardChromeGroup(groupId, { ownerPid = process.pid, profile = '' } = {}) {
   if (process.platform === 'win32' || !Number.isSafeInteger(groupId) || groupId <= 1) return null;
   const watched = [ownerPid, findRunnerAncestor()].filter((pid) => Number.isSafeInteger(pid) && pid > 1);
-  const guardian = spawnGuardian(process.execPath, ['-e', GUARDIAN_SOURCE, String(groupId), ...watched.map(String)],
+  const guardian = spawnGuardian(process.execPath, ['-e', CHROME_GUARDIAN_SOURCE, String(groupId), profile, new URL('./chrome-graceful-shutdown.js', import.meta.url).href, chromeLeaderIdentity(groupId) ?? '', ...watched.map(String)],
     { detached: true, stdio: 'ignore' });
   guardian.on('error', () => {});
   guardian.unref();
@@ -229,7 +216,7 @@ export function launchChromeProcess({ executable, args = [], env = process.env, 
   if (!executable) throw new Error('Chrome was not found; install Chrome or set PULLBOARD_CHROME.');
   const launchedAt = Date.now();
   const child = spawn(executable, args, { detached: true, env, stdio: ['ignore', 'ignore', 'pipe'] });
-  if (child.pid) guardChromeGroup(child.pid);
+  if (child.pid) guardChromeGroup(child.pid, { profile: args.find(arg => arg.startsWith('--user-data-dir='))?.slice('--user-data-dir='.length) });
   let stderr = '';
   let launchError = null;
   child.stderr.setEncoding('utf8');
@@ -239,7 +226,11 @@ export function launchChromeProcess({ executable, args = [], env = process.env, 
   let closePromise;
   /** Stop this exact process group once; callers can inspect stderr and elapsed launch time. */
   function close() {
-    closePromise ??= stopProcessGroup(child, stopped, cleanupTimeoutMs);
+    closePromise ??= (async () => {
+      const profile = args.find(arg => arg.startsWith('--user-data-dir='))?.slice('--user-data-dir='.length);
+      await quitOwnedChrome(child, profile, stopped, Math.min(3000, cleanupTimeoutMs));
+      await stopProcessGroup(child, stopped, cleanupTimeoutMs);
+    })();
     return closePromise;
   }
   return {

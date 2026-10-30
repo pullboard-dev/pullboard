@@ -7,7 +7,8 @@ process.emitWarning = (warning, ...rest) => {
 };
 const [root, rawId, request] = process.argv.slice(2);
 if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? '')) {
+  const { openBoard } = await import('../src/native-board.js');
   const { runCheckBaselineWorker } = await import('../src/check-baseline-worker.js');
-  try { await runCheckBaselineWorker(root, Number(rawId), request); }
+  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard }); }
   catch { process.exitCode = 1; }
 } else process.exitCode = 2;

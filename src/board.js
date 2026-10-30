@@ -1,3 +1,4 @@
+export { recordExitProgress, requireExitActive } from './exit-rules-state.js';
 /**
  * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
  * file in the git common dir, so every worktree sees the same board and nothing is committed.
@@ -466,3 +467,5 @@ export function prepareClaim(board, id, options) {
 export function claim(board, id, options) {
   return applyPreparedClaim(board, id, options, { checkedItemMove, moveItem, reviewerChecks, reviewReleaseCooldown, foreignBlockers });
 }
+
+export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from './submit-handoff-state.js';

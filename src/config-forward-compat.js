@@ -9,9 +9,11 @@ function schema(base) {
     ? Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, shape(entry)])) : null;
   return {
     ...shape(base),
+    submit: { ...shape(base.submit), ...fields(['handoff']) },
     spec: fields(['file', 'agentApproval']),
     flakes: fields(['rerun', 'quarantine']),
     rigor: fields(['budget']),
+    cells: fields(['cache']),
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),
     publish: fields(['pullRequest']),

@@ -5,6 +5,7 @@
  "root": "packages/moves",
  "frontDoor": "packages/moves/index.js",
  "paths": [
+  ["src/moves/recordExitProgress.js","packages/moves/src/core/moves/recordExitProgress.js","rule"],
   ["src/bar-ready-setting.js","packages/moves/src/core/bar-ready-setting.js","seed"],
   ["src/move-registry.js","packages/moves/src/shell/move-registry.js","seed"],
   ["src/moves/acceptCheck.js","packages/moves/src/core/moves/acceptCheck.js","seed"],
@@ -92,7 +93,10 @@
   ["src/moves/recordNextIdle.js","packages/moves/src/core/moves/recordNextIdle.js","rule"],
   ["src/moves/recordSharedUsage.js","packages/moves/src/shell/moves/recordSharedUsage.js","rule"],
   ["src/moves/recordUsage.js","packages/moves/src/shell/moves/recordUsage.js","rule"],
-  ["src/moves/recordUsageBatch.js","packages/moves/src/shell/moves/recordUsageBatch.js","rule"]
+  ["src/moves/recordUsageBatch.js","packages/moves/src/shell/moves/recordUsageBatch.js","rule"],
+  ["src/moves/queueSubmitHandoff.js","packages/moves/src/core/moves/queueSubmitHandoff.js","rule"],
+  ["src/moves/startSubmitHandoff.js","packages/moves/src/core/moves/startSubmitHandoff.js","rule"],
+  ["src/moves/completeSubmitHandoff.js","packages/moves/src/core/moves/completeSubmitHandoff.js","rule"]
  ],
  "reexports": ["src/bar-ready-setting.js","src/move-registry.js","src/moves/reopen.js","src/moves/shout.js"],
  "imports": [

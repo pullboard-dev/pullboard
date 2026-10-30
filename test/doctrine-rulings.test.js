@@ -18,7 +18,9 @@ function apiMove(box, cwd, move) {
   const source = `
     const { executeMove } = await import(${JSON.stringify(api)});
     const { main } = await import(${JSON.stringify(cli)});
-    process.stdout.write(JSON.stringify(await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, 'api')));
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const apiBoardOpeners = { openBoard, openBoardForRead };
+    process.stdout.write(JSON.stringify(await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, 'api', undefined, apiBoardOpeners)));
   `;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd, env: box.env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.stdout + child.stderr);

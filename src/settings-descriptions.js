@@ -2,6 +2,9 @@
 
 // [key, label, one sentence on what it does, group, unit]. Wording is checked against each setting's reader in src/.
 const ROWS = [
+  ['exitRules.enabled', 'Session exit rules', 'Off by default; stop a claim at its known native budget or repeated failure and require a same-family handoff.', 'Order', 'on/off'],
+  ['exitRules.tokens', 'Tokens per claim', 'Input plus output tokens, including cached reads as recorded; unknown usage never triggers a stop.', 'Order', 'count'],
+  ['exitRules.calls', 'Tool calls per claim', 'Distinct native tool-call IDs since the claim; streamed duplicates count once and unknown usage never triggers a stop.', 'Order', 'count'],
   // This machine: Capacity
   ['gateSlots', 'Checks at once', 'How many test runs this computer does at the same time.', 'Capacity', 'count'],
   ['browserSlots', 'Browser checks at once', 'How many runs that need a real browser go at the same time on this computer; 0 needs a registered runner.', 'Capacity', 'count'],
@@ -50,6 +53,10 @@ const ROWS = [
   ['project', 'Project name', 'The name shown for this project.', 'Project', 'text'],
   ['name', 'Repository name', 'The name shown for this repository.', 'Project', 'text'],
   ['worktrees', 'Worktree placement', 'Agent worktrees are made inside this repository or beside it.', 'Project', 'choice'],
+  ['worktreeMaintenance.enabled', 'Automatic worktree maintenance', 'Opt in to archiving recoverable work before maintenance cleans eligible retired checkouts; off by default.', 'Project', 'on/off'],
+  ['worktreeMaintenance.every', 'Maintenance interval', 'How often enabled maintenance checks for retired worktrees; one hour by default.', 'Project', 'duration'],
+  ['worktreeMaintenance.grace', 'Retirement grace', 'How long a retired worktree waits before archive-first cleanup; one day by default.', 'Project', 'duration'],
+  ['worktreeMaintenance.exclude', 'Worktrees kept out of maintenance', 'Explicit absolute directory paths maintenance always leaves alone.', 'Project', 'list'],
   ['lanes', 'Lanes', 'Each lane\'s owned files, owned spec rows and starting rules.', 'Project', 'list'],
   ['products', 'Products', 'Product names and the spec rows each one covers.', 'Project', 'list'],
   ['shared', 'Shared paths', 'Path prefixes any lane may change.', 'Project', 'list'],
@@ -68,9 +75,11 @@ const ROWS = [
   ['affectedTests', 'Selected-test command', 'The command prefix that runs only the test files a change affects.', 'Checks', 'command'],
   ['submitInvariants', 'Always-run tests', 'Test files that run on every submit, however small the change.', 'Checks', 'list'],
   ['registryGuards', 'Registry guards', 'Source guards the selected-test runner adds when a change touches a registry.', 'Checks', 'list'],
+  ['submit.handoff', 'Return while checks run', 'Submit queues the captured candidate for runners and returns while its checks continue.', 'Checks', 'on/off'],
   ['submit.requireInfraNote', 'Explain test edits', 'Submit asks for a written reason when a change edits tests or infrastructure.', 'Checks', 'on/off'],
   ['submit.autoFileMainReds', 'File known main failures', 'Submit opens repair items for failures freshly confirmed to match main.', 'Checks', 'on/off'],
   ['itemSizeBudget', 'Item size budget', 'Changed lines an item may carry before submit notes it as oversize.', 'Checks', 'lines'],
+  ['cells.cache', 'Remember cells check answers', 'The cells checks answer from a saved result when the commit, tree and uncommitted changes are the same as last time.', 'Checks', 'on/off'],
   ['rigor.budget', 'Code a change may add', 'The most lines of non-test code one change may add.', 'Checks', 'lines'],
   ['flakes.rerun', 'Rerun flaky tests', 'A test known to be flaky is run again before a failure counts.', 'Checks', 'on/off'],
   ['flakes.quarantine', 'Quarantine flaky tests', 'A test that keeps flaking is set aside so it stops blocking work.', 'Checks', 'on/off'],

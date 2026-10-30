@@ -1,3 +1,8 @@
+import {
+  exitContinuationSummary,
+  exitContinuationProblem,
+} from './exit-rules-continuation.js';
+import { pendingSubmitHandoff } from './submit-handoff-read.js';
 import { firstRefusal } from './board-item-read.js';
 import * as reviewRouting from './review-routing.js';
 import { idleReason } from './routing-presence.js';
@@ -113,7 +118,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     return empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] });
   }
-  const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
+  const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   if (held && plannedRelease === null) return { item: held, reasons: [] };
@@ -160,7 +165,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified');
-    const reserved = firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
+    const reserved = firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, exitContinuationProblem });
     if (reserved) { reasons.push(reserved); continue; }
     const collisions = itemFileCollisions(entry, inFlight);
     if (collisions.length) { reasons.push(...collisions); continue; }
@@ -169,7 +174,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       reasons.push(`#${entry.item_id} waits on ${foreign.map(ref => `${itemDependencies.dependencyLabel(ref)} (${ref.status} on its own board)`).join(', ')}`);
       continue;
     }
-    if (!waiting.length) return { item: entry, reasons: focusReasons(board, entry,
+    const continuationSummary = exitContinuationSummary(board, entry.item_id);
+    if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }

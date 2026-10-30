@@ -1,4 +1,5 @@
 import { releaseReasonProblem } from './release-reasons.js';
+import { releaseExitClaim } from './exit-rules-state.js';
 import { staleClaimRelease } from './board-stale-claim-release.js';
 /** Ordinary claim/review releases, including recorded coordinator gone-seat observations. */
 import { Refused } from './refused.js';
@@ -57,6 +58,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       return true;
     }
     const window = (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusal(board, id) : null;
+    const exitHandoff = releaseExitClaim(board, id, agentId, note);
     moveItem(board, id, 'release', {
       transition: (board.executionEngineVersion ?? ENGINE_VERSION) < REOPEN_FIRST_REFUSAL_ENGINE ? { ...MOVES.find(move => move.verb === 'release'), from: ['claimed'] } : null,
       checks: {
@@ -67,7 +69,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       },
       set: () => ({ item_owner: null, item_lease_until: null }),
     });
-    logEvent(board, agentId, 'release', id, stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
+    logEvent(board, agentId, 'release', id, exitHandoff ? { exitHandoff, reason: note, ...(reasonCode === undefined ? {} : { reasonCode }) } : stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
     if (stale) insertShout(board, { from: 'sentinel', to: stale.holder,
       text: `Coordinator released your stale claim on #${id}: ${stale.reason.slice(0, 180)}. Last activity ${stale.lastActivity}.`, lanes: [], detail: { item: id } });
     return false;

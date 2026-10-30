@@ -185,6 +185,7 @@ const FIRST_ITEM = ['approveOutside', 'signBar', 'editItem', 'completeCheckBasel
 export const ITEM_SLOTS = Object.freeze({
   setBarReady: [], setLineSetting: [], setLaneLead: [],
   recordUsageBatch: [[0, 'items', '*', 'item'], [0, 'sharedSessions', '*', 'allocations', '*', 'item']],
+  recordExitProgress: [[0, 'item']],
   recordUsage: [[0, 'item']], recordSharedUsage: [[0, 'allocations', '*', 'item']],
   requestCompanion: [[0, 'parentId']],
   fileTypedRequest: [[0, 'itemId']],

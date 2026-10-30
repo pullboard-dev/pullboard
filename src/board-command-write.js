@@ -1,3 +1,4 @@
+import { requireExitActive } from './exit-rules-state.js';
 /** The native command prepares external work before its final ordered writer [B2,C7]. */
 import * as store from './board.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
@@ -8,7 +9,7 @@ import { Refused } from './refused.js';
 const PREPARE_ATTEMPTS = 4;
 
 // Like the writer dispatch, each preparation belongs to its exact native operation, never the wire.
-const PREPARATIONS = Object.freeze({ claim: store.prepareClaim });
+const PREPARATIONS = Object.freeze({ claim: store.prepareClaim, queueSubmitHandoff: store.prepareQueueSubmitHandoff });
 
 /**
  * Preserve native authority before preparation and revalidate it under the actual writer lock.
@@ -20,6 +21,7 @@ const PREPARATIONS = Object.freeze({ claim: store.prepareClaim });
  */
 export function writeBoardCommand(board, operation, args, actor) {
   requireHandoffActive(board, actor, operation, args);
+  requireExitActive(board, actor, operation, args);
   requireAgentGrant(board, { operation, args, engine: ENGINE_VERSION });
   const prepare = PREPARATIONS[operation];
   // Another connection's commit (a peer's renewal, a baseline worker) can land between preparation and
@@ -30,6 +32,7 @@ export function writeBoardCommand(board, operation, args, actor) {
     try {
       return store.atomic(board, () => {
         requireHandoffActive(board, actor, operation, prepared);
+        requireExitActive(board, actor, operation, prepared);
         requireAgentGrant(board, { operation, args: prepared, engine: ENGINE_VERSION });
         return board.enginePorts.store[operation](board, ...prepared);
       });

@@ -1,3 +1,4 @@
+import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import { copyPackageFiles } from '../src/package-files.js';
@@ -38,6 +39,7 @@ import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import {
   apiError,
   apiFetch,
+  fixtureCommandEvidence,
   assertRequiredShape,
   nextSseEvent,
   shellWord,
@@ -71,13 +73,13 @@ test('apiBoardListing is exported and matches the board list [A2]', async (t) =>
     { root: box.repo, name: 'Readable fixture', project: 'API parity', added: '2026-10-23T00:00:00.000Z' },
     { root: unreadableRoot, name: 'Unreadable fixture', project: 'API parity', added: '2026-10-23T00:00:00.000Z' },
   ];
-  const api = await serveApi({ refusalDocument, runCommand: main, projects });
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects });
   t.after(() => api.close());
   const address = new URL(api.url);
   const response = await apiFetch({ origin: address.origin, secret: address.searchParams.get('k') }, '/api/v1/boards');
   assert.equal(response.status, 200);
   const listed = await response.json();
-  assert.deepEqual({ version: 1, ...apiBoardListing(projects, undefined, refusalDocument) }, listed);
+  assert.deepEqual({ version: 1, ...apiBoardListing(projects, undefined, refusalDocument, apiBoardOpeners) }, listed);
   assert.deepEqual(listed.boards.map(({ root }) => root), [box.repo]);
   assert.deepEqual(listed.warnings.map(({ root, error }) => [root, error.error.code]), [[unreadableRoot, 'BOARD_UNAVAILABLE']]);
 });
@@ -165,7 +167,7 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
   const defaulted = await startLocalHandler(t, box);
   const denied = await apiFetch(defaulted, '/api/v1/boards', { headers: { host, origin } });
   assert.equal((await apiError(denied, 401)).code, 'AUTH_REQUIRED', 'omitting the allowlist preserves loopback-only Host authority');
-  for (const invalid of ['localhost', '0.0.0.0', '2001:db8::1', '192.168.7', '192.168.7.256', '192.168.007.9', '192.168.7.9:80']) assert.throws(() => createLocalApiHandler({ refusalDocument,
+  for (const invalid of ['localhost', '0.0.0.0', '2001:db8::1', '192.168.7', '192.168.7.256', '192.168.007.9', '192.168.7.9:80']) assert.throws(() => createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
@@ -311,11 +313,6 @@ function json(box, cwd, command, args = [], subcommand) {
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
   return document;
-}
-
-/** Include a fixture CLI result's timing and JSON output when a named test step fails. */
-function fixtureCommandEvidence(step, result, env) {
-  return `${step}\n${result.context}\nstdout: ${safeFixtureDiagnostic(result.stdout, env)}`;
 }
 
 /** Run a named CLI JSON step and retain its stdout, exit code and timing for assertions. */
@@ -542,9 +539,11 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
     import { serveApi } from './src/api.js'; import { refusalDocument } from './src/next-step-words.js';
+    import { openBoard, openBoardForRead } from './src/native-board.js';
+    const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;
     const project = { root, name: 'schema fixture', project: '', added: '2026-01-01T00:00:00.000Z' };
-    const api = await serveApi({ refusalDocument, secret: 'api-probe', runCommand: async () => 0, projects: () => [project], isMain: true });
+    const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret: 'api-probe', runCommand: async () => 0, projects: () => [project], isMain: true });
     try {
       const listing = await fetch(api.url).then((response) => response.json());
       console.log(JSON.stringify({
@@ -679,7 +678,7 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
 async function startLocalHandler(t, box, options = {}) {
   const secret = randomUUID();
   let port = 0;
-  const handler = createLocalApiHandler({ refusalDocument,
+  const handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
     secret,
     getPort: () => port,
     runCommand: options.runCommand ?? main,
