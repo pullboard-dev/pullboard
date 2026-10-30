@@ -1,3 +1,4 @@
+import { maintenanceTimerWarning } from './worktree-maintenance-diagnostics.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 /**
  * The command line's entry: parse the arguments, bind the checkout, run the relay and baseline work around the
@@ -403,7 +404,7 @@ async function runMain(argv, streams) {
     checkoutSession?.lease?.release();
     if (maintenanceAfterCommand) {
       try { await (await import('./worktree-maintenance-scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
-      catch { io.err('maintenance timer could not be registered; the worktrees remain unchanged'); }
+      catch (error) { io.err(maintenanceTimerWarning(error)); }
     }
     if (advanceAfterCommand) {
       try {
