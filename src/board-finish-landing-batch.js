@@ -1,3 +1,4 @@
+import { validateQuarantineLandingProof } from './quarantine.js';
 import { LAND_COLLISION_ENGINE } from './landing-collision-engine.js';
 import { itemById } from './board-query.js';
 import { atomic } from './board-event-log.js';
@@ -25,6 +26,7 @@ export function finishLandingBatch(board, { agentId, id, tip, landingFence }) {
     if (!batch || batch.tip !== tip) throw new Refused('LAND_BATCH', 'the pushed tip must match its recorded batch; run pullboard land --adopt');
     board.nativePorts.landingEnvironment.requireStoredBatch(board, batch);
     if (batch.state === 'landed') return batch;
+    validateQuarantineLandingProof(board, batch);
     if (batch.state !== 'pushed' && !(batch.state === 'trunk' && (board.executionEngineVersion ?? ENGINE_VERSION) >= LOCAL_LANDING_ENGINE)) throw new Refused('LAND_NOT_PUSHED', 'record a successful push before landing receipts; run pullboard land --adopt');
     for (const entry of batch.items) {
       const item = itemById(board, entry.id);

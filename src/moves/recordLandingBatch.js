@@ -1,3 +1,5 @@
+import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
+import { quarantineBatchGates } from '../quarantine-verdict.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by recordLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERDICT_REVIEW_ENGINE } from '../engine-metadata.js';
@@ -15,7 +17,7 @@ import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { SUBMISSION_PROOF_ENGINE } from '../move-engine-constants.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
-function minimumEngine(args, board, at) {
+function existingEngine(args, board, at) {
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (carriesLandingEnvironment(args[0]?.batch)) return LANDING_ENVIRONMENT_ENGINE;
   if (board) {
@@ -36,6 +38,11 @@ function minimumEngine(args, board, at) {
   }
   if (args[0]?.batch && ['items', 'candidates'].some(key => Array.isArray(args[0].batch[key]) && args[0].batch[key].some(entry => entry && typeof entry === 'object' && Object.hasOwn(entry, 'reviewedCommit')))) return VERDICT_REVIEW_ENGINE;
   return 8;
+}
+
+/** Optional computed evidence requires its own floor without changing any old first-match rule. */
+function minimumEngine(args, board, at) {
+  return Math.max(existingEngine(args, board, at), (quarantineBatchGates(args[0]?.batch).length || Object.hasOwn(args[0]?.batch?.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

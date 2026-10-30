@@ -94,7 +94,7 @@ function sharpenText(id, clause) {
 
 /** Complete an authorized verdict inside the caller's atomic boundary, preserving its exact writer/event order. */
 export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRefusalMinutes,
-  agentId, code, cause, clauseDetail, companionDigest, note, check, environment, sandbox, newReview,
+  agentId, code, cause, clauseDetail, companionDigest, note, check, quarantineProofId, environment, sandbox, newReview,
   review, implies, impliesId, decision, verb }, { firstRefusalDetail, deriveRigorCause, logEvent, holdItem,
   shout, tellFirstRefusal, persistShout, recordRejectedItemRoute, escalate, tellVerdictImplications }) {
   const returnedAt = !isAccept && engine >= REOPEN_FIRST_REFUSAL_ENGINE && reopenFirstRefusalMinutes > 0 && item.item_built_by ? board.clock.now() : undefined;
@@ -105,6 +105,7 @@ export function finishVerdict(board, item, { id, isAccept, engine, reopenFirstRe
     ...(companionDigest ? { companionDigest } : {}) };
   if (isAccept && engine >= SPEC_APPROVAL_ENGINE) detail.note = note.trim();
   if (isAccept && check !== undefined) detail.check = check;
+  if (isAccept && quarantineProofId !== undefined) detail.quarantineProofId = quarantineProofId;
   if (environment !== undefined) detail.environment = environment;
   if (sandbox !== undefined) detail.sandbox = sandbox;
   if (newReview) detail.review = { commit: review.commit, ...(Object.hasOwn(review, 'head') ? { head: review.head } : {}), trunk: review.trunk, paths: [...review.paths] };
