@@ -9,14 +9,8 @@ import { heartbeatSeat } from '../src/seat-presence.js';
 import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
-let staleStateSnapshot;
-let planStaleState;
-try {
-  ({ staleStateSnapshot } = await import('../packages/health/src/core/stale-state-query.js'));
-  ({ planStaleState } = await import('../src/board-stale-state-maintenance.js'));
-} catch (error) {
-  if (error.code !== 'ERR_MODULE_NOT_FOUND' || !['stale-state-query.js', 'stale-state-maintenance.js'].some(file => error.url?.endsWith('/src/' + file))) throw error;
-}
+import { staleStateSnapshot } from '../packages/health/src/core/stale-state-query.js';
+import { planStaleState } from '../src/board-stale-state-maintenance.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -502,7 +496,7 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
 test('stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
   const { applyEngineMove } = await import('../src/engine.js');
   const { STALE_STATE_ENGINE } = await import('../src/stale-state-engine.js');
-  const { ROUTING_RULES_ENGINE } = await import('../src/routing-rules-engine.js');
+  const { RELEASE_REASONS_ENGINE } = await import('../src/release-reasons-engine.js');
   for (const mode of ['native', 'ordered', 'historical']) {
     const f = fixture(t);
     store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });
@@ -520,7 +514,7 @@ test('stale releases carry observation plus code through native and ordered APIs
     assert.deepEqual(store.events(f.board), events);
     const args = [id, 'coordinator', note, observation, 'BLOCKED'];
     const move = prepareEngineMove(f.board, 'release', args);
-    assert.ok(move.engine >= ROUTING_RULES_ENGINE);
+    assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
     const options = { sequence: 1, at: f.clock.now().toISOString() };
     assert.throws(() => applyEngineMove(f.board, { ...move, engine: STALE_STATE_ENGINE }, options), { code: 'RELAY_MOVE' });
     assert.deepEqual(store.getItem(f.board, id), before);

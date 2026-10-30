@@ -13,7 +13,6 @@ import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 
 export { familiesDiffer } from './review-policy.js';
-export { routingRuleProblem } from './routing-rules.js';
 import { itemReviewPolicy } from './review-policy.js';
 import { Refused } from './refused.js';
 

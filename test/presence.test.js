@@ -691,7 +691,7 @@ test('native and ordered gone releases retain coded evidence and historical even
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { applyEngineMove, prepareEngineMove } = await import('../src/engine.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
-  const { ROUTING_RULES_ENGINE } = await import('../src/routing-rules-engine.js');
+  const { RELEASE_REASONS_ENGINE } = await import('../src/release-reasons-engine.js');
   for (const mode of ['native', 'ordered', 'historical']) {
     const f = goneClaimFixture(t);
     store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });
@@ -708,7 +708,7 @@ test('native and ordered gone releases retain coded evidence and historical even
     assert.deepEqual(store.events(f.board), events, 'a real code cannot grant maintenance authority');
     const args = [id, 'coordinator', '', observation, 'BLOCKED'];
     const move = prepareEngineMove(f.board, 'release', args);
-    assert.ok(move.engine >= ROUTING_RULES_ENGINE);
+    assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
     const options = { sequence: 1, at: f.clock.now().toISOString() };
     assert.throws(() => applyEngineMove(f.board, { ...move, engine: GONE_CLAIM_ENGINE }, options), { code: 'RELAY_MOVE' });
     assert.deepEqual(store.getItem(f.board, id), before, 'an old writer cannot drop the supplied code');

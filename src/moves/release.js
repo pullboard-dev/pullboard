@@ -1,5 +1,4 @@
-import { ROUTING_RULES_ENGINE } from '../routing-rules-engine.js';
-import { routingRulesEngine } from '../routing-rules-floor.js';
+import { RELEASE_REASONS_ENGINE } from '../release-reasons-engine.js';
 import { STALE_STATE_ENGINE } from '../stale-state-engine.js';
 import { GONE_CLAIM_ENGINE } from '../gone-claim-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -20,7 +19,7 @@ function existingEngine(args, board, at) {
 
 /** An observation cannot be silently ignored by an older release implementation. */
 function minimumEngine(args, board, at) {
-  return Math.max(routingRulesEngine(board), args[4] !== undefined ? ROUTING_RULES_ENGINE : 1, typeof args[3] === 'string' ? ROUTING_RULES_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(args[4] !== undefined ? RELEASE_REASONS_ENGINE : 1, typeof args[3] === 'string' ? RELEASE_REASONS_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

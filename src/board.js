@@ -385,7 +385,7 @@ export { agentActivity } from './board-query.js';
 
 export { rowVerifications } from './spec-verdicts.js';
 
-export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js'; export { setRoutingRule, routingRules } from './routing-rule-set.js';
+export { fileTypedRequest, typedRequests, answerTypedRequests } from './typed-requests.js';
 
 /** Supply the native event clock to the generic item-field writer [M1,C7]. */
 export function setItem(board, id, fields, at) { return writeItemFields(board, id, fields, at, now); }

@@ -38,7 +38,7 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, setRoutingRule, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../src/board.js';
+import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../src/board.js';
 import {
   ID_RE,
   readSignoffs,
@@ -353,9 +353,6 @@ function recordEventContract() {
   escalate(board, first, { agentId: builder, note: 'attempted once', attempt: '1' });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });
   release(board, first, builder, 'Recorded format example returns the claim before refreezing.', undefined, 'OTHER');
-  const routingRule = setRoutingRule(board, { agentId: coordinator, act: 'build', scope: { item: first },
-    effect: 'bar-seat', value: builder, source: asked, note: 'Native routing format example.' });
-  setRoutingRule(board, { agentId: coordinator, revoke: routingRule });
   editItem(board, first, { agentId: coordinator, criterion: 'Updated after claim', reason: 'the claimed bar named the wrong field' });
   refreeze(board, first, { agentId: coordinator, freeze: freeze('second') });
   claim(board, first, { agentId: builder, lane: 'docs', leaseMs: 60_000, freeze: freeze('unused') });

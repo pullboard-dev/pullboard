@@ -14,7 +14,8 @@ import { logEvent } from './board-event-log.js';
 import { COORDINATOR } from './config.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
-import { requireShoutProtocol } from './routing-shout.js';
+import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
+import { refuseLongShout } from './proof-receipts.js';
 
 /**
  * Insert a shout within the caller's transaction.
@@ -99,7 +100,7 @@ export function persistShout(board, { from, to, text, decision = false, answers 
  * @returns {number}
  */
 export function shout(board, message) {
-  requireShoutProtocol(board, message);
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= PROOF_RUN_ENGINE) refuseLongShout(message.text);
   return atomic(board, () => insertShout(board, routeLaneMessage(board, { ...message,
     news: activityNewsFlag(message, board.executionEngineVersion ?? ENGINE_VERSION) }, board.executionEngineVersion ?? ENGINE_VERSION)));
 }

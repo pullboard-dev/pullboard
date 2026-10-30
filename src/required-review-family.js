@@ -5,7 +5,6 @@ import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
 import { aliasEngineOn } from './review-policy.js';
 import { Refused } from './refused.js';
-import { routingRulesEngine } from './routing-rules-floor.js';
 
 /** Validate only explicitly supplied metadata; omission preserves legacy move bytes. */
 export function validateReviewFamily(value) {
@@ -48,11 +47,11 @@ export function requiredReviewFamilyProblem(board, item, agentId) {
 
 /** New moves touching a constrained item need the engine that preserves that constraint. */
 export function requiredReviewFamilyEngine(board, id) {
-  return Math.max(board && requiredReviewFamily(board, id) ? AUTOMATIC_DISPATCH_ENGINE : 1, routingRulesEngine(board));
+  return board && requiredReviewFamily(board, id) ? AUTOMATIC_DISPATCH_ENGINE : 1;
 }
 
 /** Any queued selection must understand item requirements before choosing among boards' items. */
 export function anyRequiredReviewFamilyEngine(board) {
-  return Math.max(board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'item_review_family:%' LIMIT 1").get()
-    ? AUTOMATIC_DISPATCH_ENGINE : 1, routingRulesEngine(board));
+  return board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'item_review_family:%' LIMIT 1").get()
+    ? AUTOMATIC_DISPATCH_ENGINE : 1;
 }

@@ -142,8 +142,6 @@
   ["src/board-withdraw.js","packages/store/src/shell/board-withdraw.js","rule"],
   ["src/board-escalate.js","packages/store/src/core/board-escalate.js","rule"],
   ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"],
-  ["src/routing-rule-set.js","packages/store/src/shell/routing-rule-set.js","rule"],
-  ["src/routing-shout.js","packages/store/src/shell/routing-shout.js","rule"],
   ["src/release-reasons.js","packages/store/src/core/release-reasons.js","rule"]
  ],
  "reexports": [

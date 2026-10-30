@@ -144,9 +144,6 @@ export const workHelp = `Work
   pullboard request answer <ids> done|declined [--note "why"] [--acted-on <event-ids>]
                                         coordinator answers a comma-separated batch atomically; declined needs a note
                                         done needs matching native move event IDs in request order; it never executes a move
-  pullboard rule add review|build|any <only-seat|bar-seat|require-family|bar-family|bar-pool|require-session|bar-session|different-session|different-family> <value> (--item <id> | --tier strict | --all) --source <shout-id> [--note "why"]
-                                        records a legacy rule; next uses computed eligibility, not stored rules
-  pullboard rule list | revoke <id> | migrate   read the rules, withdraw one, or record the standing rulings as rules
   pullboard decisions [--as person]               shouts waiting for you; main checkout defaults to coordinator
                                         as the person, a project's repos list together as repo#id
   pullboard watch [--to <agent|lane|all>] [--kinds <kinds>] [--item <id>] [--since <sequence>] [--json]

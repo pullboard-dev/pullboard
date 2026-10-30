@@ -10,7 +10,7 @@ import {
 } from './machine.js';
 import { firstRefusal } from './board-item-read.js';
 import { GONE_CLAIM_ENGINE } from './gone-claim-engine.js';
-import { ROUTING_RULES_ENGINE } from './routing-rules-engine.js';
+import { RELEASE_REASONS_ENGINE } from './release-reasons-engine.js';
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */
 function goneRelease(board, item, actor, observation) {
@@ -36,7 +36,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
   // A string fourth argument is the release reason code; an object is a coordinator's frozen observation.
   if (typeof observation === 'string') { reasonCode = observation; observation = undefined; }
   return atomic(board, () => {
-    if (reasonCode !== undefined || (board.executionEngineVersion ?? ENGINE_VERSION) >= ROUTING_RULES_ENGINE) {
+    if (reasonCode !== undefined || (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE) {
       const bad = releaseReasonProblem(reasonCode, note);
       if (bad) throw bad;
     }
