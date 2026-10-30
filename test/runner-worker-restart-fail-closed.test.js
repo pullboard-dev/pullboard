@@ -163,7 +163,7 @@ for (const [fault, reason] of [
   ['job-symlink', /jobs entry is not a real directory/u],
   ['job-file', /jobs entry is not a real directory/u],
 ]) {
-  test('restart refuses ' + fault + ' before every signal and logs the actual runner and reason [C7]', t => {
+  test('restart refuses [C7] ' + fault + ' before every signal and logs the actual runner and reason', t => {
     const actual = observe(t, fault);
     assert.deepEqual(actual.signals, [], 'no TERM or KILL may precede the failed idle observation');
     assert.deepEqual(actual.reply.restarted, []);
