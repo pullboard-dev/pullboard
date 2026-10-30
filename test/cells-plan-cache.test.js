@@ -65,7 +65,7 @@ test('with the setting off the check always runs and nothing is saved [C7]', t =
   assert.equal(counter.n, 2);
   assert.equal(cellsCacheEnabled(root), false);
   assert.match(cellsStateKey(root), /^[0-9a-f]{64}$/u);
-  const dir = git(root, 'rev-parse', '--git-path', 'pullboard-cells-cache').stdout.trim();
+  const dir = git(root, 'rev-parse', '--git-path', 'pullboard-cells-cache');
   assert.throws(() => readdirSync(join(root, dir)), /ENOENT/u);
 });
 
