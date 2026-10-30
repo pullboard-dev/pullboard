@@ -5,9 +5,13 @@ import { registerMaintenanceClassificationTests } from './worktree-maintenance-c
 import { registerMaintenanceSchedulerTests } from './worktree-maintenance-scheduler.fixture.js';
 import { registerMaintenanceEngineTests } from './worktree-maintenance-engine.fixture.js';
 import { registerMaintenanceCliTests } from './worktree-maintenance-cli.fixture.js';
+import { registerMaintenanceCliLifecycleTests } from './worktree-maintenance-cli-lifecycle.fixture.js';
+import { registerMaintenanceRetentionTests } from './worktree-maintenance-retention.fixture.js';
 registerMaintenanceArchiveTests();
 registerMaintenanceConfigTests();
 registerMaintenanceClassificationTests();
 registerMaintenanceSchedulerTests();
 registerMaintenanceEngineTests();
 registerMaintenanceCliTests();
+registerMaintenanceCliLifecycleTests();
+registerMaintenanceRetentionTests();

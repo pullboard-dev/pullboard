@@ -1,9 +1,25 @@
 /** Preserve exact local work before maintenance may reset or remove a checkout [B3,C7]. */
 import { spawnSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
-import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync, readdirSync,
-  readlinkSync, realpathSync, renameSync, writeSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
+import { closeSync } from 'node:fs';
+import { fstatSync } from 'node:fs';
+import { fsyncSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { openSync } from 'node:fs';
+import { readSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { readlinkSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { writeSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
 import { cleanGitEnvironment } from './git.js';
 
 const MAX_OBSERVATION_BYTES = 64 * 1024 * 1024;

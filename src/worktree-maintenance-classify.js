@@ -1,5 +1,11 @@
 import { maintenanceProtectedPath } from './worktree-maintenance-protection.js';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
+import { sep } from 'node:path';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DURATION = /^(\d+)(ms|s|m|h|d)$/u;

@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { repoInfo } from './git.js';
 import { maintenanceProtectedPath } from './worktree-maintenance-protection.js';
+import { retainedMaintenanceHealth } from './worktree-maintenance-retention.js';
 import { maintenanceDurations } from './worktree-maintenance-config.js';
 import { classifyMaintenanceTree } from './worktree-maintenance-classify.js';
 import { archiveMaintenanceWorktree } from './worktree-maintenance-archive.js';
@@ -31,7 +32,7 @@ function contains(parent, child) {
 /** A lifecycle cleanup may not discard another unfinished claim, review or submitted implementation. */
 function otherObligations(snapshot, agent, item, now) {
   return snapshot.items.some(row => row.item_id !== item && (row.item_status === 'claimed' && row.item_owner === agent
-    || row.item_status === 'submitted' && row.item_built_by === agent
+    || ['submitted', 'verified'].includes(row.item_status) && !row.item_merged_commit && row.item_built_by === agent
     || row.item_review_by === agent && Date.parse(row.item_review_until ?? '') > now));
 }
 
@@ -90,7 +91,8 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
     const entry = { ...row, action: 'kept' };
     report.entries.push(entry);
     next.trees[tree.path] = { firstSeenAt: previous?.firstSeenAt ?? now,
-      inactiveSince: row.inactiveSince, agents: row.agents, dirtySince: previous?.dirtySince ?? null };
+      inactiveSince: row.inactiveSince, agents: row.agents, dirtySince: previous?.dirtySince ?? null,
+      ...(previous?.retainedWithdrawal ? { retainedWithdrawal: previous.retainedWithdrawal } : {}) };
     if (observeDirt(tree, observed, mainRoot, root, config, now)) {
       try {
         currentTree(root, common, tree.path, tree.head);
@@ -142,14 +144,18 @@ export async function runWorktreeMaintenance(root, config, ports, { now = Date.n
 }
 
 /** Clean only an explicitly released/withdrawn/retired seat, never its other unfinished obligations. */
-export async function cleanMaintenanceSeat(root, config, ports, { path, item, agent, retired = false, now = Date.now() }) {
+export async function cleanMaintenanceSeat(root, config, ports, { path, item, agent, retired = false, withdrawn = false, now = Date.now() }) {
   if (config.worktreeMaintenance?.enabled !== true) return null;
   if (maintenanceProtectedPath(path)) return null;
-  if (resolve(path) !== resolve(root) && !(retired && ports.completedTakeover === true)) return null;
+  if (resolve(path) !== resolve(root) && !(retired && ports.completedTakeover === true)
+    && !(withdrawn && ports.completedWithdrawal === true)) return null;
   const info = repoInfo(root), common = realpathSync(info.commonDir), trees = registeredMaintenanceTrees(root);
   const tree = trees.find(row => resolve(row.path) === resolve(path));
   if (!tree || tree.locked || tree.bare || tree.path === trees[0].path) return null;
   const snapshot = await ports.readSnapshot();
+  const withdrawalConfirmed = state => !withdrawn || ports.completedWithdrawal === true
+    && state.items.some(row => row.item_id === item && row.item_status === 'withdrawn' && !row.item_owner);
+  if (!withdrawalConfirmed(snapshot)) return null;
   if (otherObligations(snapshot, agent, item, now)) return null;
   const settings = config.worktreeMaintenance;
   if (settings.exclude.some(excluded => contains(excluded, path) || contains(path, excluded))) return null;
@@ -168,6 +174,7 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
     if (!census()) return null;
     const fresh = await ports.readSnapshot();
     if (!fresh.seats.some(seat => seat.agent_id === agent && resolve(seat.agent_path) === resolve(path))) return null;
+    if (!withdrawalConfirmed(fresh)) return null;
     if (otherObligations(fresh, agent, item, now)) return null;
     if (fresh.items.some(row => row.item_status === 'claimed' && row.item_owner === agent)) return null;
     if (retired && fresh.seats.some(seat => seat.agent_id === agent && seat.presence === 'live') && !ports.completedTakeover)
@@ -176,6 +183,7 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
     await recordArchive(archive, { path, agents: [agent], items: [item] }, ports);
     currentTree(root, common, path, tree.head);
     const final = await ports.readSnapshot();
+    if (!withdrawalConfirmed(final)) return null;
     if (!final.seats.some(seat => seat.agent_id === agent && resolve(seat.agent_path) === resolve(path))
       || final.seats.some(seat => seat.agent_id !== agent && resolve(seat.agent_path) === resolve(path) && seat.presence !== 'gone')
       || otherObligations(final, agent, item, now)
@@ -191,11 +199,12 @@ export async function cleanMaintenanceSeat(root, config, ports, { path, item, ag
 /** Read retained dirty observations only; health never starts a scan, resets a tree or borrows imported liveness. */
 export function maintenanceHealth(common, snapshot, now = Date.now()) {
   const state = readMaintenanceState(common);
-  return Object.entries(state.trees).flatMap(([path, entry]) => {
+  return [...retainedMaintenanceHealth(state), ...Object.entries(state.trees).flatMap(([path, entry]) => {
     if (!Number.isFinite(entry.dirtySince) || now - entry.dirtySince < 86_400_000) return [];
     const seats = snapshot.seats.filter(seat => resolve(seat.agent_path) === resolve(path));
     if (seats.some(seat => seat.presence !== 'gone') || seats.some(seat => snapshot.items.some(item =>
       item.item_status === 'claimed' && item.item_owner === seat.agent_id))) return [];
+    if (entry.retainedWithdrawal) return [];
     return [{ path, since: new Date(entry.dirtySince).toISOString(), reason: 'uncommitted work without a live seat for over a day' }];
-  });
+  })];
 }

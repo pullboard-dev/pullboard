@@ -1,5 +1,5 @@
 /** Compose maintenance with native board readers and ordinary archive facts [B3,C7]. */
-import { agentHandoff } from '../packages/state/src/core/handoff-state.js';
+import { agentHandoff } from '../packages/state/index.js';
 import { mainPolicy } from './trusted-policy.js';
 import { listAgents } from './board.js';
 import { listItems } from './board.js';
@@ -8,6 +8,7 @@ import { withBoard } from './cli.js';
 import { withBoardRead } from './cli.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 import { cleanMaintenanceSeat } from './worktree-maintenance.js';
+import { recordMaintenanceRetention } from './worktree-maintenance-retention.js';
 
 /** Imported heartbeat rows never grant permission to delete a local checkout. */
 export function readMaintenanceSnapshot(ctx) {
@@ -38,8 +39,15 @@ export async function cleanupMaintenanceLifecycle(ctx, agentId, details) {
   if (ctx.config.worktreeMaintenance?.enabled !== true) return null;
   try {
     const accepted = mainPolicy(ctx.info.root).config;
-    return await cleanMaintenanceSeat(ctx.info.root, accepted,
-      { ...maintenanceCommandPorts(ctx, agentId), completedTakeover: details.completedTakeover === true }, details);
+    const result = await cleanMaintenanceSeat(ctx.info.root, accepted,
+      { ...maintenanceCommandPorts(ctx, agentId), completedTakeover: details.completedTakeover === true,
+        completedWithdrawal: details.completedWithdrawal === true && ctx.info.isMain && agentId === 'coordinator' }, details);
+    if (details.withdrawn && accepted.worktreeMaintenance?.enabled === true) {
+      await recordMaintenanceRetention(ctx.info.root, { ...details,
+        reason: 'withdrawal cleanup deferred: checkout is protected, busy or still holds another obligation' }, { clear: Boolean(result?.clean) });
+    }
+    if (!result) ctx.io.err('maintenance kept the worktree because it is protected, busy or still holds another obligation');
+    return result;
   } catch {
     ctx.io.err('maintenance kept the worktree because its archive or custody could not be confirmed');
     return null;

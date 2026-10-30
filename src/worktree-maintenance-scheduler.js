@@ -1,12 +1,29 @@
 /** One repository-owned timer waits without session custody; fresh native CLI code performs the sweep [B3,C7]. */
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { constants, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync,
-  realpathSync, renameSync, unlinkSync, writeSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { constants } from 'node:fs';
+import { closeSync } from 'node:fs';
+import { fstatSync } from 'node:fs';
+import { fsyncSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { openSync } from 'node:fs';
+import { readSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
+import { writeSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
-import { AGENT_SESSION_IDS, AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
-import { cleanGitEnvironment, git, gitChildEnv, repoInfo, withGitFacts } from './git.js';
+import { AGENT_SESSION_IDS } from '../packages/kernel/index.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
+import { cleanGitEnvironment } from './git.js';
+import { git } from './git.js';
+import { gitChildEnv } from './git.js';
+import { repoInfo } from './git.js';
+import { withGitFacts } from './git.js';
 import { mainPolicy } from './trusted-policy.js';
 import { withFileLock } from './relay-outbox-guard.js';
 import { maintenanceDurations } from './worktree-maintenance-config.js';

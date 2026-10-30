@@ -8,7 +8,7 @@ import {
 import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
-import { maintenanceDefaults, maintenanceConfigProblems } from './worktree-maintenance-config.js';
+import * as maintenanceSettings from './worktree-maintenance-config.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 export const COORDINATOR = 'coordinator';
@@ -51,7 +51,7 @@ export function defaults() {
     claims: { releaseGone: false },
     reviewLease: '30m',
     worktrees: 'beside',
-    worktreeMaintenance: maintenanceDefaults(),
+    worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
     review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
@@ -189,7 +189,7 @@ function laneProblems(name, lane) {
  * @returns {string[]}
  */
 export function configProblems(config) {
-  const problems = maintenanceConfigProblems(config.worktreeMaintenance);
+  const problems = maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance);
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))
