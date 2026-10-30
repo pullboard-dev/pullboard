@@ -238,8 +238,8 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
         ? { ...native, ...(diagnostics.length ? { diagnostics } : {}) } : { version: version, messages, ...(diagnostics.length ? { diagnostics } : {}) };
     }
     if (refusal?.testOutput) {
-      const { counts, failures, omittedFailures, logPath } = refusal.testOutput;
-      Object.assign(document, { counts, failures, omittedFailures, logPath });
+      const { counts, failures, omittedFailures, logPath, mainFailures } = refusal.testOutput;
+      Object.assign(document, { counts, failures, omittedFailures, logPath, ...(mainFailures ? { mainFailures } : {}) });
     }
     // A refusal keeps its whole shape; only a successful read is trimmed to the requested keys.
     if (fields && !refusal && !document.error) document = selectFields(document, fields);

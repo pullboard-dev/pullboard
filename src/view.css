@@ -771,7 +771,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .snapshot-controls { display: inline-flex; grid-column: 3; flex: none; min-width: 0; align-items: center; }
 .snapshot-controls button { justify-content: center; width: 2.25rem; padding: 0; }
 .snapshot-controls button svg { width: 14px; height: 14px; }
-.snapshot-speed { display: inline-flex; flex: none; align-items: center; gap: 4px; padding: 0 var(--space-2); }
+.snapshot-speed { display: inline-flex; flex: none; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); }
 .snapshot-speed select { max-width: 3.25rem; min-height: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; }
 .snapshot-controls output { box-sizing: border-box; inline-size: 24ch; min-width: 0; flex: none; padding: 0 var(--space-2); overflow: hidden; color: var(--status-ink); font: var(--text-2xs) var(--mono); text-overflow: ellipsis; white-space: nowrap; }
 @media (width < 480px) { .status.snap { grid-template-columns: max-content minmax(0, 1fr); } .snapshot .status-board { display: none; } .snapshot-controls { grid-column: 2; width: 100%; } .snapshot-controls output { width: auto; flex: 1; } }
