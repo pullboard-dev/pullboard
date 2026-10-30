@@ -871,7 +871,7 @@ document.addEventListener('click', (event) => {
     const id = Number(t.dataset.costRow);
     view.costOpen = view.costOpen === id ? null : id;
     render();
-    document.querySelector('[data-cost-row="' + id + '"]')?.focus({ preventScroll: true });
+    $('cost').querySelector?.('[data-cost-row="' + id + '"]')?.focus({ preventScroll: true });
     return;
   }
   if (t.tagName === 'A' && (t.dataset.go?.startsWith('item:') || t.dataset.tab)) {

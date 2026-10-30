@@ -429,7 +429,7 @@ function render() {
       addressed: view.tab === kind && view.addressDetail !== null, approvalIds: agentApprovals.map(row => row.id), feedback });
     const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts } = selectedRows;
     if (kind === 'spec') {
-      const tab = document.querySelector('[data-tab=spec]');
+      const tab = $('tabs').querySelector?.('[data-tab=spec]');
       if (tab) { tab.title = selectedRows.decisionTitle; tab.innerHTML = 'Spec <b>' + n.decide + '</b>'; }
     }
     const undecidedIds = new Set(selectedRows.undecidedIds);
