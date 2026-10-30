@@ -1,5 +1,5 @@
 /** A test rename may repoint its gate without changing any requirement bytes [L3,B34]. */
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { cleanGitEnvironment } from './git.js';
 import {
   parseSpec,
@@ -9,7 +9,7 @@ import { isDefaultTestFile } from './test-selection.js';
 
 /** Keep exact Git object bytes, including terminal whitespace that requirement edits must not hide. */
 function rawGit(root, args) {
-  return spawnSync('git', ['--no-replace-objects', ...args],
+  return gitSpawnSync(['--no-replace-objects', ...args],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
 }
 

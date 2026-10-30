@@ -173,6 +173,8 @@ import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
+import {quarantineWaivers} from './src/quarantine.js';
+const landingPorts={quarantineWaivers};
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 // @pullboard-board-file persistence: install and read a live native waiver in this private fixture's actual board.
 const board=openBoard('.git/pullboard/board.sqlite');
