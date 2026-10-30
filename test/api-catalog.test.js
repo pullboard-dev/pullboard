@@ -518,6 +518,16 @@ catalogCase('[A1] refusals are one JSON document with exact public error fields'
   await box.git(repo, 'add', '-A');
   await box.git(repo, 'commit', '-q', '-m', 'chore: set up refusal fixture');
 
+  const noShip = await box.run(repo, 'ship', '--json');
+  assert.equal(noShip.status, 1, noShip.stdout + noShip.stderr);
+  assert.equal(noShip.stderr, '', 'ship refuses without mixing text into JSON output');
+  const shipDocument = parseOneDocument(noShip.stdout);
+  assertRequiredShape(shipDocument, JSON_SHAPES.error.required, 'ship error envelope');
+  assertRequiredShape(shipDocument.error, JSON_SHAPES.errorFields, 'ship refusal');
+  assert.equal(shipDocument.error.code, 'USAGE');
+  assert.match(shipDocument.error.message, /ship needs exactly one owned item/u);
+  coveredRoots.add('ship');
+
   const noRow = await jsonError(box, repo, 'spec', ['show', 'G99'], {
     status: 1,
     code: 'NO_ROW',
@@ -835,7 +845,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual([lane.lane, lane.owns], ['catalog', ['catalog/']]);
   assert.deepEqual((await json(source, source.repo, 'lanes')).lanes.catalog, { owns: ['catalog/'] });
   const runner = await json(source, source.repo, 'runner', ['add', 'fixture-runner', '--slots', '2', '--browser', '1']);
-  assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null });
+  assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null, fixed: true });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
 

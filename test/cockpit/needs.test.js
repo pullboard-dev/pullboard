@@ -25,6 +25,11 @@ function needEntries(html) {
   });
 }
 
+/** Read one exact native message from the opened conversation without accepting an overview preview. */
+function conversationMessage(page, id) {
+  return page.show('feed').match(new RegExp('<article[^>]*data-shout-id="' + id + '"[^>]*>([^]*?)</article>'))?.[1] ?? '';
+}
+
 /** Confirm the fixture's baseline approvals through the real person-view channel. */
 async function confirmBaseline(view, repo) {
   const id = await boardId(view, repo);
@@ -295,10 +300,16 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.doesNotMatch(page.show('needs'), /decide:/, "an agent's ask is its coordinator's to answer");
     page.run("openTab('shouts'); render();");
     assert.equal(page.element('decisions').hidden, true, 'an ask waiting on others stays folded');
-    assert.match(page.show('asks-slot'), /^<button class="asks-toggle" data-fold="waiting" type="button" aria-expanded="false" title="Asks between agents, waiting on others: web-1 \(Test Model\) asks coordinator">1 ask waiting <span aria-hidden="true">▾<\/span><\/button>$/, 'its toggle sits at the end of the composer line');
-    page.run("openTab('shouts'); view.open.waiting = true; render();");
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<article class="shout h\\d" data-shout-id="1"><span class="avatar" aria-hidden="true">W1</span><div class="shout-main"><header><b class="who">web-1 \\(Test Model\\)</b><span class="to">→ coordinator</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${question}</div><button class="more" data-more type="button">more</button></div></article>$`), 'above the shouts as a card, saying who asked whom, with no Answer button');
-    assert.doesNotMatch(page.show('feed'), /Greet in/, 'though the feed no longer reaches it');
+    assert.match(page.show('asks-slot'), /data-shout-filter="questions"[^>]*>Questions<b>1<\/b>/,
+      'the shared Questions segment retains the one native pending ask');
+    page.run("view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
+    const waitingMessage = conversationMessage(page, 1);
+    assert.match(waitingMessage, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
+      'the opened native question retains its exact author, model hover and recipient');
+    assert.match(waitingMessage, new RegExp('<div class="text">' + question + '</div>'), 'its entire escaped question remains visible');
+    assert.match(waitingMessage, /<div class="band">Decision needed<\/div>/, 'the native pending status is retained');
+    assert.doesNotMatch(waitingMessage, /data-go="decide:/, 'an agent question has no person Answer control');
+
 
     // The coordinator passes it up with its note (B27): now it is the person's call.
     box.run(alpha.repo, 'pass', '1', 'over to you');
@@ -311,7 +322,15 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     assert.ok(page.show('needs').includes('Passed up from web-1: Greet in &lt;b&gt;French&lt;/b&gt; first?<br>Coordinator note: over to you'), 'expanded details preserve the entire passed question and coordinator note');
     assert.match(page.show('needs'), /<span class="needs-age"><time data-ago="[^"]+">1m<\/time><\/span>/u, 'the call retains its actual one-minute age');
     page.run("openTab('shouts'); render();");
-    assert.match(shoutNameText(page.show('decisions')), new RegExp(`^<div class="head"><i></i>Decision needed</div><article class="shout h\\d lead" data-shout-id="42"><span class="avatar"><svg [\\s\\S]*?</svg></span><div class="shout-main"><header><b class="who">coordinator</b><span class="to">→ person</span><span class="mark ask" role="group" title="decision" aria-label="decision">decision</span> <time class="long" data-ago="[^"]+" title="[^"]+">1m ago</time></header><div class="text">${passed.replace('\n', '<br>')}</div><button class="more" data-more type="button">more</button><button class="ghost answer" data-go="decide:42" type="button">Answer</button></div></article>$`), 'and above the shouts as the coordinator\'s card, with an Answer button');
+    page.run("view.shoutThread = 'none'; render();");
+    const passedMessage = conversationMessage(page, 42);
+    assert.match(passedMessage, /<b class="who"[^>]* title="[^"]*">coordinator<\/b><span class="to">→ you<\/span>/,
+      'the passed native call retains its coordinator author and person recipient');
+    assert.match(passedMessage, new RegExp('<div class="text">' + passed.replace('\n', '<br>') + '</div>'),
+      'the conversation keeps the complete passed question and coordinator note');
+    assert.match(passedMessage, /data-go="decide:42"/, 'the real passed call retains its Answer action');
+    assert.equal(page.element('decisions').hidden, true, 'the superseded decisions wall stays hidden');
+
 
     const form = () => ({
       answering: !page.element('answering').hidden,
@@ -346,9 +365,10 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     box.run(alpha.web, 'shout', 'coordinator', 'Ship today?', '--decision', '--kind', 'question');
     box.run(alpha.repo, 'pass', '45', 'yours');
     await page.run('refresh()');
+    page.run("openTab('shouts'); view.shoutThread = 'none'; render();");
     const feed = shoutNameText(page.show('feed'));
-    assert.match(feed, /<b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator<\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
-    assert.match(feed, /<b class="who">you<\/b><span class="to">→ coordinator<\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
+    assert.match(feed, /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark ask" role="group" title="decision" aria-label="decision">decision<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">Ship today\?<\/div>/, 'the feed marks an ask');
+    assert.match(feed, /<b class="who"[^>]* title="unknown">you<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span><span class="mark" role="group" title="answer" aria-label="answer">answer<\/span> <time [^>]*>[^<]*<\/time><\/header><div class="text">French, then English<\/div>/, 'and an answer');
     page.run("openTab('items'); render();");
     assert.match(page.show('needs'), /data-go="decide:46"/);
 
@@ -410,8 +430,9 @@ test("needs-you holds only the person's calls; the rest show on the board with w
     assert.match(needs, /<span class="needs-id"(?: title="[^"]*")?>web<\/span>G3 is open<\/b><small>lane held by coordinator<\/small>[\s\S]*?<span class="needs-age"><time data-ago="[^"]+">(?:now|\d+[mhd])<\/time>/u, 'a held lane says who set it and shows the API-provided hold age');
 
     // Each of the rest is on the board, with who holds it.
-    page.run("openTab('shouts'); view.open.waiting = true; render();");
-    assert.match(shoutNameText(page.show('decisions')), /<article class="shout h\d" data-shout-id="\d+"><span class="avatar" aria-hidden="true">W1<\/span><div class="shout-main"><header><b class="who">web-1 \(Test Model\)<\/b><span class="to">→ coordinator<\/span>/, "the agent's ask waits on its coordinator");
+    page.run("openTab('shouts'); view.shoutFilter = 'questions'; view.shoutThread = 'none'; render();");
+    assert.match(page.show('feed'), /<b class="who"[^>]* title="Test Model">web-1<\/b><span class="to">→ <span[^>]*>coordinator<\/span><\/span>/,
+      "the native agent question waits on its coordinator in the Questions conversation");
     page.run("openTab('items'); render();");
     assert.match(itemRow(page.show('chain'), 1), /<span class="chip [^"]*">to verify<\/span><\/li>$/, 'work waiting for a verdict');
     assert.ok(itemRow(page.show('chain'), 2).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> no farewell yet'), 'and work sent back, with why');
@@ -472,21 +493,20 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
     const shown = (e) => !!e && !e.closest('[hidden]') && e.getBoundingClientRect().height > 0;
     const probe = document.createElement('i'); probe.style.color = 'var(--warn)'; document.body.append(probe); const warn = getComputedStyle(probe).color; probe.remove();
     const needs = document.querySelector('#needs');
-    const card = document.querySelector('.shouts-card'), decisions = document.querySelector('#decisions');
+    const card = document.querySelector('.shouts-card');
     return {
       page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
       needsShown: shown(needs), inList: needs.parentElement === document.querySelector('#chain').parentElement, separateCard: !!document.querySelector('section.needs-you#needs'),
       needs: [...needs.querySelectorAll('.needs-call')].map((row) => ({ go: row.querySelector('[data-go]')?.dataset.go ?? null, words: row.querySelector('.needs-copy b').textContent, title: [...row.querySelector('.needs-copy b').childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join(''), ref: row.querySelector('.needs-id')?.textContent ?? null,
         kind: row.querySelector('.needs-copy small').textContent, label: row.classList.contains('needs-drafts') ? !!row.querySelector('.needs-kind-draft') && row.querySelector('.needs-action').textContent === 'Review' : getComputedStyle(row.querySelector('.needs-kind')).color === warn && getComputedStyle(row.querySelector('.needs-action')).color === warn, chip: row.querySelector('.needs-action').textContent, age: !!row.querySelector('.needs-age time') })),
       card: card ? [...card.children].map((e) => e.id || e.className) : null,
-      coordinatorDecisionsHidden: document.querySelector('#coordinator-decisions').hidden,
-      coordinatorDecisions: [...document.querySelectorAll('#coordinator-decisions .shout .text')].map((text) => text.textContent),
-      composer: box(document.querySelector('.shout-form .composer')), asks: box(document.querySelector('.asks-toggle[data-fold="waiting"]')),
-      asksOpen: document.querySelector('.asks-toggle[data-fold="waiting"]')?.getAttribute('aria-expanded') ?? null, showAgents: box(document.querySelector('.asks-slot [data-agents-toggle]')),
-      decisions: shown(decisions) ? [...decisions.querySelectorAll('.shout .text')].map((text) => text.textContent) : [], groupTint: getComputedStyle(decisions).backgroundColor, cardTint: card ? getComputedStyle(card).backgroundColor : null,
-      firstRule: decisions.querySelector('.shout') ? getComputedStyle(decisions.querySelector('.shout')).borderTopWidth : null,
+      wallsHidden: ['#coordinator-decisions', '#decisions'].every(selector => document.querySelector(selector).hidden && !document.querySelector(selector).textContent),
+      composer: box(document.querySelector('.shout-form .composer')), asks: box(document.querySelector('[aria-label="Shouts filter"]')),
+      questions: document.querySelector('[data-shout-filter="questions"]')?.textContent.trim(), selected: document.querySelector('[data-shout-filter="questions"]')?.getAttribute('aria-pressed'),
+      showAgents: box(document.querySelector('.asks-slot [data-agents-toggle]')),
+      messages: [...document.querySelectorAll('#feed .shout .text')].map(text => text.textContent),
       feedBar: !!document.querySelector('#feed .feed-bar'), panelShown: shown(document.querySelector('#agents')), hide: !!document.querySelector('.panel-head [data-agents-toggle]'),
-      agents: [...document.querySelectorAll('#agents .agent-card')].filter(shown).map((row) => ({ who: [...row.querySelector('.agent-who').children].map((part) => part.textContent.trim()).join(' '), what: row.querySelector('.agent-doing').textContent.trim(), chipInDoing: !!row.querySelector('.agent-doing .chip'), whatWidth: box(row.querySelector('.agent-what')).width, doingWidth: box(row.querySelector('.agent-doing')).width })),
+      agents: [...document.querySelectorAll('#agents .agent-card')].filter(shown).map((row) => ({ who: row.querySelector('.agent-who b').textContent, model: row.querySelector('.agent-model').textContent, state: row.querySelector('.agent-state').textContent, what: row.querySelector('.agent-doing').textContent.trim(), chipInDoing: !!row.querySelector('.agent-doing .chip'), whatWidth: box(row.querySelector('.agent-what')).width, doingWidth: box(row.querySelector('.agent-doing')).width })),
       okNote: (() => { const c = document.querySelector('#console'); return !!c && !c.hidden && getComputedStyle(c).display !== 'none' && c.classList.contains('ok'); })(),
     };
   })())`));
@@ -518,31 +538,34 @@ test('needs you and the asks sit in their lists [N26]', { timeout: 180_000 }, as
         assert.deepEqual(r.needs.map((need) => need.age), [false, true, true, false], `${at}: a call that has an age shows it at the right`);
 
         await click('[data-tab=shouts]');
-        await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .shout')");
+        await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('#feed .conversation-row')");
+        await click('[data-shout-filter=questions]');
+        await click('#feed [data-shout-thread=\"none\"]');
+        await chrome.waitFor("document.querySelectorAll('#feed .shout').length === data.project.shouts.length");
         r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll on Shouts`);
-        // One card: the composer's line, the coordinator's own queue, the asks, the feed.
-        assert.deepEqual(r.card, ['shout-form', 'coordinator-decisions', 'decisions', 'feed'], `${at}: Shouts is one card`);
-        assert.equal(r.coordinatorDecisionsHidden, false, `${at}: the coordinator's own unanswered ask is visible`);
-        assert.ok(r.coordinatorDecisions.some((text) => text.includes('Ship the footer first?')), `${at}: the coordinator queue shows the second agent's ask`);
-        if (width === 1280) assert.ok(Math.abs((r.composer.top + r.composer.height / 2) - (r.asks.top + r.asks.height / 2)) <= 4 && r.asks.left >= r.composer.right, `${at}: the asks waiting sit at the end of the composer's line: ${JSON.stringify([r.composer, r.asks])}`);
-        assert.deepEqual([r.asksOpen, r.decisions.length, /Which colour for the button\?/.test(r.decisions[0] ?? '')], ['false', 1, true], `${at}: the asks waiting on others stay folded; the person's own decision shows`);
+        // The original native questions now share the Questions segment and an actual conversation.
+        assert.deepEqual(r.card, ['shout-form', 'coordinator-decisions', 'decisions', 'feed'], `${at}: Shouts stays one card`);
+        assert.ok(r.wallsHidden, `${at}: the replaced decisions walls carry no content`);
+        assert.deepEqual([r.questions, r.selected], ['Questions2', 'true'], `${at}: both native questions are counted in the shared segment`);
+        assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], `${at}: the original question, native person-forward and second question retain their exact bodies and chronological order`);
+        if (width === 1280) assert.ok(Math.abs((r.composer.top + r.composer.height / 2) - (r.asks.top + r.asks.height / 2)) <= 4 && r.asks.left >= r.composer.right, `${at}: the Questions segment stays on the composer's line: ${JSON.stringify([r.composer, r.asks])}`);
         assert.equal(r.feedBar, false, `${at}: no bar above the feed while it shows every shout`);
         assert.ok(r.hide && r.panelShown, `${at}: the agents panel carries its own hide`);
         // An agent's row: its name and state in words, then what it holds at the full width.
         const holder = r.agents.find((agent) => agent.who.startsWith('web-1'));
-        assert.ok(holder && /^web-1 \(Test Model\) building (?:now|\d+[mhd])$/.test(holder.who) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1's row reads as an item's: ${JSON.stringify(holder)}`);
+        assert.ok(holder && holder.who === 'web-1' && holder.model === 'Test Model' && /^(?:now|\d+[mhd])building$/.test(holder.state) && holder.what === '#1 Greeting' && !holder.chipInDoing, `${at}: web-1's row reads as an item's: ${JSON.stringify(holder)}`);
       }
     }
 
-    // Opened, the asks waiting on others are a group set apart from the feed, with no rule above the first.
+    // All keeps both original native messages; Questions is a filter, never a duplicate wall.
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'light' }] });
     await chrome.waitFor('innerWidth === 1280');
-    await click('.asks-toggle[data-fold="waiting"]');
+    await click('[data-shout-filter=all]');
+    await click('#feed [data-shout-thread="none"]');
     let r = await read();
-    assert.deepEqual([r.asksOpen, r.decisions.length, r.decisions[1]], ['true', 2, 'Ship the footer first?'], 'the toggle opens the ask waiting on others');
-    assert.ok(r.groupTint !== r.cardTint && r.firstRule === '0px', `a tinted group with no rule above its first card: ${JSON.stringify([r.groupTint, r.cardTint, r.firstRule])}`);
+    assert.deepEqual(r.messages, ['Which colour for the button?', 'Passed up from web-1: Which colour for the button?Coordinator note: over to you', 'Ship the footer first?'], 'All retains both questions and the native person-forward in one conversation');
     // Hidden, the agents come back from the composer's line, after the asks.
     await click('.panel-head [data-agents-toggle]');
     r = await read();

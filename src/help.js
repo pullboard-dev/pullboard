@@ -26,7 +26,7 @@ const HELP_EXAMPLES = {
   patch: 'pullboard patch list 12',
   companion: 'pullboard companion 12 api "Provide the API" --key api-part',
   add: ADD_EXAMPLE, move: 'pullboard move ~web#3 --to web', list: 'pullboard list web', show: 'pullboard show 12',
-  claim: 'pullboard claim 12', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
+  claim: 'pullboard claim 12', ship: 'pullboard ship --note "Checks passed"', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
   fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',
   why: 'pullboard why 12',
   flakes: 'pullboard flakes', 'flakes rerun': 'pullboard flakes rerun on', 'flakes quarantine': 'pullboard flakes quarantine on',
@@ -201,13 +201,13 @@ function overviewHelp(groups, firstRun = false) {
 }
 
 /** The settings forms settingsCommand dispatches with a value; each gets its own help, from this list (N2). */
-export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool']);
+export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool']);
 
 /** Help for each settings form the printed usage did not already name, so each form is covered (N2). */
 function settingFormHelp(commands) {
   return Object.fromEntries(SETTING_FORMS.filter((form) => !commands[`settings ${form}`]).map((form) => [`settings ${form}`, Object.freeze({
-    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<seat-hours>/day|week' : '<n>'}`], flags: [],
-    example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
+    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<seat-hours>/day|week' : '<n>'}`], flags: [],
+    example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
   })]));
 }
 

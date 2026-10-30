@@ -1,6 +1,4 @@
 import { blockingFailures } from './quarantine-verdict.js';
-import { quarantineVerdictSnapshot } from './quarantine.js';
-import { validateQuarantineGate } from './quarantine.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { runnerExecutionServices } from './runners.js';
@@ -100,7 +98,7 @@ export async function gateGroup(state, label, options) {
   if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
   let cached = recorded?.affectedGate === affectedGate ? recorded : null;
   if (cached?.blockingVerdict) {
-    try { validateQuarantineGate(state.board, cached); } catch { cached = null; }
+    try { state.landingPorts.validateQuarantineGate(state.board, cached); } catch { cached = null; }
   }
   if (cached && (completeGate(cached) || !coveredFailures(state, cached))) return cached;
   const directory = join(dirname(state.batch.root), 'logs');
@@ -108,7 +106,7 @@ export async function gateGroup(state, label, options) {
   const logPath = join(directory, `${label}-${state.batch.revision}.log`);
   await save(state, { state: 'gating', tip: headCommit(state.batch.root), logPath });
   const onFailure = landingRunObserver(state, config, commit);
-  const quarantines = quarantineVerdictSnapshot(state.board);
+  const quarantines = state.landingPorts.quarantineVerdictSnapshot(state.board);
   const item = store.getItem(state.board, state.batch.items[0].id);
   const proofContext = { item: item.item_id, frozenDigest: item.item_frozen_digest, seat: 'coordinator', kind: 'land' };
   const gate = subset
@@ -117,7 +115,7 @@ export async function gateGroup(state, label, options) {
     : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext });
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
-  if (gate.blockingVerdict) validateQuarantineGate(state.board, { ...gate, tree });
+  if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
   copyFileSync(gate.log, logPath);
   if (gate.profilePath) copyFileSync(gate.profilePath, `${logPath}.profile.json`);
   if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
@@ -165,7 +163,7 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   const tree = headTree(batch.root);
   const claimed = await claimGate(tree, batchGatePlan(state).affectedGate);
   if (claimed.previous) state.gates.set(tree, claimed.previous);
-  if (claimed.cached?.blockingVerdict) validateQuarantineGate(state.board, claimed.cached);
+  if (claimed.cached?.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, claimed.cached);
   const gate = claimed.cached ?? { ...await gateGroup(state, 'candidate'), proofRoot: state.batch.root, proofCommit: headCommit(state.batch.root) };
   if (!claimed.cached) await finishGate(tree, gate);
   await save(state, { state: gate.isGreen ? 'ready' : 'blocked' });

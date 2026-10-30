@@ -469,10 +469,22 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
   }
 
   const open = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased].filter((entry) => entry.status === 'open');
+  /** A returned repair belongs with its still-active last builder, not a different occupied holder. */
+  const reworkBuilder = item => {
+    const last = board.db.prepare("SELECT event_kind FROM event WHERE item_id=? AND event_kind IN ('reject','reopen','submit') ORDER BY event_id DESC LIMIT 1").get(item.item_id);
+    return last?.event_kind === 'reject' ? active.find(agent => agent.id === item.item_built_by && agent.lane === item.item_lane && canTake(agent.route, item.item_route)) : null;
+  };
+  const returned = new Set();
+
   // A lapsed claim is CLAIM_LAPSED's to report; only a live claim can rank behind free work.
   for (const claim of items.filter((item) => item.item_status === 'claimed' && Date.parse(item.item_lease_until ?? '') > at)) {
     const holder = agents.find((agent) => agent.id === claim.item_owner);
     if (!holder) continue;
+    const claimEvent = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim'").get(claim.item_id, holder.id)?.id;
+    const proved = claimEvent && board.db.prepare(`SELECT 1 FROM event WHERE event_id>? AND event_by=? AND
+      ((item_id=? AND event_kind='proof-run') OR (event_kind='gate-run' AND json_extract(event_detail,'$.run.proof.item')=?)) LIMIT 1`)
+      .get(claimEvent, holder.id, claim.item_id, claim.item_id);
+    if (proved) continue;
     // Model exactly the release printed below: legal child or returned claims remain occupied.
     const releasedClaims = [claim.item_id];
     const compare = buildOrder(board, { releasedClaims });
@@ -481,6 +493,21 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     const ahead = open.filter((entry) => freeToHolder(entry) && entry.lane === holder.lane && canTake(holder.route, entry.route))
       .map((entry) => raw.get(entry.id))
       .filter((item) => item && compare(item, claim) < 0)
+      .filter(item => {
+        const builder = reworkBuilder(item);
+        if (!builder) return true;
+        if (!returned.has(item.item_id)) {
+          returned.add(item.item_id);
+          findings.push(finding('IDLE_AGENT', item, {
+            subject: builder.id, key: `IDLE_AGENT:agent:${builder.id}:rework:${item.item_id}`, since: since(item.item_id), now,
+            title: 'returned work waits for its active builder',
+            why: `#${item.item_id} was rejected and its last builder ${builder.id} is active in ${builder.lane}`,
+            next: `resume #${item.item_id} with pullboard claim ${item.item_id}`, command: `pullboard claim ${item.item_id}`,
+            owner: { role: 'builder', who: builder.id }, detail: { lane: builder.lane, route: builder.route, item: item.item_id },
+          }));
+        }
+        return false;
+      })
       .sort(compare);
     if (!ahead.length) continue;
     const first = ahead[0];

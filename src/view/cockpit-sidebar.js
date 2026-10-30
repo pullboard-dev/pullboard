@@ -1,7 +1,14 @@
+/** Shorten a displayed project path; keep the original root for tooltips and native actions. */
+export function compactProjectPath(root) {
+  const path = String(root).replace(/^(?:\/Users\/[^/]+|\/home\/[^/]+|[A-Za-z]:[\\/]Users[\\/][^\\/]+)(?=[\\/]|$)/u, '~');
+  return path.length > 44 ? path.slice(0, 16) + '…' + path.slice(-27) : path;
+}
+
 /** Return the original sidebar section of the self-contained cockpit document. */
 export function cockpitSidebar(sections) {
   const { COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml } = sections;
-  return `/**
+  return `const compactProjectPath = ${compactProjectPath.toString()};
+/**
  * The sidebar: every project, the one shown, and what needs the person elsewhere. A switch draws only
  * this until the new board arrives, so the main column never mixes the old board with the new pick.
  */
@@ -27,7 +34,11 @@ function renderSide() {
     return '<section class="repo-group"><button class="proj project-pick' + (on ? ' on' : '') + '"' + (on ? ' aria-current="true"' : '') + ' data-root="' + esc(group.key) + '" type="button"><span class="pname">' + esc(group.name) + '</span><small>' + (needs ? '<span class="asks">' + needs + ' need you</span> · ' : '') + count + ' ' + (count === 1 ? 'repo' : 'repos') + '</small></button><div class="repos">' + group.repos.map(repoButton).join('') + '</div></section>';
   }).join('');
   const loose = readableProjects.filter((repo) => !groupedRoots.has(repo.root)).map(repoButton).join('');
-  const unreadable = unreadableProjects.length ? '<details class="unreadable-projects"><summary>' + unreadableProjects.length + ' ' + (unreadableProjects.length === 1 ? 'board can' : 'boards can') + ' no longer be found</summary><ul>' + unreadableProjects.map((repo) => '<li><b>' + esc(repo.name) + '</b> <code>' + esc(repo.root) + '</code></li>').join('') + '</ul>' + (snapshot || readOnly ? '' : '<button type="button" data-forget-unreadable>Forget all</button>') + '</details>' : '';
+  const canForget = !snapshot && !readOnly;
+  const unreadable = unreadableProjects.length ? '<details class="unreadable-projects"><summary>' + unreadableProjects.length + ' ' + (unreadableProjects.length === 1 ? 'board can' : 'boards can') + ' no longer be found</summary>'
+    + (canForget ? '<button type="button" class="ghost" data-forget-unreadable>Forget all</button>' : '') + '<ul>'
+    + unreadableProjects.map((repo) => '<li><span class="unreadable-copy" title="' + esc(repo.root) + '"><b>' + esc(repo.name) + '</b> <code>' + esc(compactProjectPath(repo.root)) + '</code></span>'
+      + (canForget ? '<button type="button" class="ghost" data-forget-unreadable="' + esc(repo.root) + '" aria-label="Forget ' + esc(repo.name) + '">Forget</button>' : '') + '</li>').join('') + '</ul></details>' : '';
   $('proj-list').innerHTML = grouped || loose || otherErrors || unreadable ? grouped + loose + otherErrors + unreadable : '<div class="empty">None yet.</div>';
   const p = data.project;
   const selectedGroup = data.groups.find((group) => group.key === view.root);
@@ -44,6 +55,8 @@ function renderSide() {
    * @param {string} text
    * @param {Map<string, string>} titles
    * @param {boolean|'in-place'} allowLinks
+   * @param {string} root Repository owning any linked references.
+   * @param {boolean} machineCodes Chip unquoted native codes only in Shouts.
    * @returns {string}
    */
   function linked(text, titles, allowLinks = true, root = view.root) { return String(text ?? '').split(/(#\\d+|\\b[0-9a-fA-F]{40}\\b|(?<![^\\s([{"'\`])[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?![^\\s)\\]}"'\`.,;:!?]))/).map((part, n, parts) => {
@@ -57,9 +70,11 @@ function renderSide() {
    * @param {string} text
    * @param {Map<string, string>} titles
    * @param {boolean|'in-place'} allowLinks
+   * @param {string} root Repository owning any linked references.
+   * @param {boolean} machineCodes Chip unquoted native codes only in Shouts.
    * @returns {string}
    */
-  function inline(text, titles, allowLinks = true, root = view.root) { return String(text ?? '').split(/(\`[^\`]*\`|(?:[^\\s:@()[\\]{}"'\`]+)?:\\d+(?:-\\d+)?@[0-9a-f]{0,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|#\\d+)/g).map((part, n, parts) => {
+  function inline(text, titles, allowLinks = true, root = view.root, machineCodes = false) { return String(text ?? '').split(/(\`[^\`]*\`|(?:[^\\s:@()[\\]{}"'\`]+)?:\\d+(?:-\\d+)?@[0-9a-f]{0,40}|${COMMAND_SOURCE}|--[\\w-]+|(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+|\\b[0-9a-fA-F]{7,40}\\b|\\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\\b|#\\d+)/g).map((part, n, parts) => {
     if (part.startsWith('\`') && part.endsWith('\`')) return codeChip(part.slice(1, -1));
     if (part.includes('@') && part.includes(':')) {
       const textBefore = parts.slice(0, n).join('');
@@ -79,6 +94,7 @@ function renderSide() {
     if (/^(?:${COMMAND_SOURCE}|--[\\w-]+)$/.test(part)) return codeChip(part, 'cmd');
     if (/^(?:\\/|\\.\\.?\\/|[\\w.-]+\\/)\\w[\\w./-]*\\.[A-Za-z0-9]+$/.test(part)) return codeChip(part, 'path');
     if (/^[0-9a-fA-F]{7,40}$/.test(part)) return codeChip(part, 'sha');
+    if (machineCodes && /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$/.test(part)) return codeChip(part, 'code');
     return linked(part, titles, allowLinks, root);
   }).join(''); }
   /** Render inline text and fenced or shell command blocks with escaped contents.
@@ -102,7 +118,7 @@ function renderSide() {
   }
 
   /** Preserve repo scope while linking references inside a prose list. */
-  function bullets(lines, titles, allowLinks, root = view.root) {
+  function bullets(lines, titles, allowLinks, root = view.root, machineCodes = false) {
     const roots = [], open = [];
     for (const line of lines) {
       const [, indent, text] = /^(\\s*)- (.*)$/.exec(line);
@@ -112,14 +128,15 @@ function renderSide() {
       open.push({ indent: indent.length, node });
     }
     const list = (nodes) => '<ul class="text-list">' + nodes.map((node) => '<li>'
-      + (wholeCommand(node.text) ? codeChip(node.text, 'cmd') : inline(node.text, titles, allowLinks, root))
+      + (wholeCommand(node.text) ? codeChip(node.text, 'cmd') : inline(node.text, titles, allowLinks, root, machineCodes))
       + (node.children.length ? list(node.children) : '') + '</li>').join('') + '</ul>';
     return list(roots);
   }
 
   // A line that is nothing but one path:lines@commit reference.
   const WHOLE_REF = /^\\s*[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}\\s*$/;
-  function rich(text, titles, allowLinks = true, root = view.root) {
+  /** Draw optional message-only machine-code chips without changing ordinary authored notes or item prose. */
+  function rich(text, titles, allowLinks = true, root = view.root, machineCodes = false) {
     const lines = String(text ?? '').split('\\n');
     const output = [];
     for (let i = 0; i < lines.length;) {
@@ -138,10 +155,10 @@ function renderSide() {
       } else if (/^\\s*- /.test(lines[i])) {
         const run = [];
         while (i < lines.length && /^\\s*- /.test(lines[i])) run.push(lines[i++]);
-        output.push({ list: bullets(run, titles, allowLinks, root) });
+        output.push({ list: bullets(run, titles, allowLinks, root, machineCodes) });
       } else {
         const block = [];
-        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ') && !/^\\s*- /.test(lines[i]) && !(allowLinks && WHOLE_REF.test(lines[i]))) block.push(inline(lines[i++], titles, allowLinks, root));
+        while (i < lines.length && !lines[i].startsWith('\`\`\`') && !lines[i].startsWith('$ ') && !/^\\s*- /.test(lines[i]) && !(allowLinks && WHOLE_REF.test(lines[i]))) block.push(inline(lines[i++], titles, allowLinks, root, machineCodes));
         output.push(block.join('<br>'));
       }
     }

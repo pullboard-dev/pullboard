@@ -1,4 +1,7 @@
+import { fileKnownMainAutofile } from './known-main-autofile.js';
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './known-main-owner-pattern-engine.js';
 import { validateQuarantineProofIds } from './quarantine.js';
+import { validateQuarantineVerdict } from './quarantine.js';
 import { committedItemAuthors } from './review-independence.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';
@@ -45,9 +48,12 @@ import { moveItem } from './board.js';
  * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, quarantineProofIds, mergeOnly: recordedCarry }) {
+export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry }) {
+  const autoOptions = { agentId, commit, tree, policyCommit, companion, autoMainReds, submissionProof: proof };
+  if (autoMainReds && board.executionEngineVersion === undefined) autoOptions.autoMainReds = board.enginePorts.sealKnownMainAutofile(board, id, autoOptions).autoMainReds;
   let recordedProof;
   let recordedSize;
+  let mainRedRepairs;
   if (companion) {
     const options = { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion };
     if (board.executionEngineVersion === undefined) sealItemPatchSubmit(board, id, options);
@@ -98,9 +104,14 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
           proofNoted: () => typeof mergeOnly?.resolutionDiff === 'string' ? null : new Refused('PROOF_REQUIRED', 'record the actual merge resolution diff'),
         } : {}),
         submissionProofValid: () => {
-          if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(proof, board.executionEngineVersion ?? ENGINE_VERSION);
+          if (autoMainReds) for (const receipt of autoOptions.autoMainReds.candidates ?? []) validateQuarantineVerdict(board, receipt);
+          const autoResult = autoMainReds ? fileKnownMainAutofile(board, id, autoOptions, listItems(board, { all: true })) : null;
+          const autoKnown = autoResult?.known;
+          if (autoResult) mainRedRepairs = autoResult.repairs;
+          if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(autoKnown ? { ...proof, knownMainFailures: autoKnown } : proof, board.executionEngineVersion ?? ENGINE_VERSION);
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_REWORKS_ENGINE && recordedProof?.knownMainFailures) {
-            requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id);
+            requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id,
+              (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE);
           }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;
@@ -124,4 +135,5 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
     recordSubmissionEvent(board, id, { agentId, commit, tree, policyCommit, note, recordedProof, infra,
       modern, gateGreen, companion, quarantineProofIds, carry, mergeOnly, recordedSize, engineVersion: board.executionEngineVersion ?? ENGINE_VERSION });
   });
+  if (autoMainReds) return { mainRedRepairs };
 }
