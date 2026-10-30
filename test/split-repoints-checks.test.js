@@ -45,7 +45,7 @@ test('a split train landing repoints open and claimed checks and reports submitt
     };
     const makeItem = (board, title) => store.addItem(board, { by: 'coordinator', lane: 'web', title,
       criterion: 'Keep the selected check valid after a test split.', check, route: 'mid',
-      brief: 'The selected check names the legacy test entry.' });
+      brief: `Files: web/legacy.test.js\nTest: ${title} keeps the selected check valid after a split.` });
     const prepared = onBoard(box, board => {
       const openBuilder = store.register(board, { lane: 'web', path: join(box.dir, 'open-builder') });
       const claimedBuilder = store.register(board, { lane: 'web', path: join(box.dir, 'claimed-builder') });
