@@ -57,10 +57,11 @@ test('Activity keeps shout words light, questions and item chips clear, and work
         const lines = row.coordinator ? 3 : 2;
         assert.equal(row.clamp, String(lines));
         const padding = row.coordinator ? 8 : 0;
-        assert.ok(row.height <= row.lineHeight * lines + padding + 2, 'visible words stay within the approved line clamp');
+        assert.ok(row.height <= row.lineHeight * lines + padding + 2, width + ': visible words stay within the approved line clamp: ' + JSON.stringify(row));
       }
       assert.equal(agent.background, 'rgba(0, 0, 0, 0)', 'agent words lose the grey box');
       assert.equal(agent.padding, '0px');
+      assert.equal(coordinator.padding, '4px 8px', 'coordinator padding follows the approved mockup');
       assert.notEqual(coordinator.background, agent.background, 'coordinator words retain a tint');
       assert.notEqual(coordinator.color, agent.color, 'agent words use the quieter text tone');
       assert.match(await chrome.stable('document.querySelector("#activity [data-activity-kind=claim]").textContent'), /started building.*#1/u);
