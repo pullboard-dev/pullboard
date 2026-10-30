@@ -26,6 +26,7 @@ function processIdentity(pid) {
   } catch { return null; /* Missing or unreadable census remains unknown until kill(0) proves absence. */ }
 }
 
+/** A missing, reused or zombie PID has no timer custody; unreadable state remains protected. */
 function timerState(owner) {
   try { process.kill(owner.pid, 0); }
   catch (error) { return error.code === 'ESRCH' ? 'gone' : 'unknown'; }
@@ -73,6 +74,7 @@ function timerFiles(common, create) {
   return { directory, guard, file: join(directory, 'timer.json') };
 }
 
+/** Read a bounded private timer registration without following a replacement link. */
 function readTimer(file) {
   let fd;
   try {
@@ -148,6 +150,7 @@ export async function scheduleWorktreeMaintenance(ctx) {
   });
 }
 
+/** Match the exact registered process and repository, independently of agent identity. */
 function owned(owner, token, identity, ctx) {
   return owner?.token === token && owner.pid === process.pid && owner.started === identity.started
     && owner.common === realpathSync(ctx.info.commonDir) && owner.root === realpathSync(ctx.info.root);
@@ -184,8 +187,13 @@ export async function runScheduledMaintenance(ctx, key) {
     return current;
   });
   if (!accepted) return { ran: false, reason: 'disabled-or-registration-changed' };
-  const child = spawn(process.execPath, [join(accepted.root, 'bin', 'pullboard.js'), 'maintenance'],
-    { cwd: accepted.root, env: workerEnvironment(accepted.root), stdio: ['ignore', 'inherit', 'inherit'] });
-  const code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', (status, signal) => resolve(signal ? 1 : status ?? 1)); });
-  return { ran: true, code };
+  try {
+    const child = spawn(process.execPath, [join(accepted.root, 'bin', 'pullboard.js'), 'maintenance'],
+      { cwd: accepted.root, env: workerEnvironment(accepted.root), stdio: ['ignore', 'inherit', 'inherit'] });
+    const code = await new Promise((resolve, reject) => { child.once('error', reject); child.once('close', (status, signal) => resolve(signal ? 1 : status ?? 1)); });
+    return { ran: true, code };
+  } finally {
+    // A failed sweep still gets its next ordinary interval; a successful child may already have registered it.
+    await scheduleWorktreeMaintenance(ctx);
+  }
 }

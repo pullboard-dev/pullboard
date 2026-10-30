@@ -239,7 +239,14 @@
   ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"],
   ["src/cli/seat-ports.js","apps/cli/src/shell/cli/seat-ports.js","rule"],
   ["src/cli/project-ports.js","apps/cli/src/shell/cli/project-ports.js","rule"],
-  ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"]
+  ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"],
+  ["src/worktree-maintenance.js","apps/cli/src/shell/worktree-maintenance.js","rule"],
+  ["src/worktree-maintenance-observation.js","apps/cli/src/shell/worktree-maintenance-observation.js","rule"],
+  ["src/worktree-maintenance-command.js","apps/cli/src/shell/worktree-maintenance-command.js","rule"],
+  ["src/worktree-maintenance-classify.js","apps/cli/src/shell/worktree-maintenance-classify.js","rule"],
+  ["src/commands/maintenance.js","apps/cli/src/shell/commands/maintenance.js","rule"],
+  ["src/command-docs/maintenance.json","apps/cli/src/shell/command-docs/maintenance.json","rule"],
+  ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",

@@ -9,6 +9,7 @@ const KEYS = ['enabled', 'every', 'grace', 'exclude'];
 /** Fresh defaults never enable a sweep or share a mutable exclusion list. */
 export function maintenanceDefaults() { return { enabled: false, every: '1h', grace: '1d', exclude: [] }; }
 
+/** Match the same bounded explicit units accepted by other timeout settings. */
 function duration(value) {
   const match = typeof value === 'string' && DURATION.exec(value);
   const ms = match ? Number(match[1]) * UNITS[match[2]] : NaN;

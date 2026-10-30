@@ -1,3 +1,4 @@
+import { maintenanceProtectedPath } from './worktree-maintenance-protection.js';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -95,6 +96,7 @@ export function classifyMaintenanceTree(tree, {
     inactiveSince, oldEnough,
   });
   if (!path || !main || !Number.isFinite(now)) return result('active', true, 'path-or-clock-unknown');
+  if (maintenanceProtectedPath(path)) return result('active', true, 'recovery-checkout');
 
   const matchingSeats = Array.isArray(seats) ? seats.filter(seat => absolutePath(seat.path ?? seat.agent_path) === path) : [];
   const agentIds = matchingSeats.map(seat => seat.agent_id).filter(id => typeof id === 'string' && id.length);
@@ -133,8 +135,9 @@ export function classifyMaintenanceTree(tree, {
   let inactiveSince = timestamp(previous?.inactiveSince);
   for (const seat of matchingSeats) {
     const presence = seat.presence;
-    if (presence === 'live' || presence === 'idle') return result('active', true, `seat-${presence}`, agentIds, itemIds);
-    if (presence !== 'gone' && presence !== null && presence !== undefined) return result('active', true, 'seat-presence-unknown', agentIds, itemIds);
+    const retiredAt = timestamp(seat.completedTakeoverAt);
+    if (retiredAt === null && (presence === 'live' || presence === 'idle')) return result('active', true, `seat-${presence}`, agentIds, itemIds);
+    if (retiredAt === null && presence !== 'gone' && presence !== null && presence !== undefined) return result('active', true, 'seat-presence-unknown', agentIds, itemIds);
     const activity = seatActivity(seat);
     if (activity === null) return result('active', true, 'seat-age-unknown', agentIds, itemIds);
     if (now < activity || now - activity < grace) return result('active', true, 'seat-recent-or-clock-rollback', agentIds, itemIds);
