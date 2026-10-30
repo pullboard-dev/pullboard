@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SPEC = '# Fixture\n\n## G · Goals\n- G1 [approved, must] The fixture item is complete. | gate: none\n';
@@ -169,7 +170,7 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
     const { repo, web } = project(box);
     const historical = submitted(box, repo, web, 'Historical accept');
     const common = box.git(repo, 'rev-parse', '--path-format=absolute', '--git-common-dir');
-    const board = store.openBoard(join(common, 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(common, 'pullboard', 'board.sqlite'));
     try {
       const item = store.getItem(board, historical.id);
       store.verify(board, historical.id, {
@@ -188,7 +189,7 @@ test('historical accepts read unknown in show and unchecked accepts are marked i
 
 /** Read the verdicts of one item from the repo's board, opening it read-only for the assertion. */
 function verdictsOf(repo, id) {
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.verdictsFor(board, id); }
   finally { store.closeBoard(board); }
 }

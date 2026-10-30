@@ -25,6 +25,7 @@ import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
@@ -481,7 +482,7 @@ test('next --verify can reserve a named submitted review and default to the lowe
     assert.equal(joined.code, 0, joined.err);
     return path;
   });
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let first;
   let second;
   try {
@@ -515,7 +516,7 @@ test('next --verify can reserve a named submitted review and default to the lowe
   assert.equal(result.review, true);
   assert.equal(result.held, false);
   assert.deepEqual(result.shared, []);
-  const reserved = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const reserved = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(store.getItem(reserved, second).item_review_by, 'api-1', 'the named item is reserved for the caller');
   } finally {

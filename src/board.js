@@ -176,11 +176,8 @@ export const REJECT_REASONS = [
 
 export { systemClock } from './board-read-open.js';
 
-export { openBoardForRead } from './native-board.js';
 
 export { openBoardReadOnly } from './board-read-open.js';
-/** Temporary public compatibility; #1624 removes this edge after native-root callers compose. */
-export { openBoard } from './native-board.js';
 
 export { readEventLogVersion } from './board-read-open.js';
 
@@ -372,10 +369,7 @@ export { laneHold, laneHolds } from './board-query.js';
 export { itemHold } from './board-query.js';
 
 export { rowDrafts } from './board-query.js';
-export { draftSpecRow, decideSpecRevisions, recordRowVerification } from './native-board.js';
 export { recordSpecApprovalBaseline, specApprovalBaseline, specApprovalBaselineExists } from './spec-approval-baseline.js';
-// Temporary milestone composition edge under #1776; remove this facade when its declared public contract expires.
-export { addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone } from './board-milestones.js';
 export { canonicalMilestoneTarget } from '../packages/state/src/core/milestone-target.js';
 
 export { rowDecisions } from './board-query.js';
@@ -460,8 +454,6 @@ export {
   recordNextIdle,
 };
 
-/** Temporary public API bridge counted by #1776; native operation importers use their actual owners. */
-export { advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, recordTrainLanding } from './native-board.js';
 
 /** Prepare a claim before any outer writer; capability binding stays native and connection-local. */
 export function prepareClaim(board, id, options) {

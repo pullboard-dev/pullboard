@@ -1,4 +1,6 @@
 import * as queueStore from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 /** Parent discovery reads the invoking runtime record and preserves unknown identity [V1,B3]. */
 import assert from 'node:assert/strict';
@@ -57,7 +59,7 @@ test('[V1,B3] parent discovery reads only matching own runtime metadata and agre
 test('[V1,B3] ordered parent registration survives replay and board export without local session records', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-parent-replay-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const boards = ['source', 'replica', 'imported'].map(name => store.openBoard(join(root, `${name}.sqlite`)));
+  const boards = ['source', 'replica', 'imported'].map(name => openBoard(join(root, `${name}.sqlite`)));
   t.after(() => boards.forEach(board => store.closeBoard(board)));
   const [source, replica, imported] = boards;
   const move = prepareEngineMove(source, 'register', [{ lane: 'web', path: '/fixture/child', parentDigest: parentSessionDigest('parent-P'), sessionDigest: parentSessionDigest('child-C') }]);
@@ -78,7 +80,7 @@ test('[V1,B3] an unknown-parent primary session and its child cannot review each
   const root = mkdtempSync(join(tmpdir(), 'pullboard-primary-parent-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q'], { cwd: root });
-  const board = store.openBoard(join(root, '.git', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const primary = store.register(board, { lane: 'web', path: root, family: 'fixture-builder', session: 'primary-R' });
   const child = store.register(board, { lane: 'web', path: join(root, 'child'), family: 'fixture-builder', parent: 'primary-R', session: 'child-C' });
@@ -90,8 +92,8 @@ test('[V1,B3] an unknown-parent primary session and its child cannot review each
     submitFixture(board, id, { agentId: author, commit: String(id).padStart(40, 'a'), tree: String(id).padStart(40, 'b') });
     assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'web', verify: true }).item, null);
     assert.throws(() => store.verify(board, id, { agentId: reviewer, decision: 'ACCEPT', policy: 'any' }), { code: 'SELF_SESSION_VERIFY' });
-    assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, reviewer).unreleased.some(item => item.id === id), false);
-    assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, outside).unreleased.some(item => item.id === id), true);
+    assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, reviewer).unreleased.some(item => item.id === id), false);
+    assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, outside).unreleased.some(item => item.id === id), true);
   }
   assert.throws(() => store.register(board, { lane: 'web', path: join(root, 'child'), parent: 'changed-parent' }), { code: 'PARENT_SESSION_CHANGED' });
 });

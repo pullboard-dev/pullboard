@@ -26,8 +26,9 @@ async function holdNamedWriter(box, file) {
   const releaseFile = join(box.dir, 'release-queue-board-writer');
   const source = `
     import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
     import { existsSync } from 'node:fs';
-    const board = store.openBoard(process.argv[1], undefined, {
+    const board = openBoard(process.argv[1], undefined, {
       writeContext: { command: 'private-lock-holder', seat: 'core-holder' },
     });
     try {

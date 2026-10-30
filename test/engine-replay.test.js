@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   appliedSequence,
   applyRelayMove,
@@ -52,7 +53,7 @@ test('an engine-8 NOT_VERIFIED merge refusal replays unchanged [V1,H3,H16]', asy
     by: 'coordinator', lane: 'web', title: 'Open replay fixture', criterion: 'the page renders',
   });
   assert.equal(legacyStore.getItem(source, item).item_status, 'open');
-  replica = store.openBoard(join(directory, 'replica.sqlite'));
+  replica = openBoard(join(directory, 'replica.sqlite'));
   importBoard(replica, legacyExchange.exportBoard(source));
   const before = exportBoard(replica);
   const move = legacyEngine.prepareEngineMove(source, 'merged', [item, {

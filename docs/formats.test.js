@@ -24,7 +24,7 @@ import { submitFixture } from '../test/board-submit-fixture.js';
 import { exerciseRejectedWorkFormat } from '../test/rejected-work-format-fixture.js';
 import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
-import { recordFlakeObservation } from '../src/board.js';
+import { recordFlakeObservation, openBoard, draftSpecRow } from '../src/native-board.js';
 import { recordNextIdle } from '../src/board.js';
 import { proposeSentinel } from '../src/sentinels.js';
 import { decideSentinel } from '../src/sentinels.js';
@@ -37,53 +37,7 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import {
-  ACCEPT_REASON,
-  actOnActivity,
-  recordActivityDelivery,
-  answerDecision,
-  addItem,
-  requestCompanion,
-  appendFact,
-  claim,
-  closeBoard,
-  editItem,
-  EVENT_LOG_VERSION,
-  ensureCoordinator,
-  escalate,
-  events,
-  holdLane,
-  holdItem,
-  merged,
-  recordLandingBatch,
-  recordLandingWaiver,
-  recordLandingFlake,
-  recordHealthFindings,
-  openBoard,
-  boardId,
-  setBoardMembers,
-  setRoutingRule,
-  passDecision,
-  PERSON,
-  recordAttempt,
-  recordUsage,
-  recordSharedUsage,
-  recordRowDecisions,
-  applyRowDecisions,
-  draftSpecRow,
-  refreeze,
-  register,
-  release,
-  releaseLane,
-  releaseItemHold,
-  reopen,
-  reserveReview,
-  SCHEMA_VERSION,
-  setLaneLead,
-  shout,
-  verify,
-  withdraw,
-} from '../src/board.js';
+import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, setRoutingRule, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../src/board.js';
 import {
   ID_RE,
   readSignoffs,

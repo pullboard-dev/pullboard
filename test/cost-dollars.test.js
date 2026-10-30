@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { publicUsage, sumUsage } from '../src/cost-read.js';
 import { localUsage, usageDollars, validateCostPrices } from '../src/cost-prices.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -38,7 +39,7 @@ test('local prices compute two models by hand while an unpriced model retains to
     document(box.run(box.web, 'release', String(id), '--no-next', '--json'));
   }
   // @pullboard-board-file journey: real CLI seats share this isolated board; supported recordUsage supplies synthetic numeric input.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let before;
   try {
     ids.forEach((item, index) => store.recordUsage(board, { agentId: agent, item, revision: 100, observedAt: 1,
@@ -78,7 +79,7 @@ test('local prices compute two models by hand while an unpriced model retains to
   assert.equal(JSON.parse(invalid.out).error.code, 'BAD_MACHINE_SETTINGS');
   writeFileSync(file, JSON.stringify({ ...previous, costPrices: prices }));
   // @pullboard-board-file journey: pricing reads must not publish local rates, dollars, or accounting events.
-  const after = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.deepEqual(store.events(after), before);
     assert.equal(JSON.stringify(store.events(after)).includes('costUSD'), false);

@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
@@ -23,14 +24,14 @@ function coordinatorRepo(box, name) {
 
 /** Read the ordered coordinator events from the fixture's real SQLite board. */
 function coordinatorEvents(repo) {
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.events(board).filter(event => event.event_by === 'coordinator'); }
   finally { store.closeBoard(board); }
 }
 
 /** Read the coordinator model from the fixture's real SQLite board. */
 function coordinatorModel(repo) {
-  const board = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try { return store.agentAt(board, repo)?.agent_model ?? null; }
   finally { store.closeBoard(board); }
 }
@@ -394,7 +395,7 @@ test('model names label CLI actors without changing IDs, messages, or the contex
     const selectedJson = box.run(second.path, 'next', '--build', '--json');
     assert.ok(JSON.parse(selectedJson.out).reasons.includes(`#${id} is held by coordinator: Keep web-1 literal in item reason`));
 
-    const board = store.openBoard(join(repo.repo, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(repo.repo, '.git', 'pullboard', 'board.sqlite'));
     try { board.db.prepare('DELETE FROM board_meta WHERE meta_key = ?').run('agent_model:web-2'); }
     finally { store.closeBoard(board); }
     const legacy = box.run(second.path, 'whoami', '--json');

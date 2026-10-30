@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 
 const e2e = createE2eHelpers();
@@ -110,7 +111,7 @@ test('an unclaimed configuration commit stays typed and carries no item metadata
 /** Build B5's real two-live-claim state with native lifecycle moves, not direct database edits. */
 function twoClaims() {
   const box = claimed();
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const agentId = store.agentAt(board, box.web).agent_id;
     const reviewer = store.register(board, { lane: 'web', path: join(box.dir, 'metadata-reviewer') });

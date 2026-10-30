@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   appliedSequence,
   applyEngineMove,
@@ -24,7 +25,7 @@ function fixture(t, { sameHolder = false, expiredPeer = false } = {}) {
   let board;
   t.after(() => { if (board) store.closeBoard(board); helpers.cleanup(); });
   const box = helpers.project('true');
-  board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   // This is a board-clock boundary control, not an actual physical lease or elapsed-time claim.
   let at = Date.parse('2026-10-24T00:00:00Z');
   board.clock = { now: () => new Date(at) };
@@ -60,7 +61,7 @@ test('historical brief edits stay silent while current overlap notices survive b
   assert.deepEqual(notices.map(row => row.shout_to).toSorted(), [box.left, box.right].toSorted());
   edit(box, 'Files: web/y.js, web/x.js');
   assert.equal(store.allShouts(box.board).length, 2, 'another edit with the same file set does not resend');
-  const copy = store.openBoard(':memory:');
+  const copy = openBoard(':memory:');
   t.after(() => store.closeBoard(copy));
   importBoard(copy, exportBoard(box.board));
   assert.deepEqual(store.allShouts(copy), notices, 'snapshot transport retains the actual delivered messages');

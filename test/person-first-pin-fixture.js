@@ -17,6 +17,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { presenceAttestation } from '../src/person-presence.js';
 import {
   relayClientFixture,
@@ -28,7 +29,7 @@ const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 /** A local first-row insertion cannot supply the missing person/relay trust anchor on an unpaired signed board. */
 export function firstUnpairedAuthorityInsertion(t) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-person-first-pin-'));
-  const board = store.openBoard(join(directory, 'board.sqlite'));
+  const board = openBoard(join(directory, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value;
   nativeSetPersonSigning(board, { agentId: 'coordinator', signed: true });
@@ -66,7 +67,7 @@ export async function firstPinNeedsBuiltInRelay(t) {
   const env = { ...box.env, PULLBOARD_TRUSTED_RELAY_ORIGIN: box.origin,
     NODE_OPTIONS: [box.env.NODE_OPTIONS, `--import=data:text/javascript,${encodeURIComponent(planted)}`].filter(Boolean).join(' ') };
   const pinned = () => {
-    const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
     try { return board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='person_authority_local'").get(); }
     finally { store.closeBoard(board); }
   };

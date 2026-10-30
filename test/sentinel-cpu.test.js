@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { runFixtureGit } from './fixture-child.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { CPU_SENTINEL_ENGINE } from '../src/cpu-sentinel-engine.js';
@@ -19,7 +20,7 @@ test('the sentinel names an agent process past 20 CPU minutes once [A6,H16]', as
   mkdirSync(root); mkdirSync(work);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
   const file = join(directory, 'board.sqlite');
-  let board = store.openBoard(file);
+  let board = openBoard(file);
   store.register(board, { lane: 'coordinator', path: root });
   const seat = store.register(board, { lane: 'core', path: work });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true }); });
@@ -92,7 +93,7 @@ test('the sentinel names an agent process past 20 CPU minutes once [A6,H16]', as
   }), { code: 'ENGINE_VERSION' }, 'an older empty scan cannot erase pending CPU delivery');
   assert.deepEqual(store.events(board), pendingEvents, 'refusal preserves the complete delivery queue and history');
   delete board.executionEngineVersion;
-  store.closeBoard(board); board = store.openBoard(file);
+  store.closeBoard(board); board = openBoard(file);
   cappedScan(); cappedScan();
   for (const pid of pids) assert.equal(notices().filter(row => row.shout_text.includes(`pid ${pid} `)).length, 1, `PID ${pid} is named exactly once after restart`);
   assert.equal(notices().length - beforeCap, pids.length);

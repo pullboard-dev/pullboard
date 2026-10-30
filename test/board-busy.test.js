@@ -109,8 +109,9 @@ async function holdNamedWriter(box, file) {
   const releaseFile = join(box.dir, 'release-named-board-writer');
   const source = `
     import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
     import { existsSync } from 'node:fs';
-    const board = store.openBoard(process.argv[1], undefined, {
+    const board = openBoard(process.argv[1], undefined, {
       writeContext: { command: 'private-lock-holder', seat: 'coordinator' },
     });
     try {
@@ -199,7 +200,8 @@ test('a nested rolled-back writer logs once and leaves no live advisory record [
   const before = snapshot(file);
   const source = `
     import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    const board = store.openBoard(process.argv[1], undefined, { writeContext: { command: 'private-rollback', seat: 'coordinator' } });
+    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'private-rollback', seat: 'coordinator' } });
     try {
       store.atomic(board, () => store.atomic(board, () => {
         // budget: a genuine held write must cross the product's two-second diagnostic threshold.
@@ -411,11 +413,12 @@ test('native import observes committed and rolled-back write ownership without c
       import { readFileSync } from 'node:fs';
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
       import { exportBoard, importBoard } from ${JSON.stringify(new URL('../src/exchange.js', import.meta.url).href)};
       import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
       const file = process.argv[1];
       const document = JSON.parse(readFileSync(process.argv[2], 'utf8'));
-      const board = store.openBoard(file, undefined, { writeContext: { command: 'private-import', seat: 'coordinator' } });
+      const board = openBoard(file, undefined, { writeContext: { command: 'private-import', seat: 'coordinator' } });
       const before = exportBoard(board);
       let held = false;
       let contenderCode = null;
@@ -569,10 +572,11 @@ test('a standalone native attempt and nested rollback each observe only their ac
       import assert from 'node:assert/strict';
       import { DatabaseSync } from 'node:sqlite';
       import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
       import { exportBoard } from ${JSON.stringify(new URL('../src/exchange.js', import.meta.url).href)};
       import { boardWriteHolderText } from ${JSON.stringify(new URL('../src/board-write-lock.js', import.meta.url).href)};
       const file = process.argv[1];
-      const board = store.openBoard(file, undefined, { writeContext: { command: 'private-attempt', seat: 'coordinator' } });
+      const board = openBoard(file, undefined, { writeContext: { command: 'private-attempt', seat: 'coordinator' } });
       const before = exportBoard(board);
       let held = false;
       let contenderCode = null;

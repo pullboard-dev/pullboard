@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Seat identity survives heartbeat-based presence changes on a real SQLite board [B3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -32,7 +32,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
   let at = observedAt - 2_400_000;
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: both connections belong to this private native fixture.
-  const board = store.openBoard(file, { now: () => new Date(at) });
+  const board = openBoard(file, { now: () => new Date(at) });
   const imported = store.register(board, { lane: 'web', path: join(box.dir, 'display-only') });
   at = observedAt;
   const local = store.agentById(board, 'web-1');
@@ -61,7 +61,7 @@ test('a locked presence sidecar retains cached timestamps and next reports its b
 test('presence fallback does not hide a corrupt private sidecar [B3,C7]', t => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-corrupt-'));
   // @pullboard-board-file persistence: only this disposable board and its own sidecar are changed.
-  const board = store.openBoard(join(root, 'board.sqlite'));
+  const board = openBoard(join(root, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   const id = store.register(board, { lane: 'core', path: join(root, 'seat') });
   assert.equal(store.agentById(board, id).presence, 'live');
@@ -81,7 +81,7 @@ test('next and status count only live seats as capacity [B3,N2,C7]', async t => 
   const now = Date.now();
   let at = now - 2_400_000;
   // @pullboard-board-file journey: production status opens this private native board and presence sidecar.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => store.closeBoard(board));
   const gone = store.register(board, { lane: 'web', path: join(box.dir, 'gone-seat') });
   const remote = store.register(board, { lane: 'web', path: join(box.dir, 'display-only-seat') });
@@ -173,7 +173,7 @@ test('live-only advice never changes authenticated setting or claim replay [B3,N
 test('a seat presence moves live to idle to gone from its heartbeat [B3]', (t) => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-'));
   let at = Date.parse('2026-10-24T12:00:00Z');
-  const board = store.openBoard(join(root, 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(root, 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   const id = store.register(board, { lane: 'core', path: join(root, 'seat') });
   const identity = store.agentById(board, id);
@@ -194,8 +194,8 @@ test('local heartbeats revive a seat without changing exported history or a remo
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-local-'));
   let at = Date.parse('2026-10-24T12:00:00Z');
   const clock = { now: () => new Date(at) };
-  const board = store.openBoard(join(root, 'board.sqlite'), clock);
-  const remote = store.openBoard(join(root, 'remote.sqlite'), clock);
+  const board = openBoard(join(root, 'board.sqlite'), clock);
+  const remote = openBoard(join(root, 'remote.sqlite'), clock);
   t.after(() => { store.closeBoard(board); store.closeBoard(remote); rmSync(root, { recursive: true, force: true }); });
   const id = store.register(board, { lane: 'core', path: join(root, 'seat') });
   const before = exportBoard(board);
@@ -221,8 +221,8 @@ test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', 
   const box = helpers.project('true');
   let at = Date.now();
   const clock = { now: () => new Date(at) };
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
-  const remote = store.openBoard(join(box.dir, 'relay-reader.sqlite'), clock);
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
+  const remote = openBoard(join(box.dir, 'relay-reader.sqlite'), clock);
   t.after(() => { store.closeBoard(board); store.closeBoard(remote); });
   const id = store.register(board, { lane: 'core', path: join(box.dir, 'presence-seat') });
   const history = exportBoard(board);
@@ -259,7 +259,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
   local.exec('DETACH DATABASE native');
   local.prepare('UPDATE heartbeat SET at=? WHERE seat=?').run('2000-01-01T00:00:00.000Z', JSON.stringify([identity, 'web-1']));
   local.exec('CREATE TABLE writes(n INTEGER NOT NULL); INSERT INTO writes VALUES(0); CREATE TRIGGER count_heartbeat AFTER UPDATE ON heartbeat BEGIN UPDATE writes SET n=n+1; END');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   const events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;
   board.db.exec('BEGIN IMMEDIATE');
   const status = box.run(box.web, 'status', '--json');
@@ -291,8 +291,8 @@ test('an imported board never inherits a same-path coordinator heartbeat [B3,A7]
   const { exportBoard, importBoard } = await import('../src/exchange.js');
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-identity-'));
   const clock = { now: () => new Date('2026-10-24T12:00:00Z') };
-  const local = store.openBoard(join(root, 'local.sqlite'), clock);
-  const foreign = store.openBoard(join(root, 'foreign.sqlite'), clock);
+  const local = openBoard(join(root, 'local.sqlite'), clock);
+  const foreign = openBoard(join(root, 'foreign.sqlite'), clock);
   t.after(() => { store.closeBoard(local); store.closeBoard(foreign); rmSync(root, { recursive: true, force: true }); });
   store.register(local, { lane: 'coordinator', path: join(root, 'old-coordinator') });
   store.register(foreign, { lane: 'coordinator', path: join(root, 'foreign-coordinator') });
@@ -315,7 +315,7 @@ test('plain status counts large seat history and hides gone seats behind --all [
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   let at = Date.now() - 40 * 60_000;
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
   const gone = [];
   for (let index = 0; index < 100; index += 1) gone.push(store.register(board, { lane: 'api', path: join(box.dir, `history-${index}`) }));
   at = Date.now() - 11 * 60_000;
@@ -349,7 +349,7 @@ test('a local heartbeat persists once per minute and refreshes after clock rollb
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-throttle-'));
   let at = Date.parse('2026-10-24T12:00:00.000Z');
   const file = join(root, 'board.sqlite');
-  const board = store.openBoard(file, { now: () => new Date(at) });
+  const board = openBoard(file, { now: () => new Date(at) });
   const id = store.register(board, { lane: 'core', path: join(root, 'seat') });
   const local = new DatabaseSync(`${file}.presence.sqlite`);
   t.after(() => { local.close(); store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
@@ -388,7 +388,7 @@ test('read commands never refresh presence while committed writes and hooks do [
   const withdrawn = await box.run(box.repo, 'withdraw', String(id), 'Private read-only presence control', '--json');
   assert.equal(withdrawn.code, 0, withdrawn.err + withdrawn.out);
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   const local = new DatabaseSync(`${file}.presence.sqlite`);
   t.after(() => { local.close(); store.closeBoard(board); });
   assert.equal(store.getItem(board, id).item_status, 'withdrawn', 'the real native move leaves no claimable item');
@@ -510,7 +510,7 @@ test('checkpoint fingerprints retain hidden-seat heartbeats without treating clo
   const box = helpers.project('true');
   let at = Date.now();
   // @pullboard-board-file journey: real checkpoint inputs include this private board's presence sidecar.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(at) });
   t.after(() => store.closeBoard(board));
   heartbeatSeat(board, 'coordinator');
   const before = relayPresentation(box.repo, { board, observedAt: at }, RELAY_PRESENTATION_PORTS);

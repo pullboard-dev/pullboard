@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { loadConfig } from '../src/config.js';
 import { healthReport } from '../packages/health/index.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
@@ -25,7 +26,7 @@ after(helpers.cleanup);
 /** Read one private board without retaining a lock while a real CLI child runs. */
 function onBoard(box, action, clock) {
   // @pullboard-board-file journey: observe the real CLI child's persisted submission and verdict without retaining its lock.
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
@@ -208,7 +209,7 @@ test('an unattended reject return replays across different local heartbeats [B13
     [{ agentId: 'coordinator', ...observation }], { id: 'unattended-reject-fixture', actor: 'coordinator' }), clock);
   const copies = ['live', 'gone'].map(name => {
     // @pullboard-board-file persistence: replay one sealed return into separate databases with different private heartbeat sidecars.
-    const board = store.openBoard(join(box.dir, `return-${name}.sqlite`), clock);
+    const board = openBoard(join(box.dir, `return-${name}.sqlite`), clock);
     importBoard(board, document);
     t.after(() => store.closeBoard(board));
     return board;

@@ -7,7 +7,8 @@ import { hostname, loadavg, tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
-import { openBoard, reserveReview } from '../src/board.js';
+import { reserveReview } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { followBoard } from '../packages/shouts/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 

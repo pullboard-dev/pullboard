@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
@@ -42,7 +43,7 @@ function fixture(t) {
   writeFileSync(settings, JSON.stringify({ view: { background: false }, relay: { offerAtInit: false } }));
   const clock = { offset: 0, now() { return new Date(Date.now() + this.offset); } };
   const file = join(root, '.git/pullboard/board.sqlite');
-  const board = store.openBoard(file, clock);
+  const board = openBoard(file, clock);
   store.register(board, { lane: 'coordinator', path: root });
   // Seats join as a test first uses them, so no test carries an idle seat it never meant to have.
   const builders = [];

@@ -1,4 +1,6 @@
 import * as queueStore from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { roadmap, addMilestone, editMilestoneItems, orderMilestoneItems } from '../src/board-milestones.js';
 import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 import { crossLaneFixture } from './e2e-helpers.js';
 import { HOUR } from './next-order-fixture.js';
@@ -42,13 +44,13 @@ test('next offers the item on the longest remaining path first [N2,B13,N20]', t 
   const outsideMiddle = add('Outside middle', [outside]);
   const outsideEnd = add('Outside end', [outsideMiddle]);
   const outsideLast = add('Outside last', [outsideEnd]);
-  store.addMilestone(board, { agentId: 'coordinator', name: 'later', items: [outside, outsideMiddle, outsideEnd, outsideLast] });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, wide, ...wideChildren, longest, middle, end] });
+  addMilestone(board, { agentId: 'coordinator', name: 'later', items: [outside, outsideMiddle, outsideEnd, outsideLast] });
+  addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, wide, ...wideChildren, longest, middle, end] });
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
     reason: 'Synthetic focused DAG scheduling fixture.', window: { items: 14 } });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, wide,
     'ruling 29931: higher (unblocks + 1) / effort wins before the longer path inside the focus');
-  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, wide, 'queue and next share the primary score order');
+  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, wide, 'queue and next share the primary score order');
 });
 
 /** The sharpened primary score leaves a real equal-score tie for the critical path to resolve. */
@@ -63,12 +65,12 @@ test('equal primary scores use the longer remaining path before age [N2,B13,N20]
   const long = add('Newer chain with the same two descendants');
   const middle = add('Chain middle', [long]);
   const end = add('Chain end', [middle]);
-  store.addMilestone(board, { agentId: 'coordinator', name: 'equal-score focus', items: [wide, ...children, long, middle, end] });
+  addMilestone(board, { agentId: 'coordinator', name: 'equal-score focus', items: [wide, ...children, long, middle, end] });
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'equal-score focus',
     reason: 'Equal-score critical-path tie fixture under ruling 29931.', window: { items: 6 } });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, long,
     'both roots score 3/3; only the remaining path distinguishes them before their age');
-  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, long, 'the queue resolves the same equal-score tie');
+  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, long, 'the queue resolves the same equal-score tie');
 });
 
 test('a file overlap keeps the hard collision skip under the sharpened precedence [N2,N20]', t => {
@@ -80,8 +82,8 @@ test('a file overlap keeps the hard collision skip under the sharpened precedenc
   const colliding = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Ready overlapping work', brief: 'Files: src/shared.js' });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item, null,
     'ruling 29931 retains the hard collision skip even when the colliding item is the only ready work');
-  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, null, 'queue and next both retain the collision block');
-  assert.ok(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).releases.flatMap(release => release.items).concat(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).unreleased)
+  assert.equal(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).first.strong, null, 'queue and next both retain the collision block');
+  assert.ok(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).releases.flatMap(release => release.items).concat(workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }).unreleased)
     .find(item => item.id === colliding).waits.length > 0, 'the blocked offer still explains its live collision');
   const free = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Equally short independent work', brief: 'Files: src/free.js' });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, free,
@@ -94,7 +96,7 @@ test('historical review paths replay while modern reviews use age [C7,N2,B13,H16
   const independent = submitted(board, builder, 'Older independent submission', 'strong', 1);
   const root = submitted(board, builder, 'Newer submission unlocks follow-up work', 'strong', 2);
   const follower = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Follow-up waits for review', after: [root] });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, root, follower] });
+  addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, root, follower] });
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
     reason: 'Synthetic review critical-chain fixture.', window: { items: 3 } });
   board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
@@ -108,12 +110,12 @@ test('historical review paths replay while modern reviews use age [C7,N2,B13,H16
 test('recorded review selection keeps its historical path priority on replay [N2,H16]', t => {
   for (const engine of [CRITICAL_PATH_ENGINE - 1, REVIEW_ROUTING_ENGINE - 1, ENGINE_VERSION]) {
     const { board, builder, reviewer } = boardFixture();
-    const replica = store.openBoard(':memory:');
+    const replica = openBoard(':memory:');
     t.after(() => { store.closeBoard(board); store.closeBoard(replica); });
     const independent = submitted(board, builder, 'Older independent review', 'strong', 1);
     const root = submitted(board, builder, 'Review that unlocks a longer path', 'strong', 2);
     const follower = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Blocked follow-up', after: [root] });
-    store.addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, root, follower] });
+    addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, root, follower] });
     setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
       reason: 'Synthetic old/current selection replay fixture.', window: { items: 3 } });
     importBoard(replica, exportBoard(board));
@@ -141,8 +143,8 @@ test('historical reviewers keep earliest-milestone submissions first [B16,H16]',
   const laterStrong = submitted(board, builder, 'later milestone strong', 'strong', 1);
   const earliestMid = submitted(board, builder, 'earliest milestone mid', 'mid', 2);
   const unlistedStrong = submitted(board, builder, 'unlisted strong', 'strong', 3);
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.8.4', items: [earliestMid] });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.8.5', items: [laterStrong] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.8.4', items: [earliestMid] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.8.5', items: [laterStrong] });
 
   const first = store.reserveNextReview(board, { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' });
   assert.equal(first.item.item_id, earliestMid, 'roadmap position precedes the stronger later release');
@@ -157,10 +159,10 @@ test('historical reviewers keep earliest-milestone submissions first [B16,H16]',
   assert.equal(held.item.item_id, unlistedStrong, 'a reviewer still resumes its own held review');
 
   const sameMilestoneStrong = submitted(board, builder, 'same milestone strong', 'strong', 4);
-  store.editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [sameMilestoneStrong] });
+  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [sameMilestoneStrong] });
   const thirdReviewer = store.register(board, { lane: 'review', path: '/reviewer-3', route: 'strong' });
   const newerStrong = submitted(board, builder, 'newer same milestone strong', 'strong', 5);
-  store.editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [newerStrong] });
+  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [newerStrong] });
   const sameRelease = store.nextFor(board, { agentId: thirdReviewer, lane: 'review', verify: true });
   assert.equal(sameRelease.item.item_id, sameMilestoneStrong, 'route-tier then oldest order remains within one milestone');
 });
@@ -174,16 +176,16 @@ test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
     by: 'coordinator', lane: 'core', title: 'earliest milestone mid', route: 'mid', ...MID_ITEM_DETAILS,
   });
   const unlistedStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'unlisted strong', route: 'strong' });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.8.4', items: [earliestMid] });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.8.5', items: [laterStrong] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.8.4', items: [earliestMid] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.8.5', items: [laterStrong] });
 
   const first = store.nextFor(board, { agentId: builder, lane: 'core' });
   assert.equal(first.item.item_id, earliestMid, 'roadmap position precedes the stronger later release');
 
   const sameMilestoneStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'same milestone strong', route: 'strong' });
-  store.editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [sameMilestoneStrong] });
+  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [sameMilestoneStrong] });
   const newerStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'newer same milestone strong', route: 'strong' });
-  store.editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [newerStrong] });
+  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [newerStrong] });
   const sameRelease = store.nextFor(board, { agentId: builder, lane: 'core' });
   assert.equal(sameRelease.item.item_id, sameMilestoneStrong, 'route-tier then oldest order remains within one milestone');
 
@@ -200,8 +202,8 @@ test('recorded reserve-next moves retain their versioned ordering [B16,H16]', (t
     t.after(() => store.closeBoard(board));
     const laterStrong = submitted(board, builder, 'later strong', 'strong', 1);
     const earliestMid = submitted(board, builder, 'earliest mid', 'mid', 2);
-    store.addMilestone(board, { agentId: 'coordinator', name: 'first', items: [earliestMid] });
-    store.addMilestone(board, { agentId: 'coordinator', name: 'later', items: [laterStrong] });
+    addMilestone(board, { agentId: 'coordinator', name: 'first', items: [earliestMid] });
+    addMilestone(board, { agentId: 'coordinator', name: 'later', items: [laterStrong] });
     const move = prepareEngineMove(board, 'reserveNextReview', [{ agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
     assert.equal(move.engine, ENGINE_VERSION, 'new moves carry the current engine');
     const outcome = applyEngineMove(board, { ...move, engine: version }, { sequence: 1, at: new Date().toISOString() });
@@ -337,7 +339,7 @@ test('next names the seat to open for a lane the agent lacks [N2,B13]', (t) => {
   assert.deepEqual(box.binding(peer.root), peerBinding);
   const later = box.add('web', 'Later mid web work', 'mid');
   box.milestone('later', later);
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(store.getItem(board, tooStrong).item_status, 'open', 'the new mid seat never claims above its route');
     assert.equal(store.getItem(board, later).item_status, 'open');
@@ -436,19 +438,19 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   const oldest = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Oldest ordinary item', route: 'strong' });
   const middle = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Middle ordinary item', route: 'strong' });
   const ranked = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Newest ranked item', route: 'strong' });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'release', items: [ranked, middle, oldest] });
+  addMilestone(board, { agentId: 'coordinator', name: 'release', items: [ranked, middle, oldest] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'a never-ranked board retains its old oldest-first tie-break');
-  store.orderMilestoneItems(board, 'release', { agentId: 'coordinator', items: [ranked] });
+  orderMilestoneItems(board, 'release', { agentId: 'coordinator', items: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, ranked);
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, ranked, 'an automatic rework tie-break does not overtake an explicit coordinator rank');
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
   assert.equal(store.nextFor(replica, { agentId: builder, lane: 'core' }).item.item_id, ranked, 'a board snapshot retains the explicit rank');
   const ordered = [oldest, middle, ranked].map(id => store.getItem(board, id)).sort(store.buildOrder(board));
   assert.deepEqual(ordered.map(item => item.item_id), [ranked, oldest, middle], 'unranked items retain age order after explicit ranks');
-  store.editMilestoneItems(board, 'release', { agentId: 'coordinator', remove: [ranked] });
-  store.editMilestoneItems(board, 'release', { agentId: 'coordinator', add: [ranked] });
+  editMilestoneItems(board, 'release', { agentId: 'coordinator', remove: [ranked] });
+  editMilestoneItems(board, 'release', { agentId: 'coordinator', add: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'removing and readding an item does not retain a ghost rank');
 });
 
@@ -456,13 +458,13 @@ test('milestone rank moves replay identically and preserve historical next selec
   assert.equal(MILESTONE_RANK_ENGINE, 34, 'milestone ranking retains its allocated minimum after later writer upgrades');
   for (const version of new Set([8, 24, 31, 32, 33, MILESTONE_RANK_ENGINE, ENGINE_VERSION])) {
     const source = boardFixture();
-    const replica = store.openBoard(':memory:');
+    const replica = openBoard(':memory:');
     const fixtures = [source, { ...source, board: replica }];
     t.after(() => fixtures.forEach(({ board }) => store.closeBoard(board)));
     for (const { board, builder } of [source]) {
       submitted(board, builder, 'oldest submitted work', 'strong', 1);
       submitted(board, builder, 'newer ranked work', 'strong', 2);
-      store.addMilestone(board, { agentId: 'coordinator', name: 'release', items: [1, 2] });
+      addMilestone(board, { agentId: 'coordinator', name: 'release', items: [1, 2] });
     }
     importBoard(replica, exportBoard(source.board));
     const move = prepareEngineMove(fixtures[0].board, 'orderMilestoneItems', ['release', { agentId: fixtures[0].builder, items: [2, 1] }]);
@@ -489,14 +491,14 @@ test('milestone order refuses invalid membership and unauthenticated ranking [N2
   t.after(() => store.closeBoard(board));
   const one = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Listed', route: 'strong' });
   const other = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Elsewhere', route: 'strong' });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'release', items: [one] });
+  addMilestone(board, { agentId: 'coordinator', name: 'release', items: [one] });
   const original = JSON.stringify(store.milestones(board));
   for (const items of [[], [one, one], [other], ['missing#1']]) {
-    assert.throws(() => store.orderMilestoneItems(board, 'release', { agentId: builder, items }), { code: 'MILESTONE_ITEMS' });
+    assert.throws(() => orderMilestoneItems(board, 'release', { agentId: builder, items }), { code: 'MILESTONE_ITEMS' });
     assert.equal(JSON.stringify(store.milestones(board)), original);
   }
   for (const agentId of ['person', 'unknown-seat']) {
-    assert.throws(() => store.orderMilestoneItems(board, 'release', { agentId, items: [one] }), { code: 'NO_AGENT' });
+    assert.throws(() => orderMilestoneItems(board, 'release', { agentId, items: [one] }), { code: 'NO_AGENT' });
   }
   const forged = prepareEngineMove(board, 'orderMilestoneItems', ['release', { agentId: 'coordinator', items: [one] }]);
   const refusal = applyRelayMove(board, forged, { sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: builder } });
@@ -515,7 +517,7 @@ test('next in a fresh unbound checkout of a seated session claims nothing and na
   const error = JSON.parse(next.out).error;
   assert.match(error.message, new RegExp(`${web.agent}.*${box.web.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'), 'it names the seat and its checkout');
   assert.match(`${error.message} ${error.next ?? ''}`, /pullboard join <lane>|pullboard join web/u, 'and the join command for this checkout');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.equal(store.getItem(board, item).item_status, 'open', 'nothing was claimed'); }
   finally { store.closeBoard(board); }
 });
@@ -554,7 +556,7 @@ test('next --verify skips an item whose builder seat shares the reviewer\'s sess
   box.milestone('first', own);
   box.milestone('later', outside);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim(), tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     for (const [id, builder] of [[own, mine.agent], [outside, other.agent]]) {
       store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze: FREEZE });
@@ -563,7 +565,7 @@ test('next --verify skips an item whose builder seat shares the reviewer\'s sess
   } finally { store.closeBoard(board); }
   const next = box.json(box.runAs(box.session, reviewer.root, 'next', '--verify', '--json'));
   assert.equal(next.item.item_id, outside, 'the review goes to an item this session did not build');
-  const after = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.equal(store.getItem(after, own).item_review_by, null, 'the session\'s own item is never reserved'); }
   finally { store.closeBoard(after); }
 });
@@ -686,7 +688,7 @@ test('the historical queue names the same noncolliding work next can serve [N2,N
   const c = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Can proceed now',
     brief: 'Files: src/free.js' });
   store.claim(board, a, { agentId: busy, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
-  const queue = workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility });
+  const queue = workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility });
   assert.equal(queue.first.strong, c, 'queue does not advertise a file collision as available');
   assert.equal(queue.first.strong, store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id);
   assert.ok(queue.unreleased.find(item => item.id === b).waits.some(reason => reason.includes(`#${a}`)
@@ -707,7 +709,7 @@ test("a claimed item whose files grow into another claimed item's files names th
   box.json(box.runAs('growth-right-session', right.root, 'claim', String(b), '--json'));
   /** Read only this fixture's public board state and close before the next native command. */
   function onBoard(work) {
-    const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try { return work(board); } finally { store.closeBoard(board); }
   }
   /** The coordinator's normal edit is allowed even when it creates a collision. */
@@ -770,7 +772,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   store.verify(home.board, returned, { agentId: home.reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
     clause: returnedItem.item_title, note: 'Synthetic rejected lifecycle record; no gate execution claimed.', head: returnedItem.item_commit,
     digest: returnedItem.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 15 });
-  store.addMilestone(home.board, { agentId: 'coordinator', name: 'first', items: [older] });
+  addMilestone(home.board, { agentId: 'coordinator', name: 'first', items: [older] });
   assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, older, 'off retains release order before rework');
   assert.equal(store.lineSettings(home.board).reviewsFirst, false, 'review-versus-build selection is a separate control');
   home.order(true);
@@ -798,7 +800,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   assert.throws(() => store.reserveReview(scarce.board, limited, { agentId: sibling, leaseMs: HOUR, policy: 'any' }),
     error => error.code === 'SELF_SESSION_VERIFY', 'the count cannot borrow eligibility from a seat refused by the real review guard');
   const snapshot = exportBoard(scarce.board);
-  const replay = store.openBoard(join(scarce.root, 'replica.sqlite'));
+  const replay = openBoard(join(scarce.root, 'replica.sqlite'));
   t.after(() => store.closeBoard(replay));
   importBoard(replay, snapshot);
   assert.equal(store.nextFor(replay, { agentId: scarce.reviewer, lane: 'review', verify: true }).item.item_id, abundant,
@@ -814,8 +816,8 @@ test('line order sends a send-back home first and gives the scarcest review firs
   const dependency = store.addItem(ranked.board, { by: 'coordinator', lane: 'core', title: 'another item waits for this' });
   store.addItem(ranked.board, { by: 'coordinator', lane: 'core', title: 'blocked follower', after: [dependency] });
   const ready = store.addItem(ranked.board, { by: 'coordinator', lane: 'core', title: 'ready bar', criterion: 'a real condition is observable', check: 'true', brief: 'Files: src/ready.js\nTest: the condition is checked' });
-  store.addMilestone(ranked.board, { agentId: 'coordinator', name: 'early', items: [ordinary, dependency, ready] });
-  store.orderMilestoneItems(ranked.board, 'early', { agentId: 'coordinator', items: [ordinary, ready, dependency] });
+  addMilestone(ranked.board, { agentId: 'coordinator', name: 'early', items: [ordinary, dependency, ready] });
+  orderMilestoneItems(ranked.board, 'early', { agentId: 'coordinator', items: [ordinary, ready, dependency] });
   assert.equal(store.nextFor(ranked.board, { agentId: ranked.builder, lane: 'core' }).item.item_id, ordinary, 'off preserves coordinator rank');
   ranked.order(true);
   assert.equal(store.nextFor(ranked.board, { agentId: ranked.builder, lane: 'core' }).item.item_id, dependency, 'being waited on precedes ready-bar and coordinator rank');
@@ -894,7 +896,7 @@ test('next offers the focus milestone first and explains a claimable outside fal
   assert.equal(fallback.code, 0, `${fallback.out}\n${fallback.err}`);
   const focusLines = fallback.out.split('\n').filter(line => /focus.*0\.9\.3|0\.9\.3.*focus/iu.test(line));
   assert.equal(focusLines.length, 1, 'one line explains why next leaves the named focus');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(store.getItem(board, outside).item_owner, owner.agent, 'a peer-held focus does not starve claimable outside work');
     assert.equal(store.getItem(board, focused).item_owner, peer.agent, 'focus never steals another seat’s claim');
@@ -914,8 +916,8 @@ test('historical focus reviews retain reservations and modern reviews use age [C
   t.after(() => store.closeBoard(board));
   const outside = submitted(board, builder, 'Outside earlier roadmap review', 'strong', 1);
   const focused = submitted(board, builder, 'Named focus review', 'strong', 2);
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.9.4', items: [outside] });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.9.3', items: [focused] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.9.4', items: [outside] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.9.3', items: [focused] });
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true, policy: 'any' }).item.item_id,
     outside, 'unset review selection keeps the roadmap order');
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: '0.9.3',
@@ -946,7 +948,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   const focused = box.add('web', 'Focused build');
   box.milestone('0.9.4', outside);
   box.milestone('0.9.3', focused);
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     for (const id of [outside, ...moreOutside]) {
       store.claim(board, id, { agentId: author.agent, lane: 'api', leaseMs: HOUR, freeze: FREEZE });
@@ -968,9 +970,9 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   assert.equal(review.review, true);
   box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--reason', 'BLOCKED', '--note', 'Continue the private focus ordering control', '--no-next', '--json'));
   const focusedReview = box.add('api', 'Focused review before focused build');
-  const updated = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const updated = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    store.editMilestoneItems(updated, '0.9.3', { agentId: 'coordinator', add: [focusedReview] });
+    editMilestoneItems(updated, '0.9.3', { agentId: 'coordinator', add: [focusedReview] });
     store.claim(updated, focusedReview, { agentId: author.agent, lane: 'api', leaseMs: HOUR, freeze: FREEZE });
     submitFixture(updated, focusedReview, { agentId: author.agent, commit: box.git(box.repo, 'rev-parse', 'HEAD'),
       tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') });
@@ -990,15 +992,15 @@ test('focus milestone policy survives export while old reserve-next retains its 
   t.after(() => store.closeBoard(board));
   const outside = submitted(board, builder, 'Old roadmap review', 'strong', 1);
   const focused = submitted(board, builder, 'New focus review', 'strong', 2);
-  store.addMilestone(board, { agentId: 'coordinator', name: 'outside', items: [outside] });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [focused] });
+  addMilestone(board, { agentId: 'coordinator', name: 'outside', items: [outside] });
+  addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [focused] });
   const change = { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
     reason: 'Recorded focus for replay', window: { activeReviews: 2 } };
   const settingMove = prepareEngineMove(board, 'setLineSetting', [change]);
   assert.throws(() => applyEngineMove(board, { ...settingMove, engine: FOCUS_MILESTONE_ENGINE - 1 },
     { sequence: 1, at: '2026-10-24T00:00:00Z' }), { code: 'RELAY_MOVE' }, 'older engines cannot claim to write the new policy');
   setLineSetting(board, change);
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
   assert.equal(store.lineSettings(replica).focusMilestone, 'focus', 'the focus policy travels with export');

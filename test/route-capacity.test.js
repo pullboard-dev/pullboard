@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
@@ -31,7 +32,7 @@ function fixture(t) {
   runFixtureGit(['commit', '-q', '-m', 'test: private route fixture'], { cwd: root, env });
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
   const clock = { at: Date.parse('2026-10-25T00:00:00Z'), now() { return new Date(this.at); } };
-  board = store.openBoard(file, clock);
+  board = openBoard(file, clock);
   store.register(board, { lane: 'coordinator', path: root });
   const config = loadConfig(root);
   /** Publish only the real observer's captured snapshot, with ordinary revision validation. */
