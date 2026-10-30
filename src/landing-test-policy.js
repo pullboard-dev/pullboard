@@ -14,14 +14,17 @@ import { formatCollectionReport } from './gate-run-receipt.js';
 export function landingWaiverProjection(text) {
   try {
     const parsed = JSON.parse(text ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter(entry => ['file', 'name'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test) : [];
+    return Array.isArray(parsed) ? parsed.filter(entry => ['file', 'name', 'case'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test
+      && (entry.kind !== 'case' || typeof entry.file === 'string' && entry.file && !entry.file.startsWith('/')
+        && !/[\\\r\n\0]/u.test(entry.file) && entry.file.split('/').every(part => part && part !== '.' && part !== '..'))) : [];
   } catch { return []; }
 }
 
 /** True when a projected waiver covers this failing test by its file or by its exact name. */
 export function landingFailureWaived(waivers, file, name) {
   const path = typeof file === 'string' ? relative(process.cwd(), file.startsWith('file:') ? fileURLToPath(file) : file) : null;
-  return waivers.some(waiver => waiver.kind === 'file' ? waiver.test === path : waiver.test === name);
+  return waivers.some(waiver => waiver.kind === 'case' ? waiver.file === path && waiver.test === name
+    : waiver.kind === 'file' ? waiver.test === path : waiver.test === name);
 }
 
 /** Publish observed file completion only after the runner has drained reporters and owned processes. */

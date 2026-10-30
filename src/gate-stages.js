@@ -65,6 +65,9 @@ function ordinaryStages(command) {
     if (char === '`' || (char === '$' && next === '(')) return null;
     if (quote === '"') { add(char); if (char === '"') quote = null; continue; }
     if (char === "'" || char === '"') { quote = char; add(char); continue; }
+    // Compound shell grammar is opaque here: splitting its separators would change execution.
+    if ((at === 0 || /[\s;&|]/u.test(source[at - 1]))
+      && /^(?:if|then|elif|else|fi|for|while|until|do|done|case|esac|select|function)(?=$|[\s;&|])/u.test(source.slice(at))) return null;
     if (char === '$' && next === '{') { variable += 1; add('${'); at += 1; continue; }
     if (char === '}' && variable) { variable -= 1; add(char); continue; }
     if ('(){}#'.includes(char) || (char === '<' && (next === '<' || next === '('))) return null;

@@ -1,3 +1,4 @@
+import { validateQuarantineGate } from './quarantine.js';
 import { flakeLedger as nativeFlakeLedger } from './flakes.js';
 /** Coordinator landing parallel step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
@@ -31,18 +32,22 @@ import { inlineDeferredGuards } from './landing-step-trunk.js';
 import { landOnTrunk } from './landing-step-trunk.js';
 
 /** Read a completed speculative result from its immutable raw log, without another execution. */
-function savedCandidateResult(candidate) {
+function savedCandidateResult(state, candidate) {
   if (!candidate.complete) return null;
   if (candidate.error) throw new Refused(candidate.error.code, candidate.error.message);
   const gate = candidate.gate;
+  if (gate?.blockingVerdict) {
+    try { validateQuarantineGate(state.board, gate); } catch { return null; }
+  }
   return { batch: candidate.snapshot, gate: gate ? { ...gate, output: readFileSync(gate.logPath, 'utf8') } : null };
 }
 
 /** Keep only small replayable gate metadata; the complete output remains in its immutable log. */
 function candidateGateRecord(gate) {
   if (!gate) return null;
-  const { tree, isGreen, failures, accounted, complete, requiresGreen, logPath, flakeDiagnostics, timedOut, proofRoot, proofCommit, affectedGate } = gate;
+  const { tree, isGreen, failures, accounted, complete, requiresGreen, logPath, flakeDiagnostics, timedOut, proofRoot, proofCommit, affectedGate, blockingVerdict, exitCode, quarantineFailures, receiptId, proofReceiptId } = gate;
   return { tree, isGreen, failures, accounted, complete, requiresGreen, logPath, affectedGate,
+    ...(blockingVerdict ? { blockingVerdict, exitCode, quarantineFailures, receiptId, proofReceiptId } : {}),
     ...(proofRoot ? { proofRoot, proofCommit } : {}),
     ...(flakeDiagnostics ? { flakeDiagnostics } : {}), ...(timedOut ? { timedOut } : {}) };
 }
@@ -82,7 +87,7 @@ async function parallelPrefixes(state, entries) {
     return updated;
   });
   const settled = await Promise.allSettled(descriptors.map(async descriptor => {
-    const previous = savedCandidateResult(descriptor);
+    const previous = savedCandidateResult(state, descriptor);
     if (previous) return previous;
     const key = descriptor.key;
     /** Virtual child batches append deltas to their one canonical parent, never overwrite it. */
@@ -91,7 +96,10 @@ async function parallelPrefixes(state, entries) {
         const [tree, affectedGate] = args;
         const recorded = state.gates.get(tree);
         if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
-        const cached = recorded?.affectedGate === affectedGate ? recorded : null;
+        let cached = recorded?.affectedGate === affectedGate ? recorded : null;
+        if (cached?.blockingVerdict) {
+          try { validateQuarantineGate(state.board, cached); } catch { cached = null; }
+        }
         if (cached && (completeGate(cached) || !coveredFailures(state, cached))) return { cached };
         const prior = claims.get(tree);
         if (prior) return { cached: await prior.promise };

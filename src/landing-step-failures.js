@@ -52,7 +52,7 @@ export function coveredFailures(state, gate) {
  * than summary counts or the package manager's own failure report means something else failed,
  * so the stage is unaccounted and null is returned [B3,R3].
  */
-export function tapFailures(output, root, { outcomeRunId = null } = {}) {
+export function tapFailures(output, root, { outcomeRunId = null, nativeLeaves = false } = {}) {
   const lines = output.split('\n');
   // Check every diagnostic position, including records before TAP's final count.
   const outcomes = readTestOutcomes(output, outcomeRunId);
@@ -69,6 +69,7 @@ export function tapFailures(output, root, { outcomeRunId = null } = {}) {
     if (yaml !== null) {
       if (line === `${yaml}...`) { yaml = null; continue; }
       const location = /^\s*location:\s*['"]?(.+?):\d+(?::\d+)?['"]?\s*$/u.exec(line);
+      if (active && nativeLeaves && outcomes && /^\s*failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)) active.aggregate = true;
       if (active && location) {
         const path = location[1];
         const file = isAbsolute(path) ? relative(root, path) : path.replace(/^\.\//u, '');
@@ -92,10 +93,16 @@ export function tapFailures(output, root, { outcomeRunId = null } = {}) {
     const stopped = /^# cancelled (\d+)\s*$/u.exec(line);
     if (stopped) cancelled = Number(stopped[1]);
   }
-  if (yaml !== null || !version || summary === null || summary < 1 || summary !== failures.length || cancelled !== 0) return null;
+  // Native outcomes authenticate actual test bodies. A describe/parent aggregate adds no independent failed body.
+  const leaves = nativeLeaves && outcomes ? failures.filter(row => !(row.aggregate && row.file
+    && outcomes.some(outcome => outcome.file === row.file)
+    && !outcomes.some(outcome => outcome.file === row.file && outcome.name === row.name))) : failures;
+  if (yaml !== null || !version || summary === null || summary < 1 || summary !== leaves.length || cancelled !== 0) return null;
+  if (nativeLeaves && outcomes && (outcomes.filter(row => !row.passed && !row.skipped).length !== leaves.length
+    || leaves.some(row => !outcomes.some(outcome => outcome.file === row.file && outcome.name === row.name && !outcome.passed && !outcome.skipped)))) return null;
   // Only the controller's authenticated component may name a native diagnostic invocation.
   const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line) || nativeLines.has(line));
-  return trailer ? failures : null;
+  return trailer ? nativeLeaves ? leaves.map(({ name, file }) => ({ name, file })) : failures : null;
 }
 
 /**
@@ -105,7 +112,7 @@ export function tapFailures(output, root, { outcomeRunId = null } = {}) {
  * that left no status or failed without its own complete TAP account. Waivers only ever subtract
  * these [B3,R3].
  */
-export function accountedFailures(gate, root) {
+export function accountedFailures(gate, root, { nativeLeaves = false } = {}) {
   if (gate.isGreen || !Array.isArray(gate.stages) || !gate.stages.length) return null;
   // Only the authenticated worker checkout may relocate remote failure locations.
   const executionRoot = gate.executionRoot ?? root;
@@ -114,13 +121,13 @@ export function accountedFailures(gate, root) {
     if (!Number.isInteger(stage.status)) return null;
     if (stage.pipeline !== undefined) {
       // In a pipeline each failing component must explain itself; a forwarded account credits no one else [B3,R3].
-      const own = pipelineFailures(stage.pipeline, executionRoot);
+      const own = pipelineFailures(stage.pipeline, executionRoot, { nativeLeaves });
       if (!own || (stage.status === 0) !== (own.length === 0)) return null;
       failures.push(...own);
       continue;
     }
     if (stage.status === 0) continue;
-    const own = stage.status === 1 ? tapFailures(stage.output ?? '', executionRoot, { outcomeRunId: stage.testOutcomeRunId }) : null;
+    const own = stage.status === 1 ? tapFailures(stage.output ?? '', executionRoot, { outcomeRunId: stage.testOutcomeRunId, nativeLeaves }) : null;
     if (!own) return null;
     failures.push(...own);
   }
@@ -133,11 +140,11 @@ export function accountedFailures(gate, root) {
  * own output. A setup step that fails beside a consumer printing a waived test's TAP has no account
  * of its own, so it is an independent red no waiver names, and it voids the run.
  */
-function pipelineFailures(components, root) {
+function pipelineFailures(components, root, { nativeLeaves }) {
   if (!Array.isArray(components) || components.some((entry) => !Number.isInteger(entry?.status))) return null;
   const failures = [];
   for (const { status, output, testOutcomeRunId } of components.filter((entry) => entry.status !== 0)) {
-    const own = status === 1 ? tapFailures(output ?? '', root, { outcomeRunId: testOutcomeRunId }) : null;
+    const own = status === 1 ? tapFailures(output ?? '', root, { outcomeRunId: testOutcomeRunId, nativeLeaves }) : null;
     if (!own) return null;
     failures.push(...own);
   }
