@@ -1113,6 +1113,17 @@ function earlier(repo, at, write) {
   }
 }
 
+/** Visit a real conversation using its native controls before checking complete messages. */
+async function openShoutConversation(chrome, key = 'none') {
+  if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) {
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+  }
+  const selector = '#feed [data-shout-thread="' + key + '"]';
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`);
+  await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+  await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
+}
+
 /** Put the page in a width and a colour scheme, and wait for the shouts to lay out again. */
 async function shoutsAt(chrome, width, scheme) {
   await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -1335,4 +1346,4 @@ async function searchFor(chrome, words, timeoutMs) {
   }
 }
 
-export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };
+export { BIN, scratch, chooseFilter, tapTarget, SPEC, machine, project, build, sendBack, fetchReason, fetchView, fetchLive, fetchPage, startView, styleOf, element, ageNodes, target, settle, storage, daysOn, openPage, projectRows, productEntries, timelineRows, agentEntries, drawing, textBoxes, meet, accept, needEntries, itemRow, boardId, boardOf, assertObservationAges, withoutObservationAges, assertObservationsEqual, shoutNameText, chromeExecutable, browserPause, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome, watchSpecDecisionWait, earlier, openShoutConversation, shoutsAt, press, tapTouch, pickProject, travel, pressedInto, settled, roadmapRow, showing, readRoadmap, openRoadmapParts, tabBar, serveFolder, proofShot, searchFor, allowLiveHold, holdLive };

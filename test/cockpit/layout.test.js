@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { SPEC, machine, project, build, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
+import { openShoutConversation, SPEC, machine, project, build, fetchLive, fetchPage, startView, styleOf, element, settle, storage, openPage, accept, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, tabBar } from './fixture.js';
 
 
 /** Send a fixture back using the exact frozen clause, keeping native rejection guards active. */
@@ -309,7 +309,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
       chips: [...document.querySelectorAll('[data-filter-kind="state"]')].map((choice) => [choice.dataset.state, choice.querySelector('b').textContent, choice.getAttribute('aria-checked') === 'true']),
       lanes: [...document.querySelectorAll('[data-filter-kind="lane"]')].map((choice) => choice.querySelector('.filter-option-label').textContent + (choice.querySelector('b') ? ' · ' + choice.querySelector('b').textContent : '')), pick: box(document.querySelector('#filter-toggle')),
       seg: box(document.querySelector('.items-view-switch')), go: box(document.querySelector('#new-item')), toolbar: box(document.querySelector('.toolbar')),
-      waiting: (() => { const fold = document.querySelector('.asks-toggle[data-fold="waiting"]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#decisions .shout').length }; })(),
+      waiting: (() => { const fold = document.querySelector('[data-shout-filter=questions]'); return fold && { text: fold.textContent.replace(/\\s+/g, ' ').trim(), open: fold.getAttribute('aria-pressed'), height: fold.getBoundingClientRect().height, offset: fold.getBoundingClientRect().top - fold.closest('.shouts-card').getBoundingClientRect().top, cards: document.querySelectorAll('#feed .shout .mark.ask').length }; })(),
       idle: (() => { const fold = document.querySelector('#agents .fold-line[data-fold="idle"]'); return fold && { text: words(fold), open: fold.getAttribute('aria-expanded'), height: fold.getBoundingClientRect().height, pills: document.querySelectorAll('#agents .agent-pill').length }; })(),
       agentRows: [...document.querySelectorAll('#agents .agent-card')].filter((card) => card.getBoundingClientRect().height > 0).length,
     };
@@ -342,10 +342,10 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
         // On a phone the bar stays out of the way while the board is live.
         if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);
-        // The bar: a frosted strip along the foot, the counts the tabs used to carry, and a part only where there is one.
+        // The bar: an opaque surface along the foot, the counts the tabs used to carry, and a part only where there is one.
         if (width === 1280) {
           assert.ok(Math.abs(r.barBox.bottom - 900) <= 1 && r.barBox.left === 0 && Math.abs(r.barBox.width - r.page.width) <= 1, `${at}: the bar runs along the foot: ${JSON.stringify(r.barBox)}`);
-          assert.ok(r.barTint[3] > 0 && r.barTint[3] < 1 && /blur/.test(r.barBlur), `${at}: the bar is see-through and frosted: ${JSON.stringify([r.barTint, r.barBlur])}`);
+          assert.equal(r.barTint[3], 1, `${at}: the status bar uses the approved opaque surface: ${JSON.stringify(r.barTint)}`);
           assert.deepEqual(r.bar.map((p) => p.to).filter((to) => !to.startsWith('item:') && to !== 'activity'), ['items', 'agents', 'verify', 'gated', 'release'], `${at}: items, agents, to verify, gated and the release, then the last event: ${JSON.stringify(r.bar)}`);
           assert.deepEqual([part(r, 'items').text, part(r, 'verify').text, part(r, 'gated').text, part(r, 'release').text], ['6 items', '1 to verify', '2 gated', '1.0: first cut 0/3'], `${at}: what the parts say`);
         }
@@ -454,22 +454,23 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await click('[data-tab=items]');
     await filter('state', 'active');
 
-    // Shouts: asks waiting on others and idle agents each fold to one line, closed until opened.
+    // Shouts: the native Questions segment opens the question conversation; idle agents retain their fold.
     await click('[data-tab=shouts]');
-    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('.asks-toggle[data-fold=\"waiting\"]')");
+    await chrome.waitFor("!document.querySelector('[data-pane=shouts]').hidden && !!document.querySelector('[data-shout-filter=questions]')");
     r = await read();
     const shut = r.waiting.offset;
-    assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['1 ask waiting ▾', 'false', 0], `the ask waiting on others folds to a toggle on the composer line: ${JSON.stringify(r.waiting)}`);
+    assert.deepEqual([r.waiting.text, r.waiting.open, r.waiting.cards], ['Questions1', 'false', 0], `the question count stays on the composer line before a conversation is opened: ${JSON.stringify(r.waiting)}`);
     assert.ok(/^\d+ idle show$/.test(r.idle.text) && r.idle.open === 'false' && r.idle.pills === 0, `the idle agents fold to a line: ${JSON.stringify(r.idle)}`);
-    await click('.asks-toggle[data-fold="waiting"]');
+    await click('[data-shout-filter=questions]');
+    await openShoutConversation(chrome);
     await click('#agents .fold-line[data-fold="idle"]');
     r = await read();
-    assert.deepEqual([r.waiting.open, r.waiting.cards, r.idle.open, r.idle.pills > 0], ['true', 1, 'true', true], 'each opens on a click');
+    assert.deepEqual([r.waiting.open, r.waiting.cards, r.idle.open, r.idle.pills > 0], ['true', 1, 'true', true], 'the Questions segment reveals the real question and the idle fold opens on a click');
     assert.equal(r.waiting.offset, shut, 'and the line stays where it was as its cards open under it');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 375');
     r = await read();
-    assert.ok(r.waiting.height >= 44 && r.idle.height >= 44, 'each fold line is a 44px target');
+    assert.ok(r.waiting.height >= 44 && r.idle.height >= 44, 'the Questions segment and idle fold are 44px targets');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor('innerWidth === 1280');
 
@@ -482,10 +483,13 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     await chrome.waitFor("!document.querySelector('#status-unread')?.hidden && document.querySelector('#status-unread')?.textContent === '1 unread'", 15_000); // budget: hang ceiling for the unread bar after the native shout; no throughput claim.
     await click('#status-unread');
     await chrome.waitFor("view.tab === 'shouts' && document.querySelector('#status-unread')?.hidden === true");
+    await openShoutConversation(chrome);
     const feed = async () => JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#feed .shout .text')].map((text) => text.textContent))"));
     assert.deepEqual([await feed(), await chrome.stable("document.querySelector('#feed .feed-bar span').textContent")], [['web-1 is on it'], '1 unread show all'],
       `1 unread opens that one shout, not the ${alreadyRead} already read`);
     await click('#feed [data-unread]');
+    await click('[data-shout-filter=all]');
+    await openShoutConversation(chrome);
     assert.equal((await feed()).length, alreadyRead + 1, 'show all brings back the shouts already read');
 
     // Cut off from the board, the bar turns red and says why. Stopping the view drops the board's event stream for real.
@@ -696,6 +700,7 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
         await tab('items');
         const items = await audit();
         await tab('shouts');
+        await openShoutConversation(chrome, 'item:2');
         const shouts = await audit();
         for (const r of [items, shouts]) assert.ok(r.page.scroll <= r.page.width, `${at}: no sideways scroll`);
         if (width === 375) {

@@ -324,7 +324,7 @@ test('a decision waits in needs-you until the view answers it [B21, B26, N27]', 
     page.run("openTab('shouts'); render();");
     page.run("view.shoutThread = 'none'; render();");
     const passedMessage = conversationMessage(page, 42);
-    assert.match(passedMessage, /<b class="who" title="[^"]*">coordinator<\/b><span class="to">→ you<\/span>/,
+    assert.match(passedMessage, /<b class="who"[^>]* title="[^"]*">coordinator<\/b><span class="to">→ you<\/span>/,
       'the passed native call retains its coordinator author and person recipient');
     assert.match(passedMessage, new RegExp('<div class="text">' + passed.replace('\n', '<br>') + '</div>'),
       'the conversation keeps the complete passed question and coordinator note');

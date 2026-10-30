@@ -6,7 +6,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { tapTarget, SPEC, machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, allowLiveHold, holdLive } from './fixture.js';
+import { openShoutConversation, tapTarget, SPEC, machine, project, startView, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, allowLiveHold, holdLive } from './fixture.js';
 import { assertFirstStateDelay } from './stable.js';
 
 /** Stage real chip clones and retain their node identities to diagnose a redraw between browser evaluations. */
@@ -970,6 +970,7 @@ test('a finished lane hold does not scroll after the next press is aimed [N26,C7
     await chrome.send('Page.navigate', { url: view.link.href });
     await holdLive(chrome, 'data?.project?.items.some(item => item.title === "Hold control")');
     await press(chrome, 'document.querySelector("[data-tab=shouts]")');
+    await openShoutConversation(chrome);
     await chrome.stable(`(() => {
       const originalRefresh = refresh;
       window.__lateHold = { ready: false, aimed: false, completed: false };
