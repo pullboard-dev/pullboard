@@ -64,6 +64,12 @@ export async function run(io, { first, second, rest, values }) {
       ? await ordered(ctx, board, 'openHandoff', [{ agentId: me.id }])
       : await ordered(ctx, board, 'takeHandoff', [{ agentId: me.id, item: idArg(values.take) }]);
     const current = itemHandoff(board, handoff.item);
+    if (values.take !== undefined && current?.incoming === me.id && current.takenAt && ctx.config.worktreeMaintenance?.enabled === true) {
+      const outgoing = store.agentById(board, current.outgoing);
+      const { cleanupMaintenanceLifecycle } = await import('../worktree-maintenance-command.js');
+      await cleanupMaintenanceLifecycle(ctx, me.id, { path: outgoing.agent_path, agent: current.outgoing,
+        item: current.item, retired: true, completedTakeover: true });
+    }
     print(io, current, card(board, current.outgoing), store.itemThread(board, handoff.item).filter(row => row.type === 'fact'));
     return 0;
   });

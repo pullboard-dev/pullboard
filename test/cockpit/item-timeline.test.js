@@ -61,6 +61,8 @@ test('the native item timeline reads as sentences with clamped notes and working
     const href = new URL(view.link.href); href.pathname = '/items/1';
     chrome = await openSnapshotChrome(executable, href.href, profile);
     await chrome.waitFor('view.item === 1 && !!document.querySelector("#detail .tl .tl-body")');
+    await press(chrome, "document.querySelector('#detail [data-item-panel-tab=history]')");
+    await chrome.waitFor("!document.querySelector('#detail [data-item-panel-panel=history]').hidden");
     for (const [width, mobile] of [[1440, false], [375, true]]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile });
       const result = await chrome.stable(`(() => {
