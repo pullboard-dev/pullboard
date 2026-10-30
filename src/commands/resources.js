@@ -4,6 +4,7 @@ import {
   listResources,
   memoryVerdict,
   readMachineMemory,
+  runnerDeadlineLine,
   runnerResourceStatus,
 } from '../../packages/resources/index.js';
 import {
