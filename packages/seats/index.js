@@ -6,6 +6,7 @@ export {
   isLaneEscalation,
   laneAnswerFloor,
   laneMessageFloor,
+  flowWindowBounds,
 } from './core.js';
 export {
   work,
@@ -143,9 +144,6 @@ export {
   standingProblem,
   effectiveAgentParent,
 } from './src/core/seat-review-read.js';
-export {
-  flowWindowBounds,
-} from './src/core/flow-window-bounds.js';
 export {
   parseDependency,
   validateNativeDependencies,

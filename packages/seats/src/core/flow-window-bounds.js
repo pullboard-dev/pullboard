@@ -1,5 +1,5 @@
 /** Validated flow-window time bounds, shared by seat capacity and the stats cell above it [R1,R2,C7]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 const MINUTE = 60_000;
 

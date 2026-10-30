@@ -7,3 +7,6 @@ export {
   laneAnswerFloor,
   laneMessageFloor,
 } from './src/core/lane-lead.js';
+export {
+  flowWindowBounds,
+} from './src/core/flow-window-bounds.js';
