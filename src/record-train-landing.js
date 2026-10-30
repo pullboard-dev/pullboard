@@ -3,6 +3,7 @@ import { validateQuarantineVerdict } from './quarantine.js';
 import { atomic } from './board.js';
 import { finishLandingBatch } from './board.js';
 import { getItem } from './board.js';
+import { editItem } from './board.js';
 import { landingBatches } from './board.js';
 import { recordLandingBatch } from './board.js';
 import { COORDINATOR } from './config.js';
@@ -14,6 +15,7 @@ import { receiptBody } from './gate-run-receipt.js';
 import { checkTrainLandingReceipt } from './train-landing-receipt.js';
 import { TRAIN_LANDING_ENGINE } from './train-landing-engine.js';
 import { validateLandingBatch } from './submit-invariants.js';
+import { applyTrainCheckRepointPlan } from './train-check-repoints.js';
 
 /** Refuse a conflicting envelope rather than treating a reused native receipt as another landing. */
 function changedBatch() {
@@ -36,6 +38,15 @@ function sameLanding(previous, batch, receipt) {
     && JSON.stringify(itemIdentity(previous.items)) === JSON.stringify(itemIdentity(batch.items));
 }
 
+/** Apply only the sealed, source-bound plan under this landing transaction's board write lock. */
+function recordCheckRepoints(board, batch, plan, previous, landingFence) {
+  if (plan === undefined || plan === null) return null;
+  if (plan.base !== batch.base || plan.tip !== batch.tip) throw changedBatch();
+  const report = applyTrainCheckRepointPlan(board, plan, editItem);
+  return recordLandingBatch(board, { agentId: COORDINATOR,
+    batch: { ...batch, checkRepointReport: report }, revision: previous?.revision ?? 0, landingFence });
+}
+
 /**
  * Bind one real native receipt to an envelope, then reuse the canonical review/fence/merged/main-moved writer.
  * Origin private-byte binding happens before writes; replay relies on receipt bytes sealed by prepareEngineMove.
@@ -43,7 +54,7 @@ function sameLanding(previous, batch, receipt) {
  * @param {{agentId:string,batch:object,receipt:object,landingFence?:object}} request sealed native landing
  * @returns {object} the terminal native landed batch
  */
-export function recordTrainLanding(board, { agentId, batch, receipt, landingFence, nativeBatch }) {
+export function recordTrainLanding(board, { agentId, batch, receipt, landingFence, nativeBatch, checkRepointPlan }) {
   if (agentId !== COORDINATOR) throw new Refused('COORDINATOR_ONLY', 'only the coordinator records a train landing');
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < TRAIN_LANDING_ENGINE) {
     throw new Refused('ENGINE_VERSION', `train landing receipts require engine ${TRAIN_LANDING_ENGINE}; upgrade Pullboard`);
@@ -63,7 +74,8 @@ export function recordTrainLanding(board, { agentId, batch, receipt, landingFenc
       validateQuarantineVerdict(board, value);
       const first = getItem(board, batch.items[0].id);
       recordSealedGateRun(board, { agentId, receipt: value, lane: first.item_lane });
-      return finishLandingBatch(board, { agentId, id: batch.id, tip: value.head, landingFence });
+      const planned = recordCheckRepoints(board, batch, checkRepointPlan, previous, landingFence);
+      return finishLandingBatch(board, { agentId, id: planned?.id ?? batch.id, tip: value.head, landingFence });
     }
     if (nativeBatch && !previous) throw changedBatch();
     if (previous) {
@@ -74,8 +86,10 @@ export function recordTrainLanding(board, { agentId, batch, receipt, landingFenc
     // All writes remain inside this transaction: any native batch, fence or review refusal rolls them back.
     const first = getItem(board, batch.items[0].id);
     recordSealedGateRun(board, { agentId, receipt: value, lane: first.item_lane });
-    const recorded = recordLandingBatch(board, { agentId, batch: { ...batch, state: 'trunk',
-      proof: { tree: value.tree, failures: [], logPath: batch.logPath, receipt: value } }, revision: 0, landingFence });
+    const trunkBatch = { ...batch, state: 'trunk',
+      proof: { tree: value.tree, failures: [], logPath: batch.logPath, receipt: value } };
+    const recorded = recordCheckRepoints(board, trunkBatch, checkRepointPlan, null, landingFence)
+      ?? recordLandingBatch(board, { agentId, batch: trunkBatch, revision: 0, landingFence });
     return finishLandingBatch(board, { agentId, id: recorded.id, tip: value.head, landingFence });
   });
 }
