@@ -108,7 +108,7 @@ test('pipeline real CLI and authenticated API expose identical read-only native 
   const response = await fetchFresh(`${url.origin}/api/v1/boards/${store.boardId(board)}/state`, { headers });
   assert.equal(response.status, 200);
   const document = await response.json();
-  assert.deepEqual(document.statsPipeline, JSON.parse(cli.stdout).pipeline);
+  assert.deepEqual(document.state.statsPipeline, JSON.parse(cli.stdout).pipeline);
   assert.deepEqual(store.events(board), history, 'both readers leave native events unchanged');
 });
 
