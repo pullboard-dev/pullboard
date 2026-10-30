@@ -6,6 +6,7 @@
  */
 function readCostHistory(project) {
   if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
+  project.costPrices = localCostPrices;
   const root = view.root;
   const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
   const kept = costHistory.get(root);
@@ -14,7 +15,7 @@ function readCostHistory(project) {
   costHistory.set(root, entry);
   api(boardPath(root) + '/events').then(reply => {
     if (costHistory.get(root) !== entry || root !== view.root || !Array.isArray(reply.events)) return;
-    entry.model = costTabModel(data.project, reply.events, data.project.costPrices ?? null);
+    entry.model = costTabModel(project, reply.events, project.costPrices ?? null);
     entry.loading = false;
     if (view.tab === 'cost') render();
   }).catch(error => {
@@ -34,9 +35,10 @@ function readCostHistory(project) {
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart3(scope) {
-  const { applyStateDelta, costTabScript, expandItemSummaries, privateCost } = scope;
+  const { applyStateDelta, costPrices, costTabScript, expandItemSummaries, privateCost } = scope;
 const privateCostSource = privateCost ? `${costTabScript()}
 const costHistory = new Map();
+const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
 ${readCostHistory.toString()}` : '';
 return `${privateCostSource}
 

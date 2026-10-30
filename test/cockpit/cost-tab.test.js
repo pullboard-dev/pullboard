@@ -1,15 +1,20 @@
 /** @pullboard-test-gui */
-/** Private cost presentation and actual local-board rendering; synthetic prices are presenter-only [N26]. */
+/** Private cost presentation and actual local-board rendering with configured machine prices [N26]. */
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { costTabHtml } from '../../src/view/cost-tab.js';
 import { costTabModel } from '../../src/view/cost-tab.js';
 import { counterDelta } from '../../src/view/cost-tab.js';
+import { cockpitPage } from '../../src/view/cockpit-page.js';
+import * as store from '../../src/board.js';
 import { SPEC } from './fixture.js';
 import { machine } from './fixture.js';
 import { project } from './fixture.js';
@@ -173,12 +178,45 @@ test('the private view shows its last twenty native landings; a public export ke
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the private Cost view journey.');
   const box = machine(), alpha = project(box, 'cost-tab', SPEC);
-  for (let id = 1; id <= 21; id++) {
+  for (let id = 1; id <= 22; id++) {
     box.run(alpha.repo, 'add', 'web', 'Private cost fixture ' + id, '--specs', 'G1', '--criterion', 'The private view shows its landed row.');
     build(box, alpha, id, `cost-fixture-${id}.txt`);
     accept(box, alpha, id);
     box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
     box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  }
+  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const agent = store.listAgents(board).find(row => row.agent_lane === 'web');
+    assert.ok(agent, 'the seeded board has the native web builder');
+    for (let id = 4; id <= 22; id++) {
+      const freshInputTokens = id === 21 ? 1_500_000 : id === 22 ? 3_000_000 : 1_000_000;
+      store.recordUsage(board, { agentId: agent.agent_id, item: id, revision: 100, observedAt: id, records: [{
+        model: 'fixture-priced-model', inputTokens: freshInputTokens, knownInputTokens: freshInputTokens,
+        outputTokens: 0, knownOutputTokens: 0, freshInputTokens, cacheReadInputTokens: 0,
+        cacheWriteInputTokens: 0, wallMs: 3, unknownReasons: [],
+      }] });
+    }
+  } finally { store.closeBoard(board); }
+  mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
+  const fixturePrices = {
+    'fixture-priced-model': { freshInput: 1, cacheReadInput: 0, cacheWriteInput: 0, output: 0 },
+  };
+  const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const previousSettings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
+  writeFileSync(settingsFile, JSON.stringify({ ...previousSettings, costPrices: fixturePrices }));
+  const privateRates = { 'Private Cost Rate Sentinel <script> </script>': { freshInput: 1, cacheReadInput: 0, cacheWriteInput: 0, output: 0 } };
+  const privatePage = cockpitPage('', { costPrices: privateRates });
+  assert.match(privatePage, /Private Cost Rate Sentinel \\u003cscript>/u,
+    'configured rates are safely embedded in the private local page');
+  for (const options of [
+    { snapshot: true },
+    { readOnly: true },
+    { transportModule: '/relay/client.js' },
+    { hostedLocal: true },
+  ]) {
+    assert.doesNotMatch(cockpitPage('', { ...options, costPrices: privateRates }), /Private Cost Rate Sentinel|localCostPrices/u,
+      'snapshots, hosted pages and relay transports do not receive machine rates');
   }
   const publicOutput = join(box.dir, 'cost-public-export');
   box.run(alpha.repo, 'view', '--export', publicOutput, '--public');
@@ -189,6 +227,7 @@ test('the private view shows its last twenty native landings; a public export ke
   const publicEvents = JSON.parse(readFileSync(join(boardDirectory, 'events.json'), 'utf8'));
   assert.doesNotMatch(publicHtml, /data-tab="cost"|id="cost"|costTabModel|freshInputTokens/u,
     'the public page has neither the Cost controls nor its private token renderer');
+  assert.doesNotMatch(publicHtml, /fixture-priced-model/u, 'the public page never receives the machine price table');
   const publicDocuments = JSON.stringify({ publicState, publicEvents });
   assert.doesNotMatch(publicDocuments, /"(?:costUSD|knownCostUSD|costPrices|freshInputTokens|cacheReadInputTokens|cacheWriteInputTokens|inputTokens|outputTokens|knownInputTokens|knownOutputTokens|wallMs)"\s*:/u,
     'the actual public state, event history, item thread and history contain no private cost counters');
@@ -201,33 +240,46 @@ test('the private view shows its last twenty native landings; a public export ke
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("data?.project?.items?.some(item => item.id === 1)");
     await press(chrome, "document.querySelector('[data-tab=cost]')");
-    await chrome.waitFor("document.querySelector('[data-cost-row=\"21\"]')");
+    await chrome.waitFor("document.querySelector('[data-cost-row=\"22\"]')");
+    assert.equal(await chrome.stable("JSON.stringify(data.project.costPrices)"), JSON.stringify(fixturePrices),
+      'validated machine rates populate the private project view model');
     await chrome.waitFor("document.querySelectorAll('#cost .cost-row').length === 20");
     const order = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#cost .cost-id')].map(node => node.textContent))"));
-    assert.equal(order[0], '#21', 'the newest genuine landing is first');
-    assert.equal(order.at(-1), '#2', 'the twenty-first newest landing is outside the last twenty');
+    assert.equal(order[0], '#22', 'the newest genuine landing is first');
+    assert.equal(order.at(-1), '#3', 'the twenty-first newest landing is outside the last twenty');
     for (const width of [1280, 320]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      const layout = JSON.parse(await chrome.stable("JSON.stringify({text:document.querySelector('#cost').innerText,documentWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth,buttonHeight:document.querySelector('[data-cost-row=\"21\"]').getBoundingClientRect().height})"));
-      assert.match(layout.text, /Private cost fixture 21/u);
-      assert.match(layout.text, /—/u);
-      assert.doesNotMatch(layout.text, /\$0\.00/u);
+      const layout = JSON.parse(await chrome.stable("JSON.stringify({text:document.querySelector('#cost').innerText,documentWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth,buttonHeight:document.querySelector('[data-cost-row=\"22\"]').getBoundingClientRect().height})"));
+      assert.match(layout.text, /Private cost fixture 22/u);
+      assert.match(layout.text, /\$3\.00/u, 'the configured machine rate prices the latest landing');
+      assert.match(layout.text, /—/u, 'a landing without usage remains a visible dash');
+      assert.match(layout.text, /Median \$1\.00/u, 'the live page shows its calculated median');
+      assert.doesNotMatch(layout.text, /\$0\.00/u, 'a zero-token field does not fabricate a zero-priced row');
+      assert.equal(await chrome.stable("document.querySelector('[data-cost-row=\"21\"]').classList.contains('cost-amber')"), true,
+        'a row above the median receives the amber treatment');
+      assert.equal(await chrome.stable("document.querySelector('[data-cost-row=\"22\"]').classList.contains('cost-red')"), true,
+        'a row above twice the median receives the red treatment');
       assert.ok(layout.documentWidth <= layout.viewportWidth, `${width}px view has no horizontal page overflow`);
       assert.ok(layout.buttonHeight >= (width < 900 ? 44 : 32), `${width}px landing row remains a reachable control`);
     }
-    await press(chrome, "document.querySelector('[data-cost-row=\"21\"]')");
-    await chrome.waitFor("document.querySelector('#cost .cost-detail')");
-    const detail = await chrome.stable("document.querySelector('#cost .cost-detail').innerText");
-    assert.ok(/No usage record/u.test(detail) || /Cost\s+—/u.test(detail), 'missing or unknown usage remains a visible dash');
+    await press(chrome, "document.querySelector('[data-cost-row=\"3\"]')");
+    await chrome.waitFor("document.querySelector('#cost-detail-3')");
+    const detail = await chrome.stable("document.querySelector('#cost-detail-3').innerText");
+    assert.match(detail, /No usage record/u, 'a landing without a usage record keeps its explanatory dash');
+    await press(chrome, "document.querySelector('[data-cost-row=\"22\"]')");
+    await chrome.waitFor("document.querySelector('#cost-detail-22')");
+    const pricedDetail = await chrome.stable("document.querySelector('#cost-detail-22').innerText");
+    assert.match(pricedDetail, /fixture-priced-model/u, 'the real journey exposes the priced model in its session detail');
+    assert.match(pricedDetail, /Cost\s+\$3\.00/u, 'the session detail uses the configured private rate');
     const publicView = await serveFolder(publicOutput, '/public/');
     try {
       await chrome.send('Page.navigate', { url: publicView.base + '/public/#cost' });
-      await chrome.waitFor("snapshot && data?.project?.items.length === 21");
+      await chrome.waitFor("snapshot && data?.project?.items.length === 22");
       assert.equal(await chrome.stable("!!document.querySelector('[data-tab=cost]') || !!document.querySelector('#cost') || view.tab === 'cost'"), false,
         'direct Cost navigation cannot reveal a tab in the actual public snapshot');
       await chrome.stable("localStorage.setItem('snapshot.pb.tab','cost')");
       await chrome.send('Page.reload', { ignoreCache: true });
-      await chrome.waitFor("snapshot && data?.project?.items.length === 21");
+      await chrome.waitFor("snapshot && data?.project?.items.length === 22");
       assert.equal(await chrome.stable("!!document.querySelector('[data-tab=cost]') || !!document.querySelector('#cost') || view.tab === 'cost'"), false,
         'a forged restored Cost selection also resolves to an ordinary public tab');
       assert.ok(publicView.requests.some(request => request.path.endsWith('/state.json') && request.status === 200));
