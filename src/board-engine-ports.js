@@ -3,8 +3,8 @@ import { Refused } from './refused.js';
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
 import * as rawStore from './board.js';
 import { withSeatPresence } from './seat-presence.js';
-import { recordFamilyDeclareActivation } from './family-declaration.js';
-import { withDerivedFamily } from './family-declaration.js';
+import { recordFamilyDeclareActivation } from '../packages/items/index.js';
+import { withDerivedFamily } from '../packages/items/index.js';
 import { conditionalHoldFloor } from '../packages/health/index.js';
 
 import { boundProofReceipt } from './proof-receipts.js';
