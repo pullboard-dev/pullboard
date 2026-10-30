@@ -63,7 +63,12 @@ test('pullboard settings prints each label and description beside its key [O5,O6
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   t.after(() => helpers.cleanup());
-  const out = box.run(box.repo, 'settings');
+  const compact = box.run(box.repo, 'settings');
+  assert.equal(compact.code, 0, compact.out);
+  assert.doesNotMatch(compact.out, /How many test runs/u, 'the default text stays compact');
+  const json = JSON.parse(box.run(box.repo, 'settings', '--json').out);
+  assert.equal(json.descriptions.gateSlots.label, 'Checks at once', '--json carries the descriptions');
+  const out = box.run(box.repo, 'settings', '--detail');
   assert.equal(out.code, 0, out.out);
   const lines = out.out.split('\n');
   for (const key of ['gateSlots', 'browserSlots', 'gate.runnerWaitMs', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'gate.runnersOnly', 'workers.budget']) {
