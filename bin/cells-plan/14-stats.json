@@ -5,6 +5,8 @@
  "root": "packages/stats",
  "frontDoor": "packages/stats/index.js",
  "paths": [
+  ["src/exit-rules-calls.js","packages/stats/src/core/exit-rules-calls.js","rule"],
+  ["src/exit-rules-policy.js","packages/stats/src/core/exit-rules-policy.js","rule"],
   ["test/cost-dollars.test.js","packages/stats/tests/cost-dollars.test.js","rule"],
   ["src/flow-replay-history.js","packages/stats/src/core/flow-replay-history.js","seed"],
   ["src/flow-replay.js","packages/stats/src/core/flow-replay.js","seed"],
