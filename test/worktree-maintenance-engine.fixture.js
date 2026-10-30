@@ -320,7 +320,7 @@ export function registerMaintenanceEngineTests() {
       store.release(fx.board, claim, retired.agent);
       fs.writeFileSync(join(retired.path, 'untracked.bin'), Buffer.from([0, 31, 255]));
       const takenAt = completeTakeover(fx, retired.agent, incoming.agent);
-      return { retired, claim, takenAt, before: maintenanceSnapshot(retired.path, { includeMetadata: true }).signature };
+      return { retired, incoming, claim, takenAt, before: maintenanceSnapshot(retired.path, { includeMetadata: true }).signature };
     };
 
     const clean = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
@@ -328,7 +328,8 @@ export function registerMaintenanceEngineTests() {
     assert.equal((await clean.readSnapshot()).seats.find(row => row.agent_id === safe.retired.agent)?.completedTakeoverAt, safe.takenAt);
     let safeScans = 0;
     const safePorts = { ...clean.ports, completedTakeover: true, workingDirectories() { safeScans++; return []; } };
-    const cleaned = await cleanMaintenanceSeat(safe.retired.path, clean.config, safePorts,
+    assert.notEqual(resolve(safe.incoming.path), resolve(safe.retired.path));
+    const cleaned = await cleanMaintenanceSeat(safe.incoming.path, clean.config, safePorts,
       { path: safe.retired.path, item: safe.claim, agent: safe.retired.agent, retired: true, now: clean.now() });
     assert.equal(cleaned.clean, true);
     assert.equal(safeScans, 2, 'empty native working-directory results are checked on both sides of archival');
@@ -336,7 +337,7 @@ export function registerMaintenanceEngineTests() {
 
     const unknown = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
     const unknownCase = setup(unknown, 'unknown-census');
-    const unknownResult = await cleanMaintenanceSeat(unknownCase.retired.path, unknown.config,
+    const unknownResult = await cleanMaintenanceSeat(unknownCase.incoming.path, unknown.config,
       { ...unknown.ports, completedTakeover: true, workingDirectories: () => null },
       { path: unknownCase.retired.path, item: unknownCase.claim, agent: unknownCase.retired.agent, retired: true, now: unknown.now() });
     assert.equal(unknownResult, null);
@@ -350,7 +351,7 @@ export function registerMaintenanceEngineTests() {
       changedScans++;
       return changedScans === 1 ? [] : [{ pid: 4321, path: join(changedCase.retired.path, 'nested') }];
     } };
-    const changedResult = await cleanMaintenanceSeat(changedCase.retired.path, changed.config, changedPorts,
+    const changedResult = await cleanMaintenanceSeat(changedCase.incoming.path, changed.config, changedPorts,
       { path: changedCase.retired.path, item: changedCase.claim, agent: changedCase.retired.agent, retired: true, now: changed.now() });
     assert.equal(changedResult, null);
     assert.equal(changedScans, 2);
