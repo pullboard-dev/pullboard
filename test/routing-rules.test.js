@@ -15,6 +15,11 @@ import releaseMove from '../src/moves/release.js';
 import { ROUTING_RULES_ENGINE } from '../src/routing-rules-engine.js';
 import { applyEngineMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { crossLaneFixture } from './e2e-helpers.js';
+import { parentSessionDigest } from '../src/parent-session.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 
 const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-routing-bar' });
@@ -185,21 +190,87 @@ test('native and ordered releases require a reason code while historical release
   assert.equal(store.getItem(old.board, historicalId).item_status, 'open', 'the pre-routing engine preserves an old uncoded release');
 });
 
-test('computed session identity rejects shared parents and shared author sessions across native review paths [C7,V1,H16]', t => {
-  for (const [reviewer, parent, session, family] of [['core-5', 'a', 'd', 'claude'], ['core-6', 'd', 'a', 'codex']]) {
-    const f = fixture(t), id = f.add();
-    f.submit(id);
-    f.join(reviewer, family, parent, session);
-    if (parent === 'a') assert.equal(effectiveAgentParent(f.board, reviewer), effectiveAgentParent(f.board, 'core-1'));
-    else assert.notEqual(effectiveAgentParent(f.board, reviewer), effectiveAgentParent(f.board, 'core-1'));
-    assertComputedReview(f, id, reviewer, 'SELF_SESSION_VERIFY');
-  }
+test('computed parent identity rejects the builder pool across native review paths [C7,V1,H16]', t => {
+  const shared = fixture(t), sharedId = shared.add();
+  shared.submit(sharedId);
+  shared.join('core-5', 'claude', 'a', 'd');
+  assert.equal(effectiveAgentParent(shared.board, 'core-5'), effectiveAgentParent(shared.board, 'core-1'));
+  assertComputedReview(shared, sharedId, 'core-5', 'SELF_SESSION_VERIFY');
   const independent = fixture(t), id = independent.add();
   independent.submit(id);
   independent.join('core-5', 'claude', 'b', 'd');
   assert.equal(effectiveAgentParent(independent.board, 'core-2'), effectiveAgentParent(independent.board, 'core-5'),
     'sharing another independent reviewer pool does not make it a builder pool');
   assertComputedReview(independent, id, 'core-5');
+});
+
+test('CLI next and verify reject the original building session through its real local ledger [C7,V1,B3]', t => {
+  const box = crossLaneFixture(t);
+  const original = 'routing-ledger-original-session', other = 'routing-ledger-independent-session';
+  const builder = box.json(box.runAs(original, box.web, 'join', 'web', '--family', 'codex',
+    '--parent', 'routing-builder-parent', '--model', 'Private session fixture', '--json')).agent;
+  const id = box.add('web', 'Session independence through the local ledger');
+  box.json(box.runAs(original, box.web, 'claim', String(id), '--json'));
+  const commit = helpers.commitFile(box, box.web, 'web/session.txt', 'built by the original session\n',
+    'test(web): build the private session fixture [G1]');
+  assert.equal(commit.status, 0, commit.stdout + commit.stderr);
+  box.json(box.runAs(original, box.web, 'submit', String(id), '--no-next', '--json'));
+  const review = join(box.dir, 'original-session-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
+  const reviewer = box.json(box.runAs(original, review, 'join', 'web', '--family', 'codex',
+    '--parent', 'routing-review-parent', '--model', 'Private session fixture', '--json')).agent;
+  assert.notEqual(reviewer, builder, 'the review seat is not the building seat');
+  const builtBinding = box.binding(box.web), reviewBinding = box.binding(review);
+  assert.equal(builtBinding.agent, builder);
+  assert.equal(reviewBinding.agent, reviewer);
+  assert.match(builtBinding.digest, /^[a-f0-9]{64}$/u);
+  assert.equal(reviewBinding.digest, builtBinding.digest, 'both checkouts are bound by the real original CLI session');
+  const agents = box.json(box.runAs(original, review, 'status', '--json')).agents;
+  const buildSeat = agents.find(seat => seat.agent_id === builder), reviewSeat = agents.find(seat => seat.agent_id === reviewer);
+  assert.equal(buildSeat.agent_parent_session, parentSessionDigest('routing-builder-parent'));
+  assert.equal(reviewSeat.agent_parent_session, parentSessionDigest('routing-review-parent'));
+  assert.notEqual(buildSeat.agent_parent_session, reviewSeat.agent_parent_session,
+    'the CLI ledger control does not obtain its refusal from the board-only shared-parent guard');
+  assert.equal(buildSeat.agent_family, 'codex');
+  assert.equal(reviewSeat.agent_family, 'codex', 'one original session retains its declared family');
+  const ledger = readFileSync(resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-common-dir'),
+    'pullboard', 'item-sessions.jsonl'), 'utf8');
+  const moves = ledger.trim().split('\n').map(line => JSON.parse(line)).filter(row => row.item === id);
+  for (const move of ['claim', 'submit']) assert.ok(moves.some(row => row.move === move && row.digest === builtBinding.digest),
+    'the actual ' + move + ' command recorded this item and the original digest');
+  assert.equal(ledger.includes(original), false, 'the real ledger stores a digest rather than the raw session');
+  const before = box.json(box.run(review, 'show', String(id), '--json'));
+  const events = box.json(box.run(review, 'log', String(id), '--json')).events;
+  for (const args of [
+    ['next', '--verify', String(id), '--json'],
+    ['verify', String(id), 'accept', '--note', 'The original building session must not decide.', '--no-next', '--json'],
+  ]) {
+    const refused = box.runAs(original, review, ...args);
+    assert.notEqual(refused.code, 0, refused.out + refused.err);
+    assert.equal(JSON.parse(refused.out).error.code, 'SELF_SESSION_VERIFY');
+    assert.deepEqual(box.json(box.run(review, 'show', String(id), '--json')), before,
+      'the refused command preserves the complete item detail');
+    assert.deepEqual(box.json(box.run(review, 'log', String(id), '--json')).events, events,
+      'the refused command records no item event');
+  }
+  const excluded = box.runAs(original, review, 'next', '--verify', '--json');
+  assert.equal(excluded.code, 1, excluded.out + excluded.err);
+  assert.equal(JSON.parse(excluded.out).error.code, 'NOTHING_FREE',
+    'unnamed next excludes the original session item and retains its ordinary empty-queue refusal');
+  const afterExcluded = box.json(box.run(review, 'show', String(id), '--json'));
+  assert.deepEqual(afterExcluded, before, 'empty-queue refusal preserves the complete item detail');
+  assert.equal(afterExcluded.item_review_by, null, 'the original session acquired no review reservation');
+  assert.deepEqual(box.json(box.run(review, 'log', String(id), '--json')).events, events);
+  box.json(box.runAs(other, review, 'takeover', '--json'));
+  const independent = box.binding(review);
+  assert.equal(independent.agent, reviewer);
+  assert.notEqual(independent.digest, builtBinding.digest, 'the positive command runs in a genuine other session');
+  const next = box.json(box.runAs(other, review, 'next', '--verify', String(id), '--json'));
+  assert.equal(next.item.item_id, id);
+  assert.equal(next.item.item_review_by, reviewer, 'the independent session obtains the actual native reservation');
+  const accepted = box.json(box.runAs(other, review, 'verify', String(id), 'accept',
+    '--note', 'Independent private session checked the actual submitted source.', '--no-next', '--json'));
+  assert.equal(accepted.decision, 'ACCEPT');
 });
 
 test('computed strict, required family, route and policy rules agree with native reservation and verdict [C7,V1,B13]', t => {
