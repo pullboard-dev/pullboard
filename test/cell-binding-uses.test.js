@@ -541,7 +541,29 @@ test('all original git-move fixture groups retain their actual source input obli
   for (const file of ['test/board-busy.test.js', 'test/cell-lints.test.js', 'test/e2e-audit.test.js',
     'test/landing-queue-fixture.js', 'test/mechanical-merge.test.js', 'test/move-registry.test.js',
     'test/pre-push-receipts.test.js', 'test/push-native-evidence-fixture.js', 'test/relay-canary.test.js',
-    'test/runner-policy.test.js', 'test/team.test.js']) {
+    'test/runner-policy.test.js',
+    'test/team-matching-host.test.js',
+    'test/team-queue-policy.test.js',
+    'test/team-queue-freshness.test.js',
+    'test/team-owner-death.test.js',
+    'test/team-owner-fence.test.js',
+    'test/team-private-board.test.js',
+    'test/team-stale-verdict.test.js',
+    'test/team-verification-repair.test.js',
+    'test/team-people.test.js',
+    'test/team-device-link.test.js',
+    'test/team-session-access.test.js',
+    'test/team-coordinator.test.js',
+    'test/team-lease-events.test.js',
+    'test/team-person-signing.test.js',
+    'test/team-authority-first-pin.test.js',
+    'test/team-optional-apply.test.js',
+    'test/team-receipt-replay.test.js',
+    'test/team-cross-repo.test.js',
+    'test/team-project-decisions.test.js',
+    'test/team-member-handover.test.js',
+    'test/team-scenarios.fixture.js',
+  ]) {
     const source = mappedWorkingSource(root, file).body.toString('utf8');
     assert.deepEqual(fixtureSourceEdits(source, { file, moves: plan.paths, readSource }).problems, [], file);
   }
