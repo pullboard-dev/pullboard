@@ -8,6 +8,7 @@ import { join, relative } from 'node:path';
 import * as store from '../src/board.js';
 import { closeBoard, openBoard } from '../src/native-board.js';
 import { repoInfo } from '../src/git.js';
+import { withLocalSeatPresence } from '../src/seat-presence.js';
 import { cleanMaintenanceSeat, maintenanceHealth, runWorktreeMaintenance } from '../src/worktree-maintenance.js';
 import { maintenanceGit, maintenanceSnapshot } from '../src/worktree-maintenance-archive.js';
 import { writeMaintenanceState } from '../src/worktree-maintenance-observation.js';
@@ -39,7 +40,7 @@ function project(t, { born = BORN, grace = '1s' } = {}) {
     return { path, agent };
   }
   /** Read current seat and item projections from the private native board SDK. */
-  const readSnapshot = async () => ({ seats: store.listAgents(board), items: store.listItems(board, { all: true }) });
+  const readSnapshot = async () => ({ seats: withLocalSeatPresence(board, store.listAgents(board)), items: store.listItems(board, { all: true }) });
   const archives = [];
   /** Append an actual native fact before the engine can remove its source worktree. */
   async function recordArchive(record) {
@@ -112,6 +113,7 @@ function archiveFacts(fx) {
   return store.itemThread(fx.board, fx.factItem).filter(row => row.type === 'fact' && row.text.includes('recovery ref'));
 }
 
+/** Register native-board/Git maintenance cases without running them when this fixture is imported. */
 export function registerMaintenanceEngineTests() {
   test('maintenance engine leaves live and claimed worktrees and their exact source/index bytes untouched [B3,C7]', async t => {
     const fx = project(t, { born: Date.UTC(2026, 9, 30, 17), grace: '1s' });
