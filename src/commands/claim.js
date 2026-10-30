@@ -36,10 +36,12 @@ export async function run(io, { first }) {
     }
   }
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
-  io.result?.({ id, ...result, ...(warnings.length ? { warnings } : {}) });
+  const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
+  io.result?.({ id, ...result, commitRules, ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);
   await sayMapSlice(io, ctx, getItem(board, id), primaryCheckoutRoot);
   io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
+  io.say(commitRules);
   return 0;
 });
 }
