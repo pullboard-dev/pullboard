@@ -289,6 +289,22 @@ test('store origin and restore capabilities refuse missing providers before stor
   }
 });
 
+/** A partial provider bag must not silently bypass the submit/accept proof-ID guard. */
+test('missing quarantine proof-ID authority refuses before storage exists [C7,H16,V4]', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-missing-quarantine-proof-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = join(directory, 'never-created', 'board.sqlite');
+  const ports = native.nativeBoardPorts(), quarantine = { ...ports.nativePorts.quarantine };
+  delete quarantine.validateQuarantineProofIds;
+  assert.throws(() => {
+    // @pullboard-board-file persistence: missing proof-ID authority refuses before creating storage.
+    const board = native.openBoard(file, undefined, { ports: { ...ports,
+      nativePorts: { ...ports.nativePorts, quarantine } } });
+    native.closeBoard(board);
+  }, error => error.code === 'NO_POLICY' && error.message.includes('quarantine.validateQuarantineProofIds'));
+  assert.equal(existsSync(join(directory, 'never-created')), false);
+});
+
 /** Public compatibility and replay use the same actual operation, including its person-auth refusal. */
 test('the native operation bag and counted public bridge retain actual authority [C7,H16,B2]', t => {
   const board = fixtureBoard(t);

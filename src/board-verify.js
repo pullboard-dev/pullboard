@@ -1,4 +1,3 @@
-import { validateQuarantineProofIds } from './quarantine.js';
 import * as rejectClause from './reject-clause.js';
 import { requireSourceAdvanceReview } from './source-advance-state.js';
 import { SOURCE_ADVANCE_ENGINE } from './source-advance-engine.js';
@@ -68,7 +67,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
     if (quarantineProofId !== undefined) {
       if (!isAccept) throw new Refused('PROOF_RUN_UNBOUND', 'quarantine proof authority only accompanies an accepting verdict');
       const found = getItem(board, id);
-      validateQuarantineProofIds(board, found, { agentId, ids: [quarantineProofId], kind: 'verdict',
+      board.nativePorts.quarantine.validateQuarantineProofIds(board, found, { agentId, ids: [quarantineProofId], kind: 'verdict',
         commit: review?.head ?? found.item_commit, requireGreen: true });
     }
     if (engine >= SOURCE_ADVANCE_ENGINE) requireSourceAdvanceReview(board, getItem(board, id), sourceAdvanceHead);
