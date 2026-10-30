@@ -178,6 +178,21 @@ test('the private view shows its last twenty native landings; a public export ke
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the private Cost view journey.');
   const box = machine(), alpha = project(box, 'cost-tab', SPEC);
+  const claudeHome = join(box.dir, 'claude');
+  const claudeProject = join(claudeHome, 'projects', 'cost-tab-fixture');
+  const claudeSession = 'cost-tab-fixture';
+  box.env.CLAUDE_CONFIG_DIR = claudeHome;
+  box.env.CLAUDE_CODE_SESSION_ID = claudeSession;
+  mkdirSync(claudeProject, { recursive: true });
+  writeFileSync(join(claudeProject, `${claudeSession}.jsonl`), JSON.stringify({
+    timestamp: new Date().toISOString(),
+    type: 'assistant',
+    message: {
+      id: 'cost-tab-baseline',
+      model: 'Test Model',
+      usage: { input_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 0 },
+    },
+  }) + '\n');
   for (let id = 1; id <= 22; id++) {
     box.run(alpha.repo, 'add', 'web', 'Private cost fixture ' + id, '--specs', 'G1', '--criterion', 'The private view shows its landed row.');
     build(box, alpha, id, `cost-fixture-${id}.txt`);
@@ -200,6 +215,7 @@ test('the private view shows its last twenty native landings; a public export ke
   } finally { store.closeBoard(board); }
   mkdirSync(box.env.PULLBOARD_MACHINE_HOME, { recursive: true });
   const fixturePrices = {
+    'Test Model': { freshInput: 0, cacheReadInput: 0, cacheWriteInput: 0, output: 0 },
     'fixture-priced-model': { freshInput: 1, cacheReadInput: 0, cacheWriteInput: 0, output: 0 },
   };
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
