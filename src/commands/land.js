@@ -3,6 +3,10 @@ import { writeBadges } from '../badge.js';
 import { flakeSource } from '../native-flakes.js';
 import { observeNativeFailure } from '../native-flakes.js';
 import { quarantineWaivers } from '../quarantine.js';
+import { quarantineVerdictSnapshot } from '../quarantine.js';
+import { validateQuarantineGate } from '../quarantine.js';
+import { validateQuarantineLandingProof } from '../quarantine.js';
+import { gateRuns } from '../quarantine.js';
 import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../git.js';
@@ -60,7 +64,7 @@ export async function run(io, { first, second, rest, values }) {
     const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
     await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
   }
-  const result = await land({ landingPorts: { badgeCounts, writeBadges, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus }, root: ctx.info.root, board,
+  const result = await land({ landingPorts: { badgeCounts, writeBadges, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../bin/landing-worker.js', import.meta.url)),
     write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), due: Boolean(values.due), onWait: gateWaitReporter(io) });

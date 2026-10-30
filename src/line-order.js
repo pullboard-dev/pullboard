@@ -1,9 +1,8 @@
-import { localDependencyIds } from './item-dependencies.js';
 /** Opt-in queue ordering reads recorded board policy and the same review guards as actual reservation [N2,B13,H16]. */
+import { localDependencyIds } from './dependency-references.js';
 import { ENGINE_VERSION } from './machine.js';
 import { LINE_ORDER_ENGINE } from './line-order-engine.js';
 import { lineSettings } from '../packages/state/src/core/line-settings-read.js';
-import { listAgents } from './seats.js';
 
 /** Old recorded moves retain their previous ordering even when replayed beside newer policy records. */
 export function lineOrderEnabled(board) {
@@ -20,8 +19,11 @@ export function waitedOnItems(items) {
   return wanted;
 }
 
-/** Count potential reviewers through the actual reservation guards, rather than inventing a parallel lineage rule. */
-export function reviewerScarcity(board, items, eligible) {
+/**
+ * Count potential reviewers through the actual reservation guards, rather than inventing a parallel lineage rule.
+ * The store supplies its agent reader, so seat ordering never loads board queries.
+ */
+export function reviewerScarcity(board, items, eligible, { listAgents }) {
   const agents = listAgents(board);
   return new Map(items.map(item => [item.item_id, agents.filter(agent => eligible(item, agent.agent_id)).length]));
 }

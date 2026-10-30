@@ -419,7 +419,7 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
   const now = at;
   const findings = [];
 
-  for (const shortage of routeWorkShortages(board, waiting, agents)) {
+  for (const shortage of routeWorkShortages(board, waiting, agents, { firstRefusal })) {
     const { route, free, idle, since } = shortage;
     findings.push(finding('ROUTE_WORK_SHORTAGE', null, {
       subject: `${route} route`, key: `ROUTE_WORK_SHORTAGE:route:${route}:free:${free}:idle:${idle}`, since, now,

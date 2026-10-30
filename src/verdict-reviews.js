@@ -2,6 +2,7 @@ import { advancedVerdict } from './source-advance-state.js';
 /** Sealed review validation and immutable acceptance projections [E8,H16]. */
 import { verdictWithdrawals } from './verdict-withdrawal.js';
 import { Refused } from './refused.js';
+import { verdictRows } from './verdict-rows.js';
 import { itemPatchDigest } from './item-patch-state.js';
 
 /** Validate a sealed review without consulting Git or changing either replica [E8,H16]. */
@@ -26,7 +27,7 @@ export function verdictReviewProblem(review, commit, { checked } = {}) {
  * @returns {any[]}
  */
 export function verdictsFor(board, id) {
-  const verdicts = board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(id);
+  const verdicts = verdictRows(board, id);
   const receipts = board.db.prepare("SELECT event_id, event_kind, event_detail FROM event WHERE item_id = ? AND event_kind IN ('accept', 'reject') ORDER BY event_id").all(id);
   const withdrawals = verdictWithdrawals(board, id, verdicts.map((verdict, index) => ({ verdict, event: receipts[index] })));
   return verdicts.map((verdict, index) => {

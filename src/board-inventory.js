@@ -6,7 +6,7 @@ import { Refused } from './refused.js';
 import { boardReference } from '../packages/kernel/src/core/registry-guards.js';
 
 /** Read a private board's exact durable reference without creating storage or inferring its owner. */
-async function privateReference(project) {
+async function privateReference(project, { openBoard }) {
   if (!project.boardId) return null;
   try {
     return await withPrivateBoard(project.boardId, board => {
@@ -18,12 +18,12 @@ async function privateReference(project) {
           || typeof value.organization !== 'string' || typeof value.handle !== 'string') return null;
       return { ...boardReference({ boardId: store.boardId(board), organization: value.organization, handle: value.handle }),
         kind: 'private', root: project.root, repoBoardId: project.boardId };
-    }, { create: false });
+    }, { create: false, store: { ...store, openBoard } });
   } catch { return null; }
 }
 
-/** Load only registry-recorded team identities and private references from existing private files. */
-export async function localBoardInventory() {
+/** Load only registry-recorded identities and existing private files through the caller's native opener. */
+export async function localBoardInventory({ openBoard }) {
   const projects = listProjects();
   const rows = new Map();
   for (const project of projects) {
@@ -33,7 +33,7 @@ export async function localBoardInventory() {
         rows.set(`${reference.boardId}:team`, { ...reference, kind: 'team', root: project.root });
       } catch { /* An invalid local record cannot authorize a board reference. */ }
     }
-    const privateBoard = await privateReference(project);
+    const privateBoard = await privateReference(project, { openBoard });
     if (privateBoard) rows.set(`${privateBoard.boardId}:private`, privateBoard);
   }
   return [...rows.values()];

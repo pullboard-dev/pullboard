@@ -470,7 +470,7 @@ function render() {
   const release = nextMilestone(p), last = p.events[0];
   const part = (to, n, words, title) => n ? '<button type="button" data-status="' + to + '" title="' + esc(title) + '"><b>' + n + '</b> ' + words + '</button>' : '';
   $('status-board').innerHTML = part('items', active.length, 'items', 'Show the active items') + '<button type="button" id="status-unread" data-status="unread" title="Show the shouts you have not read" hidden></button>'
-    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Show the agents holding work: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
+    + part('agents', footerBusy.length, footerBusy.length === 1 ? 'agent' : 'agents', 'Open the agent floor: ' + footerBusy.map((a) => agentName(a.agent_id)).join(', '))
     + part('verify', active.filter((i) => stateOf(i) === 'verify').length, 'to verify', 'Show the items waiting on a verdict')
     + part('gated', active.filter(gatedOf).length, 'gated', 'Show the open items waiting on another item or a held lane')
     + (release ? '<button type="button" data-status="release" title="' + esc('Show this release on the Roadmap: ' + (release.note || release.name)) + '">' + esc(release.name) + ' <b>' + release.done + '/' + release.total + '</b></button>' : '')
@@ -542,6 +542,7 @@ function render() {
       const actions = rowDecisionActions ? pendingQuestion ? rowDecisionActions + change : rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
       $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
         + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
+        + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
         + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
         + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>';
       continue;
