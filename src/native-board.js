@@ -44,7 +44,7 @@ import { recordTrainLanding } from './record-train-landing.js';
 import {
   newRigorNotices,
   rigorNoticeText,
-} from './rigor-notices.js';
+} from '../packages/rigor/index.js';
 import { sealSourceAdvanceReturn } from './source-advance-origin.js';
 import { conflictValue } from './computed-conflict-receipt.js';
 import { NEXT_STEPS } from './next-step-words.js';
@@ -52,7 +52,7 @@ import * as landingEnvironment from './landing-environment-guards.js';
 import {
   deriveRigorCause,
   recordAutomaticRigorDrafts,
-} from './rigor-auto.js';
+} from '../packages/rigor/index.js';
 import { normalizedDispatch } from './dispatch-health.js';
 import { rejectedWorkReturns } from './rejected-work-return.js';
 import { guardLandingWrite } from './board-landing-lease.js';
@@ -137,7 +137,7 @@ import {
 import {
   appendRigorCounter,
   ensureRigorCounters,
-} from './rigor-counters.js';
+} from '../packages/rigor/index.js';
 import {
   committedItemAuthors,
   twoTierReviews,

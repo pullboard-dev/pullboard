@@ -31,7 +31,7 @@ import {
   breachLine,
   changeRange,
   qualityBreaches,
-} from '../src/rigor-quality.js';
+} from '../packages/rigor/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
