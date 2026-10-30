@@ -205,7 +205,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           throw error;
         }
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
-        const cleanup = error instanceof Refused && error.code === 'RUNNER_CLEANUP_TIMEOUT';
+        const cleanup = error instanceof Refused && ['RUNNER_CLEANUP_TIMEOUT', 'RUNNER_JOB_LOST'].includes(error.code);
+        const boundedRetry = retryInfrastructure || error?.code === 'RUNNER_JOB_LOST'
+          || infrastructureAttempts.some(attempt => attempt.code === 'RUNNER_JOB_LOST');
         if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) {
           if (infrastructureAttempts.length) {
             infrastructureAttempts.push({ kind: 'retry', code: error?.code ?? error?.name ?? 'unknown', runner: lease.runner?.host ?? 'local',
@@ -216,7 +218,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         }
         const failure = { kind: cleanup ? 'cleanup-timeout' : 'transport-lost', code: cleanup ? error.code : error.code ?? 'TRANSPORT_LOST',
           runner: lease.runner.host, at: new Date().toISOString(), diagnostic: error.diagnostic ?? null };
-        if (retryInfrastructure && infrastructureAttempts.length >= 1) {
+        if (boundedRetry && infrastructureAttempts.length >= 1) {
           lease.infrastructureAttempts = [...infrastructureAttempts, failure];
           const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runner ${lease.runner.host} failed again (${failure.code}) after the one automatic infrastructure retry; inspect the retained runner diagnostics before retrying`);
           refused.infrastructureAttempts = [...infrastructureAttempts, failure];
@@ -247,7 +249,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         try {
           lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
             local: cleanup && !runnerOnly && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
-            infrastructureRetryCount: retryInfrastructure ? infrastructureAttempts.length : 0,
+            infrastructureRetryCount: boundedRetry ? infrastructureAttempts.length : 0,
             infrastructureAttempts: [...infrastructureAttempts] });
         } catch (requeueError) {
           const requeueAttempt = requeueError?.code === 'RUNNER_WAIT_DEADLINE'
@@ -256,7 +258,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
             : null;
           const attempts = [...infrastructureAttempts, ...(requeueAttempt ? [requeueAttempt] : [])];
           if (attempts.length) requeueError.infrastructureAttempts = attempts;
-          if (retryInfrastructure && requeueAttempt) {
+          if (boundedRetry && requeueAttempt) {
             const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runner ${failure.runner} failed (${failure.code}); its one queued retry then reached ${requeueError.code}: ${requeueError.message}`);
             refused.infrastructureAttempts = attempts;
             throw refused;

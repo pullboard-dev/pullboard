@@ -11,6 +11,7 @@ import { runOnRunnerAsync as runOnRunnerAsyncStep } from './runner-dispatch.js';
 import { serveRunnerController as serveRunnerControllerStep } from './runner-dispatch.js';
 import { refuseLegacyControllerEntry } from './runner-dispatch.js';
 import { probeRunnerHealth as probeRunnerHealthStep } from './runner-health.js';
+import { probeRunnerJob as probeRunnerJobStep } from './runner-health.js';
 import { runnerExecutionServices as runnerExecutionServicesStep } from './runner-health.js';
 export { validateRunner, runnerSource, RunnerDropped };
 export { runOnRunner };
@@ -31,6 +32,11 @@ export async function serveRunnerController(ports) {
 /** Ask this instance's pinned worker for exact cleanup or an explicit idle and writable proof. */
 export async function probeRunnerHealth(runner, previous, options) {
   return inRunnerGeneration(GENERATION, () => probeRunnerHealthStep(runner, previous, options));
+}
+
+/** Observe an exact job through this instance's pinned worker generation, never request-selected code. */
+export async function probeRunnerJob(runner, identity, options) {
+  return inRunnerGeneration(GENERATION, () => probeRunnerJobStep(runner, identity, options));
 }
 
 /** Supply the canonical late-bound runner operations, bound to this instance's generation. */

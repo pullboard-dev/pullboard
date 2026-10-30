@@ -1,6 +1,7 @@
 /** Answer the controller's health request from the worker's own runner root [C7]. */
 import { runnerHealthReply } from './runner-transport.js';
 import { runnerIdleReply } from './runner-transport.js';
+import { runnerJobReply } from './runner-transport.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -15,7 +16,8 @@ import { join } from 'node:path';
 export function serveHealth(encodedRequest) {
   try {
     const { request, root } = readRequest(encodedRequest);
-    process.stdout.write(JSON.stringify(request.idle === true ? runnerIdleReply(root, request) : runnerHealthReply(root, request)) + '\n');
+    process.stdout.write(JSON.stringify(request.job !== undefined ? runnerJobReply(root, request)
+      : request.idle === true ? runnerIdleReply(root, request) : runnerHealthReply(root, request)) + '\n');
   } catch { process.exitCode = 1; }
 }
 
