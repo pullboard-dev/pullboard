@@ -319,7 +319,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         await tab('shouts');
         for (const [id, label] of [['web-1', expected.builder], ['web-2', expected.unknown]]) {
           assert.equal(await text(`#agents [data-agent="${id}"] .agent-who b`), id, `${at}: compact agent panel keeps the seat ${id}`);
-          assert.equal(await text(`#agents [data-agent="${id}"] .agent-model`), id === 'web-1' ? model : '', `${at}: model stays a separate faint field`);
+          assert.equal(await text(`#agents [data-agent="${id}"] .agent-model`), id === 'web-1' ? model : 'unknown', `${at}: model stays a separate faint field`);
         }
         if (!await chrome.stable('Boolean(view.open.idle)')) await press(chrome, 'document.querySelector("[data-fold=idle]")');
         assert.equal((await text('#agents [data-agent="coordinator"]')).trim(), 'coordinator', `${at}: idle agent seat`);
@@ -347,7 +347,7 @@ test('agent model display names follow the API on phone and desktop [O8,N26]', {
         for (const header of headers) {
           assert.ok(header.height <= header.line + 1, `${at}: shout identity stays on one line: ${JSON.stringify(header)}`);
           for (const label of header.labels) {
-            assert.equal(label.title, ({ 'web-1': model, coordinator: 'Claude', 'web-2': '' })[label.id], `${at}: full model stays only in the tooltip`);
+            assert.equal(label.title, ({ 'web-1': model, coordinator: 'Claude', 'web-2': 'unknown' })[label.id], `${at}: full model stays only in the tooltip`);
             assert.equal(label.aria, ({ 'web-1': expected.builder, coordinator: expected.reviewer, 'web-2': expected.unknown })[label.id], `${at}: full native API name stays accessible`);
             assert.equal(label.idWidth, label.idScroll, `${at}: the address is never clipped`);
             assert.ok(label.left >= label.headerLeft - 1 && label.right <= label.headerRight + 1, `${at}: address stays inside its header`);
