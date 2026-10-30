@@ -256,14 +256,14 @@
   ["src/documentation/events/submit_handoff_returned.json","apps/cli/src/shell/documentation/events/submit_handoff_returned.json","rule"],
   ["src/submit-handoff-origin.js","apps/cli/src/shell/submit-handoff-origin.js","rule"],
   ["src/submit-handoff-seal.js","apps/cli/src/shell/submit-handoff-seal.js","rule"],
-
   ["src/worktree-maintenance.js","apps/cli/src/shell/worktree-maintenance.js","rule"],
   ["src/worktree-maintenance-observation.js","apps/cli/src/shell/worktree-maintenance-observation.js","rule"],
   ["src/worktree-maintenance-command.js","apps/cli/src/shell/worktree-maintenance-command.js","rule"],
   ["src/worktree-maintenance-classify.js","apps/cli/src/shell/worktree-maintenance-classify.js","rule"],
   ["src/commands/maintenance.js","apps/cli/src/shell/commands/maintenance.js","rule"],
   ["src/command-docs/maintenance.json","apps/cli/src/shell/command-docs/maintenance.json","rule"],
-  ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"]
+  ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"],
+  ["src/tool-build-scheduler.js","apps/cli/src/shell/tool-build-scheduler.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
