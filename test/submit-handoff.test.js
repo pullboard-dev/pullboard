@@ -32,6 +32,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
   const started = join(box.dir, 'started.jsonl');
+  const finished = join(box.dir, 'finished.jsonl');
   const script = join(box.dir, 'gate.cjs');
   writeFileSync(script, [
     "const fs = require('node:fs'); const cp = require('node:child_process');",
@@ -41,6 +42,8 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
     ...(companion ? [" if (fs.readFileSync('api/companion.txt','utf8') !== 'required\\n') throw Error('required companion missing');"] : []),
     ' const deadline = Date.now() + 120000;',
     ` while (!fs.existsSync(${JSON.stringify(release)})) { if (Date.now() > deadline) throw Error('fixture release never arrived'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); }`,
+    " if (fs.readFileSync('web/snapshot.txt','utf8').trim() !== value) throw Error('captured source changed after builder moved');",
+    ` fs.appendFileSync(${JSON.stringify(finished)}, JSON.stringify({value, head:cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim()})+'\\n');`,
     " if (value === 'red') process.exitCode = 1;",
     '}',
   ].join('\n'));
@@ -71,7 +74,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
     }, `normal queued worker cleanup: ${workerDiagnostic(box, id)}`);
     helpers.cleanup();
   });
-  return { ...box, helpers, id, second, third, commit, release, started };
+  return { ...box, helpers, id, second, third, commit, release, started, finished };
 }
 
 
@@ -120,7 +123,9 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(existsSync(box.release), false, 'submit acknowledged while the gate was still blocked');
   await box.helpers.waitFor(() => existsSync(box.started), 'actual captured gate execution', 120000);
   assert.equal(state(box, box.id).item.item_status, 'claimed', 'unproved work is never reviewable');
+  box.git(box.web, 'checkout', '-q', '--detach', 'main');
   assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
+  assert.equal(existsSync(join(box.web, 'web/snapshot.txt')), false, 'the next build no longer contains the queued candidate');
   document(box.run(box.web, 'claim', String(box.second), '--json'));
   const third = box.run(box.web, 'claim', String(box.third), '--json');
   assert.equal(third.code, 1);
@@ -135,6 +140,7 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
   assert.deepEqual(readFileSync(box.started, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }]);
   assert.notEqual(completed.job.executionCommit, box.commit, 'the native companion composition was actually executed');
+  assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }], 'the gate still read the captured source after the builder moved');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   document(box.run(reviewer, 'join', 'api', '--json'));
@@ -161,6 +167,20 @@ test('a queued red retains the exact canonical refusal and builder first refusal
   assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
   const shown = document(box.run(box.web, 'show', String(box.id), '--json'));
   assert.deepEqual(shown.queuedSubmit.error, retained.error);
+  const interrupt = document(box.run(box.web, 'inbox', '--json')).shouts.find(row => row.shout_text.includes(`Queued submit #${box.id} was refused`));
+  assert.ok(interrupt, 'the existing inbox channel carries the red interrupt');
+  const stillBusy = box.run(box.web, 'claim', String(box.id), '--json');
+  assert.equal(stillBusy.code, 1);
+  assert.equal(JSON.parse(stillBusy.out).error.code, 'ONE_CLAIM', 'a red interrupt never starts a second concurrent build');
+  const other = join(box.dir, 'other-web');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
+  document(box.run(other, 'join', 'web', '--json'));
+  const foreign = box.run(other, 'claim', String(box.id), '--json');
+  assert.equal(foreign.code, 1);
+  assert.equal(JSON.parse(foreign.out).error.code, 'REOPEN_HELD_FOR_BUILDER');
+  document(box.run(box.web, 'release', String(box.second), '--no-next', '--json'));
+  document(box.run(box.web, 'claim', String(box.id), '--json'));
+  assert.equal(state(box, box.id).item.item_owner, completed.job.agentId, 'the same seat resumes at a natural break');
 });
 
 test('setting off retains foreground submit until the real gate finishes [V4]', async t => {
