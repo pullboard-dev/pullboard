@@ -672,7 +672,7 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
   let chrome;
   try {
     chrome = await openSnapshotChrome(executable, `${host.base}/demo/`, profile);
-    await settled(chrome, `${ready} && ${showing('items', '/demo/')}`);
+    await settled(chrome, `${ready} && ${showing('dashboard', '/demo/')}`);
     await press(chrome, `document.querySelector('[data-tab="roadmap"]')`);
     await chrome.waitFor(showing('roadmap', '/demo/#roadmap'));
     await openRoadmapParts(chrome);
@@ -697,7 +697,7 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await chrome.send('Page.reload');
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#1')}`);
     await travel(chrome, -1);
-    await settled(chrome, `${ready} && ${showing('items', '/demo/')}`);
+    await settled(chrome, `${ready} && ${showing('dashboard', '/demo/')}`);
     await travel(chrome, 1);
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')} && !!${roadmapRow('#2')}`);
     await press(chrome, roadmapRow('#2'));
@@ -709,7 +709,7 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await settled(chrome, `${ready} && ${showing('roadmap', '/demo/#roadmap')}`);
 
     // Opened afresh, the folder shows the board's tab, and its #roadmap address the Roadmap.
-    for (const [address, pane] of [['/demo/', 'items'], ['/demo/#roadmap', 'roadmap']]) {
+    for (const [address, pane] of [['/demo/', 'dashboard'], ['/demo/#roadmap', 'roadmap']]) {
       await chrome.send('Page.navigate', { url: 'about:blank' });
       await settled(chrome, "location.href === 'about:blank'");
       await chrome.send('Page.navigate', { url: `${host.base}${address}` });
