@@ -74,7 +74,7 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   const second = submit(box);
   assert.equal(second.code, 1, JSON.stringify(second.document));
   const state = snapshot(box);
-  assert.equal(state.quarantines.length, 1, JSON.stringify({ quarantines: state.quarantines, runs: state.runs.map(({ id, kind, proof, testOutcomes }) => ({ id, kind, proof, testOutcomes })) }));
+  assert.equal(state.quarantines.length, 1, JSON.stringify({ first: first.document, second: second.document, quarantines: state.quarantines, runs: state.runs.map(({ id, kind, proof, testOutcomes }) => ({ id, kind, proof, testOutcomes })) }));
   const entry = state.quarantines[0];
   assert.equal(entry.autoSubmit, true);
   assert.equal(entry.name, TITLE);
@@ -151,7 +151,7 @@ test('a real deterministic Submit original and rerun never acquire automatic qua
   const box = fixture(t, true);
   const first = submit(box);
   assert.ok([0, 1].includes(first.code), JSON.stringify(first.document));
-  assert.ok(box.readData(box.counter, 'utf8').trim().split('\n').length >= 2, 'the actual deterministic original and paired bodies executed');
+  assert.ok(box.readData(box.counter, 'utf8').trim().split('\n').length >= 2, 'the actual deterministic original and paired bodies executed: ' + JSON.stringify(first.document));
   assert.deepEqual(snapshot(box).quarantines, []);
   if (first.code === 1) {
     const second = submit(box);
