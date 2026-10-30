@@ -14,12 +14,13 @@ import { readBlocks } from '../blocks.js';
 import { rigorReport } from '../board-rigor.js';
 import { dispatchHealth } from '../dispatch-health.js';
 import { readGitSyncRepairs } from '../git-sync-files.js';
+import { loadMachineSettings } from '../settings-read.js';
 import { runnerLeaseHealth } from '../../packages/resources/index.js';
 
 /** Run `pullboard health` and return its exit code. */
 export function run(io) {
   const ctx = context(io);
-  const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth });
+  const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth, machineSettings: loadMachineSettings() });
   report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
   report.autoQuarantines = automaticQuarantines(ctx.file);
   const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
