@@ -7,6 +7,8 @@
  "paths": [
   ["test/exit-rules.test.js","apps/cli/tests/exit-rules.test.js","rule"],
   ["src/exit-rules-runtime.js","apps/cli/src/shell/exit-rules-runtime.js","rule"],
+  ["src/worktree-maintenance-diagnostics.js","apps/cli/src/shell/worktree-maintenance-diagnostics.js","rule"],
+  ["test/worktree-maintenance-scheduler.test.js","apps/cli/tests/worktree-maintenance-scheduler.test.js","rule"],
   ["test/worktree-maintenance-retention.fixture.js","apps/cli/tests/worktree-maintenance-retention.fixture.js","rule"],
   ["src/worktree-maintenance-retention.js","apps/cli/src/shell/worktree-maintenance-retention.js","rule"],
   ["src/worktree-maintenance-scheduler.js","apps/cli/src/shell/worktree-maintenance-scheduler.js","rule"],
