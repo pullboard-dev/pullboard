@@ -127,3 +127,39 @@ test('real refused submit records its original coded outcome without changing th
     assert.equal(store.getItem(board, id).item_status, 'claimed');
   } finally { store.closeBoard(board); }
 });
+
+test('real successful submit records immediate admission before its bound proof receipts [V4,R2,H16]', () => {
+  const gate = 'node --test web/title.test.js';
+  const box = helpers.project(gate);
+  writeFileSync(join(box.repo, 'web/title.js'), "export const title = 'before';\n");
+  writeFileSync(join(box.repo, 'web/title.test.js'), "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { title } from './title.js';\ntest('the title is corrected [G1]', () => assert.equal(title, 'after'));\n");
+  box.git(box.repo, 'add', 'web/title.js', 'web/title.test.js');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: establish private admission fixture [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const json = (root, ...args) => { const result = box.run(root, ...args, '--json'); assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); };
+  const added = json(box.repo, 'add', 'web', 'Immediate admission fixture', '--criterion', 'The title is corrected.', '--check', gate);
+  const id = added.item.item_id;
+  json(box.web, 'claim', String(id));
+  writeFileSync(join(box.web, 'web/title.js'), "export const title = 'after';\n");
+  box.git(box.web, 'add', 'web/title.js');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): correct private fixture title [G1]');
+  const submitted = json(box.web, 'submit', String(id), '--no-next');
+  assert.equal(submitted.gate.green, true);
+  // @pullboard-board-file persistence: observe only the successful private fixture's native admission/proof order.
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const events = store.events(board, { itemId: id });
+    const admissions = events.filter(e => JSON.parse(e.event_detail).submitAdmission);
+    assert.equal(admissions.length, 1, 'even a free-slot submit records one genuine admission');
+    const admission = JSON.parse(admissions[0].event_detail).submitAdmission;
+    assert.equal(admission.commit, submitted.commit);
+    const receipts = events.filter(e => e.event_kind === 'proof-run').map(e => ({ event: e, receipt: JSON.parse(e.event_detail).receipt }));
+    assert.ok(receipts.length > 0, 'the real gate produced native proof receipts');
+    for (const { event, receipt } of receipts) {
+      assert.ok(event.event_id > admissions[0].event_id);
+      assert.equal(receipt.submitAdmission, admission.id);
+      assert.equal(receipt.commit, admission.commit);
+      assert.equal(receipt.tree, admission.tree);
+    }
+  } finally { store.closeBoard(board); }
+});
