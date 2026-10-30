@@ -117,7 +117,7 @@ test('item text links every item reference [N38,N26]', { timeout: 90_000 }, asyn
   await withBrowser(box, async (chrome, server) => {
     await openAddress(chrome, server, '/items/2');
     const refs = JSON.parse(await chrome.stable(`JSON.stringify({
-      criterion:[...([...document.querySelectorAll('#detail h3')].find(node=>node.textContent==='Criterion')?.parentElement.querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname]),
+      criterion:[...([...document.querySelectorAll('#detail h3')].find(node=>node.textContent==='Done when')?.parentElement.querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname]),
       brief:[...([...document.querySelectorAll('#detail h3')].find(node=>node.textContent==='Brief')?.parentElement.querySelectorAll('a.ref[data-go]')||[])].map(node=>[node.textContent,new URL(node.href).pathname])
     })`));
     assert.deepEqual(refs.criterion, [['#1', '/items/1']], 'criterion references are real same-board addresses');

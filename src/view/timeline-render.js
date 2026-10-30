@@ -1,7 +1,7 @@
 import { sharedRowHtml } from './row-component.js';
 
 /** Render normalized timeline entries and explicit presentation values as HTML. */
-export function timelineHtml({ entries, steps, flow, open = [] }) {
+export function timelineHtml({ entries, steps, flow, open = [], newestFirst = false }) {
   /** Escape board text before joining it to trusted renderer markup. */
   const esc = text => String(text ?? '').replace(/[&<>"']/gu, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
   /** Describe a lifecycle stay without inventing a time for an inferred lapse. */
@@ -85,7 +85,8 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
       previous.count += 1; previous.lastTime = row.time; previous.eventIds.push(...row.eventIds);
     } else grouped.push({ ...row, eventIds: [...row.eventIds] });
   }
-  return '<ol class="tl">' + grouped.map(row => {
+  const ordered = newestFirst ? grouped.toReversed() : grouped;
+  return '<ol class="tl">' + ordered.map(row => {
     const tone = ['health-failure', 'health-resolved'].includes(row.kind) ? 'sentinel' : ['claim', 'renew', 'submit'].includes(row.kind) ? 'build' : row.type === 'fact' ? row.state : row.kind === 'accept' ? 'pass' : row.kind === 'proof-run' ? 'proof'
       : ['reject', 'reopen'].includes(row.kind) ? 'back' : row.kind === 'reserve' ? 'review' : 'note';
     const kindLabel = row.type === 'move' && row.kind !== 'proof-run' ? '<span class="tl-kind tl-kind-move ' + tone + '">' + esc(({ build: 'build', review: 'review', back: 'sent back', sentinel: 'sentinel', pass: 'passed', note: 'note' })[tone]) + '</span>' : '';

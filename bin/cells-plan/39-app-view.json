@@ -84,7 +84,8 @@
   ["src/view/cost-tab.js","apps/view/src/shell/view/cost-tab.js","rule"],
   ["src/view/cost.css","apps/view/src/shell/view/cost.css","rule"],
   ["src/view/dashboard.css","apps/view/src/shell/view/dashboard.css","rule"],
-  ["src/view/doctrine.css","apps/view/src/shell/view/doctrine.css","rule"]
+  ["src/view/doctrine.css","apps/view/src/shell/view/doctrine.css","rule"],
+  ["src/view/item-panel.css","apps/view/src/shell/view/item-panel.css","rule"]
  ],
  "reexports": [
   "src/background-view.js",
