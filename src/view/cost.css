@@ -66,9 +66,10 @@
 .cost-chart-days { display: flex; align-items: end; gap: var(--space-2); min-height: 160px; }
 .cost-chart-day { flex: 1; min-width: 0; text-align: center; }
 .cost-chart-bar { display: block; width: 100%; height: 160px; }
+.cost-model-table-wrap { overflow-x: auto; }
 .cost-model-table { width: 100%; border-collapse: collapse; text-align: left; }
 .cost-model-table th, .cost-model-table td { padding: var(--space-2); border-bottom: 1px solid var(--line); }
-@media (width < 700px) { .cost-overview, .cost-model-calls { grid-template-columns: minmax(0, 1fr); } .cost-model-table { display: block; overflow-x: auto; } }
+@media (width < 700px) { .cost-overview, .cost-model-calls { grid-template-columns: minmax(0, 1fr); }  }
 .cost-range { width: 80px; height: 8px; margin-right: var(--space-2); }
 .cost-range line { stroke: var(--blue); stroke-width: 3; } .cost-range circle { fill: var(--blue); }
 .cost-time-bar .first { fill: var(--ink-faint); } .cost-time-bar .back { fill: var(--reject); }

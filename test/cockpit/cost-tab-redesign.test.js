@@ -26,6 +26,9 @@ test('the private Cost overview renders prepared analytics and each confidence [
     const geometry = JSON.parse(await chrome.stable(`JSON.stringify((() => { const bar=document.querySelector('.cost-chart-bar'), parts=[...bar.querySelectorAll('rect')].map(e=>({y:Number(e.getAttribute('y')),height:Number(e.getAttribute('height'))})); return {parts,ranges:document.querySelectorAll('.cost-range').length,split:document.querySelectorAll('.cost-split rect').length}; })())`));
     assert.equal(geometry.parts.length,2); assert.equal(geometry.parts[1].y + geometry.parts[1].height, geometry.parts[0].y, 'daily segments stack without overlap');
     assert.ok(geometry.ranges >= 2); assert.equal(geometry.split,2);
+    assert.equal(await chrome.stable("document.querySelectorAll('.cost-model-table').length"), 1, 'building and verifying share the model table');
+    assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted came back later/u);
+
     await chrome.click("document.querySelector('[data-cost-window=\"30d\"]')");
     await chrome.waitFor("document.querySelector('[data-cost-window=\"30d\"]').getAttribute('aria-pressed') === 'true'");
     await chrome.click("document.querySelector('[data-go]')");
