@@ -38,8 +38,30 @@ process.stdout.on('error', (error) => {
   process.exit(process.exitCode ?? 0);
 });
 
+// Select immutable tooling before dispatch or parsing a newer trunk's configuration.
+const { main, selectedToolEntry } = await import('../src/cli-main.js');
+// Promotion must remain reachable when the published build predates its replacement.
+if (process.argv[2] !== 'tool-build') {
+  try {
+    const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
+    if (selected) {
+      const { spawnSync } = await import('node:child_process');
+      const result = spawnSync(process.execPath, [selected, ...process.argv.slice(2)], { stdio: 'inherit', env: process.env });
+      process.exit(result.status ?? 1);
+    }
+  } catch (error) {
+    if (process.argv.includes('--json')) {
+      const { commandOutput, versionedRefusal } = await import('../src/json-output.js');
+      const output = commandOutput(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr }, { refusalDocument: versionedRefusal });
+      output.refusal({ code: error.code ?? 'TOOL_BUILD_UNAVAILABLE', message: error.message,
+        next: 'ask the coordinator to promote a native gated tool build' });
+      output.flush(1);
+    } else process.stderr.write(`pullboard: [${error.code ?? 'TOOL_BUILD_UNAVAILABLE'}] ${error.message}\n`);
+    process.exit(1);
+  }
+}
+
 // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
-const { main } = await import('../src/cli-main.js');
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   stdout: process.stdout,
