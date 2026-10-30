@@ -22,6 +22,7 @@ import { seedTypedRequests } from './relay-parity-typed-requests.js';
 import { seedSourceAdvance } from './relay-parity-source-advance.js';
 import { seedNativeTrain } from './relay-parity-train.js';
 import { seedItemPatches } from './relay-parity-item-patches.js';
+import { seedSubmitHandoff } from './relay-parity-submit-handoff.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
 /** The fixture root supplies canonical native operations to the unchanged lower recipes. */
@@ -60,6 +61,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     }
     await seedStudyState(context);
     await seedItemPatches(context);
+    await seedSubmitHandoff(context);
     process.stderr.write('parity phase seedSourceAdvance begin\n');
     await seedSourceAdvance(context);
     process.stderr.write('parity phase seedSourceAdvance complete\n');
