@@ -124,3 +124,29 @@ test('an unassigned engine keeps its placeholder outside a moved package until l
   assert.equal(readFileSync(path, 'utf8'), 'export const PENDING_ENGINE = 18;\n');
   assert.equal(readFileSync(join(root, 'src', 'sample-engine.js'), 'utf8'), '/** The sample move engine. */\nexport const SAMPLE_ENGINE = 17;\n');
 });
+
+
+test('canonical state front door preserves engine identity without accepting copied or renamed declarations [C7,CD60]', t => {
+  const root = fixture(t), state = join(root, 'packages/state');
+  mkdirSync(state, { recursive: true });
+  const front = "export { SAMPLE_ENGINE } from '../../src/sample-engine.js';\n";
+  writeFileSync(join(state, 'index.js'), front);
+  const consumer = "export { SAMPLE_ENGINE } from '../../state/index.js';\n";
+  writeFileSync(join(root, 'packages/sample/src/forward.js'), consumer);
+  assert.deepEqual(engineFolderProblems(root), []);
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e',
+    "import { SAMPLE_ENGINE as canonical } from './src/sample-engine.js'; import { SAMPLE_ENGINE as forwarded } from './packages/sample/src/forward.js'; if (canonical !== forwarded || forwarded !== 17) process.exit(1);"],
+    { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const canonical = { file: 'src/sample-engine.js', source: 'export const SAMPLE_ENGINE = 17;' };
+  const caller = { file: 'packages/sample/src/forward.js', source: consumer };
+  for (const source of ['export const SAMPLE_ENGINE = 17;',
+    "export { value as SAMPLE_ENGINE } from '../sample/src/numbers.js';",
+    "export { OTHER_ENGINE as SAMPLE_ENGINE } from '../../src/sample-engine.js';", '']) {
+    assert.ok(engineFolderViolations([canonical, { file: 'packages/state/index.js', source }, caller])
+      .some(row => row.file === caller.file), 'the caller needs an exact canonical same-name engine forward');
+  }
+  assert.ok(engineFolderViolations([canonical, { file: 'packages/state/index.js', source: front },
+    { ...caller, source: "export { SAMPLE_ENGINE } from '../../state/lookalike.js';" }]).some(row => row.file === caller.file));
+  assert.ok(engineFolderViolations([canonical, caller]).some(row => row.file === caller.file), 'a missing state entry remains unproved');
+});

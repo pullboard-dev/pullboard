@@ -4,6 +4,7 @@
  "kind": "package",
  "root": "packages/seats",
  "frontDoor": "packages/seats/index.js",
+ "pureFrontDoor": "packages/seats/core.js",
  "paths": [
   ["src/agent-hook-work.js","packages/seats/src/core/agent-hook-work.js","seed"],
   ["src/agent-hook.js","packages/seats/src/shell/agent-hook.js","seed"],
