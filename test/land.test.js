@@ -333,7 +333,8 @@ function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
     '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(path, 'claim', String(item)).code, 0);
+  const claimed = box.run(path, 'claim', String(item));
+  assert.equal(claimed.code, 0, claimed.err + claimed.out);
   return { path, item, file };
 }
 
@@ -1340,7 +1341,8 @@ test('an item with no spec rows lands under a header its commit hook accepts [B3
     '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify('docs/land-1.test.js')}`, '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(path, 'claim', String(item)).code, 0);
+  const claimed = box.run(path, 'claim', String(item));
+  assert.equal(claimed.code, 0, claimed.err + claimed.out);
   mkdirSync(join(path, 'docs'), { recursive: true });
   writeFileSync(join(path, 'docs', 'land-1.md'), 'docs\n');
   writeFileSync(join(path, 'docs', 'land-1.test.js'), 'PASS\n');
