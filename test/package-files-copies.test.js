@@ -398,6 +398,19 @@ function controllerFixture(t) {
   return { ...f, installed };
 }
 
+test('controller provider freshness follows its real package composition, not unrelated shipped engine leaves [C7,P3]', t => {
+  const { installed } = controllerFixture(t);
+  const loaded = captureRunnerTooling(installed);
+  const unrelated = join(installed, 'src/check-timing-engine.js');
+  writeFileSync(unrelated, readFileSync(unrelated, 'utf8') + '\n// unrelated private generation\n');
+  assert.deepEqual(currentRunnerTooling(installed, loaded), runnerPackage(installed),
+    'an unrelated shipped file is not part of this controller generation');
+  const provider = join(installed, 'packages/resources/src/shell/controller-custody.js');
+  writeFileSync(provider, readFileSync(provider, 'utf8') + '\n// actual composed provider changed\n');
+  assert.throws(() => currentRunnerTooling(installed, loaded), { code: 'RUNNER_TOOLING_CHANGED' },
+    'the actual transitive lifecycle provider still requires a fresh controller');
+});
+
 test('committed tooling binds literal Unicode blob bytes and refuses filtered working bytes before SSH [C7,P3]', t => {
   const helper = createE2eHelpers();
   t.after(helper.cleanup);
