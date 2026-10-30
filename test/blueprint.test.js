@@ -733,7 +733,7 @@ function emptyRepo() {
   const runIn = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   const run = (...args) => runIn(repo, ...args);
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo, env });
-  return { dir, repo, run, runIn };
+  return { dir, repo, run, runIn, env };
 }
 
 test('init --blueprint starts a board from a blueprint [I1,S1]', () => {
@@ -1014,11 +1014,15 @@ test('init takes a product and an architecture blueprint together [S1,I1]', () =
   const sharedQuestion = rowsIn(architecture)[architecture.rules.length].id;
   assert.deepEqual(result.blueprints[2].shared.map((row) => row.id), [sharedRule, sharedQuestion], 'the result names the rows it shares');
 
+  // Item detail reads need the initialized policy committed on the coordinator trunk.
+  runFixtureGit(['add', '-A'], { cwd: box.repo, env: box.env });
+  runFixtureGit(['commit', '-q', '-m', `feat(init): initialize blueprint fixture [${sharedRule}]`], { cwd: box.repo, env: box.env });
+
   // Starter items keep their blueprint name, and the shared starter cites the row already drafted.
   const items = JSON.parse(box.run('list', '--json').stdout).items ?? [];
   assert.equal(items.length, product.items.length + architecture.items.length + practice.items.length, 'every starter is filed once');
   const owner = (item) => {
-    const note = JSON.parse(box.run('show', String(item.item_id), '--json').stdout).thread
+    const note = json(box, 'show', String(item.item_id)).thread
       .find((entry) => entry.kind === 'note' && entry.text?.startsWith('blueprint starter: '));
     return note ? JSON.parse(note.text.slice('blueprint starter: '.length)).blueprint : null;
   };
