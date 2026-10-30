@@ -1,5 +1,4 @@
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './known-main-owner-pattern-engine.js';
-import { validateQuarantineProofIds } from './quarantine.js';
 import { committedItemAuthors } from './review-independence.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';
@@ -59,7 +58,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
   }
   atomic(board, () => { reviewRouting.requireStrictBuilderFamily(board, id, agentId);
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
-    if (quarantineProofIds !== undefined) validateQuarantineProofIds(board, getItem(board, id),
+    if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
       { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
     const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
