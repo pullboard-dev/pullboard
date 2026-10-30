@@ -1,3 +1,4 @@
+import { submitHandoffBoardRoot } from './submit-handoff-origin.js';
 import { sealSubmitHandoffQueue } from './submit-handoff-seal.js';
 import {
   quarantineVerdictSnapshot,
@@ -262,7 +263,7 @@ export function nativeBoardPorts() {
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,

@@ -23,7 +23,7 @@ export function boardEnginePorts(providers) {
     'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals',
     'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding',
     'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'prepareTrainLanding',
-    'prepareNativeTrainLanding', 'sealKnownMainAutofile', 'sealSubmitHandoffQueue', 'sealItemPatchSubmit', 'sealItemPatchFollow', 'sealSourceAdvanceReturn',
+    'prepareNativeTrainLanding', 'sealKnownMainAutofile', 'sealSubmitHandoffQueue', 'submitHandoffBoardRoot', 'sealItemPatchSubmit', 'sealItemPatchFollow', 'sealSourceAdvanceReturn',
     'sealSourceAdvance', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict',
     'signedMoveProblem', 'requireBound', 'requestMoveProblem', 'recordRequestMove',
     'relayPerson', 'requestPerson', 'validPresence',
@@ -38,7 +38,7 @@ export function boardEnginePorts(providers) {
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,
@@ -48,7 +48,7 @@ export function boardEnginePorts(providers) {
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
   return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
-    minimumOperationEngine: (operation, args, board, at) => minimumMoveEngine(operation, args, board, at, conditionalHoldFloor), prepareTrainLanding, prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
+    minimumOperationEngine: (operation, args, board, at) => minimumMoveEngine(operation, args, board, at, conditionalHoldFloor), prepareTrainLanding, prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
     requestMoveProblem, recordRequestMove, relayPerson, requestPerson,
