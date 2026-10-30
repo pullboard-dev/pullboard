@@ -47,8 +47,11 @@ test('unrelated positive [C7]',()=>assert.notEqual(mode,'mixed'));\n`);
 
 // The installed private program executes real red/green children and canonical ordered receipt moves.
 const DRIVER = `import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-import {randomUUID} from 'node:crypto';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {randomUUID,createHash} from 'node:crypto';
+import {prepareItemPatchSubmit,withItemPatchSubmit} from './src/item-patch-submit.js';
+import {submitGateConfig} from './src/gate-submit.js';
+import {policyAt} from './src/trusted-policy-read.js';
 import {git} from './src/git.js';
 import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from './src/gate.js';
 import {receiptRecorder} from './src/native-flake-receipts.js';
@@ -212,6 +215,51 @@ const submit=await runSubmitGate(root,{...config,staticChecks:'',submitGate:'lan
 assert.equal(submit.isGreen,true);assert.equal(submit.check.green,true);
 assert.equal(submit.check.rawExitCode,1);assert.equal(submit.phaseVerdicts[0].blockingVerdict.green,true);
 assert.equal(readGateReceipt(receiptStore(root),submit.proofReceiptIds[0]).proof.exitCode,1);
+// Real companion bytes produce a different commit; only that actually executed composition grants authority.
+const source=git(root,['rev-parse','HEAD']),builderRoot=root+'-quarantine-builder';
+git(root,['worktree','add','--detach',builderRoot,source]);
+try {
+ let builder,companionItem,binding;
+ await withBoard(ctx,async board=>{
+  builder=store.register(board,{lane:'web',path:builderRoot,model:'native fixture builder',family:'fixture'});
+  const id=store.addItem(board,{by:agentId,lane:'web',title:'Actual quarantine companion composition',
+   criterion:'The actual composed test source runs and keeps its raw red receipt.',check:config.gate});
+  store.claim(board,id,{agentId:builder,lane:'web',leaseMs:120000,head:source,freeze:freezer(ctx,{board})});
+  companionItem=store.getItem(board,id);
+  const file='test/control.test.js',original=readFileSync(file,'utf8');
+  let patch;
+  try {
+   writeFileSync(file,original.replace("assert.ok(!['red','mixed'].includes(mode))","assert.equal(!['red','mixed'].includes(mode),true)"));
+   patch=git(root,['diff','--',file]);
+  } finally {writeFileSync(file,original);}
+  assert.ok(patch.includes('+'),'the companion is a real Git source delta');
+  store.attachItemPatch(board,id,{agentId,key:'native-quarantine-companion',commit:source,patch:patch+'\n',author:agentId});
+  binding=prepareItemPatchSubmit(root,board,companionItem,source);
+ });
+ assert.notEqual(binding.commit,source);
+ const composedConfig=submitGateConfig(policyAt(root,binding.commit).config,policyAt(root,source).config);
+ const composed=await withItemPatchSubmit(builderRoot,binding,gateRoot=>runSubmitGate(gateRoot,composedConfig,
+  {base:source,trunk:source,check:config.gate,agent:builder,outputRoot:builderRoot,executionServices,
+   proofContext:{companion:true,item:companionItem.item_id,frozenDigest:companionItem.item_frozen_digest,seat:builder,
+    admission:{commit:binding.commit,tree:binding.tree},quarantines}}));
+ assert.equal(composed.isGreen,true,composed.output);
+ assert.ok(composed.proofReceiptIds.length>0);
+ binding.receiptIds=composed.proofReceiptIds;
+ binding.phases=composed.phasePlan.map(({role,command})=>({role,command:createHash('sha256').update(command).digest('hex')}));
+ await withBoard(ctx,async board=>{
+  for(const receiptId of binding.receiptIds)await ordered(ctx,board,'recordProofRun',[{agentId:builder,itemId:companionItem.item_id,receiptId}]);
+  const ids=binding.receiptIds.filter(id=>Object.hasOwn(readGateReceipt(receiptStore(builderRoot),id),'blockingVerdict'));
+  assert.ok(ids.length>0);
+  for(const commit of [source,git(root,['rev-parse','HEAD^'])])assert.throws(()=>validateQuarantineProofIds(board,companionItem,
+   {agentId:builder,ids,kind:'submit',commit}),error=>error.code==='PROOF_RUN_UNBOUND','bare or older source cannot borrow the composed execution');
+  const submitted=store.submit(board,companionItem.item_id,{agentId:builder,commit:source,tree:binding.sourceTree,
+   policyCommit:source,companion:binding,gateGreen:true,quarantineProofIds:ids,
+   submissionProof:{version:1,files:composed.files,full:composed.full,deferred:composed.deferred,
+    ...(composed.deferredFiles?{deferredFiles:composed.deferredFiles}:{})}});
+  assert.equal(store.getItem(board,companionItem.item_id).item_status,'submitted');
+  assert.ok(submitted);
+ });
+} finally {git(root,['worktree','remove',builderRoot]);}
 const unchanged=receiptBody(nativeReceipt);
 assert.equal(receiptFields({...nativeReceipt,blockingVerdict:null}),null);
 assert.equal(receiptFields({...nativeReceipt,proof:{...nativeReceipt.proof,exitCode:0}}),null);
