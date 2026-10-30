@@ -1,9 +1,10 @@
+import { pipelineCauseType } from './pipeline-cause.js';
 /** Recorded lifecycle intervals and attempts for a bounded window of landed items [R1,R2,C7]. */
 import { Refused } from './refused.js';
 import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
 
 const STAGES = ['claim', 'submit', 'reviewWait', 'review', 'landing'];
-const CAUSES = ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'unknown'];
+const CAUSES = ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'test-failure', 'other', 'unknown'];
 
 /** Validate the public last-N selector before any history is read. */
 export function pipelineLimit(value = 20) {
@@ -14,6 +15,8 @@ export function pipelineLimit(value = 20) {
 
 /** Use only typed causes or structural native evidence, never a narrative note or test name. */
 function causeOf(kind, detail) {
+  const typed = pipelineCauseType(detail.pipelineCause);
+  if (typed) return typed;
   if (kind === 'refreeze') return 'bar-change';
   if (detail.conflict?.files?.length) return 'conflict';
   const value = detail.cause ?? detail.code ?? detail.reason;
@@ -49,7 +52,8 @@ function gap(item, stages, eventId, reason) {
 
 /** Observe a retry/reopen once at its native event identity, retaining even an unknown cause. */
 function retry(item, event, detail, kind = event.event_kind) {
-  item.retries.push({ eventId: event.event_id, at: event.event_at, kind, cause: causeOf(event.event_kind, detail) });
+  item.retries.push({ eventId: event.event_id, at: event.event_at, kind, cause: causeOf(event.event_kind, detail),
+    ...(detail.pipelineCause?.type === 'other' && pipelineCauseType(detail.pipelineCause) ? { text: detail.pipelineCause.text } : {}) });
 }
 
 /** Respect recorded lease deadlines; a clock transition is evidence only when its deadline was recorded. */
@@ -69,11 +73,15 @@ function observe(item, event) {
   if (kind === 'add') item.title = detail.title ?? item.title;
   if (kind === 'claim' || kind === 'renew') {
     item.claimUntil = Date.parse(detail.leaseUntil);
-    if (detail.submitAdmission?.id) {
-      if (item.admissions++ > 0) retry(item, event, detail, 'submit-retry');
+    if (detail.submitOutcome) {
+      retry(item, event, detail.submitOutcome, 'submit-retry');
+      if (item.stage === 'submit') { close(item, at, event.event_id); item.stage = 'claim'; item.since = at; }
+      item.activeAdmission = false; item.outcomeRecorded = true;
+    } else if (detail.submitAdmission?.id) {
+      if (item.admissions++ > 0 && !item.outcomeRecorded && item.stage === 'submit') retry(item, event, detail, 'submit-retry');
       close(item, at, event.event_id);
       if (item.stage !== 'claim' && item.stage !== 'submit') gap(item, ['claim'], event.event_id, 'no recorded claim boundary before submit admission');
-      item.stage = 'submit'; item.since = at; item.activeAdmission = true;
+      item.stage = 'submit'; item.since = at; item.activeAdmission = true; item.outcomeRecorded = false;
     } else if (kind === 'claim') {
       close(item, at, event.event_id); item.stage = 'claim'; item.since = at; item.activeAdmission = false;
     }

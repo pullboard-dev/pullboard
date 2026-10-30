@@ -141,7 +141,8 @@
   ["src/board-verify.js","packages/store/src/shell/board-verify.js","rule"],
   ["src/board-withdraw.js","packages/store/src/shell/board-withdraw.js","rule"],
   ["src/board-escalate.js","packages/store/src/core/board-escalate.js","rule"],
-  ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"]
+  ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"],
+  ["src/submit-outcome.js","packages/store/src/shell/submit-outcome.js","rule"]
  ],
  "reexports": [
   "src/board-access.js",

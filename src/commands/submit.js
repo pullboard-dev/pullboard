@@ -268,6 +268,7 @@ export async function submitHere(ctx, id, infra) {
     }
     return item;
   });
+  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   const barWarning = await withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
@@ -559,6 +560,21 @@ export async function run(io, { first, values }) {
   };
   let code;
   try { code = await submitHere(ctx, id, values.infra); }
+  catch (error) {
+    if (error instanceof Refused && ctx.submitAttempt) {
+      try {
+        await withBoard(ctx, async board => {
+          const item = store.getItem(board, id), attempt = ctx.submitAttempt;
+          if (item.item_status !== 'claimed' || item.item_owner !== attempt.agentId || item.item_frozen_digest !== attempt.digest
+            || !(item.item_lease_until > ctx.clock.now().toISOString())) return;
+          await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
+            freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
+            submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+        });
+      } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
+    }
+    throw error;
+  }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait) return code;
   return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead: waitBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });
