@@ -21,7 +21,7 @@ function fixture(t) {
   const requests = join(box.dir, 'requests.jsonl'), starts = join(box.dir, 'starts.jsonl');
   installSshStandIn({ bin, worker, home, machineHome, requests, starts, dropFirst: false, nodeCommand: process.execPath });
   box.env.PATH = `${bin}:${box.env.PATH}`;
-  const runner = { host: `${HOST}-infra-retry`, slots: 1, browser: 0, node: process.execPath };
+  const runner = { host: HOST, slots: 1, browser: 0, node: process.execPath };
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({
     gateSlots: 0, browserSlots: 0, gate: { runnersFirst: true, runnerWaitMs: 200 }, runners: [runner],
   }));
