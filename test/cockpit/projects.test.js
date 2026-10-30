@@ -58,7 +58,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
             };
             const textLines = [...copy.children].map(lineCount);
             return { name: name.textContent, path: path.textContent, full: copy.title, textLines, nowrap: getComputedStyle(copy).whiteSpace,
-              weight: Number(getComputedStyle(name).fontWeight), width: copy.getBoundingClientRect().width,
+              weight: Number(getComputedStyle(name).fontWeight), width: copy.getBoundingClientRect().width, pathWidth: path.getBoundingClientRect().width,
               fits: row.scrollWidth <= row.clientWidth, forget: row.querySelector('button')?.textContent };
           }), buttons: [...section.querySelectorAll('button')].map(button => ({ text: button.textContent, styled: button.classList.contains('ghost'), radius: parseFloat(getComputedStyle(button).borderRadius) })) };
       })())`));
@@ -71,7 +71,7 @@ test('missing-board rows stay on one line and Forget targets only the still-miss
         assert.ok(row.path.length < row.full.length && row.path.includes('…'), 'long middles are elided');
         assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line');
         assert.equal(row.nowrap, 'nowrap');
-        assert.ok(row.fits && row.width > 0 && row.weight <= 400, width + ': compact muted names and paths fit their row');
+        assert.ok(row.fits && row.width > 0 && row.pathWidth > 0 && row.weight <= 400, width + ': compact muted names and paths fit their row');
         assert.equal(row.forget, 'Forget');
       }
       assert.deepEqual(seen.buttons.map(button => button.text), ['Forget all', 'Forget', 'Forget', 'Forget', 'Forget']);
