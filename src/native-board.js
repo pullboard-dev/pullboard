@@ -178,6 +178,10 @@ import {
 import {
   now,
   agentAt,
+  agentModel,
+  proofReceipts,
+  laneHold,
+  laneHolds,
   itemById,
   itemCheckBaseline,
   events,
@@ -247,6 +251,7 @@ export function nativeBoardPorts() {
     recordRowDecisions: store.recordRowDecisions, now,
     committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
+    agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
     getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
     listAgents: store.listAgents, verdictWithdrawalTarget, computedConflictProblem, firstRefusal,

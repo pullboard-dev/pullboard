@@ -6,7 +6,6 @@ import { ITEM_PATCH_ENGINE } from './item-patch-engine.js';
 import { PATCH_REVIEW_CUSTODY_ENGINE } from './patch-review-custody-engine.js';
 import { PATCH_FOLLOW_ENGINE } from './patch-follow-engine.js';
 import { itemPatchSetDigest } from './item-patch-state.js';
-import { getItem } from './board-query.js';
 import { Refused } from './refused.js';
 import { NO_ELIGIBLE_REVIEWER_ENGINE } from './no-eligible-reviewer-engine.js';
 import { asSubmitted } from './review-reachability.js';
@@ -57,7 +56,7 @@ function save(board, id, patches) {
 /** Own the public writer using the board root's explicit sealing and canonical transaction ports. */
 export function followItemPatches(board, id, options) {
   const sealed = board.executionEngineVersion === undefined ? board.enginePorts.sealItemPatchFollow(board, id, options) : options;
-  return applyItemPatchFollow(board, id, sealed, { atomic: board.nativePorts.atomic, logEvent: board.nativePorts.logEvent, getItem });
+  return applyItemPatchFollow(board, id, sealed, { atomic: board.nativePorts.atomic, logEvent: board.nativePorts.logEvent, getItem: board.nativePorts.getItem });
 }
 
 /** Replay one all-or-nothing binding change without changing immutable bytes, authors or the claim. */
