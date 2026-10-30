@@ -53,7 +53,11 @@ test('one stuck item observed by three seats and five ready items counts one sub
   const active = JSON.parse(scan.event_detail).active;
   assert.equal(active.length, 3, 'native evidence retains all three actual observations');
   const rows = store.listItems(box.board);
-  assert.equal(rows.filter(row => row.item_status === 'open').length, 5, 'five ready items really exist');
+  // The canonical reader projects an expired claim as open; its recorded stuck subject is not healthy ready work.
+  const stuckIds = new Set(active.map(finding => finding.item));
+  const ready = rows.filter(row => row.item_status === 'open' && !stuckIds.has(row.item_id));
+  assert.equal(ready.length, 5, 'five ready items really exist');
+  assert.deepEqual(ready.map(row => row.item_id).sort((a, b) => a - b), box.ids.slice(1), 'the five actual healthy fixture items are ready');
   const project = { items: rows.map(row => ({ id: row.item_id, status: row.item_status })),
     agents: store.listAgents(box.board), events: [scan] };
   // A history window containing the persisted scan still counts subjects, not notices or seats.
