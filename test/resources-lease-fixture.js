@@ -271,6 +271,9 @@ function admittedCompletionReplicas(box, id, snapshot) {
         store.claim(peer, id, options);
         instant = Date.parse(store.itemById(peer, id).item_lease_until) + 1;
       }
+      // A move from before strict composition replays on a board from before it was activated, so the
+      // private peer drops the activation marker; the assertions below are unchanged.
+      if (['admission engine', 'historical engine'].includes(scenario)) peer.db.prepare("DELETE FROM board_meta WHERE meta_key='review_composition:active'").run();
       const move = prepareEngineMove(peer, 'submit', [id, { agentId: receipt.seat,
         commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
         tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
