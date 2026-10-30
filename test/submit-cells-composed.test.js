@@ -29,7 +29,7 @@ function diverged(t, change) {
   const base = commit(box, 'planned fixture with actual baseline');
   box.put('src/later.js', 'export const later = true;\n');
   const plan = readPlan(box.root), cell = plan.cells.find(row => row.name === 'stats');
-  cell.paths.push(['src/later.js', `${cell.root}/src/core/later.js`, 'core']);
+  cell.paths.push(['src/later.js', `${cell.root}/src/core/later.js`, 'rule']);
   writePlan(box.root, plan);
   const main = commit(box, 'accepted main adds source and placement');
   git(box.root, 'checkout', '--detach', base);
