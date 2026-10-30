@@ -51,7 +51,7 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'docs', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'docs', 'package.json'],
     { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['-xf', '-', '-C', box.repo], { input: archive.stdout, env });
@@ -75,7 +75,7 @@ function project(disableRefresh) {
   if (disableRefresh) {
     const file = join(box.repo, 'src/landing-step-merge.js');
     const source = readFileSync(file, 'utf8');
-    const call = 'for (const file of refreshLandingDocs(batch.root)) if (!engines.files.includes(file)) engines.files.push(file);';
+    const call = 'for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
     writeFileSync(file, source.replace(call, '// Mutation control: landing documentation refresh removed.'));
   }
