@@ -164,7 +164,9 @@ function roadmapCards(p, titles) {
   const only = view.roadmapOnly && (p.milestones || []).some(m => m.name === view.roadmapOnly) ? view.roadmapOnly : null;
   const reads = (p.milestones || []).filter(m => !only || m.name === only).map(m => readMilestone(m, p));
   const targetLabels = new Map(), addresses = new Map(), headers = new Map(), headings = new Map(), rows = new Map(), notes = new Map(), targets = new Map();
-  const header = roadmapHeaders({ targetLabels, addresses, root: view.root, held: view.roadmapHeld });
+  const observedAt = Date.parse(p.observedAt), now = Number.isFinite(observedAt) ? observedAt : Date.now();
+  const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
+  const header = roadmapHeaders({ targetLabels, addresses, root: view.root, held: view.roadmapHeld, now, locale, timeZone });
   for (const read of reads) {
     if (read.milestone.target) { const label = when(read.milestone.target); targetLabels.set(read, label); targets.set(read, label); }
     for (const row of read.rows) {

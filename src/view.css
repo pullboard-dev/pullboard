@@ -955,14 +955,22 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .milestone-targetline { margin: 0 var(--space-5) var(--space-4); color: var(--ink-muted); font-size: var(--text-sm); }
 .roadmap-shipped-commit { flex: none; color: var(--ink-muted); font: var(--text-2xs) var(--mono); }
 
-/* Approved milestone summary: all quantities are supplied by the roadmap API [N26]. */
-.roadmap-has-summary > .milestone-head { align-items: flex-start; }
-.roadmap-has-summary > .milestone-head h2 { flex: 1; min-width: 0; font-size: var(--text-xl); line-height: var(--leading-snug); }
+/* The approved release headline is shared by Dashboard and Roadmap; only Roadmap adds its disclosure caret [N26]. */
+.roadmap-has-summary > .release-header { margin: 0 0 var(--space-5); }
+.roadmap-has-summary > .release-header > .release-header-toggle { align-items: stretch; }
+.release-header { min-width: 0; }
+.release-header-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: baseline; gap: var(--space-1) var(--space-5); min-width: 0; }
+.release-header-top .release-name { grid-column: 1; grid-row: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: var(--text-xl); line-height: var(--leading-snug); }
 .roadmap-left { flex: none; display: grid; gap: var(--space-1); margin-left: auto; text-align: right; white-space: nowrap; }
+.release-header-top > .roadmap-left { grid-column: 2; grid-row: 1 / span 2; margin: 0; }
 .roadmap-left > b { font-size: var(--text-2xl); font-weight: 600; line-height: var(--leading-tight); }
 .roadmap-left > span { color: var(--ink-muted); font: var(--text-xs) var(--mono); }
-.roadmap-summary { margin: 0 var(--space-5) var(--space-5); min-width: 0; }
-.roadmap-summary-bar { display: block; height: 10px; margin: var(--space-4) 0; border-radius: var(--radius-sm); }
+.roadmap-forecast { grid-column: 1; grid-row: 2; display: block; min-width: 0; margin: 0; color: var(--ink-muted); font-size: var(--text-xs); line-height: var(--leading-body); }
+.roadmap-forecast .roadmap-estimate, .roadmap-forecast .roadmap-pace, .roadmap-forecast .roadmap-completion { color: inherit; }
+.roadmap-summary { min-width: 0; }
+.roadmap-summary-row { display: grid; grid-template-columns: minmax(112px, 1fr) minmax(0, 1.15fr); align-items: center; gap: var(--space-5); min-width: 0; }
+.roadmap-summary-track { min-width: 0; }
+.roadmap-summary-bar { display: block; width: 100%; height: 10px; margin: 0; border-radius: var(--radius-sm); }
 .roadmap-summary-swatch { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
 .roadmap-summary .landed { background: var(--accent); fill: var(--accent); }
 .roadmap-summary .landing { background: var(--accent-strong); fill: var(--accent-strong); }
@@ -975,10 +983,10 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .roadmap-summary-legend > .roadmap-held-link { color: inherit; font: inherit; font-weight: inherit; text-align: left; }
 .roadmap-summary-legend b { font-weight: 600; color: var(--ink); }
 .roadmap-summary-meta { display: flex; flex-wrap: wrap; gap: var(--space-3) var(--space-6); margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--line); color: var(--ink-muted); font-size: var(--text-sm); }
-.roadmap-forecast { display: grid; min-width: 0; gap: var(--space-1); }
-.roadmap-forecast b { color: var(--ink); font-weight: 600; }
 .roadmap-summary-needs { margin-top: var(--space-4); padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); background: var(--warn-soft); color: var(--warn); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .roadmap-summary-needs a { color: inherit; }
+.release-header-toggle > .release-header-top { flex: 1; }
+.release-header-toggle > .caret { align-self: flex-start; margin-top: var(--space-1); }
 .shipped-one > .milestone-head h2 { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Roadmap title references keep their colour and tooltip while the whole row expands in place. */
@@ -1140,6 +1148,10 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .dash-shipping .roadmap-summary-legend > [data-summary-state] { align-items: baseline; }
 .dash-agent rect.dash-sent-back { fill: var(--reject); }
 @media (max-width: 700px) {
+  .release-header-top { column-gap: var(--space-3); }
+  .roadmap-left > b { font-size: var(--text-xl); }
+  .roadmap-summary-row { grid-template-columns: minmax(80px, .7fr) minmax(0, 1.3fr); gap: var(--space-3); }
+  .roadmap-summary-legend { gap: var(--space-2) var(--space-3); font-size: var(--text-2xs); }
   .dash-agent-legend { justify-content: flex-start; margin: 0 0 var(--space-5); }
   .dash-agent-axis > span:nth-child(2) > span:not(:first-child):not(:last-child) { display: none; }
 }

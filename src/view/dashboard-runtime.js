@@ -50,12 +50,12 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
       && cached.prefix === prefix && cached.complete === complete && cached.now === now ? cached.state
       : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now });
     held.modelCache = { projectKey, events: held.events, prefix, complete, now, state };
-    const progress = state.milestone ? summary(state.milestone)?.detail ?? '' : '';
+    const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
+    const progress = state.milestone ? summary(state.milestone, { now, locale, timeZone })?.header ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
     const expanded = [...region.querySelectorAll('details[open]')].map(entry=>entry.dataset.dashboardDisclosure);
     const onFloor = Boolean(floor?.open());
     // Browser preferences enter through this DOM adapter; pure renderers never discover host defaults.
-    const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const note = held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'';
     let quietRows;
     const quietOpen = expanded.includes('quiet');

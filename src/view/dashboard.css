@@ -17,6 +17,9 @@
 .dash-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .dash-release { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .dash-release h3 { margin: 0 0 var(--space-4); font-size: var(--text-xl); }
+.dash-release-card { padding: var(--space-5); }
+.dash-release-card > .release-header { margin-bottom: var(--space-5); }
+.dash-release-card > h3 { margin-top: var(--space-4); }
 .dash-flight ul, .dash-list { padding: 0; margin: 0; list-style: none; }
 .dash-flight li, .dash-list li { display: flex; gap: var(--space-4); align-items: center; min-height: 34px; border-bottom: 1px solid var(--line); }
 .dash-flight { min-width: 0; }
