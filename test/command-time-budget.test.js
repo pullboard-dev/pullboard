@@ -27,7 +27,7 @@ function seed(file) {
   const event = db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
   for (let n = 0; n < 45000; n++) event.run(at, `api-${1 + n % 800}`, n % 40 === 0 ? 'join' : n % 2 ? 'claim' : 'edit', 1 + n % 1000, '{}');
   const meta = db.prepare('INSERT INTO board_meta (meta_key, meta_value) VALUES (?, ?)');
-  for (let n = 0; n < 20000; n++) meta.run(`seed_note:${n}`, `value ${n}`);
+  for (let n = 0; n < 150000; n++) meta.run(`local:note-${n}`, `value ${n}`);
   const shout = db.prepare('INSERT INTO shout (shout_from, shout_to, shout_text, shout_at) VALUES (?, ?, ?, ?)');
   for (let n = 0; n < 23000; n++) shout.run(`api-${1 + n % 800}`, 'all', `Board activity ${n}`, at);
   db.exec('COMMIT');
@@ -53,6 +53,7 @@ test('claim, join and patch attach each finish under five seconds at production 
   const joins = [];
   const claims = [];
   const patches = [];
+  // @pullboard-board-file journey: submit fixture rows into the durable board the real CLI commands changed
   const board = openBoard(file);
   t.after(() => store.closeBoard(board));
   for (let round = 0; round < 3; round++) {
