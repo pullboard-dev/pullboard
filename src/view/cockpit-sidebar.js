@@ -46,7 +46,8 @@ function renderSide() {
    * @param {boolean|'in-place'} allowLinks
    * @returns {string}
    */
-  function linked(text, titles, allowLinks = true, root = view.root) { return String(text ?? '').split(/(#\\d+|(?<![^\\s([{"'\`])[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?![^\\s)\\]}"'\`.,;:!?]))/).map((part, n, parts) => {
+  function linked(text, titles, allowLinks = true, root = view.root) { return String(text ?? '').split(/(#\\d+|\\b[0-9a-fA-F]{40}\\b|(?<![^\\s([{"'\`])[^\\s:@()[\\]{}"'\`]+:\\d+(?:-\\d+)?@[0-9a-f]{7,40}(?![^\\s)\\]}"'\`.,;:!?]))/).map((part, n, parts) => {
+    if (/^[0-9a-fA-F]{40}$/.test(part)) return codeChip(part, 'sha');
     if (n % 2 && part[0] !== '#') return allowLinks === true ? codeRef(part, parts.slice(0, n).join('').split('\\n').pop().slice(-2000)) : codeChip(part);
     const id = /^#\\d+$/.test(part) ? String(Number(part.slice(1))) : '';
     if (id && allowLinks === 'in-place') return '<span class="ref"' + (titles.has(id) ? ' title="' + esc(titles.get(id)) + '"' : '') + '>' + esc(part) + '</span>';

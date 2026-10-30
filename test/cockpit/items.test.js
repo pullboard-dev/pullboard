@@ -135,14 +135,14 @@ test('each row says what it waits on [N26]', async () => {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
     const rows = Object.fromEntries(page.show('chain').split('<li class="row').slice(1).map((row) => [/data-item="(\d+)"/.exec(row)[1], {
-      chip: /<span class="chip ([^"]*)"[^>]*>([^<]*)<\/span><\/li>$/.exec(row).slice(1).join(': '),
+      chip: /<span class="chip ([^"]*)"[^>]*>(.*?)<\/span><\/li>$/.exec(row).slice(1).map(value => value.replace(/<[^>]*>/g, '')).join(': '),
       edge: /^[^"]*\bgated\b/.test(row),
       waits: [...row.matchAll(/<span class="gate">(.*?)<\/span>/g)].map((match) => match[1]),
     }]));
     assert.deepEqual(rows['1'], { chip: 'free: unclaimed', edge: false, waits: [] }, 'free to claim');
     assert.deepEqual(rows['2'], { chip: 'busy: web-1 (Test Model)', edge: false, waits: [] }, 'a claim names its holder');
-    assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: [`<span class="wait-unit">waits on <a class="ref" href="/items/2" data-go="item:2">#2</a>`] }, 'gated on #2, which is still being built');
-    assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
+    assert.deepEqual(rows['3'], { chip: 'waiting: Waiting on #2', edge: false, waits: [] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: false, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
     assert.deepEqual(rows['5'], { chip: 'warn: to verify', edge: false, waits: [] });
     assert.deepEqual(rows['6'], { chip: 'no: sent back', edge: false, waits: [] });
 
@@ -259,7 +259,7 @@ test('a sent-back item shows why first [N26]', async () => {
     await page.click({ item: '1', classes: 'row' });
     const detail = page.show('detail');
     const verdict = (await boardOf(view, p.repo)).items.find((item) => item.id === 1).verdict;
-    const time = new Date(verdict.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const time = new Date(verdict.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
     const top = detail.slice(0, detail.indexOf('<h3>Criterion</h3>'));
     assert.ok(detail.indexOf('<h3>Criterion</h3>') > 0, 'the criterion is shown');
     assert.match(top, /<h3>Sent back<\/h3>/);
@@ -1115,7 +1115,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
       assert.equal(new Set(rows.map((row) => row.height)).size, 1, `${width}: every row is as tall as the next: ${JSON.stringify(rows.map((row) => [row.id, row.height]))}`);
       assert.equal(new Set(rows.map((row) => row.chipHeight)).size, 1, `${width}: every chip is the same size`);
       const chips = Object.fromEntries(rows.map((row) => [row.id, row.chip]));
-      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip gate: gated', 'chip no: sent back'], `${width}: each state's chip in the list`);
+      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip waiting: Waiting on #1', 'chip no: sent back'], `${width}: each state's chip in the list`);
       assert.match(chips[5], /^chip busy: web-\d+ \(Test Model\)$/, `${width}: a claimed item names who builds it, in the building colour`);
       // The same state wears the same chip in the item's detail as in its row.
       for (const row of rows) {

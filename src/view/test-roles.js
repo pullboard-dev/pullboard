@@ -1,5 +1,6 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/items-walk-1029.test.js': { kind: 'journey', reason: 'Native private board plus explicitly qualified historical event import, authenticated HTTP and real desktop/phone Chrome verify hash display, waiting links, history verb tones and person clocks.' },
   'test/cockpit/window-compare.test.js': { kind: 'journey', reason: 'Private native export/import seeds event windows for real authenticated HTTP and Chrome; API values, minute clocks, tile direction colors, stage shares and the complete table are checked at desktop and phone widths.' },
   'test/cockpit/spec-redesign.test.js': { kind: 'journey', reason: 'Native Git approvals, actual existing/missing gate files and native citations are rendered and opened in authenticated real Chrome at desktop and phone widths; person confirmation and change composition retain native authority.' },
   'test/cockpit/view-startup.test.js': { kind: 'adapter', reason: 'A genuine large native registration history drives a separately owned CLI view process, authenticated HTTP page and initial board state under the frozen startup budget; no browser rendering claim.' },
