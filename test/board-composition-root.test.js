@@ -1,3 +1,7 @@
+import { MOVE_REGISTRY } from '../src/move-registry.js';
+import { MOVE_OPERATIONS } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../src/move-registry.js';
+import { declaredMoveActor } from '../src/move-registry.js';
 import { relayPresentation, relaySnapshot, relayPresentationShout } from '../src/relay-presentation.js';
 import { verifiedPasskeyRowDecision as presentation_verifiedPasskeyRowDecision } from '../src/person-row-proof.js';
 import { pendingFit as presentation_pendingFit } from '../src/blueprint-fit.js';
@@ -31,7 +35,8 @@ import { advanceItemSource } from '../src/source-advance.js';
 
 test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
   for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {
-    assert.equal(legacy[name], native[name], 'the public board API names the one native operation definition');
+    assert.equal(library[name], native[name], 'the public board API names the one native operation definition');
+    assert.equal(legacy[name], undefined, 'the store no longer re-exports the native operation');
   }
   const board = fixtureBoard(t);
   const agentId = legacy.register(board, { lane: 'core', path: '/fixture/spec-port-author' });
@@ -47,13 +52,13 @@ test('native spec operations retain their public identity and explicit draft pro
   assert.equal(reads, 1);
   assert.deepEqual(legacy.events(board), before, 'a refused provider appends no native event');
   assert.deepEqual(legacy.rowDrafts(board), [], 'a refused provider reserves no row identity');
-  const draft = legacy.draftSpecRow(board, options);
+  const draft = native.draftSpecRow(board, options);
   assert.equal(draft.id, 'G1');
   assert.equal(draft.text, options.row.text);
   assert.equal(draft.by, agentId);
   assert.equal(legacy.events(board).at(-1).event_kind, 'row_draft');
   const after = legacy.events(board);
-  assert.deepEqual(legacy.draftSpecRow(board, options), draft, 'the native wrapper keeps the existing exact-draft idempotency');
+  assert.deepEqual(native.draftSpecRow(board, options), draft, 'the native wrapper keeps the existing exact-draft idempotency');
   assert.deepEqual(legacy.events(board), after, 'an unchanged native draft records no second event');
 });
 
@@ -110,9 +115,9 @@ function observedPorts(label, calls) {
 }
 
 test('the single native root supplies every port before migration and keeps legacy/library/fixture entry points [C7,B1,B2]', t => {
-  assert.equal(legacy.openBoard, native.openBoard);
+  assert.equal(legacy.openBoard, undefined, 'the store no longer re-exports the native root');
   assert.equal(library.openBoard, native.openBoard);
-  assert.equal(library, legacy, 'the complete existing module namespace remains the library surface');
+  for (const [name, value] of Object.entries(legacy)) assert.equal(library[name], value, `the library surface keeps the store export ${name}`);
   const calls = [], ports = observedPorts('one', calls);
   const board = native.openBoard(':memory:', undefined, { ports });
   t.after(() => native.closeBoard(board));
@@ -225,7 +230,8 @@ test('native read wrappers carry explicit capabilities while SQLite remains read
   assert.throws(() => read.db.exec('CREATE TABLE forbidden (id INTEGER)'), /readonly|read.only/u);
   assert.equal(read.db.prepare("SELECT name FROM sqlite_master WHERE name='forbidden'").get(), undefined);
   assert.equal(native.openBoardForRead(join(directory, 'absent.sqlite')), null);
-  assert.equal(legacy.openBoardForRead, native.openBoardForRead);
+  assert.equal(library.openBoardForRead, native.openBoardForRead);
+  assert.equal(legacy.openBoardForRead, undefined);
 });
 
 
@@ -288,7 +294,7 @@ test('the native operation bag and counted public bridge retain actual authority
   const board = fixtureBoard(t);
   for (const [name, operation] of Object.entries({ setPersonSigning, recordGateRun, advanceItemSource, recordTrainLanding })) {
     assert.equal(board.enginePorts.store[name], operation, name);
-    assert.equal(legacy[name], operation, 'the #1776 bridge retains the existing public function identity');
+    assert.equal(legacy[name], undefined, 'the store no longer bridges the native operation');
     assert.equal(library[name], operation, 'the unchanged library namespace retains its public operation');
   }
   assert.equal(Object.isFrozen(board.enginePorts.store), true);
@@ -305,7 +311,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   const original = native.nativeBoardPorts().enginePorts;
   assert.equal(original.store.recordTrainLanding, recordTrainLanding);
   assert.equal(native.recordTrainLanding, recordTrainLanding);
-  assert.equal(legacy.recordTrainLanding, native.recordTrainLanding, 'the existing board public name retains exact native identity');
+  assert.equal(library.recordTrainLanding, native.recordTrainLanding, 'the existing board public name retains exact native identity');
   const before = legacy.events(board);
   const refusal = new Error('EXPLICIT_TRAIN_PROVIDER');
   let calls = 0;
@@ -316,14 +322,14 @@ test('native engine composition keeps supplied upper operations and refuses miss
     calls++;
     throw refusal;
   }
-  const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider };
+  const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider, MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor };
   const composed = boardEnginePorts(providers);
   assert.equal(composed.store.recordTrainLanding, trainProvider);
   assert.throws(() => composed.store.recordTrainLanding(board, { agentId: 'coordinator' }), error => error === refusal);
   assert.equal(calls, 1);
   assert.deepEqual(legacy.events(board), before);
   assert.equal(original.store.recordTrainLanding, recordTrainLanding, 'another connection keeps the native provider');
-  for (const name of ['recordTrainLanding', 'validPresence', 'sealItemPatchFollow']) {
+  for (const name of ['recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor']) {
     const missing = { ...providers };
     delete missing[name];
     assert.throws(() => boardEnginePorts(missing), error => error.code === 'NO_POLICY' && error.message.includes(name));

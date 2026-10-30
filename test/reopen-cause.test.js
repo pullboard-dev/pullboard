@@ -11,6 +11,7 @@ import {
   test,
 } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { eventCauses } from '../src/board-rigor.js';
 import { REOPEN_CAUSE_ENGINE } from '../src/reopen-cause-engine.js';
 import {
@@ -21,8 +22,8 @@ import {
   ensureRigorCounters,
   resumeRigorCounters,
   RIGOR_COLD_NOTICE,
-} from '../src/rigor-counters.js';
-import { conflictReport } from '../src/rigor-conflicts.js';
+} from '../packages/rigor/index.js';
+import { conflictReport } from '../packages/rigor/index.js';
 import { trunkMerge } from '../src/trunk-merge.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -97,7 +98,7 @@ function conflict(box, entry) {
 /** Inspect original durable event bytes rather than trusting the command's completion message. */
 function latest(box, id) {
   // @pullboard-board-file persistence: inspect the reopen event bytes committed by the separate native CLI command
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const row = board.db.prepare("SELECT * FROM event WHERE item_id=? AND event_kind='reopen' ORDER BY event_id DESC LIMIT 1").get(id);
     assert.ok(row, 'a real reopen was appended');
@@ -138,7 +139,7 @@ test('a legacy-shaped conflict note cannot reopen clean Git work [C7,B3]', () =>
   assert.equal(refused.code, 1);
   assert.equal(JSON.parse(refused.out).error.code, 'NOT_CONFLICTING');
   // @pullboard-board-file journey: verify the refused CLI reopen left its actual accepted item and durable event history unchanged
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(store.getItem(board, entry.id).item_status, 'verified');
     assert.equal(store.events(board, { itemId: entry.id }).filter(row => row.event_kind === 'reopen').length, 0);
@@ -158,7 +159,7 @@ test('legacy notes preserve ordinary state refusals before a submitted commit ex
     assert.equal(refused.code, 1);
     assert.equal(JSON.parse(refused.out).error.code, 'NOT_SUBMITTED');
     // @pullboard-board-file journey: read the CLI fixture's current claim state and prove refusal appended no reopen event
-    const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       assert.equal(store.getItem(board, id).item_status, claimed ? 'claimed' : 'open');
       assert.equal(store.events(board, { itemId: id }).filter(row => row.event_kind === 'reopen').length, 0);
@@ -172,8 +173,8 @@ test('a confirmed conflict overrides an unrelated explicit test cause [C7,B3,D1]
   accept(box, entry);
   const merge = conflict(box, entry);
   // @pullboard-board-file journey: export the native CLI submission and verify replay never changes that durable source board
-  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  const older = store.openBoard(':memory:');
+  const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const older = openBoard(':memory:');
   try {
     importBoard(older, exportBoard(source));
     older.executionEngineVersion = REOPEN_CAUSE_ENGINE - 1;
@@ -217,7 +218,7 @@ test('local and inline landing trains record sibling conflict files [C7,B3]', ()
 
 test('historical conflict-note correction is explicit and leaves original event bytes untouched [C7,D1]', () => {
   const box = project();
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   try {
     const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Legacy correction', specs: 'G1', criterion: 'Retain original evidence.', check: 'true' });
     const trunk = box.git(box.repo, 'rev-parse', 'main');

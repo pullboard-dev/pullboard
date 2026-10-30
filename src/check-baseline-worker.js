@@ -14,6 +14,7 @@ import {
   resolve,
 } from 'node:path';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import { checkBaseline } from './check-baseline.js';
 import {
   codeIsFromMain,
@@ -40,7 +41,7 @@ function locations(root) {
 
 /** Close a real board around one short operation; measurements never hold a database connection. */
 function withBoard(root, work) {
-  const board = store.openBoard(locations(root).board, undefined, { isMain: codeIsFromMain() });
+  const board = openBoard(locations(root).board, undefined, { isMain: codeIsFromMain() });
   try { return work(board); } finally { store.closeBoard(board); }
 }
 

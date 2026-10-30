@@ -102,6 +102,11 @@ ${executionServicesSource(url)}
   assert.equal(requests[0].dropped, true);
 });
 
+// Test-only boot budget: gate.runnerWaitMs runs from the request, so under load a 1000 ms deadline can expire before
+// the SSH stand-in's own Node process boots and no start is recorded (3 of 12 concurrent runs red on 28 Oct, 4/4 green
+// alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.
+const STAND_IN_BOOT_BUDGET_MS = 8_000;
+
 test('an SSH-healthy host whose worker misses READY stays held after the admission deadline [C7]', t => {
   const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');
@@ -112,7 +117,7 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   writeFileSync(ssh, before.replace(dispatch, 'if (remoteCommand.startsWith(configuredNode)) await holdHere();'));
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
-  writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: 1_000 } }));
+  writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
   const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
@@ -128,7 +133,9 @@ ${executionServicesSource(gate)}
     const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite');
     const held=db.prepare('SELECT * FROM runner_unavailable').get();
     let automaticProbes=0;
-    const recovered=await recoverUnavailableRunners(db,[${JSON.stringify(box.runner)}],{
+    // The first automatic probe falls due 1000 ms after the failure is recorded; asking one tick before it keeps this a
+    // statement about SSH health alone instead of a race against how slowly a loaded host boots the health probe.
+    const recovered=await recoverUnavailableRunners(db,[${JSON.stringify(box.runner)}],{now:held.probe_after-1,
       probe:async()=>{automaticProbes++;return {healthy:true};}});
     const remaining=db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n;
     const leases=db.prepare('SELECT (SELECT COUNT(*) FROM holder)+(SELECT COUNT(*) FROM waiter) n').get().n;
@@ -237,12 +244,31 @@ test('a controller and worker mixed across an upgrade are refused before SSH whi
   assert.equal(result.freshGreen, true, 'both upgraded allowlists are coherent when loaded by a fresh controller');
 });
 
+test('a changed composed resource provider leaf refuses the old controller generation before SSH [C7]', t => {
+  const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-lifecycle-tooling');
+  mkdirSync(installed);
+  copyPackageFiles(join(import.meta.dirname, '..'), installed);
+  const url = pathToFileURL(join(installed, 'src/runners.js')).href;
+  const leaf = join(installed, 'packages/resources/src/shell/controller-custody.js');
+  const result = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
+    import {existsSync,readFileSync,writeFileSync} from 'node:fs';
+    const leaf=${JSON.stringify(leaf)};
+    writeFileSync(leaf,readFileSync(leaf,'utf8')+'\\n// private lifecycle provider generation changed\\n');
+    let failure;
+    try {await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});}
+    catch(error){failure={name:error.name,code:error.code};}
+    console.log(JSON.stringify({failure,sent:existsSync(${JSON.stringify(box.requests)})}));`);
+  assert.equal(result.failure?.name, 'Refused');
+  assert.equal(result.failure?.code, 'RUNNER_TOOLING_CHANGED');
+  assert.equal(result.sent, false, 'a stale lifecycle provider cannot contact or quarantine a host');
+});
+
 test('an asynchronous runner dispatch never uses a preloaded resource generation [C7]', t => {
   const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-preloaded-tooling');
   mkdirSync(installed);
   copyPackageFiles(join(import.meta.dirname, '..'), installed);
   const observations = join(box.dir, 'resource-generation.jsonl');
-  const resources = toolSourcePath(installed, 'src/resources.js');
+  const resources = toolSourcePath(installed, 'packages/resources/index.js');
   const signature = 'export function recordRunnerGui(host, gui) {';
   const observer = `\n  observeGeneration(${JSON.stringify(observations)}, JSON.stringify({ pid: process.pid, generation: 'resource-generation-before' }) + '\\n');`;
   const original = readFileSync(resources, 'utf8');

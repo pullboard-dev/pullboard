@@ -26,7 +26,13 @@ after(() => {
 async function run(...args) {
   const folder = mkdtempSync(join(tmpdir(), 'pullboard-help-'));
   sandboxes.push(folder);
-  return runCliInProcess(args, { cwd: folder });
+  const result = await runCliInProcess(args, { cwd: folder });
+  if (result.status === 0 && !args.includes('--json')) {
+    assert.match(result.stdout, /\nnext: pullboard status\n$/u, 'all help aliases end in one immediate action');
+    assert.equal(result.stdout.match(/^next:/gmu)?.length, 1);
+    return { ...result, stdout: result.stdout.replace(/next: pullboard status\n$/u, '') };
+  }
+  return result;
 }
 
 /** Read the flag rows between their heading and the example from one command's help. */
@@ -226,7 +232,8 @@ test('help add example runs on a fresh board [I1,L3]', async (t) => {
 
   const help = runFixtureChild(process.execPath, [BIN, 'help', 'add'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(help.status, 0, help.failure ?? help.stderr);
-  const lines = (help.stdout.split('Example:\n', 2)[1] ?? '').trimEnd().split('\n').map((line) => line.trim());
+  assert.match(help.stdout, /\nnext: pullboard status\n$/u);
+  const lines = (help.stdout.split('Example:\n', 2)[1] ?? '').trimEnd().split('\n').filter(line => /^  /u.test(line)).map((line) => line.trim());
   const laneAdd = lines.indexOf('pullboard lane add web --owns src/web');
   const add = lines.indexOf('pullboard add web "Upload page" --specs G1');
   assert.equal(laneAdd, 0, `the example starts with lane add: ${lines.join(' / ')}`);

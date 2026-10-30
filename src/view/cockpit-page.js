@@ -4,6 +4,7 @@ import { cockpitReplay } from './cockpit-replay.js';
 import { cockpitSidebar } from './cockpit-sidebar.js';
 import { cockpitRoadmap } from './cockpit-roadmap.js';
 import { cockpitProse } from './cockpit-prose.js';
+import { costTabScript } from './cost-tab.js';
 import { milestoneRowHtml } from './roadmap-render.js';
 import { readMilestoneModel } from './roadmap-render.js';
 import { roadmapRemainingCount } from './roadmap-render.js';
@@ -89,8 +90,8 @@ function lifecycle() {
  * item lifecycle from src/machine.js with this board's counts. Under 900px wide the sidebar folds
  * into a top bar. Forms post actions that the server runs as CLI commands (N27), so the page never
  * decides a rule itself, and every field a person types in sits outside what the refresh rebuilds.
- * Its styles are src/view.css, which it links with the session's secret as every request carries it;
- * styles stay in that separate file so its policy can refuse inline styles. The serving host
+ * Its shared styles are src/view.css plus Doctrine presentation from src/view/doctrine.css; the authenticated local view
+ * appends private Cost styles from src/view/cost.css. The linked stylesheet carries the session's secret, so the policy refuses inline styles. The serving host
  * supplies the API base and credential headers; clients need no loopback-specific connection.
  * The Roadmap tab has its own address (N38): /roadmap on a host that serves the page there too,
  * which `paths` declares, and a #roadmap fragment anywhere else, such as a snapshot hosted under a
@@ -101,10 +102,10 @@ function lifecycle() {
  * connect or sign in.
  *
  * @param {string} [key] - The session's secret.
- * @param {{snapshot?: boolean, readOnly?: boolean, requests?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean, hostedLocal?: boolean, relaySession?: boolean, signIn?: string|null, hostedReleaseVersion?: string, hostedReleaseVersions?: string[]|null}} [options] - Served connection and assets, optional person requests over a read-only transport, host routes, a static page with event replay, or the hosted page that reads this machine's view first.
+ * @param {{snapshot?: boolean, readOnly?: boolean, requests?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean, hostedLocal?: boolean, relaySession?: boolean, signIn?: string|null, hostedReleaseVersion?: string, hostedReleaseVersions?: string[]|null, costPrices?: Record<string, {freshInput?: number, cacheReadInput?: number, cacheWriteInput?: number, output?: number}>|null}} [options] - Served connection and assets, optional person requests over a read-only transport, host routes, a static page with event replay, or the hosted page that reads this machine's view first.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null } = {}) {
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null, costPrices = null } = {}) {
   // Derive the current CLI inventory for every served, relay or exported page.
   const COMMAND_SOURCE = 'pullboard (?:' + commandPhrases().join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
 
@@ -112,15 +113,18 @@ export function cockpitPage(key = '', { snapshot = false, readOnly = false, requ
   const connection = JSON.stringify(transportModule ? { base: '', headers: {} } : { base: apiBase.replace(/\/$/, ''), headers: apiHeaders }).replace(/</g, '\\u003c');
   const moduleOption = JSON.stringify(transportModule).replace(/</g, '\\u003c');
   const requestMode = Boolean(readOnly && requests && !snapshot && transportModule);
+  // Cost is private native-session accounting; static exports, hosted pages and relay transports never expose it.
+  const privateCost = !snapshot && !readOnly && !transportModule && !hostedLocal && !requestMode;
+  const privateCostPrices = privateCost ? costPrices : null;
   if (signIn !== null && (typeof signIn !== 'string' || !signIn.startsWith('/') || signIn.startsWith('//'))) throw new TypeError('signIn must be a path on the hosting site, or null');
   const hostedOptions = JSON.stringify({ local: Boolean(hostedLocal) && !snapshot, relaySession: Boolean(relaySession), signIn }).replace(/</g, '\\u003c');
   const releaseHosted = Boolean(hostedLocal) && !snapshot;
   const releaseInfo = hostedReleaseInfo(hostedReleaseVersion, hostedReleaseVersions, releaseHosted);
   const css = stylesheet ?? (snapshot ? 'view.css' : transportModule ? '/view.css' : '/view.css?k=' + encodeURIComponent(key));
   const cssAttribute = css.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, expandItemSummaries, closePageDialog, connection, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeCapacity, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
+  const pageScope = { sharedRowHtml, activityWords, activityModel, activityHtml, activityFilters, lifecycleChart, segmentedToggle, revealSegmentedChoices, dashboardModel, dashboardHtml, dashboardRuntime, releaseNotice, STAR_KEY, applyStateDelta, expandItemSummaries, closePageDialog, connection, costPrices: privateCostPrices, costTabScript, drawHosted, hostedBrowser, hostedOptions, hostedReleaseDistance, hostedReleaseNote, homeCapacity, homeRules, hostedState, lifecycle, lifecycleEvent, lifecycleMove, moduleOption, openPageDialog, pageStartup, paths, personNeeds, privateCost, readOnly, releaseHosted, releaseInfo, requestMode, roadmapBlock, roadmapHeaders, roadmapSummary, sharingPresentation, snapshot, staleChip, tabValue, transportModule };
   const repositoryAttribute = starRepository().replace(/[&<>"']/gu, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, hostedMarkup, signIn, settingsMarkup, starMarkup,
+  const sections = { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup,
     pageScope, pageScriptPart1, pageScriptPart2, pageScriptPart3, COMMAND_SOURCE, groupActivityModel, groupNeedsHtml, groupEventHtml,
     milestoneRowHtml, readMilestoneModel, roadmapRemainingCount, roadmapCardsHtml, releaseNotice, pageRenderScript, settingsPageScript,
     agentApprovalScript, pageScriptPart4, historyLoadingScript };

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { proofStats } from '../src/stats.js';
 import { flowLines, flowStats, prepareFlowHistory, projectFlowStats } from '../src/stats-flow.js';
@@ -27,7 +28,7 @@ function at(minutes) { return new Date(BASE + minutes * 60_000).toISOString(); }
 function fixture(t, entries, now = 200) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-flow-'));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
-  const seed = store.openBoard(join(root, '.git', 'seed.sqlite'));
+  const seed = openBoard(join(root, '.git', 'seed.sqlite'));
   store.register(seed, { lane: 'coordinator', path: root });
   for (let n = 1; n <= 8; n += 1) store.register(seed, { lane: 'core', path: join(root, `builder-${n}`) });
   for (let n = 1; n <= 2; n += 1) store.register(seed, { lane: 'review', path: join(root, `reviewer-${n}`) });
@@ -42,7 +43,7 @@ function fixture(t, entries, now = 200) {
       event_id: index + 1, event_at: at(minutes), event_by: by, event_kind: kind, item_id: item, event_detail: JSON.stringify(detail),
     }));
   document.tables.sqlite_sequence.find(row => row.name === 'event').seq = document.tables.event.length;
-  const board = store.openBoard(join(root, '.git', 'flow.sqlite'));
+  const board = openBoard(join(root, '.git', 'flow.sqlite'));
   importBoard(board, document);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   /** Read the real board at its deterministic observation time. */

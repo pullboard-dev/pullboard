@@ -18,6 +18,7 @@ import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main as cli } from '../src/cli.js';
 import { digestOf, testConcurrency } from '../src/gate.js';
 import { runGate } from '../src/gate.js';
@@ -30,7 +31,7 @@ import { mainPolicy } from '../src/trusted-policy.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../src/resources.js';
+import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -239,7 +240,7 @@ test('pullboard gate status refuses instead of running the gate [C7,P4]', async 
   const box = repoWithGate('echo run >> ../runs.log');
   for (const name of [BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV]) delete box.env[name];
   assert.equal(box.run('settings', 'gateSlots', '1').status, 0, 'the fixture uses the holder pool\'s single gate slot');
-  const resourceModule = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
+  const resourceModule = pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href;
   const holderSource = `import { takeResource } from ${JSON.stringify(resourceModule)};
 const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: process.cwd(), agent: 'gate-argument-holder' });
 try {
@@ -649,14 +650,14 @@ function flakeRepo(t, policy = {}) {
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
   /** Open the repo's board the way a landing reads it: quarantine comes from accepted main's pullboard.json. */
   const open = () => {
-    const board = store.openBoard(file);
+    const board = openBoard(file);
     board.quarantineEnabled = () => mainPolicy(root).config.flakes?.quarantine === true;
     t.after(() => store.closeBoard(board));
     return board;
   };
   const receipts = join(root, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(dirname(file), { recursive: true });
-  const setup = store.openBoard(file);
+  const setup = openBoard(file);
   store.ensureCoordinator(setup, root);
   store.closeBoard(setup);
   return { root, git, commit, gate, open, receipts, marker };
@@ -840,7 +841,7 @@ function largeSelectionProject(deferAbove, { inline = false } = {}) {
 
 /** Read a fixture's real board through its public interface. */
 function onLocalBoard(box, action) {
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { return action(board); } finally { store.closeBoard(board); }
 }
 

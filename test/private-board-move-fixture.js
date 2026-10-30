@@ -10,6 +10,7 @@ import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { appliedSequence } from '../src/engine.js';
@@ -30,7 +31,7 @@ import { enrollProtocolPhone } from './relay-device-enrollment-fixture.js';
 
 /** Open only an explicitly named private fixture SQLite file and always close its connection. */
 function withMoveBoard(file, work) {
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try { return work(board); }
   finally { store.closeBoard(board); }
 }
@@ -100,7 +101,7 @@ function privateMoveStatus(file, id, status, root, lane, commit) {
 /** Replay the exact destination operation in an isolated native replica, retaining all source attribution. */
 function assertMoveReplay(file, record, id) {
   const document = withMoveBoard(file, exportBoard);
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   try {
     importBoard(replica, document);
     const before = exportBoard(replica);

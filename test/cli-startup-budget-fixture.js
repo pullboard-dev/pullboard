@@ -8,6 +8,7 @@ import { tmpdir, loadavg, cpus } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 
@@ -27,7 +28,7 @@ function fixture(t) {
   runFixtureGit(['add', '-A'], { cwd: root, env });
   runFixtureGit(['commit', '-qm', 'Seed performance fixture'], { cwd: root, env });
   const file = join(root, '.git', 'pullboard', 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   store.register(board, { lane: 'coordinator', path: root });
   store.closeBoard(board);
   db = new DatabaseSync(file);
@@ -45,7 +46,7 @@ function fixture(t) {
   const shout = db.prepare('INSERT INTO shout (shout_from, shout_to, shout_text, shout_at) VALUES (?, ?, ?, ?)');
   for (let n = 0; n < 23000; n++) shout.run(`core-${1 + n % 800}`, 'all', `Board activity ${n}`, at);
   db.exec('COMMIT');
-  const live = store.openBoard(file);
+  const live = openBoard(file);
   try {
     for (let id = 1; id <= 10; id++) {
       store.claim(live, id, { agentId: `core-${id}`, lane: 'core', leaseMs: 3_600_000,

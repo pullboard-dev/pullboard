@@ -84,7 +84,9 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
       assert.equal(actual.firstFailure.step, 'worker readiness');
       assert.equal(actual.second, failures === 1);
       assert.equal(actual.remaining, failures === 1 ? 0 : 1);
-      assert.deepEqual(actual.events.map(event => event.kind), failures === 1 ? ['unavailable', 'available'] : ['unavailable']);
+      assert.deepEqual(actual.events.map(event => event.kind), failures === 1
+        ? ['unavailable', 'worker-probe-failed', 'available']
+        : ['unavailable', 'worker-probe-failed', 'worker-probe-failed']);
       const probes = readFileSync(requests + '.health-probes', 'utf8').trim().split('\n');
       if (failures === 1) { assert.equal(actual.wrong.healthy, false); assert.equal(actual.wrong.step, 'cleanup'); }
       assert.equal(probes.length, failures === 1 ? 3 : 2, 'backoff prevents another SSH call before its due time');
@@ -93,7 +95,7 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
   test('a free alternate runner admits while another host health probe is pending [C7]', t => {
     const e2e = createE2eHelpers(); t.after(e2e.cleanup);
     const box = e2e.project('true');
-    const resources = pathToFileURL(join(import.meta.dirname, '../src/resources.js')).href;
+    const resources = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
     const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
     const source = `import {listResources,takeResource,runnerResourceStatus} from ${JSON.stringify(resources)};
 import {recordRunnerFailure} from ${JSON.stringify(recovery)};import {DatabaseSync} from 'node:sqlite';

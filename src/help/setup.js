@@ -28,8 +28,8 @@ export const setupHelp = `Set up
                                         short slots for runs that name their test files are opt-in: pullboard settings gate.shortSlots <n> (default 0)
                                         signed person moves are opt-in: pullboard settings person.signed on makes each wait for your passkey; only the passkey turns it off
                                         runner-first dispatch is opt-in: pullboard settings gate.runnersFirst on|off (default off)
-                                        measured runner slots are opt-in: pullboard settings gate.measuredSlots on|off (default off); slots = min(cores - 1, (memory - 2 GB) / 512 MB), browser = min(slots, (memory - 2 GB) / 2 GB)
-                                        submit/verify runner-only admission is opt-in: pullboard settings gate.runnersOnly on|off (default off)
+                                        measured runner slots are opt-in: pullboard settings gate.measuredSlots on|off (default off); reserve 1 core and 2 GB, then cap mixed plain/browser capacity at 512 MB/2 GB per slot
+                                        test/gate/submit/verify runner-only admission is opt-in: pullboard settings gate.runnersOnly on|off (default off)
                                         runner admission deadline: pullboard settings gate.runnerWaitMs <n> (default 300000ms)
                                         worker budget: pullboard settings workers.budget 40/day (or /week), seat-hours run --scale may spend (default off)
   pullboard runner add <ssh-host> [--slots <n> --browser <n>] [--node <remote-path>] [--root <remote-path>]

@@ -7,6 +7,7 @@ import {
 } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import * as signing from '../src/person-signing.js';
 import { presenceAttestation } from '../src/person-presence.js';
 import { preparePersonRequest } from '../src/person-request.js';
@@ -27,7 +28,7 @@ import { relayStampKey } from './person-relay-stamp.js';
 /** A consumed genuine OFF stamp cannot disable signing a second time after ordinary re-enable [E22,H16]. */
 export async function rejectConsumedOffReplay(t) {
   const box = await relayClientFixture(t);
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   // The relay's own stamp key, as the relay vouches for it to this process (#408).
   const relayKey = relayStampKey(box);

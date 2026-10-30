@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { sentinelCommand } from '../src/sentinel-command.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -13,7 +14,7 @@ export function goneClaimFixture(t) {
   const box = helpers.project('true', undefined, { withWorktree: false });
   let at = Date.parse('2026-10-27T12:00:00Z');
   const clock = { now: () => new Date(at) };
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   const owner = store.register(board, { lane: 'web', path: join(box.dir, 'owner') });
   const other = store.register(board, { lane: 'web', path: join(box.dir, 'other') });

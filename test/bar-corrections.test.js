@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -142,7 +143,7 @@ test('[B10,B31] a corrected bar records why the old one was wrong', () => {
 
 test('[B31,H16] the bar-correction rule replays by engine and takes nothing from the move but the reason', () => {
   let at = Date.parse('2026-10-17T00:00:00.000Z');
-  const board = store.openBoard(':memory:', { now: () => new Date(at += 1000) });
+  const board = openBoard(':memory:', { now: () => new Date(at += 1000) });
   try {
     store.register(board, { lane: 'coordinator', path: '/repo' });
     store.register(board, { lane: 'web', path: '/repo-web-1' });

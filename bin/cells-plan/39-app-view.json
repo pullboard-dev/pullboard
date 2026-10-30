@@ -80,7 +80,11 @@
   ["src/view/test-roles.js","apps/view/src/core/view/test-roles.js","rule"],
   ["src/view/timeline-render.js","apps/view/src/core/view/timeline-render.js","rule"],
   ["src/view/verdict-render.js","apps/view/src/core/view/verdict-render.js","rule"],
-  ["src/view/timeline-body.js","apps/view/src/core/view/timeline-body.js","rule"]
+  ["src/view/timeline-body.js","apps/view/src/core/view/timeline-body.js","rule"],
+  ["src/view/cost-tab.js","apps/view/src/shell/view/cost-tab.js","rule"],
+  ["src/view/cost.css","apps/view/src/shell/view/cost.css","rule"],
+  ["src/view/dashboard.css","apps/view/src/shell/view/dashboard.css","rule"],
+  ["src/view/doctrine.css","apps/view/src/shell/view/doctrine.css","rule"]
  ],
  "reexports": [
   "src/background-view.js",

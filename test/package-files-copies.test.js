@@ -398,6 +398,19 @@ function controllerFixture(t) {
   return { ...f, installed };
 }
 
+test('controller provider freshness follows its real package composition, not unrelated shipped engine leaves [C7,P3]', t => {
+  const { installed } = controllerFixture(t);
+  const loaded = captureRunnerTooling(installed);
+  const unrelated = join(installed, 'src/check-timing-engine.js');
+  writeFileSync(unrelated, readFileSync(unrelated, 'utf8') + '\n// unrelated private generation\n');
+  assert.deepEqual(currentRunnerTooling(installed, loaded), runnerPackage(installed),
+    'an unrelated shipped file is not part of this controller generation');
+  const provider = join(installed, 'packages/resources/src/shell/controller-custody.js');
+  writeFileSync(provider, readFileSync(provider, 'utf8') + '\n// actual composed provider changed\n');
+  assert.throws(() => currentRunnerTooling(installed, loaded), { code: 'RUNNER_TOOLING_CHANGED' },
+    'the actual transitive lifecycle provider still requires a fresh controller');
+});
+
 test('committed tooling binds literal Unicode blob bytes and refuses filtered working bytes before SSH [C7,P3]', t => {
   const helper = createE2eHelpers();
   t.after(helper.cleanup);
@@ -429,7 +442,7 @@ await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:'privat
   run('transport');
   assert.equal(readFileSync(marker, 'utf8'), 'called', 'exact Git bytes, including literal path characters and Unicode, reach the private transport');
   rmSync(marker);
-  const resource = toolSourcePath(installed, 'src/resources.js'), resourcePath = relative(installed, resource);
+  const resource = toolSourcePath(installed, 'packages/resources/index.js'), resourcePath = relative(installed, resource);
   writeFileSync(resource, readFileSync(resource, 'utf8').replace(/\r?\n/gu, '\r\n'));
   box.git(installed, 'config', 'core.autocrlf', 'true');
   writeFileSync(join(installed, '.git/info/attributes'), `${resourcePath} text eol=crlf\n`);
@@ -447,7 +460,7 @@ import {readFileSync,writeFileSync} from 'node:fs';
 const {runOnRunnerAsync}=await import(${JSON.stringify(pathToFileURL(join(f.installed, 'src/runners.js')).href)});
 const options={runner:{host:'private-unused.invalid',slots:1,browser:0}};
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_SOURCE_CHANGED');
-const resource=${JSON.stringify(toolSourcePath(f.installed, 'src/resources.js'))};
+const resource=${JSON.stringify(toolSourcePath(f.installed, 'packages/resources/index.js'))};
 writeFileSync(resource,readFileSync(resource,'utf8')+'\\n// changed after controller load\\n');
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_TOOLING_CHANGED');`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });

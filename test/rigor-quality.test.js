@@ -31,7 +31,7 @@ import {
   breachLine,
   changeRange,
   qualityBreaches,
-} from '../src/rigor-quality.js';
+} from '../packages/rigor/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();
@@ -174,5 +174,6 @@ test('quality rules are drafted for the person and stay off until approved [D1,D
   writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify(config, null, 2));
   const clean = box.run(box.repo, 'rigor', 'quality');
   assert.equal(clean.code, 0, clean.out + clean.err);
-  assert.equal(clean.out.trim(), '', 'main against itself has no change to judge');
+  assert.match(clean.out, /(?:^|\n)next: pullboard next --wait 1\n$/u);
+  assert.equal(clean.out.replace(/next: pullboard next --wait 1\n$/u, '').trim(), '', 'main against itself has no change to judge');
 });

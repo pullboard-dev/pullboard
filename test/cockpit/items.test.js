@@ -9,7 +9,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { addItem, closeBoard, completeCheckBaseline, openBoard } from '../../src/board.js';
+import { addItem, closeBoard, completeCheckBaseline } from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { tapTarget, SPEC, machine, project, build, sendBack, startView, element, target, openPage, agentEntries, accept, itemRow, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, settled, earlier, press, travel, chooseFilter, pickProject } from './fixture.js';
 
 
@@ -134,16 +135,16 @@ test('each row says what it waits on [N26]', async () => {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
     const rows = Object.fromEntries(page.show('chain').split('<li class="row').slice(1).map((row) => [/data-item="(\d+)"/.exec(row)[1], {
-      chip: /<span class="chip ([^"]*)"[^>]*>([^<]*)<\/span><\/li>$/.exec(row).slice(1).join(': '),
-      edge: /^[^"]*\bgated\b/.test(row),
+      chip: /<span class="chip ([^"]*)"[^>]*>(.*?)<\/span><\/li>$/.exec(row).slice(1).map(value => value.replace(/<[^>]*>/g, '')).join(': '),
+      gated: /^[^"]*\bgated\b/.test(row),
       waits: [...row.matchAll(/<span class="gate">(.*?)<\/span>/g)].map((match) => match[1]),
     }]));
-    assert.deepEqual(rows['1'], { chip: 'free: unclaimed', edge: false, waits: [] }, 'free to claim');
-    assert.deepEqual(rows['2'], { chip: 'busy: web-1 (Test Model)', edge: false, waits: [] }, 'a claim names its holder');
-    assert.deepEqual(rows['3'], { chip: 'gate: gated', edge: true, waits: [`<span class="wait-unit">waits on <a class="ref" href="/items/2" data-go="item:2">#2</a>`] }, 'gated on #2, which is still being built');
-    assert.deepEqual(rows['4'], { chip: 'gate: lane held', edge: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
-    assert.deepEqual(rows['5'], { chip: 'warn: to verify', edge: false, waits: [] });
-    assert.deepEqual(rows['6'], { chip: 'no: sent back', edge: false, waits: [] });
+    assert.deepEqual(rows['1'], { chip: 'free: unclaimed', gated: false, waits: [] }, 'free to claim');
+    assert.deepEqual(rows['2'], { chip: 'busy: web-1 (Test Model)', gated: false, waits: [] }, 'a claim names its holder');
+    assert.deepEqual(rows['3'], { chip: 'waiting: Waiting on #2', gated: true, waits: [] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['4'], { chip: 'gate: lane held', gated: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
+    assert.deepEqual(rows['5'], { chip: 'warn: to verify', gated: false, waits: [] });
+    assert.deepEqual(rows['6'], { chip: 'no: sent back', gated: false, waits: [] });
 
     await page.click({ go: 'item:2' });
     assert.match(page.show('detail'), /<h2><span>#2<\/span>Base<\/h2>/, 'the gate links to what it waits on');
@@ -258,12 +259,13 @@ test('a sent-back item shows why first [N26]', async () => {
     await page.click({ item: '1', classes: 'row' });
     const detail = page.show('detail');
     const verdict = (await boardOf(view, p.repo)).items.find((item) => item.id === 1).verdict;
-    const time = new Date(verdict.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    const time = new Date(verdict.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
     const top = detail.slice(0, detail.indexOf('<h3>Criterion</h3>'));
     assert.ok(detail.indexOf('<h3>Criterion</h3>') > 0, 'the criterion is shown');
     assert.match(top, /<h3>Sent back<\/h3>/);
     assert.match(top, /<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/);
-    assert.match(top, new RegExp(`coordinator · (\\w+ \\d+ )?${time} · at ${verdict.commit.slice(0, 12)}`), 'who sent it back, when, and at which commit');
+    const verdictHash = `at <button class="hash-copy" type="button" title="${verdict.commit}" aria-label="Copy full hash ${verdict.commit}" data-copy="${verdict.commit}"><code class="inline sha" title="${verdict.commit}">${verdict.commit.slice(0, 12)}</code></button>`;
+    assert.ok(top.includes('coordinator ·') && top.includes(verdictHash), 'who sent it back, when, and at which commit');
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
     assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
@@ -877,7 +879,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
         return {
           ids: [...timeline.querySelectorAll('[data-event-id]')].map((row) => Number(row.dataset.eventId)),
           rows: timeline.querySelectorAll('li').length,
-          kinds: [...timeline.querySelectorAll('.tl-kind')].map((chip) => chip.textContent),
+          kinds: [...timeline.querySelectorAll('.tl-fact .tl-kind')].map((chip) => chip.textContent),
           authors: [...timeline.querySelectorAll('.tl-fact .tl-who')].map((name) => name.textContent),
           ages: timeline.querySelectorAll('.tl-fact small time[data-ago]').length,
           oldClass: old?.className,
@@ -1113,7 +1115,7 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
       assert.equal(new Set(rows.map((row) => row.height)).size, 1, `${width}: every row is as tall as the next: ${JSON.stringify(rows.map((row) => [row.id, row.height]))}`);
       assert.equal(new Set(rows.map((row) => row.chipHeight)).size, 1, `${width}: every chip is the same size`);
       const chips = Object.fromEntries(rows.map((row) => [row.id, row.chip]));
-      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip gate: gated', 'chip no: sent back'], `${width}: each state's chip in the list`);
+      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip waiting: Waiting on #1', 'chip no: sent back'], `${width}: each state's chip in the list`);
       assert.match(chips[5], /^chip busy: web-\d+ \(Test Model\)$/, `${width}: a claimed item names who builds it, in the building colour`);
       // The same state wears the same chip in the item's detail as in its row.
       for (const row of rows) {

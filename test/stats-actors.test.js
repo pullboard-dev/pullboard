@@ -3,7 +3,8 @@ import { events as readStatsEvents } from '../src/board.js';
 import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addItem, claim, closeBoard, events, openBoard, register, release } from '../src/board.js';
+import { addItem, claim, closeBoard, events, register, release } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { eventCounts, proofStats } from '../src/stats.js';
 

@@ -5,6 +5,7 @@ import { after, test } from 'node:test';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { refuseRestatedReport } from '../src/coordinator-shout-purpose.js';
 
 const fixtures = createE2eHelpers();
@@ -13,7 +14,7 @@ after(fixtures.cleanup);
 /** Record one event by web-1 on item 1 at the given time, in the fixture's persisted board. */
 function record(box, kind, at) {
   // @pullboard-board-file persistence: the real CLI processes that follow must read this exact event row
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { store.logEvent(board, 'web-1', kind, 1, {}, at); } finally { store.closeBoard(board); }
 }
 
@@ -54,7 +55,7 @@ test('[C7] a report shout right after the same agent verdict is refused naming t
 });
 
 test('[C7] the refusal covers only the sender, only the last ten minutes and only submit, accept and reject events', () => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   try {
     store.register(board, { lane: 'coordinator', path: '/repo' });
     store.register(board, { lane: 'web', path: '/repo-web' });

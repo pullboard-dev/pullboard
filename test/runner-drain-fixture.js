@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import {
   HOST,
@@ -33,6 +33,10 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   assert.equal(secondAdded.code, 0, secondAdded.err);
   removed.gui = JSON.parse(firstAdded.out).runner.gui;
   remaining.gui = JSON.parse(secondAdded.out).runner.gui;
+  removed.cores = JSON.parse(firstAdded.out).runner.cores;
+  remaining.cores = JSON.parse(secondAdded.out).runner.cores;
+  removed.fixed = true;
+  remaining.fixed = true;
   assert.ok([true, false, null].includes(removed.gui));
   assert.ok([true, false, null].includes(remaining.gui));
   const registered = { ...original, runners: [removed, remaining] };

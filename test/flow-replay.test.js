@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { main } from '../src/cli.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -19,7 +20,7 @@ function fixture(t) {
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
   writeFileSync(join(root, 'PRACTICE.md'), '');
-  const seed = store.openBoard(join(root, '.git', 'seed.sqlite'));
+  const seed = openBoard(join(root, '.git', 'seed.sqlite'));
   store.register(seed, { lane: 'coordinator', path: root });
   store.register(seed, { lane: 'web', path: join(root, 'b1') });
   store.register(seed, { lane: 'web', path: join(root, 'b2') });
@@ -40,7 +41,7 @@ function fixture(t) {
     event_detail: JSON.stringify({ text: 'PRIVATE_EVENT_TOKEN', commit: 'SECRET_COMMIT_TOKEN' }),
   }));
   document.tables.sqlite_sequence.find(row => row.name === 'event').seq = moves.length;
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   importBoard(board, document);
   store.closeBoard(board);
   t.after(() => rmSync(root, { recursive: true, force: true }));

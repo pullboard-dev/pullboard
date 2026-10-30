@@ -447,7 +447,9 @@ test('only a file that reaches a browser launch takes a browser slot [C7,O5]', a
   assert.equal(snapshotPaths.status, 0, snapshotPaths.stderr);
   const sourceFiles = await snapshotBrowserSourceFiles(repository, snapshotPaths.stdout.split('\0').filter(Boolean));
   const bound = await withBrowserSourceFiles(sourceFiles, () => browserBoundFiles(repository, tracked, { byLaunch: true }));
-  assert.ok(!bound.includes('test/runners.test.js'), 'runner subprocess fixture source data does not launch a browser in the runner test process');
+  const runnerScenarios = tracked.filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
+  assert.ok(runnerScenarios.length > 0, 'the split runner scenarios remain in the browser census');
+  for (const file of runnerScenarios) assert.ok(!bound.includes(file), `${file}: runner subprocess fixture source data does not launch a browser in the runner test process`);
   const missed = CENSUS_LAUNCHED.filter(file => tracked.includes(file) && !bound.includes(file));
   assert.deepEqual(missed, [], 'every file that launched Chrome in the census is classified browser-bound');
   // Cockpit and journey files stay bound by rule until #741 guards the view fixture; the rest must reach a launch.
@@ -544,7 +546,7 @@ test('reviewed executor imports stay browser-free only at their exact call sites
   const entries = [
     ['src/cli.js', 'sweepHere', 'spawnSync(item.check,'],
     ['src/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
-    ['src/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
+    ['packages/rigor/src/shell/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
     ['test/cli-startup.test.js', 'fixture', 'runFixtureChild(env.PULLBOARD_REAL_GIT,'],
     ['test/git-calls.test.js', 'advanceHead', 'execFileSync(box.env.PULLBOARD_REAL_GIT,'],
   ];

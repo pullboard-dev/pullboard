@@ -8,7 +8,7 @@ import { readFileTimes } from './test-value-timing.js';
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
- * and a shard whose runner fails mid-run reruns locally.
+ * and a shard whose runner fails mid-run reruns locally only when runner-only policy is off.
  */
 import {
   spawn,
@@ -40,6 +40,7 @@ import {
 } from './git.js';
 import { testsNeedGui } from './gui-admission.js';
 import { loadMachineSettings } from './settings.js';
+import { gateRunnerAdmission } from './settings.js';
 import { localRunnerDescriptor } from './runner-load.js';
 import { guiSession } from './gui-session.js';
 import { headTree } from './git.js';
@@ -50,7 +51,7 @@ import {
   GATE_SLOT_POOL_ENV,
   GATE_SLOT_TOKEN_ENV,
   gateSlotEnvironment,
-} from './resources.js';
+} from '../packages/resources/index.js';
 
 /** Exact opt-in for retaining every test failure while preserving safety cancellation. */
 export const LANDING_COLLECT_ALL_ENV = 'PULLBOARD_LANDING_COLLECT_ALL';
@@ -353,8 +354,8 @@ const RERUN_REFUSALS = new Set(['RUNNER_SETUP_REFUSED', 'RESOURCE_LEASE_LOST', '
 
 /**
  * How a sharded landing answers a runner that gave no test result. A lost host or transport, or a
- * setup the runner's own pool refused (#690), reruns the shard locally. An unverified cleanup also
- * reruns locally, but takes that host out of this landing. Changed source means the code under test
+ * setup the runner's own pool refused (#690), permits local recovery only when runner-only is off.
+ * Unverified cleanup also takes that host out of this landing. Changed source means the code under test
  * drifted, so the landing fails; so does any refusal this does not know, with no silent retry.
  *
  * @param {unknown} error
@@ -390,13 +391,18 @@ class NotNeeded extends Error {}
  *   holds; `write` receives the merged log.
  * @returns {Promise<{ isGreen: boolean, balance: string, shards: object[], files: object[] }>}
  */
-export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus }) {
+export async function runLandingShards({ root, runner, files, count, inherited = null, fullScope = true, needsBrowser = async () => true, needsGui = shardFiles => testsNeedGui(root, shardFiles), write = text => process.stdout.write(text), remoteRun, timing, parseProcessCensus, runnerAdmission = gateRunnerAdmission() }) {
   if (typeof parseProcessCensus !== 'function') throw new TypeError('landing shards need the explicit process census parser');
+  const runnerOnly = runnerAdmission.runnerOnly === true;
   const selectionAt = performance.now();
   const collectAll = process.env[LANDING_COLLECT_ALL_ENV] === '1';
   const collectionId = process.env[COLLECTION_ID_ENV];
   const release = process.env[RELEASE_EXECUTORS_ENV] ? releasePlacement(process.env[RELEASE_EXECUTORS_ENV]) : null;
   if (release && !collectAll) throw new Error('a release requires complete native collection');
+  const { Refused } = await import('./refused.js');
+  if (runnerOnly && release?.executors.some(executor => executor.kind === 'local')) {
+    throw new Refused('RUNNER_SOURCE', 'runner-only landing refuses the required local release executor; run this captured release on a machine allowing local tests');
+  }
   const releaseStartedAt = new Date().toISOString();
   const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
   const { withLandingGateSlot } = await import('./gate.js');
@@ -408,7 +414,6 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   // Every local shard, first run or rerun, must run exactly this source or refuse by name.
   const pinned = landingSource(root);
   const pinnedTree = release ? headTree(root) : null;
-  const { Refused } = await import('./refused.js');
   const history = readFileTimes(root);
   const plan = release ? await planReleaseShards(files, release.executors, history, needsBrowser, needsGui,
     shardFiles => cpuRunnerRequired(root, shardFiles))
@@ -438,7 +443,8 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   timing?.phase('setupMs', setupAt);
 
   /** A remote parent's slot cannot take a GUI file unless its own advertised capability permits it. */
-  const inheritedCanRun = entry => (!entry.gui || !inherited?.runner || inherited.runner.gui === true)
+  const inheritedCanRun = entry => (!runnerOnly || inherited?.runnerExecution === true || Boolean(inherited?.runner))
+    && (!entry.gui || !inherited?.runner || inherited.runner.gui === true)
     && (!entry.shard.executor || (inherited?.runner ? inherited.runner.host === entry.shard.executor.id
       : entry.shard.executor.id === localRunnerDescriptor(null, null).id));
 
@@ -447,6 +453,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     const started = performance.now();
     const number = entry.attempts.length + 1;
     if (!lease.runner) {
+      if (runnerOnly && !lease.runnerExecution) throw new Refused('RUNNER_SOURCE', 'runner-only landing refuses a local shard lease; no local fallback');
       if (release && cpuRunnerRequired(root, entry.shard.files)) {
         return { attempt: number, host: 'local', outcome: 'refused', reason: 'CPU-runner work cannot prove local release participation', output: '', wallMs: Math.round(performance.now() - started) };
       }
@@ -506,7 +513,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     entry.attempts.push({ ...record, status });
     write(`# landing shard ${entry.label} attempt ${record.attempt} on ${record.host}: ${status}${record.reason ? ` (${record.reason})` : ''} in ${record.wallMs} ms\n`);
     if (record.output) write(record.output.endsWith('\n') ? record.output : `${record.output}\n`);
-    if (status === 'infrastructure' && !release) {
+    if (status === 'infrastructure' && !release && !runnerOnly) {
       write(`landing shard ${entry.label}: runner ${record.host} failed mid-shard; rerunning shard ${entry.label} locally\n`);
       entry.claimed = false;
       entry.localOnly = true;
@@ -539,19 +546,25 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   };
 
   const failures = [];
+  const acquisitions = new Set();
   /** Queue this shard for a slot of its own; the parent's lane may take it first. */
   const acquire = (entry) => {
     const localOnly = entry.localOnly;
     const running = withLandingGateSlot(root, async lease => {
       if (entry.claimed || entry.done) return;
       // A host quarantined in this landing gets no more shards; queue again for a local slot.
-      if (lease.runner && quarantined.has(lease.runner.host)) return 'divert';
+      if (lease.runner && quarantined.has(lease.runner.host)) {
+        if (runnerOnly) throw new Refused('RUNNER_SOURCE', `runner-only landing refuses quarantined runner ${lease.runner.host}; no local fallback`);
+        return 'divert';
+      }
       entry.claimed = true;
       await runOnLease(entry, lease);
-    }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: entry.browser, gui: entry.gui, remote: !localOnly, kind: 'landing', item: `shard ${entry.label}`,
+    }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: entry.browser, gui: entry.gui, ...runnerAdmission, remote: !localOnly, kind: 'landing', item: `shard ${entry.label}`,
       ...(entry.shard.executor ? { requiredExecutor: entry.shard.executor.kind === 'local'
         ? { kind: 'local' } : { kind: 'ssh', host: entry.shard.executor.host } } : {}),
       onWait: () => { if (entry.claimed || entry.done || stop.aborted) throw new NotNeeded(); } });
+    acquisitions.add(running);
+    running.then(() => acquisitions.delete(running), () => acquisitions.delete(running));
     running.then(result => {
       if (result !== 'divert' || entry.claimed || entry.done) return;
       entry.localOnly = true;
@@ -587,8 +600,12 @@ export async function runLandingShards({ root, runner, files, count, inherited =
     if (failures.length) throw failures[0];
     shards = entries;
   } finally {
+    // A completed shard can signal before its admission finishes releasing the owned slot.
+    if (!entries.every(entry => entry.done)) { stopper.abort(); signalChange(); }
+    while (acquisitions.size) await Promise.allSettled([...acquisitions]);
     for (const [key, value] of Object.entries(saved)) if (value !== undefined) process.env[key] = value;
   }
+  if (failures.length) throw failures[0];
   const merged = [];
   const measured = {};
   for (const entry of shards) {

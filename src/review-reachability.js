@@ -1,8 +1,9 @@
+import { compositionReviews } from './review-composition.js';
+import { reviewPatchAuthors } from './review-composition.js';
 /** A strict item no active seat could review is named at submit and by the sentinel, from the one native eligibility rule [C7,V4]. */
 import { reviewEligibility } from './review-eligibility.js';
 import { familyName } from './review-policy.js';
 import { familyAliasesOf } from './review-policy.js';
-import { itemPatchAuthors } from './item-patch-state.js';
 import { Refused } from './refused.js';
 import { listAgents } from './board-query.js';
 import { seatFamily } from './family-declaration.js';
@@ -16,7 +17,7 @@ function authorFamilies(board, item) {
   const aliases = familyAliasesOf(board);
   const declared = (id) => seatFamily(board, id);
   const rows = [{ role: 'builder', agent: item.item_built_by, family: familyName(item.item_builder_family ?? declared(item.item_built_by), aliases) }];
-  for (const author of itemPatchAuthors(board, item.item_id)) rows.push({ role: 'companion author', agent: author.agentId, family: familyName(declared(author.agentId), aliases) });
+  for (const author of reviewPatchAuthors(board, item)) rows.push({ role: 'companion author', agent: author.agentId, family: familyName(declared(author.agentId), aliases) });
   return rows.filter(row => row.agent);
 }
 
@@ -52,7 +53,7 @@ export function unreviewableStrict(board, item, options = {}) {
 export function asSubmitted(board, item) {
   if (item.item_status !== 'claimed') return item;
   const owner = seatFamily(board, item.item_owner);
-  return { ...item, [PROJECTED_STATUS]: 'submitted', item_built_by: item.item_built_by ?? item.item_owner, item_builder_family: item.item_builder_family ?? owner };
+  return { ...item, [PROJECTED_STATUS]: 'submitted', item_built_by: compositionReviews(board) ? item.item_owner : item.item_built_by ?? item.item_owner, item_builder_family: compositionReviews(board) ? owner : item.item_builder_family ?? owner };
 }
 
 /** Refuse the submit that no active seat could review. */

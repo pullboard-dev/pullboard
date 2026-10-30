@@ -1,5 +1,5 @@
 /** @pullboard-test-gui */
-/** The view opens on whether the rules hold, then what needs the person; Items stay one click away [N26,U91]. */
+/** Dashboard keeps the rules and capacity cards while the Home tab is retired [N26,U91]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fetchPage, machine, openPage, project, startView, storage, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, allowLiveHold, holdLive, press } from './fixture.js';
@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { rebuildProofCounters } from '../../src/proof-counters.js';
 import { submitFixture } from '../board-submit-fixture.js';
 
@@ -27,34 +28,35 @@ function count(html, key) {
   return Number(new RegExp(`data-home-count="${key}"><dt>[^<]+</dt><dd>(\\d+)</dd>`).exec(html)?.[1]);
 }
 
-test('the first screen shows the rules and their proof before the work queue [N26]', async () => {
+test('Dashboard is the landing page, carries the rules, and migrates saved Home state [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC);
   const view = await startView(box);
   try {
     const html = await (await fetchPage(view)).text();
-    const before = (first, then) => html.includes(first) && html.indexOf(first) < html.indexOf(then);
-    assert.ok(before('data-tab="home"', 'data-tab="items"'), 'Home is the first tab, Items the next');
-    assert.ok(before('data-pane="home"', 'data-pane="items"'), 'the rules come before the work queue');
+    const navigation = /<nav class="tabs"[^>]*>([\s\S]*?)<\/nav>/u.exec(html)?.[1] ?? '';
+    const tabs = [...navigation.matchAll(/<button\b[^>]*\bdata-tab="([^"]+)"[^>]*>/gu)].map(([, tab]) => tab);
+    assert.equal(tabs[0], 'dashboard', 'Dashboard is the first tab');
+    assert.doesNotMatch(html, /data-tab="home"|data-pane="home"/u, 'the retired Home tab and pane are absent');
 
-    // A new board opens on its rules: counted from the rows the board sends, then the calls waiting on the person.
+    // A new board opens on Dashboard, which retains the rules and the calls waiting on the person.
     const fresh = await openPage(view, { store: storage() });
-    assert.equal(fresh.run('view.tab'), 'home', 'a board with no items yet opens on Home');
-    const rules = fresh.show('home-rules');
+    assert.equal(fresh.run('view.tab'), 'dashboard', 'a board with no items yet opens on Dashboard');
+    const rules = fresh.show('dashboard');
     assert.deepEqual(['approved', 'gated', 'ungated'].map((key) => count(rules, key)), [3, 2, 1], 'approved rows, those naming a gate, and those with none');
     assert.match(rules, /data-go="tab:spec"/, 'the rules card opens the Spec');
-    assert.match(fresh.show('home-needs'), /Should the page greet a visitor\?[^]*?NEEDS YOU/, 'below the rules, what needs the person');
-    assert.equal(fresh.element('home-calm').hidden, true, 'no calm line while something waits');
+    const dashboard = fresh.show('dashboard');
+    assert.match(dashboard, /aria-label="Needs you"[^]*?Should the page greet a visitor\?/u, 'Dashboard keeps the call waiting on the person');
+    assert.doesNotMatch(dashboard, /Nothing needs you/u, 'a visible call suppresses the calm state');
 
-    // An existing board keeps opening on Items; one click switches, and that choice is kept.
+    // Existing work also opens on Dashboard; the person's explicit Items choice is remembered.
     box.run(alpha.repo, 'add', 'web', 'Render the page', '--specs', 'G1');
     const store = storage();
     const working = await openPage(view, { store });
-    assert.equal(working.run('view.tab'), 'items', 'a board with work opens on Items');
-    await working.click({ tab: 'home' });
-    assert.equal(working.run('view.tab'), 'home');
-    assert.equal(store.getItem('pb.tab'), 'home', 'the choice is kept');
-    assert.equal((await openPage(view, { store })).run('view.tab'), 'home', 'the next visit opens where the person left it');
+    assert.equal(working.run('view.tab'), 'dashboard', 'a board with work opens on Dashboard');
+    const savedHome = storage();
+    savedHome.setItem('pb.tab', 'home');
+    assert.equal((await openPage(view, { store: savedHome })).run('view.tab'), 'dashboard', 'a saved Home tab opens on Dashboard');
     await working.click({ tab: 'items' });
     assert.equal((await openPage(view, { store })).run('view.tab'), 'items', 'Items is one click back, and kept too');
   } finally {
@@ -79,19 +81,18 @@ test('home renders the projected useful agents range lever and curve and refresh
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    assert.match(page.html, /id="home-capacity"/, 'the served page mounts the capacity card');
-    // A board with no items opens on the Dashboard; the capacity card belongs to Home.
-    page.run(`view.tab = 'home'; data.project.capacityForecast = ${JSON.stringify(CAPACITY)}; render();`);
-    const html = page.show('home-capacity');
+    assert.match(page.html, /id="dashboard-capacity"/, 'the served page mounts the capacity card on Dashboard');
+    page.run(`data.project.capacityForecast = ${JSON.stringify(CAPACITY)}; render();`);
+    const html = page.show('dashboard');
     assert.match(html, /Max useful agents now: <strong>24<\/strong> \(16–32\)/);
     assert.match(html, /Finish in about 18–22 h/);
     assert.match(html, /Binding: rework/);
     assert.match(html, /Lever: Halve rejects/);
     assert.match(html, /2 items lack recorded approval evidence/);
     assert.match(html, /<polyline/);
-    assert.match(page.show('home-rules'), /Your rules/, 'existing rules remain visible');
+    assert.match(page.show('dashboard'), /Your rules/, 'existing rules remain visible');
     page.run('data.project.capacityForecast = { available: false, stale: true, unknown: ["Missing measured history"] }; render();');
-    const unavailable = page.show('home-capacity');
+    const unavailable = page.show('dashboard');
     assert.match(unavailable, /Capacity estimate is unavailable/);
     assert.match(unavailable, /Estimates are stale/);
     assert.match(unavailable, /Missing measured history/);
@@ -103,7 +104,7 @@ test('home renders the projected useful agents range lever and curve and refresh
 
 
 // budget: hang ceiling for one private Chrome session and two viewport observations, not a speed target.
-test('Home capacity stays readable at phone and desktop widths in real Chrome [N26,R1,R2]', { timeout: 60_000 }, async t => {
+test('Dashboard capacity stays readable at phone and desktop widths in real Chrome [N26,R1,R2]', { timeout: 60_000 }, async t => {
   const executable = chromeExecutable();
   assert.ok(executable, 'this browser-marked check needs an installed Chrome');
   const box = machine();
@@ -116,15 +117,15 @@ test('Home capacity stays readable at phone and desktop widths in real Chrome [N
     await allowLiveHold(chrome);
     await chrome.send('Page.navigate', { url: view.link.href });
     await holdLive(chrome, "data?.project?.spec.some(row => row.id === 'G1')");
-    await press(chrome, "document.querySelector('[data-tab=home]')");
-    assert.equal(await chrome.stable("Boolean(document.querySelector('#home-capacity'))"), true, 'the real served Home page mounts the capacity card');
+    await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=dashboard]').hidden");
+    assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true, 'the real served Dashboard mounts the capacity card');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       // This is a presenter fixture injected into a real page, not a claim of the uncomposed core HTTP integration.
       await chrome.stable(`(() => { data.project.capacityForecast = ${JSON.stringify({ ...CAPACITY, lever: { text: '<img src=x onerror=alert(1)>' } })}; render(); return true; })()`);
       const shown = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const card = document.querySelector('#home-capacity'), rect = card.getBoundingClientRect();
+        const card = document.querySelector('#dashboard-capacity'), rect = card.getBoundingClientRect();
         return { text: card.innerText, curve: Boolean(card.querySelector('polyline')), injected: Boolean(card.querySelector('img,script')),
           left: rect.left, right: rect.right, page: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth), width: innerWidth };
       })())`));
@@ -135,7 +136,7 @@ test('Home capacity stays readable at phone and desktop widths in real Chrome [N
       assert.equal(shown.injected, false, 'projected labels remain text rather than active markup');
       assert.ok(shown.left >= 0 && shown.right <= width + 1 && shown.page <= width + 1, `capacity layout fits ${width}px: ${JSON.stringify(shown)}`);
       await chrome.stable("(() => { data.project.capacityForecast = { available: false, stale: true, unknown: ['Missing measured history'] }; render(); return true; })()");
-      const unknown = await chrome.stable("document.querySelector('#home-capacity').innerText");
+      const unknown = await chrome.stable("document.querySelector('#dashboard-capacity').innerText");
       assert.match(unknown, /Capacity estimate is unavailable/);
       assert.match(unknown, /Estimates are stale/);
       assert.doesNotMatch(unknown, /Finish in about/);
@@ -149,7 +150,7 @@ test('Home capacity stays readable at phone and desktop widths in real Chrome [N
 /** Seed ordinary native board history so the real state endpoint has a measured capacity projection. */
 function seedCapacityHistory(box, repo) {
   // @pullboard-board-file journey: the real view server reads this seeded project board over HTTP
-  const board = store.openBoard(join(repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(repo, '.git/pullboard/board.sqlite'));
   const now = Date.now();
   let clock = now - 3 * 24 * HOUR;
   /** Expose the fixture's controlled clock to normal board operations. */
@@ -194,7 +195,7 @@ function seedCapacityHistory(box, repo) {
   }
 }
 
-/** Format a measured number the same way the Home card presents server-provided values. */
+/** Format a measured number the same way the Dashboard card presents server-provided values. */
 function displayCapacityNumber(value) {
   return typeof value === 'number' && Number.isFinite(value) ? String(Number(value.toFixed(2))) : 'unknown';
 }
@@ -206,7 +207,7 @@ function freezeCapacityItem(item) {
 
 // budget: one owned Chrome session and two viewport observations; this is a hang ceiling, not a speed target.
 /** Render server-measured capacity from the real local API at narrow and desktop viewport sizes. */
-test('Home renders the real board capacity at phone and desktop widths [N26,R1,R2]', { timeout: 60_000 }, async t => {
+test('Dashboard renders the real board capacity at phone and desktop widths [N26,R1,R2]', { timeout: 60_000 }, async t => {
   const executable = chromeExecutable();
   assert.ok(executable, 'this browser-marked check needs an installed Chrome');
   const box = machine();
@@ -230,14 +231,14 @@ test('Home renders the real board capacity at phone and desktop widths [N26,R1,R
     let fetchedBoardState = false;
     for (const request of chrome.requests) if (isBoardStateRequest(request, board)) fetchedBoardState = true;
     assert.ok(fetchedBoardState, 'Chrome fetched board state over the real view HTTP route');
-    await press(chrome, "document.querySelector('[data-tab=home]')");
-    assert.equal(await chrome.stable("Boolean(document.querySelector('#home-capacity'))"), true,
-      'the real Home card is mounted without setting data.project.capacityForecast in the page');
+    await chrome.waitFor("document.querySelector('#dashboard-capacity') && !document.querySelector('[data-pane=dashboard]').hidden");
+    assert.equal(await chrome.stable("Boolean(document.querySelector('#dashboard-capacity'))"), true,
+      'the real Dashboard card is mounted without setting data.project.capacityForecast in the page');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 900 });
       await chrome.waitFor(`innerWidth === ${width}`);
       const shown = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const card = document.querySelector('#home-capacity'), rect = card.getBoundingClientRect();
+        const card = document.querySelector('#dashboard-capacity'), rect = card.getBoundingClientRect();
         return { text: card.innerText, curve: Boolean(card.querySelector('polyline')), left: rect.left,
           right: rect.right, page: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) };
       })())`));

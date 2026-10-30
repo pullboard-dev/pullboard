@@ -11,7 +11,7 @@ import {
 import {
   recordRunnerGui,
   runnerResourceStatus,
-} from '../resources.js';
+} from '../../packages/resources/index.js';
 import { validateRunner } from '../settings-read.js';
 import { probeRunnerTransport } from '../runner-transport.js';
 import {

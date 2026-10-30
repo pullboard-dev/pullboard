@@ -108,6 +108,7 @@ test('a plan built from real files orders leaves first, cuts the cycle and place
   const commands = itemCommands(plan);
   assert.equal(commands.length, plan.cells.length);
   assert.ok(commands.every(({ args }) => args[0] === 'add' && args.includes('--check') && args.includes('--after')), 'each cell becomes one pullboard add with a check and an order');
+  assert.ok(commands.every(({ cell, args }) => args[args.indexOf('--brief') + 1].includes(`Shims re-export through ${cell.frontDoor}, never a moved leaf directly`)), 'the move brief names the required front door');
   const filed = new Map([[plan.cells[0].name, '7001']]);
   const rerun = itemCommands(plan, filed);
   assert.equal(rerun.length, plan.cells.length - 1, 'a rerun skips a cell already on the board');
@@ -117,6 +118,7 @@ test('a plan built from real files orders leaves first, cuts the cycle and place
 
 test('a move item\'s frozen check passes only when the cell moved behind shims [D3,CD60]', t => {
   const { root, put } = fixture(t);
+  put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
   const plan = computePlan(root);
   writePlan(root, plan);
   assert.deepEqual(readPlan(root), JSON.parse(JSON.stringify(plan)), 'the sharded plan reads back whole');
@@ -125,13 +127,41 @@ test('a move item\'s frozen check passes only when the cell moved behind shims [
   put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
   put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
   assert.match(checkMoved(root, plan, 'kernel').join('\n'), /src\/refused\.js still holds code/u, 'code left at the old path fails');
-  put('src/refused.js', "export { Refused } from '../packages/kernel/src/core/refused.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
   assert.deepEqual(checkMoved(root, plan, 'kernel'), [], `${kernel.name} moved behind a shim`);
   const run = runFixtureChild(process.execPath, [BIN, '--moved', 'kernel'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   const unknown = runFixtureChild(process.execPath, [BIN, '--moved', 'nowhere'], { cwd: root, encoding: 'utf8' });
   assert.notEqual(unknown.status, 0);
   assert.match(unknown.stderr, /CELLS_PLAN_CELL/u);
+});
+
+test('a moved shim that bypasses its unreachable front door fails by both paths [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t);
+  put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
+  const plan = computePlan(root);
+  writePlan(root, plan);
+  put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+  put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/src/core/refused.js';\n");
+  const problems = checkMoved(root, plan, 'kernel');
+  assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door packages/kernel/index.js')), problems.join('\n'));
+  assert.ok(problems.some(problem => problem.includes('unreachable front door packages/kernel/index.js')), problems.join('\n'));
+  const run = runFixtureChild(process.execPath, [BIN, '--moved', 'kernel'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stderr, /src\/refused\.js.*packages\/kernel\/index\.js/u);
+});
+
+test('a correct shim does not make an otherwise unreachable moved package reachable [C7,D3,CD64]', t => {
+  const { root, put } = fixture(t);
+  put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
+  const plan = computePlan(root);
+  writePlan(root, plan);
+  put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+  put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
+  put('src/board.js', "import { claims } from './claims.js';\nexport const board = () => claims;\n");
+  assert.ok(checkMoved(root, plan, 'kernel').some(problem => problem.includes('unreachable front door packages/kernel/index.js')));
 });
 
 

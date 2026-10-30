@@ -41,6 +41,9 @@ import {
 } from 'node:fs';
 import { displayAgentName } from './agent-names.js';
 import * as store from './board.js';
+import { openBoardForRead } from './native-board.js';
+import { openBoard } from './native-board.js';
+import { roadmap } from './board-milestones.js';
 import {
   COORDINATOR,
   loadConfig,
@@ -148,8 +151,8 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
     return { ...inputs, externalMilestones: hasExternalMilestones
       ? scopeCommonDir === null
-        ? milestoneRoadmap(info.root, board, { ports: store })
-        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: store })
+        ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard } })
+        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })
       : null };
   }, isMain);
   const inputs = {
@@ -450,6 +453,8 @@ function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta 
   const summary = { ...state, items: state.items.map(itemSummary) };
   const reportValidator = { json: JSON.stringify(state.proofStats?.flow?.report), expiries: [...new Set(preparedFlow.items.flatMap(item =>
     item.state === 'claimed' ? [item.leaseUntil] : item.state === 'submitted' ? [item.reserve?.until] : []).filter(Number.isFinite))].sort((a, b) => a - b) };
+  reportValidator.comparisonEvents = [...new Set((comparisonHistory ?? []).map(event => Date.parse(event.event_at)).filter(Number.isFinite))].sort((a, b) => a - b);
+  reportValidator.comparisonWindowMs = state.statsComparison?.durationMinutes * 60_000;
   reportValidator.digest = createHash('sha256').update(reportValidator.json ?? 'null').digest('hex');
   return { revision, sequence: state.sequence, state, summary, preparedFlow, comparisonHistory, reportValidator, summaryFields: prepareStateJson(summary), stateJsonFields: null,
     print: fingerprint(summary), items: new Map(state.items.map((item) => [item.id, item])), itemMeta, itemMoveCounts, inputs, clockWindow, searchTexts: null };
@@ -557,19 +562,50 @@ function jsonField(key, value) {
   return encoded === undefined ? '' : JSON.stringify(key) + ':' + encoded;
 }
 
-/** Reuse recorded report material while retaining genuine native lease-boundary changes. */
+/** Count crossed native boundaries without scanning the retained history on every read. */
+function crossedBoundaries(values, now) {
+  let low = 0, high = values.length;
+  while (low < high) { const middle = (low + high) >>> 1; if (values[middle] <= now) low = middle + 1; else high = middle; }
+  return low;
+}
+
+/** Reuse recorded report material while retaining native leases and sliding-window event membership. */
 function reportValidation(entry, now = Date.now()) {
-  const expiries = entry.reportValidator.expiries;
-  let low = 0, high = expiries.length;
-  while (low < high) { const middle = (low + high) >>> 1; if (expiries[middle] <= now) low = middle + 1; else high = middle; }
-  return entry.reportValidator.digest + ':' + low;
+  const { expiries, comparisonEvents, comparisonWindowMs } = entry.reportValidator;
+  let crossed = crossedBoundaries(expiries, now);
+  if (Number.isFinite(comparisonWindowMs) && comparisonWindowMs > 0) {
+    for (const offset of [0, comparisonWindowMs, 2 * comparisonWindowMs]) crossed += crossedBoundaries(comparisonEvents, now - offset);
+  }
+  return entry.reportValidator.digest + ':' + crossed;
+}
+
+/** Normalize only known elapsed-clock measures; counts, unavailable values and future fields stay material. */
+function comparisonForValidation(comparison) {
+  if (comparison?.available !== true || !Number.isFinite(comparison.durationMinutes) || comparison.durationMinutes <= 0) return comparison;
+  const normalized = { ...comparison };
+  for (const name of ['current', 'previous', 'change']) {
+    const window = comparison[name];
+    if (!window || typeof window !== 'object') continue;
+    const value = { ...window };
+    for (const field of ['since', 'until']) if (typeof value[field] === 'string') value[field] = null;
+    for (const field of ['agentHours', 'idleHours', 'idleShare', 'agentHoursPerLanding', 'unknownStageHours']) {
+      if (typeof value[field] === 'number') value[field] = 0;
+    }
+    for (const field of ['idleReasonHours', 'idleReasons', 'stageHours', 'stageShares']) {
+      if (value[field] && typeof value[field] === 'object') value[field] = Object.fromEntries(Object.entries(value[field])
+        .map(([key, entry]) => [key, typeof entry === 'number' ? 0 : entry]));
+    }
+    normalized[name] = value;
+  }
+  return normalized;
 }
 
 /** Reuse static state fragments while encoding request-specific unread and flow data. */
-function serializeState(state, fields, reportJson) {
+function serializeState(state, fields, reportJson, validator = false) {
   if (!fields) return JSON.stringify(state);
   const encoded = fields.map((field) => {
     if (field.static !== undefined) return field.static;
+    if (field.dynamic === 'statsComparison' && validator) return jsonField(field.dynamic, comparisonForValidation(state.statsComparison));
     if (field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison') return jsonField(field.dynamic, state[field.dynamic]);
     if (field.dynamic === 'proofStats') {
       const value = state.proofStats?.flow;
@@ -598,11 +634,11 @@ function withBoard(root, read, isMain) {
   const file = join(info.commonDir, 'pullboard', 'board.sqlite');
   // A read takes no write lock and never migrates (#1047): main code reads an older board as it is,
   // branch code keeps the schema guard, and a read that writes after all runs again on a write open.
-  const opened = store.openBoardForRead(file);
+  const opened = openBoardForRead(file);
   const main = () => isMain !== false && codeIsFromMain();
   if (opened && (opened.current || main())) try { return read(opened, info); } catch (error) { if (!store.writeRefused(error)) throw error; } finally { store.closeBoard(opened); }
   else if (opened) store.closeBoard(opened);
-  const board = store.openBoard(file, undefined, { isMain: main() });
+  const board = openBoard(file, undefined, { isMain: main() });
   try { return read(board, info); } finally { store.closeBoard(board); }
 }
 
@@ -911,7 +947,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       observedAt,
       localRelayHealth: relayCanaryNeeds(board.root),
       localCapacity: true,
-    }, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain);
+    }, { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary }), codeIsMain);
     // Capture the complete prefix once in this transaction; each read projects its actual observation
     // windows from those cached canonical inputs without another database scan or state rebuild.
     const state = { ...built.state, sequence: built.sequence,
@@ -946,8 +982,8 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
       const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state))
         : compact ? (entry.compactFields ??= prepareStateJson(base)) : entry.summaryFields;
-      const reportValidator = reportValidation(entry);
-      const validator = serializeState(state, fields, entry.reportValidator.json) + '\0report-expiry:' + reportValidator + (compact ? '\0items:compact-v1' : '');
+      const reportValidator = reportValidation(entry, observedAt);
+      const validator = serializeState(state, fields, entry.reportValidator.json, true) + '\0report-expiry:' + reportValidator + (compact ? '\0items:compact-v1' : '');
       return { state, json: serializeState(state, fields), validator, reportValidator, entry };
     }, observedAt);
     // Only the build actually returned is sent; a delta extends summaries, never a full state.
@@ -979,7 +1015,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     };
     const sent = withSnapshot(board, (entry, cached) => ({ entry, answer: answerFor(entry, cached) }), observedAt);
     if (sent.answer.delta) keepSentBase(sent.entry);
-    return Object.defineProperty(sent.answer, 'reportValidator', { value: reportValidation(sent.entry) });
+    return Object.defineProperty(sent.answer, 'reportValidator', { value: reportValidation(sent.entry, observedAt) });
   }
   /**
    * The spec-approval view one board's details share, kept while the files, HEAD and board records it

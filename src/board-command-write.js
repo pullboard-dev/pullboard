@@ -3,6 +3,9 @@ import * as store from './board.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { requireAgentGrant } from './agent-grant.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
+import { Refused } from './refused.js';
+
+const PREPARE_ATTEMPTS = 4;
 
 // Like the writer dispatch, each preparation belongs to its exact native operation, never the wire.
 const PREPARATIONS = Object.freeze({ claim: store.prepareClaim });
@@ -19,10 +22,19 @@ export function writeBoardCommand(board, operation, args, actor) {
   requireHandoffActive(board, actor, operation, args);
   requireAgentGrant(board, { operation, args, engine: ENGINE_VERSION });
   const prepare = PREPARATIONS[operation];
-  const prepared = prepare ? [args[0], prepare(board, args[0], args[1])] : args;
-  return store.atomic(board, () => {
-    requireHandoffActive(board, actor, operation, prepared);
-    requireAgentGrant(board, { operation, args: prepared, engine: ENGINE_VERSION });
-    return board.enginePorts.store[operation](board, ...prepared);
-  });
+  // Another connection's commit (a peer's renewal, a baseline worker) can land between preparation and
+  // the writer lock; the prepared plan is then stale, so prepare again from the new board. Bounded so a
+  // continuously changing board still reports BOARD_BUSY. This is why concurrent renewals all succeed.
+  for (let attempt = 0; ; attempt++) {
+    const prepared = prepare ? [args[0], prepare(board, args[0], args[1])] : args;
+    try {
+      return store.atomic(board, () => {
+        requireHandoffActive(board, actor, operation, prepared);
+        requireAgentGrant(board, { operation, args: prepared, engine: ENGINE_VERSION });
+        return board.enginePorts.store[operation](board, ...prepared);
+      });
+    } catch (error) {
+      if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw error;
+    }
+  }
 }

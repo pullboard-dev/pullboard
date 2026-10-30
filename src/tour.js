@@ -146,14 +146,14 @@ export async function tour(io) {
   /**
    * Run one command as an agent, show it and the lines of its output worth reading.
    */
-  const run = (who, file, args, { label = `${file} ${typed(args)}`, show = /./, fails = false, tone } = {}) => {
+  const run = (who, file, args, { label = `${file} ${typed(args)}`, show = /./, fails = false, tone, nested = false } = {}) => {
     pause(400 * pace);
     if (label) io.say(`   ${paint(displayAgentName({ agent_id: who, agent_model: who === 'coordinator' ? null : 'Scripted' }), PROMPT_COLOR[who], color)} $ ${label}`);
     const started = performance.now();
     const result = spawnSync(file, args, {
       cwd: where[who],
       encoding: 'utf8',
-      env: { ...env, ...seatSession(who), GIT_AUTHOR_NAME: who, GIT_AUTHOR_EMAIL: `${who}@tour.invalid`, GIT_COMMITTER_NAME: who, GIT_COMMITTER_EMAIL: `${who}@tour.invalid` },
+      env: { ...env, ...seatSession(who), ...(nested ? { PULLBOARD_TEXT_NEXT: '0' } : {}), GIT_AUTHOR_NAME: who, GIT_AUTHOR_EMAIL: `${who}@tour.invalid`, GIT_COMMITTER_NAME: who, GIT_COMMITTER_EMAIL: `${who}@tour.invalid` },
     });
     timings.push({ label: label || `${file} ${typed(args)}`, ms: performance.now() - started });
     if ((result.status === 0) === fails) {
@@ -166,7 +166,7 @@ export async function tour(io) {
     }
     return result.stdout.trim();
   };
-  const pb = (who, args, options) => run(who, process.execPath, [BIN, ...args], { label: `pullboard ${typed(args)}`, ...options });
+  const pb = (who, args, options) => run(who, process.execPath, [BIN, ...args], { label: `pullboard ${typed(args)}`, ...options, nested: true });
   const write = (who, files) => {
     for (const [path, text] of Object.entries(files)) {
       mkdirSync(join(where[who], path, '..'), { recursive: true });

@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../../src/board.js';
+import { openBoard } from '../../src/native-board.js';
 import { projectState } from '../../src/serve.js';
 import { createE2eHelpers } from '../e2e-helpers.js';
 
@@ -13,7 +14,7 @@ after(e2e.cleanup);
 
 test('the view state reads recent events by index [C7]', () => {
   const box = e2e.project();
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const insert = board.db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, NULL, ?)');
     const base = Math.max(...store.events(board).map((event) => Date.parse(event.event_at))) + 1000;

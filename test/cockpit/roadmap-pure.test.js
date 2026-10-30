@@ -67,15 +67,15 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   const next = readMilestoneModel(upcoming, rows);
   const shipped = readMilestoneModel({ name: 'Old', items: [3], note: 'First line\nFull note', shipped: { commit: 'a'.repeat(40) } },
     [{ label: '#3', state: 'verified', stage: 'merged', title: 'Landed' }]);
-  const headers = new Map([[next, { count: '<b>Prepared count</b>', detail: '<div>Prepared progress</div>' }]]);
+  const headers = new Map([[next, { top: '<b>Prepared header</b>', detail: '<div>Prepared progress</div>' }]]);
   const open = new Map([[JSON.stringify(['/local', 'm:' + upcoming.name]), false], [JSON.stringify(['/foreign', 'shipped']), true]]);
   const html = roadmapCardsHtml([next, shipped], { root: '/local', held: upcoming.name, open, headers,
     rows: new Map(rows.map(row => [row, { root: '/local', titleHtml: row.title }])) });
   assert.match(html, /data-roadmap-key="m:Next &lt;release&gt;"[^>]*aria-expanded="false"/u);
-  assert.match(html, /Prepared count/u);
+  assert.match(html, /Prepared header/u);
   assert.match(html, /Prepared progress/u);
   assert.match(html, /data-shipping-stage="landing"><dt>Accepted, landing<\/dt><dd>1<\/dd>/u);
-  assert.match(html, /<span class="milestone-limit">2 items<\/span>/u);
+  assert.doesNotMatch(html, /class="milestone-limit"/u, 'the prepared shared header replaces the extra total-and-limit line');
   assert.doesNotMatch(html, /limit 4/u, 'a distant capacity limit is not presented beside the item count');
   assert.match(html, /<li hidden><div[^>]*data-roadmap-key="i:#1"/u);
   assert.match(html, /data-roadmap-key="shipped"[^>]*aria-expanded="false"/u, 'another board cannot unfold local history');
@@ -104,10 +104,10 @@ test('Roadmap names a limit only within ten percent and formats the forecast for
 
   const summary = { total: 512, landed: 0, left: 512, landing: 7, review: 0, building: 0, waiting: 0, held: 12,
     pace: { last6h: 7, last2h: 7 }, estimate: { low: 71, high: 212.5 }, window: '6h', reason: null };
-  const detail = roadmapSummary({ name: 'Capacity', summary }).detail;
-  assert.match(detail, /<span class="roadmap-estimate">About <b>3<\/b> to <b>9<\/b> days at today’s pace<\/span>/u);
-  assert.match(detail, /<span class="roadmap-pace"><b>7<\/b> landed in the last 6 h, <b>7<\/b> in the last 2 h<\/span>/u);
-  assert.match(detail, /<i class="roadmap-summary-swatch held"[^>]*><\/i><b>12<\/b> <span>held<\/span>/u,
+  const header = roadmapSummary({ name: 'Capacity', summary }, { now: Date.parse('2026-10-28T12:00:00Z'), locale: 'en-US', timeZone: 'UTC' });
+  assert.match(header.count, /512 to go/u);
+  assert.match(header.top.replace(/<[^>]*>/gu, ''), /1\.2 items an hour · 7 landed in the last 6 h, 7 in the last 2 h · done in about 6 days, Tuesday morning/u);
+  assert.match(header.detail, /<i class="roadmap-summary-swatch held"[^>]*><\/i><b>12<\/b> <span>held<\/span>/u,
     'held retains the same dot, bold number, whitespace and separate label structure');
 });
 

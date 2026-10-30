@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone } from '../src/board-milestones.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
+import { conditionalHoldFloor } from '../packages/health/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
@@ -42,7 +45,7 @@ function fixture(t) {
     utimesSync(reflog, clock.now(), clock.now());
   };
   // @pullboard-board-file journey: this is the same durable board.sqlite opened by the fixture's real CLI.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => store.closeBoard(board));
   const builder = store.register(board, { lane: 'web', path: join(box.dir, 'builder') });
   const reviewer = store.register(board, { lane: 'web', path: join(box.dir, 'reviewer') });
@@ -427,7 +430,7 @@ test('conditional hold replay retains the trigger and refuses a writer below its
   const replayLift = store.events(replica, { itemId: id }).findLast(event => event.event_kind === 'unhold_item');
   assert.deepEqual(replayLift, lift, 'trigger and hold event IDs survive ordered replay exactly');
   assert.deepEqual(applyRelayMove(replica, move, options), outcome, 'duplicate delivery cannot lift twice');
-  assert.throws(() => applyRelayMove(older, { ...move, engine: move.engine - 1 }, options),
+  assert.throws(() => applyRelayMove(older, { ...move, engine: conditionalHoldFloor(older) - 1 }, options),
     error => error.code === 'RELAY_MOVE' && error.message.includes('checked-composition snapshot'));
   assert.ok(store.itemHold(older, id), 'an older writer cannot skip the modern condition');
 });
@@ -437,7 +440,7 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   const path = join(f.box.dir, 'builder');
   f.worktree(path, 'private-stale-builder');
   const id = f.add('A release-blocking private claim');
-  store.addMilestone(f.board, { agentId: 'coordinator', name: 'Private release', items: [id] });
+  addMilestone(f.board, { agentId: 'coordinator', name: 'Private release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
   f.advance(15 * MINUTE - 1);
   const early = await f.cli('release', String(id), '--stale', '--note', 'The release waits on this silent claim', '--json');
@@ -469,7 +472,7 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
   const path = join(f.box.dir, 'builder');
   f.worktree(path, 'private-active-builder');
   const id = f.add('Active release blocker');
-  store.addMilestone(f.board, { agentId: 'coordinator', name: 'Private active release', items: [id] });
+  addMilestone(f.board, { agentId: 'coordinator', name: 'Private active release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
   f.advance(13 * MINUTE);
   const changed = join(path, 'actual-private-edit.txt');

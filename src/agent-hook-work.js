@@ -9,19 +9,21 @@ async function work(event) {
   if (event === 'SessionEnd') return;
   // This explicit native heartbeat may claim work; ordinary read commands never do.
   const { main: dispatch } = await import('./cli.js');
-  await dispatch(['heartbeat'], { cwd: process.cwd(),
-    stdout: process.stdout, stderr: process.stderr, stdin: process.stdin });
+  await dispatch(['heartbeat'], { cwd: process.cwd(), nextActions: false,
+    // Heartbeat is an internal observation, not part of the hook's context payload.
+    stdout: { write() {} }, stderr: process.stderr, stdin: process.stdin });
   if (event === 'SessionStart') {
     const { main } = await import('./cli.js');
-    process.exitCode = await main(['resume'], { cwd: process.cwd(),
+    process.exitCode = await main(['resume'], { cwd: process.cwd(), nextActions: false,
       stdout: process.stdout, stderr: process.stderr, stdin: process.stdin });
     return;
   }
   const { repoInfo, headCommit, tryGit } = await import('./git.js');
   const { join } = await import('node:path');
   const store = await import('./board.js');
+  const nativeBoard = await import('./native-board.js');
   const info = repoInfo(process.cwd());
-  const board = store.openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = nativeBoard.openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) return;
   try {
     const agent = store.agentAt(board, info.root), head = headCommit(info.root);

@@ -38,18 +38,22 @@ function countPairs() {
       add('Pipeline/' + stage.dataset.pipelineStage, number(stage.querySelector('[data-stage-count]')), stage.querySelectorAll('.pipeline-item').length);
     }
   }
-  if (view.tab === 'home' || view.tab === 'items') {
-    const root = view.tab === 'home' ? '#home-needs' : '#needs';
+  if (view.tab === 'dashboard' || view.tab === 'items') {
+    const root = view.tab === 'dashboard' ? '#dashboard' : '#needs';
     for (const group of all(root + ' .needs-group')) {
       const heading = group.querySelector('.needs-group-head h3');
       if (heading) add('Needs/' + heading.textContent, Number(heading.textContent.split('·').at(-1).trim()), group.querySelector('ol').children.length);
     }
     const draft = document.querySelector(root + ' .needs-drafts .needs-copy b');
     if (draft) add('Needs/draft rows', number(draft), p.needs.find(row => row.kind === 'draft')?.count ?? 0);
-    if (view.tab === 'home') {
+    if (view.tab === 'dashboard' && view.addressDetail !== 'floor') {
       const approved = p.spec.filter(row => row.status === 'approved');
+      const ruleCounts = all('#dashboard-rules [data-home-count]');
+      add('Dashboard/rules card rows', ruleCounts.length, 3);
       for (const [key, expected] of [['approved', approved.length], ['gated', approved.filter(row => String(row.gate ?? '').trim()).length], ['ungated', approved.filter(row => !String(row.gate ?? '').trim()).length]]) {
-        add('Home/rules/' + key, number(document.querySelector('[data-home-count="' + key + '"] dd')), expected);
+        const count = document.querySelector('[data-home-count="' + key + '"] dd');
+        add('Dashboard/rules/' + key + ' exists', Boolean(count), true);
+        add('Dashboard/rules/' + key, number(count), expected);
       }
       source('[data-home-count]');
     }
@@ -136,12 +140,15 @@ function countPairs() {
     if (release) {
       const entries = release.items.filter(ref => items.some(item => item.id === ref.id));
       const landed = entries.filter(ref => p.dashboardLanded.some(item => item.id === ref.id)).length;
-      add('Dashboard/release remaining', number(document.querySelector('.dash-release b')), entries.length - landed);
-      const progress = document.querySelector('.dash-release + p').textContent.match(/(\d+) of (\d+) landed/);
+      const headline = document.querySelector('.dash-release-card .roadmap-left');
+      const progress = headline?.querySelector('[aria-label]')?.getAttribute('aria-label').match(/^(\d+)\/(\d+) landed$/);
+      const summary = document.querySelector('.dash-release-card .roadmap-summary-bar');
+      add('Dashboard/release remaining', number(headline?.querySelector('b')), entries.length - landed);
       add('Dashboard/release landed', Number(progress?.[1]), landed);
       add('Dashboard/release total', Number(progress?.[2]), entries.length);
+      add('Dashboard/release accessible summary source', Boolean(summary?.getAttribute('aria-label')?.includes(release.name)), true);
     }
-    source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child), .dash-release, .dash-release + p, .dash-stats');
+    source('.dash-hero h1, .dash-accent, .dash-rate, .dash-chips > span:not(:first-child)');
   }
   if (view.tab === 'dashboard' && view.addressDetail === 'floor') {
     source('[data-floor-stat], .floor-foot');
@@ -226,7 +233,7 @@ async function pane(chrome, name, phase) {
 
 /** Check every tab, each counted filter choice, pipeline stage, and the separate Dashboard floor. */
 async function sweep(chrome, phase) {
-  for (const tab of ['dashboard', 'home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
+  for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', 'settings']) {
     await pane(chrome, tab, phase);
     if (tab === 'items') {
       const states = await chrome.stable('[...document.querySelectorAll("[data-filter-kind=state]")].map(node => node.dataset.filterValue)');

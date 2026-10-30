@@ -1,3 +1,4 @@
+import { pipelineStats } from './stats-pipeline.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { counterProofStats } from './proof-counter-read.js';
@@ -8,6 +9,7 @@ import { join } from 'node:path';
 import { CONFIG_FILE } from './config.js';
 import { BLOCKS_FILE } from './blocks.js';
 import * as store from './board.js';
+import { roadmap } from './board-milestones.js';
 import { displayAgentName } from './agent-names.js';
 import { COORDINATOR } from './config.js';
 import { loadConfig } from './config.js';
@@ -33,8 +35,8 @@ import {
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
 export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {
-  if (!ports || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
-  const { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary } = ports;
+  if (!ports || typeof ports.openBoard !== 'function' || typeof ports.verifiedPasskeyRowDecision !== 'function' || typeof ports.pendingFit !== 'function' || typeof ports.projectFit !== 'function' || typeof ports.projectState !== 'function' || typeof ports.personRequestStatuses !== 'function' || typeof ports.personSigningPresentation !== 'function' || typeof ports.activeViewAgents !== 'function' || typeof ports.viewProofSummary !== 'function') throw new TypeError('native state needs the explicit upper presentation ports');
+  const { openBoard, verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary } = ports;
   if (!Number.isSafeInteger(observedAt) || observedAt < 0) throw new TypeError('native projection needs an observation timestamp');
   board = Object.assign(Object.create(board), { clock: { ...board.clock, now: () => new Date(observedAt) } });
   board.db.exec('BEGIN');
@@ -89,8 +91,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
       milestones: scopeCommonDir === null
-        ? milestoneRoadmap(root, board, { ports: store })
-        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: store }),
+        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard } })
+        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard } }),
       rowDecisions: store.rowDecisions(board),
       proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
     };
@@ -130,6 +132,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       milestone: milestoneNames.get(item.item_id) ?? null,
     }]));
     const history = store.events(board);
+    // Both native and sealed relay readers use this exact recorded-history projection.
+    listFields.state.statsPipeline = pipelineStats(history);
     const clockWindow = nativeStateClockWindow({ ...listFields.state, agents: allAgents }, history, currentItems, observedAt);
     board.db.exec('COMMIT');
     return { state: listFields.state, itemMeta, itemMoveCounts: listFields.itemMoveCounts, sequence, history, clockWindow };

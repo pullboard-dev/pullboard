@@ -130,6 +130,7 @@ const OPTIONS = {
   remove: { type: 'string' },
   swap: { type: 'string' },
   limit: { type: 'string' },
+  transcripts: { type: 'string' },
   name: { type: 'string' },
   title: { type: 'string' },
   url: { type: 'string' },
@@ -308,6 +309,7 @@ export async function main(argv, streams) {
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
 async function runMain(argv, streams) {
   const io = commandOutput(argv, streams, {
+    nextActions: streams.nextActions ?? (process.env.PULLBOARD_TEXT_NEXT !== '0'),
     loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
   });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
@@ -349,7 +351,7 @@ async function runMain(argv, streams) {
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
+          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, await import('./relay.js')) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
         (await import('./person.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }

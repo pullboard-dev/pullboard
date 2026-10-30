@@ -1,3 +1,4 @@
+import { captureLapsedClaims } from '../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../board-query.js';
 import { writeBoardCommand } from '../board-command-write.js';
@@ -12,6 +13,7 @@ import { barReadiness } from '../bar-readiness.js';
 import { barCoverageCommand } from '../bar-coverage.js';
 import { barCoverageForPolicy } from '../bar-coverage.js';
 import { gitSyncLinked } from '../local-state.js';
+import { gitSyncRecoveryNeeded } from '../git-sync-files.js';
 import { createHash } from 'node:crypto';
 import * as itemSessions from '../item-sessions.js';
 import * as store from '../board.js';
@@ -59,6 +61,25 @@ export function relayOutboxSetting(root) {
   try { return configFromSource(coordinatorFile(root, CONFIG_FILE).stdout).relay?.outbox !== false; } catch { return false; }
 }
 
+const LAPSE_MAINTENANCE = new WeakSet();
+
+/** Capture bounded native liveness once before a requested write; nested bootstrap and maintenance never recurse. */
+async function maintainLapsedBeforeWrite(ctx, board, operation, args, actor) {
+  if (!actor || LAPSE_MAINTENANCE.has(board) || ['maintainStaleState', 'recordSpecApprovalBaseline'].includes(operation)
+    || operation === 'release' && args[3]?.staleClaim) return;
+  LAPSE_MAINTENANCE.add(board);
+  try {
+    const snapshot = captureLapsedClaims(ctx, board, actor);
+    if (!snapshot) return;
+    const io = { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined, relayCommand: undefined, requestedCommand: undefined };
+    try { await ordered({ ...ctx, io }, board, 'maintainStaleState', [{ agentId: actor, snapshot, health: ctx.config.health ?? {}, claimsOnly: true }]); }
+    catch (error) {
+      if (error.code !== 'STALE_STATE_CHANGED') throw error;
+      ctx.io.err('Lapsed-claim observation changed; untouched claims will be observed on the next write.');
+    }
+  } finally { LAPSE_MAINTENANCE.delete(board); }
+}
+
 export async function ordered(ctx, board, operation, args) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
@@ -92,9 +113,13 @@ export async function ordered(ctx, board, operation, args) {
     };
     const actor = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
     requireHandoffActive(board, actor, operation, args);
+    if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
+      await (await import('../git-sync-repair.js')).repairGitSync(ctx.info.root, board, ctx.io);
+    }
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);
     if (initialBaseline && actor) await recordBaseline(actor);
+    await maintainLapsedBeforeWrite(ctx, board, operation, args, actor);
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
     const requested = requestedCommandMove(requestedCommand, operation);
     const heartbeat = requested ? (await import('../cli-presence.js')).heartbeatCommand : null;
@@ -156,8 +181,17 @@ export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecis
   /** Freeze the criterion and, when requested, the trunk lane and verifier policy. */
   return (item) => {
     // Derivation starts only inside the actual callback, after prepared claim guards [B2,C7].
-    const sourcePolicy = board && !(ctx.info.isMain && !headCommit(ctx.info.root)) ? mainPolicy(ctx.info.root) : null;
-    const facts = sourcePolicy ? mainCriterionFacts(ctx.info.root, { commit: sourcePolicy.commit, cacheEligible }) : null;
+    const readsMain = board && !(ctx.info.isMain && !headCommit(ctx.info.root));
+    let sourcePolicy = null;
+    if (readsMain) {
+      try { sourcePolicy = mainPolicy(ctx.info.root); }
+      catch (error) {
+        if (!(error instanceof Refused) || error.code !== 'NO_POLICY') throw error;
+        // A primary detached for review still has its retained accepted trunk; never use candidate rows as authority.
+      }
+    }
+    const facts = readsMain ? mainCriterionFacts(ctx.info.root,
+      { ...(sourcePolicy ? { commit: sourcePolicy.commit } : {}), cacheEligible }) : null;
     const prior = item.item_frozen ? JSON.parse(item.item_frozen) : null;
     const needsPinnedPolicy = !prior || captureVerifyPolicy;
     let policy = prior?.policy ?? null;

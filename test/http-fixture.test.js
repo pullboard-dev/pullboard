@@ -30,7 +30,7 @@ function privateBoard(t) {
   const home = join(dir, 'home');
   mkdirSync(root);
   mkdirSync(home);
-  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+  const env = { ...process.env, HOME: home, PULLBOARD_HOME: home, PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, env });
   const init = runFixtureChild(process.execPath, [BIN, 'init', '--json'], { cwd: root, env, encoding: 'utf8' });
   assert.equal(init.status, 0, init.failure ?? `${init.stdout}${init.stderr}`);

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { barCheckState, barCheckWarning } from '../src/bar-check.js';
 import { parentSessionDigest } from '../src/parent-session.js';
 import { saveAgentSession } from '../src/seats.js';
@@ -17,7 +18,7 @@ after(e2e.cleanup);
 
 /** Open a private board and enroll two agents with distinct recorded runtime sessions. */
 function fixture(t, route = 'mid') {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   store.register(board, { lane: 'coordinator', path: '/fixture/main' });
   store.register(board, { lane: 'core', path: '/fixture/builder' });
   store.register(board, { lane: 'core', path: '/fixture/reviewer' });
@@ -112,7 +113,7 @@ test('[B29,B30,B31,V4,H16] submit succeeds despite a missing answer, warns once 
   assert.match(submitted.out, /^bar\.check warning: bar\.check for claim \d+ has no builder note$/mu);
   assert.equal((submitted.out.match(/^bar\.check warning:/gmu) ?? []).length, 1, 'submit emits one warning line');
   assert.match(submitted.out, /submitted #1/u, 'the warning does not refuse submit');
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const warning = store.events(board, { itemId: 1 })
       .filter(event => event.event_kind === 'fact')
@@ -145,7 +146,7 @@ test('[B29,B30,B31,V4,H16] a sent-back light item starts a required check when i
   assert.equal(rejected.code, 0, rejected.err);
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
 
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(barCheckState(board, store.getItem(board, 1)).required, true,
       'the real reject and reclaim starts a fresh required check');

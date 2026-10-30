@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { configFromSource } from '../src/config.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { settingsInventory } from '../src/settings-inventory.js';
@@ -26,7 +27,7 @@ import { LINE_SETTING_DEFINITIONS } from '../packages/queue/index.js';
 /** A private SQLite board with coordinator and builder identities. */
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-line-setting-'));
-  const board = store.openBoard(join(root, 'board.sqlite'));
+  const board = openBoard(join(root, 'board.sqlite'));
   store.register(board, { lane: 'coordinator', path: root });
   store.register(board, { lane: 'web', path: join(root, 'web') });
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
@@ -69,7 +70,7 @@ test('the settings inventory exposes board line values and defaults without audi
   const box = helpers.project('true');
   let board;
   t.after(() => { if (board) store.closeBoard(board); helpers.cleanup(); });
-  board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   store.setLineSetting(board, change({ key: 'wipPerReviewer', value: 2 }));
   const before = store.events(board).length;
   const previous = Object.fromEntries(['PULLBOARD_HOME', 'PULLBOARD_MACHINE_HOME'].map(key => [key, process.env[key]]));

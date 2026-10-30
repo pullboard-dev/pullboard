@@ -1,0 +1,5 @@
+{
+  "name": "stats pipeline",
+  "help": "  pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items\n",
+  "required": { "pipeline": "object" }
+}

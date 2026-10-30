@@ -7,13 +7,14 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { clearProofCounters } from '../src/proof-counters.js';
 import { rebuildProofCounters } from '../src/proof-counters.js';
-import { ensureRigorCounters } from '../src/rigor-counters.js';
-import { resumeRigorCounters } from '../src/rigor-counters.js';
-import { RIGOR_COLD_NOTICE } from '../src/rigor-counters.js';
-import { RIGOR_TAIL_LIMIT } from '../src/rigor-counters.js';
-import { undraftedRigor } from '../src/rigor-notices.js';
+import { ensureRigorCounters } from '../packages/rigor/index.js';
+import { resumeRigorCounters } from '../packages/rigor/index.js';
+import { RIGOR_COLD_NOTICE } from '../packages/rigor/index.js';
+import { RIGOR_TAIL_LIMIT } from '../packages/rigor/index.js';
+import { undraftedRigor } from '../packages/rigor/index.js';
 import { rigorSource } from '../src/board-rigor-source.js';
 import { parseSpec } from '../src/spec.js';
 import { coordinatorDecisionSections } from '../src/cli.js';
@@ -25,7 +26,7 @@ const PREFIX = 'local:proof-stats:rigor:v1:';
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-rigor-counter-'));
   const file = join(dir, 'board.sqlite');
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   store.ensureCoordinator(board, dir);
   const item = store.addItem(board, { lane: 'core', title: 'Old rigor cause', criterion: 'Works.', by: 'coordinator' });
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
@@ -236,7 +237,7 @@ test('malformed historical detail preserves native writes and the legacy read fa
   try { undraftedRigor(store.events(board), {}, { person: 'person' }); }
   catch (error) { failure = error; }
   assert.ok(failure instanceof SyntaxError, 'retain the independent legacy refusal');
-  store.closeBoard(store.openBoard(file));
+  store.closeBoard(openBoard(file));
   const before = store.events(board).length;
   store.logEvent(board, 'tests-1', 'shout', null, { text: 'a later valid native move' });
   assert.equal(store.events(board).length, before + 1);

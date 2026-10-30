@@ -5,16 +5,19 @@ const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js',
 /** Public, real-Git landing contention fixture; no private drill data is used [B3,R3,Q1,Q2,E8]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { mainAuditKey } from '../src/main-audit-state.js';
+import { readMainAudit } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';
 import {
   readGateReceipt,
   receiptStore,
 } from '../src/gate-run-receipt.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../src/land.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
@@ -40,7 +43,7 @@ function run(box, root, ...args) {
 
 /** Read the real board, always closing its SQLite handle. */
 function readBoard(box, action) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return action(board); }
   finally { store.closeBoard(board); }
 }
@@ -70,8 +73,10 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
     run(box, root, 'join', 'web');
     const file = `web/queue-${number}.txt`;
     const added = JSON.parse(run(box, box.repo, 'add', 'web', `Queue item ${number}`, '--specs', 'G1',
-      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--json'));
+      '--criterion', `queue item ${number} works`, '--check', `grep -qx works ${file}`, '--wait', '--json'));
     const id = added.item.item_id;
+    assert.ok(added.item.item_check_baseline, 'the ordinary add observes its actual setup baseline');
+    assert.notEqual(added.item.item_check_baseline.result, 'pending', 'no detached setup baseline remains to publish during claim');
     run(box, root, 'claim', String(id));
     if (number === 2 && staleAfterFirst) {
       // The first-to-land item changes the lower id's checked path on an independent branch.
@@ -100,12 +105,12 @@ function acceptedPair(helpers, box, staleAfterFirst, policyAfterFirst) {
 
 /** Use a real public lease and board for bounded internal boundary controls, never a fabricated grant. */
 async function withFixtureLease(box, branch, action) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const request = { agentId: 'coordinator', action: 'request', branch, token: randomUUID(), pid: process.pid };
   let fence;
   try {
     const grant = store.landingLeaseMove(board, request);
-    assert.equal(grant.acquired, true, 'the private fixture has no remaining lander');
+    assert.equal(grant.acquired, true, 'the private fixture has no remaining lander: ' + JSON.stringify(grant));
     fence = { ...request, generation: grant.generation };
     invalidateGitFacts();
     const check = () => assertLandingLease(board, fence);
@@ -154,14 +159,63 @@ async function repairedPolicyControls(box, batch) {
     assert.equal(store.landingBatches(options.board).length, count, 'repair does not invent another batch');
   });
   const explicit = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root: box.repo, board, config: { ...explicit, flakes: { quarantine: false } }, dryRun: true });
     assert.equal(board.quarantineEnabled(), false, 'explicit config and no-fence dry-run callers retain their behavior');
   } finally { store.closeBoard(board); }
 }
 
-/** Count every foreground invocation; exclude only an independently source-bound audit of these batches. */
+/** Recognize only this board's recorded exact source composition, never a temporary-path prefix alone. */
+function sourceAdvancePolicyCall(box, batches, record, board, audits) {
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  if (!existsSync(directory)) return false;
+  const matches = readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+    .map(name => ({ key: name.slice(0, -5), job: readMainAudit(join(directory, name)) }))
+    .filter(({ job }) => job?.directory === record.cwd);
+  if (!matches.length) return false;
+  assert.equal(matches.length, 1, 'a gate root binds exactly one native source-advance job');
+  const { key, job } = matches[0];
+  const entry = batches.flatMap(batch => batch.items).find(item => item.id === job.item);
+  assert.ok(entry, 'the source advance belongs to an item in these exact landed batches');
+  assert.equal(job.version, 1);
+  assert.equal(job.basis?.version, 1);
+  assert.equal(job.basis.board, board);
+  assert.equal(job.basis.submitted, entry.commit);
+  assert.ok(batches.some(batch => batch.tip === job.basis.trunk), 'only a genuinely landed policy tip is independent');
+  assert.equal(key, createHash('sha256').update(JSON.stringify([board, job.item, job.basis])).digest('hex'));
+  assert.ok(['running', 'advanced', 'returned', 'incomplete'].includes(job.state), 'the native worker recorded the composition before its gate');
+  assert.match(job.head, /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u);
+  assert.equal(box.git(box.repo, 'rev-parse', job.head + '^1'), job.basis.inputHead);
+  assert.equal(box.git(box.repo, 'rev-parse', job.head + '^2'), job.basis.trunk);
+  assert.equal(box.git(box.repo, 'rev-parse', job.head + '^{tree}'), job.tree);
+  for (const id of job.receiptIds ?? []) {
+    const receipt = readGateReceipt(receiptStore(box.repo), id);
+    assert.ok(receipt, 'a closed source advance retains each genuine phase receipt');
+    assert.equal(receipt.head, job.head);
+    assert.equal(receipt.tree, job.tree);
+    assert.equal(receipt.kind, 'submit');
+  }
+  const identity = `source-advance:${key}`;
+  assert.equal(audits.has(identity), false, 'a duplicate audit invocation cannot disappear from the policy count');
+  audits.add(identity);
+  assert.deepEqual(record.args, ['--new-policy'], 'the exact native source advance uses its accepted policy');
+  return true;
+}
+
+/** Close only a recorded native wake, never infer completion from current process absence. */
+async function closePolicySourceWake(box, helpers, expectedGeneration) {
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  assert.ok(Number.isSafeInteger(expectedGeneration) && expectedGeneration > 0);
+  return helpers.waitFor(() => { // Budget: 120s runaway ceiling for actual native source publication and owner drain.
+    const wake = readMainAudit(join(directory, 'wake.json'));
+    const settled = readMainAudit(join(directory, 'settled.json'));
+    return !existsSync(join(directory, 'owner.json')) && settled?.generation >= expectedGeneration
+      && settled.generation === wake?.generation ? settled : false;
+  }, 'the exact native source wake closes before private branch repair or cleanup', 120_000);
+}
+
+/** Count every foreground invocation; exclude only independently source-bound native work for these batches. */
 function landingPolicyCalls(box, batches, records) {
   const roots = new Set(batches.map(batch => batch.root));
   const directory = join(box.repo, '.git', 'pullboard', 'main-audits');
@@ -170,6 +224,7 @@ function landingPolicyCalls(box, batches, records) {
   const audits = new Set();
   for (const record of records) {
     if (roots.has(record.cwd)) { calls.push(record.args); continue; }
+    if (sourceAdvancePolicyCall(box, batches, record, board, audits)) continue;
     assert.equal(dirname(record.cwd), directory, 'an unknown gate root cannot disappear from the policy count');
     assert.match(basename(record.cwd), /^source-[a-f0-9]{64}$/u);
     const key = basename(record.cwd).slice('source-'.length);
@@ -202,7 +257,7 @@ function landingPolicyCalls(box, batches, records) {
 
 /** Prove named waiting, exclusion and verdict order with two real overlapping land commands. */
 export async function landingQueueCase(t, helpers, { staleAfterFirst = false, killParent = false, killGuardian = false, suspendParent = false, policyAfterFirst = false } = {}) {
-  const sandbox = helpers.sandbox();
+  const sandbox = helpers.sandbox({ declareFamilies: policyAfterFirst });
   const arm = join(sandbox.dir, 'landing-armed');
   const entered = join(sandbox.dir, 'landing-entered');
   const release = join(sandbox.dir, 'landing-release');
@@ -347,12 +402,89 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     assert.notDeepEqual(landingPolicyCalls(box, batches, [...records, { cwd: batches[0].root, args: [] }]),
       [[], ['--new-policy']], 'an extra foreground gate remains a failure of the original oracle');
     const audit = records.find(record => !batches.some(batch => batch.root === record.cwd));
-    if (audit) assert.throws(() => landingPolicyCalls(box, batches, [...records, audit]), /duplicate audit invocation/u);
+    if (audit) {
+      assert.throws(() => landingPolicyCalls(box, batches, [...records, audit]), /duplicate audit invocation/u);
+      assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === audit ? { ...record, args: [] } : record)),
+        /accepted.*policy|accepted new policy/u, 'a bound background root never excuses the wrong policy');
+    }
     t.diagnostic(`policy journal: ${calls.length} foreground invocations; ${records.length - calls.length} independently bound audit invocations`);
+    const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+    if (existsSync(directory) && readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+      .some(name => records.some(record => record.cwd === readMainAudit(join(directory, name))?.directory))) {
+      const wake = readMainAudit(join(directory, 'wake.json'));
+      await closePolicySourceWake(box, helpers, wake?.generation);
+    }
   }
   for (const entry of entries) {
     assert.equal(readFileSync(join(box.repo, `web/queue-${entry.id}.txt`), 'utf8'), 'works\n');
     assert.equal(readBoard(box, board => board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE event_kind='merged' AND item_id=?").get(entry.id).n), 1);
   }
   if (policyAfterFirst) await repairedPolicyControls(box, batches[0]);
+}
+
+/** Exercise a real independently closed source-advance gate before the second foreground landing [Q1,B3]. */
+export async function sourceAdvancePolicyCase(t, helpers) {
+  const sandbox = helpers.sandbox({ declareFamilies: true });
+  const callsFile = join(sandbox.dir, 'source-policy-calls.jsonl');
+  const gate = join(sandbox.dir, 'source-policy-gate.cjs');
+  const entered = join(sandbox.dir, 'source-policy-entered');
+  const released = join(sandbox.dir, 'source-policy-released');
+  t.after(() => writeFileSync(released, 'released'));
+  writeFileSync(gate, [
+    "const fs = require('node:fs'); const assert = require('node:assert/strict');",
+    `fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}) + '\\n');`,
+    `if (process.argv.includes('--new-policy') && !fs.existsSync(${JSON.stringify(released)})) { fs.writeFileSync(${JSON.stringify(entered)}, process.cwd()); const end = Date.now()+20000; while (!fs.existsSync(${JSON.stringify(released)}) && Date.now()<end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); assert.ok(fs.existsSync(${JSON.stringify(released)}), 'owning test releases actual source gate'); }`,
+    "for (const name of (fs.existsSync('web') ? fs.readdirSync('web') : []).filter(name => /^queue-\\d+\\.txt$/.test(name))) assert.match(fs.readFileSync('web/'+name,'utf8'), /^works/);",
+    "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
+  ].join('\n'));
+  const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.lanes.web.owns.push('pullboard.json');
+  writeFileSync(configFile, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: assign private source policy ownership');
+  const remote = join(box.dir, 'source-policy-origin.git');
+  box.git(box.dir, 'init', '-q', '--bare', remote);
+  box.git(box.repo, 'remote', 'add', 'origin', remote);
+  box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
+  const entries = acceptedPair(helpers, box, false, true);
+  writeFileSync(callsFile, '');
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  const wakeFile = join(directory, 'wake.json');
+  const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
+  run(box, box.repo, 'land', '--max', '1');
+  // The actual first landing must schedule this worker; no second nudge can consume its expected generation.
+  await helpers.waitFor(() => existsSync(entered), 'the actual new-policy source gate enters');
+  const liveOwner = readMainAudit(join(directory, 'owner.json'));
+  assert.ok(Number.isSafeInteger(liveOwner?.pid), 'the held source gate has a real native worker owner');
+  const enteredRoot = readFileSync(entered, 'utf8');
+  assert.ok(readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+    .some(name => readMainAudit(join(directory, name))?.directory === enteredRoot), 'the held gate belongs to a recorded source job');
+  writeFileSync(released, 'released');
+  const sourceJob = await helpers.waitFor(() => { // Budget: 120s runaway ceiling for an actual detached native gate and closed wake.
+    const done = readMainAudit(join(directory, 'settled.json'));
+    if (existsSync(join(directory, 'owner.json')) || !(done?.generation >= expectedGeneration)) return false;
+    return readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+      .map(name => readMainAudit(join(directory, name)))
+      .find(job => job.item === entries[0].id && job.state === 'advanced' && job.receiptIds?.length);
+  }, 'the genuine source-advance gate closes its expected generation', 120_000);
+  const finalGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
+  run(box, box.repo, 'land', '--max', '1');
+  await closePolicySourceWake(box, helpers, finalGeneration);
+  const batches = readBoard(box, board => store.landingBatches(board).filter(batch => batch.state === 'landed'));
+  assert.equal(batches.length, 2);
+  const records = readFileSync(callsFile, 'utf8').trim().split(/\r?\n/u).map(line => JSON.parse(line));
+  const foreground = landingPolicyCalls(box, batches, records);
+  assert.deepEqual(foreground, [[], ['--new-policy']]);
+  const background = records.filter(record => !batches.some(batch => batch.root === record.cwd));
+  assert.ok(background.length > 0, 'at least one actual independent native gate was executed');
+  assert.throws(() => landingPolicyCalls(box, batches, [...records, background[0]]), /duplicate audit invocation/u);
+  assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === background[0] ? { ...record, args: [] } : record)), /accepted policy/u);
+  assert.throws(() => landingPolicyCalls(box, batches, [...records, { cwd: join(box.dir, 'unbound-source'), args: ['--new-policy'] }]), /unknown gate root/u);
+  await repairedPolicyControls(box, batches[0]);
+  t.diagnostic(JSON.stringify({ liveOwner, finalGeneration, foreground: foreground.length, independentlyBound: background.length,
+    expectedGeneration, items: entries.map(entry => entry.id), policyTip: batches[0].tip,
+    sourceJob: { item: sourceJob.item, state: sourceJob.state, head: sourceJob.head, tree: sourceJob.tree,
+      basis: sourceJob.basis, receiptIds: sourceJob.receiptIds } }));
 }

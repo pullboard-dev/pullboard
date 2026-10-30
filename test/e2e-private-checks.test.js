@@ -25,6 +25,7 @@ import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
@@ -45,7 +46,7 @@ test('accept installs ignored dependencies from frozen policy and doctor audits 
   const doctor = box.run(box.repo, 'doctor', '--json');
   assert.equal(doctor.code, 0, doctor.out);
 
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try { item = store.getItem(board, 1); }
   finally { store.closeBoard(board); }
@@ -235,7 +236,7 @@ test('private check digest keeps install and noisy check output in separate sect
     install: 'echo install-marker',
     check: 'i=0; while [ "$i" -lt 200 ]; do echo noisy-check-output-$i; i=$((i + 1)); done; echo check-failed; exit 1',
   });
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try { item = store.getItem(board, 1); }
   finally { store.closeBoard(board); }
@@ -272,7 +273,7 @@ test('accept installs a real dependency file larger than the log cap before chec
 
 test('a successful noisy check drains beyond the log cap and keeps bounded head and tail output [V18,V2]', () => {
   const box = privateCheckSubmission({ check: 'node -e \'process.stdout.write("BEGIN-MARKER\\n"); process.stdout.write(Buffer.alloc(20 * 1024 * 1024, 120)); process.stdout.write("\\nEND-MARKER\\n")\'' });
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try { item = store.getItem(board, 1); } finally { store.closeBoard(board); }
   const proof = checkAtCommit(box.repo, item);

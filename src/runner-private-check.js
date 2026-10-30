@@ -53,7 +53,7 @@ import {
 import {
   GATE_SLOT_HELD_ENV,
   gateSlotEnvironment,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import { cleanGitEnvironment } from './git.js';
 import { secretsIn } from '../packages/commits/index.js';
 

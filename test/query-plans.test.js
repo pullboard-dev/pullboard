@@ -14,11 +14,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
 import { submitFixture } from './board-submit-fixture.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { openBoardForRead } from '../src/native-board.js';
 import { healthReport } from '../packages/health/index.js';
 import { loadConfig } from '../src/config.js';
 import { personNeedsSummary } from '../src/needs-summary.js';
 import { resumeNeeds } from '../src/resume-needs.js';
-import { undraftedRigor } from '../src/rigor-notices.js';
+import { undraftedRigor } from '../packages/rigor/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { recordSchemaStamp } from '../src/board-migrate.js';
@@ -44,7 +46,7 @@ test('a new fact id is checked by index across current, legacy and archived fact
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'board.sqlite');
   const clock = { now: () => new Date('2026-10-24T00:00:00.000Z') };
-  let board = store.openBoard(file, clock);
+  let board = openBoard(file, clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/synthetic-fact-index' });
   const first = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'First identity owner' });
@@ -91,7 +93,7 @@ test('a new fact id is checked by index across current, legacy and archived fact
     .run(clock.now().toISOString(), 'coordinator', 'fact', second, JSON.stringify({ id: 'legacy-0', text: 'Historical duplicate retained' }));
   recordSchemaStamp(legacy, SCHEMA_DIGEST);
   legacy.close();
-  const older = store.openBoard(file, clock, { isMain: false });
+  const older = openBoard(file, clock, { isMain: false });
   try {
     const before = older.db.prepare('SELECT * FROM event ORDER BY event_id').all();
     const schema = older.db.prepare('SELECT type,name,sql FROM sqlite_master ORDER BY type,name').all();
@@ -106,7 +108,7 @@ test('a new fact id is checked by index across current, legacy and archived fact
   assert.equal(readonly.prepare("SELECT count(*) AS n FROM sqlite_master WHERE type='index' AND name LIKE '%_fact_%_v2'").get().n, 0,
     'read-only open never installs an additive index');
   readonly.close();
-  const reader = store.openBoardForRead(file, clock);
+  const reader = openBoardForRead(file, clock);
   try {
     assert.ok(store.listItems(reader).length >= 2, 'legacy reads require no fact index');
     assert.throws(() => store.appendFact(reader, second, options('readonly-before-index-install')), { code: 'FACT_INDEX_NOT_READY' },
@@ -123,14 +125,14 @@ test('a new fact id is checked by index across current, legacy and archived fact
     if (sql.includes('CREATE INDEX IF NOT EXISTS event_archive_fact_identity_v2')) throw new Error('synthetic cold index install failure');
     return originalExec.call(this, sql);
   };
-  try { assert.throws(() => store.openBoard(file, clock), /synthetic cold index install failure/u); }
+  try { assert.throws(() => openBoard(file, clock), /synthetic cold index install failure/u); }
   finally { DatabaseSync.prototype.exec = originalExec; }
   const failedUpgrade = new DatabaseSync(file);
   assert.deepEqual(failedUpgrade.prepare('SELECT type,name,sql FROM sqlite_master ORDER BY type,name').all(), upgradeSchema,
     'failed install rolls back every new hot/cold index');
   assert.deepEqual(failedUpgrade.prepare('SELECT * FROM board_meta ORDER BY meta_key').all(), upgradeMeta, 'failed install preserves the schema stamp');
   failedUpgrade.close();
-  board = store.openBoard(file, clock);
+  board = openBoard(file, clock);
   assert.deepEqual(board.db.prepare('SELECT * FROM event ORDER BY event_id').all(), upgradeEvents, 'owning-open upgrade preserves every native event');
   assert.equal(board.db.prepare('PRAGMA user_version').get().user_version, 3, 'index upgrade preserves the existing data schema version');
   assert.throws(() => store.appendFact(board, second, options('cold-identity')), { code: 'BAD_FACT_ID' }, 'cold identity remains reserved');
@@ -447,7 +449,7 @@ test('coordinator resume never reads the whole event history for rigor [C7,D1,N1
     { kind: 'reject', item: 6, detail: { cause: 'refusal:MERGE_CONFLICT' } },
   ] });
   // Writable initialization may backfill once, before the measured read-only resume.
-  const board = store.openBoard(box.board);
+  const board = openBoard(box.board);
   try {
     const config = loadConfig(box.repo);
     const state = personNeedsSummary(box.repo, { board, config });
@@ -506,7 +508,7 @@ test('hot board queries never scan events or shouts [C7]', () => {
   seed(box.board);
   // The commands run worktree code, which never changes a shared board's schema, so the board gets
   // its indexes the way the trunk's next open gives them.
-  store.closeBoard(store.openBoard(box.board));
+  store.closeBoard(openBoard(box.board));
   const commands = [
     [box.repo, ['status']], [box.repo, ['list']], [box.repo, ['show', '1']], [box.repo, ['next']],
     [box.repo, ['resume']], [box.repo, ['health']],
@@ -531,7 +533,7 @@ test('hot board queries never scan events or shouts [C7]', () => {
   record(statements, box.log, 'view state');
   assert.ok(statements.size > 20, `only ${statements.size} statements were recorded`);
 
-  const board = store.openBoard(box.board);
+  const board = openBoard(box.board);
   try {
     const scans = [];
     const wholeHistory = new Set();
@@ -573,7 +575,7 @@ test('hot board queries never scan events or shouts [C7]', () => {
 test('health reads item history by index [C7]', () => {
   const box = fixture();
   seed(box.board);
-  const board = store.openBoard(box.board, { now: () => new Date('2026-10-22T22:30:00.000Z') });
+  const board = openBoard(box.board, { now: () => new Date('2026-10-22T22:30:00.000Z') });
   const rejectAt = '2026-10-22T21:00:00.000Z';
   const reopenAt = '2026-10-22T22:00:00.000Z';
   const submitAt = '2026-10-22T23:00:00.000Z';

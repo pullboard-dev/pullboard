@@ -8,6 +8,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { parentSessionDigest } from '../src/parent-session.js';
 
 const fixtures=createE2eHelpers();
@@ -63,7 +64,7 @@ function add(box,author,person = false) {
 }
 /** Read a private board through its normal public API, never raw fixture writes. */
 function readItem(box,id) {
-  const board=store.openBoard(join(box.repo,'.git','pullboard','board.sqlite'));
+  const board=openBoard(join(box.repo,'.git','pullboard','board.sqlite'));
   try{return store.getItem(board,id);}finally{store.closeBoard(board);}
 }
 
@@ -104,7 +105,7 @@ test('[V1,H16] a supported coordinator takeover cannot let its honestly joined h
   succeeds(act(box,'private-helper',helper,'join','api','--model','Private helper','--parent','private-author-b'));
   const self=act(box,'private-helper',helper,'bar','sign',String(id),'--note','I am a helper of this author, so this must be refused.');
   assert.notEqual(self.code,0);assert.match(self.err,/BAR_SELF_SIGN/);
-  const board=store.openBoard(join(box.repo,'.git','pullboard','board.sqlite'));
+  const board=openBoard(join(box.repo,'.git','pullboard','board.sqlite'));
   try {
     assert.equal(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('agent_session:coordinator').meta_value,parentSessionDigest('private-author-a'),'takeover did not rewrite historical seat identity');
   }finally{store.closeBoard(board);}
