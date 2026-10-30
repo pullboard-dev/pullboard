@@ -217,7 +217,7 @@ test('the private view shows its last twenty native landings; a public export ke
     for (let id = 4; id <= 22; id++) {
       const freshInputTokens = id === 21 ? 1_500_000 : id === 22 ? 3_000_000 : 1_000_000;
       store.recordUsage(board, { agentId: agent.agent_id, item: id, revision: 100, observedAt: id, records: [{
-        model: 'fixture-priced-model', inputTokens: freshInputTokens, knownInputTokens: freshInputTokens,
+        model: id === 4 ? 'fixture-unpriced-model' : 'fixture-priced-model', inputTokens: freshInputTokens, knownInputTokens: freshInputTokens,
         outputTokens: 0, knownOutputTokens: 0, freshInputTokens, cacheReadInputTokens: 0,
         cacheWriteInputTokens: 0, wallMs: 3, unknownReasons: [],
       }] });
@@ -319,6 +319,13 @@ test('the private view shows its last twenty native landings; a public export ke
     const detail = await chrome.stable("document.querySelector('#cost-detail-3').innerText");
     assert.match(detail, /Fresh input\s+—/u, 'a landing without a private session baseline keeps its token figure unknown');
     assert.match(detail, /Cost\s+—/u, 'a landing without a private session baseline keeps its cost figure unknown');
+    await press(chrome, "document.querySelector('[data-cost-row=\"4\"]')");
+    await chrome.waitFor("document.querySelector('#cost-detail-4')");
+    const unpricedSession = await chrome.stable("[...document.querySelectorAll('#cost-detail-4 .cost-session')].find(row => row.querySelector('.cost-session-model b')?.textContent === 'fixture-unpriced-model')?.innerText || ''");
+    assert.match(unpricedSession, /fixture-unpriced-model/u, 'the seeded usage names the unpriced model');
+    assert.match(unpricedSession, /Cost\s+—/u, 'usage without a model price remains unknown');
+    assert.doesNotMatch(unpricedSession, /\$0\.00/u, 'an unpriced model is never presented as free');
+    assert.equal(await chrome.stable("document.querySelector('[data-cost-row=\"4\"] .cost-amount').textContent"), '—', 'the unpriced landing total remains unknown');
     await press(chrome, "document.querySelector('[data-cost-row=\"22\"]')");
     await chrome.waitFor("document.querySelector('#cost-detail-22')");
     const pricedDetail = await chrome.stable("document.querySelector('#cost-detail-22').innerText");
