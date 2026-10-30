@@ -16,7 +16,7 @@ export function seedNativeOrdinary(box, demo, { includeForward = false, keepClai
     '--criterion', 'The original return criterion', '--check', 'true', '--wait').item.item_id;
   const release = add('Return by release');
   box.run(demo.web, 'claim', String(release));
-  box.run(demo.web, 'release', String(release), '--note', 'Another builder can take this item.', '--no-next');
+  box.run(demo.web, 'release', String(release), '--reason', 'OTHER', '--note', 'Another builder can take this item.', '--no-next');
   const escalation = add('Return by escalation');
   box.run(demo.web, 'claim', String(escalation));
   box.run(demo.web, 'escalate', String(escalation), '--note', 'This private fixture needs a stronger builder.');
@@ -75,7 +75,7 @@ export function seedNativeOrdinary(box, demo, { includeForward = false, keepClai
     assert.equal(claims.length, 2, 'the production claim writer records a new claim after real clock expiry');
     assert.equal(store.events(board, { itemId: lapsed }).some(event => event.event_kind === 'renew'), false);
   } finally { store.closeBoard(board); }
-  if (!keepClaim) box.run(demo.web, 'release', String(kept), '--note', 'The retained correction was observed before another native journey.', '--no-next');
+  if (!keepClaim) box.run(demo.web, 'release', String(kept), '--reason', 'OTHER', '--note', 'The retained correction was observed before another native journey.', '--no-next');
   return { kept, expected: {
     'claimed>open:release': keepClaim ? 1 : 2, 'claimed>open:escalate': 1,
     'claimed>claimed:refreeze': 1, 'claimed>open:refreeze': 1, 'claimed>open:lapse': 1,

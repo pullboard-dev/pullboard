@@ -14,8 +14,8 @@ import { logEvent } from './board-event-log.js';
 import { COORDINATOR } from './config.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
-import { refuseLongShout } from './proof-receipts.js';
 import { PROOF_RUN_ENGINE } from './proof-run-engine.js';
+import { refuseLongShout } from './proof-receipts.js';
 
 /**
  * Insert a shout within the caller's transaction.

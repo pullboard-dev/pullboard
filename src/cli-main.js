@@ -170,6 +170,7 @@ const OPTIONS = {
   conflict: { type: 'string', multiple: true },
   'withdraw-verdict': { type: 'boolean' },
   cause: { type: 'string' },
+  tier: { type: 'string' },
   clause: { type: 'string' },
   'check-timing': { type: 'string' },
   'never-again': { type: 'boolean' },

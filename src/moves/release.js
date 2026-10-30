@@ -1,5 +1,6 @@
 import { EXIT_RULES_ENGINE } from '../exit-rules-engine.js';
 import { LEASE_LAPSE_ENGINE } from '../lease-lapse-engine.js';
+import { RELEASE_REASONS_ENGINE } from '../release-reasons-engine.js';
 import { STALE_STATE_ENGINE } from '../stale-state-engine.js';
 import { GONE_CLAIM_ENGINE } from '../gone-claim-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -20,7 +21,7 @@ function existingEngine(args, board, at) {
 
 /** An observation cannot be silently ignored by an older release implementation. */
 function minimumEngine(args, board, at) {
-  return Math.max(board && board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='claim' AND event_detail LIKE '%\"exitRules\"%' LIMIT 1").get(args[0]) ? EXIT_RULES_ENGINE : 1, args[3]?.leaseLapse === true ? LEASE_LAPSE_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(board && board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='claim' AND event_detail LIKE '%\"exitRules\"%' LIMIT 1").get(args[0]) ? EXIT_RULES_ENGINE : 1, args[4] !== undefined ? RELEASE_REASONS_ENGINE : 1, typeof args[3] === 'string' ? RELEASE_REASONS_ENGINE : args[3]?.leaseLapse === true ? LEASE_LAPSE_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
@@ -30,6 +31,7 @@ export default Object.freeze({ operation: "release", order: 14, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
+  "RELEASE_REASON": "name why with --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER (OTHER also needs --note)",
   "NOTE_REQUIRED": "add --note \"<what happened>\"",
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
   "NOT_YOURS": "shout its holder or the coordinator: pullboard shout coordinator --kind question \"<what you need>\"",
