@@ -117,7 +117,7 @@ test('real inbox history preserves numeric pagination and keeps its action disti
   assert.equal(empty.next, page.next, 'an empty page preserves the continuation cursor');
   const projected = box.run(box.web, 'inbox', '--history', '--since', '0', '--json', '--fields', 'next');
   assert.equal(projected.code, 0, projected.err);
-  assert.deepEqual(JSON.parse(projected.out), { version: 1, next: page.next, nextAction: page.nextAction });
+  assert.deepEqual(JSON.parse(projected.out), { version: 1, next: page.next });
 });
 
 test('automatic infra proof permits only import-path contents, preserving bindings and assertion bytes [C7,V4]', t => {
@@ -147,7 +147,7 @@ test('automatic infra proof permits only import-path contents, preserving bindin
   assert.throws(() => infraNote({ ...options }), { code: 'INFRA_NOTE_REQUIRED' }, 'an absent candidate identity cannot authorize a draft');
 });
 
-test('claim states header and infra rules once in real text and JSON [C7,V4]', t => {
+test('claim states header and infra rules once in text and preserves JSON [C7,V4]', t => {
   const helpers = createE2eHelpers(); t.after(helpers.cleanup);
   const box = helpers.project('true');
   const added = box.run(box.repo, 'add', 'web', 'Measure claim guidance', '--specs', 'G1', '--check', 'true');
@@ -155,10 +155,8 @@ test('claim states header and infra rules once in real text and JSON [C7,V4]', t
   const claimed = box.run(box.web, 'claim', '1', '--json');
   assert.equal(claimed.code, 0, claimed.err);
   const document = JSON.parse(claimed.out);
-  assert.match(document.commitRules, /at most 72 characters/u);
-  assert.match(document.commitRules, /import-path-only/u);
-  assert.match(document.commitRules, /assertion.*--infra/u);
-  assert.equal(document.next, 'git status');
+  assert.equal(document.commitRules, undefined, 'guidance adds no JSON fields');
+  assert.equal(document.next, undefined, 'JSON claim retains its native shape');
   const renewed = box.run(box.web, 'claim', '1');
   assert.equal(renewed.code, 0, renewed.err);
   assert.equal(renewed.out.match(/Commit headers must/gu)?.length, 1);
@@ -180,16 +178,15 @@ test('finite output ends with one next move while raw export and refusal wire re
     assert.equal(human.text.match(/^next:/gmu)?.length, 1, name);
     assert.match(human.text, /next: the chosen action\n$/u);
     const json = JSON.parse(output([name, '--json', '--fields', 'value'], io => io.result({ value: 1, hidden: true })).text);
-    assert.equal(Object.keys(json).at(-1), 'next');
-    assert.equal(typeof json.next, 'string'); assert.equal(json.hidden, undefined);
+    assert.deepEqual(json, { version: 1, value: 1 }, '--fields retains exactly its selected keys');
   }
   const held = JSON.parse(output(['submit', '--json'], io => io.result({ id: 1, next: { item: { item_id: 2 }, held: true } })).text);
-  assert.equal(held.next.action, 'pullboard show 2'); assert.equal(held.next.held, true);
+  assert.deepEqual(held, { version: 1, id: 1, next: { item: { item_id: 2 }, held: true } }, 'native handoff metadata stays unchanged');
   const selected = JSON.parse(output(['submit', '--json', '--fields', 'commit'], io => io.result({
     commit: 'candidate', next: { item: { item_id: 2, privateDetail: 'omitted' }, held: true },
   })).text);
-  assert.deepEqual(selected, { version: 1, commit: 'candidate', next: 'pullboard show 2' },
-    'mandatory action never restores omitted handoff metadata after field selection');
+  assert.deepEqual(selected, { version: 1, commit: 'candidate' },
+    'field selection never restores omitted handoff metadata or adds guidance');
   const raw = '{"version":1,"tables":{}}';
   assert.equal(output(['export'], io => io.say(raw)).text, raw + '\n');
   assert.deepEqual(JSON.parse(output(['export', '--json'], io => io.say(raw)).text), JSON.parse(raw));

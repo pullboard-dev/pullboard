@@ -244,16 +244,9 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
     // A refusal keeps its whole shape; only a successful read is trimmed to the requested keys.
     if (fields && !refusal && !document.error) document = selectFields(document, fields);
     if (remote) document.remote = remote;
-    if (!code && !refusal && !document.error && finalAction) {
-      const action = explicitNext ?? successfulNext(guidanceCommand, result);
-      // Pagination owns its numeric cursor; guidance must not overwrite protocol data.
-      if (typeof document.next === 'number') document.nextAction = action;
-      else {
-        const next = document.next && typeof document.next === 'object'
-          ? { ...document.next, action } : action;
-        delete document.next;
-        document.next = next;
-      }
+    // Existing cursor metadata stays intact; field projection owns its exact selected shape.
+    if (!code && !refusal && !document.error && finalAction && !fields && typeof document.next === 'number') {
+      document.nextAction = explicitNext ?? successfulNext(guidanceCommand, result);
     }
     streams.stdout.write(`${JSON.stringify(document, null, 2)}\n`);
   };
