@@ -44,12 +44,12 @@ export function workQueue(board, ports, reviewer = null, options = {}) {
   const inFlight = listItems(board, { all: true });
   const reasons = queueReasons(board, { priority: release, rank: milestoneRanks(board, release, { milestones }) }, { milestones, listItems, foreignBlockers });
   const entry = (item) => ({ id: item.item_id, title: item.item_title, route: item.item_route, lane: item.item_lane,
-    status: item.item_status, holder: holderOf(item, now), waits: itemWaits(board, item, inFlight, foreignBlockers), ...reasons(item) });
+    status: item.item_status, holder: holderOf(item, now), waits: itemWaits(board, item, inFlight, foreignBlockers, ports), ...reasons(item) });
   const releases = planned.map((milestone, index) => ({ name: milestone.name, landed: milestone.landed, total: milestone.total, shipped: Boolean(milestone.shipped),
     items: items.filter((item) => release(item) === index).map(entry) })).filter((milestone) => !milestone.shipped || milestone.items.length);
   const unreleased = items.filter((item) => release(item) >= planned.length).map(entry);
   // next takes its own route first (B13), so each route's first item comes from that same order.
-  const pullable = items.filter((item) => item.item_status === 'open' && !itemWaits(board, item, inFlight, foreignBlockers).length).sort(buildOrder(board, { tierFirst: true, priority: release }));
+  const pullable = items.filter((item) => item.item_status === 'open' && !itemWaits(board, item, inFlight, foreignBlockers, ports).length).sort(buildOrder(board, { tierFirst: true, priority: release }));
   const first = Object.fromEntries([...ROUTES].reverse().map((route) => [route, pullable.find((item) => canTake(route, item.item_route))?.item_id ?? null]));
   return { releases: releases.map(({ shipped, ...milestone }) => milestone), unreleased, first };
 }

@@ -24,12 +24,12 @@ function authorFamilies(board, item) {
  * Return null when the item is not strict, is not yet in review shape, or some registered seat that is not gone can review it.
  * Otherwise return the exact explanation. Eligibility is the same projection `pullboard show` prints.
  */
-export function unreviewableStrict(board, item, options = {}) {
+export function unreviewableStrict(board, item, options = {}, reads = board.nativePorts) {
   const { registered = false, ...eligibility } = options;
   const projected = reviewEligibility(board, item, eligibility, { strictOnly: true });
   if (projected.tier !== 'strict' || !projected.ready) return null;
   // A replayed move may not read local heartbeats, so it counts every registered seat; submit and the sentinel count only active ones.
-  const present = new Map(board.nativePorts.listAgents(board).map(seat => [seat.agent_id, registered ? 'registered' : seat.presence]));
+  const present = new Map(reads.listAgents(board).map(seat => [seat.agent_id, registered ? 'registered' : seat.presence]));
   if (projected.eligible.some(agent => present.get(agent) !== 'gone')) return null;
   const authors = authorFamilies(board, item);
   const undeclared = authors.filter(row => !row.family);
@@ -37,7 +37,7 @@ export function unreviewableStrict(board, item, options = {}) {
   const parts = [];
   for (const row of undeclared) parts.push(`${row.role} ${row.agent} has no declared vendor family, so strict review cannot be routed; declare it (pullboard join --family <vendor>) or re-register that seat with one`);
   if (excluding.length) parts.push(`${excluding.map(row => `${row.role} ${row.agent} (${row.family})`).join(' and ')} exclude${excluding.length === 1 ? 's' : ''} ${[...new Set(excluding.map(row => row.family))].join(' and ')} reviewers`);
-  const seats = new Map(board.nativePorts.listAgents(board).map(seat => [seat.agent_id, seat]));
+  const seats = new Map(reads.listAgents(board).map(seat => [seat.agent_id, seat]));
   const silent = [...seats.values()].filter(seat => (registered || seat.presence !== 'gone') && !familyName(seatFamily(board, seat.agent_id), familyAliasesOf(board)) && !authors.some(row => row.agent === seat.agent_id)).map(seat => seat.agent_id);
   if (silent.length) parts.push(`active seat${silent.length === 1 ? '' : 's'} ${silent.slice(0, SHOWN).join(', ')}${silent.length > SHOWN ? ` +${silent.length - SHOWN} more` : ''} declare${silent.length === 1 ? 's' : ''} no vendor family, so strict review cannot route to ${silent.length === 1 ? 'it' : 'them'}`);
   const rules = projected.ineligible.slice(0, SHOWN).map(row => `${row.agent}: ${row.rule}`);

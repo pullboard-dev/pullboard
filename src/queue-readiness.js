@@ -13,14 +13,14 @@ import { itemFileCollisions } from './item-files.js';
  * @param {any[]} inFlight
  * @returns {string[]}
  */
-export function itemWaits(board, item, inFlight, foreignBlockers) {
-  return waitsWithLane(board, item, inFlight, board.nativePorts.laneHold(board, item.item_lane), foreignBlockers);
+export function itemWaits(board, item, inFlight, foreignBlockers, reads = board.nativePorts) {
+  return waitsWithLane(board, item, inFlight, reads.laneHold(board, item.item_lane), foreignBlockers, reads);
 }
 
 /** Apply the same blockers with a lane hold from the current read projection. */
-function waitsWithLane(board, item, inFlight, lane, foreignBlockers) {
+function waitsWithLane(board, item, inFlight, lane, foreignBlockers, reads) {
   const after = localDependencyIds(item)
-    .map((id) => board.nativePorts.itemById(board, id))
+    .map((id) => reads.itemById(board, id))
     .filter((before) => before && before.item_status !== 'verified')
     .map((before) => `#${before.item_id} (${before.item_status})`);
   const collisions = itemFileCollisions(item, inFlight);
@@ -28,9 +28,9 @@ function waitsWithLane(board, item, inFlight, lane, foreignBlockers) {
 }
 
 /** Read ready open items through the queue's exact dependency, collision and hold checks. */
-export function readyItems(board, foreignBlockers) {
-  const inFlight = board.nativePorts.listItems(board, { all: true });
-  const holds = new Map(board.nativePorts.laneHolds(board).map(hold => [hold.hold_lane, hold]));
+export function readyItems(board, foreignBlockers, reads = board.nativePorts) {
+  const inFlight = reads.listItems(board, { all: true });
+  const holds = new Map(reads.laneHolds(board).map(hold => [hold.hold_lane, hold]));
   return inFlight.filter(item => item.item_status === 'open'
-    && !waitsWithLane(board, item, inFlight, holds.get(item.item_lane) ?? null, foreignBlockers).length);
+    && !waitsWithLane(board, item, inFlight, holds.get(item.item_lane) ?? null, foreignBlockers, reads).length);
 }

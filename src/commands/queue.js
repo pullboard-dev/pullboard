@@ -13,6 +13,6 @@ import {
 export function run(io, { first, second, rest }) {
   const ctx = context(io);
   return queueView.queueCommand(io, [first, second, ...rest], (work) => withBoard(ctx, work),
-    { buildOrder: store.buildOrder, canTake: store.canTake, listItems: store.listItems, milestonePriorities: store.milestonePriorities, milestones: store.milestones, roadmap: roadmap, ROUTES: store.ROUTES, foreignBlockers: store.foreignBlockers, eligibilityProblem },
+    { itemById: store.itemById, laneHold: store.laneHold, laneHolds: store.laneHolds, buildOrder: store.buildOrder, canTake: store.canTake, listItems: store.listItems, milestonePriorities: store.milestonePriorities, milestones: store.milestones, roadmap: roadmap, ROUTES: store.ROUTES, foreignBlockers: store.foreignBlockers, eligibilityProblem },
     board => agentAt(board, ctx.info.root)?.agent_id ?? null, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family });
 }
