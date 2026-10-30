@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { costOverviewHtml, bindCostOverview } from '../../src/view/cost-overview.js';
+import { cockpitPage } from '../../src/view/cockpit-page.js';
 import { chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('the private Cost overview renders prepared analytics and each confidence [N26]', { timeout: 90000 }, async () => {
@@ -61,6 +62,7 @@ test('the private Cost tab consumes the server projection and routes controls [N
     assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify(window.costRequests)')), ['7d','30d']);
     await chrome.click('document.querySelector("#cost [data-cost-all]")');
     await chrome.waitFor('view.tab === "items"');
+    assert.doesNotMatch(cockpitPage('', { snapshot:true, readOnly:true }), /costOverviewHtml|cost-analytics|Only you see this/u, 'public snapshots omit private Cost implementation');
     assert.deepEqual(chrome.exceptions, []);
   } finally { if (chrome) await closeSnapshotChrome(chrome); await view.stop(); rmSync(dir,{recursive:true,force:true}); }
 });
