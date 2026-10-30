@@ -218,19 +218,17 @@ function render() {
   // While another project loads, the item picked there waits for its own board.
 
   // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
-  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p, undefined, Date.now())) : i.blockedBy.length || heldLanes.has(i.lane) ? '<span class="chip gate">' + (i.blockedBy.length ? 'gated' : 'lane held') + '</span>' : chip('open');
+  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p, undefined, Date.now())) : i.blockedBy.length ? '<span class="chip waiting">Waiting on ' + i.blockedBy.map(id => '<a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a>').join(', ') + '</span>' : heldLanes.has(i.lane) ? '<span class="chip gate">lane held</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
     const hold = s === 'open' ? heldLanes.get(i.lane) : null;
-    const waits = s === 'open' && i.blockedBy.length ? i.blockedBy : [];
-    const gated = gatedOf(i);
-    const pills = (waits.length ? '<span class="gate">' + waits.map((id, index) => '<span class="wait-unit">' + (index ? '' : 'waits on ') + '<a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a></span>').join(', ') + '</span>' : '') + (hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '');
+    const pills = hold ? '<span class="gate">lane held: ' + linked(hold.hold_reason, titles) + '</span>' : '';
     const holder = holderOf(i), reviewer = reviewerOf(i);
     const tag = s === 'building' && holder ? '<span class="chip busy" title="building, held by ' + esc(agentName(holder)) + '">' + esc(agentName(holder)) + '</span>'
       : s === 'verify' && reviewer ? '<span class="chip warn" title="reviewing until ' + esc(when(i.claim?.until ?? i.reviewUntil)) + '">' + esc(agentName(reviewer)) + ' reviewing</span>'
       : s === 'open' ? openChip(i) : chip(s);
-    return sharedRowHtml({ className: (view.item === i.id ? 'on ' : '') + (gated ? 'gated ' : ''), attributes: { 'data-item': i.id }, title: i.title, state: s,
+    return sharedRowHtml({ className: (view.item === i.id ? 'on ' : '') + (gatedOf(i) ? 'gated ' : ''), attributes: { 'data-item': i.id }, title: i.title, state: s,
       primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag,
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
       metaHtml: (rejected(i) ? '<span class="why"><b>' + reasonHtml(i.verdict.reason) + '</b> ' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
@@ -474,7 +472,7 @@ function render() {
       const change = !snapshot && (!readOnly || requests) ? '<button class="decline-row" type="button" data-row-change="' + esc(row.id) + '" title="Request a change through Shouts">Change</button>' : '';
       const actions = rowDecisionActions ? rowDecisionActions.replace('<button class="decline-row"', change + '<button class="decline-row"') : change;
       $('spec-detail').innerHTML = '<div class="spec-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + '</div>'
-        + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div>' + (citing.length ? citing.map(item => '<button class="ref" type="button" data-item="' + item.id + '">#' + item.id + ' ' + rich(item.title, titles) + '</button>').join('') : 'No items yet') + '</div></div>'
+        + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
         + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
         + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>';
       continue;
