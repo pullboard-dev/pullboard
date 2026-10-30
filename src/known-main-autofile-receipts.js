@@ -1,11 +1,15 @@
 /** Seal native receipt bytes and accepted opt-in before this submit can enter the event stream [V4,H16]. */
 import { Refused } from './refused.js';
 import { createHash } from 'node:crypto';
-import { submitGatePlan, submitGateConfig } from './gate-submit.js';
+import { submitGatePlan } from './gate-submit.js';
+import { submitGateConfig } from './gate-submit.js';
 import { frozenCheck } from './trusted-policy.js';
-import { policyAt, mainPolicy } from './trusted-policy.js';
-import { contains, tryGit } from './git.js';
-import { readGateReceipt, boardReceiptStore } from './gate-run-receipt.js';
+import { policyAt } from './trusted-policy.js';
+import { mainPolicy } from './trusted-policy.js';
+import { contains } from './git.js';
+import { tryGit } from './git.js';
+import { readGateReceipt } from './gate-run-receipt.js';
+import { boardReceiptStore } from './gate-run-receipt.js';
 import { validateKnownMainAutofile } from './known-main-autofile.js';
 /** Refuse missing origin evidence without widening generic creation authority. */
 function refused() { return new Refused('SUBMISSION_PROOF', 'automatic Main red repairs need native evidence and accepted-main opt-in; rerun submit'); }

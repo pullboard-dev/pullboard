@@ -1,6 +1,7 @@
 import { fileKnownMainAutofile } from './known-main-autofile.js';
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './known-main-owner-pattern-engine.js';
-import { validateQuarantineProofIds, validateQuarantineVerdict } from './quarantine.js';
+import { validateQuarantineProofIds } from './quarantine.js';
+import { validateQuarantineVerdict } from './quarantine.js';
 import { committedItemAuthors } from './review-independence.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';

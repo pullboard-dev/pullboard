@@ -4,8 +4,10 @@ import { Refused } from './refused.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from './known-main-autofile-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { laneOf } from './lanes.js';
-import { unownedMainReds, linkKnownMainReworks } from './known-main-reworks.js';
-import { validateItemAddition, insertItem } from './board-add-item.js';
+import { unownedMainReds } from './known-main-reworks.js';
+import { linkKnownMainReworks } from './known-main-reworks.js';
+import { validateItemAddition } from './board-add-item.js';
+import { insertItem } from './board-add-item.js';
 
 /** Quote one derived literal file without interpreting its bytes as shell syntax. */
 function word(file) { return "'" + file.replaceAll("'", "'\\''") + "'"; }

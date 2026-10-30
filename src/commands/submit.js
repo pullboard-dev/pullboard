@@ -146,7 +146,8 @@ import {
   withBoard,
 } from '../cli.js';
 import { recordedRecovery } from '../recorded-recovery.js';
-import { failureSignatures, MAIN_FAILURE_SIGNATURE_VERSION } from '../main-failure-matches.js';
+import { failureSignatures } from '../main-failure-matches.js';
+import { MAIN_FAILURE_SIGNATURE_VERSION } from '../main-failure-matches.js';
 import { matchingMainFailures } from '../main-failure-matches.js';
 import { mainFailureNotices } from '../main-red.js';
 import { linkKnownMainReworks } from '../known-main-reworks.js';
