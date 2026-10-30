@@ -358,6 +358,8 @@ test('legacy oversized cache is reclaimed and a smaller limit never changes deri
 test('current main retains all namespace facts while older commits rotate [B6,C7]', () => {
   const box = e2e.project();
   const current = box.git(box.repo, 'rev-parse', 'HEAD');
+  box.git(box.repo, 'config', 'pullboard.trunk', 'refs/heads/main');
+  box.git(box.repo, 'checkout', '--detach');
   const prior = process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS;
   process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = '1';
   try {

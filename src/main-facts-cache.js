@@ -12,6 +12,7 @@ import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { git } from './git.js';
 import { mainCheckout } from './git.js';
+import { trunkRef } from './git-trunk-ref.js';
 import { cleanGitEnvironment } from './git.js';
 
 const LIMIT = 64 * 1024 * 1024;
@@ -106,7 +107,13 @@ export function cachedMainFact(root, namespace, identity, derive, validate) {
   const key = mainFactDigest(JSON.stringify([1, namespace, identity]));
   const commit = commitIdentity(identity);
   let current = null;
-  try { current = mainCheckout(root)?.commit ?? null; } catch { /* Unavailable current-main metadata never blocks derivation. */ }
+  try {
+    current = mainCheckout(root)?.commit ?? null;
+    if (!current) {
+      const trunk = trunkRef(root);
+      if (trunk) current = git(root, ['rev-parse', '--verify', `${trunk}^{commit}`], { env: cleanGitEnvironment() }).trim();
+    }
+  } catch { /* Unavailable current-main metadata never blocks derivation. */ }
   let db;
   let derived;
   let derivationError;
