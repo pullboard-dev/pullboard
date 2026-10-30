@@ -21,6 +21,32 @@ import { fileURLToPath } from 'node:url';
 // Budget: 64 MiB bounds worst-case JSON bridge escaping below Node string limits.
 const MAX_OUTPUT_BYTES = 64 * 1024 ** 2;
 
+/** Bound stopping only this owned child and its pipes; local settlement never proves remote cleanup. */
+export function ownedTransportCompletion(child, { termMs = 1_000, drainMs = 1_000 } = {}) {
+  let term, drain, stopping = false, observed = null, force;
+  const forced = new Promise(resolve => { force = resolve; });
+  const exited = (status, signal) => { observed = { status, signal }; };
+  let closed;
+  const complete = new Promise(resolve => { closed = (status, signal) => resolve({ status, signal, forced: false }); });
+  child.once('exit', exited); child.once('close', closed);
+  return {
+    wait: () => Promise.race([complete, forced]),
+    stop() {
+      if (stopping) return;
+      stopping = true;
+      child.stdin?.destroy(); child.kill('SIGTERM');
+      term = setTimeout(() => {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+        drain = setTimeout(() => {
+          child.stdin?.destroy(); child.stdout?.destroy(); child.stderr?.destroy(); child.unref();
+          force({ ...(observed ?? { status: null, signal: null }), forced: true });
+        }, drainMs);
+      }, termMs);
+    },
+    dispose() { clearTimeout(term); clearTimeout(drain); child.removeListener('exit', exited); child.removeListener('close', closed); },
+  };
+}
+
 /** Reconstruct the native transport outcome across a fresh controller process. */
 function bridgeResult(request, result, phase) {
   let reply;
@@ -31,6 +57,7 @@ function bridgeResult(request, result, phase) {
     const refused = new Refused(reply.error.code, reply.error.message.startsWith(prefix) ? reply.error.message.slice(prefix.length) : reply.error.message);
     if (reply.error.runnerAttempt) refused.runnerAttempt = reply.error.runnerAttempt;
     if (reply.error.runnerCancellation) refused.runnerCancellation = reply.error.runnerCancellation;
+    if (reply.error.diagnostic) refused.diagnostic = reply.error.diagnostic;
     throw refused;
   }
   if (reply.error?.name === 'RunnerDropped') throw new RunnerDropped(request.options.runner.host, reply.error.diagnostic);
@@ -92,9 +119,10 @@ export async function serveRunnerController(ports) {
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   const request = JSON.parse(input);
-  if (typeof ports.runnerItemState !== 'function' || typeof ports.controllerDeadline !== 'function') throw new Refused('RUNNER_LIFECYCLE_PROVIDER', 'runner controller needs its canonical item lifecycle and deadline observers');
+  if (typeof ports.runnerItemState !== 'function' || typeof ports.controllerDeadline !== 'function'
+    || typeof ports.probeRunnerJob !== 'function') throw new Refused('RUNNER_LIFECYCLE_PROVIDER', 'runner controller needs its canonical item lifecycle, deadline and exact-job observers');
   const canceled = new AbortController();
-  const custody = ports.controllerDeadline(request.options.metadata?.resourceOwner, request.parentPid);
+  const custody = ports.controllerDeadline(request.options.metadata?.resourceOwner, request.parentPid, request.root);
   let cancellation = null;
   const abort = () => canceled.abort();
   for (const signal of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(signal, abort);
@@ -175,25 +203,54 @@ async function runInController(root, command, options, ports) {
   const deadline = ports.controllerCustody;
   let removeAbort = () => {};
   let runnerWaitTimer;
-  let runnerWaitKill;
+  let jobWatch, transport;
+  const jobCancellation = new AbortController();
   let rawFd = null;
   try {
     if (request.rawOutputPath) rawFd = openSync(request.rawOutputPath, 'wx', 0o600);
     request.phase = 'connect';
     const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
+    transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];
     let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '';
     const rawHash = createHash('sha256');
     let rawBytes = 0, head = Buffer.alloc(0), tail = Buffer.alloc(0);
     const half = 4 * 1024 ** 2;
-    const abort = () => { error ??= new Error('runner transport canceled'); child.stdin.destroy(); child.kill('SIGTERM'); };
+    const abort = () => { error ??= new Error('runner transport canceled'); transport.stop(); };
+    let heartbeatAt = null, probing = false;
+    // Budget: an exact 5-second worker heartbeat earns 20 seconds of silence before one bounded status observation.
+    jobWatch = setInterval(async () => {
+      if (request.phase !== 'ready' && !error && !options.signal?.aborted) {
+        try {
+          const unavailable = deadline.unavailable();
+          if (unavailable?.host === request.runner.host) {
+            error = new Refused('RUNNER_UNAVAILABLE', `runner ${unavailable.host} became ${unavailable.reason} while job ${request.spec.id} waited for READY; release its lease and dispatch once to a healthy runner`);
+            error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'runner-unavailable').diagnostic,
+              unavailable, remoteCleanup: 'unknown' };
+            transport.stop();
+          }
+        } catch { /* Unknown or foreign lease observation cannot stop this owned transport. */ }
+      }
+      if (request.phase !== 'ready' || heartbeatAt === null || Date.now() - heartbeatAt < 20_000 || probing || error) return;
+      probing = true;
+      try {
+        const state = await ports.probeRunnerJob(request.runner, { job: request.spec.id, recovery: request.spec.recovery }, { signal: jobCancellation.signal });
+        heartbeatAt = Date.now();
+        if (state?.state !== 'gone' || state.job !== request.spec.id
+          || !['version', 'request', 'nonce', 'tooling', 'launchFence'].every(key => state.recovery?.[key] === request.spec.recovery?.[key])
+          || error || options.signal?.aborted || jobCancellation.signal.aborted) return;
+        error = new Refused('RUNNER_JOB_LOST', `runner ${request.runner.host} lost exact job ${request.spec.id}: its recorded startup owner is gone; remote cleanup remains unknown`);
+        error.diagnostic = { ...runnerFailure(request, { status: null, stderr: '' }, 'job-owner-gone').diagnostic,
+          host: request.runner.host, job: request.spec.id, owner: state.owner, remoteCleanup: 'unknown' };
+        transport.stop();
+      } catch { heartbeatAt = Date.now(); /* An unavailable exact-job observer supplies no absence authority. */ }
+      finally { probing = false; }
+    }, 1_000);
     // Bound connection, worker admission and checkout, until READY immediately before execution.
     // An executing test keeps its existing test timeout and may outlive the runner wait.
     if (Number.isSafeInteger(options.runnerWaitDeadline)) runnerWaitTimer = setTimeout(() => {
       request.admissionDeadlineExceeded = true;
       abort();
-      // Budget: a non-responsive SSH child cannot retain a local reservation forever.
-      runnerWaitKill = setTimeout(() => child.kill('SIGKILL'), 1_000);
     }, Math.max(0, options.runnerWaitDeadline - Date.now()));
     options.signal?.addEventListener('abort', abort, { once: true });
     removeAbort = () => options.signal?.removeEventListener('abort', abort);
@@ -212,11 +269,11 @@ async function runInController(root, command, options, ports) {
           const take = Math.min(chunk.length, half - head.length);
           if (take) head = Buffer.concat([head, chunk.subarray(0, take)]);
           if (chunk.length > take) tail = Buffer.concat([tail, chunk.subarray(take)]).subarray(-half);
-        } catch { error = new Refused('RUNNER_OUTPUT_LIMIT', 'the full private-check output could not be captured; restore its artifact storage before retrying'); child.kill('SIGTERM'); }
+        } catch { error = new Refused('RUNNER_OUTPUT_LIMIT', 'the full private-check output could not be captured; restore its artifact storage before retrying'); transport.stop(); }
         return;
       }
       bytes += chunk.length;
-      if (bytes > MAX_OUTPUT_BYTES) { error = new Refused('RUNNER_OUTPUT_LIMIT', 'runner output exceeded 64 MiB; reduce command output or keep this run local'); child.kill(); }
+      if (bytes > MAX_OUTPUT_BYTES) { error = new Refused('RUNNER_OUTPUT_LIMIT', 'runner output exceeded 64 MiB; reduce command output or keep this run local'); transport.stop(); }
       else target.push(chunk);
     };
     child.stdout.on('data', chunk => capture(output, chunk, true));
@@ -224,25 +281,26 @@ async function runInController(root, command, options, ports) {
       capture(diagnostics, chunk);
       control += chunk.toString('utf8');
       // Budget: eight MiB of component receipts plus base64/JSON framing, inside the total 64-MiB bound.
-      if (control.length > 16 * 1024 ** 2) { error = new Error('runner control frame exceeded limit'); child.kill(); return; }
+      if (control.length > 16 * 1024 ** 2) { error = new Error('runner control frame exceeded limit'); transport.stop(); return; }
       let newline;
       while ((newline = control.indexOf('\n')) >= 0) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
-        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}`) {
-          request.phase = 'ready'; clearTimeout(runnerWaitTimer);
+        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}` && request.phase !== 'ready') {
+          request.phase = 'ready'; heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer);
           try { deadline.ready(request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs); }
           catch (failure) { error ??= failure; abort(); }
         }
+        if (line === `PULLBOARD_RUNNER_HEARTBEAT ${request.spec.id}`) heartbeatAt = Date.now();
         const cleanupPrefix = `PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${request.spec.id} `;
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
         if (line === `PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${request.spec.id}`) {
           error = new Refused('RUNNER_CLEANUP_TIMEOUT', `runner ${request.runner.host} could not verify cleanup within 30 seconds${cleanupReason ? ': ' + cleanupReason : ''}; inspect job ${request.spec.id} under its runner namespace before another run`);
           error.diagnostic = runnerFailure(request, { status: null, stderr: '' }, 'cleanup-unverified').diagnostic;
-          child.stdin.destroy(); child.kill('SIGTERM'); return;
+          transport.stop(); return;
         }
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;
         if (!line.startsWith(prefix)) continue;
-        if (requested) { error = new Error('duplicate runner inventory'); child.kill(); return; }
+        if (requested) { error = new Error('duplicate runner inventory'); transport.stop(); return; }
         requested = true; request.phase = 'inventory';
         transfer = (async () => {
           const inventory = JSON.parse(Buffer.from(line.slice(prefix.length), 'base64').toString('utf8'));
@@ -258,13 +316,14 @@ async function runInController(root, command, options, ports) {
           const pack = historyPack(root, request.source, inventory.tips, request.directory, request.spec.tags, inventory.tagObjects);
           await pipeline(createReadStream(pack), child.stdin);
           if (request.phase !== 'ready') request.phase = 'source-sent';
-        })().catch(failure => { error = failure; child.stdin.destroy(); child.kill(); });
+        })().catch(failure => { error ??= failure; transport.stop(); });
       }
     });
     child.stdin.on('error', failure => { if (failure.code !== 'EPIPE') error ??= failure; });
-    child.once('error', failure => { error = failure; });
+    child.once('error', failure => { error ??= failure; });
     child.stdin.write(request.frame);
-    const {status,signal} = await new Promise(resolve => child.once('close', (status,signal) => resolve({status,signal})));
+    const {status,signal} = await transport.wait();
+    clearInterval(jobWatch);
     if (transfer) await transfer;
     if (error instanceof Refused) throw error;
     if (rawFd !== null) { closeSync(rawFd); rawFd = null; }
@@ -272,7 +331,7 @@ async function runInController(root, command, options, ports) {
     return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
   } finally {
-    clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort();
+    jobCancellation.abort(); clearInterval(jobWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
     request.cleanup();
   }
 }
