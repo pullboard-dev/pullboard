@@ -9,7 +9,7 @@ const deadline = Date.now() + 75;
 const releaseTimer = setTimeout(() => blocker.release(), 250);
 const receipts = [];
 const result = await withGateSlot(process.cwd(), lease => runProfiledShellAsync(process.cwd(), ${JSON.stringify(shellCommand)}, {gateLease:lease}),
-  {executionServices,remote:true,runnerWaitMs:15000,runnerDeadlineAt:deadline,itemCheck:true,agent:'infra-retry-test',kind:'submit',item:'fixture',onWait(){},onReceipt:receipt=>receipts.push(receipt)});
+  {executionServices,remote:true,runnerOnly:true,runnerWaitMs:15000,runnerDeadlineAt:deadline,itemCheck:true,agent:'infra-retry-test',kind:'submit',item:'fixture',onWait(){},onReceipt:receipt=>receipts.push(receipt)});
 clearTimeout(releaseTimer);
 const pool = (await import(${JSON.stringify(resourcesUrl)})).listResources({scope:'machine'}).find(row=>row.name==='gate');
 console.log(JSON.stringify({green:result.isGreen,output:result.output,receipts,pool:{holders:pool.holders.length,line:pool.line.length}}));`;
