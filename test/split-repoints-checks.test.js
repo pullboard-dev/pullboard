@@ -5,6 +5,8 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { ENGINE_REGISTRY, ENGINE_VERSION } from '../src/machine.js';
+import { minimumMoveEngine, MOVE_REGISTRY } from '../src/move-registry.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
@@ -20,6 +22,17 @@ function onBoard(box, action) {
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
   try { return action(board); } finally { store.closeBoard(board); }
 }
+
+test('check-repoint landing moves keep their feature replay floor after later engine bumps [H16]', () => {
+  const payload = [{ checkRepointPlan: { version: 1 } }];
+  const featureEngine = ENGINE_REGISTRY['train-check-repoint'];
+  const laterEngine = ENGINE_VERSION + 1;
+  assert.ok(laterEngine > featureEngine);
+  assert.doesNotMatch(MOVE_REGISTRY.recordTrainLanding.minimumEngine.toString(), /\bENGINE_VERSION\b/u,
+    'a future registry maximum cannot raise this operation-specific replay floor');
+  assert.equal(minimumMoveEngine('recordTrainLanding', payload), featureEngine,
+    'the feature floor remains pinned while the current engine advances');
+});
 
 test('a split train landing repoints open and claimed checks and reports submitted checks unchanged [H16]',
   { timeout: 120_000 }, async t => { // budget: private project setup, one native gate and owned cleanup.
