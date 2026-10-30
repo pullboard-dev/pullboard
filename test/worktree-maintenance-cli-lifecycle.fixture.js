@@ -102,6 +102,52 @@ export function registerMaintenanceCliLifecycleTests() {
     assert.match(log.out, /Worktree work archived before maintenance cleanup/u);
   });
 
+  test('coordinator withdrawal defers dirty cleanup for a live cwd and health reports it [B3,C7,N26]', { timeout: 20_000 }, async t => {
+    const helpers = createE2eHelpers(); t.after(helpers.cleanup);
+    const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
+    enable(box);
+    const common = retainFixtureTimer(box), owner = join(box.dir, 'withdraw-busy-owner');
+    joinAgent(box, owner);
+    const item = addFixtureItem(box, 'Private deferred withdrawal cleanup');
+    const claimed = box.run(owner, 'claim', String(item), '--json');
+    assert.equal(claimed.code, 0, claimed.err);
+    const bytes = Buffer.from([0, 25, 26, 255]);
+    const dirtyPath = join(owner, 'unfinished.bin');
+    fs.writeFileSync(dirtyPath, bytes);
+
+    const worker = startFixtureChild('/bin/sleep', ['60'], { cwd: owner, env: box.env, stdio: 'ignore' });
+    t.after(async () => {
+      if (worker.exitCode === null && worker.signalCode === null) {
+        worker.kill('SIGTERM');
+        await once(worker, 'close');
+      }
+    });
+    const deadline = Date.now() + 5_000;
+    let census;
+    while (Date.now() < deadline) {
+      census = workingDirectories();
+      if (census?.some(row => row.pid === worker.pid && resolve(row.path) === resolve(owner))) break;
+      await pause(25);
+    }
+    assert.ok(census?.some(row => row.pid === worker.pid && resolve(row.path) === resolve(owner)),
+      'the real process census observes another process in the builder checkout');
+
+    const withdrawn = box.run(box.repo, 'withdraw', String(item), 'retain while the private worker is active', '--json');
+    assert.equal(withdrawn.code, 0, withdrawn.err);
+    assert.deepEqual(fs.readFileSync(dirtyPath), bytes);
+    assert.notEqual(box.git(owner, 'status', '--porcelain').trim(), '', 'withdrawal leaves dirty source untouched');
+    assert.equal(archiveFor(common, owner), null, 'deferred cleanup does not create a misleading recovery archive');
+
+    const health = box.run(box.repo, 'health', '--json');
+    assert.equal(health.code, 1, health.err);
+    const deferred = JSON.parse(health.out).dirtyWorktrees.find(row => row.kind === 'withdrawal-retained'
+      && row.item === item && resolve(row.path) === resolve(owner));
+    assert.ok(deferred, 'health exposes the deferred coordinator withdrawal by item and path');
+    assert.ok(Number.isFinite(Date.parse(deferred.since)), 'health reports when deferred retention began');
+    assert.equal(typeof deferred.reason, 'string');
+    assert.ok(deferred.reason.length > 0);
+  });
+
   test('completed handoff cleans the outgoing checkout only after a clear native cwd census [B3,C7,N26]', t => {
     const helpers = createE2eHelpers(); t.after(helpers.cleanup);
     const box = helpers.project('true', helpers.sandbox({ declareFamilies: true }), { withWorktree: false });
