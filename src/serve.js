@@ -1,7 +1,7 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css */
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -75,6 +75,7 @@ import { sentinels } from './sentinels.js';
 import { projectRowDecisions } from './row-decisions.js';
 import { projectSpecRevisions } from './spec-revisions.js';
 import { loadSpec } from './spec.js';
+import { gateFiles } from './spec.js';
 import { viewLanAddress } from './view/lan-address.js';
 import { publicSnapshot } from './view/public-export.js';
 import { openBoardForRead } from './board-read-open.js';
@@ -83,9 +84,11 @@ import { loadMachineSettings } from './settings-read.js';
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
 const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd());
 const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
+const SHARED_DOCTRINE_CSS = readFileSync(new URL('./view/doctrine.css', import.meta.url), 'utf8');
 const PRIVATE_VIEW_CSS_MARKER = '/* @private-view-css src/view/cost.css */';
-const VIEW_CSS = SHARED_VIEW_CSS.replace(PRIVATE_VIEW_CSS_MARKER, PRIVATE_COST_CSS);
-const SNAPSHOT_VIEW_CSS = SHARED_VIEW_CSS.replace(PRIVATE_VIEW_CSS_MARKER, '');
+const SHARED_DOCTRINE_CSS_MARKER = '/* @shared-view-css src/view/doctrine.css */';
+const VIEW_CSS = SHARED_VIEW_CSS.replace(SHARED_DOCTRINE_CSS_MARKER, SHARED_DOCTRINE_CSS).replace(PRIVATE_VIEW_CSS_MARKER, PRIVATE_COST_CSS);
+const SNAPSHOT_VIEW_CSS = SHARED_VIEW_CSS.replace(SHARED_DOCTRINE_CSS_MARKER, SHARED_DOCTRINE_CSS).replace(PRIVATE_VIEW_CSS_MARKER, '');
 export const LOOPBACK = '127.0.0.1';
 /**
  * The hosted page's origin (N26, A2): the one origin besides the view's own page that may call the view, and the only
@@ -296,6 +299,23 @@ function viewReleaseNotes() {
 }
 
 /**
+ * Observe actual repository files named by a Doctrine gate without treating prose as a path.
+ * @param {string} root
+ * @param {string} head
+ * @param {string | undefined} gate
+ * @returns {{ file: string, exists: boolean, ref: string | null }[]}
+ */
+function doctrineGateFiles(root, head, gate) {
+  return gateFiles(gate).map((file) => {
+    const path = resolve(root, file);
+    const inside = !isAbsolute(file) && !relative(root, path).split(/[\\/]/u).includes('..');
+    let exists = false;
+    try { exists = inside && statSync(path).isFile(); } catch { /* Missing test files stay visible as absent observations. */ }
+    return { file, exists, ref: exists && head ? file + ':1@' + head : null };
+  });
+}
+
+/**
  * Everything the page shows for one project. Given the newest shout the person has seen there,
  * it also counts every shout since, which the forty it sends cannot always show. An itemProjector
  * lets a caller that keeps its own item projections reuse them: it is called once per item, in
@@ -363,6 +383,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       practice: doctrine.rows.map(({ id, status: state, tier, text, gate, serves, section, origin, version, reason }) => ({
         id, status: state, tier, text, gate, serves, section, origin, version, reason,
         standardVersion: inherited.has(id) ? doctrine.version : null, overrides: origin === 'repo' && inherited.has(id), added: origin === 'standard' ? null : doctrineAges.get(id) ?? 0,
+        gateFiles: doctrineGateFiles(info.root, head, gate),
         ...(state === 'wont' && inherited.has(id) ? { standardText: inherited.get(id) } : {}),
       })),
       unseen: seen === null ? null : { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },

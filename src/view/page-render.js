@@ -31,6 +31,16 @@ function specGateFiles(row, detail = false) {
     + (detail && gate.ref ? codeRef(gate.ref, '', true, 12, 'Open') : '') + '</span>').join('');
 }
 
+/** Show a file only when the server observed it in the project; prose gates become readable check names. */
+function doctrineCheck(row, detail = false) {
+  const files = (row.gateFiles || []).filter(gate => gate.exists === true);
+  if (files.length) return specGateFiles({ ...row, gateFiles: files }, detail);
+  const gate = String(row.gate || '').toLowerCase();
+  const label = /commit(?:-msg|-message| message)? hook/u.test(gate) ? 'Commit hook + review'
+    : /project(?:'s|’s) gate/u.test(gate) ? "The project's gate" : 'Checked in review';
+  return '<span class="doctrine-check">' + esc(label) + '</span>';
+}
+
 function render() {
   renderIndexes = new WeakMap();
   // A refresh that moved the page to another board closes a confirmation opened on the last one.
@@ -428,7 +438,7 @@ function render() {
     const feedback = view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'list' ? view.specFeedback : null;
     const selectedRows = ruleListModel(rows, { kind, filter, selectedId: view.row[kind],
       addressed: view.tab === kind && view.addressDetail !== null, approvalIds: agentApprovals.map(row => row.id), feedback });
-    const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts } = selectedRows;
+    const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts, sectionReviewCounts, sectionKey } = selectedRows;
     if (kind === 'spec') {
       const tab = $('tabs').querySelector?.('[data-tab=spec]');
       if (tab) { tab.title = selectedRows.decisionTitle; tab.innerHTML = 'Spec <b>' + n.decide + '</b>'; }
@@ -440,21 +450,28 @@ function render() {
     view.row[kind] = selectedRows.nextSelectedId;
     let section = null;
     $(kind + '-list').innerHTML = shownRows.length ? shownRows.map((r) => {
-      const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && r.section !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
-      const sectionCount = sectionCounts.get(r.section);
-      const head = r.section !== section ? '<div class="spec-section-head"><h4>' + esc(r.section) + ' <span class="section-count">' + sectionCount + '</span></h4>' + (sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" title="All rows needing your decision in this Spec section, including rows hidden by the current filter" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '') + '</div>' : '';
-      section = r.section;
+      const currentSection = kind === 'spec' ? r.section : sectionKey(r);
+      const sectionRows = !snapshot && (!readOnly || requests) && kind === 'spec' && currentSection !== section ? rows.filter((entry) => entry.section === r.section && undecided(entry)) : [];
+      const sectionCount = sectionCounts.get(currentSection);
+      const standard = kind === 'doctrine' && r.origin === 'standard';
+      const reviewNeeded = standard && ['pending', 'draft'].includes(r.status);
+      const sectionName = standard ? 'PB · Pullboard rules' : r.section;
+      const sectionAction = standard ? '<span class="doctrine-review-count">' + (sectionReviewCounts.get(currentSection) || 0) + ' to review</span>' : sectionRows.length ? '<button class="spec-section-approve" data-section-approve="' + esc(r.section) + '" title="All rows needing your decision in this Spec section, including rows hidden by the current filter" type="button">Approve all ' + sectionRows.length + ' in this section</button>' : '';
+      const head = currentSection !== section ? '<div class="spec-section-head doctrine-section-head"><h4>' + esc(sectionName) + ' <span class="section-count">' + sectionCount + '</span></h4>' + sectionAction + '</div>' : '';
+      section = currentSection;
       const declined = kind === 'doctrine' && r.status === 'wont';
       const text = declined ? '<s>' + linked(r.standardText || r.text, titles) + '</s>' : linked(r.text, titles);
-      const source = kind === 'doctrine' ? ruleSource(r) : 'this repo';
       const reason = (declined || kind === 'spec' && r.status === 'wont') && r.reason ? '<span class="rule-reason" title="' + esc(r.reason) + '">Reason: ' + linked(r.reason, titles) + '</span>' : '';
-      const secondary = '<span class="rule-source" title="' + esc(source) + '">' + esc(source) + '</span>' + reason + (kind === 'spec' ? specGateFiles(r) : r.gate ? '<span class="gate" title="' + esc(r.gate) + '">' + esc(r.gate) + '</span>' : '');
+      const sourceLabel = standard ? '<span class="rule-source-chip standard" title="' + esc(ruleSourceTitle(r)) + '">Standard</span>' : '<span class="rule-source-chip repo" title="' + esc(ruleSourceTitle(r)) + '">This repo</span>';
+      const secondary = (kind === 'doctrine' ? sourceLabel : '<span class="rule-source" title="this repo">this repo</span>') + reason + (kind === 'spec' ? specGateFiles(r) : doctrineCheck(r));
       const statusShown = filter === 'all' || !!r.staleDecision || (filter === 'decide' && r.status !== 'draft');
-      const badge = kind === 'spec' ? '<div class="spec-row-side">' + (r.tier ? '<span class="chip tier-' + esc(r.tier) + '">' + esc(r.tier) + '</span>' : '') + '<small>' + count(renderIndex(p).citations.get(r.id)?.length || 0, 'item', 'items') + '</small></div>' : statusShown ? '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>' : r.tier ? '<span class="chip">' + esc(r.tier) + '</span>' : '';
+      const badge = kind === 'spec' ? '<div class="spec-row-side">' + (r.tier ? '<span class="chip tier-' + esc(r.tier) + '">' + esc(r.tier) + '</span>' : '') + '<small>' + count(renderIndex(p).citations.get(r.id)?.length || 0, 'item', 'items') + '</small></div>' : reviewNeeded ? '<span class="chip warn doctrine-review-chip">To review</span>' : statusShown && !standard ? '<span class="chip ' + tone(r.status) + '">' + esc(r.stage || r.status) + '</span>' : r.tier ? '<span class="chip">' + esc(r.tier) + '</span>' : '';
       const citations = renderIndex(p).citations.get(r.id)?.length || 0;
-      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + recordRow({ tag: 'div', classes: (kind === 'spec' ? 'spec-record ' : '') + (view.row[kind] === r.id ? 'on' : ''), attributes: 'data-row="' + kind + ':' + esc(r.id) + '"', title: r.text,
-        iconHtml: kind === 'spec' ? (r.status === 'approved' ? '✓' : r.status === 'wont' ? '×' : '✎') : '',
-        state: r.status === 'approved' ? 'verified' : r.status === 'wont' ? 'back' : 'open', primary: '<span class="row-id">' + esc(r.id) + '</span>' + text,
+      const iconHtml = kind === 'spec' ? (r.status === 'approved' ? '✓' : r.status === 'wont' ? '×' : '✎')
+        : reviewNeeded ? '<svg class="doctrine-eye" viewBox="0 0 20 20" role="img" aria-label="To review"><path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5Z"/><circle cx="10" cy="10" r="2.5"/></svg>' : '';
+      return head + (feedback && feedbackId === r.id ? specFeedback(feedback) : '') + recordRow({ tag: 'div', classes: (kind === 'spec' ? 'spec-record ' : '') + (reviewNeeded ? 'doctrine-standard-review ' : '') + (view.row[kind] === r.id ? 'on' : ''), attributes: 'data-row="' + kind + ':' + esc(r.id) + '"', title: r.text,
+        iconHtml,
+        state: reviewNeeded ? 'warn' : r.status === 'approved' ? 'verified' : r.status === 'wont' ? 'back' : 'open', primary: '<span class="row-id">' + esc(r.id) + '</span>' + text,
         secondary, rightTop: kind !== 'spec' && citations ? count(citations, 'item', 'items') : '', rightBottom: badge });
     }).join('') : '<div class="empty">' + (rows.length ? 'No rows match.' : kind === 'spec' ? 'No spec rows yet. Each requirement is one row in SPEC.md, such as G1 [draft, must] and a line; write them, or ask an agent to, and they show up here.' : 'No doctrine rows yet: they live in DOCTRINE.md.') + '</div>';
     if (feedback && !shownRows.length) $(kind + '-list').innerHTML += specFeedback(feedback);
@@ -462,13 +479,15 @@ function render() {
     const citing = row ? renderIndex(p).citations.get(row.id) || [] : [];
     const declined = kind === 'doctrine' && row && row.status === 'wont';
     const text = row ? declined ? '<s>' + linked(row.standardText || row.text, titles) + '</s>' : linked(row.text, titles) : '';
-    const source = kind === 'doctrine' && row ? '<span class="chip" title="' + esc(ruleSourceTitle(row)) + '">' + esc(ruleSource(row)) + '</span>' : '';
+    const standard = kind === 'doctrine' && row?.origin === 'standard';
+    const reviewNeeded = standard && ['pending', 'draft'].includes(row.status);
+    const source = kind === 'doctrine' && row ? '<span class="chip rule-source-chip ' + (standard ? 'standard' : 'repo') + '" title="' + esc(ruleSourceTitle(row)) + '">' + esc(ruleSource(row)) + '</span>' : '';
     const reason = (declined || kind === 'spec' && row?.status === 'wont') && row?.reason ? '<dt>reason</dt><dd>' + linked(row.reason, titles) + '</dd>' : '';
     // Only a standard rule gets a note; who approves rows is said once elsewhere, not in every detail (#822).
-    const home = kind === 'doctrine' && row && row.origin === 'standard' ? 'Standard rules come with Pullboard as defaults to review; override or decline one in DOCTRINE.md.' : '';
-    const rowStatus = row?.stage || row?.status;
+    const home = standard ? 'Standard rules come with Pullboard as defaults to review. Approve it to keep it, or override or decline it in DOCTRINE.md.' : '';
+    const rowStatus = reviewNeeded ? 'To review' : row?.stage || row?.status;
     const agentApproval = kind === 'spec' && row ? agentApprovals.find(approval => approval.id === row.id) : null;
-    const rowDecisionActions = agentApproval ? agentApprovalActions(agentApproval, true) : !snapshot && (!readOnly || requests) && row && undecided(row) && (kind === 'spec' || row.origin !== 'standard')
+    const rowDecisionActions = standard ? '' : agentApproval ? agentApprovalActions(agentApproval, true) : !snapshot && (!readOnly || requests) && row && undecided(row) && (kind === 'spec' || row.origin !== 'standard')
       ? '<div class="spec-decision-actions detail-decision-actions"><button class="approve-row" data-row-decision="approve" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Approve (A, from the list)" type="button">Approve <kbd>A</kbd></button><button class="decline-row" data-row-decision="decline" data-row-kind="' + kind + '" data-row-id="' + esc(row.id) + '" title="Decline (D, from the list)" type="button">Decline <kbd>D</kbd></button></div>'
       : '';
     if (kind === 'spec' && row) {
@@ -478,6 +497,15 @@ function render() {
         + '<div class="spec-fact"><span>Proved by</span><div>' + (row.gate ? specGateFiles(row, true) : 'No gate yet') + '</div></div><div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" role="button" tabindex="0" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>'
         + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (view.specFeedback?.root === view.root && view.specFeedback.kind === kind && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '')
         + '<div class="spec-detail-actions">' + actions + '</div><p class="spec-authority">Only you can decide a row.</p></div>';
+      continue;
+    }
+    if (kind === 'doctrine' && row) {
+      const hasFile = (row.gateFiles || []).some(gate => gate.exists === true);
+      const facts = '<div class="spec-fact"><span>' + (hasFile ? 'Proved by' : 'Checked by') + '</span><div>' + doctrineCheck(row, true) + '</div></div>'
+        + '<div class="spec-fact"><span>Cited by</span><div class="links">' + (citing.length ? citing.map(item => '<div class="links-item spec-citing" data-item="' + item.id + '"><span>#' + item.id + ' ' + rich(item.title, titles) + '</span></div>').join('') : 'No items yet') + '</div></div>';
+      $('doctrine-detail').innerHTML = '<div class="spec-detail-content doctrine-detail-content"><div class="spec-detail-section">' + esc(row.section) + '</div><h2><span class="row-id">' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + (reviewNeeded ? 'warn' : tone(row.status)) + '">' + esc(rowStatus.charAt(0).toUpperCase() + rowStatus.slice(1)) + '</span>' + (row.tier ? '<span class="chip tier-' + esc(row.tier) + '">' + esc(row.tier) + '</span>' : '') + source + '</div>'
+        + facts + (reason ? '<dl class="kv">' + reason + '</dl>' : '') + (row.serves?.length ? '<div class="spec-fact"><span>Serves</span><div>' + esc(row.serves.join(', ')) + '</div></div>' : '')
+        + (home ? '<p class="doctrine-standard-note">' + esc(home) + '</p>' : '') + (rowDecisionActions ? '<div class="spec-detail-actions">' + rowDecisionActions + '</div>' : '') + '<p class="spec-authority">Only you can decide a row.</p></div>';
       continue;
     }
     $(kind + '-detail').innerHTML = row ? '<div class="stack tight"><h2><span>' + esc(row.id) + '</span>' + text + '</h2><div class="meta"><span class="chip ' + tone(row.status) + '">' + esc(rowStatus) + '</span>' + (row.tier ? '<span class="chip">' + esc(row.tier) + '</span>' : '') + source + '</div>' + rowDecisionActions + (kind === 'spec' && view.specFeedback?.kind === kind && view.specFeedback.root === view.root && view.specFeedback.from === 'detail' && view.specFeedback.id === row.id ? specFeedback(view.specFeedback) : '') + '<dl class="kv"><dt>section</dt><dd>' + esc(row.section) + '</dd>' + reason + (row.gate ? '<dt>gate</dt><dd>' + esc(row.gate) + '</dd>' : '') + (row.serves && row.serves.length ? '<dt>serves</dt><dd>' + esc(row.serves.join(', ')) + '</dd>' : '') + '</dl><div><h3>Items that cite it</h3>' + (citing.length ? '<div class="links">' + citing.map((i) => '<div class="links-item" data-item="' + i.id + '"><span>#' + i.id + ' ' + rich(i.title, titles) + '</span></div>').join('') + '</div>' : '<div class="muted">None yet.</div>') + '</div>' + (home ? '<div class="muted">' + home + '</div>' : '') + '</div>' : '<div class="empty">' + (view.tab === kind && view.addressDetail !== null ? 'No ' + (kind === 'spec' ? 'Spec' : 'Doctrine') + ' row ' + esc(view.addressDetail) + ' exists here.' : 'Pick a row to see it, and the items that cite it.') + '</div>';

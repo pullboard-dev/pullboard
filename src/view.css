@@ -1,6 +1,6 @@
 /*
  * Shared cockpit styles for `pullboard view` (N26). Every colour is a token holding a light and a dark
- * value; the authenticated local view appends its private Cost styles from src/view/cost.css.
+ * value; the view assembles shared Doctrine styles and appends private Cost styles from src/view/cost.css.
  */
 :root {
   color-scheme: light dark;
@@ -34,7 +34,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
 .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100vh; }
 .side { display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 0 var(--space-4) var(--space-5); background: var(--surface); border-right: 1px solid var(--line); }
 .side-top { display: flex; flex: none; align-items: center; gap: var(--space-4); height: var(--top); margin: 0 calc(var(--space-4) * -1) var(--space-2); padding: 0 var(--space-5); border-bottom: 1px solid var(--line); }
@@ -728,6 +727,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .rule-source, .rule-reason { color: var(--ink-muted); font: inherit; }
 .srow .meta > .gate { margin-left: 0; }
 .srow .meta > .rule-reason { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* @shared-view-css src/view/doctrine.css */
 .flow { position: relative; margin: 0 0 var(--space-4); padding: var(--space-4) var(--space-4) var(--space-3); overflow-x: auto; }
 .flow svg { display: block; width: 100%; min-width: 680px; max-width: 920px; height: auto; margin: 0 auto; }
 .flow figcaption { color: var(--ink-faint); font-size: var(--text-xs); padding: var(--space-0) var(--space-8) 0 var(--space-0); }
