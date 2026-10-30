@@ -71,10 +71,11 @@ export function observer(ctx, { kind, board, main, commit, privateCheck = false,
     return board ? write(board) : withBoard(ctx, write);
   };
   return Object.assign(async (run, { root = ctx.info.root, command, lease }) => {
+    if (kind === 'submit' && run.proofReceiptId) await recordRun(run.proofReceiptId);
     await observeNativeFailure({ root, config: acceptedConfig, pin, run, command, lease, kind, checkAtCommit,
       record: observation => recordAll([observation]),
       // One board session records every case after all probes finish, rather than one open per case [#1899].
-      recordBatch: observations => recordAll(observations) });
+      recordBatch: observations => recordAll(observations), recordRun });
   }, { main: pin.main, recordRun });
 }
 
