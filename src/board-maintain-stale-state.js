@@ -1,8 +1,10 @@
 import { applyStaleState } from './board-stale-state-store.js';
-import { getItem, itemById } from './board-query.js';
+import { getItem } from './board-query.js';
+import { itemById } from './board-query.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
-import { setItem, moveItem } from './board.js';
+import { setItem } from './board.js';
+import { moveItem } from './board.js';
 import { releaseItemHold } from './board-release-item-hold.js';
 import { insertShout } from './board-shout.js';
 

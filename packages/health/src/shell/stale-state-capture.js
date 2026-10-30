@@ -1,4 +1,5 @@
-import { staleInstant, staleStateLimits } from '../../../../src/board-stale-state-policy.js';
+import { staleInstant } from '../../../../src/board-stale-state-policy.js';
+import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
 /** Native maintenance captures local inputs once, before sending a replay-independent observation [B4,H16]. */
 import { staleStateSnapshot } from '../core/stale-state-query.js';
 import { observeStaleWork } from './stale-work-observation.js';
