@@ -4,6 +4,7 @@ import { counterProofStats as readStatsCounter } from '../src/proof-counter-read
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureGit } from './fixture-child.js';
+import { existsSync } from 'node:fs';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +17,7 @@ import { proofStats } from '../src/stats.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { fetchFresh } from './http-fixture.js';
+import { boardHoldLog } from '../src/board-hold-log.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
@@ -34,6 +36,12 @@ async function run(root, args, clock) {
 /** Create an isolated Git board with one rejected submission and accepted rework. */
 function fixture(t) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-stats-cli-')));
+  const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = join(root, 'private-machine');
+  t.after(() => {
+    if (previousMachineHome === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
+    else process.env.PULLBOARD_MACHINE_HOME = previousMachineHome;
+  });
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { web: { owns: ['web/'] } } }));
@@ -88,13 +96,22 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
   const { root, board } = fixture(t);
   const before = store.events(board);
   const observationBefore = Date.now();
+  assert.equal(existsSync(boardHoldLog()), false, 'this fixture owns a fresh private machine with no retained holds log');
   const json = await run(root, ['stats', '--json']);
   assert.equal(json.code, 0, json.stderr);
   assert.equal(json.stderr, '');
   const observed = Date.parse(json.data.stats.flow.asOf);
   assert.ok(observed >= observationBefore && observed <= Date.now(), 'the CLI records its own observation clock');
   const expected = proofStats(board, { now: observed }, statsReadPorts);
-  assert.deepEqual(json.data, { version: 1, stats: expected, gateWaits: [] }, 'a board with no gated runs reports no gate waits (#836)');
+  // Landed #1875 adds machine-local hold evidence; #1056 adds explicit empty usage groups.
+  const until = new Date(observed).toISOString();
+  const boardHolds = { since: new Date(observed - 86_400_000).toISOString(), until, thresholdMs: 1000,
+    count: null, today: until.slice(0, 10), todayCount: null, available: false, missing: true, truncated: false,
+    invalidLines: 0, days: {}, commands: [],
+    allowance: { version: 1, allowancePerDay: null, observedDay: null, fact: null, status: 'unmeasured' } };
+  const usage = { items: [], lanes: [], milestones: [], models: [], seats: [], sharedSessions: [] };
+  assert.deepEqual(json.data, { version: 1, stats: expected, gateWaits: [], boardHolds, usage },
+    'a fresh private machine reports no invented holds, usage or gated runs (#836,#1875,#1056)');
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [2, 1, 0.5, 1, 0]);
   const text = await run(root, ['stats']);
   assert.equal(text.code, 0, text.stderr);
