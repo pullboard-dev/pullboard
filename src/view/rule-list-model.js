@@ -17,5 +17,7 @@ export function ruleListModel(rows, { kind, filter, selectedId = null, addressed
     : shown.some(row => row.id === feedback.next) ? feedback.next : shown[0]?.id);
   const sectionCounts = new Map();
   for (const row of shown) sectionCounts.set(row.section, (sectionCounts.get(row.section) || 0) + 1);
-  return { labels, counts, shown, nextSelectedId, feedbackId, sectionCounts, undecidedIds };
+  const approvedInGit = rows.filter(row => approvals.has(row.id) && undecided(row)).length;
+  const decisionTitle = (undecidedIds.length - approvedInGit) + ' drafts · ' + approvedInGit + ' approved in Git';
+  return { decisionTitle, labels, counts, shown, nextSelectedId, feedbackId, sectionCounts, undecidedIds };
 }
