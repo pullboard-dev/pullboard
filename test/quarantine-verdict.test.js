@@ -254,7 +254,7 @@ try {
    {agentId:builder,ids,kind:'submit',commit}),error=>error.code==='PROOF_RUN_UNBOUND','bare or older source cannot borrow the composed execution');
   store.submit(board,companionItem.item_id,{agentId:builder,commit:source,tree:binding.sourceTree,
    policyCommit:source,companion:binding,gateGreen:true,quarantineProofIds:ids,
-   submissionProof:{version:1,files:composed.files,full:composed.full,deferred:composed.deferred,
+   submissionProof:{version:1,files:composed.files,full:composed.full,deferred:composed.deferred,reason:composed.reason,
     ...(composed.deferredFiles?{deferredFiles:composed.deferredFiles}:{})}});
   assert.equal(store.getItem(board,companionItem.item_id).item_status,'submitted');
  });
