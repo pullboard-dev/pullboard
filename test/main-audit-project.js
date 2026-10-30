@@ -93,8 +93,15 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   }
   /** Existing tests retain a successful terminal worker helper. */
   async function runWorker(){await startWorker().finish();}
-  /** Observe queue reservations read-only, without lease or stale-row mutation. */
-  function queue(){const db=new DatabaseSync(join(machine,'resources.sqlite'),{readOnly:true});try{return db.prepare('SELECT * FROM waiter').all();}finally{db.close();}}
+  /** Observe actual queue rows while its workers initialize or commit, without retrying an assertion or changing leases. */
+  function queue(){
+    const db=new DatabaseSync(join(machine,'resources.sqlite'),{readOnly:true});
+    try {
+      // Match the production queue connection's bounded busy handler: this observer shares its real database.
+      db.exec('PRAGMA busy_timeout = 10000');
+      return db.prepare('SELECT * FROM waiter').all();
+    } finally { db.close(); }
+  }
   /** Hold both private production gate slots, releasing only this owned child's actions by IPC. */
   async function holdBoth(){
     const module=pathToFileURL(join(installed,'src/gate.js')).href;
