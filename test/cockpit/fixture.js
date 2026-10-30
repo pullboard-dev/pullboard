@@ -1,3 +1,4 @@
+import { quitOwnedChrome } from '../chrome-graceful-shutdown.js';
 import { chromeLaunchArgs } from '../chrome-launch-args.js';
 /** Shared real-board, VM and Chrome fixtures for the cockpit checks [N26]. */
 import assert from 'node:assert/strict';
@@ -618,7 +619,7 @@ async function startSnapshotChrome(executable, profile, { timeoutMs = 30_000, si
     const startedAt = Date.now();
     requireBrowserSlot();
     const child = spawn(executable, args, { detached: true, stdio: ['ignore', 'ignore', 'pipe'] });
-    if (child.pid) guardChromeGroup(child.pid);
+    if (child.pid) guardChromeGroup(child.pid, { profile });
     const stopped = new Promise((resolve) => child.once('close', (code, signal) => resolve({ code, signal })));
     let stopPromise;
     let onAbort;
@@ -626,7 +627,10 @@ async function startSnapshotChrome(executable, profile, { timeoutMs = 30_000, si
     const stop = () => {
       if (stopPromise) return stopPromise;
       signal?.removeEventListener('abort', onAbort);
-      stopPromise = stopOwnedChrome(child, stopped);
+      stopPromise = (async () => {
+        await quitOwnedChrome(child, profile, stopped);
+        await stopOwnedChrome(child, stopped);
+      })();
       return stopPromise;
     };
     onAbort = () => { void stop().catch(() => {}); };
