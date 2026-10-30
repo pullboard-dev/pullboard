@@ -9,7 +9,7 @@ import { basename, join } from 'node:path';
 import { test } from 'node:test';
 import { cockpitPage } from '../../src/cockpit.js';
 import { VERSION } from '../../src/help.js';
-import { Refused } from '../../src/refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { createRelayBrowserHandler } from '../../relay/browser-page.js';
 import { BIN, machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, styleOf, proofShot } from './fixture.js';
 import {

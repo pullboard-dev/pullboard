@@ -1,6 +1,6 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
-import { landingPace } from './roadmap.js';
+import { landingPace } from '../packages/roadmap/index.js';
 /** @pullboard-test-input src/view.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
@@ -51,7 +51,7 @@ import {
   doctrineHistory,
   loadDoctrine,
   standardDoctrine,
-} from './doctrine.js';
+} from '../packages/doctrine/index.js';
 import {
   codeIsFromMain,
   repoInfo,
@@ -64,8 +64,8 @@ import {
   listApiProjects,
   registryFile,
 } from './projects.js';
-import { fetchLocal } from './local-fetch.js';
-import { Refused } from './refused.js';
+import { fetchLocal } from '../packages/sync/index.js';
+import { Refused } from '../packages/kernel/index.js';
 import { refusalDocument } from './next-step-words.js';
 import { relayLinkAvailability } from './relay.js';
 import { personNeeds } from './row-decision-text.js';
