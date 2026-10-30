@@ -1,6 +1,8 @@
 /** First pure-entry declarations retain immutable accepted cell authority [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { fixture, git } from './cells-plan-fixture.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
@@ -27,7 +29,13 @@ function accepted(t, declared = false) {
   git(box.root, 'commit', '-q', '-m', 'accepted package source');
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
   git(box.root, 'add', '-A');
-  git(box.root, 'commit', '-q', '-m', 'accepted package baseline');
+  git(box.root, 'commit', '-q', '-m', 'seed baseline metadata inventory');
+  // Capture the baseline's own real tracked files before pinning accepted main.
+  const complete = cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn }));
+  rmSync(join(box.root, 'bin/cell-lint-baselines'), { recursive: true });
+  writeCellLintBaseline(box.root, complete, { initialize: true });
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '--allow-empty', '-m', 'accepted complete package baseline');
   return { ...box, plan, cell, main: git(box.root, 'rev-parse', 'HEAD').trim() };
 }
 
