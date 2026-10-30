@@ -31,20 +31,20 @@ import {
   machineHome,
   machineSettingsFile,
   withMachineHomeWrite,
-} from '../../../../src/machine-home.js';
+} from './machine-home.js';
 import { Refused } from '../../../../src/refused.js';
 import {
   initializeRunnerRecovery,
   recordRunnerFailure,
   recoverUnavailableRunners,
   runnerRecoveryStatus,
-} from '../../../../src/runner-recovery.js';
+} from './resource-recovery.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import {
   localWaitBranch,
   runnerDeadlineLine,
   runnerWaitReasons,
-} from '../../../../src/runner-wait.js';
+} from './runner-wait-reasons.js';
 import {
   ARRIVAL_ORDER,
   classedMarker,

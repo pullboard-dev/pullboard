@@ -2,7 +2,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { machineHome } from './machine-home.js';
+import { machineHome } from '../packages/resources/index.js';
 import { loadMachineSettings } from './settings-read.js';
 import { validateRunner } from './settings-read.js';
 import { localRunnerDescriptor } from './runner-load.js';

@@ -50,7 +50,7 @@ import {
   gitPath,
   tryGit,
 } from './git.js';
-import { machineHome } from './machine-home.js';
+import { machineHome } from '../packages/resources/index.js';
 import { Refused } from './refused.js';
 import { reviewerStartup } from './next-steps.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
