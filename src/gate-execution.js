@@ -455,7 +455,8 @@ function runTiming(run, command, root) {
       const inside = bases.map(base => relative(base, path)).find(suffix => suffix && suffix !== '..' && !suffix.startsWith(`..${sep}`) && !isAbsolute(suffix));
       return inside ?? path;
     };
-    return { ...profile, files: (profile.files ?? []).map(file => ({ ...file, path: repoPath(file.path) })) };
+    return { ...profile, files: (profile.files ?? []).map(file => ({ ...file, path: repoPath(file.path) })),
+      tests: (profile.tests ?? []).map(test => ({ ...test, file: repoPath(test.file) })) };
   }
   /** Relocate only paths inside the actual remote checkout, never a foreign absolute path. */
   const localPath = path => {
