@@ -8,6 +8,7 @@ import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
 
 export const STALE_STATE_OPERATIONS = Object.freeze(['maintainStaleState']);
 export const STALE_STATE_STEPS = Object.freeze({
+  NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
   COORDINATOR_ONLY: 'ask the coordinator to do it: pullboard shout coordinator --kind question "<what you need>"',
   ENGINE_VERSION: 'upgrade Pullboard: npm install -g pullboard@latest',
   STALE_STATE_CHANGED: 'capture the current hold and reservation state again before releasing anything',
