@@ -260,3 +260,68 @@ test('removing the builder checkout during private source preparation cannot mov
   assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
   assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: box.commit }]);
 });
+
+/** Build a bounded real test selection, so an unrelated accepted-main move may use the ordinary merge path. */
+function mainAdvanceFixture(t) {
+  const helpers = createE2eHelpers();
+  const box = helpers.project('true');
+  box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const release = join(box.dir, 'advance-release');
+  const started = join(box.dir, 'advance-started');
+  const armed = join(box.dir, 'advance-armed');
+  for (const folder of ['bin', 'test', 'web']) mkdirSync(join(box.repo, folder), { recursive: true });
+  writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
+  writeFileSync(join(box.repo, 'web/feature.js'), "export const feature = 'base';\n");
+  writeFileSync(join(box.repo, 'bin/run-tests.js'), [
+    "import {spawnSync} from 'node:child_process';",
+    "const run=spawnSync(process.execPath,['--test',...process.argv.slice(2)],{encoding:'utf8',env:process.env});",
+    "process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;",
+  ].join('\n'));
+  writeFileSync(join(box.repo, 'test/feature.test.js'), [
+    "import assert from 'node:assert/strict';import {test} from 'node:test';import fs from 'node:fs';",
+    "import {feature} from '../web/feature.js';",
+    "test('captured feature [G1]',()=>{assert.equal(feature,'item');",
+    `if(fs.existsSync(${JSON.stringify(armed)})){fs.writeFileSync(${JSON.stringify(started)},'started');const deadline=Date.now()+120000;`,
+    `while(!fs.existsSync(${JSON.stringify(release)})){if(Date.now()>deadline)throw Error('release never arrived');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20);}}});`,
+  ].join('\n'));
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'node bin/run-tests.js test/feature.test.js',
+    affectedTests: 'node bin/run-tests.js', submit: { handoff: true } }) + '\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: bounded native moving-main fixture [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const id = document(box.run(box.repo, 'add', 'web', 'Queued proof across accepted main', '--specs', 'G1',
+    '--criterion', 'The captured feature is item.', '--check', 'node bin/run-tests.js test/feature.test.js', '--wait', '--json')).item.item_id;
+  document(box.run(box.web, 'claim', String(id), '--json'));
+  assert.equal(helpers.commitFile(box, box.web, 'web/feature.js', "export const feature = 'item';\n", 'feat(web): captured implementation [G1]').status, 0);
+  document(box.run(box.repo, 'bar', 'ready', 'on', '--json'));
+  writeFileSync(armed, 'armed\n');
+  t.after(async () => {
+    writeFileSync(release, 'release\n');
+    await helpers.waitFor(() => {
+      const job = state(box, id).job;
+      return !job || !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
+    }, `moving-main worker cleanup: ${workerDiagnostic(box, id)}`);
+    helpers.cleanup();
+  });
+  return { ...box, id, helpers, release, started };
+}
+
+test('queued submit keeps the ordinary hook-checked unrelated-main merge after captured proof [V4,H16,C7]', async t => {
+  const box = mainAdvanceFixture(t);
+  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  await box.helpers.waitFor(() => existsSync(box.started), 'real captured feature gate', 120000);
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs/unrelated.md'), 'accepted unrelated main content\n');
+  box.git(box.repo, 'add', 'docs/unrelated.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: unrelated accepted main [G1]');
+  const accepted = box.git(box.repo, 'rev-parse', 'HEAD');
+  writeFileSync(box.release, 'release\n');
+  await waitJob(box, 'green');
+  const completed = state(box, box.id);
+  assert.notEqual(completed.item.item_commit, queued.commit);
+  box.git(box.repo, 'merge-base', '--is-ancestor', queued.commit, completed.item.item_commit);
+  box.git(box.repo, 'merge-base', '--is-ancestor', accepted, completed.item.item_commit);
+  assert.equal(box.git(box.repo, 'show', `${completed.item.item_commit}:docs/unrelated.md`), 'accepted unrelated main content');
+});
