@@ -20,28 +20,38 @@ function itemEvent(board, id, kind, actor = null) {
 }
 
 /** Obtain the existing heartbeat projection once; unavailable observations remain unavailable. */
-function observedSeats(board) {
+function observedSeats(board, actors) {
   try {
-    return new Map(withSeatPresence(board, board.db.prepare('SELECT agent_id FROM agent').all())
+    return new Map(withSeatPresence(board, actors ? [...new Set(actors)].map(agent_id => ({ agent_id })) : board.db.prepare('SELECT agent_id FROM agent').all())
       .map(seat => [seat.agent_id, seat]));
   } catch { return new Map(); }
 }
 
-/** Combine only actually observed activity; absent work/heartbeat evidence never proves silence. */
+/**
+ * Combine only actually observed activity. For a review, absent work or heartbeat evidence never proves silence.
+ * A claim past its lease belongs to its seat id (#1933, coordinator 30 Oct): only board writes, shouts, proofs and
+ * heartbeats under that id count, so a seat with no presence reads as absent and a checkout's file activity, which a reused or gone
+ * checkout cannot attribute to the seat, is neither required nor read.
+ */
 function activity(board, item, actor, anchor, kind, seats, workObservation, now) {
   const unknown = [];
+  // Only once the lease has ended; a live claim's checkout work still protects a builder editing without board writes.
+  const seatOnly = kind === 'claim' && staleInstant(item.item_lease_until, now) !== null && Date.parse(item.item_lease_until) <= now;
   const heartbeat = seats.get(actor)?.heartbeatAt;
-  if (!heartbeat || staleInstant(heartbeat, now) === null) unknown.push('heartbeat unavailable or future');
-  let work;
-  try { work = workObservation(actor, item, kind); }
-  catch { work = null; }
-  if (work?.available !== true || work.at !== null && staleInstant(work?.at, now) === null) unknown.push('work observation unavailable or future');
+  if (heartbeat ? staleInstant(heartbeat, now) === null : !seatOnly) unknown.push('heartbeat unavailable or future');
+  let work = null;
+  if (!seatOnly) {
+    try { work = workObservation(actor, item, kind); }
+    catch { work = null; }
+    if (work?.available !== true || work.at !== null && staleInstant(work?.at, now) === null) unknown.push('work observation unavailable or future');
+  }
   const proof = board.db.prepare(`SELECT event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind='proof-run'
     ${kind === 'review' ? "AND json_extract(event_detail,'$.receipt.commit')=?" : ''} ORDER BY event_id DESC LIMIT 1`)
     .get(item.item_id, actor, ...(kind === 'review' ? [item.item_commit] : []));
+  const native = board.db.prepare('SELECT event_at FROM event WHERE event_by=? ORDER BY event_id DESC LIMIT 1').get(actor);
   const shout = board.db.prepare('SELECT shout_at FROM shout WHERE shout_from=? ORDER BY shout_at DESC LIMIT 1').get(actor);
   const observations = [anchor, heartbeat, work?.available === true ? work.at : null,
-    proof?.event_at, detailOf(proof)?.receipt?.at, shout?.shout_at];
+    proof?.event_at, detailOf(proof)?.receipt?.at, shout?.shout_at, native?.event_at];
   const lastActivity = latestStaleActivity(observations, now);
   if (lastActivity === null || staleInstant(anchor, now) === null) unknown.push('activity boundary unavailable or future');
   return { lastActivity, evidence: { complete: unknown.length === 0, unknown } };
@@ -81,6 +91,7 @@ function laneHoldRow(board, hold, limit, now) {
 /** Project a claim's known age for status, retaining incomplete work evidence explicitly. */
 function claimRow(board, item, limits, now, seats, options) {
   const event = itemEvent(board, item.item_id, 'claim', item.item_owner);
+  const lease = board.db.prepare("SELECT event_id,event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(item.item_id, item.item_owner);
   const observed = activity(board, item, item.item_owner, event?.event_at, 'claim', seats, options.workObservation, now);
   const blocker = options.blocker(item);
   const classificationUnknown = blocker !== true && blocker !== false;
@@ -92,6 +103,7 @@ function claimRow(board, item, limits, now, seats, options) {
   const limit = classificationUnknown ? Math.min(limits.blocker, limits.claim) : blocker ? limits.blocker : limits.claim;
   const age = staleStateAge('claim', item.item_id, item.item_owner, observed.lastActivity ?? event?.event_at, limit, now);
   return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimEventId: event?.event_id ?? null,
+    leaseEventId: lease?.event_id ?? null, leaseStartedAt: lease?.event_at ?? null, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease?.event_at),
     expiryAuthorized: false };
 }
 
@@ -112,16 +124,16 @@ function reviewRow(board, item, limits, now, seats, options) {
 
 /** Read only current state and indexed activity; callbacks supply actual work without importing Git on fast status. */
 export function staleStateSnapshot(board, config = {}, { now = board.clock.now(),
-  workObservation = () => ({ available: false, at: null }), blocker = () => false, seats: suppliedSeats } = {}) {
+  workObservation = () => ({ available: false, at: null }), blocker = () => false, seats: suppliedSeats, items: suppliedItems, claimsOnly = false } = {}) {
   const at = now.getTime();
   const limits = staleStateLimits(config);
   const observedRevision = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS id FROM event').get().id;
-  const seats = suppliedSeats === undefined ? observedSeats(board) : new Map(suppliedSeats.map(seat => [seat.agent_id, seat]));
+  const seats = suppliedSeats === undefined ? observedSeats(board, claimsOnly ? suppliedItems.map(item => item.item_owner) : undefined) : new Map(suppliedSeats.map(seat => [seat.agent_id, seat]));
   const options = { workObservation, blocker };
-  const items = board.db.prepare("SELECT * FROM item WHERE item_hold_reason IS NOT NULL OR item_status='claimed' OR item_status='submitted'").all();
+  const items = suppliedItems ?? board.db.prepare("SELECT * FROM item WHERE item_hold_reason IS NOT NULL OR item_status='claimed' OR item_status='submitted'").all();
   return { observedAt: now.toISOString(), observedRevision, limits,
-    holds: [...items.filter(item => item.item_hold_reason).map(item => itemHoldRow(board, item, limits.hold, at)),
+    holds: claimsOnly ? [] : [...items.filter(item => item.item_hold_reason).map(item => itemHoldRow(board, item, limits.hold, at)),
       ...board.db.prepare('SELECT * FROM hold ORDER BY hold_lane').all().map(hold => laneHoldRow(board, hold, limits.hold, at))],
     claims: items.filter(item => item.item_status === 'claimed' && item.item_owner).map(item => claimRow(board, item, limits, at, seats, options)),
-    reviews: items.filter(item => item.item_status === 'submitted' && item.item_review_by).map(item => reviewRow(board, item, limits, at, seats, options)) };
+    reviews: claimsOnly ? [] : items.filter(item => item.item_status === 'submitted' && item.item_review_by).map(item => reviewRow(board, item, limits, at, seats, options)) };
 }

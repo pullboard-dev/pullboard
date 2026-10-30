@@ -6,6 +6,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
+import { conditionalHoldFloor } from '../packages/health/index.js';
 import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
@@ -425,7 +426,7 @@ test('conditional hold replay retains the trigger and refuses a writer below its
   const replayLift = store.events(replica, { itemId: id }).findLast(event => event.event_kind === 'unhold_item');
   assert.deepEqual(replayLift, lift, 'trigger and hold event IDs survive ordered replay exactly');
   assert.deepEqual(applyRelayMove(replica, move, options), outcome, 'duplicate delivery cannot lift twice');
-  assert.throws(() => applyRelayMove(older, { ...move, engine: STALE_STATE_ENGINE - 1 }, options),
+  assert.throws(() => applyRelayMove(older, { ...move, engine: conditionalHoldFloor(older) - 1 }, options),
     error => error.code === 'RELAY_MOVE' && error.message.includes('checked-composition snapshot'));
   assert.ok(store.itemHold(older, id), 'an older writer cannot skip the modern condition');
 });
@@ -438,15 +439,16 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   addMilestone(f.board, { agentId: 'coordinator', name: 'Private release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
   f.advance(15 * MINUTE - 1);
-  const early = await f.cli('release', String(id), '--stale', '--note', 'The release waits on this silent claim', '--json');
+  const early = await f.cli('release', String(id), '--stale', '--reason', 'BLOCKED', '--note', 'The release waits on this silent claim', '--json');
   assert.equal(early.status, 1);
+  assert.equal(JSON.parse(early.stdout).error.code, 'NOT_YOURS', 'a valid code retains the original measured-inactivity refusal');
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   f.advance(1);
   const invalid = await f.cli('release', String(id), '--stale', '--reason', 'NOPE', '--note', 'The release waits on this silent claim', '--json');
   assert.equal(JSON.parse(invalid.stdout).error.code, 'RELEASE_REASON');
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   const before = store.events(f.board).length;
-  const result = await f.cli('release', String(id), '--stale', '--note', 'The release waits on this silent claim', '--json');
+  const result = await f.cli('release', String(id), '--stale', '--reason', 'BLOCKED', '--note', 'The release waits on this silent claim', '--json');
   assert.equal(result.status, 0, result.stderr);
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.equal(store.getItem(f.board, id).item_owner, null);
@@ -455,7 +457,7 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   assert.equal(release.event_by, 'coordinator');
   const detail = JSON.parse(release.event_detail);
   assert.equal(detail.staleClaim.holder, f.builder);
-  assert.equal(detail.reasonCode, 'BLOCKED', 'the actual stale CLI supplies its maintenance default');
+  assert.equal(detail.reasonCode, 'BLOCKED', 'the actual stale CLI records its explicitly supplied code');
   assert.equal(detail.staleClaim.limitMs, 15 * MINUTE);
   assert.equal(detail.reason, 'The release waits on this silent claim');
   const notice = events.find(event => event.event_kind === 'shout');

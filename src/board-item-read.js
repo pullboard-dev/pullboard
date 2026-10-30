@@ -1,3 +1,4 @@
+import { LEASE_LAPSE_ENGINE } from './lease-lapse-engine.js';
 import { CHECK_TIMING_ENGINE } from './check-timing-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { REJECTED_WORK_RETURN_ENGINE } from './rejected-work-return-engine.js';
@@ -34,7 +35,7 @@ export function firstRefusal(board, id, at = board.clock.now()) {
       if ((board.executionEngineVersion ?? ENGINE_VERSION) >= REJECTED_WORK_RETURN_ENGINE && detail.engine >= REJECTED_WORK_RETURN_ENGINE) returned.add(detail.rejection);
       continue;
     }
-    if (event.event_kind === 'release') { releases.push(event); continue; }
+    if (event.event_kind === 'release' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= LEASE_LAPSE_ENGINE && detail.expiredClaim)) { releases.push(event); continue; }
     if (event.event_kind === 'submit') return null;
     if (event.event_kind === 'reject' && returned.has(event.event_id)) return null;
     const window = detail.reopenFirstRefusal;

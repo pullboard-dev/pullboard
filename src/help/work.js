@@ -100,7 +100,7 @@ export const workHelp = `Work
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER [--note "why"] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
-  pullboard release <id> --stale --note "why"  coordinator only; requires measured inactivity and a note
+  pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard submit <id> [--wait] [--no-next]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
   pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"

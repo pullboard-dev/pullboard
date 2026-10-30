@@ -26,14 +26,14 @@ export async function run(io, args) {
   const args = [idArg(first), me.id, textArg(io, values, 'note') ?? ''];
   if (values.stale) {
     if (me.id !== 'coordinator') throw new Refused('NOT_YOURS', 'only the coordinator releases another holder with --stale');
-    staleReleaseNote(args[2]);
-    const reasonCode = values.reason === undefined ? 'BLOCKED' : values.reason;
+    const reasonCode = values.reason;
     const problem = releaseReasonProblem(reasonCode, args[2]);
     if (problem) throw problem;
+    staleReleaseNote(args[2]);
     const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
-    args.push({ staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);
+    args.push({ leaseLapse: true, staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);
   } else {
     seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release');
     const missing = releaseReasonProblem(values.reason, args[2]);

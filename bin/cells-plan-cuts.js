@@ -6,6 +6,7 @@ import { cellInventory } from '../packages/codemap/index.js';
 import { testFile } from '../packages/codemap/index.js';
 import { temporaryCellEdges } from '../packages/codemap/index.js';
 import { declaredSourceLoads } from '../src/affected-tests.js';
+import { declaredSourcePatterns } from '../src/affected-tests.js';
 import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';
@@ -38,9 +39,21 @@ function onlyForwards(source, computed) {
 }
 
 /** Expand strict declared loaders while retaining their original forwarding identity and unrelated unknowns. */
-function withDeclaredLoads(files, edges, unknown) {
+function withDeclaredLoads(files, edges, unknown, acceptedInventory) {
   const modules = [...files.keys()].filter(file => /\.[cm]?js$/u.test(file));
   const declared = new Map(), rest = [];
+  const acceptedModules = acceptedInventory ? [...acceptedInventory.files.keys()].filter(file => /\.[cm]?js$/u.test(file)) : [];
+  /** Existing wildcard authority is a declaration, not a separate new import for every future matching file. */
+  function acceptedWildcardTargets(file) {
+    const previous = acceptedInventory?.files.get(file);
+    if (!previous) return new Set();
+    const oldPatterns = declaredSourcePatterns(previous.toString('utf8'), acceptedModules);
+    const current = declaredSourcePatterns(files.get(file)?.toString('utf8') ?? '', modules);
+    if (!oldPatterns || !current) return new Set();
+    const patterns = current.filter(pattern => /[*?]/u.test(pattern) && oldPatterns.includes(pattern));
+    if (!patterns.length) return new Set();
+    return new Set(declaredSourceLoads(`/** @pullboard-module-loads ${patterns.join(' ')} */\n`, modules) ?? []);
+  }
   const computed = new Set(unknown.filter(row => row.reason.includes('computed loader')).map(row => row.file));
   for (const row of unknown) {
     if (row.specifier !== '(computed)') { rest.push(row); continue; }
@@ -49,7 +62,9 @@ function withDeclaredLoads(files, edges, unknown) {
   }
   const merged = new Map(edges);
   for (const [file, loads] of declared) {
-    if (loads.length) merged.set(file, [...(edges.get(file) ?? []), ...loads.filter(target => target !== file).map(target => ({ target, specifier: '(computed)' }))]);
+    const accepted = acceptedWildcardTargets(file);
+    if (loads.length) merged.set(file, [...(edges.get(file) ?? []), ...loads.filter(target => target !== file)
+      .map(target => ({ target, specifier: '(computed)', acceptedWildcard: accepted.has(target) }))]);
   }
   return { edges: merged, unknown: rest, computed };
 }
@@ -80,14 +95,15 @@ export function retiredProblems(root, plan, inventory) {
 }
 
 /** Follow this cell's imports and forwarding modules, leaving another cell's own imports to its cut. */
-export function checkCuts(root, plan, name, { allLaterCells = false, temporaryExceptions = true, inventory: sharedInventory } = {}) {
+export function checkCuts(root, plan, name, { allLaterCells = false, temporaryExceptions = true, inventory: sharedInventory, acceptedInventory } = {}) {
   if (typeof allLaterCells !== 'boolean' || typeof temporaryExceptions !== 'boolean') throw new TypeError('cut modes must be explicit booleans');
   const cell = plan.cells.find(row => row.name === name);
   const group = importCuts(plan).find(row => row.cell === name);
   if (!cell || !group && !allLaterCells) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
   const inventory = sharedInventory ?? cellInventory(root, { importsIn, commonJsIn });
   const { files } = inventory;
-  const { edges, unknown, computed } = withDeclaredLoads(files, inventory.edges, inventory.unknown);
+  if (acceptedInventory !== undefined && !(acceptedInventory?.files instanceof Map)) throw new TypeError('accepted cut inventory must be an actual snapshot');
+  const { edges, unknown, computed } = withDeclaredLoads(files, inventory.edges, inventory.unknown, acceptedInventory);
   const map = readPathMap(root);
   const owner = ownerFor(plan, map);
   const temporary = temporaryCellEdges(files);
@@ -104,10 +120,10 @@ export function checkCuts(root, plan, name, { allLaterCells = false, temporaryEx
     if (cell !== name && !(allLaterCells && cell === null) && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
       computed.has(file))) continue;
     for (const row of unresolved) problems.add(`cannot prove cut through ${file}: ${row.reason}`);
-    for (const { target } of edges.get(file) ?? []) {
+    for (const { target, acceptedWildcard } of edges.get(file) ?? []) {
       if (testFile(target)) continue;
       const cell = owner(target);
-      if (forbidden.has(cell) && !allowed.has(`${file}->${target}`)) problems.add(`${name} still imports later ${cell}: ${file} -> ${target}`);
+      if (forbidden.has(cell) && !acceptedWildcard && !allowed.has(`${file}->${target}`)) problems.add(`${name} still imports later ${cell}: ${file} -> ${target}`);
       else pending.push(target);
     }
   }
