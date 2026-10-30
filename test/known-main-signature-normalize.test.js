@@ -74,7 +74,11 @@ test('source normalization preserves identity relationships and unrelated hexade
     assert.notDeepEqual(normalizedFailureDiagnostics([field + ': ' + hash], '/fixture'), normalizedFailureDiagnostics([field + ': ' + other], '/fixture'));
     assert.notDeepEqual(normalizedFailureDiagnostics([field + ': refs/heads/main'], '/fixture'), normalizedFailureDiagnostics([field + ': refs/heads/trunk'], '/fixture'));
   }
-  for (const length of [12, 40]) assert.notDeepEqual(normalize('source ' + '1'.repeat(length)), normalize('source ' + '2'.repeat(length)), 'decimal assertion values stay literal');
+  for (const length of [12, 40]) {
+    assert.notDeepEqual(normalize('1'.repeat(length)), normalize('2'.repeat(length)), 'bare decimal assertion values stay literal');
+    assert.deepEqual(normalize('source ' + '1'.repeat(length)), normalize('source ' + '2'.repeat(length)), 'labeled numeric-only Git IDs are valid source identities');
+    for (const field of ['expected', 'actual']) assert.notDeepEqual(normalizedFailureDiagnostics([field + ': ' + '1'.repeat(length)], '/fixture'), normalizedFailureDiagnostics([field + ': ' + '2'.repeat(length)], '/fixture'));
+  }
   assert.notDeepEqual(normalize('ref refs/heads/one'), normalize('ref refs/tags/one'), 'ref namespaces retain meaning');
 });
 

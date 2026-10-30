@@ -1,5 +1,5 @@
 /** Canonicalize recognized runtime noise while retaining assertion values and path relationships [V4,B3]. */
-export const MAIN_FAILURE_SIGNATURE_VERSION = 3;
+export const MAIN_FAILURE_SIGNATURE_VERSION = 4;
 
 /** Only native temporary roots and mkdtemp-style directories lose their per-run spelling. */
 function temporaryPath(value, alias, locations) {
@@ -21,7 +21,7 @@ function sourceIdentities(value, alias) {
   value = value.replace(/(\b(?:pinned as|ref|reference)\s+)(refs\/([\w.-]+)\/[\w./-]+)/gu,
     (whole, label, ref, namespace) => label + 'refs/' + namespace + '/' + alias('ref', ref));
   return value.replace(/(\b(?:source|short|commit|head|revision|object|HEAD is now at|submitted #\d+ at)\s*(?:[:=]\s*|\s+))([a-f\d]{40}|[a-f\d]{12})(?![\w])/giu,
-    (whole, label, hash) => /[a-f]/iu.test(hash) ? label + alias('sha', hash) : whole);
+    (whole, label, hash) => label + alias('sha', hash));
 }
 
 /** Share aliases within one failure so distinct source identities, UUIDs, ports and fixture roots stay distinguishable. */
