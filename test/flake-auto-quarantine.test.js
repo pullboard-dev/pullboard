@@ -103,7 +103,7 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   assert.equal(box.cli('show', String(box.id)).document.item_status, 'submitted');
 });
 
-test('two real deterministic Submit failures never acquire automatic quarantine [C7,H16]', t => {
+test('a real deterministic Submit original and rerun never acquire automatic quarantine [C7,H16]', t => {
   const box = fixture(t, true);
   const first = submit(box);
   assert.ok([0, 1].includes(first.code), JSON.stringify(first.document));
@@ -130,6 +130,7 @@ test('synthetic selector boundaries reject repeated admission, reversed order, c
   const green = synthetic('one', true, '2026-10-30T09:01:00.000Z');
   const select = runs => submitFlakePairs(runs, 'test/synthetic.js', 'synthetic case', time);
   assert.equal(select([red, green, red, green]).length, 1);
+  assert.equal(select([red, synthetic('two', false, green.at)]).length, 0, 'repeated deterministic reds never complete a pair');
   assert.equal(select([red, { ...green, tree: 'different' }]).length, 0);
   assert.equal(select([green, { ...red, at: '2026-10-30T09:02:00.000Z' }]).length, 0);
   assert.equal(select([red, synthetic('one', true, green.at, { skipped: true })]).length, 0);
