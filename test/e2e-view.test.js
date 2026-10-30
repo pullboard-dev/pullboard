@@ -26,6 +26,7 @@ import { after, test } from 'node:test';
 import { parseSpec } from '../src/spec.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
+import { openBoardForRead } from '../src/native-board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
@@ -346,7 +347,7 @@ test('the view keeps the board layout people know: switcher, tabs, a list and it
     const item = (await view.state(box.repo)).project.items[0];
     assert.deepEqual(item.verdicts.map((verdict) => [verdict.decision, verdict.reason, verdict.note]), [['REJECT', 'TEST_FAILURE', 'no heading']]);
     assert.deepEqual(item.history.map((event) => event.kind), ['add', 'claim', 'proof-run', 'submit', 'reject']);
-    const board = store.openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     try {
       const [receipt] = store.proofReceipts(board, item.id);
       assert.equal(receipt.item, item.id, 'the visible proof belongs to this item');

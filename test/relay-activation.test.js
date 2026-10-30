@@ -6,6 +6,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard, openBoardForRead } from '../src/native-board.js';
 import { agentGrantMinimum } from '../src/agent-grant.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import { appliedSequence } from '../src/engine.js';
@@ -23,7 +24,7 @@ const LEGACY = AGENT_GRANT_ENGINE - 1;
 
 /** Execute real legacy receipts without activating grants merely by opening a newer writer. */
 function fixture(t) {
-  const board = store.openBoard(':memory:', { now: () => new Date(AT) });
+  const board = openBoard(':memory:', { now: () => new Date(AT) });
   t.after(() => store.closeBoard(board));
   let number = 0;
   /** Use the actual engine, monotonically ordered positions and unique immutable move ids. */
@@ -110,7 +111,7 @@ test('import, newer checkpoint and epoch reset use their actual receipt witness 
   const legacy = exportBoard(box.board);
   box.activate();
   const activated = exportBoard(box.board);
-  const peer = store.openBoard(':memory:');
+  const peer = openBoard(':memory:');
   t.after(() => store.closeBoard(peer));
   importBoard(peer, legacy);
   assert.equal(agentGrantMinimum(peer, box.probe), 1);
@@ -216,7 +217,7 @@ test('owning open upgrades an old indexless board once without changing native d
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-activation-index-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'board.sqlite');
-  let board = store.openBoard(file);
+  let board = openBoard(file);
   let document;
   let version;
   try {
@@ -229,12 +230,12 @@ test('owning open upgrades an old indexless board once without changing native d
     board.db.exec('DROP INDEX IF EXISTS board_meta_grant_activation_v2; DROP INDEX IF EXISTS board_meta_grant_activation_unsafe_v1');
     recordSchemaStamp(board.db, SCHEMA_DIGEST);
   } finally { store.closeBoard(board); }
-  const read = store.openBoardForRead(file);
+  const read = openBoardForRead(file);
   try {
     assert.equal(read.current, true, 'old indexless boards remain readable at the same native schema version');
     assert.equal(read.db.prepare("SELECT 1 FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get(), undefined);
   } finally { read.db.close(); }
-  board = store.openBoard(file, undefined, { isMain: false });
+  board = openBoard(file, undefined, { isMain: false });
   try {
     assert.equal(board.db.prepare("SELECT 1 FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get(), undefined,
       'a non-owner never installs the additive index');
@@ -251,17 +252,17 @@ test('owning open upgrades an old indexless board once without changing native d
     assert.equal(board.db.prepare("SELECT 1 FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get(), undefined,
       'the fallback remains read-only and does not refuse or install an index');
   } finally { store.closeBoard(board); }
-  board = store.openBoard(file);
+  board = openBoard(file);
   try {
     assert.ok(board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='board_meta_grant_activation_v2'").get(),
       'the owning writable opener installs the missing index on an already-current board');
     assert.equal(board.db.prepare('PRAGMA user_version').get().user_version, version);
     assert.deepEqual(exportBoard(board), document, 'index installation leaves every native row and export field unchanged');
   } finally { store.closeBoard(board); }
-  const stamped = store.openBoardForRead(file);
+  const stamped = openBoardForRead(file);
   try { assert.equal(stamped.current, true, 'installation and the actual index-shape stamp commit together'); }
   finally { stamped.db.close(); }
-  board = store.openBoard(file);
+  board = openBoard(file);
   try {
     assert.equal(board.db.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name='board_meta_grant_activation_v2'").get().n, 1);
     assert.deepEqual(exportBoard(board), document, 'a second owning open is idempotent');

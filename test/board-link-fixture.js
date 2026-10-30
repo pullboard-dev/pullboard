@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { addSigner } from '../src/signature.js';
 import { runFixtureChild, runFixtureGit, fixtureChildMessage } from './fixture-child.js';
 
@@ -26,7 +27,7 @@ export function signedBoard(t, name, clock) {
   git('add', '.');
   git('commit', '-q', '-m', 'fixture: establish board signer root');
   addSigner(root, { by: name, key: key + '.pub' });
-  board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   return { root, key, git, by: name, board, reference: { boardId: store.boardId(board), organization: 'fixture', handle: name } };
 }
 

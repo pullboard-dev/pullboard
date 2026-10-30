@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
 import assert from 'node:assert/strict';
 import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -27,7 +27,7 @@ const KINDS = ['capture', 'measurement', 'note', 'diff', 'decision', 'rejection'
 function fixture(t) {
   let at = Date.parse('2026-10-08T00:00:00.000Z');
   const clock = { now: () => new Date(at), advance: (ms) => { at += ms; } };
-  const board = store.openBoard(':memory:', clock);
+  const board = openBoard(':memory:', clock);
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/repo' });
   store.register(board, { lane: 'web', path: '/repo-web-1' });
@@ -150,7 +150,7 @@ test('[B31,B32] native export and import preserve every fact in the item thread'
   const id = item(board, 'Portable thread', 'web-1');
   const first = store.appendFact(board, id, { agentId: 'web-2', kind: 'note', text: 'original', factId: 'portable-original' });
   store.appendFact(board, id, { agentId: 'web-1', kind: 'supersession', text: 'corrected', supersedes: first.id, factId: 'portable-correction' });
-  const restored = store.openBoard(':memory:');
+  const restored = openBoard(':memory:');
   t.after(() => store.closeBoard(restored));
   importBoard(restored, exportBoard(board));
   assert.deepEqual(store.itemThread(restored, id), store.itemThread(board, id));
@@ -159,8 +159,8 @@ test('[B31,B32] native export and import preserve every fact in the item thread'
 
 test('[B29,B31,H16] engine fact replay uses move ids, retries once, and keeps corrections identical across replicas', (t) => {
   const clock = { now: () => new Date('2026-10-08T00:00:00.000Z') };
-  const left = store.openBoard(':memory:', clock);
-  const right = store.openBoard(':memory:', clock);
+  const left = openBoard(':memory:', clock);
+  const right = openBoard(':memory:', clock);
   t.after(() => { store.closeBoard(left); store.closeBoard(right); });
   for (const replica of [left, right]) {
     store.register(replica, { lane: 'coordinator', path: '/replicated-repo' });
@@ -353,7 +353,7 @@ test('[B29,B30,B31,B32,A2] CLI and HTTP facts share stamped threads, guard judge
     { id: holderCorrection.id, text: 'corrected evidence', supersedes: observationId },
   ]);
 
-  const borrowed = store.openBoard(':memory:');
+  const borrowed = openBoard(':memory:');
   try {
     importBoard(borrowed, relaySnapshot(box.root, {}, RELAY_PRESENTATION_PORTS));
     store.appendFact(borrowed, id, { agentId: 'coordinator', kind: 'note', text: 'staged-only relay observation', factId: 'staged-relay-fact' });

@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 /** Make a unique directory for a real SQLite board file. */
 function boardFile() {
@@ -17,8 +18,8 @@ test('[A2] fresh boards receive distinct 128-bit identities', () => {
   const first = boardFile();
   const second = boardFile();
   try {
-    const boardA = store.openBoard(first.file);
-    const boardB = store.openBoard(second.file);
+    const boardA = openBoard(first.file);
+    const boardB = openBoard(second.file);
     try {
       const idA = store.boardId(boardA);
       const idB = store.boardId(boardB);
@@ -39,16 +40,16 @@ test('[A2] board identity survives connection reopen and moving its directory', 
   const box = boardFile();
   const movedDirectory = `${box.directory}-moved`;
   try {
-    const board = store.openBoard(box.file);
+    const board = openBoard(box.file);
     const originalId = store.boardId(board);
     store.closeBoard(board);
 
-    const reopened = store.openBoard(box.file);
+    const reopened = openBoard(box.file);
     assert.equal(store.boardId(reopened), originalId);
     store.closeBoard(reopened);
 
     renameSync(box.directory, movedDirectory);
-    const moved = store.openBoard(join(movedDirectory, 'board.sqlite'));
+    const moved = openBoard(join(movedDirectory, 'board.sqlite'));
     try {
       assert.equal(store.boardId(moved), originalId);
     } finally {
@@ -63,7 +64,7 @@ test('[A2] board identity survives connection reopen and moving its directory', 
 test('[A2] an older board gains one identity during in-place upgrade without losing rows', () => {
   const box = boardFile();
   try {
-    const board = store.openBoard(box.file);
+    const board = openBoard(box.file);
     store.register(board, { lane: 'coordinator', path: '/repo' });
     const itemId = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Preserved item' });
     const before = {
@@ -77,7 +78,7 @@ test('[A2] an older board gains one identity during in-place upgrade without los
     old.exec('DROP TABLE board_meta; PRAGMA user_version = 1');
     old.close();
 
-    const upgraded = store.openBoard(box.file);
+    const upgraded = openBoard(box.file);
     let id;
     try {
       id = store.boardId(upgraded);
@@ -92,7 +93,7 @@ test('[A2] an older board gains one identity during in-place upgrade without los
       store.closeBoard(upgraded);
     }
 
-    const reopened = store.openBoard(box.file);
+    const reopened = openBoard(box.file);
     try {
       assert.equal(store.boardId(reopened), id);
       assert.equal(reopened.db.prepare("SELECT COUNT(*) AS count FROM board_meta WHERE meta_key = 'board_id'").get().count, 1);

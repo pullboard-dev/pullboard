@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { recordRunnerGui } from '../packages/resources/index.js';
 import { placeRunner } from '../src/runner-stage.js';
 import { readRunnerStage } from '../src/runner-stage-read.js';
@@ -15,7 +16,7 @@ test('GUI placement uses the common stage and excludes false or unknown desktop 
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, stdio: 'pipe' });
   writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ lanes: { core: { owns: ['src/'] } } }));
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = root;

@@ -17,6 +17,7 @@ import { test } from 'node:test';
 import { bridgeProject, bridgeProvider, landBridgeItems, landBridgeRepair, mergeBridgeAs, runBridgeCLI } from './pr-bridge-fixture.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
@@ -256,8 +257,8 @@ test('per-item proposals isolate each patch and never attribute bots or unlisted
 test('publication findings replay deterministically and ordinary closed-parent guards remain intact [B2,H16,R3]', t => {
   const box = bridgeProject(t);
   const entries = landBridgeItems(box);
-  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  const replica = store.openBoard(join(box.dir, 'replica.sqlite'));
+  const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const replica = openBoard(join(box.dir, 'replica.sqlite'));
   t.after(() => { store.closeBoard(source); store.closeBoard(replica); });
   const baseline = exportBoard(source);
   importBoard(replica, baseline);
@@ -303,7 +304,7 @@ test('one publish pass computes pull request coverage once with bounded git call
   chmodSync(shim, 0o755);
   const before = { PATH: process.env.PATH, PB_PROOF_GIT_CALLS: process.env.PB_PROOF_GIT_CALLS,
     PB_PROOF_REAL_GIT: process.env.PB_PROOF_REAL_GIT };
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let itemReads = 0;
   const observed = { ...board, db: {
     exec: sql => board.db.exec(sql),

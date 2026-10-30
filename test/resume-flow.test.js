@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { main } from '../src/cli.js';
 import { spawn } from 'node:child_process';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
@@ -280,7 +281,7 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
   git('worktree', 'add', '-q', '-b', 'web/one', web);
   let at = 0;
   const clock = { now: () => new Date(BASE + at * MINUTE) };
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'web', path: web });
@@ -874,7 +875,7 @@ test('a new preconfigured board waits for every initial approval [I1,I2]', async
   assert.equal(started.type, 'pullboard.setup.started');
   assert.equal(started.version, 1);
   assert.equal(statSync(marker).mode & 0o077, 0);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     assert.equal(started.boardId, store.boardId(board));
     assert.equal(started.setupStartedAt, store.listAgents(board).find(agent => agent.agent_id === 'coordinator').agent_created_at);

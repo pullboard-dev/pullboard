@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { claimFreezer } from '../src/cli/claim.js';
 import { context } from '../src/cli-context.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
@@ -55,7 +56,7 @@ test('a real baseline worker completes during claim preparation without strandin
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file locking: the real worker must modify this persisted Git board during native claim preparation.
-  board = store.openBoard(file, undefined, { gitRoot: box.web });
+  board = openBoard(file, undefined, { gitRoot: box.web });
   peer = new DatabaseSync(file);
   peer.exec('PRAGMA busy_timeout=0');
   const command = 'node test/baseline.cjs';

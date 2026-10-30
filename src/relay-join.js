@@ -2,6 +2,7 @@
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import {
   importBoard,
   isInitialBoard,
@@ -37,7 +38,7 @@ const TOKEN = /^pm_[A-Za-z0-9_-]{43}$/u;
 
 /** Refuse a clone whose board already holds work before asking anyone for a key: joining would hide it. */
 function requireFreshBoard(root, board) {
-  const local = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const local = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try {
     if (!isInitialBoard(local)) {
       throw new Refused('RELAY_JOIN_NOT_EMPTY', `pullboard.json names board ${board.slice(0, 8)}, but this clone's own board already holds work`,

@@ -7,6 +7,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   applyEngineMove,
   prepareEngineMove,
@@ -89,7 +90,7 @@ test('a lane question reaches its lead and only the decision reaches the coordin
 
 test('lane policy replays identically and an older engine cannot reroute a new question [B21,H16]', t => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-lane-lead-'));
-  const boards = ['origin', 'left', 'right'].map(name => store.openBoard(join(directory, name + '.sqlite')));
+  const boards = ['origin', 'left', 'right'].map(name => openBoard(join(directory, name + '.sqlite')));
   t.after(() => { for (const board of boards) store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   const [source, left, right] = boards;
   store.register(source, { lane: 'coordinator', path: '/private/lane-fixture' });

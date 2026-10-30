@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { preparePersonRequest } from '../src/person-request.js';
@@ -14,13 +15,14 @@ import { relayClientFixture } from './relay-client-fixture.js';
 
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
+const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/native-board.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
 const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
 
 /** Read one real SQLite person-request receipt without opening a transport or changing the board. */
 function requestRecord(root, id) {
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { return personRequestRecords(board).find(record => record.id === id && !record.duplicateOf); }
   finally { store.closeBoard(board); }
 }
@@ -54,7 +56,8 @@ test('a raced native request receipt returns its sender refusal and clears pendi
   const claim = await box.script(`
     import { join } from 'node:path';
     import { relayRequestDevice, relayOperation, syncRelay } from ${JSON.stringify(RELAY_MODULE)};
-    import { openBoard, closeBoard } from ${JSON.stringify(BOARD_MODULE)};
+    import { closeBoard } from ${JSON.stringify(BOARD_MODULE)};
+    import { openBoard } from ${JSON.stringify(NATIVE_MODULE)};
     import { personRequestRecords, requestIntentDigest, requestStageText } from ${JSON.stringify(REQUESTS_MODULE)};
     import { loadConfig } from ${JSON.stringify(CONFIG_MODULE)};
     import { laneNames } from ${JSON.stringify(LANES_MODULE)};
@@ -80,7 +83,7 @@ test('a raced native request receipt returns its sender refusal and clears pendi
   const record = requestRecord(box.root, requestId);
   assert.ok(record?.executor, 'the sequence-two claim receipt elected a native request executor');
   assert.equal(record.sequence, 1, 'the authenticated request is the first ordered position');
-  const claimedBoard = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const claimedBoard = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try { assert.equal(appliedSequence(claimedBoard), 2, 'the elected executor claim is acknowledged at sequence two'); }
   finally { store.closeBoard(claimedBoard); }
 
@@ -96,7 +99,7 @@ test('a raced native request receipt returns its sender refusal and clears pendi
   assert.equal(/^pm_[A-Za-z0-9_-]{43}$/u.test(otherMachineDocument.token ?? ''), true,
     'the independent credential is a real board-scoped machine token');
 
-  const competingBoard = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const competingBoard = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let competingMove;
   try {
     competingMove = prepareEngineMove(competingBoard, 'shout', [{
@@ -166,7 +169,7 @@ test('a raced native request receipt returns its sender refusal and clears pendi
   assert.equal(ordinary.code, 0, 'the native machine remains able to issue ordinary agent work');
   assert.equal(ordinary.document.acknowledged, true);
 
-  const verified = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const verified = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.equal(appliedSequence(verified), 5, 'the winner, refusal and later agent move each consume one relay position');
     assert.equal(verified.db.prepare('SELECT COUNT(*) AS count FROM shout WHERE shout_from=? AND shout_text=?').get('person', 'PHONE_RACE_SHOUT_ONCE').count,

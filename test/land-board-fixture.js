@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { startFixtureChild } from './fixture-child.js';
 
 /** Read a private board through public functions, never by mutating its database. */
 export function onBoard(box, action, clock) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), clock);
   try { return action(board); } finally { store.closeBoard(board); }
 }
 

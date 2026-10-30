@@ -8,6 +8,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import {
   prepareEngineMove,
   applyEngineMove,
@@ -88,9 +89,9 @@ test('a decision asked on an item is answered from the queue and recorded on the
 
 test('item decision options replay exactly and never acquire legacy engine authority [B21,H3,H16]', (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-decision-queue-'));
-  const source = store.openBoard(join(directory, 'source.sqlite'));
-  const replica = store.openBoard(join(directory, 'replica.sqlite'));
-  const restored = store.openBoard(join(directory, 'restored.sqlite'));
+  const source = openBoard(join(directory, 'source.sqlite'));
+  const replica = openBoard(join(directory, 'replica.sqlite'));
+  const restored = openBoard(join(directory, 'restored.sqlite'));
   t.after(() => {
     for (const board of [source, replica, restored]) store.closeBoard(board);
     rmSync(directory, { recursive: true, force: true });

@@ -7,7 +7,8 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { openBoard, closeBoard, SCHEMA_VERSION } from '../src/board.js';
+import { closeBoard, SCHEMA_VERSION } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { codeIsFromMain, withGitFacts } from '../src/git.js';
 
 /** Run Git in a disposable fixture without depending on user or system config. */

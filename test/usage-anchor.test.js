@@ -5,6 +5,7 @@ import { appendFileSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } fr
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { checkpointAfterMove } from '../src/cost-checkpoint.js';
@@ -25,7 +26,7 @@ function fixture({ missing = false, locked = false } = {}) {
   const usage = (input, output) => appendFileSync(file, JSON.stringify({ timestamp: new Date().toISOString(), type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: input, output_tokens: output } } } }) + '\n');
   if (!missing) usage(10, 1);
   // @pullboard-board-file journey: seed the real repository board shared by the native CLI claim and submit.
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try {
     item = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Synthetic usage anchor control', criterion: 'the fixture change exists', specIds: ['G1'], check: 'test -f web/ready', checkBaseline: { command: 'test -f web/ready', result: 'red', main: box.git(box.repo, 'rev-parse', 'HEAD'), seconds: 0 } });

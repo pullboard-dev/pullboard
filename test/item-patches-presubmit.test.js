@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { prepareItemPatchReview } from '../src/item-patch-review.js';
 import { effectiveItemHead } from '../src/source-advance-state.js';
 import { itemPolicy } from '../src/trusted-policy.js';
@@ -93,7 +94,7 @@ function fixture(t, { hold = false, deferred = false, check = 'node core/cli.cjs
   const patchFile = join(box.dir, 'view.patch');
   writeFileSync(patchFile, patch);
   // @pullboard-board-file journey: inspect actual CLI attachment, proof and submit events on the persistent fixture board
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   return { box, board, coordinator, builder, author, id, source, patch, patchFile, helpers, entered, release };
 }
@@ -109,13 +110,14 @@ async function repeatNativePhases(f, binding) {
   const module = name => new URL('../src/' + name, import.meta.url).href;
   const script = join(f.box.dir, 'repeat-phases.mjs');
   writeFileSync(script, `import * as store from ${JSON.stringify(module('board.js'))};
+import { openBoard } from ${JSON.stringify(module("native-board.js"))};
 import { runSubmitGate, submitGateConfig } from ${JSON.stringify(module('gate-submit.js'))};
 ${executionServicesSource(module('gate-submit.js'))}
 import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};
 import { policyAt, frozenCheck, mainPolicy } from ${JSON.stringify(module('trusted-policy.js'))};
 const root = process.cwd();
 // @pullboard-board-file journey: record actual native proof receipts on the same persistent CLI fixture board
-const board = store.openBoard(${JSON.stringify(join(f.box.repo, '.git/pullboard/board.sqlite'))});
+const board = openBoard(${JSON.stringify(join(f.box.repo, '.git/pullboard/board.sqlite'))});
 try {
   const item = store.getItem(board, ${f.id});
   const main = mainPolicy(root);
@@ -240,7 +242,7 @@ test('claimed patch lanes and original builder lane edits remain independently e
 
 test('claimed attachment replay preserves its state and rejects historical protocol downgrade [C7,H16]', t => {
   const f = fixture(t);
-  const replica = store.openBoard(':memory:');
+  const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(f.board));
   const move = prepareEngineMove(f.board, 'attachItemPatch', [f.id, { agentId: 'coordinator', key: 'replay-view',
