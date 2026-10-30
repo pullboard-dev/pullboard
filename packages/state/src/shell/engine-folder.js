@@ -13,6 +13,33 @@ export function engineDeclarationNames(source) {
   return engineBindings(lex(source).code).map(binding => binding[0]);
 }
 
+/** Prove the one approved pure state metadata chain still names its original root declaration. */
+function stateExitRuleExport(sources, file, seen = new Set()) {
+  if (seen.has(file) || seen.size >= 16) return false;
+  seen.add(file);
+  const rows = sources.filter(row => row.file === file);
+  if (rows.length !== 1) return false;
+  const { code, strings } = lex(rows[0].source);
+  const declarations = engineBindings(code);
+  if (file === 'src/exit-rules-engine.js') {
+    return declarations.some(binding => binding[0] === 'EXIT_RULES_ENGINE')
+      && /\bexport\s+const\s+EXIT_RULES_ENGINE\s*=/u.test(code);
+  }
+  if (file !== 'packages/state/core.js' && !/^packages\/state\/src\/core\/[\w/-]+\.[cm]?js$/u.test(file)) return false;
+  if (declarations.some(binding => binding[0] === 'EXIT_RULES_ENGINE')) return false;
+  const literals = new Map(strings.map(literal => [literal.start, literal.text]));
+  const targets = [];
+  for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}/gu)) {
+    if (!list[1].split(',').some(entry => entry.trim() === 'EXIT_RULES_ENGINE')) continue;
+    const end = list.index + list[0].length;
+    const from = /^\s*from\b\s*/u.exec(code.slice(end));
+    const target = from ? literals.get(end + from[0].length) : null;
+    if (!target || !/^\.{1,2}\//u.test(target) || target.includes('\\')) return false;
+    targets.push(posix.normalize(posix.join(posix.dirname(file), target)));
+  }
+  return targets.length === 1 && stateExitRuleExport(sources, targets[0], seen);
+}
+
 /** Find declarations that would split the existing engine folder during a package move. */
 export function engineFolderViolations(sources) {
   const problems = [];
@@ -32,6 +59,9 @@ export function engineFolderViolations(sources) {
       for (const entry of list[1].split(',')) {
         const exported = /(?:^|\bas\s+)([A-Z][A-Z0-9_]*_ENGINE)\s*$/u.exec(entry.trim());
         if (!exported || declared.has(exported[1])) continue;
+        if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
+          && entry.trim() === 'EXIT_RULES_ENGINE'
+          && stateExitRuleExport(sources, posix.normalize(posix.join(posix.dirname(file), target)))) continue;
         declarations.push({ 0: exported[1], index: list.index });
         declared.add(exported[1]);
       }
