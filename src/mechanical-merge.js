@@ -12,12 +12,41 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from './git.js';
 
+/** Version four adds plan-shard rows and config defaults; older receipts replay with the older policy [H16]. */
+export const MECHANICAL_VERSION = 4;
+const PLAN_SHARD = /^bin\/cells-plan\/[a-z0-9-]+\.json$/u;
+
+/**
+ * The defaults object's top-level settings, each with the comment lines above it and the lines nested under it.
+ * Two items adding different settings then never touch the same lines [C7].
+ */
+function configEntries(lines, start, end) {
+  const entries = [];
+  let pending = [];
+  for (const line of lines.slice(start + 1, end)) {
+    const key = /^ {4}([A-Za-z_][A-Za-z0-9_]*): /u.exec(line)?.[1];
+    if (key) { entries.push({ key, line: [...pending, line].join('\n') }); pending = []; }
+    else if (/^ {4}\/\/ /u.test(line)) pending.push(line);
+    else if (entries.length && !pending.length && /^ {5,}\S|^ {4}[}\]]/u.test(line)) entries.at(-1).line += '\n' + line;
+    else return null;
+  }
+  return pending.length ? null : entries;
+}
+
 /** Locate a known keyed region without interpreting or executing candidate JavaScript. */
-function region(path, source) {
+function region(path, source, version = MECHANICAL_VERSION) {
   const lines = source.split('\n');
   let start;
   let end;
   let key;
+  if (path === 'src/config.js' && version >= 4) {
+    start = lines.indexOf('export function defaults() {') + 1;
+    if (lines[start] !== '  return {') return null;
+    end = lines.indexOf('  };', start + 1);
+    const entries = start > 0 && end > start ? configEntries(lines, start, end) : null;
+    if (!entries || new Set(entries.map(entry => entry.key)).size !== entries.length) return null;
+    return { prefix: lines.slice(0, start + 1).join('\n'), suffix: lines.slice(end).join('\n'), entries };
+  }
   if (path === 'src/api-moves.js') {
     start = lines.indexOf('const MOVES = {');
     end = lines.indexOf('};', start + 1);
@@ -76,11 +105,11 @@ function mergeGap(left, right) {
 }
 
 /** Return a union only when all three exact sources differ solely by permitted keyed insertions. */
-export function mergeMechanicalSources(path, ancestor, ours, theirs) {
-  const base = region(path, ancestor);
+export function mergeMechanicalSources(path, ancestor, ours, theirs, version = MECHANICAL_VERSION) {
+  const base = region(path, ancestor, version);
   if (!base) return null;
-  const left = additions(base, region(path, ours));
-  const right = additions(base, region(path, theirs));
+  const left = additions(base, region(path, ours, version));
+  const right = additions(base, region(path, theirs, version));
   if (!left || !right) return null;
   const locations = new Map();
   const entries = [];
@@ -96,6 +125,25 @@ export function mergeMechanicalSources(path, ancestor, ours, theirs) {
   }
   if (!locations.size) return null;
   return { source: [base.prefix, ...entries.map(entry => entry.line), base.suffix].join('\n'), keys: [...locations.keys()] };
+}
+
+/**
+ * Serialize plan data so each path, import and cut is one line: diffs stay per path and every committed shard
+ * stays under the 500-line file aim the fileSize ratchet counts [CD33].
+ */
+export function formatJson(value, indent = '') {
+  const inner = indent + ' ';
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return '[]';
+    const compact = JSON.stringify(value);
+    if (value.every(entry => entry === null || typeof entry !== 'object') ? compact.length <= 120 : value.every(entry => Array.isArray(entry)) && compact.length <= 120) return compact;
+    const rows = value.map(entry => (entry !== null && typeof entry === 'object' && (Array.isArray(entry) || JSON.stringify(entry).length <= 160) ? JSON.stringify(entry) : formatJson(entry, inner)));
+    return `[\n${rows.map(row => inner + row).join(',\n')}\n${indent}]`;
+  }
+  const keys = Object.keys(value);
+  if (!keys.length) return '{}';
+  return `{\n${keys.map(key => `${inner}${JSON.stringify(key)}: ${formatJson(value[key], inner)}`).join(',\n')}\n${indent}}`;
 }
 
 const MISSING = Symbol('missing');
@@ -120,13 +168,31 @@ function identity(value) {
   return JSON.stringify(value);
 }
 
+/** A plan row is named by its path (array rows), its first value (object rows) or itself (text rows). */
+function rowName(row) {
+  if (Array.isArray(row)) return identity(row[0]);
+  if (row !== null && typeof row === 'object') return identity(Object.values(row)[0]);
+  return identity(row);
+}
+
+/** Both sides changing or adding the same named row differently is a real edit of one row, never a union. */
+function rowCollision(base, ours, theirs) {
+  const original = new Map(base.map(row => [rowName(row), identity(row)]));
+  const right = new Map(theirs.map(row => [rowName(row), identity(row)]));
+  return ours.some(row => {
+    const name = rowName(row), mine = identity(row), other = right.get(name);
+    return other !== undefined && other !== mine && original.get(name) !== mine && original.get(name) !== other;
+  });
+}
+
 /** Merge snapshot data; deletions win only over unchanged values, and only jointly raised counters use max. */
-function jsonValue(base, ours, theirs) {
+function jsonValue(base, ours, theirs, rows = false) {
   if (identity(ours) === identity(theirs)) return ours;
   if (identity(ours) === identity(base)) return theirs;
   if (identity(theirs) === identity(base)) return ours;
   if (ours === MISSING || theirs === MISSING) return CONFLICT;
   if (Array.isArray(ours) && Array.isArray(theirs) && (Array.isArray(base) || base === MISSING)) {
+    if (rows && rowCollision(base === MISSING ? [] : base, ours, theirs)) return CONFLICT;
     const old = new Set((base === MISSING ? [] : base).map(identity));
     const left = new Set(ours.map(identity)), right = new Set(theirs.map(identity));
     const result = new Map();
@@ -142,7 +208,7 @@ function jsonValue(base, ours, theirs) {
     const result = Object.create(null);
     for (const key of new Set([...Object.keys(original), ...Object.keys(ours), ...Object.keys(theirs)])) {
       const merged = jsonValue(Object.hasOwn(original, key) ? original[key] : MISSING,
-        Object.hasOwn(ours, key) ? ours[key] : MISSING, Object.hasOwn(theirs, key) ? theirs[key] : MISSING);
+        Object.hasOwn(ours, key) ? ours[key] : MISSING, Object.hasOwn(theirs, key) ? theirs[key] : MISSING, rows);
       if (merged === CONFLICT) return CONFLICT;
       if (merged !== MISSING) result[key] = merged;
     }
@@ -182,7 +248,7 @@ function additiveSource(base, ours, theirs) {
 }
 
 /** Resolve only declared generated output, structural JSON or genuine additions; never execute candidate code. */
-function sourceResolution(path, base, ours, theirs, version = 3) {
+function sourceResolution(path, base, ours, theirs, version = MECHANICAL_VERSION) {
   if (GENERATED.has(path)) return { kind: 'generated', keys: [] };
   if (version >= 3) {
     const generated = generatedDocResolution(path, base, ours, theirs);
@@ -190,13 +256,15 @@ function sourceResolution(path, base, ours, theirs, version = 3) {
   }
   if (path.endsWith('.json')) {
     try {
-      const merged = jsonValue(snapshot(base), snapshot(ours), snapshot(theirs));
+      const plan = version >= 4 && PLAN_SHARD.test(path);
+      const merged = jsonValue(snapshot(base), snapshot(ours), snapshot(theirs), plan);
       if (merged === CONFLICT) return null;
+      if (plan) return { kind: 'json', keys: Object.keys(merged ?? {}), source: formatJson(merged) + '\n' };
       const indent = /\n([ \t]+)\S/u.exec(ours)?.[1];
       return { kind: 'json', keys: Object.keys(merged ?? {}), source: JSON.stringify(merged, null, indent) + (ours.endsWith('\n') ? '\n' : '') };
     } catch { return null; /* Invalid snapshots remain ordinary conflicts, never guessed data. */ }
   }
-  const keyed = mergeMechanicalSources(path, base, ours, theirs);
+  const keyed = mergeMechanicalSources(path, base, ours, theirs, version);
   const source = keyed?.source ?? additiveSource(base, ours, theirs);
   if (source === null) return null;
   if (/\.(?:js|mjs|cjs)$/u.test(path)) {
@@ -213,7 +281,7 @@ function gitData(root, args, gitDirectory) {
 }
 
 /** Read exactly three regular-file stages with identical modes and valid UTF-8, refusing deletes and symlinks. */
-function stageResolution(root, path, records, gitDirectory, version = 3) {
+function stageResolution(root, path, records, gitDirectory, version = MECHANICAL_VERSION) {
   if (records.length !== 3 || records.some((record, index) => record.stage !== index + 1 || record.mode !== records[0].mode)
     || !['100644', '100755'].includes(records[0].mode)) return null;
   const sources = records.map(record => gitData(root, ['cat-file', 'blob', record.hash], gitDirectory));
@@ -235,7 +303,7 @@ function stages(output) {
 }
 
 /** Classify the same virtual merge for health and immutable replay without touching any index or checkout. */
-export function mechanicalConflictFiles(root, trunk, head, { gitDirectory, version = 3 } = {}) {
+export function mechanicalConflictFiles(root, trunk, head, { gitDirectory, version = MECHANICAL_VERSION } = {}) {
   const result = gitData(root, ['merge-tree', '--write-tree', '-z', trunk, head], gitDirectory);
   const output = result.stdout?.toString('utf8').split('\0') ?? [];
   if (![0, 1].includes(result.status) || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(output[0]?.trim() ?? '')) return null;
