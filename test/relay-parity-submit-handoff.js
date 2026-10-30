@@ -29,7 +29,13 @@ export async function seedSubmitHandoff({ board, box, store, exercise }) {
     const text = JSON.stringify({ rows: [], policy: { version: 1, commit: main, verify: { policy: 'any', family: 'off' } } });
     const digest = createHash('sha256').update(text).digest('hex');
     const leaseMs = 3600000;
-    store.claim(board, item, { agentId, lane: box.lane, leaseMs, head: commit, freeze: () => ({ text, digest }) });
+    const exitClaimKey = randomUUID();
+    store.claim(board, item, { agentId, lane: box.lane, leaseMs, head: commit,
+      freeze: () => ({ text, digest }), exitRules: { enabled: true, tokens: 100, calls: 10 }, exitClaimKey });
+    // Synthetic numeric progress exercises projection only, never real model usage or a budget stop.
+    const progress = await exercise('recordExitProgress', () => store.recordExitProgress(board,
+      { agentId, item, claim: exitClaimKey, tokens: null, calls: 1 }));
+    assert.deepEqual(progress, { tokens: null, calls: 1, highWater: { tokens: null, calls: 1 } });
     assert.equal(git(root, ['status', '--porcelain']), '', 'the native source sealer receives a genuinely clean checkout');
     const queued = await exercise('queueSubmitHandoff', () => store.queueSubmitHandoff(board, item,
       { agentId, job: randomUUID(), commit, tree, main, executionCommit: commit, executionTree: tree,
