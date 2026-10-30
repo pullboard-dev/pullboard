@@ -64,6 +64,18 @@ function proofReceiptPath(path, eventKind) {
     && ['detail', 'event_detail'].includes(path.at(-2)) && EVENT_PATH.test(path.slice(0, -2).join('/'));
 }
 
+/** Omit validated private admission linkage only in its actual native event envelopes. */
+function privateAdmissionField(path, key, value, eventKind) {
+  if (key !== 'submitAdmission') return false;
+  const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/u;
+  if (proofReceiptPath(path, eventKind)) return typeof value === 'string' && uuid.test(value);
+  const nativeDetail = ['claim', 'renew'].includes(eventKind) && ['detail', 'event_detail'].includes(path.at(-1))
+    && EVENT_PATH.test(path.slice(0, -1).join('/'));
+  return nativeDetail && value && typeof value === 'object' && !Array.isArray(value)
+    && Object.keys(value).length === 3 && typeof value.id === 'string' && uuid.test(value.id)
+    && ['commit', 'tree'].every(field => typeof value[field] === 'string' && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value[field]));
+}
+
 /** Identify one actual native landing-batch payload, never an arbitrary object called batch. */
 function nativeBatchPath(path, eventKind) {
   if (eventKind !== 'landing_batch') return null;
@@ -151,7 +163,7 @@ export function publicSnapshot(document, { privateBoard = false } = {}) {
       const entries = location === 'state/state/agents/*'
         ? [['agent_id', value.agent_id], ['agent_lane', value.agent_lane], ['model', value.model ?? value.agent_model]]
         : Object.entries(value).filter(([key]) => (!proofReceiptPath(path, kind) || !['parentSession', 'runner'].includes(key))
-          && !privateBatchField(path, key, kind));
+          && !privateBatchField(path, key, kind) && !privateAdmissionField(path, key, value[key], kind));
       return Object.fromEntries(entries.map(([key, entry]) => {
         inspect(key, [...path, key], kind, false);
         return [key, key === 'event_detail' ? JSON.stringify(visit(detailOf(value), [...path, key], kind)) : visit(entry, [...path, key], kind)];

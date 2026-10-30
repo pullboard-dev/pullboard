@@ -24,7 +24,7 @@ export function carriedBrowserByLaunch() {
  * Read the machine settings file as a plain object, or null when there is none. Why here and not
  * in settings.js: resources.js runs on remote runners, whose trusted runtime ships only a few
  * files, and settings.js imports runners.js and resources.js. The caller names the file
- * (machineSettingsFile() in machine-home.js), so the queue cell never reaches up into config.
+ * (machineSettingsFile() in the resources cell's machine-home.js), so the queue cell never reaches up into config.
  *
  * @param {string} file - The machine settings file the caller resolved.
  * @returns {object|null}
