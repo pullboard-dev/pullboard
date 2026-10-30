@@ -45,7 +45,7 @@ function placeAtAddress(page = data) {
 function tabHref(tab) {
   if (snapshot) {
     const detail = tab === 'items' && view.itemsView === 'pipeline' ? 'pipeline' : view.addressDetail;
-    if (tab === 'items' && detail === null && !location.hash) return location.pathname + location.search;
+    if (['dashboard', 'items'].includes(tab) && detail === null && !location.hash) return location.pathname + location.search;
     return location.pathname + location.search + '#' + tab + (detail === null ? '' : '/' + encodeURIComponent(String(detail)));
   }
   const repo = data?.projects.find((entry) => entry.root === view.root);
