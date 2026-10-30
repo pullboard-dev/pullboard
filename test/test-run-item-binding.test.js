@@ -79,7 +79,7 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   const owned = line.find(row => row.agent === seat), other = line.find(row => row.agent === 'coordinator');
   assert.equal(owned.item, String(item));
   assert.equal(owned.queueClass, 'submit', 'an actual claimed test takes the native item-check class');
-  assert.equal(other.item, '');
+  assert.equal(Object.hasOwn(other, 'item'), false, 'the public unclaimed row has no item field');
   assert.equal(other.queueClass, 'other', 'an unclaimed run receives no item priority');
   assert.ok(line.indexOf(owned) < line.indexOf(other), 'the claimed current pinned item precedes the earlier unclaimed run');
   holder.stdin.end('release\n');

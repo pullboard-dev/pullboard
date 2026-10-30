@@ -4,7 +4,7 @@ import { landingExecutionServices } from '../landing-shards.js';
 import { compareMainFailures } from '../main-red.js';
 import { withMainCheckout } from '../main-red.js';
 import { runTestFiles } from '../test-run.js';
-import { listItems } from '../board-query.js';
+import { itemsInStatus } from '../board-query.js';
 import {
   context,
   gateWaitReporter,
@@ -15,7 +15,7 @@ import {
 /** Capture only the seat's sole live build claim; ambiguous or absent ownership grants no item priority. */
 function claimedItem(ctx, agent) {
   return withBoardRead(ctx, board => {
-    const claims = listItems(board, { all: true }).filter(item => item.item_status === 'claimed' && item.item_owner === agent);
+    const claims = itemsInStatus(board, 'claimed', agent);
     return claims.length === 1 ? claims[0].item_id : undefined;
   });
 }
