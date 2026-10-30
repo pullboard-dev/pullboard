@@ -177,7 +177,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
       assert.equal(await chrome.stable("document.querySelector('#detail .item-panel-history-list').classList.contains('expanded')"), true);
       assert.equal(await chrome.stable("document.querySelector('#detail [data-item-panel-history]').getAttribute('aria-expanded')"), 'true');
     }
-    await press(chrome, "document.querySelector('#chain [data-item=2]')");
+    await press(chrome, "document.querySelector('#chain [data-item=\"2\"]')");
     await chrome.waitFor("view.item === 2 && document.querySelector('#detail .item-panel-check')");
     assert.match(await chrome.stable("document.querySelector('#detail .item-panel-check p').textContent"), /^Runs: node --check web\/other\.js$/u);
     assert.match(await chrome.stable("document.querySelector('#detail .item-panel-baseline').textContent"), /Green on mainthe check passed on main before this change/u);
