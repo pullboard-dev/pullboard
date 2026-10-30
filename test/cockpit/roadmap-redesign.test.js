@@ -28,7 +28,6 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
   box.run(alpha.repo, 'add', 'web', 'Returned for changes', '--specs', 'G1', '--criterion', 'The page works.');
   box.run(alpha.repo, 'add', 'web', 'Previously shipped', '--specs', 'G1', '--criterion', 'The page works.');
   box.run(alpha.repo, 'edit', '2', '--after', '1');
-  box.run(alpha.web, 'claim', '3');
   build(box, alpha, 4, 'review.txt');
   build(box, alpha, 5, 'return.txt');
   sendBack(box, alpha, 5, 'Revise the proof before resubmitting.');
@@ -37,6 +36,7 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
   const shippedBranch = alpha.itemBranches.get(`${alpha.baseBranch}:6`);
   box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', shippedBranch);
   box.run(alpha.repo, 'merged', '6', box.git(alpha.repo, 'rev-parse', 'HEAD'));
+  box.run(alpha.web, 'claim', '3');
   box.run(alpha.repo, 'milestone', 'add', '0.9.3', '--note', 'PRIVATE shipment note must never appear in Last shipped.\nSecond line.', '--items', '6');
   box.run(alpha.repo, 'milestone', 'add', '0.9.4: Restructure for Speed and Cost', '--note', 'Current release.', '--items', '1,2,3,4,5');
   box.run(alpha.repo, 'milestone', 'ship', '0.9.3', '--next', '0.9.4: Restructure for Speed and Cost');
