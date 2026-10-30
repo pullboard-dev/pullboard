@@ -50,7 +50,7 @@ test('no hosted page script part loses a regex backslash [N26]', () => {
     const start = source.indexOf('return `') + 'return `'.length;
     const body = source.slice(start, source.lastIndexOf('`;'));
     for (const literal of regexLiterals(body)) {
-      if (/(?<!\\)\\[sdwbSDWB]/u.test(literal.body)) {
+      if (/(?<!\\)\\[sdwbSDWBrn]/u.test(literal.body)) {
         const line = body.slice(0, literal.index).split('\n').length + 10;
         offenders.push(`src/view/${name}:${line}`);
       }
@@ -924,6 +924,45 @@ test('a decline stays on the board it was opened on [B26,N26]', { timeout: 150_0
       try { await view.stop(); }
       finally { rmSync(profile, { recursive: true, force: true }); }
     }
+  }
+});
+
+test('a pending Spec question can be answered in the view [I1,B26]', { timeout: 120_000 }, async () => { // budget: hang-only ceiling for native setup, Chrome and one person decision.
+  const executable = chromeExecutable();
+  assert.ok(executable, 'answering a pending question needs real Chrome');
+  const spec = '# Questions\n\n## G · Goals\n- G1 [pending, must] Which store holds the data: SQLite. Choices: SQLite, Postgres. | gate: review\n';
+  const box = machine();
+  const demo = project(box, 'spec-answer', spec);
+  const view = await startView(box);
+  const profile = mkdtempSync(join(tmpdir(), 'pullboard-spec-answer-chrome-'));
+  let chrome;
+  try {
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await chrome.waitFor(`data?.project?.root === ${JSON.stringify(demo.repo)}`);
+    await press(chrome, "document.querySelector('[data-tab=spec]')");
+    await chrome.waitFor("!!document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
+    await press(chrome, "document.querySelector('#spec-list [data-row=\"spec:G1\"]')");
+    await chrome.waitFor("view.row.spec === 'G1' && !!document.querySelector('#spec-detail form[data-spec-answer=\"G1\"]')");
+    assert.deepEqual(JSON.parse(await chrome.stable(`JSON.stringify({
+      status: document.querySelector('#spec-detail .chip')?.textContent.trim(),
+      answerBox: document.querySelector('#spec-detail [data-spec-answer] input')?.type,
+      submit: document.querySelector('#spec-detail [data-spec-answer] button')?.textContent.trim(),
+      decisions: [...document.querySelectorAll('#spec-detail [data-row-decision]')].map(button => button.textContent.trim())
+    })`)), { status: 'Pending', answerBox: 'text', submit: 'Answer', decisions: [] }, 'a pending question offers an Answer box instead of draft approval or decline controls');
+    await chrome.stable("document.querySelector('#spec-answer-G1').value = 'Postgres'; true");
+    await press(chrome, "document.querySelector('#spec-detail [data-spec-answer] button[type=submit]')");
+    await chrome.waitFor("document.querySelector('#spec-detail .spec-feedback.ok')?.textContent.includes('answered row G1')");
+    const state = await boardOf(view, demo.repo);
+    const answer = state.spec.find(row => row.id === 'G1');
+    const decisions = state.events.filter(event => event.event_kind === 'row_decision');
+    assert.equal(answer.stage, 'answered Postgres, pending apply', 'the answer is recorded as the pending row decision');
+    assert.equal(answer.decision.text, 'Which store holds the data: Postgres. Choices: SQLite, Postgres.', 'the board stores the exact choice in the answered row text');
+    assert.deepEqual(decisions.map(event => [event.event_by, JSON.parse(event.event_detail).channel]), [['person', 'view']], 'the answer uses the person view channel');
+    assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
+  } finally {
+    try { if (chrome) await closeSnapshotChrome(chrome); }
+    finally { await view.stop(); rmSync(profile, { recursive: true, force: true }); }
   }
 });
 
