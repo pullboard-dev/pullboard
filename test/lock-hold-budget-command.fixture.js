@@ -98,27 +98,27 @@ export async function assertCommandHoldBudget(t) {
     const windows = [];
     try {
       for (let sample = 0; sample < 3; sample++) {
-        const acquired = trace(file).filter(row => row.command === 'api' && row.kind === 'begin').length;
+        const acquired = trace(file).filter(row => row.command === 'api' && row.kind === 'begin' && row.writeLockEvidence).length;
         const start = Date.now();
         const state = await view.state(box.repo);
         assert.ok(state.project, 'the real authenticated API served the seeded board');
         const end = Date.now();
         const after = trace(file);
-        assert.equal(after.filter(row => row.command === 'api' && row.kind === 'begin').length, acquired, 'an API read starts no writer on any observed database');
-        assert.equal(after.filter(row => row.command === 'api' && row.kind === 'hold' && row.acquiredAt <= end && row.releasedAt > start).length, 0, 'a startup writer cannot overlap a read window');
+        assert.equal(after.filter(row => row.command === 'api' && row.kind === 'begin' && row.writeLockEvidence).length, acquired, 'an API read starts no writer on any observed database');
+        assert.equal(after.filter(row => row.command === 'api' && row.kind === 'hold' && row.writeLockEvidence && row.acquiredAt <= end && row.releasedAt > start).length, 0, 'a startup writer cannot overlap a read window');
         windows.push({ start, end });
       }
     } finally { await view.stop(); }
     const rows = trace(file);
     const holds = complete(rows);
     for (const window of windows) {
-      assert.equal(holds.filter(row => row.command === 'api' && row.acquiredAt <= window.end && row.releasedAt > window.start).length, 0,
+      assert.equal(holds.filter(row => row.command === 'api' && row.writeLockEvidence && row.acquiredAt <= window.end && row.releasedAt > window.start).length, 0,
         'the final stopped-server trace contains no writer overlapping any read window');
     }
     for (const label of Object.keys(samples)) {
       const runtime = rows.filter(row => row.kind === 'runtime' && row.command === label);
       assert.equal(runtime.length, 1, `${label} has one actual observed original CLI`);
-      const board = holds.filter(row => row.command === label && row.board);
+      const board = holds.filter(row => row.command === label && row.board && row.writeLockEvidence);
       assert.ok(board.length > 0, `${label} has identified actual board-atomic holds`);
       assert.ok(board.every(row => row.pid === runtime[0].pid));
       samples[label].push(board.reduce((sum, row) => sum + row.heldMs, 0));

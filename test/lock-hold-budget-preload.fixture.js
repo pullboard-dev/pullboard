@@ -23,7 +23,7 @@ if (isMainThread && entry && process.argv[1] && resolve(process.argv[1]) === res
   const exec = DatabaseSync.prototype.exec;
   /** Preserve native authority, arguments, receiver, result and errors; observe only actual board BEGINs. */
   function observedExec(sql, ...args) {
-    const begin = typeof sql === 'string' && /^\s*BEGIN\s+(?:IMMEDIATE|EXCLUSIVE)\s*;?\s*$/iu.test(sql);
+    const begin = typeof sql === 'string' && /^\s*BEGIN(?:\s+(IMMEDIATE|DEFERRED|EXCLUSIVE))?\s*;?\s*$/iu.exec(sql);
     const release = typeof sql === 'string' && /^\s*(COMMIT|ROLLBACK)\s*;?\s*$/iu.exec(sql);
     const site = begin ? new Error().stack.split('\n').slice(1, 9) : [];
     const board = site.some(line => line.includes('/src/board-event-log.js:'));
@@ -31,7 +31,8 @@ if (isMainThread && entry && process.argv[1] && resolve(process.argv[1]) === res
     const result = Reflect.apply(exec, this, [sql, ...args]);
     const ended = performance.now();
     if (begin) {
-      const record = { board, site, id: ++sequence, acquiredAt: Date.now(), started: ended, waitMs: ended - waitingAt };
+      const record = { board, site, transactionMode: begin[1]?.toLowerCase() ?? 'deferred-default',
+        writeLockEvidence: /^(?:IMMEDIATE|EXCLUSIVE)$/iu.test(begin[1] ?? ''), id: ++sequence, acquiredAt: Date.now(), started: ended, waitMs: ended - waitingAt };
       active.set(this, record);
       emit({ kind: 'begin', ...record, started: undefined });
     }
