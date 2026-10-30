@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { fixtureBoard } from './board-fixture.js';
 import { activityModel } from '../src/view/activity-model.js';
 import { runFixtureGit } from './fixture-child.js';
 
@@ -24,8 +24,8 @@ function fixture(t) {
   runFixtureGit(['commit', '-q', '-m', 'test: initialize private stuck fixture [A6]'], { cwd: root, env });
   let epoch = Date.parse('2026-10-30T01:00:00Z');
   const clock = { now: () => new Date(epoch) };
-  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
-  t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
+  const board = fixtureBoard(t, { clock });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   store.register(board, { lane: 'coordinator', path: root });
   const seats = [1, 2, 3].map(n => store.register(board, { lane: 'core', path: join(root, `seat-${n}`) }));
   const ids = Array.from({ length: 6 }, (_, n) => store.addItem(board, { by: 'coordinator', lane: 'core',
