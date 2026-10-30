@@ -1281,7 +1281,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .floor-queue .dash-list { max-height: 440px; overflow-y: auto; }
 .floor-queue .dash-list li { min-height: 30px; }
 .floor-queue[data-floor-queue=landed] .dash-item > span { color: var(--accent-strong); }
-.dash-agents-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-4); }
+.dash-agents-head { display: flex; justify-content: flex-start; align-items: baseline; gap: var(--space-4); }
 .dash-agents-head a { color: inherit; text-decoration: none; } .dash-agents-head a:hover { color: var(--accent-strong); text-decoration: underline; }
 .dash-agents-count { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-muted); }
 .floor-foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2) var(--space-5); margin: 0; color: var(--ink-faint); font-size: var(--text-2xs); }
