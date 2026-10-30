@@ -1456,7 +1456,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
   #settings-pane { padding: var(--space-4); }
   .set { gap: 0 var(--space-3); padding: 0 var(--space-4); }
   .ghead p { display: none; }
-  .val { min-width: 72px; max-width: 112px; }
+  .val { min-width: 72px; max-width: 152px; }
   .settings-bar .settings-scopes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; overflow: visible; }
   .settings-bar .settings-scopes button { min-width: 0; white-space: normal; min-height: 44px; }
 }
