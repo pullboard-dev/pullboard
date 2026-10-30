@@ -61,6 +61,7 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       assert.equal(list.pageWidth, list.viewport, 'the feed and compact composer never widen the viewport');
       if (width === 1280) assert.ok(list.feed.right <= list.panel.left, 'the feed column ends before Agents begins');
       assert.ok(Math.min(list.composer.bottom, list.toggle.bottom) > Math.max(list.composer.top, list.toggle.top), 'composer and shared toggle occupy one row');
+      assert.ok(Math.abs((list.composer.bottom - list.composer.top) - (list.toggle.bottom - list.toggle.top)) <= 16, 'the empty composer stays one line tall beside the toggle');
       assert.equal(list.component, 'data-shout-filter');
       assert.equal(list.rows.filter(row => row.key === 'item:2').length, 1, 'one item has one conversation');
       assert.equal(list.rows.find(row => row.key === 'item:2').chip, '2 messages');
@@ -104,6 +105,8 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
       await chrome.waitFor('document.querySelector("#feed .shout:not(.lead)").classList.contains("open")');
       const expanded = await observe(chrome, `(() => { const text=document.querySelector('#feed .shout:not(.lead) .text');return {height:text.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(text).lineHeight)}; })()`);
       assert.ok(expanded.height > expanded.lineHeight * 3, 'Show all actually reveals the complete message');
+      await press(chrome, 'document.querySelector("#feed .shout:not(.lead) [data-more]")');
+      await chrome.waitFor('!document.querySelector("#feed .shout:not(.lead)").classList.contains("open")');
       await press(chrome, 'document.querySelector("[data-shout-filter=questions]")');
       await chrome.waitFor('document.querySelectorAll(".conversation-row").length === 2');
       await press(chrome, 'document.querySelector("[data-shout-filter=you]")');

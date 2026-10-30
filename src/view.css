@@ -1441,6 +1441,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 #shouts-pane .primary { overflow: hidden; }
 #shouts-pane .detail { min-width: 0; }
 .shouts-card > .shout-form { flex-wrap: nowrap; }
+.shouts-card .composer textarea { field-sizing: fixed; height: var(--tap); }
 .shout-form > .answering, .shout-form > .console { flex-basis: 100%; }
 #asks-slot { min-width: 0; max-width: 100%; }
 #asks-slot .seg { flex: none; }
