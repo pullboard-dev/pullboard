@@ -17,13 +17,17 @@ function diagnostics(output, root) {
   let omitted = false;
   for (const line of output.split('\n')) {
     const start = /^(\s*)not ok\s+\d+\s+-\s+(.*)$/u.exec(line);
-    if (start) {
+    // A `not ok` or `ok` line indented inside the active failure's own diagnostics is text that failure printed, such as a
+    // nested run's TAP; it is part of that failure, never a second failure or the end of this one (#2064).
+    const embedded = active && !active.done && line.startsWith(' '.repeat(active.indent));
+    if (start && !embedded) {
       active = { name: start[2].replace(/\s+#.*$/u, ''), indent: start[1].length + 2, lines: [] };
       rows.push(active); omitted = false; continue;
     }
-    if (/^\s*ok\s+\d+/u.test(line)) { active = null; continue; }
+    if (!embedded && /^\s*ok\s+\d+/u.test(line)) { active = null; continue; }
     if (!active || !line.startsWith(' '.repeat(active.indent))) continue;
     const value = line.slice(active.indent);
+    if (value === '...') active.done = true;
     if (/^(?:duration_ms|location|stack):/u.test(value)) { omitted = true; continue; }
     if (/^[\w-]+:/u.test(value)) omitted = false;
     if (!omitted && value !== '---' && value !== '...') active.lines.push(value);
@@ -36,7 +40,7 @@ function diagnostics(output, root) {
 /** Legacy coarse outcomes remain useful, but old detailed hashes cannot authorize equality under a new scheme. */
 export function cachedFailureSignatures(outcome, file) {
   const failures = outcome.failures;
-  if (!Array.isArray(failures) || failures.some(row => row?.file !== file
+  if (!Array.isArray(failures) || failures.some(row => row?.file !== file && row?.ran !== file
     || typeof row.name !== 'string' || !row.name || !/^[a-f0-9]{64}$/u.test(row.signature))) return undefined;
   return outcome.signatureVersion === MAIN_FAILURE_SIGNATURE_VERSION || outcome.result === 'green' && failures.length === 0
     ? failures : undefined;
@@ -66,7 +70,9 @@ export function matchingMainFailures(failures, comparison, main) {
   for (const failure of failures) {
     if (typeof failure.file !== 'string' || !failure.file || /[:\\\p{Cc}]/u.test(failure.file)
       || failure.file.split('/').some(part => !part || part === '.' || part === '..')) return null;
-    const file = comparison.files.find(row => row.file === failure.file);
+    // A case defined in a helper reports the helper as its file; main ran it under the test file that imports the helper.
+    const file = comparison.files.find(row => row.file === failure.file)
+      ?? comparison.files.find(row => row.failures?.some(main => main.file === failure.file && main.name === failure.name));
     const matches = file?.failures?.filter(row => row.file === failure.file && row.name === failure.name);
     if (file?.result !== 'red' || matches?.length !== 1 || matches[0].signature !== failure.signature) return null;
   }
