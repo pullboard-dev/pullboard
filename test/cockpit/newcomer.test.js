@@ -51,12 +51,12 @@ test('a new project reviews inherited defaults and files new work in its first b
       assert.equal(await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:decide\\"] b").textContent'), '0', `${width}: untouched template rules are not decisions waiting`);
       assert.equal(await chrome.stable('document.querySelectorAll("#doctrine-list .srow").length'), 0, `${width}: no inherited rule appears among the person\'s calls`);
       const defaults = await chrome.stable('document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")?.textContent');
-      assert.match(defaults ?? '', /^Defaults to review\d+$/, `${width}: inherited rules have an explicit defaults-to-review label`);
+      assert.match(defaults ?? '', /^To review\d+$/, `${width}: inherited rules have the shorter To review label`);
       await press(chrome, 'document.querySelector("#doctrine-chips [data-rows=\\"doctrine:defaults\\"]")');
       assert.deepEqual(JSON.parse(await chrome.stable('JSON.stringify([...document.querySelectorAll("#doctrine-list .srow")].map(row => row.dataset.row.slice(9)))')),
         JSON.parse(await chrome.stable('JSON.stringify(data.project.practice.filter(row => row.origin === "standard").map(row => row.id))')), `${width}: every inherited default remains available to review`);
       await press(chrome, 'document.querySelector("#doctrine-list [data-row=\\"doctrine:PB7\\"]")');
-      assert.match(await chrome.stable('document.querySelector("#doctrine-detail").textContent'), /defaults to review; override or decline one in DOCTRINE\.md/, `${width}: the default explains how to adopt a local rule`);
+      assert.match(await chrome.stable('document.querySelector("#doctrine-detail").textContent'), /Approve it to keep it, or override or decline it in DOCTRINE\.md/, `${width}: the default explains how to adopt a local rule`);
       assert.equal(await chrome.stable('document.querySelectorAll("#doctrine-detail [data-row-decision]").length'), 0, `${width}: inherited defaults offer no local decision action`);
       await tab(chrome, 'items');
       await press(chrome, 'document.querySelector("#new-item")');

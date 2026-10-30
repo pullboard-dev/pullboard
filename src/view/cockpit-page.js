@@ -90,8 +90,8 @@ function lifecycle() {
  * item lifecycle from src/machine.js with this board's counts. Under 900px wide the sidebar folds
  * into a top bar. Forms post actions that the server runs as CLI commands (N27), so the page never
  * decides a rule itself, and every field a person types in sits outside what the refresh rebuilds.
- * Its shared styles are src/view.css; the authenticated local view appends private Cost styles from
- * src/view/cost.css. The linked stylesheet carries the session's secret, so the policy refuses inline styles. The serving host
+ * Its shared styles are src/view.css plus Doctrine presentation from src/view/doctrine.css; the authenticated local view
+ * appends private Cost styles from src/view/cost.css. The linked stylesheet carries the session's secret, so the policy refuses inline styles. The serving host
  * supplies the API base and credential headers; clients need no loopback-specific connection.
  * The Roadmap tab has its own address (N38): /roadmap on a host that serves the page there too,
  * which `paths` declares, and a #roadmap fragment anywhere else, such as a snapshot hosted under a
