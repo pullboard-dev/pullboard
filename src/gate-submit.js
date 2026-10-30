@@ -127,7 +127,7 @@ function submitTestOutcomes(profiles) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices }) {
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
@@ -152,6 +152,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
   return await withGateSlot(root, async (lease) => {
+    // The command observes actual admission before any proof; queue polling is a separate boundary.
+    await onStart?.();
     lease.quarantines = proofContext?.quarantines ?? [];
     if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
