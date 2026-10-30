@@ -51,8 +51,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .theme-btn:hover { color: var(--ink); background: var(--surface-2); }
 .theme-btn svg { display: none; width: 16px; height: 16px; }
 :root[data-scheme="light"] .theme-btn .sun, :root[data-scheme="dark"] .theme-btn .moon { display: block; }
-.side-body { display: flex; flex-direction: column; gap: var(--space-0); }
-.side-list { display: grid; gap: var(--space-0); align-content: start; }
+.side-body { display: flex; flex: 1; flex-direction: column; gap: var(--space-0); min-height: 0; }
+.side-list { display: grid; flex: 1 0 auto; gap: var(--space-0); align-content: start; }
 /* Collapsed, as the person chose: the sidebar shrinks to the project switcher at the left of the tab bar,
  * the board below takes the whole width, and the project list opens as a dropdown. The logo collapses and
  * restores it; phones always show the switcher, so there the logo is only the logo. The theme button sits at the
@@ -71,7 +71,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   :root[data-side="collapsed"] .switch-btn { display: flex; max-width: 16rem; }
   :root[data-side="collapsed"] .side-body { display: none; }
   :root[data-side="collapsed"] .side.open .side-body { display: flex; position: absolute; top: calc(var(--top) + 4px); left: 8px; width: 300px; max-height: calc(100vh - var(--top) - 16px); overflow-y: auto; padding: var(--space-3) var(--space-4) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); box-shadow: var(--shadow); }
-  :root[data-side="collapsed"] .side.open .side-footer { display: flex; }
 }
 .label { font: 600 var(--text-2xs)/1 var(--sans); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); padding: var(--space-3) var(--space-3) var(--space-2); }
 .proj { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px var(--space-3); align-items: center; width: 100%; text-align: left; border: 1px solid transparent; background: none; border-radius: var(--radius-lg); padding: var(--space-3) var(--space-3); cursor: pointer; }
@@ -1399,8 +1398,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 
 /* Settings keeps ordinary read-only values intact while narrowing to a single column on phones. */
 .side { display: flex; flex-direction: column; }
-.side-body { flex: 1; min-height: 0; }
-.side-list { flex: 1 0 auto; }
 .side-footer { display: flex; gap: var(--space-2); padding-top: var(--space-4); margin-top: auto; border-top: 1px solid var(--line); }
 .side-footer .ghost { min-height: 44px; flex: 1; justify-content: center; }
 .settings-heading, .settings-toolbar { display: flex; justify-content: space-between; align-items: start; gap: var(--space-4); flex-wrap: wrap; }
