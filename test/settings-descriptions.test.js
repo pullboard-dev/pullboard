@@ -2,7 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { settingsInventory } from '../src/settings-inventory.js';
-import { describeSetting, SETTING_DESCRIPTIONS } from '../src/settings-descriptions.js';
+import { describeSetting, SETTING_DESCRIPTIONS, CLI_SETTABLE } from '../src/settings-descriptions.js';
+import { SETTING_FORMS } from '../src/help.js';
 import { performanceCores } from '../src/gate.js';
 import {
   defaultViewPort,
@@ -63,7 +64,12 @@ test('pullboard settings prints each label and description beside its key [O5,O6
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
   t.after(() => helpers.cleanup());
-  const out = box.run(box.repo, 'settings');
+  const compact = box.run(box.repo, 'settings');
+  assert.equal(compact.code, 0, compact.out);
+  assert.doesNotMatch(compact.out, /How many test runs/u, 'the default text stays compact');
+  const json = JSON.parse(box.run(box.repo, 'settings', '--json').out);
+  assert.equal(json.descriptions.gateSlots.label, 'Checks at once', '--json carries the descriptions');
+  const out = box.run(box.repo, 'settings', '--detail');
   assert.equal(out.code, 0, out.out);
   const lines = out.out.split('\n');
   for (const key of ['gateSlots', 'browserSlots', 'gate.runnerWaitMs', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'gate.runnersOnly', 'workers.budget']) {
@@ -72,4 +78,13 @@ test('pullboard settings prints each label and description beside its key [O5,O6
     const described = describeSetting(key);
     assert.equal(lines[at + 1], `  ${described.label}: ${described.description} (${described.group}, ${described.unit})`, `${key} is followed by its label and description`);
   }
+});
+
+test('the inventory marks exactly the settings the CLI can set, so the view needs no CLI import [O5,O6,N26]', t => {
+  const helpers = createE2eHelpers();
+  const box = helpers.project('true');
+  t.after(() => helpers.cleanup());
+  const marked = inventory(box).filter(row => row.cli).map(row => row.key);
+  assert.deepEqual([...new Set(marked)].sort(), [...CLI_SETTABLE].sort());
+  assert.deepEqual([...CLI_SETTABLE].sort(), SETTING_FORMS.filter(form => !['workers.budget', 'landing.pool'].includes(form)).sort(), 'every CLI form that is an inventory key is marked');
 });
