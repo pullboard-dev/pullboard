@@ -24,7 +24,7 @@ function agentApprovalRow(row) {
   const feedback = view.specFeedback?.root === view.root && view.specFeedback.kind === 'spec' && view.specFeedback.id === row.id ? view.specFeedback : null;
   return '<li class="row ask agent-approval" data-agent-approved="' + esc(row.id) + '"><span class="dot ask"></span><div><div class="t"><span>' + esc(row.ref ?? row.id) + '</span>' + esc(source?.text ?? 'Row text unavailable') + '</div>'
     + '<p class="approval-gate">Gate: ' + esc(source?.gate || 'No gate recorded') + '</p>' + agentApprovalAttribution(approval)
-    + '<p>Commit: <code title="' + esc(commit ?? '') + '">' + esc(commit ? commit.slice(0, 12) : 'unavailable') + '</code></p>'
+    + '<p>Commit: ' + (commit ? '<button class="hash-copy" type="button" title="' + esc(commit) + '" aria-label="Copy full hash ' + esc(commit) + '" data-copy="' + esc(commit) + '"><code class="inline sha" title="' + esc(commit) + '">' + esc(commit.slice(0, 12)) + '</code></button>' : '<code>unavailable</code>') + '</p>'
     + (feedback ? specFeedback(feedback) : '')
     + '<div class="meta"><span class="why"><b>NEEDS YOU</b> agent-approved; confirm or decline this row</span></div>' + agentApprovalActions(row) + '</div></li>';
 }

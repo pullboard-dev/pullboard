@@ -48,8 +48,8 @@ test('Needs you shares grouped, expandable rows and exact person confirmation ac
       await press(chrome, `document.querySelector(${JSON.stringify(selector + ' summary')})`);
       await chrome.waitFor(`document.querySelector(${JSON.stringify(selector + ' details')}).open`);
       const row = initial.spec.find(entry => entry.id === 'G1');
-      assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' [data-needs-field=commit] code')}).textContent`), row.agentApproval.commit.slice(0, 12));
-      assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' [data-needs-field=commit] code')}).title`), row.agentApproval.commit);
+      assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' [data-needs-field=commit] .hash-copy')}).textContent`), row.agentApproval.commit.slice(0, 12));
+      assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' [data-needs-field=commit] .hash-copy')}).title`), row.agentApproval.commit);
       assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector + ' .needs-detail p')}).textContent`), row.text, 'expanded text preserves the actual full requirement');
       assert.equal(await chrome.stable(`getComputedStyle(document.querySelector(${JSON.stringify(selector + ' .needs-copy b')})).whiteSpace`), 'nowrap', 'the summary title uses the mockup single line');
       assert.equal(await chrome.stable(`document.querySelector(${JSON.stringify(selector)}).textContent.includes('agent-approved;')`), false, 'status prose does not replace the row title');

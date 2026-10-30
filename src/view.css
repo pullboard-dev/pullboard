@@ -652,6 +652,7 @@ button.ref[data-code] { display: inline-flex; max-width: 100%; vertical-align: b
 button.ref[data-code] .ref-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 button.ref[data-code] .ref-at { flex: none; }
 code.inline { padding: 0 var(--space-1); border-radius: var(--radius-xs); background: color-mix(in srgb, var(--ink) 8%, var(--surface)); font: .92em var(--mono); white-space: nowrap; }
+.hash-copy { display: inline; min-height: 0; border: 0; padding: 0; background: none; vertical-align: baseline; cursor: copy; }
 code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* A brief's '- ' lines, wherever text is drawn: tight bullets, nested ones indented under their parent. */
 .text-list { list-style: disc; margin: 0; padding-left: 1.35em; }
