@@ -1,7 +1,6 @@
 /** Read-only Settings page markup and embedded API-only browser behavior [O5,O6,N26]. */
 
 import { settingsContentHtml } from './settings-render.js';
-import { SETTING_FORMS } from '../help.js';
 export { settingsMarkup } from './settings-render.js';
 
 /** Embed the scoped settings reader beside the existing page API and escaped-text renderer. */
@@ -10,10 +9,9 @@ function settingsReaderScript() {
 const settingsPages = new Map();
 let settingsScope = 'machine';
 let settingsAllBoards = false;
-const settingsForms = ${JSON.stringify(SETTING_FORMS)};
 const settingsContentHtml = (${settingsContentHtml.toString()});
 /** Draw the pure presentation into the one live region. */
-function drawSettings(entry) { $('settings-content').innerHTML = settingsContentHtml({ ...entry, all: settingsAllBoards }, settingsScope, settingsForms); }
+function drawSettings(entry) { $('settings-content').innerHTML = settingsContentHtml({ ...entry, all: settingsAllBoards }, settingsScope); }
 /** Read only the selected local board; neither relay nor snapshot implies machine access. */
 async function showSettings(force = false) {
   if (view.tab !== 'settings' || !data) return;

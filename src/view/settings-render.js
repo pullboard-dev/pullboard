@@ -7,7 +7,7 @@ export function settingsMarkup() {
  * Render a read-only API inventory as grouped cards of one-height rows, preserving false, zero, null
  * and masked values as distinct data [O5,O6,N26]. Self-contained: the page embeds this function's source.
  */
-export function settingsContentHtml(entry, scope = 'machine', forms = []) {
+export function settingsContentHtml(entry, scope = 'machine') {
   /** Escape API labels and values before placing them in text or attributes. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   const commas = number => String(number).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -39,8 +39,8 @@ export function settingsContentHtml(entry, scope = 'machine', forms = []) {
   for (const row of rows) sources.set(row.source, (sources.get(row.source) || 0) + 1);
   const source = [...sources].sort((a, b) => b[1] - a[1])[0]?.[0];
   const rowHtml = row => {
-    const copyable = forms.includes(row.key) && (typeof row.value === 'boolean' || typeof row.value === 'number');
-    const command = copyable ? 'pullboard settings ' + row.key + ' ' + (typeof row.value === 'boolean' ? (row.value ? 'on' : 'off') : row.value) : '';
+    const copyable = typeof row.cli === 'string' && row.cli && (typeof row.value === 'boolean' || typeof row.value === 'number');
+    const command = copyable ? 'pullboard settings ' + row.cli + ' ' + (typeof row.value === 'boolean' ? (row.value ? 'on' : 'off') : row.value) : '';
     const label = row.label || row.key;
     const value = row.secret ? (row.value === 'set' ? 'set' : 'not set') : human(row.value, row.unit);
     const was = row.secret ? 'not set' : human(row.default, row.unit);
