@@ -472,7 +472,7 @@ function validatedRunners(value) {
       throw new Refused('BAD_RUNNER_POOL', 'runners require unique nonempty hosts, positive slots, and browser capacity from zero through slots');
     }
     seen.add(runner.host);
-    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.gui !== undefined ? { gui: runner.gui } : {}),
+    return { host: runner.host, slots: runner.slots, browser: runner.browser, ...(runner.cpuLoad ? { cpuLoad: runner.cpuLoad } : {}), ...(runner.gui !== undefined ? { gui: runner.gui } : {}),
       ...(typeof runner.node === 'string' ? { node: runner.node } : {}),
       ...(typeof runner.root === 'string' ? { root: runner.root } : {}) };
   });
@@ -495,7 +495,7 @@ function validatedRunners(value) {
  * @param {number} [now] - The clock reading to age against.
  * @returns {{host:string,slots:number,browser:number}|null}
  */
-function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirst = false, order = ARRIVAL_ORDER, now = Date.now(), memoryHeld = false) {
+function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirst = false, order = ARRIVAL_ORDER, now = Date.now(), memoryHeld = false, loadPolicy = {}) {
   const waiters = orderedWaiters(queuedWaiters(db, 'gate'), now, order);
   const holders = db.prepare("SELECT pid, landing, browser, short_slot AS shortSlot, timing FROM holder WHERE name = 'gate'").all();
   const localUsed = holders.filter(holder => holder.shortSlot !== 1).length;
@@ -543,9 +543,25 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
         compatible.sort((left, right) => usage.get(left.host).slots - usage.get(right.host).slots);
       }
       if (!compatible.length) return null;
-      const selected = compatible[0];
+      let selected = compatible[0], dispatch;
+      if (loadPolicy.enabled === true) {
+        const ceiling = Number.isFinite(loadPolicy.ceiling) && loadPolicy.ceiling >= 1 && loadPolicy.ceiling <= 100 ? loadPolicy.ceiling : 90;
+        const measured = compatible.filter(runner => {
+          const sample = runner.cpuLoad, age = now - Date.parse(sample?.at);
+          return sample && Number.isFinite(sample.busyPercent) && sample.busyPercent >= 0 && sample.busyPercent <= 100
+            && Number.isFinite(age) && age >= 0 && age <= 30_000;
+        });
+        const quiet = measured.filter(runner => runner.cpuLoad.busyPercent < ceiling);
+        if (quiet.length) {
+          selected = quiet.sort((a, b) => a.cpuLoad.busyPercent - b.cpuLoad.busyPercent)[0];
+          dispatch = { reason: 'lowest recent runner-reported CPU busy share', busyPercent: selected.cpuLoad.busyPercent, ceiling };
+        } else {
+          selected = [...compatible].sort((a, b) => usage.get(a.host).slots - usage.get(b.host).slots)[0];
+          dispatch = { reason: measured.length === compatible.length ? 'all compatible runners at or above CPU ceiling; falling back to free slots' : 'missing or stale runner CPU readings; falling back to free slots', ceiling };
+        }
+      }
       const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(selected.host);
-      return { ...selected, ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1 } : {}), shortSlot: false };
+      return { ...selected, ...(dispatch ? { dispatch } : {}), ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1 } : {}), shortSlot: false };
     }
     /** The local slot follows runner admission only while runner-first is enabled. */
     function localSlot() {
@@ -1136,7 +1152,7 @@ export async function takeResource(options) {
         // Local pressure blocks local executors, including short slots, but never a remote executor.
         if (name !== 'gate' && memoryHeld) return { acquired: false, state: { ...spot, position: reportPosition, memory } };
         const executor = name === 'gate'
-          ? gateAdmission(db, waiter.ticket, limit, options.shortCapacityProvider?.() ?? 0, runners, runnersFirst, order, now, memory?.held === true)
+          ? gateAdmission(db, waiter.ticket, limit, options.shortCapacityProvider?.() ?? 0, runners, runnersFirst, order, now, memory?.held === true, options.runnerLoadPolicyProvider?.())
           : (waiterPosition(db, name, waiter.ticket, { eligibleOnly: true, order, now }) === 1 && spot.holders.length < limit ? { host: '' } : null);
         // Decide from the normal ordered, capability-aware admission result before refusing.
         // If nothing can start now, close the late opportunity and retain ordinary local fallback.
