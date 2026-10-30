@@ -188,6 +188,7 @@ test('the shout feed names a seat broadcast and an item shout in product words [
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 2');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
     await chrome.waitFor('document.querySelectorAll("#feed .conversation-row").length === 2');
+    await openConversation(chrome);
     for (const width of [1280, 375]) {
       await shoutsAt(chrome, width, 'light');
       const at = `${width}px`;
