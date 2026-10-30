@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { exportView } from '../../src/commands/view.js';
 import { relayPresentation } from '../../packages/pages/index.js';
-import { machine, project, build, fetchLive, startView, target, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
+import { openShoutConversation, machine, project, build, fetchLive, startView, target, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
@@ -51,7 +51,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    page.run("openTab('shouts'); render();");
+    page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     // A button carries the text written before it on its line.
     // Its label: the path, then the lines and the commit's first twelve characters; the whole reference on hover.
     /** Keep each surface's explicit hash length in the expected reference label. */
@@ -89,6 +89,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     // A reference is a whole word, never the tail of one: what is no path in the repo says so, and so
     // does one the text before it may make part of a longer path, however long, rather than open
     // another file.
+    page.run("view.shoutThread = 'none'; render();");
     const b4 = prior(odd, spaced);
     const b5 = 'web/one two three four five ';
     feed = page.show('feed');
@@ -158,7 +159,7 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     assert.ok(relay.includes('"path":"web/greeting.html"') && relay.includes('"commit":"' + second + '"'), 'the relay presentation retains only the typed reference fields');
     assert.ok(!relay.includes('  hello <b>there</b>'), 'the relay presentation never contains committed source text');
 
-    page.run("openTab('shouts'); render();");
+    page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     // Expansion stays attached to the repo that owned the reference if the selected project changes mid-flight.
     const alphaId = await page.run(`data.projects.find((entry) => entry.root === ${JSON.stringify(alpha.repo)}).id`);
     const betaId = await page.run(`data.projects.find((entry) => entry.root === ${JSON.stringify(beta.repo)}).id`);
@@ -214,6 +215,7 @@ test('committed shout and fact references stay local, expand safely at phone and
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width}`);
       await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+      await openShoutConversation(chrome);
       await chrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]')`);
       await chrome.waitFor(`document.querySelector('#feed .code-wrap pre.code .tok-keyword')?.textContent === 'const'`);
       assert.equal(await chrome.stable(`document.querySelector('#feed pre.code').textContent.includes('localOnlyFixture = 42')`), true, 'the open local preview reads the exact committed text');
@@ -235,6 +237,7 @@ test('committed shout and fact references stay local, expand safely at phone and
       assert.equal(await chrome.stable('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), true, `${width}px thread ref has no sideways overflow`);
       await chrome.click(`document.querySelector('#detail .fact-code button[data-code]')`);
       await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+      await openShoutConversation(chrome);
       await chrome.click(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
       await chrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]').getAttribute('aria-expanded') === 'false'`);
     }
@@ -275,8 +278,10 @@ test('committed shout and fact references stay local, expand safely at phone and
     snapshotChrome = await openSnapshotChrome(executable, `http://127.0.0.1:${address.port}/`, join(box.dir, 'relay-snapshot-chrome'));
     await snapshotChrome.waitFor('data?.project');
     await snapshotChrome.click("document.querySelector('[data-tab=shouts]')");
+    await openShoutConversation(snapshotChrome);
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')`);
     await snapshotChrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await openShoutConversation(snapshotChrome);
     await snapshotChrome.click(`document.querySelector('#feed button[data-code^="web/reference.js:1-100@"]')`);
     await snapshotChrome.waitFor(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"]')?.getAttribute('aria-expanded') === 'true'`);
     assert.match(await snapshotChrome.stable(`document.querySelector('#feed button[data-code^=\"web/reference.js:1-100@\"] + .code-ref .code, #feed button[data-code^=\"web/reference.js:1-100@\"] + .code')?.textContent || ''`), /Source code is not included in this relay snapshot/);

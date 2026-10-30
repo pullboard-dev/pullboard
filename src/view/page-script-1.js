@@ -111,7 +111,7 @@ function landingTab() {
   return kept || 'dashboard';
 }
 
-const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
+const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || landingTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, shoutFilter: 'all', shoutThread: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;
 // Each board read in the order it started, and the newest one drawn: an answer older than that one is stale.
 let refreshStarted = 0;
