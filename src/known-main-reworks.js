@@ -70,6 +70,6 @@ export function unownedMainReds(known, items, exclude) {
 
 /** Failures with several candidate owners and no single one naming the case, each with its candidates, for the refusal (#2016). */
 export function ambiguousMainReds(known, items, exclude) {
-  return known.failures.map(failure => ({ file: failure.file, name: failure.name, candidates: ownersOf(failure, items, exclude).map(item => item.item_id) }))
+  return known.failures.map(failure => ({ file: failure.file, name: failure.name, candidates: ownersOf(failure, items, exclude).map(item => item.item_id).sort((a, b) => a - b) }))
     .filter(row => row.candidates.length > 1);
 }
