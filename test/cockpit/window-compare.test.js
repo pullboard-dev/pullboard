@@ -77,7 +77,7 @@ test('window overview renders canonical seeded values, directions, shares and mi
             previous:tile.querySelector('small').textContent,expectedPrevious:'was '+(share?(b*100).toFixed(1)+'%':key==='landed'?String(b):b.toFixed(1)),
             tone:tile.classList.contains('good')?'good':tile.classList.contains('bad')?'bad':'',expectedTone:d===0?'':(d>0)===(key==='landed')?'good':'bad',
             change:tile.querySelector('.window-change').textContent};}),
-        stages:[...root.querySelectorAll('[data-window-stage]')].map(node=>{const [period,key]=node.dataset.windowStage.split('.');return [Number(node.dataset.share),c[period].stageShares[key],Number(node.style.flexGrow)];}),
+        stages:[...root.querySelectorAll('[data-window-stage]')].map(node=>{const [period,key]=node.dataset.windowStage.split('.');return [Number(node.dataset.share),c[period].stageShares[key],node.getBoundingClientRect().width/node.ownerSVGElement.getBoundingClientRect().width];}),
         tableOpen:root.querySelector('details').open, summary:root.querySelector('summary').textContent,
         visible:root.querySelector('.window-tiles').getBoundingClientRect().height>0 };
     })())`));
@@ -93,7 +93,7 @@ test('window overview renders canonical seeded values, directions, shares and mi
       if (['rejectRate','idleShare'].includes(tile.key)) assert.match(tile.change,/pts|No change/u);
     }
     assert.equal(result.stages.length,10);
-    for (const [shown,expected,flex] of result.stages) {assert.equal(shown,expected);assert.ok(Math.abs(flex-expected)<0.000001,'CSS share mismatch: ' + JSON.stringify({shown,expected,flex,stages:result.stages}));}
+    for (const [shown,expected,flex] of result.stages) {assert.equal(shown,expected);assert.ok(Math.abs(flex-expected)<0.000001,'Rendered stage share mismatch: ' + JSON.stringify({shown,expected,flex,stages:result.stages}));}
     assert.equal(result.visible,true); assert.equal(result.tableOpen,false); assert.equal(result.summary,'All 17 measures →');
     await chrome.click('document.querySelector("#dashboard .window-comparison summary")');
     await chrome.waitFor('document.querySelector("#dashboard .window-comparison details").open');

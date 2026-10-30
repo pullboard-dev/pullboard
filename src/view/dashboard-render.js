@@ -103,7 +103,7 @@ export function dashboardHtml(model, { needs = '', progress = '', rules = '', ca
       const a = current[key], b = previous[key], delta = change[key], tone = direction(delta,higherBetter);
       const max = share ? 1 : Math.max(measured(a)?a:0,measured(b)?b:0,1);
       const difference = !measured(delta) ? 'unmeasured' : delta === 0 ? 'No change' : (delta > 0 ? '▲ ' : '▼ ') + (share ? (Math.abs(delta)*100).toFixed(1)+' pts' : key==='landed' ? String(Math.abs(delta)) : Math.abs(delta).toFixed(1));
-      return '<div class="window-tile '+tone+'" data-window-tile="'+key+'"><div class="window-key">'+label+'</div><div class="window-value"><b>'+esc(compact(a,share,key))+'</b><span class="window-change '+tone+'">'+esc(difference)+'</span></div><div class="window-bar" aria-hidden="true">'+(measured(b)?'<i style="width:'+Math.min(100,Math.max(0,b/max*100))+'%"></i>':'')+(measured(a)?'<u style="width:'+Math.min(100,Math.max(0,a/max*100))+'%"></u>':'')+'</div><small>was '+esc(compact(b,share,key))+'</small></div>';
+      return '<div class="window-tile '+tone+'" data-window-tile="'+key+'"><div class="window-key">'+label+'</div><div class="window-value"><b>'+esc(compact(a,share,key))+'</b><span class="window-change '+tone+'">'+esc(difference)+'</span></div><svg class="window-bar" viewBox="0 0 1000 6" preserveAspectRatio="none" aria-hidden="true">'+(measured(b)?'<rect class="window-before" x="0" y="0" height="6" width="'+Math.min(1000,Math.max(0,b/max*1000))+'"/>':'')+(measured(a)?'<rect class="window-after" x="0" y="0" height="6" width="'+Math.min(1000,Math.max(0,a/max*1000))+'"/>':'')+'</svg><small>was '+esc(compact(b,share,key))+'</small></div>';
     }).join('');
     /** Generate plain changes from all four observed values without inventing a causal explanation. */
     const sentence = metrics.map(([label,key,share]) => {
@@ -115,7 +115,13 @@ export function dashboardHtml(model, { needs = '', progress = '', rules = '', ca
     /** Shares already come normalized from the canonical API; no browser lifecycle replay is used. */
     const stack = (period, label) => {
       const shares = observed[period].stageShares;
-      return '<div class="window-stage-row"><span>'+label+'</span><div class="window-stack" role="img" aria-label="'+label+' item time">'+stageKeys.map(([name,key]) => measured(shares[key]) ? '<span class="window-stage-'+key+'" data-window-stage="'+period+'.'+key+'" data-share="'+shares[key]+'" style="flex:'+Math.max(0,shares[key])+'" title="'+name+' '+(shares[key]*100).toFixed(1)+'%"></span>' : '').join('')+'</div></div>';
+      let offset = 0;
+      const bars = stageKeys.map(([name,key]) => {
+        if (!measured(shares[key])) return '';
+        const x = offset; offset += Math.max(0,shares[key]);
+        return '<rect class="window-stage-'+key+'" data-window-stage="'+period+'.'+key+'" data-share="'+shares[key]+'" x="'+x*1000+'" y="0" height="1" width="'+Math.max(0,shares[key])*1000+'"><title>'+name+' '+(shares[key]*100).toFixed(1)+'%</title></rect>';
+      }).join('');
+      return '<div class="window-stage-row"><span>'+label+'</span><svg class="window-stack" viewBox="0 0 1000 1" preserveAspectRatio="none" role="img" aria-label="'+label+' item time">'+bars+'</svg></div>';
     };
     const legend = '<div class="window-keys">'+stageKeys.map(([label,key]) => '<span><i class="window-stage-'+key+'"></i>'+label+' '+esc(compact(current.stageShares[key],true,key))+'</span>').join('')+'</div>';
     return '<section class="dash-card window-comparison" aria-label="Window comparison"><div class="window-head"><h2>The last two hours</h2>'+caption+'</div><p class="window-sentence">'+esc(sentence)+'</p><div class="window-tiles">'+tiles+'</div><h3 class="window-time-heading">Where item time went</h3>'+stack('current','now')+stack('previous','before')+legend

@@ -1448,17 +1448,17 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .window-change.good { color: var(--accent-strong); background: var(--accent-soft); }
 .window-change.bad { color: var(--reject); background: var(--reject-soft); }
 .window-tile small { font-size: var(--text-2xs); color: var(--ink-faint); }
-.window-bar { position: relative; height: var(--space-2); margin: var(--space-2) 0; background: var(--line); border-radius: var(--radius-sm); overflow: hidden; }
-.window-bar i, .window-bar u { position: absolute; inset: 0 auto 0 0; background: var(--ink-faint); opacity: .35; }
-.window-bar u { opacity: 1; background: var(--ink-muted); }
-.window-tile.good .window-bar u { background: var(--accent); }
-.window-tile.bad .window-bar u { background: var(--reject); }
+.window-bar { display: block; width: 100%; height: var(--space-2); margin: var(--space-2) 0; background: var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+.window-bar .window-before { fill: var(--ink-faint); opacity: .35; }
+.window-bar .window-after { fill: var(--ink-muted); }
+.window-tile.good .window-bar .window-after { fill: var(--accent); }
+.window-tile.bad .window-bar .window-after { fill: var(--reject); }
 .window-time-heading { margin: var(--space-5) 0 var(--space-2); }
 .window-stage-row { display: grid; grid-template-columns: var(--space-9) minmax(0,1fr); gap: var(--space-3); align-items: center; font-size: var(--text-xs); color: var(--ink-faint); margin-bottom: var(--space-1); }
-.window-stack { display: flex; height: var(--space-4); gap: var(--space-0); overflow: hidden; border-radius: var(--radius-sm); }
+.window-stack { display: block; width: 100%; height: var(--space-4); gap: var(--space-0); overflow: hidden; border-radius: var(--radius-sm); }
 .window-keys { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); color: var(--ink-muted); font-size: var(--text-xs); }
 .window-keys i { display: inline-block; width: var(--space-3); height: var(--space-3); margin-right: var(--space-1); border-radius: var(--radius-xs); }
-.window-stage-build { background: var(--accent); } .window-stage-rework { background: var(--reject); } .window-stage-reviewWait { background: var(--ink-faint); } .window-stage-review { background: var(--blue); } .window-stage-land { background: var(--accent-strong); }
+.window-stage-build { background: var(--accent); fill: var(--accent); } .window-stage-rework { background: var(--reject); fill: var(--reject); } .window-stage-reviewWait { background: var(--ink-faint); fill: var(--ink-faint); } .window-stage-review { background: var(--blue); fill: var(--blue); } .window-stage-land { background: var(--accent-strong); fill: var(--accent-strong); }
 .window-comparison .dash-comparison { margin-top: var(--space-4); }
 @media (max-width: 760px) { .window-tiles { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 /* Spec keeps the shared row frame, with its tier and citation count in one right column. */
