@@ -2,7 +2,7 @@
 import { runnerPolicyRecord } from './runner-policy.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import { recoveryIdentity } from './runner-transport.js';
-import { runnerLaunchAllowed } from './runner-transport.js';
+import { claimRunnerWorker } from './runner-transport.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { userInfo } from 'node:os';
@@ -133,7 +133,7 @@ export async function readSpec(S) {
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
   if (value.recovery?.launchFence === 1) {
     const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
-    if (!runnerLaunchAllowed(root, value.recovery)) throw new Error('runner launch was fenced or unclaimed');
+    if (!claimRunnerWorker(root, value.recovery)) throw new Error('runner launch was fenced or unclaimed');
   }
   return value;
 }
