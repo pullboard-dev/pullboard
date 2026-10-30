@@ -50,7 +50,7 @@ import {
   GATE_SLOT_POOL_ENV,
   GATE_SLOT_TOKEN_ENV,
   gateSlotEnvironment,
-} from './resources.js';
+} from '../packages/resources/index.js';
 
 /** Exact opt-in for retaining every test failure while preserving safety cancellation. */
 export const LANDING_COLLECT_ALL_ENV = 'PULLBOARD_LANDING_COLLECT_ALL';

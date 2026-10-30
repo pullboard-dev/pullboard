@@ -93,7 +93,7 @@ console.log(JSON.stringify({wrong,actual:actual.isGreen,first,beforeBackoff,firs
   test('a free alternate runner admits while another host health probe is pending [C7]', t => {
     const e2e = createE2eHelpers(); t.after(e2e.cleanup);
     const box = e2e.project('true');
-    const resources = pathToFileURL(join(import.meta.dirname, '../src/resources.js')).href;
+    const resources = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
     const recovery = pathToFileURL(join(import.meta.dirname, '../src/runner-recovery.js')).href;
     const source = `import {listResources,takeResource,runnerResourceStatus} from ${JSON.stringify(resources)};
 import {recordRunnerFailure} from ${JSON.stringify(recovery)};import {DatabaseSync} from 'node:sqlite';

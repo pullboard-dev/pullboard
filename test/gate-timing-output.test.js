@@ -156,7 +156,7 @@ test('a gate receipt splits waiting from running [C7,V10]', async t => {
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   // A stand-in holds the only slot for HOLD_MS, then lets the check in.
   const HOLD_MS = 3000; // budget: long enough that the wait cannot be confused with the 200 ms test.
-  const holder = spawn(process.execPath, ['--input-type=module', '-e', `import { takeResource } from ${JSON.stringify(resolve(import.meta.dirname, '../src/resources.js'))};
+  const holder = spawn(process.execPath, ['--input-type=module', '-e', `import { takeResource } from ${JSON.stringify(resolve(import.meta.dirname, '../packages/resources/index.js'))};
 const lease = await takeResource({ name: 'gate', capacity: 1, scope: 'machine', root: ${JSON.stringify(box.repo)}, agent: 'receipt-stand-in' });
 console.log('ready'); setTimeout(() => { lease.release(); process.exit(0); }, ${HOLD_MS});`], { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'inherit'] });
   t.after(() => holder.kill());

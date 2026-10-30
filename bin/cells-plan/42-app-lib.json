@@ -23,6 +23,7 @@
  "cuts": [
   {"cell":"store","imports":1,"edges":["src/board.js->src/native-board.js"]},
   {"cell":"link","imports":1,"edges":["src/relay.js->src/native-board.js"]},
+  {"cell":"app:view","imports":1,"edges":["src/serve.js->src/native-board.js"]},
   {"cell":"app:cli","imports":1,"edges":["src/cli-context.js->src/native-board.js"]}
  ],
  "ratchets": {
