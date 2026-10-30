@@ -60,7 +60,14 @@ export async function quitOwnedChrome(child, profile, stopped, timeoutMs = 3000)
           && (!child.guardianIdentity || chromeLeaderIdentity(child.pid) === child.guardianIdentity)) socket.send(JSON.stringify({ id: 1, method: 'Browser.close' }));
       }, { once: true });
       socket.addEventListener('error', () => {}, { once: true });
-      stopped.then(() => resolve(child.exitCode === 0 && child.signalCode === null));
+      stopped.then(async () => {
+        // Native clone-cleanup helpers may outlive the browser leader; give the same quit deadline to the whole group.
+        while (active) {
+          try { process.kill(-child.pid, 0); }
+          catch (error) { if (error.code === 'ESRCH') { resolve(child.exitCode === 0 && child.signalCode === null); return; } }
+          await new Promise(done => setTimeout(done, 25));
+        }
+      });
     });
     return await finished;
   } catch { return false; }

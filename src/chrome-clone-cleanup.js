@@ -5,7 +5,7 @@ import { lstatSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { rmdirSync } from 'node:fs';
-import { rmSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { statfsSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromeCloneDirectories } from './chrome-clone-check.js';
@@ -59,7 +59,7 @@ function available(path) {
 }
 
 /** Remove only old unheld native clones; injected private roots and census ports exist solely for isolated fixtures. */
-export function sweepChromeClones({ directories = chromeCloneDirectories(), custody = chromeCloneCustody,
+export async function sweepChromeClones({ directories = chromeCloneDirectories(), custody = chromeCloneCustody,
   now = Date.now(), deadline = Infinity, log = line => process.stderr.write(`${line}\n`) } = {}) {
   const summary = { removed: 0, kept: 0, unknown: false, observedFreeBytesDelta: 0 };
   for (const directory of directories) {
@@ -84,7 +84,7 @@ export function sweepChromeClones({ directories = chromeCloneDirectories(), cust
       if (!sameDirectory(path, stat) || now - Math.max(stat.birthtimeMs, stat.mtimeMs) < HOUR) { summary.kept++; continue; }
       if (observed.paths.some(open => open === path || open.startsWith(`${path}/`))) { summary.kept++; continue; }
       if (!sameDirectory(path, stat)) { summary.kept++; continue; }
-      try { rmSync(path, { recursive: true }); summary.removed++; }
+      try { await rm(path, { recursive: true }); summary.removed++; }
       catch { summary.unknown = true; summary.kept++; }
     }
     const after = available(canonical);
@@ -96,7 +96,7 @@ export function sweepChromeClones({ directories = chromeCloneDirectories(), cust
 }
 
 /** Claim one hourly current-runner sweep without waiting or touching another worker's marker. */
-export function scheduledChromeCloneSweep(runnerRoot, { now = Date.now(), deadline = Infinity } = {}) {
+export async function scheduledChromeCloneSweep(runnerRoot, { now = Date.now(), deadline = Infinity } = {}) {
   if (process.platform !== 'darwin') return null;
   const state = join(runnerRoot, 'chrome-clone-sweeps');
   mkdirSync(state, { recursive: true, mode: 0o700 });

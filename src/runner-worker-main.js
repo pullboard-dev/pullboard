@@ -170,7 +170,7 @@ export async function main(S) {
     }
     if (recoveryRoot && !S.transportLost && !S.cleanupTimedOut && Date.now() < S.cleanupDeadline) {
       S.cleanupStage = 'Chrome clone sweep';
-      try { scheduledChromeCloneSweep(recoveryRoot, { deadline: S.cleanupDeadline }); }
+      try { await scheduledChromeCloneSweep(recoveryRoot, { deadline: S.cleanupDeadline }); }
       catch { process.stderr.write('PULLBOARD_CHROME_CLONE_SWEEP unavailable\n'); }
     }
     if (lease) {

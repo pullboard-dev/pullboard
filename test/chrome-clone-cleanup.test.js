@@ -55,22 +55,22 @@ test('killed private browser fixture leaves an old clone removed after its real 
   const held = custody();
   assert.ok(held?.paths.includes(join(clone, 'held')), 'native lsof must identify the actual private open FD');
   const options = { directories: [namespace], custody, now: Date.now() + 3600001, log() {} };
-  assert.equal(sweepChromeClones(options).removed, 0);
+  assert.equal((await sweepChromeClones(options)).removed, 0);
   assert.ok(existsSync(clone), 'live process clone stays intact');
   child.kill('SIGKILL');
   await closed;
-  assert.equal(sweepChromeClones(options).removed, 1);
+  assert.equal((await sweepChromeClones(options)).removed, 1);
   assert.equal(existsSync(clone), false);
 });
 
-test('young clones, symlinks, live Chrome and unknown census never authorize removal [C7]', t => {
+test('young clones, symlinks, live Chrome and unknown census never authorize removal [C7]', async t => {
   const { root, namespace, clone } = fixture(t);
   const link = join(namespace, 'code_sign_clone.Def456');
   symlinkSync(root, link);
   const options = { directories: [namespace], custody: () => ({ browserLive: false, paths: [] }), log() {} };
-  assert.equal(sweepChromeClones(options).removed, 0, 'young directory is protected');
+  assert.equal((await sweepChromeClones(options)).removed, 0, 'young directory is protected');
   for (const custody of [() => null, () => ({ browserLive: true, paths: [] })]) {
-    assert.equal(sweepChromeClones({ ...options, custody, now: Date.now() + 3600001 }).removed, 0);
+    assert.equal((await sweepChromeClones({ ...options, custody, now: Date.now() + 3600001 })).removed, 0);
     assert.ok(existsSync(clone));
   }
   assert.ok(existsSync(link), 'symlink target is never traversed or deleted');
