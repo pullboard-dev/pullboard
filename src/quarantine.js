@@ -61,7 +61,7 @@ export function flakeQuarantines(board) {
     const detail = JSON.parse(row.event_detail);
     latest.set(testKey(detail.file, detail.name), { file: detail.file, name: detail.name, item: row.item_id, tree: detail.tree, runs: detail.runs, eventId: row.event_id,
       ...(detail.engine >= QUARANTINE_CORE_ENGINE ? { nativeCore: true } : {}),
-      ...(detail.autoSubmit === true ? { autoSubmit: true } : {}) });
+      ...(detail.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && detail.autoSubmit === true ? { autoSubmit: true } : {}) });
   }
   const nativeRuns = [...latest.values()].some(entry => entry.nativeCore) ? gateRuns(board) : [];
   return [...latest.values()].map(entry => {
@@ -359,7 +359,7 @@ function recordStructuredQuarantines(board, agentId, value, lane, owners) {
 /** File one core repair only after two separately admitted native Submit contradictions within the rolling day. */
 function recordSubmitQuarantines(board, agentId, value) {
   const marked = new Set(board.db.prepare("SELECT event_detail FROM event WHERE event_kind='gate-run'").all()
-    .map(row => JSON.parse(row.event_detail)).filter(row => row.autoSubmit === true).map(row => row.run.id));
+    .map(row => JSON.parse(row.event_detail)).filter(row => row.engine >= AUTO_SUBMIT_QUARANTINE_ENGINE && row.autoSubmit === true).map(row => row.run.id));
   const runs = gateRuns(board).filter(run => marked.has(run.id));
   const known = new Map(flakeQuarantines(board).map(row => [testKey(row.file, row.name), row]));
   const filed = [];

@@ -20,7 +20,7 @@ export function receiptRecorder(ctx, { agentId, acceptedConfig, board, ordered, 
     /** Report matching active identities after recording, retaining the actual failed count and exit. */
     const write = async target => {
       await ordered(ctx, target, 'recordGateRun', [{ agentId, receipt, lane, ...(receipt.testOutcomes ? { owners } : {}),
-        ...(receipt.kind === 'submit' || receipt.kind === 'check' && receipt.proof?.diagnosticAdmission && receipt.proof.submitPhase === 'diagnostic' ? { autoSubmit: true } : {}) }]);
+        ...(receipt.version === 2 && (receipt.kind === 'submit' || receipt.kind === 'check' && receipt.proof?.diagnosticAdmission && receipt.proof.submitPhase === 'diagnostic') ? { autoSubmit: true } : {}) }]);
       if (!quarantineOn(target) || !receipt.testOutcomes) return;
       const active = flakeQuarantines(target).filter(row => row.nativeCore && row.status === 'quarantined');
       for (const row of receipt.testOutcomes) {
