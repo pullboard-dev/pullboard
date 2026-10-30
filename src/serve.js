@@ -16,6 +16,7 @@ import { landingPace } from '../packages/roadmap/index.js';
  */
 import { spawnSync } from 'node:child_process';
 import {
+  createHash,
   randomBytes,
   timingSafeEqual,
 } from 'node:crypto';
@@ -527,7 +528,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     return body;
   }
 
-  /** Read the single explicit confirmation for the machine-local unreadable-project action. */
+  /** Read explicit confirmation and an optional opaque selector; never accept filesystem paths. */
   async function forgetUnreadableBody(req) {
     if (!/^application\/json(?:\s*;\s*charset=utf-8)?$/iu.test(String(req.headers['content-type'] ?? ''))) {
       throw new Refused('BAD_REQUEST', 'send the confirmation as a JSON object');
@@ -542,7 +543,8 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     let body;
     try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* Refuse below. */ }
     if (!body || typeof body !== 'object' || Array.isArray(body)
-      || body.confirm !== true || Object.keys(body).length !== 1) {
+      || body.confirm !== true || Object.keys(body).length !== (body.board === undefined ? 1 : 2)
+      || (body.board !== undefined && (typeof body.board !== 'string' || !/^[a-f0-9]{64}$/u.test(body.board)))) {
       throw new Refused('BAD_REQUEST', 'confirm forgetting the boards that are unreadable now');
     }
     return body;
@@ -556,11 +558,13 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
     }
     if (req.method !== 'POST') return json(res, 405, refusalDocument(new Refused('BAD_REQUEST', 'use a confirmed JSON POST to forget unreadable boards')));
     try {
-      await forgetUnreadableBody(req);
+      const body = await forgetUnreadableBody(req);
       const registered = listApiProjects();
+      const selected = body.board === undefined ? null : registered.find(project => createHash('sha256').update(project.root).digest('hex') === body.board);
+      if (body.board !== undefined && !selected) throw new Refused('BAD_REQUEST', 'choose a board from this view and refresh before trying again');
       const listing = apiBoardListing(() => registered, undefined, refusalDocument);
       const unreadable = listing.warnings
-        .filter((warning) => warning.error?.error?.code === 'BOARD_UNAVAILABLE');
+        .filter((warning) => warning.error?.error?.code === 'BOARD_UNAVAILABLE' && (!selected || warning.root === selected.root));
       const forgotten = unreadable.filter((project) => forgetProject(project.root)).length;
       return json(res, 200, { version: 1, forgotten });
     } catch (error) {

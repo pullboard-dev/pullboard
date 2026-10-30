@@ -13,6 +13,102 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { tapTarget, SPEC, machine, project, build, sendBack, fetchLive, startView, styleOf, element, openPage, projectRows, productEntries, accept, boardId, boardOf, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
+test('missing-board rows stay on one line and Forget targets only the still-missing board [N26,N33,N36]', { timeout: 180_000 }, async () => {
+  // budget: real Git/registry setup and a live Chrome journey, not a throughput claim.
+  const executable = chromeExecutable();
+  assert.ok(executable, 'the compact missing-board journey requires real Chrome');
+  const box = machine();
+  const healthy = project(box, 'healthy-project', SPEC, { name: 'Healthy project' });
+  const missing = ['Alpha', 'Beta', 'Gamma', 'Delta'].map(name => project(box,
+    'temporary-checkout-with-a-very-long-middle-component-and-a-meaningful-project-' + name,
+    SPEC, { name: 'Missing ' + name }));
+  const recoveredConfig = readFileSync(join(missing[1].repo, 'pullboard.json'));
+  const view = await startView(box);
+  let chrome;
+  const headers = { 'x-pullboard-key': view.key, 'content-type': 'application/json' };
+  /** Read the current native registry, never the page's cached warning list. */
+  const listing = async () => (await fetchLive(view.base + '/api/v1/boards', { headers })).json();
+  /** Exercise the authenticated native action without supplying any filesystem path. */
+  const forget = body => fetchLive(view.base + '/api/v1/projects/forget-unreadable', {
+    method: 'POST', headers, body: JSON.stringify(body),
+  });
+  /** Select exactly one rendered native row by its root, without choosing the bulk control. */
+  const rowButton = root => 'document.querySelector(' + JSON.stringify('[data-forget-unreadable=' + JSON.stringify(root) + ']') + ')';
+  try {
+    for (const project of missing) writeFileSync(join(project.repo, 'pullboard.json'), '{invalid json');
+    chrome = await openSnapshotChrome(executable, view.link.href, join(box.dir, 'missing-projects-chrome'));
+    await chrome.waitFor('data?.projects?.filter(project => project.warningCode === "BOARD_UNAVAILABLE").length === 4');
+    assert.equal(await chrome.stable('compactProjectPath("/Users/alex/Code/project")'), '~/Code/project');
+    assert.equal(await chrome.stable('compactProjectPath("/home/alex/Code/project")'), '~/Code/project');
+    for (const width of [1280, 375]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      await chrome.waitFor('innerWidth === ' + width);
+      if (await chrome.stable('getComputedStyle(document.querySelector("#side .side-body")).display === "none"')) await chrome.click('document.querySelector("#proj-switch")');
+      if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.click('document.querySelector(".unreadable-projects summary")');
+      const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+        const section = document.querySelector('.unreadable-projects');
+        return { pageFits: document.documentElement.scrollWidth <= innerWidth,
+          rows: [...section.querySelectorAll('li')].map(row => {
+            const copy = row.querySelector('.unreadable-copy'), name = copy.querySelector('b'), path = copy.querySelector('code');
+            /** Ellipsis may add a second rectangle on the same line; count distinct actual line bands. */
+            const lineCount = node => {
+              const range = document.createRange();
+              range.selectNodeContents(node);
+              return new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top * 2))).size;
+            };
+            const textLines = [...copy.children].map(lineCount);
+            return { name: name.textContent, path: path.textContent, full: copy.title, textLines, nowrap: getComputedStyle(copy).whiteSpace,
+              weight: Number(getComputedStyle(name).fontWeight), width: copy.getBoundingClientRect().width, pathWidth: path.getBoundingClientRect().width,
+              fits: row.scrollWidth <= row.clientWidth, forget: row.querySelector('button')?.textContent };
+          }), buttons: [...section.querySelectorAll('button')].map(button => ({ text: button.textContent, styled: button.classList.contains('ghost'), radius: parseFloat(getComputedStyle(button).borderRadius) })) };
+      })())`));
+      assert.equal(seen.pageFits, true, width + ': no sideways page scroll');
+      assert.equal(seen.rows.length, missing.length);
+      assert.deepEqual(seen.rows.map(row => row.full).sort(), missing.map(project => project.repo).sort(), 'every native missing root retains its exact tooltip');
+      for (const row of seen.rows) {
+        const index = missing.findIndex(project => project.repo === row.full);
+        assert.equal(row.name, 'Missing ' + ['Alpha', 'Beta', 'Gamma', 'Delta'][index]);
+        assert.ok(row.path.length < row.full.length && row.path.includes('…'), 'long middles are elided');
+        assert.deepEqual(row.textLines, [1, 1], width + ': name and path each occupy one line');
+        assert.equal(row.nowrap, 'nowrap');
+        assert.ok(row.fits && row.width > 0 && row.pathWidth > 0 && row.weight <= 400, width + ': compact muted names and paths fit their row');
+        assert.equal(row.forget, 'Forget');
+      }
+      assert.deepEqual(seen.buttons.map(button => button.text), ['Forget all', 'Forget', 'Forget', 'Forget', 'Forget']);
+      assert.ok(seen.buttons.every(button => button.styled && button.radius > 0), 'all forget controls use the existing styled buttons');
+    }
+    const unknown = createHash('sha256').update('not a registered board').digest('hex');
+    assert.equal((await forget({ confirm: true, board: unknown })).status, 400);
+    assert.equal((await forget({ confirm: true, roots: [missing[0].repo] })).status, 400, 'arbitrary project paths remain refused');
+    const healthyKey = createHash('sha256').update(healthy.repo).digest('hex');
+    assert.equal((await (await forget({ confirm: true, board: healthyKey })).json()).forgotten, 0, 'a readable board cannot be forgotten by this action');
+    await chrome.stable('window.confirm = () => false; true');
+    await chrome.click(rowButton(missing[0].repo));
+    assert.equal((await listing()).warnings.length, 4, 'cancelling one row preserves the registry');
+    await chrome.stable('window.confirm = () => true; true');
+    await chrome.click(rowButton(missing[0].repo));
+    await chrome.waitFor('data.projects.filter(project => project.warningCode === "BOARD_UNAVAILABLE").length === 3');
+    assert.deepEqual((await listing()).warnings.map(project => project.root).sort(), missing.slice(1).map(project => project.repo).sort(), 'one click forgets exactly its missing board');
+    writeFileSync(join(missing[1].repo, 'pullboard.json'), recoveredConfig);
+    const recoveredKey = createHash('sha256').update(missing[1].repo).digest('hex');
+    assert.equal((await (await forget({ confirm: true, board: recoveredKey })).json()).forgotten, 0, 'a per-row selector rechecks readability at action time');
+    await chrome.stable('refresh()');
+    await chrome.waitFor('data.projects.some(project => project.name === "Missing Beta" && project.ok)');
+    assert.ok((await listing()).boards.some(project => project.root === missing[1].repo), 'a stale row cannot forget a recovered board');
+    if (await chrome.stable('!document.querySelector(".unreadable-projects").open')) await chrome.click('document.querySelector(".unreadable-projects summary")');
+    await chrome.click('document.querySelector("[data-forget-unreadable=\\"\\"]")');
+    await chrome.waitFor('!document.querySelector(".unreadable-projects")');
+    const final = await listing();
+    assert.equal(final.warnings.length, 0);
+    assert.ok(final.boards.some(project => project.root === healthy.repo));
+    assert.ok(final.boards.some(project => project.root === missing[1].repo), 'bulk forgetting still preserves recovered boards');
+    assert.deepEqual(chrome.exceptions, []);
+  } finally {
+    if (chrome) await closeSnapshotChrome(chrome);
+    await view.stop();
+  }
+});
+
 
 test('a project switch never shows the old project\'s numbers [N26,A2]', { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
