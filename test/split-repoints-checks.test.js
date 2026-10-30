@@ -16,6 +16,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Open the fixture's own SQLite board; no shared or live board is touched. */
 function onBoard(box, action) {
+  // @pullboard-board-file journey: this fixture inspects its own isolated SQLite lifecycle and never opens a shared board.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
   try { return action(board); } finally { store.closeBoard(board); }
 }
