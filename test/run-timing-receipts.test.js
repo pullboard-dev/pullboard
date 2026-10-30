@@ -167,8 +167,6 @@ test('a selected real landing failure remains accounted under its native private
   const source = `import {readFileSync,existsSync} from 'node:fs';
 import {runGate} from './src/gate.js'; import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {accountedFailures,waivedFailures,liveWaiverProjection} from './src/land.js';
-import {quarantineWaivers} from './src/quarantine.js';
-const landingPorts={quarantineWaivers};
 import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
