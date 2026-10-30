@@ -1,5 +1,10 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  EXIT_BUDGET: 'stop this session; release the item with --note "Done: <work>; Failed: <case or none>; Next: <next step>" so a fresh same-family seat continues',
+  EXIT_REPEAT_FAILURE: 'stop this session after the repeated native failure; release with --note "Done: <work>; Failed: <case>; Next: <next step>"',
+  EXIT_SUMMARY: 'release with --note "Done: <work>; Failed: <case or none>; Next: <next step>" to record the handoff atomically',
+  EXIT_CONTINUATION: 'read the item summary, then continue from a fresh native session of its reserved model family',
+  EXIT_USAGE: 'restore the original private claim anchor; unreadable or reset native counters must remain unknown',
   NO_ELIGIBLE_REVIEWER: 'credit the companion to a custodian of another family, or declare the missing family with pullboard join <lane> --family <vendor> on a seat that can review, then submit again',
   BAD_IDLE_REASON: 'run next again and use its structured idle observation',
   NEXT_TIMEOUT: 'read the named phase and item, inspect your current claim or review with pullboard whoami and pullboard show <id>, then retry next after resolving that blocker',
@@ -434,6 +439,8 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "REVIEW_NOT_READY": "wait for the submit with pullboard watch, or check back: pullboard next --verify",
   "RUNNER_BUSY": "wait for the named runner's active tests to finish, then retry its settings change",
   "RUNNER_CAPACITY_MISMATCH": "wait for active runner leases to fit the configured capacity, then retry the run",
+  "RUNNER_UNAVAILABLE": "inspect the unavailable runner and its exact cleanup generation; restore it before another attempt",
+  "RUNNER_JOB_LOST": "inspect the exact runner and job named in the diagnostic; cleanup remains unknown until the pinned worker proves it, then retry",
   "RUNNER_CLEANUP_TIMEOUT": "inspect the named job under that runner's namespace and confirm its cleanup before starting another run",
   "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
   "RUNNER_NOT_MEASURED": "restore SSH access and run pullboard runner refresh <ssh-host> to measure cores and memory, or register the host with explicit --slots <n> --browser <n>",
