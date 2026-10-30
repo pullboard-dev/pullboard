@@ -1,6 +1,6 @@
 /** Committed criterion inputs are shared; person decisions and checkout edits are never cached. */
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from './refused.js';
 import { CONFIG_FILE } from './config.js';
@@ -30,7 +30,7 @@ function validFacts(value) {
 
 /** Read exact immutable Git bytes, preserving missing-file semantics. */
 function sourceAt(root, commit, name) {
-  const result = spawnSync('git', ['--no-replace-objects', 'show', `${commit}:${name}`],
+  const result = gitSpawnSync(['--no-replace-objects', 'show', `${commit}:${name}`],
     { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   return result.status === 0 ? result.stdout : null;
 }
