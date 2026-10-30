@@ -31,8 +31,10 @@ function declaredPureEntries(files) {
 }
 
 /** Count stable finding identities, so moving an existing debt elsewhere cannot silently pay for a new one. */
-export function cellLintReport(root, parsers) {
-  const { files, edges, unknown } = cellInventory(root, parsers);
+export function cellLintReport(root, parsers, { inventory } = {}) {
+  const source = inventory ?? cellInventory(root, parsers);
+  const { files, edges } = source;
+  const unknown = [...source.unknown];
   const pureEntries = declaredPureEntries(files);
   const metrics = Object.fromEntries(CELL_METRICS.map(name => [name, { count: 0, findings: [] }]));
   /** Add an explicit weighted finding; file-size debt records excess lines, not merely one oversized file. */
