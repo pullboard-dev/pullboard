@@ -230,7 +230,8 @@
   ["src/move-history/179.json","packages/state/src/shell/move-history/179.json","rule"],
   ["src/move-history/180.json","packages/state/src/shell/move-history/180.json","rule"],
   ["src/train-check-repoint-engine.js","packages/state/src/core/train-check-repoint-engine.js","rule"],
-  ["src/move-history/181.json","packages/state/src/shell/move-history/181.json","rule"]
+  ["src/move-history/181.json","packages/state/src/shell/move-history/181.json","rule"],
+  ["src/pipeline-cause-engine.js","packages/state/src/core/pipeline-cause-engine.js","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",

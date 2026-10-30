@@ -271,6 +271,7 @@ export async function submitHere(ctx, id, infra) {
     }
     return item;
   });
+  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   const barWarning = await withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
@@ -357,7 +358,12 @@ export async function submitHere(ctx, id, infra) {
   const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
   const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
-  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, runnerAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+  const submissionWait = queuedItemLease(ctx, held, me.id, 'build', admission);
+  const submissionStarted = async () => {
+    // A queued admission already has its native witness; a free slot records it at the real gate start.
+    if (!admission.id) await submissionWait({ admitted: true });
+  };
+  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, runnerAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   let gate = await runGate(frozenCheck(held));
@@ -578,6 +584,21 @@ export async function run(io, { first, values }) {
   };
   let code;
   try { code = await submitHere(ctx, id, values.infra); }
+  catch (error) {
+    if (error instanceof Refused && ctx.submitAttempt) {
+      try {
+        await withBoard(ctx, async board => {
+          const item = store.getItem(board, id), attempt = ctx.submitAttempt;
+          if (item.item_status !== 'claimed' || item.item_owner !== attempt.agentId || item.item_frozen_digest !== attempt.digest
+            || !(item.item_lease_until > ctx.clock.now().toISOString())) return;
+          await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
+            freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
+            submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+        });
+      } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
+    }
+    throw error;
+  }
   finally { io.onOrderedMove = previous; }
   if (code !== 0 || !values.wait) return code;
   return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead: waitBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });

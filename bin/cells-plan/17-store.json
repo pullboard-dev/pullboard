@@ -144,7 +144,8 @@
   ["src/board-escalate.js","packages/store/src/core/board-escalate.js","rule"],
   ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"],
   ["src/board-line-settings.js","packages/store/src/shell/board-line-settings.js","rule"],
-  ["src/board-coordinator-hold.js","packages/store/src/shell/board-coordinator-hold.js","rule"]
+  ["src/board-coordinator-hold.js","packages/store/src/shell/board-coordinator-hold.js","rule"],
+  ["src/submit-outcome.js","packages/store/src/shell/submit-outcome.js","rule"]
  ],
  "reexports": [
   "src/board-access.js",
