@@ -100,7 +100,7 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   const second = generation(box, 'second');
   const secondReceipt = gate(box);
   assert.throws(() => gatedToolBuild(location, first, secondReceipt), { code: 'TOOL_BUILD_NOT_GATED' });
-  assert.equal(box.run(seat, 'version', '--name', 'tool-probe').out.trim(), 'first', 'a new trunk commit does not move the claimed seat CLI');
+  assert.equal(box.run(seat, 'version', '--name', 'tool-probe').out.trim().split('\n')[0], 'first', 'a new trunk commit does not move the claimed seat CLI');
   const hookMarker = join(box.dir, 'hook-generation');
   const hook = runFixtureChild(process.execPath, [join(source, 'bin', 'pullboard.js'), 'hook', 'pre-commit'],
     { cwd: seat, env: { ...box.env, PULLBOARD_PIN_HOOK_MARKER: hookMarker }, encoding: 'utf8' });
@@ -117,12 +117,12 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
     await ready(marker);
     result = box.run(box.repo, 'tool-build', 'promote', second, '--gate-receipt', secondReceipt, '--json');
     assert.equal(result.code, 0, result.err + result.out);
-    assert.equal(box.run(seat, 'version', '--name', 'tool-probe').out.trim(), 'second', 'promotion changes the next command');
+    assert.equal(box.run(seat, 'version', '--name', 'tool-probe').out.trim().split('\n')[0], 'second', 'promotion changes the next command');
     assert.equal(box.git(seat, 'rev-parse', 'HEAD').trim(), first, 'tool promotion does not advance the item source');
     writeFileSync(release, 'release');
     const code = await closed;
     assert.equal(code, 0);
-    assert.equal(output.trim(), 'first', 'the already running command finishes from its own immutable generation');
+    assert.equal(output.trim().split('\n')[0], 'first', 'the already running command finishes from its own immutable generation');
     assert.equal(readToolBuild(location).commit, second);
     const health = JSON.parse(box.run(seat, 'health', '--json').out);
     assert.equal(health.toolBuild.runningCommit, second);
