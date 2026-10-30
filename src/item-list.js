@@ -17,7 +17,7 @@ export function milestoneNamesByItem(milestones) {
 
 /** What a board-state item summary keeps: what the lists and the roadmap read (A2, N26). */
 const SUMMARY_FIELDS = Object.freeze(['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy',
-  'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'imported', 'verdict', 'verdictState']);
+  'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'imported', 'verdict', 'verdictState', 'withdrawnReason', 'withdrawnFrom']);
 export const SUMMARY_KEYS = new Set(SUMMARY_FIELDS);
 const CLOCK_MOVES = MACHINE.moves.filter((move) => move.by.includes('clock'));
 
@@ -56,6 +56,12 @@ function lifecycleSteps(history, status) {
   const lapse = at === status ? null : CLOCK_MOVES.find((move) => move.from.includes(at) && move.to === status);
   if (lapse) step(lapse, null);
   return steps;
+}
+
+/** Read the last stage from the complete recorded lifecycle, never the withdrawn row's current state. */
+export function withdrawnFrom(history, status) {
+  if (status !== 'withdrawn' || !history.some(event => ['add', 'intake', 'outside-intake'].includes(event.kind))) return null;
+  return lifecycleSteps(history, status).findLast(step => step.move?.verb === 'withdraw')?.from ?? null;
 }
 
 /** When an item arrived in its list stage; edits, review reservations and renewals do not restart it. */

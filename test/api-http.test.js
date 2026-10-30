@@ -13,6 +13,7 @@ import { createLocalApiHandler, serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { serveView } from '../src/commands/view.js';
 import { main } from '../src/cli.js';
+import { projectState } from '../src/serve.js';
 import { applyStateDelta, createApiHandler } from '../src/api-http.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../src/api-delta-fields.js';
 import { registryFile, registerProject, forgetProject } from '../src/projects.js';
@@ -24,6 +25,29 @@ import { apiFixtureEnvironment, bindApiFixtureMachine } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 import { liveFrames } from './http-stream-fixture.js';
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+
+test('withdrawal facts agree in HTTP summary, detail and sealed projection [A2,C15,N26]', async t => {
+  const box = await httpBox(t);
+  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  let withdrawn;
+  let open;
+  try {
+    withdrawn = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'No longer needed' });
+    open = store.addItem(board, { by: 'coordinator', lane: 'app', title: 'Still needed' });
+    store.withdraw(board, withdrawn, { agentId: 'coordinator', reason: 'Replaced by the revised plan' });
+  } finally { store.closeBoard(board); }
+  const summary = await box.call(box.path + '/state');
+  const sealed = projectState(box.root);
+  for (const [id, reason, from] of [[withdrawn, 'Replaced by the revised plan', 'open'], [open, null, null]]) {
+    const detail = await box.call(box.path + '/items/' + id);
+    assert.equal(detail.status, 200);
+    for (const item of [summary.document.state.items.find(item => item.id === id), detail.document.item, sealed.items.find(item => item.id === id)]) {
+      assert.equal(item.withdrawnReason, reason);
+      assert.equal(item.withdrawnFrom, from);
+      assert.deepEqual(Object.keys(item).filter(key => key.startsWith('withdrawn')).sort(), ['withdrawnFrom', 'withdrawnReason']);
+    }
+  }
+});
 
 /** Run a private view in a child process with child-process accounting enabled only for warmed reads. */
 const REPEATED_READ_HARNESS = `
@@ -682,7 +706,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   let leaseUntil;
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }
 
-  const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'verdict'];
+  const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'verdict', 'withdrawnReason', 'withdrawnFrom'];
   const summaryState = await box.call(box.path + '/state');
   assert.equal(summaryState.status, 200);
   const fullState = await box.call(box.path + '/state?detail=full');
@@ -706,7 +730,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
     id: accepted, title: 'Accepted summary item', lane: 'app', status: 'verified', route: acceptedFull.route, milestone: 'Delivery',
     specs: ['G1'], claim: null, builtBy: builder.agent, blockedBy: [], updatedAt: acceptedFull.updatedAt, stage: 'accepted',
     since: acceptedFull.history.findLast((event) => event.kind === 'accept').at, counts: { verdicts: 1, facts: 1 },
-    verdict: { decision: 'ACCEPT', reason: 'CRITERION_MET' },
+    verdict: { decision: 'ACCEPT', reason: 'CRITERION_MET' }, withdrawnReason: null, withdrawnFrom: null,
   });
   const claimedFull = fulls.get(claimed);
   assert.deepEqual(summaries.get(claimed).claim, { by: builder.agent, until: leaseUntil });
@@ -715,7 +739,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.deepEqual(summaries.get(open), {
     id: open, title: 'Open summary item', lane: 'app', status: 'open', route: fulls.get(open).route, milestone: null,
     specs: ['G1'], claim: null, builtBy: null, blockedBy: [], updatedAt: fulls.get(open).updatedAt, stage: 'open',
-    since: fulls.get(open).history.find((event) => event.kind === 'add').at, counts: { verdicts: 0, facts: 0 }, verdict: null,
+    since: fulls.get(open).history.find((event) => event.kind === 'add').at, counts: { verdicts: 0, facts: 0 }, verdict: null, withdrawnReason: null, withdrawnFrom: null,
   });
   assert.deepEqual(summaryState.document.state.moveCounts, {
     'open>claimed:claim': 2, 'claimed>submitted:submit': 1, 'submitted>submitted:reserve': 1, 'submitted>verified:accept': 1,
@@ -727,7 +751,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
     assert.equal(detail.status, 200);
     assert.deepEqual({ ...summaries.get(id), ...detail.document.item }, full, `#${id}'s summary and detail make its full item`);
     const carried = Object.keys(detail.document.item).filter((field) => summaryFields.includes(field));
-    assert.deepEqual(carried, ['id', 'verdict'], 'the detail repeats only the id and the whole latest verdict');
+    assert.deepEqual(carried, ['id', 'withdrawnReason', 'withdrawnFrom', 'verdict'], 'the detail repeats identity, withdrawal facts and the whole latest verdict');
     for (const field of ['thread', 'verdicts', 'history', 'brief', 'criterion', 'check', 'owner', 'reviewer', 'reviewUntil', 'verifiedBy', 'commit', 'merged']) {
       assert.ok(Object.hasOwn(detail.document.item, field), `#${id}'s detail carries ${field}`);
     }
