@@ -21,7 +21,7 @@ export function costOverviewHtml(data = {}, opened = null, { hasPrices = false }
   const rows = (group, role) => (group?.rows ?? []).map(row => '<tr><th>' + esc(row.label) + ' <small>' + esc(row.vendor) + '</small></th><td>' + esc(role === 'building' ? row.built : row.verdicts) + '</td><td>' + (row.tooFew ? 'too few' : (row.low == null || row.high == null ? '' : '<svg class="cost-range" viewBox="0 0 100 8" aria-label="95 percent interval ' + esc(percent(row.low)) + ' to ' + esc(percent(row.high)) + '"><line x1="' + (100 * row.low) + '" x2="' + (100 * row.high) + '" y1="4" y2="4"></line><circle cx="' + (100 * row.rate) + '" cy="4" r="2"></circle></svg>') + esc(percent(row.rate))) + '</td>' + (role === 'building' ? '<td>' + esc(duration(row.typicalItemMs)) + '</td>' : '') + '</tr>').join('');
   const longestMax = Math.max(1, ...(data.longest ?? []).map(row => row.agentMs ?? 0));
   const items = (data.longest ?? []).map(row => {
-    const sessions = opened === row.id ? '<div class="cost-detail">' + (row.sessions ?? []).map(s => '<div class="cost-session"><b>' + esc(s.label) + '</b><span>' + esc(s.count) + ' sessions</span><span>' + esc(duration(s.agentMs)) + '</span><span>' + (s.tokensIn == null ? 'No token count' : esc(s.tokensIn) + ' tokens in') + '</span></div>').join('') + (row.sentBack ? '<span>Sent back ' + esc(row.sentBack) + '×</span>' : '') + (row.verifiedBy ? '<span>Verified by ' + esc(row.verifiedBy) + '</span>' : '') + (row.landedAt ? '<time>' + esc(row.landedAt) + '</time>' : '') + '<a data-go="item:' + esc(row.id) + '">Open #' + esc(row.id) + ' →</a></div>' : '';
+    const sessions = opened === row.id ? '<div class="cost-detail">' + (row.sessions ?? []).map(s => '<div class="cost-session"><b>' + esc(s.label) + '</b><span>' + esc(s.count) + ' sessions</span><span>' + esc(duration(s.agentMs)) + '</span><span>' + (s.tokensIn == null ? 'No token count' : esc(s.tokensIn) + ' tokens in') + '</span></div>').join('') + (row.sentBack ? '<span>Sent back ' + esc(row.sentBack) + '×</span>' : '') + (row.verifiedBy ? '<span>Verified by ' + esc(row.verifiedBy) + '</span>' : '') + (row.landedAt ? '<time>' + esc(row.landedAt) + '</time>' : '') + '<a href="/items/' + esc(row.id) + '" data-go="item:' + esc(row.id) + '">Open #' + esc(row.id) + ' →</a></div>' : '';
     return '<button class="cost-row" type="button" data-cost-row="' + esc(row.id) + '" aria-expanded="' + (opened === row.id) + '"><b>#' + esc(row.id) + '</b><span class="cost-title">' + esc(row.title) + '</span><span>' + esc((row.sessions ?? []).map(s => s.label).join(' · ')) + '</span><svg class="cost-time-bar" viewBox="0 0 ' + longestMax + ' 1" preserveAspectRatio="none" aria-hidden="true"><rect class="' + (row.sentBack ? 'back' : 'first') + '" width="' + esc(row.agentMs ?? 0) + '" height="1"></rect></svg><span>' + esc(duration(row.agentMs)) + '</span>' + (row.sentBack ? '<span class="chip no">' + esc(row.sentBack) + '× back</span>' : '') + '</button>' + sessions;
   }).join('');
   return '<section class="cost-page" aria-label="Cost"><header class="cost-heading"><h1>Cost</h1><nav class="cost-periods" aria-label="Time period">' + [['today','Today'],['7d','7 days'],['30d','30 days']].map(([id,label]) => '<button data-cost-window="' + id + '" aria-pressed="' + (data.window === id) + '">' + label + '</button>').join('') + '</nav><span class="cost-private">Only you see this</span></header>' + (hasPrices ? '' : '<p>Showing agent time. <b>Want dollars?</b> Tell your coordinator agent: <code>Add model prices to Pullboard</code> <button data-cost-copy>Copy</button></p>')
@@ -34,10 +34,16 @@ export function bindCostOverview(element, { readWindow, openItem, showAll, copyT
   /** Refresh only the currently selected window, ignoring late responses from earlier selections. */
   async function load(window) {
     selected = window;
-    const result = await readWindow(window);
-    if (selected !== window) return;
-    model = result;
-    element.innerHTML = costOverviewHtml(model, opened, { hasPrices });
+    try {
+      const result = await readWindow(window);
+      if (selected !== window) return;
+      model = result;
+      element.innerHTML = costOverviewHtml(model, opened, { hasPrices });
+      element.querySelector('[data-cost-window="' + window + '"]')?.focus();
+    } catch (error) {
+      if (selected !== window) return;
+      element.textContent = 'Cost history is unavailable. ' + String(error?.message ?? error);
+    }
   }
   element.addEventListener('click', event => {
     const target = event.target.closest('[data-cost-window],[data-cost-row],[data-cost-copy],[data-cost-all],[data-go]');
