@@ -8,6 +8,14 @@ export function activityModel(project, { words } = {}) {
   const agents = new Map((project.agents ?? []).map(agent => [agent.agent_id, agent]));
   const shouts = new Map((project.shouts ?? []).map(shout => [shout.shout_id, shout]));
   const rows = [], consumed = new Set();
+  /** Native item context wins; otherwise use the first mentioned item that actually belongs to this board. */
+  const relatedItem = (event, detail, shout, text) => {
+    const target = /^item:(\d+)$/u.exec(shout?.shout_to ?? detail.to ?? '')?.[1];
+    const explicit = Number(event.item_id ?? detail.item ?? target ?? shout?.shout_evidence_item);
+    if (Number.isSafeInteger(explicit) && explicit > 0) return items.get(explicit) ?? { id: explicit, title: '' };
+    const mentioned = [...text.matchAll(/#(\d+)/gu)].map(match => Number(match[1])).find(id => items.has(id));
+    return mentioned === undefined ? null : items.get(mentioned);
+  };
   const handoffKey = event => JSON.stringify([event.event_by, Math.floor(Date.parse(event.event_at) / 60_000)]);
   const releases = new Map();
   for (const event of events) {
@@ -70,8 +78,11 @@ export function activityModel(project, { words } = {}) {
     if (['activity-delivered', 'flake-observation', 'usage', 'shared-usage'].includes(event.event_kind)) continue;
     const detail = parse(event), shout = shouts.get(detail.shout);
     if (['shout', 'shout_news', 'answer'].includes(event.event_kind)) {
+      const text = shout?.shout_text ?? '';
+      const question = shout?.shout_decision === 1 || shout?.shout_decision === true || detail.decision === true
+        || detail.kind === 'question' || /\?\s*$/u.test(text);
       rows.push({ id: event.event_id, at: event.event_at, category: 'shouts', kind: 'shout', by: event.event_by, to: shout?.shout_to ?? detail.to,
-        words: shout?.shout_text ?? '', verb: 'told', agent: agents.get(event.event_by) });
+        words: text, verb: question ? 'asked' : 'told', item: relatedItem(event, detail, shout, text), agent: agents.get(event.event_by) });
       continue;
     }
     if (!event.item_id || !verbs[event.event_kind] || consumed.has(event.event_id)) continue;
