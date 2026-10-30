@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { checkNeedsGui } from '../src/gui-admission.js';
-import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../src/resources.js';
+import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
 
 /** Require successful native setup rather than interpreting a setup refusal as admission evidence. */
 function document(result) {

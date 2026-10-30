@@ -5,7 +5,7 @@ import { localRunnerDescriptor } from './runner-load.js';
 import {
   listResources,
   runnerResourceStatus,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import { loadMachineSettings } from './settings.js';
 import { runnerStage } from './runner-stage.js';
 

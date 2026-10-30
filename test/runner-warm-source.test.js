@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { after, test } from 'node:test';
 import { checkSourceTagNames } from '../src/runner-source-cache.js';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { cleanupFixtureChildren, runFixtureChild } from './fixture-child.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';
 import { cleanupToolingSnapshots, cli, fixtureResultContext, gateResult, git, runThroughGate } from './runner-tooling-fixture.js';

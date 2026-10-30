@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
-import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../src/resources.js';
+import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 
 /** A real board and Git checkout with a private two-slot machine and no inherited outer lease. */
 function fixture(t) {
@@ -22,7 +22,7 @@ function fixture(t) {
 /** Run the public admission APIs in the private machine and preserve all failed output. */
 async function runFixture(box, body) {
   const source = `import assert from 'node:assert/strict';
-import { takeResource, listResources, gateSlotEnvironment } from ${JSON.stringify(new URL('../src/resources.js', import.meta.url).href)};
+import { takeResource, listResources, gateSlotEnvironment } from ${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)};
 import { withGateSlot } from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
 ${executionServicesSource(new URL('../src/gate.js', import.meta.url).href)}
 const root = process.cwd();

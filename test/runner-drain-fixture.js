@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { takeResource } from '../src/resources.js';
+import { takeResource } from '../packages/resources/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import {
   HOST,
