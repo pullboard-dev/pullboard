@@ -25,6 +25,7 @@ import { press } from './fixture.js';
 
 /** Add two private items with recorded, distinct check commands and native baseline observations. */
 function seedPanelItems(box, demo) {
+  // @pullboard-board-file journey: native item and baseline records feed the persisted board served to Chrome over HTTP.
   const board = openBoard(join(demo.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const main = box.git(demo.repo, 'rev-parse', 'HEAD');
