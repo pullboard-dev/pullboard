@@ -1,3 +1,4 @@
+import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Native cached HTTP state keeps the same explicit clock as a fresh relay reader [H5,H16,A2]. */
 import assert from 'node:assert/strict';
@@ -33,7 +34,7 @@ async function clockFixture(t) {
   const id = store.boardId(board);
   let builds = 0;
   const secret = randomBytes(24).toString('base64url');
-  const api = await serveApi({ refusalDocument, secret, runCommand: main, projects: () => [{ root: box.root, name: 'clock-parity' }],
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects: () => [{ root: box.root, name: 'clock-parity' }],
     scope: { projectRoot: box.root }, isMain: true, stateDetail: 'full', now: () => clock.value, onStateBuild: () => { builds++; } });
   t.after(api.close);
   /** Compare the complete authenticated native response with the uncached production reader at exactly its clock.

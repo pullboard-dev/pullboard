@@ -23,7 +23,8 @@ async function serve(root, file, io) {
   try {
     const { executePersonRequests } = await import('./relay-request-execution.js');
     const { main } = await import('./cli-main.js');
-    await executePersonRequests(root, boardIo, main);
+    const { nativeBoardOpeners } = await import('./cli-context.js');
+    await executePersonRequests(root, boardIo, main, nativeBoardOpeners());
   } catch (error) { io.err(`person requests not run: ${error.message}`); }
   return !outboxWaiting(file);
 }
