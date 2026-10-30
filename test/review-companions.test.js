@@ -7,6 +7,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Require actual successful CLI execution before inspecting its document. */
@@ -31,7 +32,7 @@ test('a reviewer gets the companion-composed tree and a bare tree cannot reject 
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   // @pullboard-board-file journey: reservation and verdict share this durable board
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const id = document(box.run(box.repo, 'add', 'web', 'Work with a companion', '--criterion', 'The companion file exists.', '--specs', 'G1', '--check', `node -e "require('node:assert/strict').equal(require('node:fs').readFileSync('web/source.js','utf8').trim(),'export const source = true;')"`, '--json')).item.item_id;
   const builder = document(asSession(box, 'rc-builder', box.web, 'whoami')).id;

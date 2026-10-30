@@ -11,6 +11,7 @@ import { after, test } from 'node:test';
 import { listResources } from '../packages/resources/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
@@ -286,7 +287,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   const shellCommit = featureCommit(box, box.web);
   assert.equal(box.run(box.web, 'submit', '2').status, 0);
 
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try { item = store.getItem(board, 2); }
   finally { store.closeBoard(board); }

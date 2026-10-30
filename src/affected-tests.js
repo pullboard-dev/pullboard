@@ -61,15 +61,21 @@ function globPattern(glob) {
  *
  * @returns {string[] | null}
  */
-function declaredLoads(source, modulePaths, declaration = LOADS, strict = false) {
+function declaredPaths(source, declaration, strict) {
   const header = headerLines(source);
   if (strict && header.some(line => line.includes('@pullboard-module-loads') && !declaration.test(line))) return null;
   const declared = header.map(line => declaration.exec(line)).filter(Boolean)
     .flatMap(match => match[1].trim().split(/\s+/u)).map(path => posix.normalize(path));
   if (strict && declared.some(path => path.startsWith('../') || path.startsWith('/'))) return null;
-  const inRepo = declared.filter(path => !path.startsWith('../') && !path.startsWith('/'));
+  return declared.filter(path => !path.startsWith('../') && !path.startsWith('/'));
+}
+
+/** Expand the same canonical declaration paths over actual committed module identities. */
+function declaredLoads(source, modulePaths, declaration = LOADS, strict = false) {
+  const paths = declaredPaths(source, declaration, strict);
+  if (paths === null) return null;
   const loads = [];
-  for (const path of inRepo) {
+  for (const path of paths) {
     if (!/[*?[\]{}]/u.test(path)) {
       if (strict && (!MODULE.test(path) || !modulePaths.includes(path))) return null;
       if (MODULE.test(path)) loads.push(path);
@@ -87,6 +93,11 @@ function declaredLoads(source, modulePaths, declaration = LOADS, strict = false)
 /** Resolve strict source loader declarations; malformed or unmatched declarations remain unknown. */
 export function declaredSourceLoads(source, modulePaths) {
   return declaredLoads(source, modulePaths, SOURCE_LOADS, true);
+}
+
+/** Return canonical source patterns only after the complete declaration resolves against its actual snapshot. */
+export function declaredSourcePatterns(source, modulePaths) {
+  return declaredSourceLoads(source, modulePaths) === null ? null : declaredPaths(source, SOURCE_LOADS, true);
 }
 
 /** Resolve tag-led committed inputs; prose quotations stay inert and malformed annotations stay unknown. */
@@ -462,10 +473,21 @@ function closuresInGraph(graph) {
     }
     closures.set(test, reason ? { files: null, reason } : { files: [...reached].sort(), helpers: [...helpers].sort(), reason: '' });
   }
-  /** Every file reachable from these entries. Unresolved loaders are skipped: a harness's are caller-supplied reporters and guards. */
-  const reach = entries => {
+  /** Reach conservative edges, except the runner's caller-selected universe when the caller separately keys selected files and refuses custom reporters. */
+  const reach = (entries, { withoutSelectedRunnerModules = false } = {}) => {
     const reached = new Set(entries.filter(path => graph.blobs.has(path)));
-    for (const path of reached) for (const dependency of forward.get(path) ?? []) reached.add(dependency);
+    for (const path of reached) {
+      let dependencies = forward.get(path) ?? [];
+      if (withoutSelectedRunnerModules && ['bin/run-tests.js', 'src/test-file-dispatch.js'].includes(path)) {
+        // These two ** declarations admit caller-selected reporters and test files. The caller
+        // refuses custom reporters and keys each selected test's own complete closure. Keep every literal import and URL guard, and all other modules'
+        // conservative discovery edges; ordinary affected-test selection still follows **.
+        const targets = (graph.imports.get(path) ?? []).filter(target => target.startsWith('.') || target.startsWith('#'));
+        for (const match of (graph.modules.get(path) ?? '').matchAll(/new\s+URL\(\s*(['"`])([^'"`\\$\r\n]+)\1\s*,\s*import\.meta\.url\s*\)/gu)) targets.push(match[2]);
+        dependencies = targets.map(target => repositoryImport(path, target, graph.importMap)).filter(target => graph.blobs.has(target));
+      }
+      for (const dependency of dependencies) reached.add(dependency);
+    }
     return [...reached].sort();
   };
   return { closures, modules: graph.modules, blobs: graph.blobs, reach };

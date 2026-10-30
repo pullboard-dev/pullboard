@@ -29,6 +29,7 @@ import {
   submissionPaths,
 } from '../src/trusted-policy.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 import { createE2eHelpers } from './e2e-helpers.js';
 const e2e = createE2eHelpers();
@@ -58,7 +59,7 @@ test('the blind gate-bypass repro refuses submit and accept, and doctor audits p
   assert.equal(box.run(box.web, 'check', '1').code, 1, 'the original item check stays red');
 
   // Model a historical unchecked receipt using the low-level engine in this private fixture.
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { submitFixture(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), policyCommit: original.item_claim_head }); }
   finally { store.closeBoard(board); }
   box.git(box.repo, 'update-ref', 'refs/pullboard/items/1/' + commit.slice(0, 12), commit);
@@ -70,7 +71,7 @@ test('the blind gate-bypass repro refuses submit and accept, and doctor audits p
   assert.equal(JSON.parse(accepted.out).error.code, 'CHECK_RED');
   assert.equal(JSON.parse(box.run(review, 'show', '1', '--json').out).item_status, 'submitted');
 
-  const history = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const history = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { store.verify(history, 1, { agentId: 'api-1', decision: 'ACCEPT', note: 'synthetic historical unchecked verdict', head: commit, digest: original.item_frozen_digest, policy: 'any' }); }
   finally { store.closeBoard(history); }
   box.git(box.repo, 'merge', '--ff-only', '-q', 'web/one');
@@ -187,7 +188,7 @@ test('accept independently refuses a historically unchecked foreign submission [
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   writeFileSync(join(box.web, 'coordinator.txt'), 'unauthorized');
   const commit = attackCommit(box, box.web);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { submitFixture(board, 1, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') }); }
   finally { store.closeBoard(board); }
   const review = join(box.dir, 'foreign-review');
@@ -211,7 +212,7 @@ test('replacement refs cannot conceal the real submitted foreign paths [L3,V4,M3
   const submitted = box.run(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 1);
   assert.equal(JSON.parse(submitted.out).error.code, 'OUTSIDE_LANE');
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try { submitFixture(board, 1, { agentId: 'web-1', commit, tree: 'synthetic unchecked tree' }); }
   finally { store.closeBoard(board); }
   const review = join(box.dir, 'replacement-review');
@@ -322,7 +323,7 @@ test("a dependency's own verified dependency admits its files [N16,V4]", () => {
   assert.equal(JSON.parse(box.run(box.repo, 'show', String(webItem), '--json').out).item_commit, webCommit);
   assert.equal(JSON.parse(box.run(box.repo, 'show', String(apiItem), '--json').out).item_commit, apiCommit);
 
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const snapshots = dependencySnapshots(board.db, target);
     assert.deepEqual(snapshots.map(snapshot => snapshot.lane), ['api', 'web']);

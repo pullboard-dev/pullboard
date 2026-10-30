@@ -1,4 +1,5 @@
 /** pullboard test: named test files on the runner pool, with the focused runner's per-file timeout [C7]. */
+import { failureSignatures } from './main-failure-matches.js';
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
@@ -132,7 +133,7 @@ function localReason() {
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -157,17 +158,20 @@ export async function runTestFiles(root, config, files, { agent, onWait, affecte
     if (full && !config.gate?.trim()) throw new Refused('NO_TEST_RUNNER', 'affected selection needs the full project gate; set gate in accepted pullboard.json');
     const command = full ? `(${config.gate})${focused ? ' && ' + focused : ''}` : (focused || 'true');
     const browser = full || !browserFreeChecksEnabled() || await testsNeedBrowser(checkout, paths);
-    return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs }),
-      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, kind: 'test', onWait });
+    return withGateSlot(checkout, (lease) => runProfiledShellAsync(checkout, command, { gateLease: lease, waitMs: lease.waitMs, stages: true }),
+      { executionServices, ...admission, browser, gui: (full && projectNeedsGui(checkout)) || testsNeedGui(checkout, paths), shortEligible: !full, agent, item, itemCheck: Boolean(item), kind: 'test', onWait });
   }, withMainCheckout);
   const summary = retainTestOutput(root, run.output, { root: run.executionRoot ?? root, profile: run.profile });
   const result = { green: run.isGreen, output: renderTestSummary(summary), ...summary, runner: run.executionRunner || 'this machine', seconds: Math.round((Date.now() - started) / 1000), files: paths, known: [], main: null,
     ...(run.executionRunner ? {} : { local: localReason() }) };
   if (!run.isGreen) {
-    const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission });
+    const compared = await compareMainFailures(root, run.profile, onWait, readFileSync(summary.logPath, 'utf8'), { runnerAdmission: admission, detailed: true,
+      execution: { executor: run.executionRunner ? { kind: 'ssh', host: run.executionRunner } : { kind: 'local' }, environment: run.environment } });
     result.main = compared.main;
+    result.mainComparison = compared;
+    result.failureCases = failureSignatures(run, run.executionRoot ?? root);
     // A file main does not have yet cannot fail there: its failure is new, whatever main's run of it said.
-    result.known = compared.files.map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0
+    result.known = (compared.files.length ? compared.files : compared.coarseFiles ?? []).map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0
       ? { ...entry, result: 'absent' } : entry);
     if (compared.unavailable) result.mainUnavailable = compared.unavailable;
   }

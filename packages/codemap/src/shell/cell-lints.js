@@ -14,9 +14,28 @@ export const CELL_METRICS = Object.freeze(['boundaries', 'cycles', 'shims', 'leg
 const ROOT_FILES = new Set(['package.json', 'jsconfig.json', 'path-map.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'SPEC.md', 'DOCTRINE.md', 'AGENTS.md', '.gitignore', '.gitattributes', '.npmignore', '.nvmrc']);
 const TRANSITION_FILE = 'bin/cells-plan/transition.json';
 
+/** Recognize only an exact package core entry declared by its indexed plan shard; malformed metadata grants nothing. */
+function declaredPureEntries(files) {
+  const entries = new Set();
+  try {
+    const index = JSON.parse(files.get('bin/cells-plan.json')?.toString('utf8') ?? 'null');
+    for (const row of index?.cells ?? []) {
+      if (!Number.isSafeInteger(row.order) || typeof row.name !== 'string'
+        || row.file !== `bin/cells-plan/${String(row.order).padStart(2, '0')}-${row.name.replace(':', '-')}.json`) continue;
+      const cell = JSON.parse(files.get(row.file)?.toString('utf8') ?? 'null');
+      if (cell?.name === row.name && cell.order === row.order && /^packages\/[a-z][a-z0-9-]*$/u.test(cell.root)
+        && cell.frontDoor === `${cell.root}/index.js` && cell.pureFrontDoor === `${cell.root}/core.js`) entries.add(cell.pureFrontDoor);
+    }
+  } catch { /* An unreadable declaration never widens the accepted anatomy. */ }
+  return entries;
+}
+
 /** Count stable finding identities, so moving an existing debt elsewhere cannot silently pay for a new one. */
-export function cellLintReport(root, parsers) {
-  const { files, edges, unknown } = cellInventory(root, parsers);
+export function cellLintReport(root, parsers, { inventory } = {}) {
+  const source = inventory ?? cellInventory(root, parsers);
+  const { files, edges } = source;
+  const unknown = [...source.unknown];
+  const pureEntries = declaredPureEntries(files);
   const metrics = Object.fromEntries(CELL_METRICS.map(name => [name, { count: 0, findings: [] }]));
   /** Add an explicit weighted finding; file-size debt records excess lines, not merely one oversized file. */
   function add(metric, key, count = 1, detail = '') {
@@ -37,7 +56,7 @@ export function cellLintReport(root, parsers) {
     if (file.startsWith('src/')) add('legacySource', file);
     if (cell) {
       const top = tail.split('/')[0];
-      if (!['index.js', 'src', 'tests', 'contract'].includes(top)
+      if ((!['index.js', 'src', 'tests', 'contract'].includes(top) && !pureEntries.has(file))
         || top === 'index.js' && tail !== 'index.js'
         || top === 'src' && !/^src\/(?:core|shell)\//u.test(tail)) add('strays', file, 1, 'outside accepted cell anatomy');
       if (/\.(?:md|mdx|rst|txt|adoc|html?)$/iu.test(file)) add('documents', file);

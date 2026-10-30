@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { itemCost } from '../src/cost-read.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -19,7 +20,7 @@ function seedClosedClaims(box) {
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   let instant = Date.now() - 60_000;
   // @pullboard-board-file journey: the fixture's real CLI and direct setup share this named SQLite board.
-  const board = store.openBoard(file, { now: () => new Date(instant) });
+  const board = openBoard(file, { now: () => new Date(instant) });
   const agent = store.agentAt(board, box.web).agent_id;
   const prior = [];
   const freeze = () => ({ text: '{}', digest: 'fixture-usage-cap' });
@@ -43,7 +44,7 @@ function seedClosedClaims(box) {
 /** Read only numeric item ids from the native board's sanitized usage events. */
 function publishedItems(file, agent, prior) {
   // @pullboard-board-file journey: inspect the same CLI-written fixture board, not an in-memory substitute.
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try {
     return store.events(board).filter(event => event.event_kind === 'usage' && event.event_by === agent)
       .map(event => JSON.parse(event.event_detail).item).filter(item => prior.includes(item));
@@ -70,7 +71,7 @@ test('ten missed revisions drain four, four, two across native claims without lo
   assert.deepEqual(publishedItems(file, agent, prior), prior,
     'acknowledged revisions stay idempotent across another lifecycle move');
   // @pullboard-board-file journey: compare the fixture's final native numeric summaries with its ten one-second intervals.
-  const board = store.openBoard(file);
+  const board = openBoard(file);
   try {
     const totals = prior.map(id => itemCost(board, id));
     assert.deepEqual(totals.map(total => total.wallMs), Array(HISTORY).fill(1_000),

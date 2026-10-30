@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
@@ -185,7 +186,7 @@ function itemLeaseFixture(t, helpers) {
   box.env.PULLBOARD_FIXTURE_CLOCK = box.clockFile;
   box.clock = { now: () => new Date(Number(readFileSync(box.clockFile, 'utf8'))) };
   box.advance = (ms) => writeFileSync(box.clockFile, String(box.clock.now().getTime() + ms));
-  box.board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), box.clock);
+  box.board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), box.clock);
   t.after(() => store.closeBoard(box.board));
   box.gates = [];
   box.ids = [];
@@ -195,7 +196,8 @@ function itemLeaseFixture(t, helpers) {
     mkdirSync(folder);
     const gate = helpers.holdingGate({ dir: folder });
     const added = clockedCli(box, box.repo, 'add', 'web', `Queued lease ${number}`, '--specs', 'G1',
-      '--criterion', 'The queued command retains only its own live item lease.', '--check', gate.command, '--json');
+      '--criterion', 'The queued command retains only its own live item lease.', '--check', gate.command, '--wait', '--json');
+    assert.notEqual(added.item.item_check_baseline?.result, 'pending', 'the fixture completes its baseline before preparing any item claim');
     const id = added.item.item_id;
     box.ids.push(id); box.gates.push(gate);
     if (number < 4) {
@@ -234,7 +236,7 @@ function refuseFreshExpiredSubmit(box, id) {
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(late.status, 1, late.stdout);
   assert.equal(JSON.parse(late.stdout).error.code, 'NOT_YOURS', 'a new submit cannot start on an expired claim');
-  const replica = store.openBoard(join(box.dir, 'expired-submit-receiver.sqlite'), box.clock);
+  const replica = openBoard(join(box.dir, 'expired-submit-receiver.sqlite'), box.clock);
   try {
     importBoard(replica, exportBoard(box.board));
     const before = store.itemById(replica, id);
@@ -255,7 +257,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
   for (const scenario of ['same admission', 'admission engine', 'different commit', 'different tree', 'reclaim', 'historical engine']) {
     let instant = box.clock.now().getTime();
     const clock = { now: () => new Date(instant) };
-    const peer = store.openBoard(join(box.dir, `completion-${scenario.replaceAll(' ', '-')}.sqlite`), clock);
+    const peer = openBoard(join(box.dir, `completion-${scenario.replaceAll(' ', '-')}.sqlite`), clock);
     try {
       importBoard(peer, snapshot);
       assert.equal(applyEngineMove(peer, proof, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() }).error, undefined);
@@ -269,6 +271,9 @@ function admittedCompletionReplicas(box, id, snapshot) {
         store.claim(peer, id, options);
         instant = Date.parse(store.itemById(peer, id).item_lease_until) + 1;
       }
+      // A move from before strict composition replays on a board from before it was activated, so the
+      // private peer drops the review-policy markers; the assertions below are unchanged.
+      if (['admission engine', 'historical engine'].includes(scenario)) peer.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'review_%' OR meta_key LIKE 'line_setting:%'").run();
       const move = prepareEngineMove(peer, 'submit', [id, { agentId: receipt.seat,
         commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
         tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,

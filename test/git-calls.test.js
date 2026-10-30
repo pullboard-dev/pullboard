@@ -6,6 +6,7 @@ import {
   randomUUID,
 } from 'node:crypto';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -241,7 +242,7 @@ function seedRuleBudgetRun(box, { green = true, days = 0, tree, command, failure
   const folder = join(box.repo, '.git', 'pullboard', 'gate-receipts');
   mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, `${receipt.id}.json`), receiptBody(receipt));
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { isMain: true });
   try { nativeRecordGateRun(board, { agentId: 'coordinator', receipt, lane: 'core' }); }
   finally { store.closeBoard(board); }
 }

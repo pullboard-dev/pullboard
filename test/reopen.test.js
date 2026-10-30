@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyRelayMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { ENGINE_VERSION } from '../src/machine.js';
@@ -24,7 +25,7 @@ const { project, commitFile } = e2e;
 
 /** Open the real board SQLite file created by the CLI fixture and close it with the test. */
 function openFixtureBoard(t, box) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   return board;
 }
@@ -32,11 +33,11 @@ function openFixtureBoard(t, box) {
 /** Create two isolated SQLite replicas from the submitted fixture's real board snapshot. */
 function replicaPair(t, box) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-reopen-relay-'));
-  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const snapshot = exportBoard(source);
   store.closeBoard(source);
   const copies = ['one', 'two'].map((name) => {
-    const replica = store.openBoard(join(directory, `${name}.sqlite`));
+    const replica = openBoard(join(directory, `${name}.sqlite`));
     importBoard(replica, snapshot);
     return replica;
   });
@@ -139,7 +140,7 @@ function acceptLandingFixture(box, item) {
 
 /** Read a complete public item projection through a short-lived board connection. */
 function readItem(box, id) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return { ...store.getItem(board, id), thread: store.itemThread(board, id), verdicts: store.verdictsFor(board, id) }; }
   finally { store.closeBoard(board); }
 }
@@ -152,7 +153,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
   for (const [version, reference] of [[8, 'v0.8.6'], [9, engine9Source], [10, 'v0.8.23']]) {
     const directory = mkdtempSync(join(tmpdir(), `pullboard-engine-${version}-verified-reopen-`));
     t.after(() => rmSync(directory, { recursive: true, force: true }));
-    const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
     const snapshot = exportBoard(source);
     store.closeBoard(source);
     const move = { version: 1, engine: version, id: `legacy-verified-reopen-${version}`, operation: 'reopen',
@@ -160,7 +161,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
     const receipt = { sequence: 1, at: '2026-10-11T12:00:00.000Z', kind: 'move',
       sender: { kind: 'agent', userId: 'fixture-user', agent: 'coordinator' } };
 
-    const currentReceiver = store.openBoard(join(directory, 'current.sqlite'));
+    const currentReceiver = openBoard(join(directory, 'current.sqlite'));
     t.after(() => store.closeBoard(currentReceiver));
     importBoard(currentReceiver, snapshot);
     const before = store.getItem(currentReceiver, item.id);
@@ -206,7 +207,7 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
     assert.deepEqual(legacyExchange.exportBoard(legacyReceiver), beforeFuture, `engine ${version} refuses before applying the engine-10 return`);
     let nextTarget = currentReceiver;
     if (version === 10) {
-      nextTarget = store.openBoard(join(directory, 'current-after-engine-10.sqlite'));
+      nextTarget = openBoard(join(directory, 'current-after-engine-10.sqlite'));
       t.after(() => store.closeBoard(nextTarget));
       importBoard(nextTarget, snapshot);
     }
@@ -281,7 +282,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   assert.equal(JSON.parse(malformedUnquoted.out).error.code, 'LANDING_FAILURE_REQUIRED');
   assert.equal(readItem(box, item.id).item_status, 'verified', 'an unclosed quoted attempt cannot fall back to the historical parser');
 
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let snapshot;
   try {
     snapshot = exportBoard(board);
@@ -296,7 +297,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   assert.match(JSON.parse(malformedUnquoted.out).error.next,
     /--note '<test file>: "<test name; with semicolon>"; merge commit <sha>'/u,
     'a current-engine refusal for an invalid unquoted note also shows the quoted form');
-  const moveBoard = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const moveBoard = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let move;
   try {
     move = prepareEngineMove(moveBoard, 'reopen', [item.id, { agentId: 'coordinator', note }]);
@@ -305,7 +306,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   }
   finally { store.closeBoard(moveBoard); }
 
-  const markedReplica = store.openBoard(':memory:');
+  const markedReplica = openBoard(':memory:');
   try {
     importBoard(markedReplica, snapshot);
     const beforeOldFloor = exportBoard(markedReplica);
@@ -341,7 +342,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   assert.deepEqual(event.detail.landingFailure, expected);
 
   const historical = `test/a.test.js: "first; test/b.test.js: second"; merge commit ${'c'.repeat(40)}`;
-  const legacyReplica = store.openBoard(':memory:');
+  const legacyReplica = openBoard(':memory:');
   try {
     importBoard(legacyReplica, snapshot);
     const legacy = applyRelayMove(legacyReplica, {
@@ -357,7 +358,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   }
   finally { store.closeBoard(legacyReplica); }
 
-  const legacyRefusalReplica = store.openBoard(':memory:');
+  const legacyRefusalReplica = openBoard(':memory:');
   try {
     importBoard(legacyRefusalReplica, snapshot);
     const legacyRefusal = applyRelayMove(legacyRefusalReplica, {
@@ -443,7 +444,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   const manualBox = landingProject();
   const manualItem = submitLandingFixture(manualBox, 1, 'export const status = "PASS_MANUAL";\n');
   acceptLandingFixture(manualBox, manualItem);
-  const manualBoard = store.openBoard(join(manualBox.repo, '.git', 'pullboard', 'board.sqlite'));
+  const manualBoard = openBoard(join(manualBox.repo, '.git', 'pullboard', 'board.sqlite'));
   let manualSnapshot;
   try {
     assert.deepEqual(store.landingBatches(manualBoard), [], 'hand-run landing evidence starts with no recorded batch');
@@ -451,7 +452,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   }
   finally { store.closeBoard(manualBoard); }
   const manualAccept = readItem(manualBox, manualItem.id).thread.find((event) => event.type === 'move' && event.kind === 'accept');
-  const generatedBoard = store.openBoard(':memory:');
+  const generatedBoard = openBoard(':memory:');
   importBoard(generatedBoard, manualSnapshot);
   t.after(() => store.closeBoard(generatedBoard));
   const generatedNote = `Landing batch fixture_batch-1 failed web/landing.test.js: first red; nested/roadmap.test.js: second red; merge commit ${'f'.repeat(40)}`;
@@ -649,7 +650,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     agentId: 'coordinator', note: 'replay the no-verdict return',
   }], { id: 'reopen-engine-roundtrip', actor: 'coordinator' });
   assert.equal(move.engine, ENGINE_VERSION, "new moves use the current engine while legacy receipts retain their recorded engine");
-  const oldReceiver = store.openBoard(join(box.dir, 'old-engine.sqlite'));
+  const oldReceiver = openBoard(join(box.dir, 'old-engine.sqlite'));
   t.after(() => store.closeBoard(oldReceiver));
   importBoard(oldReceiver, exportBoard(copies[0]));
   const beforeOldReceiver = exportBoard(oldReceiver);
@@ -694,7 +695,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     });
     assert.equal(legacyResult.error, undefined, JSON.stringify(legacyResult));
     assert.deepEqual(legacyResult.result, { id: 1, commit: submitted.commit });
-    const currentLegacyReceiver = store.openBoard(join(box.dir, `current-engine-${version}-reopen.sqlite`));
+    const currentLegacyReceiver = openBoard(join(box.dir, `current-engine-${version}-reopen.sqlite`));
     t.after(() => store.closeBoard(currentLegacyReceiver));
     importBoard(currentLegacyReceiver, submittedSnapshot);
     const currentLegacyResult = applyRelayMove(currentLegacyReceiver, legacyMove, {
@@ -765,7 +766,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     'the real new claim binds the canonical corrected frozen bar');
   assert.equal(correctedNoVerdictReopen(correctedHistory, 1, '0'.repeat(40)), false,
     'the correction never authorizes a different previous submission');
-  const claimedBoard = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const claimedBoard = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   let claimedBoardOpen = true;
   t.after(() => { if (claimedBoardOpen) store.closeBoard(claimedBoard); });
   const engine11Move = prepareEngineMove(claimedBoard, 'submit', [1, {
@@ -778,10 +779,10 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   delete engine11Move.args[1].submissionProof;
   engine11Move.engine = 11;
   const builderSender = { kind: 'agent', userId: 'fixture-user', agent: 'web-1' };
-  const engine10Replica = store.openBoard(join(box.dir, 'engine-10-same-commit.sqlite'));
+  const engine10Replica = openBoard(join(box.dir, 'engine-10-same-commit.sqlite'));
   t.after(() => store.closeBoard(engine10Replica));
   const engine10Move = { ...engine11Move, id: 'same-commit-engine-10', engine: 10 };
-  const markedReplica = store.openBoard(join(box.dir, 'modern-grant-same-commit.sqlite'));
+  const markedReplica = openBoard(join(box.dir, 'modern-grant-same-commit.sqlite'));
   t.after(() => store.closeBoard(markedReplica));
   importBoard(markedReplica, exportBoard(claimedBoard));
   assert.throws(() => applyRelayMove(markedReplica, engine10Move, {

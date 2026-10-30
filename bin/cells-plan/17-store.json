@@ -244,7 +244,15 @@
     "src/cost.js->src/board-read-auxiliary.js"
    ]
   },
-  {"cell":"verify","imports":2,"edges":["src/check-widen.js->src/item-check-baseline.js","src/review-reachability.js->src/board-query.js"]}
+  {
+   "cell": "verify",
+   "imports": 3,
+   "edges": [
+    "src/check-widen.js->src/item-check-baseline.js",
+    "src/review-reachability.js->src/board-query.js",
+    "src/review-routing.js->src/board-query.js"
+   ]
+  }
  ],
  "ratchets": {
   "legacySource": -14,

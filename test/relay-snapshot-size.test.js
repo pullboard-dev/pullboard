@@ -1,6 +1,6 @@
 /** @pullboard-test-gui */
 /** Compression stays inside the device seal while both clients retain legacy snapshot reads [H5,H15,H17]. */
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -73,7 +73,7 @@ test('a 20 MB sealed snapshot syncs to the relay and reads back whole [H5,H15,H1
   const box = await relayClientFixture(t);
   box.legacySnapshotApi(); // Exercise the legacy whole-snapshot endpoint.
   await box.link();
-  const local = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const local = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     beforeShoutLimit(local, () => store.shout(local, { from: 'coordinator', to: 'all', text: 'LARGE_SEALED_SNAPSHOT_' + randomBytes(14_000_000).toString('base64url'), lanes: [box.lane] }));
     assert.throws(() => store.shout(local, { from: 'coordinator', to: 'all', text: 'q'.repeat(401), lanes: [box.lane] }),
@@ -164,7 +164,7 @@ test('a large board syncs to the relay compressed [H5,H15,H17]', {
 
   const marker = 'COMPRESSED_RELAY_SNAPSHOT_EXACT_340_';
   const longText = marker + 'q'.repeat(7_200_000);
-  const native = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const native = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     beforeShoutLimit(native, () => store.shout(native, { from: 'coordinator', to: 'all', text: longText, lanes: [box.lane] }));
     // The historical payload grows the native snapshot without sending a seven-megabyte paragraph to the recent UI feed.
@@ -321,7 +321,7 @@ async function thirtyThousandBoard(t) {
   const currentMarker = 'PAGED_CURRENT_STATE_903';
   const oldestMarker = 'PAGED_OLDEST_SHOUT_903';
   const liveMarker = 'LIVE_MOVE_DURING_HISTORY_903';
-  const native = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const native = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   let oldest;
   try {
     // These are synthetic native fixture moves in one normal board transaction, never owner-board edits.
@@ -561,7 +561,7 @@ test("the phone's first-paint budget is judged by the page, not by a loaded test
 test('large compressible history uses bounded pages even when its whole encrypted snapshot fits the old wire cap [H15,H17]', async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const board = store.openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
   try {
     store.atomic(board, () => {
       beforeShoutLimit(board, () => {

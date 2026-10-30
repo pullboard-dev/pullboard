@@ -18,7 +18,7 @@ import {
   test,
   writeFileSync,
 } from './team-scenarios.fixture.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, copyFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 
 test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', { timeout: 240_000 }, async (t) => { // budget: hang ceiling for real CLI runs on three homes and a loopback relay; not a speed target.
@@ -44,6 +44,10 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   const writes = existsSync(keychainLog) ? readFileSync(keychainLog, 'utf8').split('\n').filter((call) => ['add-generic-password', 'store'].includes(call)) : [];
   assert.deepEqual(writes, [], 'relay on never writes the key to the keychain');
 
+  // Reads resolve the actual committed policy before the keyless and CI sessions start.
+  sessionGit(['add', '-A'], { cwd: box.root, env: box.env });
+  sessionGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: set up pullboard'], { cwd: box.root, env: box.env });
+
   // S6b: a session that cannot read the key (SSH, a scheduled job, a locked keychain) still reads the whole board.
   assert.equal((await box.cli('add', box.lane, 'Read from any session')).code, 0);
   renameSync(keys, keys + '.parked');
@@ -59,8 +63,6 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
 
   // S6c: a CI or cloud session, with an agent token and the board key in its environment and no key file, reads and moves.
   // The project's committed setup is what every checkout, CI's included, gets.
-  sessionGit(['add', '-A'], { cwd: box.root, env: box.env });
-  sessionGit(['-c', 'core.hooksPath=/dev/null', 'commit', '-q', '-m', 'chore: set up pullboard'], { cwd: box.root, env: box.env });
   const seatRoot = join(box.root, '..', 'ci-seat');
   sessionGit(['worktree', 'add', '-q', '-b', 'ci-seat', seatRoot], { cwd: box.root, env: box.env });
   const joined = await box.cliAt(seatRoot, 'join', box.lane, '--model', 'fixture-model');
@@ -79,7 +81,12 @@ test('every session reads and moves: terminal, SSH, agent, job or CI [E9,E18]', 
   // The CI machine also has a keychain holding a legacy copy of the key; the session must not move it into a file.
   const ciKeychainBin = join(ciHome, 'keychain-bin');
   mkdirSync(ciKeychainBin, { mode: 0o700 });
-  for (const name of readdirSync(box.env.PATH)) symlinkSync(join(box.env.PATH, name), join(ciKeychainBin, name));
+  // Keep these two private tools inside the all-file audit, without following links outside its origin.
+  assert.deepEqual(readdirSync(box.env.PATH).sort(), ['git', 'node'], 'the CI tool source is exactly the two native executables');
+  copyFileSync(join(box.env.PATH, 'git'), join(ciKeychainBin, 'git'));
+  chmodSync(join(ciKeychainBin, 'git'), 0o700);
+  copyFileSync(join(box.env.PATH, 'node'), join(ciKeychainBin, 'node'));
+  chmodSync(join(ciKeychainBin, 'node'), 0o700);
   for (const name of ['security', 'secret-tool']) {
     writeFileSync(join(ciKeychainBin, name), '#!/bin/sh\ncase "$1" in search) exit 1;; find-generic-password|lookup) printf %s "$PULLBOARD_RELAY_KEY"; exit 0;; esac\nexit 0\n', { mode: 0o755 });
   }

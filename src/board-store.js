@@ -28,7 +28,7 @@ export function requireRuntimePorts(ports) {
   for (const name of ['guardStore', 'refreshStoreDeclarations', 'storeTriggers']) {
     if (typeof ports.guards[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply guards.${name}.`);
   }
-  for (const name of ['atomic', 'ensureProofCounters', 'ensureHotIndexes', 'missingAdditiveIndexes', 'ensureAdditiveIndexes', 'configureBoardJournal', 'closeBoardWrites']) {
+  for (const name of ['atomic', 'normalizeReviewDefaults', 'ensureProofCounters', 'ensureHotIndexes', 'missingAdditiveIndexes', 'ensureAdditiveIndexes', 'configureBoardJournal', 'closeBoardWrites']) {
     if (typeof ports.lifecycle[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply lifecycle.${name}.`);
   }
   for (const name of ['sharedSchemaOwner', 'expectedBoardSchema', 'sharedSchemaDiagnostic', 'reportSharedSchema',
@@ -132,7 +132,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
           guardStore(board);
         }
         recordSchemaStamp(db, SCHEMA_DIGEST);
-      });
+      }, { reviewPolicy: false });
       if (refreshStoreDeclarations(board)) standing = boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION);
       // Index-only upgrades keep the data version/digest unchanged. Install and restamp together;
       // drifted or read-only stores never take this path, and old clients accept the resulting stamp.
@@ -140,7 +140,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
         if (boardStanding(db, SCHEMA_DIGEST, SCHEMA_VERSION) !== 'current') return;
         ensureAdditiveIndexes(db);
         recordSchemaStamp(db, SCHEMA_DIGEST);
-      });
+      }, { reviewPolicy: false });
       if (standing === 'drifted') { warmCounters = false; reportDrift(file, onDiagnostic); }
     } else {
       // Read compatibility before any local effect; persistent schema belongs to trunk alone.
@@ -151,7 +151,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     // Writable commands catch up old writers or missing local projections once. Read-only open
     // never calls this path; drifted stores remain untouched, and invalid history stays invalid.
     // Proof warming also preserves the Rigor projection, including after a proof-cache rebuild.
-    if (warmCounters) atomic(board, () => ensureProofCounters(board));
+    if (warmCounters) atomic(board, () => ensureProofCounters(board), { reviewPolicy: false });
     return board;
   } catch (error) {
     try { db?.close(); if (db) closeBoardWrites(db); } catch { /* Preserve the opening failure when SQLite cleanup also fails. */ }

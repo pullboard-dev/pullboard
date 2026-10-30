@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { loadDoctrine, standardDoctrine } from '../../src/doctrine.js';
+import { loadDoctrine, standardDoctrine } from '../../packages/doctrine/index.js';
 import { tapTarget, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press, SPEC, machine, project, startView, styleOf, openPage } from './fixture.js';
 
 
@@ -30,23 +30,31 @@ test('the doctrine view carries and labels inherited, local, overridden and decl
     /** Read each rendered row's own source label rather than relying on section metadata. */
     const where = (id) => {
       const row = list.split('<div class="srow').slice(1).find((chunk) => chunk.includes('data-row="doctrine:' + id + '"'));
-      return /<span class="rule-source" title="[^"]+">([^<]*)<\/span>/.exec(row)?.[1] ?? null;
+      return /<span class="rule-source-chip [^"]+" title="[^"]+">([^<]*)<\/span>/.exec(row)?.[1] ?? null;
     };
-    assert.equal(where('PB1'), 'Pullboard v' + merged.version, 'an inherited rule names its actual packaged version');
-    assert.equal(where('R1'), 'this repo', 'a local row names the repo');
+    /** Preserve packaged version and override history in the source chip's hover text. */
+    const sourceTitle = (id) => {
+      const row = list.split('<div class="srow').slice(1).find((chunk) => chunk.includes('data-row="doctrine:' + id + '"'));
+      return /<span class="rule-source-chip [^"]+" title="([^"]+)">/.exec(row)?.[1] ?? null;
+    };
+    assert.equal(where('PB1'), 'Standard', 'an inherited rule uses the standard source chip');
+    assert.equal(sourceTitle('PB1'), 'Pullboard v' + merged.version, 'the full packaged version remains available on hover');
+    assert.equal(where('R1'), 'This repo', 'a local row uses the repository source chip');
     assert.match(list, /data-row="doctrine:R1"[^]*?Keep &lt;b&gt;local&lt;\/b&gt; evidence\./);
-    assert.equal(where('PB2'), 'Pullboard v' + merged.version + ', overridden here');
+    assert.equal(where('PB2'), 'This repo', 'an overridden standard row is now repository-owned');
+    assert.equal(sourceTitle('PB2'), 'Pullboard v' + merged.version + ', overridden here', 'the hover text retains the override history');
     assert.match(list, /data-row="doctrine:PB2"[^]*?Deletion needs &lt;i&gt;two&lt;\/i&gt; approvals\./);
     assert.doesNotMatch(list, /Destructive or irreversible actions wait/);
     assert.match(list, /data-row="doctrine:PB8"[^]*?<s>No secrets or sensitive info in the repo; test data is synthetic\.<\/s>[^]*?<span class="rule-reason"[^>]*>Reason: No &lt;script&gt;persistent&lt;\/script&gt; data is stored\.<\/span>/);
     assert.doesNotMatch(list, /<script>|<i>two<\/i>|<b>local<\/b>/, 'all repo text stays text');
     const style = await styleOf(view);
-    assert.match(style, /\.rule-source, \.rule-reason \{ color: var\(--ink-muted\); font: inherit;/, 'source and reason share the Items secondary-line type');
+    assert.match(style, /\.rule-source-chip\.standard \{ background: var\(--blue-soft\); color: var\(--blue\); \}/, 'standard source chips use the blue-soft palette');
+    assert.match(style, /\.rule-source-chip\.repo \{ background: var\(--surface-2\); color: var\(--ink-muted\); \}/, 'repository source chips stay quiet');
 
     await page.click({ row: 'doctrine:PB1' });
-    assert.match(page.show('doctrine-detail'), /<span class="chip" title="Pullboard v\d+">Pullboard v\d+<\/span>/);
+    assert.match(page.show('doctrine-detail'), /<span class="chip rule-source-chip standard" title="Pullboard v\d+">Standard<\/span>/);
     await page.click({ row: 'doctrine:PB2' });
-    assert.match(page.show('doctrine-detail'), /<span class="chip" title="Pullboard v\d+, overridden here">Pullboard v\d+, overridden here<\/span>/);
+    assert.match(page.show('doctrine-detail'), new RegExp('<span class="chip rule-source-chip repo" title="Pullboard v' + merged.version + ', overridden here">This repo</span>'));
     assert.match(page.show('doctrine-detail'), /Deletion needs &lt;i&gt;two&lt;\/i&gt; approvals\./);
     await page.click({ row: 'doctrine:PB8' });
     assert.match(page.show('doctrine-detail'), /<s>No secrets or sensitive info in the repo; test data is synthetic\.<\/s>/);
@@ -78,7 +86,7 @@ test('the doctrine pane names DOCTRINE.md and its rules doctrine [D1,N26]', asyn
     page.run('data.project.practice = ' + JSON.stringify(rows) + '; render()');
     await page.click({ row: 'doctrine:PB1' });
     const detail = page.show('doctrine-detail');
-    assert.match(detail, /override or decline one in DOCTRINE\.md\./);
+    assert.match(detail, /Approve it to keep it, or override or decline it in DOCTRINE\.md\./);
     assert.doesNotMatch(detail, /PRACTICE\.md/);
     await page.click({ row: 'doctrine:R1' });
     const localDetail = page.show('doctrine-detail');
@@ -107,7 +115,7 @@ test('a row detail does not repeat who approves rows [N26]', async () => {
     assert.match(local, /R1/, 'the local doctrine row detail is open');
     assert.doesNotMatch(local, /Rows change in/, 'a local doctrine row does not repeat who approves rows');
     await page.click({ row: 'doctrine:PB1' });
-    assert.match(page.show('doctrine-detail'), /Standard rules come with Pullboard as defaults to review; override or decline one in DOCTRINE\.md\./,
+    assert.match(page.show('doctrine-detail'), /Standard rules come with Pullboard as defaults to review\. Approve it to keep it, or override or decline it in DOCTRINE\.md\./,
       'a standard rule keeps its note');
   } finally {
     await view.stop();
@@ -212,10 +220,10 @@ test('a doctrine row names its source under its id [N26]', { timeout: 300_000 },
     const row = document.querySelector('#doctrine-list [data-row="doctrine:${id}"]');
     const box = element => { const r = element?.getBoundingClientRect(); return r && { left:r.left, right:r.right, top:r.top, bottom:r.bottom, height:r.height, width:r.width }; };
     const title = row?.querySelector('.t'), meta = row?.querySelector('.meta');
-    const source = meta?.querySelector('.rule-source'), gate = meta?.querySelector('.gate');
+    const source = meta?.querySelector('.rule-source-chip'), gate = meta?.querySelector('.doctrine-check');
     const reason = row?.querySelector('.rule-reason'), idBox = row?.querySelector('.row-id');
     return { text: title?.textContent ?? null, textBox: box(title), textStyle: title && { overflow:getComputedStyle(title).textOverflow, lines:Math.ceil(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight)) },
-      source: source?.textContent ?? null, sourceBox:box(source), gate:gate?.textContent ?? null, gateBox:box(gate), reason:reason?.textContent ?? null, reasonBox:box(reason), idBox:box(idBox), rowBox:box(row),
+      source: source?.textContent ?? null, sourceTitle: source?.title ?? null, sourceBox:box(source), gate:gate?.textContent ?? null, gateBox:box(gate), reason:reason?.textContent ?? null, reasonBox:box(reason), idBox:box(idBox), rowBox:box(row),
       overflow:document.documentElement.scrollWidth > document.documentElement.clientWidth };
   })())`));
 
@@ -225,10 +233,10 @@ test('a doctrine row names its source under its id [N26]', { timeout: 300_000 },
     await press(chrome, "document.querySelector('[data-tab=doctrine]')");
     await press(chrome, "document.querySelector('#doctrine-chips [data-rows=\"doctrine:all\"]')");
     const expected = new Map([
-      [inherited.id, `Pullboard v${standard.version}`],
-      [overridden.id, `Pullboard v${standard.version}, overridden here`],
-      [declined.id, `Pullboard v${standard.version}, declined here`],
-      ['R1', 'this repo'],
+      [inherited.id, 'Standard'],
+      [overridden.id, 'This repo'],
+      [declined.id, 'This repo'],
+      ['R1', 'This repo'],
     ]);
 
     for (const theme of ['light', 'dark']) {
@@ -239,6 +247,7 @@ test('a doctrine row names its source under its id [N26]', { timeout: 300_000 },
         for (const [id, source] of expected) {
           const row = await readRow(id);
           assert.equal(row.source, source, `${width}px ${theme}: ${id} names its actual source under its id`);
+          if (id === inherited.id) assert.equal(row.sourceTitle, `Pullboard v${standard.version}`, `${width}px ${theme}: the full packaged version remains on hover`);
           assert.ok(row.rowBox.height >= tapTarget(width), `${width}px ${theme}: ${id} keeps the #371 target size: ${JSON.stringify(row.rowBox)}`);
           assert.ok(row.sourceBox && row.idBox && row.textBox && row.sourceBox.top > row.textBox.top && Math.abs(row.sourceBox.left - row.idBox.left) < 1,
             `${width}px ${theme}: ${id}'s source is visibly beneath the words in the id's content column: ${JSON.stringify(row)}`);
@@ -288,9 +297,9 @@ test('a doctrine row names its source under its id [N26]', { timeout: 300_000 },
       await allChrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await allChrome.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] });
       await allChrome.waitFor(`innerWidth === ${width} && matchMedia('(prefers-color-scheme: ${theme})').matches`);
-      const sources = await allChrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .srow')].map(row => [row.dataset.row, row.querySelector('.meta .rule-source')?.textContent ?? null]))`);
-      assert.deepEqual(JSON.parse(sources), allStandard.rows.map((row) => [`doctrine:${row.id}`, `Pullboard v${allStandard.version}, overridden here`]),
-        `${width}px ${theme}: every actual standard rule is shown as overridden, not inferred from an id pattern`);
+      const sources = await allChrome.stable(`JSON.stringify([...document.querySelectorAll('#doctrine-list .srow')].map(row => [row.dataset.row, row.querySelector('.meta .rule-source-chip')?.textContent ?? null, row.querySelector('.meta .rule-source-chip')?.title ?? null]))`);
+      assert.deepEqual(JSON.parse(sources), allStandard.rows.map((row) => [`doctrine:${row.id}`, 'This repo', `Pullboard v${allStandard.version}, overridden here`]),
+        `${width}px ${theme}: every actual standard rule is shown as repository-owned after an override, not inferred from an id pattern`);
       const overflow = await allChrome.stable('document.documentElement.scrollWidth > document.documentElement.clientWidth');
       assert.equal(overflow, false, `${width}px ${theme}: the complete overridden doctrine fits without sideways scrolling`);
     }

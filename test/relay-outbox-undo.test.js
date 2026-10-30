@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { undoQueued } from '../src/relay-outbox-undo.js';
 import { recordSchemaStamp } from '../src/board-migrate.js';
 import { SCHEMA_DIGEST } from '../src/board-schema-source.js';
@@ -11,7 +12,7 @@ import { SCHEMA_DIGEST } from '../src/board-schema-source.js';
 /** A real board preserves undo's transaction, triggers and foreign-key behavior on each actual Node runtime. */
 function fixture(t, schema) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-undo-compat-'));
-  const board = store.openBoard(join(directory, 'board.sqlite'));
+  const board = openBoard(join(directory, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
   board.db.exec(schema);
   recordSchemaStamp(board.db, SCHEMA_DIGEST); // The explicit private fixture schema is trusted setup.

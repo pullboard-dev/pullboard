@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../src/board-milestones.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../src/agent-names.js';
 import { projectState } from '../src/serve.js';
@@ -78,7 +80,7 @@ function assertJsonShape(result, command) {
 beforeEach(() => {
   let at = Date.parse('2026-10-04T12:00:00Z');
   clock = { now: () => new Date(at), advance: (ms) => { at += ms; } };
-  board = store.openBoard(':memory:', clock);
+  board = openBoard(':memory:', clock);
   registerPreGrant(board, [['coordinator', '/repo', { family: 'Fixture Coordinator' }], ['web', '/repo-web-1', { family: 'Fixture Builder One' }], ['web', '/repo-web-2', { family: 'Fixture Builder Two' }], ['api', '/repo-api-1', { family: 'Fixture Reviewer' }]]);
 });
 
@@ -166,19 +168,19 @@ test('the coordinator follows the main checkout when the repo moves', () => {
 test('[N26,A2] milestones stay ordered and only the coordinator can edit them', () => {
   const first = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Build' });
   const second = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Publish' });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'Release', note: 'Ship it', items: [first] });
-  store.addMilestone(board, { agentId: 'coordinator', name: 'Aftercare', items: [second] });
-  store.editMilestoneItems(board, 'Release', { agentId: 'coordinator', add: [second] });
+  addMilestone(board, { agentId: 'coordinator', name: 'Release', note: 'Ship it', items: [first] });
+  addMilestone(board, { agentId: 'coordinator', name: 'Aftercare', items: [second] });
+  editMilestoneItems(board, 'Release', { agentId: 'coordinator', add: [second] });
   assert.deepEqual(store.milestones(board).find(({ name }) => name === 'Release').items, [first, second], 'adding preserves item order');
-  store.editMilestoneItems(board, 'Release', { agentId: 'coordinator', remove: [second] });
+  editMilestoneItems(board, 'Release', { agentId: 'coordinator', remove: [second] });
   assert.deepEqual(store.milestones(board).find(({ name }) => name === 'Release').items, [first], 'removing preserves the remaining order');
-  store.moveMilestone(board, 'Aftercare', { agentId: 'coordinator', before: 'Release' });
-  store.editMilestone(board, 'Aftercare', { agentId: 'coordinator', newName: 'Maintenance', note: 'Keep watching' });
+  moveMilestone(board, 'Aftercare', { agentId: 'coordinator', before: 'Release' });
+  editMilestone(board, 'Aftercare', { agentId: 'coordinator', newName: 'Maintenance', note: 'Keep watching' });
   assert.deepEqual(store.milestones(board).map(({ name }) => name), ['Maintenance', 'Release']);
-  assert.throws(() => store.addMilestone(board, { agentId: 'web-1', name: 'Forbidden' }), /COORDINATOR_ONLY/);
+  assert.throws(() => addMilestone(board, { agentId: 'web-1', name: 'Forbidden' }), /COORDINATOR_ONLY/);
 
   claimAs(second, 'api-1', 'api');
-  const current = store.roadmap(board);
+  const current = roadmap(board);
   assert.deepEqual(current.map(({ name, done, total }) => ({ name, done, total })), [
     { name: 'Maintenance', done: 0, total: 1 },
     { name: 'Release', done: 0, total: 1 },
@@ -189,11 +191,11 @@ test('[N26,A2] milestones stay ordered and only the coordinator can edit them', 
     agentId: 'web-2', decision: 'ACCEPT', reason: 'CRITERION_MET', note: 'checked the expected result',
     head: SHA_A, digest: 'digest:Publish', policy: 'any',
   });
-  assert.equal(store.roadmap(board)[0].done, 0, 'done counts only landed work, so a verified item is not done yet');
-  assert.equal(store.roadmap(board)[0].items[0].state, 'accepted', 'a verified item that has not landed reads as accepted');
+  assert.equal(roadmap(board)[0].done, 0, 'done counts only landed work, so a verified item is not done yet');
+  assert.equal(roadmap(board)[0].items[0].state, 'accepted', 'a verified item that has not landed reads as accepted');
   store.merged(board, second, { agentId: 'coordinator', commit: SHA_A });
-  assert.equal(store.roadmap(board)[0].done, 1, 'done counts the item once its merge onto main is recorded');
-  store.removeMilestone(board, 'Maintenance', { agentId: 'coordinator' });
+  assert.equal(roadmap(board)[0].done, 1, 'done counts the item once its merge onto main is recorded');
+  removeMilestone(board, 'Maintenance', { agentId: 'coordinator' });
   assert.deepEqual(store.milestones(board).map(({ name }) => name), ['Release']);
   assert.equal(store.getItem(board, second).item_status, 'verified', 'removing a milestone leaves its item untouched');
 });
@@ -202,8 +204,8 @@ test('[H3,H16] captured milestone operations replay identically on SQLite replic
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-milestone-replay-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const clock = { now: () => new Date('2026-10-08T00:00:00.000Z') };
-  const left = store.openBoard(join(directory, 'left.sqlite'), clock);
-  const right = store.openBoard(join(directory, 'right.sqlite'), clock);
+  const left = openBoard(join(directory, 'left.sqlite'), clock);
+  const right = openBoard(join(directory, 'right.sqlite'), clock);
   t.after(() => { store.closeBoard(left); store.closeBoard(right); });
   for (const replica of [left, right]) {
     store.register(replica, { lane: 'coordinator', path: '/repo' });
@@ -233,9 +235,9 @@ test('[H3,H16] captured milestone operations replay identically on SQLite replic
   right.clock = readClock;
   assert.deepEqual(store.milestones(left), store.milestones(right));
   assert.deepEqual(store.events(left), store.events(right));
-  assert.deepEqual(store.roadmap(left), store.roadmap(right));
+  assert.deepEqual(roadmap(left), roadmap(right));
   assert.deepEqual(exportBoard(left), exportBoard(right), 'native exports include matching metadata and replay receipts');
-  assert.equal(store.roadmap(left)[0].items[0].status, 'claimed');
+  assert.equal(roadmap(left)[0].items[0].status, 'claimed');
 });
 
 test('a claim is a lease: renewable by its holder, free again once it lapses [B4]', () => {
@@ -328,7 +330,7 @@ test('the builder never verifies its own work [V1]', () => {
 /** A verifier can release its live review reservation for another verifier [V15]. */
 test('a verifier releases its reserved review; another verifier can take it, and claims still release [V15]', () => {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-review-release-'));
-  const durable = store.openBoard(join(directory, 'board.sqlite'), clock);
+  const durable = openBoard(join(directory, 'board.sqlite'), clock);
   try {
     store.register(durable, { lane: 'coordinator', path: '/repo' });
     const builder = store.register(durable, { lane: 'web', path: '/repo-web-1', family: 'Fixture Builder' });
@@ -418,7 +420,7 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
   const commit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim();
   const tree = execFileSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: repo, encoding: 'utf8' }).trim();
 
-  durable = store.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), clock);
+  durable = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), clock);
   store.register(durable, { lane: 'coordinator', path: repo });
   const builder = store.register(durable, { lane: 'web', path: join(directory, 'web-1'), family: 'Fixture Builder' });
   const reviewer = store.register(durable, { lane: 'web', path: join(directory, 'web-2'), family: 'Fixture Reviewer' });
@@ -477,8 +479,8 @@ test('a rejected commit resubmits after its bar is corrected [V4,B3]', async (t)
   assert.equal(allRejects[1].verdict_digest, correction.after);
 
   const legacy = [
-    store.openBoard(join(directory, 'engine-8-source.sqlite'), clock),
-    store.openBoard(join(directory, 'engine-8-replica.sqlite'), clock),
+    openBoard(join(directory, 'engine-8-source.sqlite'), clock),
+    openBoard(join(directory, 'engine-8-replica.sqlite'), clock),
   ];
   t.after(() => legacy.forEach((replica) => store.closeBoard(replica)));
   const oldIds = legacy.map((replica) => {
@@ -704,7 +706,7 @@ test('a board made by an older version is migrated on open [O3]', () => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-migrate-'));
   try {
     const file = join(dir, 'board.sqlite');
-    const old = store.openBoard(file, clock);
+    const old = openBoard(file, clock);
     for (const column of ['item_after', 'item_brief', 'item_route', 'item_check', 'item_claim_head', 'item_files', 'item_builder_family']) old.db.exec(`ALTER TABLE item DROP COLUMN ${column}`);
     for (const column of ['agent_route', 'agent_family']) old.db.exec(`ALTER TABLE agent DROP COLUMN ${column}`);
     old.db.exec('ALTER TABLE verdict DROP COLUMN verdict_verifier_family');
@@ -712,7 +714,7 @@ test('a board made by an older version is migrated on open [O3]', () => {
     // An older version's board carries an older user_version; only that makes an open migrate (#1047).
     old.db.exec('PRAGMA user_version = 1');
     store.closeBoard(old);
-    const reopened = store.openBoard(file, clock);
+    const reopened = openBoard(file, clock);
     const columns = (table) => reopened.db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);
     const [items, agents, verdicts, holds] = [columns('item'), columns('agent'), columns('verdict'), columns('hold')];
     store.closeBoard(reopened);
@@ -988,7 +990,7 @@ test('an item at strong stays at strong after more failures [B15,B13]', () => {
 for (const version of [50, 51, 52, 53, STRONG_REJECTION_NOTICE_ENGINE]) {
   test(`engine ${version} ceiling send-backs replay identically on replicas [B15,H16]`, (t) => {
     const id = routed('Recorded ceiling behavior', 'strong');
-    const copy = store.openBoard(':memory:', clock);
+    const copy = openBoard(':memory:', clock);
     t.after(() => store.closeBoard(copy));
     importBoard(copy, exportBoard(board));
     const frozen = item => ({ text: JSON.stringify({ criterion: item.item_criterion,
@@ -1307,7 +1309,7 @@ test('[O3] declared families travel through native snapshots; unknown registrati
   assert.equal(joinedWithout.code, 0, joinedWithout.stderr || joinedWithout.stdout);
 
   const file = join(repo, '.git', 'pullboard', 'board.sqlite');
-  const persistent = store.openBoard(file);
+  const persistent = openBoard(file);
   t.after(() => store.closeBoard(persistent));
   const initialEvents = store.events(persistent);
   const coordinatorJoin = initialEvents.find(event => event.event_kind === 'join' && event.event_by === 'coordinator');

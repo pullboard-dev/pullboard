@@ -1,3 +1,4 @@
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css */
 /** @pullboard-test-gui */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -43,7 +44,7 @@ test('the view never scrolls sideways at 320px [N26]', { timeout: 120_000 }, asy
     await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false });
     await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font || 'system-ui, sans-serif')})`);
     await chrome.waitFor(`innerWidth === ${width}`);
-    for (const tab of ['home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
+    for (const tab of ['dashboard', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap']) {
       await chrome.click(`document.querySelector('[data-tab="${tab}"]')`);
       await chrome.waitFor(`!document.querySelector('[data-pane="${tab}"]').hidden`);
       const seen = JSON.parse(await chrome.stable(`JSON.stringify((() => {
@@ -76,7 +77,7 @@ test('the Dashboard and retained tabs fit two rows on a phone [N26]', async () =
     assert.match(phone, /\.tab \{ display: grid; justify-items: center; align-content: center;/, 'each tab centres its label in its share');
     assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: var\(--space-0\); \}\n/, 'wider, the tabs keep the row they have');
     const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)<\/button>/g)];
-    assert.deepEqual(tabs.map((match) => match[2]), ['Dashboard', 'Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], 'Dashboard leads the retained tabs, each its label alone: their counts are in the status bar');
+    assert.deepEqual(tabs.map((match) => match[2]), ['Dashboard', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap', 'Cost'], 'Dashboard leads the retained tabs, each its label alone: their counts are in the status bar');
   } finally {
     await view.stop();
   }
@@ -140,7 +141,7 @@ test('no box carries a coloured edge [N26]', async () => {
     await view.stop();
   }
 });
-test("the view's styles live in their own file [N26]", async () => {
+test("the authenticated local view assembles its shared and private styles [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { products: { Pages: ['G1', 'G2'] } });
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -155,7 +156,14 @@ test("the view's styles live in their own file [N26]", async () => {
     const css = await fetchPage(view, '/view.css');
     assert.equal(css.status, 200);
     assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
-    assert.equal(await css.text(), readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8'), 'src/view.css, as it is');
+    const dashboardCss = readFileSync(new URL('../../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd();
+    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss);
+    const privateCss = readFileSync(new URL('../../src/view/cost.css', import.meta.url), 'utf8');
+    const doctrineCss = readFileSync(new URL('../../src/view/doctrine.css', import.meta.url), 'utf8');
+    assert.equal(sharedCss.split('/* @private-view-css src/view/cost.css */').length - 1, 1, 'the local view has one private-style insertion point');
+    assert.equal(sharedCss.split('/* @shared-view-css src/view/doctrine.css */').length - 1, 1, 'the shared view has one Doctrine-style insertion point');
+    const expectedCss = sharedCss.replace('/* @shared-view-css src/view/doctrine.css */', doctrineCss).replace('/* @private-view-css src/view/cost.css */', privateCss);
+    assert.equal(await css.text(), expectedCss, 'the authenticated view assembles shared Dashboard and Doctrine styles plus private Cost styles in source order');
     assert.equal((await fetchLive(`${view.base}/view.css`)).status, 403, 'nothing without the secret');
     const stranger = await new Promise((done, fail) => {
       request({ host: '127.0.0.1', port: view.link.port, path: `/view.css?k=${view.key}`, headers: { host: 'pullboard.example' } }, (res) => done(res.statusCode)).on('error', fail).end();
@@ -285,7 +293,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
     const rows = [...document.querySelectorAll('#chain .row')].map((row) => {
       const s = getComputedStyle(row), why = row.querySelector('.meta .why b');
       return { id: row.dataset.item, row: box(row), title: box(row.querySelector('.t')), age: box(row.querySelector('.row-age')),
-        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .chip')?.textContent ?? null,
+        meta: words(row.querySelector('.meta')), chip: row.querySelector(':scope > .chip')?.textContent ?? null, waitTarget: row.querySelector(':scope > .chip [data-go]')?.dataset.go ?? null,
         why: why ? { text: why.textContent, code: why.querySelector('[title]')?.title, color: getComputedStyle(why).color } : null, gated: row.classList.contains('gated'),
         border: rgb(s.borderTopColor), borderWidth: s.borderTopWidth, edges: [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].every((c) => c === s.borderTopColor),
         tint: rgb(s.backgroundColor) };
@@ -330,7 +338,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
         // The header carries the tabs and nothing else: no counts, no clock.
-        assert.deepEqual(r.tabs, ['Dashboard', 'Home', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], `${at}: the tabs carry no counts`);
+        assert.deepEqual(r.tabs, ['Dashboard', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap', 'Cost'], `${at}: the tabs carry no counts`);
         assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
         // On a phone the bar stays out of the way while the board is live.
         if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);
@@ -353,13 +361,13 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         assert.deepEqual([row['6'].why?.text, row['6'].why?.color === r.warn, /\bweb\b/.test(row['6'].meta.replace('Behavior did not match', '')), /next line/.test(row['6'].meta)], ['Behavior did not match', true, false, false],
           `${at}: a sent-back row says why in the warning colour, first line only, in place of its lane: ${row['6'].meta}`);
         assert.equal(row['6'].why?.code, 'BEHAVIOR_MISMATCH', `${at}: the row keeps its native reason code in the tooltip`);
-        // Blocked: a red outline on every side, and what it waits on beside the gated chip. Waiting on a verdict: shaded gold.
-        for (const id of ['3', '4']) {
+        // A lane hold keeps its warning edge; dependency waits use the approved plain linked chip. Review stays gold.
+        for (const id of ['4']) {
           const [red, green, blue] = row[id].border;
           assert.ok(row[id].gated && row[id].edges && row[id].borderWidth === '1px' && red > green + 30 && red > blue + 30, `${at}: #${id} has a red outline: ${JSON.stringify(row[id])}`);
         }
-        assert.match(row['3'].meta, /waits on #2$/, `${at}: #3 says what it waits on`);
-        assert.equal(row['3'].chip, 'gated');
+        assert.deepEqual([row['3'].gated, row['3'].border, row['3'].borderWidth, row['3'].edges], [true, row['1'].border, row['1'].borderWidth, true], `${at}: a dependency wait has the same plain edge as an unclaimed row`);
+        assert.deepEqual([row['3'].chip, row['3'].waitTarget], ['Waiting on #2', 'item:2'], `${at}: the chip names and links the native dependency`);
         const [tr, tg, tb] = row['5'].tint;
         assert.ok(tr >= tg && tg > tb && row['5'].tint.join() !== row['1'].tint.join(), `${at}: a row waiting on a verdict is shaded gold: ${JSON.stringify([row['5'].tint, row['1'].tint])}`);
         if (scheme === 'dark') {
@@ -579,6 +587,25 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
         `the ${part} keeps its place and size: ${JSON.stringify([docked[part], collapsed[part]])}`);
     }
     assert.deepEqual([docked.mode, docked.arrow, collapsed.mode, collapsed.arrow], ['docked', false, 'collapsed', true], 'the arrow only where the name opens a list');
+
+    /** Read whether the Settings and GitHub project tools are visible in their sidebar container. */
+    const footer = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
+      const bar = document.querySelector('.side-footer'), settings = bar?.querySelector('[data-tab="settings"]'), github = bar?.querySelector('a[href]');
+      const shown = (element) => { const style = element && getComputedStyle(element), rect = element?.getBoundingClientRect(); return !!element && style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0; };
+      return { bottomSibling: bar === document.querySelector('#side').lastElementChild && !bar.closest('#side-body'), settings: shown(settings), settingsText: settings?.textContent.trim(), github: shown(github), githubText: github?.textContent.trim(), footer: shown(bar) };
+    })())`));
+    assert.deepEqual(await footer(), { bottomSibling: true, settings: false, settingsText: 'Settings', github: false, githubText: 'GitHub ↗', footer: false }, 'collapsed, project tools leave the short logo row without shrinking it');
+    await click('#proj-switch');
+    await chrome.waitFor("document.querySelector('#side').classList.contains('open') && getComputedStyle(document.querySelector('.side-footer')).display === 'flex'");
+    assert.deepEqual(await footer(), { bottomSibling: true, settings: true, settingsText: 'Settings', github: true, githubText: 'GitHub ↗', footer: true }, 'the collapsed desktop popover exposes both project tools as visible controls');
+    assert.equal(await chrome.stable(`(() => {
+      const tools = document.querySelector('.side-footer').getBoundingClientRect();
+      const project = document.querySelector('#proj-list .proj').getBoundingClientRect();
+      return tools.bottom <= project.top && tools.right <= document.documentElement.clientWidth;
+    })()`), true, 'the collapsed tools fit above the project choices without covering them');
+    await click('.side-footer [data-tab="settings"]');
+    await chrome.waitFor("document.querySelector('#settings-pane') && !document.querySelector('#settings-pane').hidden");
+    assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), false, 'the Settings action opens its pane from the collapsed desktop popover');
 
     // The theme is light or dark: it starts from the system's, each press switches, the title says which, a reload keeps
     // it; collapsed, the button still sits centred in the top bar.

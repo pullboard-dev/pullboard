@@ -1,3 +1,4 @@
+import { openBoard } from '../src/native-board.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
@@ -52,7 +53,7 @@ test('a private board sits beside the repo board [E11,E13,E14,E15]', { timeout: 
   assert.equal(reopened.code, 0, `another process opens the same repo’s private board: ${JSON.stringify(reopened.document?.error ?? null)}`);
   assert.equal(readFileSync(sessionFile, 'utf8'), checkoutBindingBefore, 'private-board identity does not rewrite the checkout’s repository-session binding');
   // @pullboard-board-file persistence: reopen the private board written by independent CLI processes.
-  const privateBoard = store.openBoard(privateFile);
+  const privateBoard = openBoard(privateFile);
   try {
     const privateItems = store.listItems(privateBoard, { all: true }).sort((left, right) => left.item_id - right.item_id);
     assert.deepEqual(privateItems.map(item => item.item_title), ['private item', 'private item from another worktree']);

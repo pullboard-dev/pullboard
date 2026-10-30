@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Native view state against the sealed relay presentation, field by field [H5,H17]. Run it explicitly: the default gate skips *.study.js. */
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -17,7 +17,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 test('relay study diffs the native view state and the relay reader state [H5,H17]', { timeout: 180_000 }, async t => {
   const box = await relayClientFixture(t);
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const item = store.addItem(board, { by: 'coordinator', lane: box.lane, title: 'Study parity item',
     criterion: 'Every field reaches both readers.', brief: 'A seeded brief.', specIds: [] });

@@ -1,3 +1,4 @@
+import { quarantineVerdictSnapshot } from './quarantine.js';
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
 /** Final exact-head native receipt for opt-in native landings; floors retain their separate evidence [B3,C7]. */
@@ -39,7 +40,7 @@ export async function finalizeLandingEnvelope(state, save, observer) {
     envelope: { version: 1, base: batch.base, side, tip: envelope.tip } });
   batch = state.batch;
   const run = await runGate(batch.root, state.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true,
-    agent: 'coordinator', stages: true, onWait: state.onWait, onFailure: observer() });
+    agent: 'coordinator', stages: true, quarantines: quarantineVerdictSnapshot(state.board), onWait: state.onWait, onFailure: observer() });
   const logPath = join(dirname(batch.root), 'logs', `envelope-${batch.revision}.log`);
   copyFileSync(run.log, logPath);
   if (run.profilePath) copyFileSync(run.profilePath, `${logPath}.profile.json`);

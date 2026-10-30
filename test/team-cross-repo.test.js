@@ -1,3 +1,4 @@
+import { openBoard } from '../src/native-board.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
@@ -113,7 +114,7 @@ test('an item waits across repos [B24,H16]', async t => {
   await announce(2);
   await readState();
   assert.ok(builds.includes(dependent), 'an authenticated global state announcement rebuilds its cached foreign dependents');
-  const replica = store.openBoard(':memory:', clock);
+  const replica = openBoard(':memory:', clock);
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(local));
   const options = { agentId: 'web-1', lane: 'web', leaseMs: 60_000, freeze };

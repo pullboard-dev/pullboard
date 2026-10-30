@@ -6,6 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { nativeUsage } from '../src/cost-provider.js';
 import { sessionSnapshot } from '../src/cost-session.js';
 import { usageDifference } from '../src/cost-session.js';
@@ -153,7 +154,7 @@ test('a supported historical usage record without splits shows unknown through n
   document(box.run(box.web, 'claim', String(id), '--json'));
   const agent = document(box.run(box.web, 'whoami', '--json')).id;
   // @pullboard-board-file journey: this isolated board receives only the supported historical recordUsage operation.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     board.executionEngineVersion = COST_ENGINE;
     store.recordUsage(board, { agentId: agent, item: id, revision: 100, observedAt: Date.now(), records: [

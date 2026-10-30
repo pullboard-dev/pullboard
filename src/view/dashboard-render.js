@@ -1,5 +1,14 @@
-/** Render the approved Dashboard; all numbers come from its snapshot model, never mockup values [N26]. */
-export function dashboardHtml(model, { needs = '', progress = '', deferQuiet, floorHref = null, locale = 'en-US', timeZone = 'UTC' } = {}) {
+/**
+ * Render the approved Dashboard; all numbers come from its snapshot model, never mockup values [N26].
+ * @param {object} model - The Dashboard snapshot model.
+ * @param {object} options - Prepared person-facing cards and presentation settings.
+ * @param {string} options.needs - Shared Needs-you markup.
+ * @param {string} options.rules - Rules-card markup retained from the retired Home pane.
+ * @param {string} options.needsHeader - Compact Needs navigation above its rows.
+ * @param {string} options.capacity - Capacity-card markup retained from the retired Home pane.
+ * @returns {string} Dashboard markup.
+ */
+export function dashboardHtml(model, { needs = '', needsHeader = '', progress = '', rules = '', capacity = '', deferQuiet, floorHref = null, locale = 'en-US', timeZone = 'UTC' } = {}) {
   const m = model;
   /** Escape both text and attribute values supplied by a board. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
@@ -27,7 +36,9 @@ export function dashboardHtml(model, { needs = '', progress = '', deferQuiet, fl
   const count = value => value === null || value === undefined ? '—' : value.toLocaleString(locale);
   const six = m.pace ? m.pace.last6h/6 : null, two = m.pace ? m.pace.last2h/2 : null;
   const hero = '<section class="dash-card dash-hero"><div><h1 title="Agents building, reviewing, or between items in the current board snapshot">'+m.totals.working+(m.totals.working===1?' agent at work.':' agents at work.')+'</h1><p class="dash-accent" title="Items landed during the last 24 hours">'+count(m.totals.day)+' landed in the last 24 hours.</p><div class="dash-chips"><span>'+icon('clock')+'Last 4 hours</span>'+[['recent','landed','land','Items landed during the last 4 hours'],['passed','passed review','pass','Recorded review acceptances during the last 4 hours'],['sentBack','sent back to fix','back','Recorded rejections and reopenings during the last 4 hours'],['shouts','shouts to you','msg','Shouts addressed to you during the last 4 hours']].map(([key,label,symbol,source])=>'<span title="'+source+'">'+icon(symbol)+count(m.totals[key])+' '+label+'</span>').join('')+'</div></div><div class="dash-rate" title="Recorded item landings: hourly pace over the last 6 and 2 hours, and the all-time total"><b data-dashboard-stat="pace6" data-value="'+esc(six)+'">'+(six===null?'—':six.toFixed(1))+'</b> items an hour<small>today’s pace, the last 6 hours</small><small>'+(two===null?'—':two.toFixed(1))+' /h last 2 h · '+count(m.totals.allTime)+' landed all time</small></div><span class="visually-hidden" data-dashboard-stat="building" data-value="'+m.claims.length+'">'+m.claims.length+' building</span></section>';
-  const needsCard = card('Needs you', needs ? '<ol class="needs home-needs">'+needs+'</ol>' : '<p><b>Nothing needs you.</b> When a decision is yours, it shows up here and on your phone.</p>');
+  const needsCard = '<section class="dash-card needs-card" aria-label="Needs you"><header class="needs-card-header"><h2>Needs you</h2>'+needsHeader+'</header>' + (needs ? '<ol class="needs home-needs">'+needs+'</ol>' : needsHeader ? '' : '<p><b>Nothing needs you.</b> When a decision is yours, it shows up here and on your phone.</p>') + '</section>';
+  const rulesCard = rules ? '<section id="dashboard-rules" class="dash-card" aria-label="Your rules">'+rules+'</section>' : '';
+  const capacityCard = capacity ? '<section id="dashboard-capacity" class="dash-card" aria-label="Useful agents">'+capacity+'</section>' : '';
   /** Current holding actors and elapsed stays come from the same claims as the headline. */
   const flight = (label, entries, kind) => {
     /** Render a real in-flight row without changing its holding state. */
@@ -79,10 +90,58 @@ export function dashboardHtml(model, { needs = '', progress = '', deferQuiet, fl
     const totals = [['Landed','landed'],['Agent-hours','agentHours'],['Agent-hours / landing','agentHoursPerLanding'],['Idle share','idleShare',true],['Submits / item','submitsPerItem'],['Reject rate','rejectRate',true],['Coordinator shouts / landing','shoutsPerLanding']].map(row=>line(...row)).join('');
     const idle = [['Nothing eligible','nothing-eligible'],['Held','held'],['Waiting for review family','review-family'],['Main red','main-red'],['Unknown','unknown']].map(([label,key])=>line('Idle: '+label,key,true,'idleReasons')).join('');
     const stages = [['Build','build'],['Rework','rework'],['Review wait','reviewWait'],['Review','review'],['Land','land']].map(([label,key])=>line('Stage: '+label,key,true,'stageShares')).join('');
-    /** Present canonical observation times in the same explicit locale and zone as the other Dashboard clocks. */
-    const stamp = value => new Date(value).toLocaleString(locale, { timeZone });
-    const caption = '<p data-stats-as-of="'+esc(current.until)+'">As of '+esc(stamp(current.until))+'; '+esc(observed.durationMinutes)+'-minute windows: '+esc(stamp(current.since))+' to '+esc(stamp(current.until))+' versus '+esc(stamp(previous.since))+' to '+esc(stamp(previous.until))+'.</p>';
-    return card('Window comparison', '<details class="dash-comparison" data-dashboard-disclosure="comparison"><summary>Compare the last two windows</summary>'+caption+'<table><thead><tr><th>Metric</th><th>Current</th><th>Previous</th><th>Change</th></tr></thead><tbody>'+totals+idle+stages+'</tbody></table><p>Idle reasons use all observed seat-hours as their denominator and add up to the idle share; older reasons remain unknown. Stage shares use the five recorded stage durations. Rework is time returned to open. Share changes are percentage points.</p></details>');
+    /** Minute precision and the caller's zone keep both ranges on the person's clock. */
+    const stamp = value => new Date(value).toLocaleTimeString(locale, { timeZone, hour: 'numeric', minute: '2-digit' });
+    const caption = '<span class="window-range" data-stats-as-of="'+esc(current.until)+'" title="'+esc(observed.durationMinutes)+'-minute windows">'+esc(stamp(current.since)+'–'+stamp(current.until)+' against '+stamp(previous.since)+'–'+stamp(previous.until))+'</span>';
+    const metrics = [['Landed','landed',false,true], ['Sent back','rejectRate',true,false], ['Agents idle','idleShare',true,false], ['Agent-hours per landing','agentHoursPerLanding',false,false]];
+    /** A missing canonical value never becomes a zero or a direction of improvement. */
+    const measured = value => typeof value === 'number' && Number.isFinite(value);
+    /** Compact headline values retain percentage-point units for share changes. */
+    const compact = (value, share, key) => !measured(value) ? 'unmeasured' : share ? (100*value).toFixed(1)+'%' : key === 'landed' ? String(value) : value.toFixed(1);
+    /** Color reflects this measure's direction, rather than treating every increase as good. */
+    const direction = (delta, higherBetter) => !measured(delta) || delta === 0 ? '' : (delta > 0) === higherBetter ? 'good' : 'bad';
+    const tiles = metrics.map(([label,key,share,higherBetter]) => {
+      const a = current[key], b = previous[key], delta = change[key], tone = direction(delta,higherBetter);
+      const max = share ? 1 : Math.max(measured(a)?a:0,measured(b)?b:0,1);
+      const difference = !measured(delta) ? 'unmeasured' : delta === 0 ? 'No change' : (delta > 0 ? '▲ ' : '▼ ') + (share ? (Math.abs(delta)*100).toFixed(1)+' pts' : key==='landed' ? String(Math.abs(delta)) : Math.abs(delta).toFixed(1));
+      return '<div class="window-tile '+tone+'" data-window-tile="'+key+'"><div class="window-key">'+label+'</div><div class="window-value"><b>'+esc(compact(a,share,key))+'</b><span class="window-change '+tone+'">'+esc(difference)+'</span></div><svg class="window-bar" viewBox="0 0 1000 6" preserveAspectRatio="none" aria-hidden="true">'+(measured(b)?'<rect class="window-before" x="0" y="0" height="6" width="'+Math.min(1000,Math.max(0,b/max*1000))+'"/>':'')+(measured(a)?'<rect class="window-after" x="0" y="0" height="6" width="'+Math.min(1000,Math.max(0,a/max*1000))+'"/>':'')+'</svg><small>was '+esc(compact(b,share,key))+'</small></div>';
+    }).join('');
+    /** Generate plain changes from all four observed values without inventing a causal explanation. */
+    const sentence = metrics.map(([label,key,share]) => {
+      const a=current[key], b=previous[key], d=change[key];
+      if (!measured(a) || !measured(b) || !measured(d)) return label+' is unmeasured for one or both windows.';
+      return label+': '+compact(a,share,key)+(d===0?', unchanged.':', '+(d>0?'up':'down')+' from '+compact(b,share,key)+'.');
+    }).join(' ');
+    const stageKeys = [['Build','build'],['Rework','rework'],['Waiting for review','reviewWait'],['Review','review'],['Landing','land']];
+    /** Shares already come normalized from the canonical API; no browser lifecycle replay is used. */
+    const stack = (period, label) => {
+      const shares = observed[period].stageShares;
+      let offset = 0;
+      const bars = stageKeys.map(([name,key]) => {
+        if (!measured(shares[key])) return '';
+        const x = offset; offset += Math.max(0,shares[key]);
+        return '<rect class="window-stage-'+key+'" data-window-stage="'+period+'.'+key+'" data-share="'+shares[key]+'" x="'+x*1000+'" y="0" height="1" width="'+Math.max(0,shares[key])*1000+'"><title>'+name+' '+(shares[key]*100).toFixed(1)+'%</title></rect>';
+      }).join('');
+      return '<div class="window-stage-row"><span>'+label+'</span><svg class="window-stack" viewBox="0 0 1000 1" preserveAspectRatio="none" role="img" aria-label="'+label+' item time">'+bars+'</svg></div>';
+    };
+    const legend = '<div class="window-keys">'+stageKeys.map(([label,key]) => '<span><i class="window-stage-'+key+'"></i>'+label+' '+esc(compact(current.stageShares[key],true,key))+'</span>').join('')+'</div>';
+    return '<section class="dash-card window-comparison" aria-label="Window comparison"><div class="window-head"><h2>The last two hours</h2>'+caption+'</div><p class="window-sentence">'+esc(sentence)+'</p><div class="window-tiles">'+tiles+'</div><h3 class="window-time-heading">Where item time went</h3>'+stack('current','now')+stack('previous','before')+legend
+      + '<details class="dash-comparison" data-dashboard-disclosure="comparison"><summary>All 17 measures →</summary><table><thead><tr><th>Metric</th><th>Current</th><th>Previous</th><th>Change</th></tr></thead><tbody>'+totals+idle+stages+'</tbody></table><p>Idle reasons use all observed seat-hours as their denominator and add up to the idle share; older reasons remain unknown. Stage shares use the five recorded stage durations. Rework is time returned to open. Share changes are percentage points.</p></details></section>';
   };
-  return hero+needsCard+comparison()+shipping+'<div class="dash-two">'+card('Landed per hour',m.complete?bars:'<p>Loading complete landing history…</p>')+card('Agent time',m.complete?split:'<p>Loading complete agent history…</p>')+'</div>'+agents+landing+'<div class="dash-three">'+listCard('Just landed',m.landed.map(row=>({entry:row.item,at:row.at})),'All landed in Activity','data-tab="activity"')+listCard('In review',m.inReview.map(entry=>({entry,at:m.last(entry,'submit')})),'All in review, oldest first','data-dashboard-list="review"')+listCard('Next up',m.next.map(entry=>({entry,at:Date.parse(entry.updatedAt)||m.now})),'All ready, in rank order','data-dashboard-list="next"')+'</div>';
+  /** Render the API's precomputed lifecycle projection without replaying or recalculating it. */
+  const pipeline = () => {
+    const report = m.pipeline;
+    if (!report) return card('Pipeline', '<p>Pipeline measurements are unavailable.</p>');
+    const stageKeys = [['claim','Claim'],['submit','Submit'],['reviewWait','Review wait'],['review','Review'],['landing','Landing']];
+    /** Keep absent measurements distinct from an observed duration of zero. */
+    const duration = value => value === null || value === undefined ? 'unmeasured' : value+' ms';
+    const rows = report.items.map(entry => '<article class="dash-pipeline-item" data-pipeline-item="'+esc(entry.id)+'"><h3>#'+esc(entry.id)+' '+esc(entry.title)+'</h3><dl>'+stageKeys.map(([key,label]) => '<div data-pipeline-stage="'+key+'" data-value="'+esc(JSON.stringify(entry.stages[key]))+'"><dt>'+label+'</dt><dd>'+duration(entry.stages[key])+'</dd></div>').join('')+'</dl>'
+      +(entry.retries.length ? '<ul class="dash-pipeline-retries">'+entry.retries.map(retry => '<li data-pipeline-retry="'+esc(retry.cause)+'">'+esc(retry.kind)+' · '+esc(retry.cause)+'</li>').join('')+'</ul>' : '')
+      +(entry.gaps.length ? '<ul class="dash-pipeline-gaps">'+entry.gaps.map(gap => '<li>Unmeasured '+esc(gap.stages.join(', '))+': '+esc(gap.reason)+'</li>').join('')+'</ul>' : '')+'</article>').join('');
+    const totals = stageKeys.map(([key,label]) => '<li data-pipeline-total="'+key+'" data-value="'+esc(JSON.stringify(report.totals[key].measuredMs))+'">'+label+': '+duration(report.totals[key].measuredMs)+' · '+report.totals[key].unmeasuredItems+' unmeasured</li>').join('');
+    const causes = Object.entries(report.causes).map(([cause,total]) => '<li data-pipeline-cause="'+esc(cause)+'" data-value="'+esc(JSON.stringify(total))+'">'+esc(cause)+': '+total+'</li>').join('');
+    const gaps = report.unmeasuredGaps.map(gap => '<p class="dash-pipeline-gap" data-pipeline-gap="'+esc(gap.kind)+'">Unmeasured '+esc(gap.kind)+': '+esc(gap.reason)+'</p>').join('');
+    return card('Pipeline', '<p>Recorded times for the last '+report.count+' of '+report.limit+' landed items. Durations are milliseconds from native events.</p><ul class="dash-pipeline-causes" aria-label="Retry and reopen totals by cause">'+causes+'</ul>'+gaps+'<div class="dash-pipeline-items">'+(rows||'<p>No landed items in this window.</p>')+'</div><details data-dashboard-disclosure="pipeline"><summary>Stage totals</summary><ul>'+totals+'</ul></details><p>'+esc(report.evidence)+'</p>', 'dash-pipeline');
+  };
+  return hero+needsCard+comparison()+pipeline()+shipping+'<div class="dash-two">'+card('Landed per hour',m.complete?bars:'<p>Loading complete landing history…</p>')+card('Agent time',m.complete?split:'<p>Loading complete agent history…</p>')+'</div>'+agents+landing+'<div class="dash-three">'+listCard('Just landed',m.landed.map(row=>({entry:row.item,at:row.at})),'All landed in Activity','data-tab="activity"')+listCard('In review',m.inReview.map(entry=>({entry,at:m.last(entry,'submit')})),'All in review, oldest first','data-dashboard-list="review"')+listCard('Next up',m.next.map(entry=>({entry,at:Date.parse(entry.updatedAt)||m.now})),'All ready, in rank order','data-dashboard-list="next"')+'</div><div class="dash-two dash-reference">'+rulesCard+capacityCard+'</div>';
 }

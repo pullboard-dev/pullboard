@@ -1,12 +1,12 @@
 /** @pullboard-test-gui */
 /** Recover a native checkpoint timeout through the actual relay page [H16]. The timeout is an API1 checkpoint PUT, so
  * the case runs on the legacy wire (#903). */
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { openBoard, closeBoard } from '../src/board.js';
+import { closeBoard } from '../src/board.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { relaySnapshot } from '../src/relay-presentation.js';

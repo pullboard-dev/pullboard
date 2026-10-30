@@ -5,7 +5,8 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, s
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { addItem, closeBoard, events, getItem, openBoard } from '../src/board.js';
+import { addItem, closeBoard, events, getItem } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { prepareCheckBaseline } from '../src/check-baseline.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

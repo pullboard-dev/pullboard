@@ -1,5 +1,5 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 import { request as boardLinkRequest } from '../src/relay.js';
 import {
   personSigningCase,
@@ -180,7 +180,8 @@ after(helpers.cleanup);
 
 /** Open a fixture's independent board and always close it after its observation or public move. */
 function withBoard(root, action) {
-  const board = store.openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  // @pullboard-board-file persistence: observe the linked fixture board after real CLI and device moves.
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   try { return action(board); }
   finally { store.closeBoard(board); }
 }

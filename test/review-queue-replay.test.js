@@ -3,6 +3,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
@@ -25,7 +26,7 @@ const REVIEW_SKIPPED = {
 
 /** Create one seed board and two independent in-memory replicas with different ambient clocks. */
 function memoryCopies(t, historicalSeats = false) {
-  const source = store.openBoard(':memory:', { now: () => new Date('2026-10-08T10:00:00.000Z') });
+  const source = openBoard(':memory:', { now: () => new Date('2026-10-08T10:00:00.000Z') });
   /** Engine-1 claim history starts with real engine-1 joins, not a newer seat's activated grant. */
   const register = who => historicalSeats
     ? replayHistoricalSeatMove(source, 1, 'register', [who])
@@ -37,7 +38,7 @@ function memoryCopies(t, historicalSeats = false) {
   const snapshot = exportBoard(source);
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-08T${String(index + 8).padStart(2, '0')}:00:00.000Z`) };
-    const board = store.openBoard(':memory:', clock);
+    const board = openBoard(':memory:', clock);
     importBoard(board, snapshot);
     return board;
   });

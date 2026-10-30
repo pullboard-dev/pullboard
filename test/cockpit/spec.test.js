@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import vm from 'node:vm';
-import { standardDoctrine } from '../../src/doctrine.js';
+import { standardDoctrine } from '../../packages/doctrine/index.js';
 import { loadConfig } from '../../src/config.js';
 import { pageScriptPart4 } from '../../src/view/page-script-4.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../packages/kernel/src/core/discovery.js';
@@ -238,7 +238,7 @@ test('spec rows read across a phone [N26,D1]', async () => {
       assert.ok(drawn.length > 0, kind + ' has rows');
       for (const row of drawn) {
         assert.match(row, /^ row s-[^"]*"[^]*?<span class="dot [^"]+"><\/span><div><div class="t srow-text"><span class="row-id">[^<]+<\/span>/, kind + ' shares the dot and primary line');
-        assert.match(row, /<div class="meta"><span class="rule-source"/, kind + ' names its source on the secondary line');
+        assert.match(row, /<div class="meta"><span class="(?:rule-source|rule-source-chip)/, kind + ' names its source on the secondary line');
       }
     }
   } finally {
@@ -1090,12 +1090,12 @@ test('doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, a
     const row = document.querySelector(${JSON.stringify(selector)});
     const box = e => { if (!e) return null; const r=e.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}; };
     const style = e => { if (!e) return null; const s=getComputedStyle(e); return {display:s.display,dotColumn:s.gridTemplateColumns.split(" ")[0],gridTemplateAreas:s.gridTemplateAreas,columnGap:s.columnGap,rowGap:s.rowGap,padding:s.padding,fontFamily:s.fontFamily,fontSize:s.fontSize,fontWeight:s.fontWeight,lineHeight:s.lineHeight}; };
-    const title = row?.querySelector('.t'), meta = row?.querySelector('.meta'), source = row?.querySelector('.rule-source'), reason = row?.querySelector('.rule-reason');
+    const title = row?.querySelector('.t'), meta = row?.querySelector('.meta'), source = row?.querySelector('.rule-source, .rule-source-chip'), reason = row?.querySelector('.rule-reason');
     const age = row?.querySelector('.row-age');
     const trace = window.__specFilterTrace;
     const currentRow = document.querySelector('#spec-list [data-row="spec:G1"]');
     return {tag:row?.tagName ?? null, className:row?.className ?? '', title:title?.textContent ?? '', titleFull:row?.getAttribute('title') ?? '', titleBox:box(title), titleStyle:title&&{overflow:getComputedStyle(title).textOverflow,whiteSpace:getComputedStyle(title).whiteSpace,lines:Math.ceil(title.getBoundingClientRect().height/parseFloat(getComputedStyle(title).lineHeight))},
-      rowBox:box(row), rowStyle:style(row), dot:!!row?.querySelector(':scope > .dot'), meta:meta?.textContent ?? '', metaBox:box(source), source:source?.textContent ?? null, sourceBox:box(source), reason:reason?.textContent ?? null, reasonBox:box(reason), gate:row?.querySelector('.meta .gate')?.textContent ?? null, gateBox:box(row?.querySelector('.meta .gate')),
+      rowBox:box(row), rowStyle:style(row), dot:!!row?.querySelector(':scope > .dot'), meta:meta?.textContent ?? '', metaBox:box(source), source:source?.textContent ?? null, sourceTitle:source?.title ?? null, sourceBox:box(source), reason:reason?.textContent ?? null, reasonBox:box(reason), gate:row?.querySelector('.meta .gate, .meta .doctrine-check')?.textContent ?? null, gateBox:box(row?.querySelector('.meta .gate, .meta .doctrine-check')),
       count:age?.textContent.trim() ?? null, countBox:box(age), status:row?.querySelector(':scope > .chip')?.textContent.trim() ?? null, statusBox:box(row?.querySelector(':scope > .chip')),
       renderProvenance:trace ? { readAt:performance.now(), currentFilter:typeof view === 'object' ? view.rows?.spec ?? null : null,
         sourceDataStatus:typeof data === 'object' ? data.project?.spec?.find(entry => entry.id === 'G1')?.status ?? null : null,
@@ -1193,10 +1193,11 @@ test('doctrine and spec rows share the items row [N26]', { timeout: 300_000 }, a
         const pb2 = await rowState(`#doctrine-list [data-row="doctrine:${overridden.id}"]`);
         const pb3 = await rowState(`#doctrine-list [data-row="doctrine:${declined.id}"]`);
         const local = await rowState('#doctrine-list [data-row="doctrine:R1"]');
-        assert.equal(pb1.source, `Pullboard v${standard.version}`, `${width}px ${theme}: an inherited standard row names its version`);
-        assert.equal(pb2.source, `Pullboard v${standard.version}, overridden here`);
-        assert.equal(pb3.source, `Pullboard v${standard.version}, declined here`);
-        assert.equal(local.source, 'this repo');
+        assert.equal(pb1.source, 'Standard', `${width}px ${theme}: an inherited row uses the concise Standard chip`);
+        assert.equal(pb1.sourceTitle, `Pullboard v${standard.version}`, `${width}px ${theme}: its packaged version stays available on hover`);
+        assert.equal(pb2.source, 'This repo');
+        assert.equal(pb3.source, 'This repo');
+        assert.equal(local.source, 'This repo');
         for (const row of [pb1,pb2,pb3,local]) {
           assert.match(row.className, /(?:^|\s)srow(?:\s|$)/u);
           assert.match(row.className, /(?:^|\s)row(?:\s|$)/u);

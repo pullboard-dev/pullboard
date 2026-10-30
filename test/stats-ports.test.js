@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { addItem } from '../src/board.js';
 import { closeBoard } from '../src/board.js';
 import { events } from '../src/board.js';
-import { openBoard } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { register } from '../src/board.js';
 import { counterProofStats } from '../src/proof-counter-read.js';
 import { eventCounts } from '../src/stats.js';

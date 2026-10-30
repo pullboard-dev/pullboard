@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 test('an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
   const module = new URL('../src/item-offer.js', import.meta.url);
@@ -22,7 +23,7 @@ test('an accepted offer makes at most one child and a receipt carries no text [B
     const env = { ...process.env };
     for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
     execFileSync('git', ['init', '-q', '-b', 'main', root], { env });
-    const file = join(root, '.git', 'board.sqlite'), board = store.openBoard(file);
+    const file = join(root, '.git', 'board.sqlite'), board = openBoard(file);
     store.ensureCoordinator(board, root);
     boards.push({ board, file, id: store.boardId(board) });
   }
@@ -42,7 +43,7 @@ test('an accepted offer makes at most one child and a receipt carries no text [B
   assert.equal(store.listItems(destination.board, { all: true }).length, 1);
   assert.equal(store.getItem(destination.board, accepted.childRef.item).item_parent_id, null, 'foreign parent id never becomes a local parent');
   store.closeBoard(destination.board);
-  destination.board = store.openBoard(destination.file);
+  destination.board = openBoard(destination.file);
   assert.deepEqual(api.acceptItemOffer(destination.board, offer, ports), accepted, 'retry after reopen returns the saved child');
   assert.equal(store.listItems(destination.board, { all: true }).length, 1);
   const reordered = Object.fromEntries(Object.entries(offer).reverse());

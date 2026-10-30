@@ -62,7 +62,8 @@ export function prepareNativeTrainLanding(root, board, id, receiptId) {
   if (!batch || !['trunk', 'pushed', 'landed'].includes(batch.state) || batch.root !== root) {
     throw new Refused('LAND_BATCH', 'finish the exact recorded native batch from its owned worktree');
   }
-  const receipt = readTrainLandingReceipt(root, board, receiptId, batch.tip);
+  // A terminal immutable retry returns the already-recorded landing; a fresh finish still needs current authority.
+  const receipt = readTrainLandingReceipt(root, board, receiptId, batch.tip, { historical: batch.state === 'landed' });
   if (batch.proof?.tree !== receipt.tree || batch.items.some(entry => entry.merge !== batch.tip)
     || git(root, ['rev-parse', 'HEAD']).trim() !== batch.tip) {
     throw new Refused('LAND_RECEIPT_UNBOUND', 'gate and retain the exact native batch envelope before finishing it');

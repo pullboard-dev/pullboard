@@ -1,3 +1,5 @@
+import { firstRefusal } from '../../../../src/board-item-read.js';
+import { compositionFamilyFallback } from '../../../../src/review-composition.js';
 import { reviewWait } from '../../../../src/review-routing.js';
 import { eligibilityProblem } from '../../../../src/review-eligibility.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
@@ -30,22 +32,20 @@ import {
   tryGit,
 } from '../../../../src/git.js';
 import { gateControlFindings } from '../../../../src/gate-control.js';
-import {
-  boardBusyError,
-  buildOrder,
-  foreignBlockers,
-  milestonePriorities,
-  milestones,
-  canTake,
-  listItems,
-  listAgents,
-  openBoardReadOnly,
-  PERSON,
-  ROUTES,
-  roadmap,
-  rowDecisions,
-  unverifiedSubmissions,
-} from '../../../../src/board.js';
+import { boardBusyError } from '../../../../src/board.js';
+import { buildOrder } from '../../../../src/board.js';
+import { foreignBlockers } from '../../../../src/board.js';
+import { milestonePriorities } from '../../../../src/board.js';
+import { milestones } from '../../../../src/board.js';
+import { canTake } from '../../../../src/board.js';
+import { listItems } from '../../../../src/board.js';
+import { listAgents } from '../../../../src/board.js';
+import { openBoardReadOnly } from '../../../../src/board.js';
+import { PERSON } from '../../../../src/board.js';
+import { ROUTES } from '../../../../src/board.js';
+import { rowDecisions } from '../../../../src/board.js';
+import { unverifiedSubmissions } from '../../../../src/board.js';
+import { roadmap } from '../../../../src/board-milestones.js';
 import { staleRowDecisions } from '../../../../src/row-decision-state.js';
 import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../../src/queue.js';
@@ -166,7 +166,25 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
       }));
     }
 
+    const released = events.last.get('release');
+    const expiry = released ? JSON.parse(released.event_detail) : null;
+    const refusal = status === 'open' && expiry?.expiredClaim ? firstRefusal(board, id) : null;
+    if (refusal) found(report.waiting, finding('CLAIM_EXPIRED', item, {
+      since: released.event_at, now: at, title: 'lapsed idle claim freed',
+      why: `${expiry.expiredClaim.holder}'s lapsed claim returned to open; first refusal lasts until ${refusal.until}`,
+      next: `${refusal.builder} resumes with pullboard claim ${id}, or releases its first refusal`,
+      command: `pullboard claim ${id}`, owner: { role: 'builder', who: refusal.builder },
+      detail: { ...expiry.expiredClaim, firstRefusalUntil: refusal.until },
+    }));
+
     if (status === 'submitted') {
+      const fallback = compositionFamilyFallback(board, item);
+      if (fallback) found(report.waiting, finding('REVIEW_FAMILY_FALLBACK', item, {
+        since: events.last.get('submit')?.event_at ?? item.item_updated_at, now: at,
+        title: 'independent family review', why: `Current composition spans the joined families; owner ${fallback.owner} (${fallback.family}) sets the different-family boundary; all material author and session exclusions remain`,
+        next: 'an independent seat from another family takes the review', command: `pullboard next --verify ${id}`,
+        owner: { role: 'builder', who: fallback.owner }, detail: fallback,
+      }));
       const reviewer = item.item_review_by;
       const lapsed = reviewer && (item.item_review_until ?? '') <= asOf;
       const submittedAt = events.last.get('submit')?.event_at ?? item.item_updated_at;

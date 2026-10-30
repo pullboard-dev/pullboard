@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -177,7 +178,7 @@ test('[B29,B31] verdicts and facts carry --implies; a later verdict or a superse
 
 test('[P6,B26,H16] --implies cannot forge a person-origin fact through the relay, the API or the terminal', () => {
   let at = Date.parse('2026-10-17T00:00:00.000Z');
-  const board = store.openBoard(':memory:', { now: () => new Date(at += 1000) });
+  const board = openBoard(':memory:', { now: () => new Date(at += 1000) });
   try {
     store.register(board, { lane: 'coordinator', path: '/repo' });
     store.register(board, { lane: 'web', path: '/repo-web-1' });
@@ -227,7 +228,7 @@ test('[B29,B31] every replica derives the same implied-fact ids for every suppor
   /** Build one board the same way on each replica, with a fixed clock. */
   const replica = () => {
     let at = Date.parse('2026-10-17T00:00:00.000Z');
-    const board = store.openBoard(':memory:', { now: () => new Date(at += 1000) });
+    const board = openBoard(':memory:', { now: () => new Date(at += 1000) });
     store.register(board, { lane: 'coordinator', path: '/repo' });
     store.register(board, { lane: 'web', path: '/repo-web-1' });
     const one = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'One' });

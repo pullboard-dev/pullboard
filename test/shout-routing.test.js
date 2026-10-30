@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { exportBoard } from '../src/exchange.js';
@@ -85,7 +86,7 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
 });
 
 test('new coordinator kinds have a distinct replay floor and converge on replicas [C7,H16]', t => {
-  const boards = Array.from({ length: 3 }, () => store.openBoard(':memory:'));
+  const boards = Array.from({ length: 3 }, () => openBoard(':memory:'));
   t.after(() => { for (const board of boards) store.closeBoard(board); });
   const [source, left, right] = boards;
   store.register(source, { lane: 'coordinator', path: '/fixture/kinds-main' });
@@ -113,7 +114,7 @@ test('new coordinator kinds have a distinct replay floor and converge on replica
 });
 
 test('historical lane execution keeps its original message-kind validator [C7,H16]', t => {
-  const board = store.openBoard(':memory:');
+  const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/fixture/legacy-kinds-main' });
   store.register(board, { lane: 'web', path: '/fixture/legacy-kinds-worker' });

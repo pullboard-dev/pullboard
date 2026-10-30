@@ -20,6 +20,7 @@ import {
 export const TEST_RESULT_VERSION = 2;
 export const TEST_RESULT_STORE_ENV = 'PULLBOARD_TEST_RESULT_STORE';
 export const TEST_RESULT_ORIGIN_ENV = 'PULLBOARD_TEST_RESULT_ORIGIN';
+export const TEST_RESULT_REQUEST_ENV = 'PULLBOARD_TEST_RESULT_REQUEST';
 const HASH = /^[0-9a-f]{64}$/u;
 // Cache data stays inside the existing one-MiB runner request budget. An oversized optional
 // transfer is a cache miss, never a refused test or permission to truncate a proof.
@@ -48,6 +49,8 @@ export function validTestResult(entry) {
     && /^[0-9a-f]{40,64}$/u.test(entry.commit) && typeof entry.stage === 'string' && typeof entry.at === 'string'
     && entry.origin && typeof entry.origin.machine === 'string' && typeof entry.origin.stage === 'string'
     && entry.origin.commit === entry.commit && entry.origin.stage === entry.stage && entry.origin.at === entry.at
+    && (entry.origin.request === undefined || /^[a-f0-9-]{36}$/u.test(entry.origin.request))
+    && (entry.origin.completion === undefined || completedTestResult(entry))
     && (entry.status === 'fail' || entry.status === 'pass' && validTestTap(entry.tap));
 }
 
@@ -71,10 +74,11 @@ export function storeTestResult(store, entry) {
     return true;
   }
   try { statSync(join(store, 'red', entry.key)); return false; } catch { /* Only never-red keys can be green. */ }
-  // Keep the first execution's origin when another stage forwards the same receipt.
+  // Keep the first completed origin; an unfinished worker cannot prevent a later real completion.
   try {
     const prior = JSON.parse(readFileSync(join(store, 'green', `${entry.key}.json`), 'utf8'));
-    if (validTestResult(prior) && prior.key === entry.key && prior.status === 'pass') entry = prior;
+    if (validTestResult(prior) && prior.key === entry.key && prior.status === 'pass'
+      && (prior.origin.completion || !entry.origin.request)) entry = prior;
   } catch { /* A missing or damaged entry is replaced by this complete receipt. */ }
   publish(join(store, 'green', `${entry.key}.json`), entry);
   // A concurrent red is still authoritative at lookup, regardless of publication order.
@@ -113,7 +117,7 @@ export function packTestResults(records) {
 }
 
 /** Import only the input buckets the controller requested; invalid packets confer no cached pass. */
-export function importTestResults(store, packet, inputKeys) {
+export function importTestResults(store, packet, inputKeys, completion = null) {
   if (typeof packet !== 'string' || packet.length > Math.ceil(PACKED_BYTES / 3) * 4) return 0;
   try {
     const rows = JSON.parse(gunzipSync(Buffer.from(packet, 'base64'), { maxOutputLength: DECODED_BYTES }).toString('utf8'));
@@ -122,8 +126,33 @@ export function importTestResults(store, packet, inputKeys) {
     let imported = 0;
     // Import reds first so a packet's order cannot temporarily promote a known-red key.
     for (const status of ['fail', 'pass']) for (const row of rows) {
-      if (row?.status === status && allowed.has(row.inputKey) && storeTestResult(store, row)) imported++;
+      if (row?.status !== status || !allowed.has(row.inputKey)) continue;
+      if (completion && row.origin?.request === completion.id && row.commit === completion.commit
+        && completion.code === 0 && !completion.signal) row.origin.completion = completion;
+      if (storeTestResult(store, row)) imported++;
     }
     return imported;
   } catch { return 0; }
+}
+
+/** A remote cache hit must cite a completed source-bound worker, never just its pre-execution request. */
+export function completedTestResult(entry) {
+  const receipt = entry?.origin?.completion;
+  return receipt && /^[a-f0-9-]{36}$/u.test(receipt.id) && receipt.id === entry.origin.request
+    && receipt.commit === entry.commit && /^[a-f0-9]{40,64}$/u.test(receipt.tree)
+    && receipt.code === 0 && !receipt.signal && HASH.test(receipt.outputSha256)
+    && HASH.test(receipt.runtimeSha256) && HASH.test(receipt.toolingSha256);
+}
+
+/** Retain the actual authenticated completion before associating any cache green with its original receipt. */
+export function retainTestResultCompletion(store, receipt) {
+  const directory = join(store, 'completions');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const path = join(directory, `${receipt.id}.json`);
+  // This is the native protocol body as received, including its complete output digest and packet.
+  try { writeFileSync(path, JSON.stringify(receipt) + '\n', { flag: 'wx', mode: 0o600 }); }
+  catch (error) { if (error.code !== 'EEXIST' || readFileSync(path, 'utf8') !== JSON.stringify(receipt) + '\n') throw error; }
+  // Do not recursively embed cache packets in subsequent transfers.
+  const { testResults, ...completion } = receipt;
+  return completion;
 }

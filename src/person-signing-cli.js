@@ -3,6 +3,7 @@
  * `pullboard settings person.signed` switch, and pinning the relay's stamp key from this board's own relay origin.
  */
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import {
   attestAuthority,
   authorityAttested,
@@ -15,34 +16,24 @@ import {
   signedRefusal,
 } from './person-signing.js';
 import { preparePersonRequest } from './person-request.js';
-import { personRequestRecords } from './relay-requests.js';
+import { personRequestRecords } from './person-request.js';
 import { Refused } from './refused.js';
 import { awaitPersonConfirmation } from './person-confirmation.js';
-import {
-  DEFAULT_RELAY,
-  relayStatus,
-} from './relay.js';
 import { loadMachineSettings } from './settings.js';
 import { repoInfo } from './git.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  actOn,
-  ordered,
-} from './cli.js';
 
 const AUTHORITY_PATH = '/.well-known/pullboard-person-authority';
 
 /** The relay origin built into this code: the only place a board's first person authority is read from. */
-const BUILT_IN_AUTHORITY_ORIGIN = new URL(DEFAULT_RELAY).origin;
-
 /**
  * Whether a person authority may be read from this origin: the built-in relay over TLS, or the one origin an
  * in-process caller hands this command as `io.trustedRelayOrigin`. That parameter exists only in a caller's own call
  * path, never in pullboard.json, a board row, an environment variable or a global, so no shell can set it (#408).
  */
-function authorityOrigin(origin, io) {
-  if (origin === BUILT_IN_AUTHORITY_ORIGIN) return process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
+function authorityOrigin(origin, io, builtInOrigin) {
+  if (origin === builtInOrigin) return process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
   return typeof io?.trustedRelayOrigin === 'string' && io.trustedRelayOrigin === origin;
 }
 
@@ -55,14 +46,17 @@ function authorityOrigin(origin, io) {
  * @param {string} root
  * @param {any} board
  * @param {{ err?: (line: string) => void }} [io]
+ * @param {{ DEFAULT_RELAY: string, relayStatus: (root: string) => any, timeoutMs?: number }} ports - the caller's relay capabilities
  * @returns {Promise<{ origin: string, publicKey: string } | null>}
  */
-export async function pinRelayAuthority(root, board, io = {}, { timeoutMs = 10_000 } = {}) {
+export async function pinRelayAuthority(root, board, io = {}, { timeoutMs = 10_000, DEFAULT_RELAY, relayStatus } = {}) {
+  if (typeof DEFAULT_RELAY !== 'string' || typeof relayStatus !== 'function') throw new Refused('PERSON_AUTHORITY_PORT', 'the command caller must provide its relay authority ports');
+  const builtInOrigin = new URL(DEFAULT_RELAY).origin;
   const relay = relayStatus(root);
   if (!relay.linked || !relay.url) return null;
   const origin = new URL(relay.url).origin;
-  if (!authorityOrigin(origin, io)) {
-    io.err?.(`pullboard: [PERSON_AUTHORITY_ORIGIN] ${origin} is not the built-in relay ${BUILT_IN_AUTHORITY_ORIGIN} over TLS, so it cannot vouch for the person; person moves wait for the built-in relay`);
+  if (!authorityOrigin(origin, io, builtInOrigin)) {
+    io.err?.(`pullboard: [PERSON_AUTHORITY_ORIGIN] ${origin} is not the built-in relay ${builtInOrigin} over TLS, so it cannot vouch for the person; person moves wait for the built-in relay`);
     return null;
   }
   let document;
@@ -85,13 +79,14 @@ export async function pinRelayAuthority(root, board, io = {}, { timeoutMs = 10_0
  *
  * @param {string} root
  * @param {{ err?: (line: string) => void }} io
+ * @param {{ DEFAULT_RELAY: string, relayStatus: (root: string) => any }} relayPorts
  */
-export async function attestBeforeCommand(root, io) {
+export async function attestBeforeCommand(root, io, relayPorts) {
   let board;
-  try { board = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')); }
+  try { board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')); }
   catch { return; } // No board here: nothing to vouch for, and the command reports its own refusal.
   // Budget: ceiling for one small read before a command; a slow relay leaves passkey checks failing closed instead.
-  try { if (authorityNeeded(board) && !authorityAttested(board)) await pinRelayAuthority(root, board, io, { timeoutMs: 2_000 }); }
+  try { if (authorityNeeded(board) && !authorityAttested(board)) await pinRelayAuthority(root, board, io, { ...relayPorts, timeoutMs: 2_000 }); }
   finally { store.closeBoard(board); }
 }
 
@@ -109,10 +104,14 @@ export async function attestBeforeCommand(root, io) {
  */
 export async function requireSignedPerson(ctx, board, me, intent, rows, effect) {
   if (!personSigning(board).signed) return null;
-  const relay = relayStatus(ctx.info.root);
+  const relayPorts = ctx.personPorts;
+  if (typeof relayPorts?.relayStatus !== 'function' || typeof relayPorts?.ordered !== 'function') {
+    throw new Refused('PERSON_AUTHORITY_PORT', 'the CLI caller must provide its relay and move-operation ports');
+  }
+  const relay = relayPorts.relayStatus(ctx.info.root);
   if (!relay.linked && !ctx.io.personRequest) throw signedRefusal('no passkey device is paired with this board');
   // Only the relay can vouch for a passkey stamp, including an off this board replayed: read its authority first.
-  if (!authorityAttested(board) && !await pinRelayAuthority(ctx.info.root, board, ctx.io)) {
+  if (!authorityAttested(board) && !await pinRelayAuthority(ctx.info.root, board, ctx.io, relayPorts)) {
     throw signedRefusal('the relay could not vouch for your passkey, so a person move cannot be confirmed from here');
   }
   if (!personSigning(board).signed) return null;
@@ -126,13 +125,13 @@ export async function requireSignedPerson(ctx, board, me, intent, rows, effect) 
   if (intent && me.id !== store.PERSON) {
     const request = preparePersonRequest(intent, undefined, typeof rows === 'function' ? rows() : rows, effect);
     try {
-      await ordered(ctx, board, 'proposePersonMove', [{ agentId: me.id, request }]);
+      await relayPorts.ordered(ctx, board, 'proposePersonMove', [{ agentId: me.id, request }]);
       sent = 'proposed';
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
       sent = `; the request did not reach the relay (${error.code}), so start it there`;
     }
-    if (sent === 'proposed') return awaitPersonConfirmation(ctx, board, request, where);
+    if (sent === 'proposed') return awaitPersonConfirmation(ctx, board, request, where, relayPorts);
   }
   throw signedRefusal(`confirm it on your passkey${sent}`,
     `confirm it with your passkey at ${where} (Face ID, Touch ID or a key touch); keep the initiating terminal open while confirming. No passkey there yet? Add one on that page, or pair a new device with pullboard relay on --all`);
@@ -178,17 +177,18 @@ export function signsPersonMoves(cwd) {
  *
  * @param {string} cwd
  * @param {{ err?: (line: string) => void }} io
+ * @param {{ DEFAULT_RELAY: string, relayStatus: (root: string) => any }} relayPorts
  * @returns {Promise<boolean>}
  */
-export async function personMovesSigned(cwd, io) {
+export async function personMovesSigned(cwd, io, relayPorts) {
   if (!signsPersonMoves(cwd)) return false;
   let board;
-  try { board = store.openBoard(join(repoInfo(cwd).commonDir, 'pullboard', 'board.sqlite')); }
+  try { board = openBoard(join(repoInfo(cwd).commonDir, 'pullboard', 'board.sqlite')); }
   catch { return true; } // Unreadable here: keep the passkey step, which refuses by name if it cannot go on.
   try {
     if (!offPending(board) || authorityAttested(board)) return personSigning(board).signed;
     // Budget: ceiling for one small read before a person command; an unreachable relay leaves signing on.
-    await pinRelayAuthority(cwd, board, io, { timeoutMs: 2_000 });
+    await pinRelayAuthority(cwd, board, io, { ...relayPorts, timeoutMs: 2_000 });
     return personSigning(board).signed;
   } finally { store.closeBoard(board); }
 }
@@ -198,9 +198,9 @@ import { signingLine } from './person-signing-words.js';
 
 /**
  * `pullboard settings person.signed on|off`. Anyone may turn signing on; off is a person move, so with signing on it
- * takes the passkey step like every other.
+ * takes the passkey step like every other. The CLI caller supplies its board operation runner.
  */
-export function signingSetting(io, value) {
+export function signingSetting(io, value, { actOn }) {
   if (!['on', 'off'].includes(value)) throw new Refused('USAGE', 'pullboard settings person.signed on|off');
   return actOn(io, async (ctx, board, me) => {
     const signed = value === 'on';
@@ -213,11 +213,11 @@ export function signingSetting(io, value) {
       const confirmed = await requireSignedPerson(ctx, board, me, { verb: 'signing', args: { signed: value } });
       if (confirmed !== null) return confirmed;
     }
-    else if (!await pinRelayAuthority(ctx.info.root, board, io)) {
+    else if (!await pinRelayAuthority(ctx.info.root, board, io, ctx.personPorts)) {
       throw new Refused('PERSON_SIGNING_RELAY', 'signed person moves need the built-in relay to vouch for your passkey, and it could not be reached from this board',
         'link this board to the relay with pullboard relay on --all, then turn signing on');
     }
-    await ordered(ctx, board, 'setPersonSigning', [signed ? { agentId: ctx.io.personRequest ? store.PERSON : me.id, signed }
+    await ctx.personPorts.ordered(ctx, board, 'setPersonSigning', [signed ? { agentId: ctx.io.personRequest ? store.PERSON : me.id, signed }
       : { agentId: store.PERSON, signed, request: ctx.io.personRequest.id }]);
     io.result?.({ settings: loadMachineSettings(), person: { signed } });
     io.say(signingLine({ signed }));
