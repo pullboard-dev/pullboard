@@ -40,12 +40,15 @@ test('withdrawn summary and detail keep the actual open, claimed or submitted or
     const olderPresentation = structuredClone(legacy);
     for (const item of olderPresentation.items) { delete item.withdrawnReason; delete item.withdrawnFrom; }
     const presented = presentationState({ version: 1, state: olderPresentation }, store.boardId(f.board));
-    for (const projected of [detail, summary, JSON.parse(JSON.stringify(summary)), legacy.items[0], presented.items[0]]) {
+    for (const projected of [detail, summary, JSON.parse(JSON.stringify(summary)), legacy.items[0]]) {
       assert.equal(projected.withdrawnReason, 'Superseded by the new design');
       assert.equal(projected.withdrawnFrom, stage);
       assert.ok(Object.hasOwn(projected, 'withdrawnReason'));
       assert.ok(Object.hasOwn(projected, 'withdrawnFrom'));
     }
+    assert.equal(presented.items[0].withdrawnReason, null, 'sanitized older presentation carries no authoritative reason to recover');
+    assert.equal(presented.items[0].withdrawnFrom, stage, 'complete lifecycle history still proves the prior stage');
+    assert.deepEqual(Object.keys(presented.items[0]).filter(key => key.startsWith('withdrawn')).sort(), ['withdrawnFrom', 'withdrawnReason']);
     assert.deepEqual(Object.keys(summary).filter(key => key.startsWith('withdrawn')), ['withdrawnReason', 'withdrawnFrom']);
   }
 });
