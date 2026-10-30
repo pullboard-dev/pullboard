@@ -52,7 +52,8 @@ test('an older candidate preserves a later accepted source and row in its immuta
   assert.equal(result.acceptedMain, box.main);
   assert.equal(result.source, box.candidate);
   assert.notEqual(result.commit, box.candidate, 'the older raw source is not mistaken for its composition');
-  assert.equal(git(box.root, 'show', `${result.commit}:src/later.js`), 'export const later = true;\n');
+  assert.equal(git(box.root, 'rev-parse', `${result.commit}:src/later.js`),
+    git(box.root, 'rev-parse', `${box.main}:src/later.js`), 'the exact accepted source blob survives composition');
   assert.equal(JSON.parse(git(box.root, 'show', `${result.commit}:${shardFile(readPlan(box.root).cells.find(cell => cell.name === 'stats'))}`)).paths
     .filter(row => row[0] === 'src/later.js').length, 1);
   assert.deepEqual(state(box), before, 'the census never changes caller HEAD, index or refs');
