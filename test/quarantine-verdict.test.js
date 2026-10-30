@@ -134,7 +134,8 @@ await withBoard(ctx,async board=>{
  assert.equal(appliedSequence(board),sequence-1);
 });
 withBoard(ctx,board=>{
- validateQuarantineProofIds(board,store.getItem(board,item.item_id),{agentId,ids:[nativeReceipt.id],kind:'submit'});
+ validateQuarantineProofIds(board,store.getItem(board,item.item_id),{agentId,ids:[nativeReceipt.id],kind:'submit',commit:nativeReceipt.head});
+ assert.throws(()=>store.submit(board,item.item_id,{agentId,commit:git(root,['rev-parse','HEAD^']),tree:nativeReceipt.tree,gateGreen:true,quarantineProofIds:[nativeReceipt.id]}),error=>error.code==='PROOF_RUN_UNBOUND','a real proof from another source cannot authorize this submission');
  assert.ok(submitMove.minimumEngine([item.item_id,{quarantineProofIds:[nativeReceipt.id]}],board)>=QUARANTINE_VERDICT_ENGINE);
 });
 assert.equal(nativeBoardReceipt.exitCode,1);assert.equal(nativeProofBlockingGreen(nativeBoardReceipt),true);
