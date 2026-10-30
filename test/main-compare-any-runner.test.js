@@ -55,7 +55,7 @@ test('main comparison selects a matching registered peer only when the preferred
 
     const candidate = await withGateSlot(box.root, lease => runProfiledShell(box.root,
       "node test/runner.js './test/inherited.test.js'", { gateLease: lease, stages: true }), {
-      executionServices, remote: true, requiredExecutor: { kind: 'ssh', host: A },
+      executionServices, remote: true, runnerOnly: true, runnerWaitMs: 5000, requiredExecutor: { kind: 'ssh', host: A },
       diagnostic: true, agent: 'actual-candidate-runner-fixture', kind: 'candidate-comparison-control',
       onReceipt: value => candidateReceipts.push(value),
     });
@@ -72,7 +72,7 @@ test('main comparison selects a matching registered peer only when the preferred
       runnerProvider: () => box.runners, agent: 'hold-preferred-comparison-runner', kind: 'comparison-affinity-control' });
     const compare = () => compareMainFailures(box.root, { tests: [{ file: 'test/inherited.test.js', passed: false }] }, undefined, '', {
       commit: box.main, detailed: true, fresh: true, execution,
-      runnerAdmission: { onReceipt: value => measured.push(value) },
+      runnerAdmission: { runnerOnly: true, runnerWaitMs: 5000, onReceipt: value => measured.push(value) },
     });
     const whileABusy = await compare();
     assert.equal(whileABusy.unavailable, undefined, whileABusy.unavailable);
@@ -156,7 +156,7 @@ function fixture(t) {
   runFixtureGit(['add', '-A'], { cwd: paths.repo, env });
   runFixtureGit(['commit', '-qm', 'test: pin a named main failure'], { cwd: paths.repo, env });
   const runners = [A, B, C].map(host => ({ host, slots: 1, browser: 0, node: process.execPath, root: remoteRoot }));
-  writeFileSync(join(paths.machine, 'settings.json'), JSON.stringify({ gateSlots: 0, browserSlots: 0, runners }) + '\n', { mode: 0o600 });
+  writeFileSync(join(paths.machine, 'settings.json'), JSON.stringify({ gateSlots: 0, browserSlots: 0, gate: { browserFreeChecks: true }, runners }) + '\n', { mode: 0o600 });
   const requests = join(directory, 'ssh-requests.jsonl');
   installSshStandIn({ bin: paths.bin, worker: paths.worker, home: paths['remote-home'], machineHome: remoteMachine,
     requests, nodeCommand: process.execPath });
