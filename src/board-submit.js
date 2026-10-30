@@ -1,3 +1,4 @@
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './known-main-owner-pattern-engine.js';
 import { validateQuarantineProofIds } from './quarantine.js';
 import { committedItemAuthors } from './review-independence.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
@@ -100,7 +101,8 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         submissionProofValid: () => {
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMISSION_PROOF_ENGINE) recordedProof = submissionProof(proof, board.executionEngineVersion ?? ENGINE_VERSION);
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_REWORKS_ENGINE && recordedProof?.knownMainFailures) {
-            requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id);
+            requireKnownMainReworks(recordedProof.knownMainFailures, listItems(board, { all: true }), id,
+              (board.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE);
           }
           if ((board.executionEngineVersion ?? ENGINE_VERSION) >= FLOW_SIZE_ENGINE) recordedSize = submissionSize(size, commit);
           return null;

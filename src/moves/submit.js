@@ -1,3 +1,5 @@
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../known-main-owner-pattern-engine.js';
+import { ENGINE_VERSION } from '../engine-metadata.js';
 import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
 import { itemReviewPolicyEngine } from '../review-policy.js';
 import { checkTimingEngine } from '../check-timing.js';
@@ -35,7 +37,8 @@ function minimumEngine(args, board, at) {
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
   return Math.max(Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
-      && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? KNOWN_MAIN_REWORKS_ENGINE : 1,
+      && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? ((board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
+        ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE) : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
     outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }
