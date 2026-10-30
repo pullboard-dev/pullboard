@@ -61,10 +61,10 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
     }
     await seedStudyState(context);
     await seedItemPatches(context);
-    await seedSubmitHandoff(context);
     process.stderr.write('parity phase seedSourceAdvance begin\n');
     await seedSourceAdvance(context);
     process.stderr.write('parity phase seedSourceAdvance complete\n');
+    await seedSubmitHandoff(context);
     await seedOutside(context);
     await seedLandingObservations(context);
     await seedMembership(context);
