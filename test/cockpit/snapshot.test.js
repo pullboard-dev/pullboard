@@ -8,7 +8,7 @@ import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { fetchLocal } from '../../src/local-fetch.js';
+import { fetchLocal } from '../../packages/sync/index.js';
 import { closeBoard } from '../../src/board.js';
 import { events } from '../../src/board.js';
 import { openBoardForRead } from '../../src/board-read-open.js';
