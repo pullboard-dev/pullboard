@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { test } from 'node:test';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import * as store from '../src/board.js';
 import { closeBoard, openBoard } from '../src/native-board.js';
 import { repoInfo } from '../src/git.js';
