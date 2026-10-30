@@ -22,9 +22,9 @@ test('Shouts groups native messages and keeps conversation text clear of agents 
     box.run(demo.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'The page greets the visitor.');
   build(box, demo, 1, 'greeting.html');
   box.run(demo.web, 'claim', '2');
-  box.run(demo.web, 'shout', 'coordinator', '#1: May I ship this greeting?', '--decision');
-  const longWords = '#2: Keep these exact words. ' + 'A long native message with source and context. '.repeat(30);
-  box.run(demo.web, 'shout', 'coordinator', longWords);
+  box.run(demo.web, 'shout', 'coordinator', '#1: May I ship this greeting?', '--kind', 'question', '--decision');
+  const longWords = ('#2: Keep these exact words. ' + 'A long native message with source and context. '.repeat(30)).trim();
+  box.run(demo.web, 'shout', 'web', longWords);
   box.run(demo.repo, 'shout', 'web', '#2: Coordinator reply with src/cockpit.js and ABC_CODE and 0123456789abcdef0123456789abcdef01234567.');
   box.run(demo.repo, 'shout', 'person', '#3: Which greeting should we use?', '--decision');
   box.run(demo.repo, 'shout', 'web', 'A general update without an item.');
