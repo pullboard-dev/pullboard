@@ -1,3 +1,4 @@
+import { flakeQuarantines } from '../quarantine.js';
 /** The pullboard health command, in its own module so an item adding another command never edits these lines. */
 import { existsSync } from 'node:fs';
 import {
@@ -20,6 +21,7 @@ export function run(io) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth });
   report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
+  report.autoQuarantines = automaticQuarantines(ctx.file);
   const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
   report.overdueRunnerLeases = runnerHealth.filter(row => row.deadline !== undefined);
   report.runnerLifecycleProblems = runnerHealth.filter(row => row.problem);
@@ -28,9 +30,11 @@ export function run(io) {
   for (const line of healthLines(report)) io.say(line);
   for (const lease of report.overdueRunnerLeases) io.say(`runner execution deadline ${new Date(lease.deadline).toISOString()} passed; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; controller pid ${lease.controllerPid}; ${lease.repo}`);
   for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
+  for (const entry of report.autoQuarantines) io.say(`Automatic quarantine: ${entry.file} :: ${entry.name}; repair #${entry.item} must land`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
   for (const line of blockLines(report.blocks)) io.say(line);
-  return report.stuck.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length ? 1 : 0;
+  return report.stuck.length || report.autoQuarantines.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length ? 1 : 0;
+
 }
 
 /** Each seat's id by its worktree path, so a block names who was stopped; a missing board names none. */
@@ -83,4 +87,12 @@ export function blockLines({ codes, drafts }) {
   return [`blocks in the last day: ${codes.reduce((sum, entry) => sum + entry.count, 0)}`,
     ...codes.map(entry => `  ${entry.code} ${entry.count}x on ${entry.commands.join(', ')}, stopped ${entry.who.join(', ')}; ${clears[entry.audience] ?? 'the agent'} clears it: ${entry.step}`),
     ...drafts.map(draft => `  repeated, draft an item: ${draft.command}`)];
+}
+
+/** Read active automatic quarantines without opening a mutable board or exposing private log bytes. */
+function automaticQuarantines(file) {
+  if (!existsSync(file)) return [];
+  const db = openBoardReadOnly(file);
+  try { return flakeQuarantines({ db }).filter(entry => entry.autoSubmit && entry.status === 'quarantined'); }
+  finally { db.close(); }
 }
