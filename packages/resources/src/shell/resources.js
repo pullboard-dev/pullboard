@@ -1222,8 +1222,13 @@ export async function takeResource(options) {
             throw error;
           }
           db.close();
+          const retryingInfrastructure = infrastructureRetryCount > 0;
           return takeResource({ ...options, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
-            queuedAt, requestedAt, runnerDeadlineAt, runnerDispatched, lateAdmissionClosed, lateRunnerDispatch,
+            queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
+            runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,
+            runnerDispatched: retryingInfrastructure ? false : runnerDispatched,
+            lateAdmissionClosed: retryingInfrastructure ? false : lateAdmissionClosed,
+            lateRunnerDispatch: retryingInfrastructure ? null : lateRunnerDispatch,
             priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now(), infrastructureRetryCount,
             infrastructureAttempts: priorInfrastructureAttempts } });
         };

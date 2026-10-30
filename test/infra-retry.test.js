@@ -9,6 +9,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
+import { deadlineRetrySource, lateTransportRetrySource } from './infra-retry-source.js';
 
 /** Build a private runner pool with no configured host or relay connection. */
 function fixture(t) {
@@ -40,19 +41,8 @@ test('one runner deadline requeues the same item ticket once and records both at
   const box = fixture(t);
   const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
   const resources = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
-  const command = `import { withGateSlot, runProfiledShellAsync } from ${JSON.stringify(gate)};
-${executionServicesSource(gate)}
-import { takeResource } from ${JSON.stringify(resources)};
-const runner = ${JSON.stringify(box.runner)};
-const blocker = await takeResource({name:'gate',root:process.cwd(),capacity:0,remote:true,scope:'machine',runnerProvider:()=>[runner],runnerWaitMs:1000,agent:'infra-retry-blocker',kind:'submit',itemCheck:true});
-const blockerTicket = blocker.token;
-const releaseTimer = setTimeout(() => blocker.release(), 260);
-const receipts = [];
-const result = await withGateSlot(process.cwd(), lease => runProfiledShellAsync(process.cwd(), 'node -e \'console.log("INFRA_RETRY_OK")\'', {gateLease:lease}),
-  {executionServices,remote:true,runnerWaitMs:200,itemCheck:true,agent:'infra-retry-test',kind:'submit',item:'fixture',onWait(){},onReceipt:receipt=>receipts.push(receipt)});
-clearTimeout(releaseTimer);
-const pool = (await import(${JSON.stringify(resources)})).listResources({scope:'machine'}).find(row=>row.name==='gate');
-console.log(JSON.stringify({green:result.isGreen,output:result.output,blockerTicket,receipts,pool:{holders:pool.holders.length,line:pool.line.length}}));`;
+  const command = deadlineRetrySource(gate, resources, box.runner,
+    `node -e 'console.log("INFRA_RETRY_OK")'`, executionServicesSource(gate));
   const result = child(box, command);
   assert.equal(result.green, true);
   assert.match(result.output, /INFRA_RETRY_OK/u);
@@ -65,6 +55,22 @@ console.log(JSON.stringify({green:result.isGreen,output:result.output,blockerTic
   assert.equal(result.receipts[0].infrastructureAttempts[1].outcome, 'completed');
   assert.equal(result.pool.holders + result.pool.line, 0);
   assert.ok(readFileSync(box.requests, 'utf8').includes(box.runner.host), 'the successful second attempt used only the private stand-in');
+});
+
+test('a late transport failure receives one fresh bounded runner admission window [C7]', t => {
+  const box = fixture(t);
+  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const source = lateTransportRetrySource(gate, box.runner, executionServicesSource(gate));
+  const result = child(box, source);
+  assert.equal(result.green, true);
+  assert.equal(result.output, 'LATE_RETRY_OK');
+  assert.equal(result.calls, 2);
+  assert.equal(result.receipts.length, 1);
+  assert.equal(result.receipts[0].infrastructureAttempts.length, 2);
+  assert.equal(result.receipts[0].infrastructureAttempts[0].kind, 'transport-lost');
+  assert.equal(result.receipts[0].infrastructureAttempts[1].kind, 'retry');
+  assert.equal(result.receipts[0].infrastructureAttempts[1].outcome, 'completed');
+  assert.ok(readFileSync(box.requests, 'utf8').includes(box.runner.host), 'the retry used only the private stand-in');
 });
 
 test('a real command failure on an admitted slot is returned on its first attempt [C7]', t => {
