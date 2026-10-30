@@ -1,6 +1,5 @@
 /**
- * `pullboard.json`: the gate, the spec file, the lanes and the commit rules. Read once per command,
- * merged over defaults, and checked, so a typo refuses with its field name instead of misbehaving.
+ * `pullboard.json`: repo settings, merged over defaults and checked once per command.
  */
 import {
   existsSync,
@@ -9,6 +8,7 @@ import {
 import { join } from 'node:path';
 import { Refused } from './refused.js';
 import { registryGuardsProblem } from './registry-guards.js';
+import { maintenanceDefaults, maintenanceConfigProblems } from './worktree-maintenance-config.js';
 
 export const CONFIG_FILE = 'pullboard.json';
 export const COORDINATOR = 'coordinator';
@@ -35,11 +35,7 @@ const COMMIT_TYPES = [
   'revert',
 ];
 
-/**
- * Every setting a repo gets without saying otherwise.
- *
- * @returns {object}
- */
+/** Every setting a repo gets without saying otherwise. @returns {object} */
 export function defaults() {
   return {
     spec: 'SPEC.md',
@@ -55,6 +51,7 @@ export function defaults() {
     claims: { releaseGone: false },
     reviewLease: '30m',
     worktrees: 'beside',
+    worktreeMaintenance: maintenanceDefaults(),
     verify: { policy: 'any', family: 'off', reviewRatio: 3 },
     review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
@@ -114,6 +111,9 @@ function merge(base, raw) {
   return {
     ...base,
     ...raw,
+    worktreeMaintenance: raw.worktreeMaintenance === undefined ? base.worktreeMaintenance
+      : raw.worktreeMaintenance && typeof raw.worktreeMaintenance === 'object' && !Array.isArray(raw.worktreeMaintenance)
+        ? { ...base.worktreeMaintenance, ...raw.worktreeMaintenance } : raw.worktreeMaintenance,
     testEconomics: raw.testEconomics === undefined ? base.testEconomics
       : raw.testEconomics && typeof raw.testEconomics === 'object' && !Array.isArray(raw.testEconomics)
         ? { ...base.testEconomics, ...raw.testEconomics } : raw.testEconomics,
@@ -189,7 +189,7 @@ function laneProblems(name, lane) {
  * @returns {string[]}
  */
 export function configProblems(config) {
-  const problems = [];
+  const problems = maintenanceConfigProblems(config.worktreeMaintenance);
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)
     || Object.keys(costs).some(key => !['costOfEscape', 'costOfWaiting', 'costOfFalseRed'].includes(key))

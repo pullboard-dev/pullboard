@@ -25,7 +25,9 @@
   ["src/release-headlines.js","packages/config/src/shell/release-headlines.js","rule"],
   ["src/release-version.js","packages/config/src/core/release-version.js","rule"],
   ["src/git-sync-files.js","packages/config/src/shell/git-sync-files.js","rule"],
-  ["src/settings-descriptions.js","packages/config/src/shell/settings-descriptions.js","rule"]
+  ["src/settings-descriptions.js","packages/config/src/shell/settings-descriptions.js","rule"],
+  ["src/worktree-maintenance-config.js","packages/config/src/core/worktree-maintenance-config.js","rule"],
+  ["test/worktree-maintenance-config.fixture.js","packages/config/tests/worktree-maintenance-config.fixture.js","rule"]
  ],
  "reexports": [
   "src/command-declaration-read.js",
