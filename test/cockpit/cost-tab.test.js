@@ -321,10 +321,11 @@ test('the private view shows its last twenty native landings; a public export ke
     assert.match(detail, /Cost\s+—/u, 'a landing without a private session baseline keeps its cost figure unknown');
     await press(chrome, "document.querySelector('[data-cost-row=\"4\"]')");
     await chrome.waitFor("document.querySelector('#cost-detail-4')");
-    const unpricedDetail = await chrome.stable("document.querySelector('#cost-detail-4').innerText");
-    assert.match(unpricedDetail, /fixture-unpriced-model/u, 'the seeded usage names the unpriced model');
-    assert.match(unpricedDetail, /Cost\s+—/u, 'usage without a model price remains unknown');
-    assert.doesNotMatch(unpricedDetail, /\$0\.00/u, 'an unpriced model is never presented as free');
+    const unpricedSession = await chrome.stable("[...document.querySelectorAll('#cost-detail-4 .cost-session')].find(row => row.querySelector('.cost-session-model b')?.textContent === 'fixture-unpriced-model')?.innerText || ''");
+    assert.match(unpricedSession, /fixture-unpriced-model/u, 'the seeded usage names the unpriced model');
+    assert.match(unpricedSession, /Cost\s+—/u, 'usage without a model price remains unknown');
+    assert.doesNotMatch(unpricedSession, /\$0\.00/u, 'an unpriced model is never presented as free');
+    assert.equal(await chrome.stable("document.querySelector('[data-cost-row=\"4\"] .cost-amount').textContent"), '—', 'the unpriced landing total remains unknown');
     await press(chrome, "document.querySelector('[data-cost-row=\"22\"]')");
     await chrome.waitFor("document.querySelector('#cost-detail-22')");
     const pricedDetail = await chrome.stable("document.querySelector('#cost-detail-22').innerText");
