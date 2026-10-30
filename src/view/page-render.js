@@ -24,6 +24,24 @@ function hashButton(value) {
   return '<button class="hash-copy" type="button" title="' + esc(hash) + '" aria-label="Copy full hash ' + esc(hash) + '" data-copy="' + esc(hash) + '"><code class="inline sha" title="' + esc(hash) + '">' + esc(short) + '</code></button>';
 }
 
+/** Read only paths from the brief's Files section, using the board's labelled-section grammar. */
+function panelFiles(brief) {
+  let inFiles = false;
+  const lines = [];
+  for (const raw of String(brief ?? '').split(/\\r?\\n/u)) {
+    const line = raw.trim();
+    const label = /^(files|change|test|out of scope|reference)\\s*:\\s*(.*)$/iu.exec(line);
+    if (label) {
+      inFiles = label[1].toLowerCase() === 'files';
+      if (inFiles && label[2]) lines.push(label[2]);
+    } else if (inFiles && line) lines.push(line.replace(/^[-*]\\s+/u, ''));
+  }
+  const tokens = lines.flatMap(line => line.replace(/\\([^)]*\\)/gu, ' ').split(/[\\s,]+/u));
+  return [...new Set(tokens.map(token => token.replace(/^[(' "]+/gu, '').replace(/[).,;:!?]+$/gu, ''))
+    .filter(token => !/^[\\d.]+$/u.test(token) && !/^[a-z]+:\\/\\//iu.test(token)
+      && (token.includes('/') || /\\.[a-z0-9]+(?:\\.[a-z0-9]+)*$/iu.test(token))))];
+}
+
 /** Render literal gate paths from the server's existence observations. */
 function specGateFiles(row, detail = false) {
   const files = row.gateFiles || (row.gate ? [{ file: row.gate, exists: null }] : []);
@@ -269,6 +287,55 @@ function render() {
     const cited = item.specs.map((id) => p.spec.find((r) => r.id === id) || { id, status: 'missing', text: '(not in SPEC.md)' });
     const baseline = item.checkBaseline;
     const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
+    /** Render the item's lane, route and current milestone in the approved plain header. */
+    const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.includes(item.id))?.name].filter(Boolean);
+    /** Give the existing lifecycle states their person-facing status wording. */
+    const statusLabel = ({ open: 'Unclaimed', building: 'Building', verify: 'Waiting for a reviewer', back: 'Sent back', verified: 'Passed', withdrawn: 'Withdrawn' })[s] || s;
+    /** Parse a single named test case only from the recorded check or its baseline evidence. */
+    const namedCase = (() => {
+      const pattern = /--test-name-pattern(?:=|\\s+)(?:"([^"]+)"|'([^']+)'|([^\\s;]+))/u.exec(item.check || '');
+      if (pattern) return pattern[1] || pattern[2] || pattern[3];
+      const evidence = [...(baseline?.testEvidence?.failed || []), ...(baseline?.testEvidence?.passed || [])].filter(name => typeof name === 'string');
+      const names = [...new Set(evidence)];
+      return names.length === 1 ? names[0] : '';
+    })();
+    /** Turn the check into the approved sentence without inventing an unnamed case. */
+    const checkSentence = (() => {
+      const command = String(item.check || '');
+      const testPath = /(?:^|\\s)(test\\/[\\w./-]+\\.test\\.[cm]?js)\\b/u.exec(command)?.[1];
+      if (testPath && /(?:^|\\s)bin\\/run-tests\\.js(?:\\s|$)/u.test(command)) {
+        return 'Passes when <span class="file"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 2.5h4M7 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5v-4"/></svg>' + esc(testPath) + '</span> runs with no failures' + (namedCase ? ' and its case <i>"' + esc(namedCase) + '"</i> passes' : '') + '.';
+      }
+      return command ? 'Runs: <code>' + esc(command) + '</code>' : 'No check is recorded.';
+    })();
+    /** Remove the Files section from prose because its paths are rendered as chips below. */
+    const briefCopy = (() => {
+      let inFiles = false;
+      return String(item.brief || '').split(/\\r?\\n/u).filter(line => {
+        const label = /^(files|change|test|out of scope|reference)\\s*:/iu.exec(line.trim());
+        if (label) { inFiles = label[1].toLowerCase() === 'files'; return !inFiles; }
+        return !inFiles;
+      }).join('\\n').trim();
+    })();
+    /** Keep the brief's declared paths visible, grouped into source and test counts. */
+    const files = panelFiles(item.brief || '');
+    /** Render one path with a subdued directory and its file or test glyph. */
+    const fileChip = path => {
+      const slash = path.lastIndexOf('/'), testFile = /^(?:test|tests)\\//u.test(path);
+      return '<span class="file item-file" data-file="' + esc(path) + '"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="' + (testFile ? 'M6 2.5h4M7 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9 6.5v-4' : 'M4 2h5l3 3v9H4zM9 2v3h3') + '"/></svg><span><span class="dir">' + esc(slash < 0 ? '' : path.slice(0, slash + 1)) + '</span>' + esc(slash < 0 ? path : path.slice(slash + 1)) + '</span></span>';
+    };
+    const sourceCount = files.filter(path => !/^(?:test|tests)\\//u.test(path)).length;
+    const testCount = files.length - sourceCount;
+    const historyEntries = (item.thread?.length ? item.thread : item.history || []).filter(entry => !['usage', 'shared-usage'].includes(entry.kind));
+    const historyCount = historyEntries.length;
+    const verdicts = item.verdicts || [];
+    const passedCount = verdicts.filter(verdict => verdict.decision === 'ACCEPT').length;
+    const backCount = verdicts.length - passedCount;
+    const panelChoice = view.itemPanel?.root === view.root && view.itemPanel.item === item.id ? view.itemPanel.tab : 'overview';
+    const statusChips = '<span class="chip ' + (s === 'verify' ? 'warn' : s === 'back' ? 'no' : s === 'verified' ? 'ok' : '') + '">' + esc(statusLabel) + '</span>'
+      + (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
+      + (item.builtBy ? '<span class="chip">Built by ' + esc(agentName(item.builtBy)) + '</span>' : '')
+      + (item.commit ? '<span class="item-head-hash">at ' + hashButton(item.commit) + '</span>' : '');
     const factRefs = (item.thread || []).filter((entry) => entry.type === 'fact' && entry.ref);
     const referencedCode = factRefs.length ? '<div><h3>Referenced code</h3>' + factRefs.map((fact) => {
       const ref = fact.ref;
@@ -286,20 +353,46 @@ function render() {
       const range = path + ':' + start + (end === start ? '' : '-' + end) + '@' + commit;
       return '<div class="fact-code"><span class="chip">' + esc(eventWords(fact.kind)) + '</span> <span class="muted">' + esc(agentName(fact.by)) + ' · ' + age(fact.at) + '</span>' + codeRef(range, '', true) + '</div>';
     }).join('') + '</div>' : '';
-    // Why it came back is the first thing the person reads; the verdicts before it stay below.
-    const back = rejected(item);
-    const earlier = back ? item.verdicts.slice(0, -1) : item.verdicts;
-    $('detail').innerHTML = '<div class="stack">' + head(item, s)
-      + (back ? '<div class="sentback"><h3>Sent back' + (s === 'building' ? ', being reworked' : s === 'verify' ? ', resubmitted' : s === 'withdrawn' ? ', then withdrawn' : '') + '</h3>' + verdictHtml(item.verdict, titles) + '</div>' : '')
-      + (item.criterion ? '<div><h3>Criterion</h3><div class="text">' + rich(item.criterion, titles) + '</div></div>' : '')
-      + (item.check ? '<div><h3>Check</h3><dl class="kv"><dt>command</dt><dd><code>' + esc(item.check) + '</code></dd><dt>baseline</dt><dd><span class="chip ' + baselineClass + '">' + esc(baseline?.result ?? 'not recorded') + '</span></dd></dl>'
-        + (baseline?.warning === 'CRITERION_PROVES_NOTHING' ? '<p class="check-warning">This check already passed before the work, so it proves nothing.</p>' : '') + '</div>' : '')
+    /** Render one verdict as the existing shared row, with its complete note in the disclosure. */
+    const verdictRows = verdicts.toReversed().map(verdict => {
+      const passed = verdict.decision === 'ACCEPT';
+      const note = visibleVerdictNote(verdict.reason, verdict.note);
+      const first = note.split(/\\r?\\n/u, 1)[0];
+      const summary = first.length > 180 ? first.slice(0, 177) + '…' : first;
+      const state = passed ? 'verified' : 'back';
+      const iconPath = passed ? 'M3.5 8.5l3 3 6-6.5' : 'M6 4 2.5 7.5 6 11M2.5 7.5H10';
+      const title = passed ? 'Passed' : 'Sent back · ' + activityWords({ cause: verdict.reason }).label;
+      return sharedRowHtml({ tag: 'li', variant: 'item', state, title: title + ' by ' + agentName(verdict.by),
+        iconHtml: '<svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + iconPath + '"/></svg>',
+        primaryHtml: '<b>' + (passed ? 'Passed' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b> <span class="muted">by ' + esc(agentName(verdict.by)) + '</span>',
+        timeHtml: '<time>' + esc(when(verdict.at)) + '</time>', metaHtml: '<span class="item-verdict-note">' + inline(summary, titles) + '</span>',
+        detailHtml: '<div class="verdict ' + (passed ? 'yes' : 'no') + '"><b>' + (passed ? 'Accepted · <span title="' + esc(verdict.reason) + '">' + esc(activityWords({ cause: verdict.reason }).label) + '</span>' : 'Sent back · ' + reasonHtml(verdict.reason)) + '</b><span class="by">' + esc(agentName(verdict.by)) + ' · ' + esc(when(verdict.at)) + (verdict.commit ? ' · at ' + hashButton(verdict.commit) : '') + '</span><div class="note">' + inline(note, titles) + '</div></div>' });
+    }).join('');
+    /** Keep the established verdict renderer's reason, timestamp and copyable SHA in the new card. */
+    const latest = item.verdict ? '<div class="item-panel-latest' + (item.verdict.decision === 'REJECT' ? ' sentback' : '') + '"><div class="verdict ' + (item.verdict.decision === 'ACCEPT' ? 'yes' : 'no') + '"><b class="item-panel-verdict-label">' + (item.verdict.decision === 'ACCEPT' ? 'Passed' : 'Sent back · ' + reasonHtml(item.verdict.reason)) + '</b><span class="by">' + esc(agentName(item.verdict.by)) + ' · ' + esc(when(item.verdict.at)) + (item.verdict.commit ? ' · at ' + hashButton(item.verdict.commit) : '') + '</span><div class="note">' + inline(visibleVerdictNote(item.verdict.reason, item.verdict.note), titles) + '</div></div><button class="link" type="button" data-item-panel-more>Show all</button></div>' : '<p class="muted">No verdict yet.</p>';
+    const baselineLabel = baseline?.result === 'red' ? 'Red on main' : baseline?.result === 'green' ? 'Green on main' : baseline?.result === 'pending' ? 'Pending on main' : 'No baseline';
+    const baselineReason = baseline?.result === 'red' ? 'as it should be: the check fails before the change'
+      : baseline?.result === 'green' ? 'the check passed on main before this change'
+        : baseline?.result === 'pending' ? 'the check has not finished on main' : 'no result was recorded on main before this change';
+    const check = '<div class="item-panel-check"><span class="item-panel-check-mark" aria-hidden="true"><svg viewBox="0 0 16 16\"><path d="M3.5 8.5l3 3 6-6.5\"/></svg></span><div><p>' + checkSentence + '</p>'
+      + '<div class="item-panel-baseline"><span class="chip ' + baselineClass + '">' + baselineLabel + '</span><span>' + baselineReason + '</span></div>'
+      + (baseline?.warning === 'CRITERION_PROVES_NOTHING' ? '<p class="check-warning">This check already passed before the work, so it proves nothing.</p>' : '')
+      + (item.check ? '<details class="item-panel-command"><summary>Show the command</summary><pre>' + esc(item.check) + '</pre></details>' : '') + '</div></div>';
+    const moreHistory = historyCount > 5 ? '<button class="link item-panel-history-more" type="button" data-item-panel-history data-count="' + historyCount + '" aria-expanded="false">Show all ' + historyCount + '</button>' : '';
+    /** Render one accessible tab with the selected tab's native count. */
+    const panelTab = (id, label, count) => '<button type="button" role="tab" id="item-panel-tab-' + id + '" aria-controls="item-panel-panel-' + id + '" aria-selected="' + (panelChoice === id) + '" data-item-panel-tab="' + id + '"' + (panelChoice === id ? ' class="on"' : '') + '>' + label + (count === null ? '' : ' <b>' + count + '</b>') + '</button>';
+    $('detail').innerHTML = '<div class="item-panel"><header class="item-panel-head"><div class="item-panel-where">' + where.map((part, index) => (index ? '<span class="sep">·</span>' : '') + '<span>' + esc(part) + '</span>').join('') + '</div><h2><span class="id">#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="item-panel-status">' + statusChips + '</div></header>'
+      + '<div class="seg item-panel-tabs" role="tablist" aria-label="Item details">' + panelTab('overview', 'Overview', null) + panelTab('verdicts', 'Verdicts', verdicts.length) + panelTab('history', 'History', historyCount) + '</div>'
+      + '<section class="item-panel-section" id="item-panel-panel-overview" role="tabpanel" aria-labelledby="item-panel-tab-overview"' + (panelChoice === 'overview' ? '' : ' hidden') + ' data-item-panel-panel="overview">'
+      + '<div class="item-panel-section-head"><p class="label">Latest verdict</p><span class="item-panel-count">Passed ' + passedCount + ' ' + (passedCount === 1 ? 'time' : 'times') + ' · sent back ' + backCount + '</span></div>' + latest
+      + (item.criterion ? '<section class="item-panel-block"><h3>Done when</h3><div class="item-panel-expand"><div class="item-panel-expand-text item-panel-clamp">' + rich(item.criterion, titles) + '</div><button class="link" type="button" data-item-panel-more>Show all</button></div></section>' : '')
+      + (item.check ? '<section class="item-panel-block"><h3>Check</h3>' + check + '</section>' : '')
+      + (item.brief ? '<section class="item-panel-block"><div class="item-panel-section-head"><h3>Brief</h3><span class="item-panel-count">' + files.length + ' files: ' + sourceCount + ' source, ' + testCount + ' tests</span></div>' + (briefCopy ? '<div class="item-panel-brief">' + rich(briefCopy, titles) + '</div>' : '') + (files.length ? '<div class="item-panel-files">' + files.map(fileChip).join('') + '</div>' : '') + '</section>' : '')
       + referencedCode
-      + (cited.length ? '<div><h3>Spec rows it serves</h3>' + cited.map((r) => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</div>' : '')
-      + (item.brief ? '<div><h3>Brief</h3><div class="text muted">' + rich(item.brief, titles) + '</div></div>' : '')
-      + '<div><h3>People and commits</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(agentName(item.owner)) + '</dd>' : '') + (item.builtBy ? '<dt>built by</dt><dd>' + esc(agentName(item.builtBy)) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(agentName(item.verifiedBy)) + '</dd>' : '') + (item.commit ? '<dt>commit</dt><dd>' + hashButton(item.commit) + '</dd>' : '') + (item.merged ? '<dt>merged</dt><dd>' + hashButton(item.merged) + '</dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map((id) => '<span class="wait-unit"><a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a></span>').join(', ') + '</dd>' : '') + '</dl></div>'
-      + (back && !earlier.length ? '' : '<div><h3>' + (back ? 'Earlier verdicts' : 'Verdicts') + '</h3>' + (earlier.length ? earlier.map((v) => verdictHtml(v, titles)).join('') : '<div class="muted">None yet.</div>') + '</div>')
-      + '<div><h3>History</h3>' + timeline(item) + '</div>'
+      + (cited.length ? '<section class="item-panel-block"><h3>Spec rows it serves</h3>' + cited.map(r => '<div class="rowref"><code>' + esc(r.id) + '</code><div>' + linked(r.text, titles) + ' <span class="chip ' + tone(r.status) + '">' + esc(r.status) + '</span></div></div>').join('') + '</section>' : '')
+      + (item.owner && s === 'building' || item.verifiedBy || item.merged || item.blockedBy.length ? '<section class="item-panel-block"><h3>Work details</h3><dl class="kv">' + (item.owner && s === 'building' ? '<dt>holding</dt><dd>' + esc(agentName(item.owner)) + '</dd>' : '') + (item.verifiedBy ? '<dt>verified by</dt><dd>' + esc(agentName(item.verifiedBy)) + '</dd>' : '') + (item.merged ? '<dt>merged</dt><dd>' + hashButton(item.merged) + '</dd>' : '') + (item.blockedBy.length ? '<dt>waits on</dt><dd class="waits-on">' + item.blockedBy.map(id => '<span class="wait-unit"><a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a></span>').join(', ') + '</dd>' : '') + '</dl></section>' : '')
+      + '</section><section class="item-panel-section item-panel-verdicts" id="item-panel-panel-verdicts" role="tabpanel" aria-labelledby="item-panel-tab-verdicts"' + (panelChoice === 'verdicts' ? '' : ' hidden') + ' data-item-panel-panel="verdicts">' + (verdictRows || '<p class="muted">No verdicts yet.</p>') + '</section>'
+      + '<section class="item-panel-section item-panel-history" id="item-panel-panel-history" role="tabpanel" aria-labelledby="item-panel-tab-history"' + (panelChoice === 'history' ? '' : ' hidden') + ' data-item-panel-panel="history">' + moreHistory + '<div class="item-panel-history-list' + (historyCount > 5 ? ' folded' : '') + '">' + timeline(item, { newestFirst: true }) + '</div></section>'
       + '<div class="links"><button class="ghost" data-shout="' + esc(item.lane) + '" data-about="' + item.id + '" type="button">Shout the ' + esc(item.lane) + ' lane about #' + item.id + '</button><button class="go" data-new type="button">New item</button></div></div>';
   }
 

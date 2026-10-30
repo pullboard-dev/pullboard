@@ -104,6 +104,7 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
     assert.deepEqual(rows(page.show('chain'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the verified filter still lists them');
     await page.click({ go: 'item:1' });
     assert.equal(marks(page.show('detail')), stale, 'the detail marks it beside the verified chip');
+    await page.click({ dataItemPanelTab: 'verdicts' });
     assert.match(page.show('detail'), /<div class="verdict yes"><b>Accepted · <span title="CRITERION_MET">criterion met<\/span>/, 'the ACCEPT stays in the history with its native reason tooltip');
     await page.click({ go: 'item:3' });
     assert.equal(marks(page.show('detail')), '', 'a merged item carries no mark');
@@ -187,7 +188,7 @@ test('an item detail shows its pending, red and green check baselines from the A
       await page.click({ item: String(ids[index]), classes: 'row' });
       const detail = page.show('detail');
       assert.match(detail, /<h3>Check<\/h3>/);
-      assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Check</h3>')
+      assert.ok(detail.indexOf('<h3>Done when</h3>') < detail.indexOf('<h3>Check</h3>')
         && detail.indexOf('<h3>Check</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'), 'the check sits beside the criterion');
       assert.ok(detail.includes(`<code>${checks[index].command}</code>`), 'the displayed check is the API command');
       assert.ok(detail.includes(`<span class="chip ${checks[index].result === 'green' ? 'ok' : checks[index].result === 'red' ? 'no' : 'warn'}">${checks[index].result}</span>`),
@@ -248,7 +249,7 @@ test('a sent-back item shows why first [N26]', async () => {
   try {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
-    const beforeCriterion = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<h3>Criterion</h3>')));
+    const beforeDoneWhen = () => page.show('detail').slice(0, Math.max(0, page.show('detail').indexOf('<h3>Done when</h3>')));
     const needs = page.show('needs');
     assert.doesNotMatch(needs, /Greeting|Farewell/, "work sent back is the agents' to move, so it stays out of Needs-you; its row says why");
     const row = itemRow(page.show('chain'), 1);
@@ -260,39 +261,45 @@ test('a sent-back item shows why first [N26]', async () => {
     const detail = page.show('detail');
     const verdict = (await boardOf(view, p.repo)).items.find((item) => item.id === 1).verdict;
     const time = new Date(verdict.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-    const top = detail.slice(0, detail.indexOf('<h3>Criterion</h3>'));
-    assert.ok(detail.indexOf('<h3>Criterion</h3>') > 0, 'the criterion is shown');
-    assert.match(top, /<h3>Sent back<\/h3>/);
-    assert.match(top, /<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/);
+    const top = detail.slice(0, detail.indexOf('<h3>Done when</h3>'));
+    assert.ok(detail.indexOf('<h3>Done when</h3>') > 0, 'the criterion is shown in the Done when section');
+    assert.match(top, /class="item-panel-latest sentback"/);
+    assert.match(top, /<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>/);
     const verdictHash = `at <button class="hash-copy" type="button" title="${verdict.commit}" aria-label="Copy full hash ${verdict.commit}" data-copy="${verdict.commit}"><code class="inline sha" title="${verdict.commit}">${verdict.commit.slice(0, 12)}</code></button>`;
-    assert.ok(top.includes('coordinator ·') && top.includes(verdictHash), 'who sent it back, when, and at which commit');
+    assert.ok(top.includes('coordinator ·') && top.includes(time) && top.includes(verdictHash), "who sent it back, at the person's local time, and at which commit");
     assert.ok(top.includes('no &lt;b&gt;greeting&lt;/b&gt; on the page\nsecond line of the note'), 'the full note, escaped, before the criterion');
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
-    assert.ok(detail.indexOf('<h3>Criterion</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
-    assert.ok(detail.indexOf('<h3>Spec rows it serves</h3>') < detail.indexOf('<h3>Brief</h3>'));
-    assert.equal(detail.split('second line of the note').length, 2, 'the note is shown once');
+    assert.ok(detail.indexOf('<h3>Done when</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
+    assert.ok(detail.indexOf('<h3>Brief</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
+    assert.equal(detail.split('second line of the note').length, 3, 'the full note appears once in Overview and once in its Verdicts disclosure');
 
     await page.click({ item: '2', classes: 'row' });
-    assert.match(beforeCriterion(), /<h3>Sent back, resubmitted<\/h3>[^]*the farewell is missing/);
+    assert.match(page.show('detail'), /item-panel-status[^]*Waiting for a reviewer[^]*Resubmitted after a send-back/);
+    assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*the farewell is missing/);
 
     assert.ok(itemRow(page.show('chain'), 5).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> the footer is empty'), 'a row being reworked still says why');
     await page.click({ item: '5', classes: 'row' });
-    assert.match(beforeCriterion(), /<h3>Sent back, being reworked<\/h3>[^]*<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the footer is empty/);
+    assert.match(page.show('detail'), /item-panel-status[^]*Building[^]*Resubmitted after a send-back/);
+    assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the footer is empty/);
 
     // A withdrawn item has no row; the person reaches it from a spec row or the activity feed.
     assert.equal(itemRow(page.show('chain'), 4), '');
     await page.click({ go: 'item:4' });
     assert.match(page.show('detail'), /<h2><span>#4<\/span>Banner<\/h2>/);
-    assert.match(beforeCriterion(), /<h3>Sent back, then withdrawn<\/h3>[^]*<b>Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
-    assert.ok(page.show('detail').indexOf('<h3>Criterion</h3>') < page.show('detail').indexOf('<h3>Brief</h3>'));
+    assert.match(page.show('detail'), /item-panel-status[^]*Withdrawn/);
+    assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
+    assert.ok(page.show('detail').indexOf('<h3>Done when</h3>') < page.show('detail').indexOf('<h3>Brief</h3>'));
 
     await page.click({ item: '3', classes: 'row' });
     const verified = page.show('detail');
-    assert.doesNotMatch(verified, /<h3>Sent back/, 'the current sent-back panel is absent; historical rejected verdicts keep their readable label');
-    assert.ok(verified.indexOf('<h3>Criterion</h3>') < verified.indexOf('<h3>Brief</h3>'));
-    assert.ok(verified.indexOf('<h3>Brief</h3>') < verified.indexOf('<h3>Verdicts</h3>'), 'a verified item keeps its verdicts after the brief');
-    assert.ok(verified.indexOf('<h3>Verdicts</h3>') < verified.indexOf('no heading yet'));
-    assert.ok(verified.indexOf('no heading yet') < verified.indexOf('the page shows it'), 'every verdict, oldest first');
+    assert.match(verified, /<b class="item-panel-verdict-label">Passed<\/b>/, 'the current passed verdict leads Overview');
+    assert.doesNotMatch(verified, /class="item-panel-latest sentback"/, 'the latest panel is not tinted as sent back after acceptance');
+    assert.ok(verified.indexOf('<h3>Done when</h3>') < verified.indexOf('<h3>Brief</h3>'));
+    assert.match(verified, /aria-selected="true"[^>]*>Overview/);
+    await page.click({ dataItemPanelTab: 'verdicts' });
+    const verdicts = page.show('detail');
+    assert.match(verdicts, /aria-selected="true"[^>]*>Verdicts/);
+    assert.ok(verdicts.indexOf('the page shows it') < verdicts.indexOf('no heading yet'), 'every verdict remains available newest first');
   } finally {
     await view.stop();
   }
@@ -865,6 +872,8 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
     await chrome.click("document.querySelector('[data-tab=items]')");
     await chrome.waitFor('typeof data !== "undefined" && !!data?.project?.items?.find((item) => item.id === 1)');
     await chrome.waitFor('document.querySelectorAll("#detail .tl [data-event-id]").length === ' + expected.length);
+    await chrome.click("document.querySelector('#detail [data-item-panel-tab=history]')");
+    await chrome.waitFor("!document.querySelector('#detail [data-item-panel-panel=history]').hidden");
     const expectedIds = expected.map((entry) => entry.eventId);
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 1000, deviceScaleFactor: 1, mobile: false });
@@ -881,6 +890,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
         }));
         return {
           ids: [...timeline.querySelectorAll('[data-event-id]')].map((row) => Number(row.dataset.eventId)),
+          eventIds: [...timeline.querySelectorAll('[data-event-ids]')].flatMap(row => row.dataset.eventIds.split(' ').map(Number)),
           rows: timeline.querySelectorAll('li').length,
           kinds: [...timeline.querySelectorAll('.tl-fact .tl-kind')].map((chip) => chip.textContent),
           authors: [...timeline.querySelectorAll('.tl-fact .tl-who')].map((name) => name.textContent),
@@ -898,11 +908,12 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
           pageWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
         };
       })())`));
-      assert.deepEqual(rendered.ids, expectedIds, `${width}px: moves and facts follow the API's event order`);
+      assert.deepEqual(rendered.eventIds.toSorted((a, b) => a - b), expectedIds, `${width}px: every rendered row retains its exact API event identities`);
+      assert.ok(rendered.ids[0] > rendered.ids.at(-1), `${width}px: history is shown newest first`);
       assert.equal(rendered.rows, expected.length, `${width}px: each API event appears exactly once`);
       const expectedFacts = expected.filter((entry) => entry.type === 'fact');
-      assert.deepEqual(rendered.kinds, expectedFacts.map((entry) => entry.kind.replaceAll('-', ' ')), `${width}px: every native fact kind has its readable visible chip`);
-      assert.deepEqual(rendered.authors, expectedFacts.map((entry) => entry.by), `${width}px: each fact names its API author`);
+      assert.deepEqual(rendered.kinds, expectedFacts.toReversed().map((entry) => entry.kind.replaceAll('-', ' ')), `${width}px: every native fact kind has its readable visible chip`);
+      assert.deepEqual(rendered.authors, expectedFacts.toReversed().map((entry) => entry.by), `${width}px: each fact names its API author`);
       assert.equal(rendered.ages, expectedFacts.length, `${width}px: each fact shows its age`);
       assert.match(rendered.oldClass, /tl-superseded/, `${width}px: the earlier fact is visibly dimmed`);
       assert.equal(rendered.replacementHref, `#fact-${replacement.id}`, `${width}px: the earlier fact links to its replacement`);

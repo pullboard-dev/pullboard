@@ -15,6 +15,7 @@ export const VIEW_TEST_ROLES = Object.freeze({
   'test/cockpit/roadmap-count.test.js': { kind: 'journey', reason: 'Real native milestones, acceptance and recorded trunk landing update an authenticated live Chrome Roadmap and its remaining-work browser title through the event stream.' },
   'test/cockpit/plain-words.test.js': { kind: 'journey', reason: 'Genuine legacy model-less seat, ordered native health/review/fact events, authenticated HTTP and Chrome scan of person-visible names, words and chart hover text; pure label assertions retain explicit timestamp inputs.' },
   'test/cockpit/item-timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
+  'test/cockpit/item-panel.test.js': { kind: 'journey', reason: 'A private native item with real sent-back and accepted verdicts, recorded red/green check baselines, brief files and lifecycle events is inspected through authenticated Chrome tabs, disclosures and measured desktop/phone layout.' },
   'test/cockpit/timeline-notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Needs you and item details, including full-hash copy.' },
   "test/cockpit/needs-actions-pure.test.js": {
     "kind": "logic",
