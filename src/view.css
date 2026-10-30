@@ -605,6 +605,8 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 .shout .who, .shout .to { display: flex; flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
 /* A recipient with no model to shorten, such as coordinator and you, gives way with an ellipsis before the age is pushed out. */
 .shout .to:not(:has(.agent-label, .agent-address)) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.shout header .mark { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shout:has(.mark.ask) .to { flex: none; min-width: max-content; }
 .shout header time { flex: none; }
 .shout .who { color: var(--h); font-weight: 700; }
 .shout .to, .shout .item { color: var(--ink-faint); }

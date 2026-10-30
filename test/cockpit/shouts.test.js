@@ -928,13 +928,12 @@ test("a waiting ask's who and when stay on one line with wide fonts [N26]", { ti
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("data?.project && innerWidth === 375");
     await press(chrome, "document.querySelector('[data-tab=shouts]')");
-    await pressedInto(chrome, "view.tab === 'shouts' && !!document.querySelector('.asks-toggle')");
-    await press(chrome, "document.querySelector('.asks-toggle')");
-    await pressedInto(chrome, "!!document.querySelector('#decisions .shout:not(:has(.answer)) header')");
+    await openConversation(chrome);
+    await pressedInto(chrome, "!!document.querySelector('#feed .shout:not(:has(.answer)) header')");
     // Change font metrics only: the production layout must fit the same real waiting ask.
-    await chrome.stable("(() => { const sheet = document.styleSheets[0]; sheet.insertRule('#decisions .shout header { font-family: monospace; letter-spacing: 1px; }', sheet.cssRules.length); })()");
+    await chrome.stable("(() => { const sheet = document.styleSheets[0]; sheet.insertRule('#feed .shout header { font-family: monospace; letter-spacing: 1px; }', sheet.cssRules.length); })()");
     const result = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-      const card = document.querySelector('#decisions .shout:not(:has(.answer))'), header = card.querySelector('header');
+      const card = document.querySelector('#feed .shout:not(:has(.answer))'), header = card.querySelector('header');
       const rect = (element) => { const r = element.getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width, height:r.height }; };
       const who = header.querySelector('.who'), address = who.querySelector('.agent-id') || who, age = header.querySelector('time'), kind = header.querySelector('.mark');
       const range = document.createRange(); range.selectNodeContents(address);
