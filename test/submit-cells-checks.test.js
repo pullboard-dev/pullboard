@@ -304,3 +304,26 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
     assert.ok(calls() > 0);
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });
+
+/** Exercise the actual writer's 100-order filename, not an invented alternate reader spelling. */
+test('submit reads canonical 100-order shards and refuses alternate shard identities [C7,D3]', async t => {
+  const box = plannedFixture(t), plan = readPlan(box.root);
+  plan.cells.find(cell => cell.name === 'kernel').order = 100;
+  writePlan(box.root, plan);
+  const commit = commitCandidate(box);
+  const index = JSON.parse(git(box.root, 'show', `${commit}:bin/cells-plan.json`));
+  const row = index.cells.find(cell => cell.name === 'kernel');
+  assert.equal(row.file, 'bin/cells-plan/100-kernel.json');
+  await assert.rejects(requireSubmitCells(box.root, box.main, commit, box.item), /accepted cell kernel identity\/order\/front door changed/u,
+    'the canonical writer filename reaches the original ownership/order guard');
+  const original = git(box.root, 'show', `${commit}:${row.file}`);
+  for (const alias of ['bin/cells-plan/0100-kernel.json', 'bin/cells-plan/100-git.json']) {
+    row.file = alias;
+    box.put(alias, original);
+    box.put('bin/cells-plan.json', JSON.stringify(index));
+    const forged = commitCandidate(box);
+    assert.equal(git(box.root, 'show', `${forged}:${alias}`), original, 'the alternate really exists with the same committed body');
+    await assert.rejects(requireSubmitCells(box.root, box.main, forged, box.item), /CELLS_PLAN_SHARD/u,
+      'an extra zero or mismatched name cannot change canonical shard identity');
+  }
+});

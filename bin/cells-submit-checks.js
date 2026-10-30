@@ -15,6 +15,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
 import { readPlan } from './cells-plan.js';
+import { shardFile } from './cells-plan.js';
 import { unplanned } from './cells-plan.js';
 import { stalePlanRows } from './cells-plan.js';
 
@@ -135,7 +136,12 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     let path = candidateRoot;
     for (const part of file.split('/')) { path = join(path, part); if (lstatSync(path).isSymbolicLink()) throw new Refused('CELLS_SUBMIT', `symbolic candidate plan path: ${file}`); }
     if (!lstatSync(path).isFile()) throw new Refused('CELLS_SUBMIT', `nonregular candidate plan: ${file}`);
-    return readFileSync(path, 'utf8');
+    const source = readFileSync(path, 'utf8');
+    if (file !== 'bin/cells-plan.json') {
+      const cell = JSON.parse(source);
+      if (!Number.isSafeInteger(cell?.order) || cell.order < 1 || typeof cell.name !== 'string' || shardFile(cell) !== file) throw new Refused('CELLS_SUBMIT', 'noncanonical candidate plan shard identity');
+    }
+    return source;
   });
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
   const policy = policyProblems(before, after, mainMap, candidateMap);
