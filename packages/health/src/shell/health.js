@@ -20,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { loadMachineSettings } from '../../../../src/settings-read.js';
 import { machineHome } from '../../../../src/machine-home.js';
 import { runnerRecoveryStatus } from '../../../../src/runner-recovery.js';
 import { missedJobFindings } from '../../../../src/board-recurring-jobs.js';
@@ -120,6 +121,24 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
       why,
       next: 'inspect pullboard relay canary; keep working locally while queued moves await the relay',
       owner: { role: 'coordinator', who: COORDINATOR }, detail: { step, code, roundTripMs: canary.roundTripMs, p95Ms: canary.p95Ms },
+    }));
+  }
+  const settings = loadMachineSettings();
+  if (settings.gate?.loadAwareDispatch === true) {
+    const fresh = (settings.runners ?? []).filter(runner => {
+      const age = now.getTime() - Date.parse(runner.cpuLoad?.at);
+      return Number.isFinite(age) && age >= 0 && age <= 30_000;
+    });
+    report.runnerCpu = { ceiling: settings.gate?.runnerBusyCeiling ?? 90,
+      readings: fresh.map(runner => ({ host: runner.host, ...runner.cpuLoad })),
+      spread: fresh.length ? Math.max(...fresh.map(runner => runner.cpuLoad.busyPercent)) - Math.min(...fresh.map(runner => runner.cpuLoad.busyPercent)) : null,
+      note: fresh.length ? 'Recent runner-reported CPU busy percentages; incompatible and full runners remain excluded at dispatch' : 'No fresh runner CPU readings; dispatch falls back to free slots' };
+    if (fresh.some(runner => runner.cpuLoad.busyPercent >= report.runnerCpu.ceiling) && fresh.some(runner => runner.cpuLoad.busyPercent < report.runnerCpu.ceiling)) report.stuck.push(finding('RUNNER_CPU_SPREAD', null, {
+      subject: 'runner CPU load', key: 'RUNNER_CPU_SPREAD:machine', since: fresh.map(runner => runner.cpuLoad.at).sort()[0], now: now.getTime(),
+      title: `runner CPU busy spread is ${Math.round(report.runnerCpu.spread)} percentage points`,
+      why: fresh.map(runner => `${runner.host}: ${Math.round(runner.cpuLoad.busyPercent)}% busy, load ${runner.cpuLoad.average[0]}`).join('; '),
+      next: 'let measured dispatch prefer compatible quieter runners; inspect runner health if the spread persists',
+      owner: { role: 'coordinator', who: COORDINATOR }, detail: report.runnerCpu,
     }));
   }
   if (!db) return report;
