@@ -231,7 +231,8 @@
   ["src/cli/worktree.js","apps/cli/src/shell/cli/worktree.js","imports"],
   ["src/documentation/events/routing-rule.json","apps/cli/src/shell/documentation/events/routing-rule.json","rule"],
   ["src/commands/rule.js","apps/cli/src/shell/commands/rule.js","rule"],
-  ["src/command-docs/stats-pipeline.json","apps/cli/src/shell/command-docs/stats-pipeline.json","rule"]
+  ["src/command-docs/stats-pipeline.json","apps/cli/src/shell/command-docs/stats-pipeline.json","rule"],
+  ["src/documentation/events/review-default.json","apps/cli/src/shell/documentation/events/review-default.json","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
