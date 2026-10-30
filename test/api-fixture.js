@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { chmodSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
