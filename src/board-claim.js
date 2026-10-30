@@ -1,4 +1,4 @@
-import { EXIT_RULES_ENGINE } from './exit-rules-engine.js';
+import { EXIT_RULES_ENGINE } from '../packages/state/index.js';
 import { capturedExitRules } from './exit-rules-state.js';
 import { exitContinuationSummary, exitContinuationProblem } from './exit-rules-continuation.js';
 /** Native claim preparation and mutation preserve the same declared guards [B2,C7,V2]. */

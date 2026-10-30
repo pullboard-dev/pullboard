@@ -3,14 +3,14 @@ import { createHash } from 'node:crypto';
 import { atomic, logEvent } from './board-event-log.js';
 import { appendFact } from './board-append-fact.js';
 import { itemById } from './board-query.js';
-import { seatFamily } from './family-declaration.js';
+import { seatFamily } from '../packages/items/index.js';
 import { exitSessionIdentity, exitedSession, exitedSessionIdentity } from './exit-rules-continuation.js';
 export { exitedSession, exitContinuationSummary } from './exit-rules-continuation.js';
-import { exitRulesDecision } from './exit-rules-policy.js';
-import { exitRulesConfigProblems } from './exit-rules-config.js';
-import { EXIT_RULES_ENGINE } from './exit-rules-engine.js';
-import { ENGINE_VERSION } from './engine-metadata.js';
-import { Refused } from './refused.js';
+import { exitRulesDecision } from '../packages/stats/index.js';
+import { exitRulesConfigProblems } from '../packages/config/index.js';
+import { EXIT_RULES_ENGINE } from '../packages/state/index.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Read one exact claim's immutable policy; renewals never grant a fresh budget. */
 export function exitClaim(board, id, actor) {

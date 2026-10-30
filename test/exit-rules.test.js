@@ -9,6 +9,9 @@ import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { isolateTestMachine } from '../src/test-isolation.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
+import { openBoard } from '../src/native-board.js';
+import { boardReceiptStore, readGateReceipt } from '../src/gate-run-receipt.js';
+import { proofRunReceipt } from '../src/proof-receipts.js';
 import { fixtureBoard } from './board-fixture.js';
 import * as store from '../src/board.js';
 import { itemById } from '../src/board-item-read.js';
@@ -183,4 +186,69 @@ test('immutable claim keys survive different replica history and nested item rem
   const remapped = resolveMove(queued, outbox).move;
   assert.equal(remapped.args[0].item, origin.id + 10);
   assert.equal(remapped.args[0].claim, key, 'the native opaque claim identity is never mistaken for a local item number');
+});
+
+
+test('ordinary native failed checks retain cases through receipt recording and stop the repeated claim [B3,C7,H16]', { timeout: 120000 }, t => {
+  const helpers = createE2eHelpers(), sandbox = helpers.sandbox({ declareFamilies: true });
+  sandbox.env.PULLBOARD_MODEL = 'Test Model';
+  isolateTestMachine(sandbox.env, sandbox.dir);
+  const check = 'node --test test/private-exit-repeat.test.cjs';
+  const box = helpers.project('true', sandbox);
+  t.after(helpers.cleanup);
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.exitRules = { enabled: true, tokens: 150000000, calls: 2000 };
+  writeFileSync(configPath, JSON.stringify(config));
+  mkdirSync(join(box.repo, 'test'), { recursive: true });
+  writeFileSync(join(box.repo, 'test/private-exit-repeat.test.cjs'),
+    "require('node:test')('private repeated native failure [G1]', () => { require('node:assert/strict').equal(1, 2); });\n");
+  box.git(box.repo, 'add', 'pullboard.json', 'test/private-exit-repeat.test.cjs');
+  box.git(box.repo, 'commit', '-qm', 'test: enable private repeated native proof');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const added = box.run(box.repo, 'add', 'web', 'Private repeated native proof', '--specs', 'G1', '--check', check, '--json');
+  assert.equal(added.code, 0, added.out + added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  const claimed = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(claimed.code, 0, claimed.out + claimed.err);
+  for (let n = 0; n < 2; n++) {
+    const red = box.run(box.web, 'check', String(id), '--yes', '--json');
+    assert.equal(red.code, 1, red.out + red.err);
+    assert.equal(JSON.parse(red.out).green, false, 'the real private process failed, rather than an admission refusal');
+    if (!n) {
+      const active = box.run(box.web, 'status', '--json');
+      assert.equal(active.code, 0, active.out + active.err);
+    }
+  }
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  t.after(() => store.closeBoard(board));
+  const receipts = store.proofReceipts(board, id);
+  assert.equal(receipts.length, 2);
+  for (const receipt of receipts) {
+    assert.equal(Object.hasOwn(receipt, 'blockingVerdict'), false, 'no quarantine manufactures the failure projection');
+    assert.deepEqual(receipt.failures, [{ file: 'test/private-exit-repeat.test.cjs', name: 'private repeated native failure [G1]' }]);
+    const raw = readGateReceipt(boardReceiptStore(board), receipt.id);
+    assert.deepEqual(raw.failures, receipt.failures, 'the case identity comes from the actual native writer');
+    const move = prepareEngineMove(board, 'recordProofRun', [{ agentId: receipt.seat, itemId: id, receiptId: receipt.id }], { actor: receipt.seat });
+    assert.equal(move.args[0].exitFailures, true);
+    assert.equal(minimumMoveEngine(move.operation, move.args), EXIT_RULES_ENGINE);
+    assert.deepEqual(proofRunReceipt(board, { agentId: receipt.seat, itemId: id, receiptId: receipt.id }).receipt.failures, raw.failures);
+  }
+  const historical = fixtureBoard(t);
+  store.register(historical, { id: 'coordinator', lane: 'coordinator', path: '/exit-receipt-history/main' });
+  store.register(historical, { id: receipts[0].seat, lane: 'web', path: '/exit-receipt-history/web' });
+  const oldItem = store.addItem(historical, { by: 'coordinator', lane: 'web', title: 'Private historical receipt' });
+  assert.equal(oldItem, id);
+  store.claim(historical, oldItem, { agentId: receipts[0].seat, lane: 'web', leaseMs: 60000,
+    freeze: () => ({ text: '{}', digest: receipts[0].frozenDigest }) });
+  historical.executionEngineVersion = EXIT_RULES_ENGINE - 1;
+  const oldRequest = { agentId: receipts[0].seat, itemId: oldItem,
+    receipt: readGateReceipt(boardReceiptStore(board), receipts[0].id) };
+  const old = store.recordProofRun(historical, oldRequest);
+  assert.equal(Object.hasOwn(old, 'failures'), false, 'historical replay keeps the old receipt shape');
+  assert.deepEqual(store.recordProofRun(historical, oldRequest), old, 'historical receipt replay remains idempotent');
+  assert.equal(exitClaimDecision(board, id, receipts[0].seat).code, 'EXIT_REPEAT_FAILURE');
+  const stopped = box.run(box.web, 'status', '--json');
+  assert.equal(stopped.code, 1, stopped.out + stopped.err);
+  assert.equal(JSON.parse(stopped.out).error.code, 'EXIT_REPEAT_FAILURE');
 });
