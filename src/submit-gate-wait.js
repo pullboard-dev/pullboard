@@ -71,7 +71,12 @@ export async function waitForSubmitGate(ctx, id, acknowledgment, jobId, ports) {
       if (!job.error?.code || !job.error?.message) throw new Refused('SUBMIT_HANDOFF_RESULT', `the final queued refusal is unavailable; run pullboard show ${id}`);
       throw new Refused(job.error.code, job.error.message.replace(/^\[[A-Z_]+\] /u, ''));
     }
-    if (!['queued', 'running'].includes(job.state) || item.item_owner !== job.agentId || item.item_status !== 'claimed') {
+    // Canonical submit and queue finalization are separate native transactions. A matching
+    // submitted receipt may already exist while this same worker still records its final job state.
+    const claimed = item.item_owner === job.agentId && item.item_status === 'claimed';
+    const finalizing = item.item_status === 'submitted' && item.item_built_by === job.agentId
+      && item.item_commit === job.executionCommit;
+    if (!['queued', 'running'].includes(job.state) || !(claimed || finalizing)) {
       throw new Refused('SUBMIT_HANDOFF_CHANGED', `the queued gate no longer owns #${id}; run pullboard show ${id}`);
     }
     // Observe native completion again after checking process death: completion can race the last worker exit.

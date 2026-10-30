@@ -99,7 +99,7 @@ export const workHelp = `Work
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
   pullboard release <id> [--no-next] [--stale --note "why"]  hand it back; coordinator --stale requires measured inactivity and a note
-  pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait for the verdict; hooks and gates remain mandatory
+  pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
   pullboard submit <id> [--wait] [--no-next]        needs a clean tree; --wait ends at the final gate result, never a review verdict (alias: done)
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
