@@ -9,6 +9,7 @@ import { refuseUnreviewable } from '../src/review-reachability.js';
 import { reviewEligibility } from '../src/review-eligibility.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { healthReport } from '../packages/health/index.js';
+import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
 import { FAMILY_DECLARE_ENGINE } from '../src/family-declare-engine.js';
 
 const LEASE = 3_600_000;
@@ -18,6 +19,8 @@ const REVIEW = { policy: 'any', familyPolicy: 'require' };
 /** Live seats of the named families; the coordinator declares none, so it can never review strict work. */
 function fixture(t, seats, clock) {
   const board = fixtureBoard(t, { clock });
+  // These original controls retain the recorded pre-composition semantics; the current rules have their own frozen fixture.
+  board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1;
   store.register(board, { id: 'coordinator', lane: 'coordinator', path: '/fixture/coordinator', parentDigest: 'e'.repeat(64), model: 'Synthetic fixture model' });
   store.setLineSetting(board, { agentId: 'coordinator', key: 'requireReviewFamilies', value: true, reason: 'Private fixture selects its vendor policy.', window: { syntheticSeats: 6 } });
   for (const [id, family, parent] of seats) {
@@ -158,7 +161,7 @@ test('historical family clears cannot hide the builder or companion from strict 
     for (const [agent, parent] of [['core-1', 'a'], ['core-2', 'b']]) {
       store.register(f.board, { lane: 'core', path: `/fixture/${agent}`, family: null, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
     }
-  } finally { delete f.board.executionEngineVersion; }
+  } finally { f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1; }
   const before = store.events(f.board);
   assert.throws(() => attach(f, id, 'cleared-companion', 'core-2'), error => error.code === 'NO_ELIGIBLE_REVIEWER'
     && error.message.includes('builder core-1 (openai)') && error.message.includes('companion author core-2 (claude)'));
