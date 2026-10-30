@@ -659,12 +659,18 @@ async function jsonRequest(path, body, base, headers, cache, format = 'json') {
 document.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-forget-unreadable]');
   if (!button || snapshot || pageReadOnly) return;
-  if (!confirm('Forget the boards that are unreadable now? Boards recovered since this list was shown will be kept.')) return;
+  const root = button.dataset.forgetUnreadable || null;
+  if (!confirm(root ? 'Forget this board if it is still unreadable? A recovered board will be kept.' : 'Forget the boards that are unreadable now? Boards recovered since this list was shown will be kept.')) return;
   button.disabled = true;
   try {
     const base = hosted.local ? localReadBase : connection.base;
     const headers = hosted.local ? localReadHeaders : connection.headers;
-    const result = await jsonRequest('/api/v1/projects/forget-unreadable', { confirm: true }, base, headers);
+    const body = { confirm: true };
+    if (root) {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(root));
+      body.board = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    const result = await jsonRequest('/api/v1/projects/forget-unreadable', body, base, headers);
     await refresh();
     $('live').textContent = result.forgotten
       ? 'Forgot ' + result.forgotten + ' unreadable ' + (result.forgotten === 1 ? 'board.' : 'boards.')
