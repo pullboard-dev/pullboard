@@ -166,6 +166,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
     runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
+    /** An idle runner's unresponsive worker is ended and proven idle again by the worker itself (#2035). */
+    runnerRestartProbe: runner => probeRunnerHealth(runner, undefined, { restart: true }),
     runnersFirstProvider: gateRunnersFirstEnabled,
     runnerWaitMs: runnerWaitMs ?? gateRunnerWaitMs(),
     runnerDeadlineAt,

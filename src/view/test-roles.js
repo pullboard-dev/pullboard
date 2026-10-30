@@ -1,5 +1,6 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/shouts-redesign.test.js': { kind: 'journey', reason: 'Real native questions, answers, claims and submitted work drive authenticated Chrome conversation grouping, private clock labels, disclosure, filters and feed/agent/status geometry at desktop and phone widths.' },
   'test/cockpit/needs-you-rows.test.js': { kind: 'journey', reason: 'Native writers seed item809 and person questions; authenticated HTTP and real Chrome verify summary identity, preserved raw detail/action targets, header navigation, redraw and phone layout.' },
   'test/cockpit/items-walk-1029.test.js': { kind: 'journey', reason: 'Real private native build, review and health moves, authenticated HTTP and real desktop/phone Chrome verify hash display, waiting links, history verb tones and person clocks.' },
   'test/cockpit/export-replay-control.test.js': { kind: 'journey', reason: 'A seeded exported native board is opened in real Chrome at phone width to verify snapshot replay lives in the status bar, never above page content, and keeps its exact live event count while playing and paused.' },

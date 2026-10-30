@@ -45,3 +45,17 @@ test('Agents selection preserves holding rank, recent filtering, picked idle exp
   const allOpen = agentsPanelModel({ agents, items, now, allAgents: true, idleOpen: true });
   assert.match(agentsPanelHtml(allOpen), /show only agents at work/u);
 });
+
+
+test('compact Agents entries keep model and state columns without avatars or bare extra-item counts [N26]', () => {
+  const builder = { ...agent('builder'), modelHtml: 'GPT-6.1 Sol' };
+  const panel = agentsPanelModel({ agents: [builder], now, items: [
+    item(1, { status: 'claimed', holder: 'builder', ageHtml: '<time>23m</time>' }),
+    item(2, { status: 'submitted', state: 'verify', builtBy: 'builder' }),
+  ] });
+  const html = agentsPanelHtml(panel);
+  assert.match(html, /class="agent-who"><b>builder<\/b><span class="agent-model">GPT-6.1 Sol<\/span>/u);
+  assert.match(html, /class="agent-state"><time>23m<\/time>/u);
+  assert.match(html, /title="tip builder · \+1 more item"/u);
+  assert.doesNotMatch(html, /avatar|class="agent-more"/u);
+});
