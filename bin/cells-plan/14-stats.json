@@ -37,7 +37,8 @@
   ["src/usage-batch-engine.js","packages/stats/src/shell/usage-batch-engine.js","rule"],
   ["test/usage-publish-batch.test.js","packages/stats/tests/usage-publish-batch.test.js","rule"],
   ["src/stats-pipeline.js","packages/stats/src/core/stats-pipeline.js","rule"],
-  ["src/stats-moves.js","packages/stats/src/core/stats-moves.js","rule"]
+  ["src/stats-moves.js","packages/stats/src/core/stats-moves.js","rule"],
+  ["src/cost-analytics.js","packages/stats/src/shell/cost-analytics.js","rule"]
  ],
  "reexports": [
   "src/flow-replay.js",
