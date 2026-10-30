@@ -49,7 +49,6 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "reopen", order: 22, engine: 8,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "PROOF_RUN_UNBOUND": "run the item check with current Pullboard and use its stored native receipt; read pullboard show <id> for the proof chain",
   "BAD_VERDICT_WITHDRAW": "use --withdraw-verdict with a note, or report a conflict separately",
   "VERDICT_WITHDRAW_FORBIDDEN": "ask the accepting reviewer or coordinator to withdraw this verdict",
   "VERDICT_WITHDRAW_STATE": "refresh the item; withdraw only a current acceptance before landing",
