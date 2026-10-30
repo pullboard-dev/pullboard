@@ -401,3 +401,55 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   }
   if (policyAfterFirst) await repairedPolicyControls(box, batches[0]);
 }
+
+/** Exercise a real independently closed source-advance gate before the second foreground landing [Q1,B3]. */
+export async function sourceAdvancePolicyCase(t, helpers) {
+  const sandbox = helpers.sandbox({ declareFamilies: true });
+  const callsFile = join(sandbox.dir, 'source-policy-calls.jsonl');
+  const gate = join(sandbox.dir, 'source-policy-gate.cjs');
+  writeFileSync(gate, [
+    "const fs = require('node:fs'); const assert = require('node:assert/strict');",
+    `fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify({cwd:process.cwd(),args:process.argv.slice(2)}) + '\\n');`,
+    "for (const name of fs.readdirSync('web').filter(name => /^queue-\\d+\\.txt$/.test(name))) assert.match(fs.readFileSync('web/'+name,'utf8'), /^works/);",
+    "console.log('TAP version 13\\nok 1 - actual source composition preserves queue behavior\\n1..1\\n# tests 1\\n# pass 1\\n# fail 0');",
+  ].join('\n'));
+  const box = helpers.project(`node ${JSON.stringify(gate)}`, sandbox);
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  config.lanes.web.owns.push('pullboard.json');
+  writeFileSync(configFile, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: assign private source policy ownership');
+  const remote = join(box.dir, 'source-policy-origin.git');
+  box.git(box.dir, 'init', '-q', '--bare', remote);
+  box.git(box.repo, 'remote', 'add', 'origin', remote);
+  box.git(box.repo, 'push', '-q', '-u', 'origin', 'main');
+  const entries = acceptedPair(helpers, box, false, true);
+  writeFileSync(callsFile, '');
+  run(box, box.repo, 'land', '--max', '1');
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  const wakeFile = join(directory, 'wake.json');
+  const expectedGeneration = (readMainAudit(wakeFile)?.generation ?? 0) + 1;
+  run(box, box.repo, 'sentinel', 'run', '--health-only', '--json');
+  // Budget: a real detached native worker must close its expected wake and actual checked job.
+  await helpers.waitFor(() => {
+    const done = readMainAudit(join(directory, 'settled.json'));
+    if (existsSync(join(directory, 'owner.json')) || !(done?.generation >= expectedGeneration)) return false;
+    return readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+      .map(name => readMainAudit(join(directory, name)))
+      .find(job => job.item === entries[0].id && job.state === 'advanced' && job.receiptIds?.length);
+  }, 'the genuine source-advance gate closes its expected generation', 120_000);
+  run(box, box.repo, 'land', '--max', '1');
+  const batches = readBoard(box, board => store.landingBatches(board).filter(batch => batch.state === 'landed'));
+  assert.equal(batches.length, 2);
+  const records = readFileSync(callsFile, 'utf8').trim().split(/\r?\n/u).map(line => JSON.parse(line));
+  const foreground = landingPolicyCalls(box, batches, records);
+  assert.deepEqual(foreground, [[], ['--new-policy']]);
+  const background = records.filter(record => !batches.some(batch => batch.root === record.cwd));
+  assert.ok(background.length > 0, 'at least one actual independent native gate was executed');
+  assert.throws(() => landingPolicyCalls(box, batches, [...records, background[0]]), /duplicate audit invocation/u);
+  assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === background[0] ? { ...record, args: [] } : record)), /accepted policy/u);
+  assert.throws(() => landingPolicyCalls(box, batches, [...records, { cwd: join(box.dir, 'unbound-source'), args: ['--new-policy'] }]), /unknown gate root/u);
+  t.diagnostic(JSON.stringify({ foreground: foreground.length, independentlyBound: background.length,
+    expectedGeneration, items: entries.map(entry => entry.id), policyTip: batches[0].tip }));
+}
