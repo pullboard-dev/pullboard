@@ -1,5 +1,6 @@
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
 import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { withMainCheckout } from '../src/main-red.js';
@@ -122,7 +123,15 @@ function temporaryProblems(mainRoot, candidateRoot, criterion) {
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
 export function cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files } = {}) {
   if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
-  const before = readPlan(mainRoot), after = readPlan(candidateRoot);
+  const before = readPlan(mainRoot);
+  // Even the index's shard names are untrusted data; no metadata alias may read outside this snapshot.
+  const after = readPlan(candidateRoot, file => {
+    if (file !== 'bin/cells-plan.json' && !/^bin\/cells-plan\/\d{2}-[a-z-]+\.json$/u.test(file)) throw new Refused('CELLS_SUBMIT', 'invalid candidate plan shard path');
+    let path = candidateRoot;
+    for (const part of file.split('/')) { path = join(path, part); if (lstatSync(path).isSymbolicLink()) throw new Refused('CELLS_SUBMIT', `symbolic candidate plan path: ${file}`); }
+    if (!lstatSync(path).isFile()) throw new Refused('CELLS_SUBMIT', `nonregular candidate plan: ${file}`);
+    return readFileSync(path, 'utf8');
+  });
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
   const policy = policyProblems(before, after, mainMap, candidateMap);
   policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));

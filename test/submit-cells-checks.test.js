@@ -138,6 +138,7 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
   clean.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
   clean.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
   clean.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
+  clean.put('apps/cli/index.js', "import '../../src/cli.js';\n");
   clean.put('path-map.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
   assert.deepEqual((await requireSubmitCells(clean.root, clean.main, commitCandidate(clean), clean.item)).problems, [],
     'the actual reachable named front door and body satisfy the canonical move check');
@@ -152,7 +153,7 @@ test('submit ignores candidate checker code and refuses a forged overlapping own
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u);
   const plan = readPlan(box.root);
-  plan.cells.unshift({ order: 999, name: 'forged', kind: 'package', root: 'packages', frontDoor: 'packages/index.js', paths: [], reexports: [], imports: [], cuts: [] });
+  plan.cells.unshift({ order: 44, name: 'forged', kind: 'package', root: 'packages', frontDoor: 'packages/index.js', paths: [], reexports: [], imports: [], cuts: [] });
   writePlan(box.root, plan);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /overlapping cell root/u,
     'a new cell cannot shadow all accepted package owners');
