@@ -16,7 +16,6 @@ import { Refused } from './refused.js';
 import { frozenCheck } from './trusted-policy.js';
 import { sealSourceAdvance } from './source-advance-origin.js';
 import { receiptBlockingGreen } from './quarantine-verdict.js';
-import { validateQuarantineVerdict } from './quarantine.js';
 
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const HASH = /^[0-9a-f]{64}$/u;
@@ -78,7 +77,7 @@ export function sourceAdvanceProblem(board, item, proof) {
       || receipt.proof.frozenDigest !== proof.bar || ids.has(receipt.id)) {
       return new Refused('SOURCE_ADVANCE_PROOF', 'the exact clean composition needs genuine green gate receipts for every required phase');
     }
-    try { validateQuarantineVerdict(board, receipt); }
+    try { board.nativePorts.quarantine.validateQuarantineVerdict(board, receipt); }
     catch { return new Refused('SOURCE_ADVANCE_PROOF', 'the computed phase verdict needs current exact quarantine event references'); }
     ids.add(receipt.id);
   }

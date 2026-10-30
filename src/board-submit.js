@@ -1,7 +1,6 @@
 import { fileKnownMainAutofile } from './known-main-autofile.js';
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './known-main-owner-pattern-engine.js';
-import { validateQuarantineProofIds } from './quarantine.js';
-import { validateQuarantineVerdict } from './quarantine.js';
+
 import { committedItemAuthors } from './review-independence.js';
 import { sealItemPatchSubmit } from './item-patch-submit.js';
 import { checkItemPatchSubmit } from './item-patch-submit.js';
@@ -64,7 +63,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
   }
   atomic(board, () => { reviewRouting.requireStrictBuilderFamily(board, id, agentId);
     if (companion) checkItemPatchSubmit(board, id, { agentId, commit, tree, gateGreen, policyCommit, submissionProof: proof, companion });
-    if (quarantineProofIds !== undefined) validateQuarantineProofIds(board, getItem(board, id),
+    if (quarantineProofIds !== undefined) board.nativePorts.quarantine.validateQuarantineProofIds(board, getItem(board, id),
       { agentId, ids: quarantineProofIds, kind: 'submit', commit: companion?.commit ?? commit });
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
     const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
@@ -104,7 +103,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
           proofNoted: () => typeof mergeOnly?.resolutionDiff === 'string' ? null : new Refused('PROOF_REQUIRED', 'record the actual merge resolution diff'),
         } : {}),
         submissionProofValid: () => {
-          if (autoMainReds) for (const receipt of autoOptions.autoMainReds.candidates ?? []) validateQuarantineVerdict(board, receipt);
+          if (autoMainReds) for (const receipt of autoOptions.autoMainReds.candidates ?? []) board.nativePorts.quarantine.validateQuarantineVerdict(board, receipt);
           const autoResult = autoMainReds ? fileKnownMainAutofile(board, id, autoOptions, listItems(board, { all: true })) : null;
           const autoKnown = autoResult?.known;
           if (autoResult) mainRedRepairs = autoResult.repairs;
