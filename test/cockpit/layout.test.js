@@ -595,6 +595,11 @@ test('the project corner and the theme read the same everywhere [N26]', { timeou
     await click('#proj-switch');
     await chrome.waitFor("document.querySelector('#side').classList.contains('open') && getComputedStyle(document.querySelector('.side-footer')).display === 'flex'");
     assert.deepEqual(await footer(), { bottomSibling: true, settings: true, settingsText: 'Settings', github: true, githubText: 'GitHub ↗', footer: true }, 'the collapsed desktop popover exposes both project tools as visible controls');
+    assert.equal(await chrome.stable(`(() => {
+      const tools = document.querySelector('.side-footer').getBoundingClientRect();
+      const project = document.querySelector('#proj-list .proj').getBoundingClientRect();
+      return tools.bottom <= project.top && tools.right <= document.documentElement.clientWidth;
+    })()`), true, 'the collapsed tools fit above the project choices without covering them');
     await click('.side-footer [data-tab="settings"]');
     await chrome.waitFor("document.querySelector('#settings-pane') && !document.querySelector('#settings-pane').hidden");
     assert.equal(await chrome.stable("document.querySelector('#settings-pane').hidden"), false, 'the Settings action opens its pane from the collapsed desktop popover');
