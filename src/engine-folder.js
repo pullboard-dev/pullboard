@@ -59,6 +59,11 @@ function engineBindings(code) {
   return [...found.values()].sort((a, b) => a.index - b.index);
 }
 
+/** Name reserved engine declarations in source, excluding filenames and imported re-exports. */
+export function engineDeclarationNames(source) {
+  return engineBindings(lex(source).code).map(binding => binding[0]);
+}
+
 /** Find declarations that would split the existing engine folder during a package move. */
 export function engineFolderViolations(sources) {
   const problems = [];
