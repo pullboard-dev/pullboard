@@ -18,7 +18,7 @@ import { submitFlakePairs } from '../src/auto-submit-quarantine.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
 
 /** Build genuine private package source and an ordinary joined/claimed builder; no receipt is fabricated. */
-function fixture(t, deterministic = false) {
+function fixture(t, deterministic = false, companion = false) {
   const box = flakyProject(t);
   const copied = copyPackageFiles(resolve(import.meta.dirname, '..'), box.root);
   commitFixtureFiles({ repo: box.root, git: (_root, ...args) => box.git(...args) }, copied);
@@ -48,6 +48,19 @@ function fixture(t, deterministic = false) {
   mkdirSync(join(root, 'src'), { recursive: true });
   writeFileSync(join(root, 'src/controlled-proposal.js'), 'export const controlled = true;\n');
   git('add', 'src/controlled-proposal.js'); git('commit', '-q', '-m', 'chore: retain controlled proposal');
+  if (companion) {
+    const file = join(root, 'src/controlled-companion.js');
+    writeFileSync(file, 'export const companion = true;\n');
+    git('add', 'src/controlled-companion.js');
+    const patch = git('diff', '--cached', '--binary') + '\n';
+    git('restore', '--staged', 'src/controlled-companion.js');
+    rmSync(file);
+    const patchFile = box.counter + '.patch';
+    writeFileSync(patchFile, patch);
+    const author = cli('whoami').document.id;
+    const attached = box.cli('patch', 'attach', String(id), patchFile, '--key', 'controlled-companion', '--author', author, '--source', git('rev-parse', 'HEAD'));
+    assert.equal(attached.code, 0, JSON.stringify(attached.document));
+  }
   return { ...box, builder: { root, cli, git }, id };
 }
 
@@ -65,8 +78,8 @@ function submit(box) {
   return box.builder.cli('submit', String(box.id), '--infra', 'private controlled native fixture', '--no-next');
 }
 
-test('two actual Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]', t => {
-  const box = fixture(t);
+for (const companion of [false, true]) test(`two actual ${companion ? 'composed ' : ''}Submit pairs quarantine once, retain raw receipts, and let the third computed verdict through [C7,H16]`, t => {
+  const box = fixture(t, false, companion);
   assert.equal(snapshot(box).quarantines.length, 0, 'the setup must not seed a legacy quarantine');
   const first = submit(box);
   assert.equal(first.code, 1, JSON.stringify(first.document));
@@ -85,6 +98,7 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   assert.equal(entry.runs.length, 4);
   const receipts = entry.runs.map(id => readGateReceipt(receiptStore(box.root), id));
   assert.ok(receipts.every(Boolean), 'all four proving receipts are native-produced private bytes');
+  if (companion) assert.ok(receipts.every(receipt => receipt.head !== box.builder.git('rev-parse', 'HEAD')), 'all proving receipts execute the actual composition, not the bare builder head');
   assert.equal(new Set(receipts.map(receipt => receipt.proof.diagnosticAdmission)).size, 2);
   assert.equal(state.admissions.length, 2, 'each actually acquired Submit lease creates exactly one authenticated native witness');
   assert.ok(receipts.every(receipt => state.admissions.some(admission => admission.id === receipt.proof.diagnosticAdmission)));
