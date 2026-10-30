@@ -32,7 +32,7 @@ export function settingsContentHtml(entry, scope = 'machine', forms = []) {
   const order = ['Capacity', 'Order', 'Runners', 'Background'];
   const labels = { machine: 'This machine', repo: 'This repo', board: 'This board' };
   const scopes = Object.entries(labels).map(([key, label]) => '<button type="button" role="tab" class="' + (key === scope ? 'on' : '') + '" data-settings-scope="' + key + '" aria-selected="' + (key === scope) + '">' + label + '</button>').join('');
-  const rows = (entry.rows || []).filter(row => row.scope === scope);
+  const rows = entry.error || entry.loading ? [] : (entry.rows || []).filter(row => row.scope === scope);
   const changed = row => !row.error && JSON.stringify(row.value) !== JSON.stringify(row.default);
   const home = path => String(path).replace(/^\/(?:Users|home)\/[^/]+/, '~').replace(/^[A-Za-z]:[\\/]+Users[\\/]+[^\\/]+/, '~').replaceAll('\\', '/');
   const sources = new Map();
@@ -49,7 +49,7 @@ export function settingsContentHtml(entry, scope = 'machine', forms = []) {
       : '<p class="setting-description" title="' + esc(row.description) + '">' + esc(row.description) + '</p>';
     return '<div class="set' + (row.error ? ' setting-invalid' : '') + '" data-setting-key="' + esc(row.key) + '"><div class="name"><b>' + esc(label) + '</b><code class="k">' + esc(row.key) + '</code>'
       + (entry.all && row.root ? '<span class="setting-root">' + esc(String(row.root).replaceAll('\\', '/').split('/').at(-1)) + '</span>' : '') + what + '</div>'
-      + '<div class="val"><span class="val-line">' + (mark ? '<span class="changed">changed</span>' : '') + '<b title="' + esc(exact(row.value)) + '">' + esc(row.error ? '' : value) + '</b></span><small>' + (mark ? 'default ' + esc(was) : 'default') + '</small></div>'
+      + '<div class="val"><span class="val-line">' + (mark ? '<span class="changed">changed</span>' : '') + '<b title="' + esc(row.secret ? value : exact(row.value)) + '">' + esc(row.error ? '' : value) + '</b></span><small>' + (mark ? 'default ' + esc(was) : 'default') + '</small></div>'
       + (copyable ? '<button type="button" class="copy" data-copy-command="' + esc(command) + '" aria-label="Copy command to change ' + esc(label) + '" title="Copy: ' + esc(command) + '"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5"/><path d="M3 10.5V3.5A1 1 0 0 1 4 2.5h6.5"/></svg></button>' : '<span class="copy none"></span>') + '</div>';
   };
   const groups = new Map();

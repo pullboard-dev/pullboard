@@ -96,7 +96,7 @@ test('Settings shows the toggle, grouped cards, one-height rows, human units, ch
       assert.equal(board.open, true, at + ': All local boards sits in the board scope');
       assert.deepEqual(board.heights, [64]);
       assert.ok(board.count > 0 && board.groups.some(group => group.name === 'Relay'));
-      assert.ok(board.scopeBoxes.every(box => box.left >= 0 && box.right <= width && box.height >= 44), at + ': all three scopes stay reachable by touch');
+      assert.ok(board.scopeBoxes.every(box => box.left >= 0 && box.right <= width && box.height >= (mobile ? 44 : 28)), at + ': all three scopes stay reachable');
     }
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

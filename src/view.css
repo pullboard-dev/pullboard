@@ -1422,6 +1422,7 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 .settings-head p { margin: 0; color: var(--ink-muted); }
 .settings-bar { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
 .settings-bar .ghost { min-height: var(--tap); display: inline-flex; align-items: center; }
+.settings-bar .settings-scopes { height: auto; }
 .settings-bar .settings-refresh { margin-left: auto; }
 .settings-bar .ghost[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
 .settings-head .settings-where { font-size: var(--text-xs); color: var(--ink-faint); }
@@ -1457,5 +1458,5 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
   .ghead p { display: none; }
   .val { min-width: 72px; max-width: 112px; }
   .settings-bar .settings-scopes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; overflow: visible; }
-  .settings-bar .settings-scopes button { min-width: 0; white-space: normal; min-height: var(--tap); }
+  .settings-bar .settings-scopes button { min-width: 0; white-space: normal; min-height: 44px; }
 }

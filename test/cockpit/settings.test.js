@@ -51,7 +51,7 @@ test('the Settings page lists every setting by scope from the settings API and e
       if (scope === 'repo') {
         assert.match(shown, /47m/u);
         assert.match(shown, />off</u, 'false reads as off');
-        assert.match(shown, />0</u, 'zero remains visible');
+        assert.match(shown, />0 min</u, 'zero remains visible, with its unit');
         assert.match(shown, /&lt;img/u, 'hostile setting text is escaped');
         assert.doesNotMatch(shown, /<img\b|<script\b/u, 'API strings never become executable markup');
       }
