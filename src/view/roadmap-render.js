@@ -67,17 +67,16 @@ export function roadmapRemainingCount(reads) {
   return total;
 }
 
-/** Format the latest shipped release date from its recorded UTC instant without exposing the release note. */
-function shippedDate(milestone) {
-  const instant = Date.parse(milestone?.shipped?.at || '');
-  if (!Number.isFinite(instant)) return '';
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(instant) + ' · on npm';
-}
-
 /** Render release cards, shipping counts and shipped history without browser state. */
 export function roadmapCardsHtml(read, presentation = {}) {
   const { only = null, root, held, open = new Map(), headers = new Map(), headings = new Map(), rows: rowPresentation = new Map(), notes = new Map(), targets = new Map() } = presentation;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  /** Format the latest shipped date; keep this dependency inside the renderer embedded in the page script. */
+  function shippedDate(milestone) {
+    const instant = Date.parse(milestone?.shipped?.at || '');
+    if (!Number.isFinite(instant)) return '';
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(instant) + ' · on npm';
+  }
   const firstLine = text => String(text ?? '').split('\n').map(line => line.trim()).find(Boolean) || '';
   const milestones = read.map(entry => entry.milestone);
   const lead = only ? '<div class="roadmap-only"><span>' + esc(only) + '</span><button class="link" data-roadmap-all type="button">show all</button></div>' : '';
