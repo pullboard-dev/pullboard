@@ -93,7 +93,7 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       const move = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      const allowed = ['add', 'shout', 'answer', 'hold', 'spec-approve', 'spec-decline', 'spec-answer'].includes(move.verb)
+      const allowed = ['add', 'shout', 'answer', 'hold', 'spec-approve', 'spec-decline'].includes(move.verb)
         && Object.keys(move).every(key => ['verb', 'item', 'args'].includes(key));
       if (!allowed) return response.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: { message: 'Only literal person requests are allowed.' } }));
       intents.push(structuredClone(move));
@@ -267,7 +267,6 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
       ['hold', { lane: 'web', reason: 'Wait for the decision' }, { verb: 'hold', args: { lane: 'web', reason: 'Wait for the decision' } }],
       ['release', { lane: 'web' }, { verb: 'hold', args: { lane: 'web', off: true } }],
       ['spec-decline', { ids: 'G2', reason: 'Keep the present behavior' }, { verb: 'spec-decline', args: { ids: 'G2', reason: 'Keep the present behavior' } }],
-      ['spec-answer', { row: 'G2', answer: 'Postgres' }, { verb: 'spec-answer', args: { row: 'G2', answer: 'Postgres' } }],
     ];
     for (const [action, args, expected] of otherActions) {
       assert.equal(await chrome.stable(`act(${JSON.stringify(action)}, ${JSON.stringify(args)})`), true, `${action} is a permitted person request`);
