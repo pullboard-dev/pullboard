@@ -20,7 +20,7 @@ function onBoard(box, action) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
-test('a split train landing repoints open and claimed checks and reports submitted checks unchanged',
+test('a split train landing repoints open and claimed checks and reports submitted checks unchanged [H16]',
   { timeout: 120_000 }, async t => { // budget: private project setup, one native gate and owned cleanup.
     const helpers = createE2eHelpers();
     const box = helpers.project('node bin/run-tests.js', undefined, { withWorktree: false });
