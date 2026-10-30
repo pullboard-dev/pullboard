@@ -622,7 +622,9 @@ test('an agent-approved row shows in Needs you with its agent and commit and a c
     await chrome.waitFor('document.querySelectorAll("#needs [data-agent-approved]").length === 2');
     const agentRows = await chrome.stable('document.querySelector("#needs").innerHTML');
     assert.match(agentRows, /agent-approved/u);
-    assert.doesNotMatch(agentRows, /data-row-decision|<button/u, 'a read-only reader sees attribution without a person move');
+    assert.doesNotMatch(agentRows, /data-row-decision/u, 'a read-only reader sees attribution without a person move');
+    const copyButtons = await chrome.stable(`Array.from(document.querySelectorAll('#needs button'), button => ({ type: button.type, className: button.className, title: button.title, copy: button.dataset.copy, text: button.textContent }))`);
+    assert.deepEqual(copyButtons, flagged.map(row => ({ type: 'button', className: 'hash-copy', title: row.commit, copy: row.commit, text: row.commit.slice(0, 12) })), 'the only read-only buttons copy the full attributed hashes and display twelve characters');
     await closeSnapshotChrome(chrome); chrome = null;
     const refused = runFixtureChild(process.execPath, [join(import.meta.dirname, '../../bin/pullboard.js'), 'spec', 'approve', 'G1', '--json'], {
       cwd: alpha.web, env: { ...box.env, CLAUDECODE: '1' }, encoding: 'utf8',

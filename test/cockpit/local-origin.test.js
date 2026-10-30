@@ -1,6 +1,7 @@
 /** @pullboard-test-gui */
 /** The hosted page reads this machine's view straight, and the view answers only its own page and that one [N26,A2]. */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { createServer, request } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -1198,11 +1199,35 @@ test('a hosted wait that times out names the page state and Chrome\'s network se
     const error = await chrome.waitFor('false', 1_000).then(() => null, (failure) => failure); // budget: hang ceiling for a condition that never holds.
     assert.ok(error, 'the impossible wait failed');  // budget: hang ceiling only; this judges the failure's text, never its timing.
     assert.match(error.message, /; the hosted page showed \{"origin":"[^"]*","search":"[^"]*","note":[^,]*,"rows":\d+,"detail":"[^"]*","relaySession":/u, 'the failure names the page state');  // budget: hang ceiling only; this judges the failure's text, never its timing.
-    assert.match(error.message, /; chrome \{"networkService":\{"atStart":\[\d*\],"now":\[\d*\]\}/u, 'and Chrome\'s network-service pids, start and now');  // budget: hang ceiling only; this judges the failure's text, never its timing.
+    const marker = '; chrome ';
+    assert.ok(error.message.includes(marker), 'the failure carries Chrome health'); // budget: hang ceiling only; this judges diagnostic text, never its timing.
+    const health = JSON.parse(error.message.slice(error.message.lastIndexOf(marker) + marker.length));
+    assert.deepEqual(Object.keys(health.networkService), ['atStart', 'now'], 'both census observations are named');
+    for (const [phase, pids] of Object.entries(health.networkService)) {
+      assert.ok(pids === null || Array.isArray(pids) && pids.every(pid => Number.isInteger(pid) && pid > 0),
+        `${phase} is an actual PID list or explicitly unknown when the process table cannot be read`);
+    }
   } finally {
     try { if (chrome) await closeSnapshotChrome(chrome); }
     finally { rmSync(profile, { recursive: true, force: true }); }
   }
+});
+
+test('a hosted wait census reports unknown when the real process lookup is unavailable [N26]', () => {
+  const emptyPath = mkdtempSync(join(tmpdir(), 'pullboard-census-no-ps-'));
+  try {
+    const module = new URL('./chrome-health.js', import.meta.url).href;
+    const code = `import { execFileSync } from 'node:child_process';
+      import { networkServicePids } from ${JSON.stringify(module)};
+      let code = null;
+      try { execFileSync('ps', ['-axo', 'pid=,command=']); } catch (error) { code = error.code; }
+      console.log(JSON.stringify({ code, pids: networkServicePids('private-census-control') }));`;
+    const result = execFileSync(process.execPath, ['--input-type=module', '-e', code], {
+      env: { ...process.env, PATH: emptyPath }, encoding: 'utf8',
+    });
+    assert.deepEqual(JSON.parse(result), { code: 'ENOENT', pids: null },
+      'an unavailable real ps is reported as unknown, never invented as an empty observed census');
+  } finally { rmSync(emptyPath, { recursive: true, force: true }); }
 });
 
 test('the hosted page paints no other screen before the one it settles on [N26,H5]', { timeout: 300_000 }, async () => { // budget: hang ceiling for four hosted page loads in Chrome, one holding the relay client for 800 ms.

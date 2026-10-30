@@ -53,11 +53,11 @@ test("a shout's code reference opens that code as it was at that commit [B23]", 
     const page = await openPage(view);
     page.run("openTab('shouts'); render();");
     // A button carries the text written before it on its line.
-    // Its label: the path, then the lines and the commit's first ten characters; the whole reference on hover.
+    // Its label: the path, then the lines and the commit's first twelve characters; the whole reference on hover.
     /** Keep each surface's explicit hash length in the expected reference label. */
-    const label = (ref, hashLength = 10) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@'))}<span class="ref-sha">${ref.slice(ref.lastIndexOf('@'), ref.lastIndexOf('@') + 1 + hashLength)}</span></span>`;
+    const label = (ref, hashLength = 12) => `<span class="ref-path">${ref.slice(0, ref.indexOf(':'))}</span><span class="ref-at">${ref.slice(ref.indexOf(':'), ref.lastIndexOf('@'))}<span class="ref-sha">${ref.slice(ref.lastIndexOf('@'), ref.lastIndexOf('@') + 1 + hashLength)}</span></span>`;
     /** Require the complete control and binding, including its surface-specific label. */
-    const button = (ref, open, before = '', block = false, hashLength = 10) => `<button class="ref${block ? ' block' : ''}" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" aria-label="Open code reference ${ref}" type="button" aria-expanded="${open}">${label(ref, hashLength)}</button>`;
+    const button = (ref, open, before = '', block = false, hashLength = 12) => `<button class="ref${block ? ' block' : ''}" data-code="${ref}"${before ? ` data-before="${before}"` : ''} title="${ref}" aria-label="Open code reference ${ref}" type="button" aria-expanded="${open}">${label(ref, hashLength)}</button>`;
     const prior = (text, ref) => text.slice(0, text.indexOf(ref));
     const [b1, b2, b3] = [was, now, long].map((ref) => prior(first_, ref));
     assert.ok(page.show('feed').includes(`#1</a> was ${button(was, false, b1)}, is ${button(now, false, b2)}; see ${button(long, false, b3)}.`), 'code references stay buttons beside the item link');
