@@ -1,3 +1,4 @@
+import { validateQuarantineVerdict } from './quarantine.js';
 /** Record an exact native green train envelope through the existing atomic landing writer [B3,R3,C7]. */
 import { atomic } from './board.js';
 import { finishLandingBatch } from './board.js';
@@ -59,6 +60,7 @@ export function recordTrainLanding(board, { agentId, batch, receipt, landingFenc
     if (previous && nativeBatch && previous.state !== 'landed') {
       if (JSON.stringify(previous) !== JSON.stringify(batch) || !['trunk', 'pushed'].includes(previous.state)
         || receiptBody(previous.proof?.receipt) !== receiptBody(value)) throw changedBatch();
+      validateQuarantineVerdict(board, value);
       const first = getItem(board, batch.items[0].id);
       recordGateRun(board, { agentId, receipt: value, lane: first.item_lane });
       return finishLandingBatch(board, { agentId, id: batch.id, tip: value.head, landingFence });
@@ -68,6 +70,7 @@ export function recordTrainLanding(board, { agentId, batch, receipt, landingFenc
       if (!sameLanding(previous, batch, value)) throw changedBatch();
       return previous;
     }
+    validateQuarantineVerdict(board, value);
     // All writes remain inside this transaction: any native batch, fence or review refusal rolls them back.
     const first = getItem(board, batch.items[0].id);
     recordGateRun(board, { agentId, receipt: value, lane: first.item_lane });

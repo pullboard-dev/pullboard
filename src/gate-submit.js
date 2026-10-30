@@ -152,6 +152,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const gui = (check ? await checkNeedsGui(root, check) : false)
     || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
   return await withGateSlot(root, async (lease) => {
+    lease.quarantines = proofContext?.quarantines ?? [];
     if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
       ...(!hasFinalProof && proofContext.admission?.id ? { submitAdmission: proofContext.admission.id } : {}) };
@@ -167,6 +168,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
     await recordRun(onFailure, criterion);
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
+      ...(criterion.blockingVerdict ? { rawExitCode: criterion.exitCode, blockingVerdict: criterion.blockingVerdict } : {}),
       ...(check ? { log: checkLog, profilePath: criterion.profilePath, profile: criterion.profile } : {}) };
     /** Persist the whole submission's wall time and queue wait once, alongside its combined raw log. */
     const finish = (proof) => {
@@ -186,6 +188,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return { ...proof, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
+        phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{
+          role: index === 0 ? 'criterion' : 'proof', rawExitCode: phase.exitCode, blockingVerdict: phase.blockingVerdict }] : []),
         phasePlan: plan.phases,
         proofReceiptIds: [...(check ? [criterion.proofReceiptId ?? null] : []),
           ...(proof.profile ? [proof.proofReceiptId ?? null] : [])] };

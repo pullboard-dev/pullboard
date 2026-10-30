@@ -23,6 +23,9 @@ import { getItem } from './board-query.js';
 import { proofReceipts } from './board-query.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from './item-patch-submit-engine.js';
 import { Refused } from './refused.js';
+import { nativeProofBlockingGreen } from './quarantine-verdict.js';
+import { receiptBlockingGreen } from './quarantine-verdict.js';
+import { validateQuarantineVerdict } from './quarantine.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -108,9 +111,11 @@ export function checkItemPatchSubmit(board, id, options) {
     if (!receipt || receipt.kind !== 'submit' || receipt.commit !== binding.commit || receipt.tree !== binding.tree
       || receipt.submitPhase !== phase.role || receipt.command !== phase.command
       || receipt.seat !== options.agentId || receipt.frozenDigest !== item.item_frozen_digest || receipt.sourceClean !== true
-      || !Number.isSafeInteger(receipt.exitCode) || options.gateGreen === true && receipt.exitCode !== 0) {
+      || !Number.isSafeInteger(receipt.exitCode) || options.gateGreen === true && !nativeProofBlockingGreen(receipt)) {
       throw new Refused('ITEM_PATCH_CHANGED', 'the composed source needs its own recorded green native submit receipts');
     }
+    if (Object.hasOwn(receipt, 'blockingVerdict')) validateQuarantineVerdict(board, {
+      green: receipt.exitCode === 0, failures: receipt.failures, blockingVerdict: receipt.blockingVerdict });
   }
   return binding;
 }
@@ -130,16 +135,17 @@ export function sealItemPatchSubmit(board, id, options) {
     const receipts = binding.receiptIds.map(id => readGateReceipt(boardReceiptStore(board), id));
     if (receipts.some(receipt => !receipt || receipt.version !== 2 || receipt.kind !== 'submit'
       || receipt.head !== binding.commit || receipt.tree !== binding.tree || receipt.main !== options.policyCommit
-      || options.gateGreen === true && !receipt.green
+      || options.gateGreen === true && !receiptBlockingGreen(receipt)
       || receipt.proof.seat !== options.agentId || receipt.proof.item !== id
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
+    for (const receipt of receipts) validateQuarantineVerdict(board, receipt);
     const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
     const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
       check: frozenCheck(item), commit: binding.commit });
     const phases = plan.phases.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
     if (JSON.stringify(binding.phases) !== JSON.stringify(phases)
       || receipts.some((receipt, index) => receipt.proof.submitPhase !== phases[index]?.role || receipt.command !== phases[index]?.command)
-      || plan.check && !receipts[0]?.green) throw new Error('missing or substituted required phase');
+      || plan.check && !receiptBlockingGreen(receipts[0])) throw new Error('missing or substituted required phase');
     const summary = options.submissionProof;
     if (!summary || JSON.stringify(summary.files) !== JSON.stringify(plan.proofFiles) || summary.full !== plan.selection.full
       || summary.deferred !== plan.deferred || JSON.stringify(summary.deferredFiles ?? []) !== JSON.stringify(plan.deferSelection ? plan.selection.files : [])) {

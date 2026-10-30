@@ -1,3 +1,5 @@
+import { boundProofReceipt } from '../proof-receipts.js';
+import { validateQuarantineVerdict } from '../quarantine.js';
 import { privateCheckEnvelope } from '../runner-private-mode.js';
 import { trunkRef } from '../trusted-policy-read.js';
 import {
@@ -17,6 +19,7 @@ import {
   withTestOutput,
 } from '../test-output-summary.js';
 import { quarantineWaivers } from '../quarantine.js';
+import { quarantineVerdictSnapshot } from '../quarantine.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
@@ -337,8 +340,9 @@ export async function submitHere(ctx, id, infra) {
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
   const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
+  const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
   const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, runnerAdmission, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: queuedItemLease(ctx, held, me.id, 'build', admission), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
-    proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission },
+    proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   let gate = await runGate(frozenCheck(held));
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
@@ -392,7 +396,8 @@ export async function submitHere(ctx, id, infra) {
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
   const mechanicalFlag = mechanicalPaths.length
     ? `cross-lane mechanical import edits: ${mechanicalPaths.join(', ')}` : '';
-  const displayedReport = `${check}; ${scope}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
+  const quarantineReport = (gate.phaseVerdicts ?? []).map(phase => `${phase.role} computed quarantine verdict ${phase.blockingVerdict.green ? 'green' : 'red'}; raw exit ${phase.rawExitCode}; events ${phase.blockingVerdict.quarantines.map(row => row.eventId).join(', ')}`).join('\n');
+  const displayedReport = `${check}; ${scope}${quarantineReport ? `\n${quarantineReport}` : ''}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
   const checkAccepted = Boolean(gate.check?.green || criterionMatched);
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && checkAccepted ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
@@ -452,6 +457,10 @@ export async function submitHere(ctx, id, infra) {
     if (criterionNames.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `frozen check red at ${commit.slice(0, 12)} only in cases that fail identically on main at ${criterionMatched.main}: ${criterionNames.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. Reviewers: these known main reds are listed, not blocking; any case green on main would have refused.` }]);
     if (criterionUnowned.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the frozen check fails identically on main at ${criterionMatched.main} in ${criterionUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator.` }]);
     if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
+    for (const receiptId of gate.proofReceiptIds ?? []) {
+      const receipt = boundProofReceipt(board, { receiptId });
+      validateQuarantineVerdict(board, receipt);
+    }
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
       gateGreen: gate.isGreen && !waived && !criterionMatched,
       ...(size ? { submissionSize: size } : {}),

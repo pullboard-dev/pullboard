@@ -1,3 +1,6 @@
+import { quarantineBatchGates } from './quarantine-verdict.js';
+import { validateQuarantineGate } from './quarantine.js';
+import { validateQuarantineVerdict } from './quarantine.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from './land-envelope.js';
@@ -55,6 +58,8 @@ export function requirePushTarget(root, branch) {
 /** Recheck immutable publication inputs after the last awaited canonical operation. */
 function publicationInputs(state, batch) {
   requireLandingCarries(state, batch);
+  if (batch.proof?.receipt) validateQuarantineVerdict(state.board, batch.proof.receipt);
+  for (const gate of quarantineBatchGates(batch).filter(gate => gate.tree === batch.proof?.tree)) validateQuarantineGate(state.board, gate);
   for (const entry of batch.items) {
     const item = store.getItem(state.board, entry.id);
     requireOutsideOwner(state.board, item);
@@ -85,7 +90,9 @@ function parallelPublicationRoot(state, batch) {
   // checking out its identical tree preserves that contract without creating or copying any stamp.
   state.checkLeaseNow();
   if (headCommit(root) !== batch.tip) git(root, ['checkout', '--detach', batch.tip]);
-  if (!(batch.proof.failures ?? []).length && !isStampedGreen(root)) {
+  const computed = quarantineBatchGates(batch).find(gate => gate.tree === batch.proof?.tree && gate.blockingVerdict?.green === true);
+  if (computed) validateQuarantineGate(state.board, computed);
+  if (!(batch.proof.failures ?? []).length && !computed && !isStampedGreen(root)) {
     throw new Refused('LAND_MOVED', 'the gate-owning worktree lost its native green stamp; inspect the recorded gate before adopting');
   }
   return root;

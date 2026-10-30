@@ -1,3 +1,5 @@
+import { boundProofReceipt } from '../proof-receipts.js';
+import { validateQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../review-composition.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
@@ -246,11 +248,14 @@ export async function verifyHere(ctx, id, { second, values }) {
     if (decision === 'ACCEPT') approvalRows = itemAgentApprovals(item, specApprovalState(root, { board, config: ctx.config }, { store, verifiedPasskeyRowDecision }));
     const approvalNote = agentApprovalLine(approvalRows);
     if (decision === 'ACCEPT') git(root, ['update-ref', `refs/pullboard/items/${id}/${review.head.slice(0, 12)}`, review.head]);
+    if (decision === 'ACCEPT' && check?.blockingVerdict) {
+      validateQuarantineVerdict(board, boundProofReceipt(board, { receiptId: check.proofReceiptId }));
+    }
     return await ordered(ctx, board, 'verify', [id, {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
