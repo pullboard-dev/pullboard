@@ -150,6 +150,17 @@ test('an untouched inherited failure passes with a real docs companion [V4,B3]',
   assert.ok(submittedProof(box), 'actual native submit event was recorded');
 });
 
+test('an untouched inherited frozen check also passes with a docs companion [V4,B3]', t => {
+  const box = fixture(t, { check: 'node test/runner.js test/inherited.test.js' });
+  attachCompanion(box, 'docs/companion.md', 'Before.', 'After.');
+  const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.gate.check.green, false, 'known-main does not disguise the frozen red');
+  assert.equal(report.gate.knownMainFailures.main, box.main);
+  assert.ok(submittedProof(box), 'both composed phases produced a real submit receipt');
+});
+
 test('editing a failed test in a companion never inherits its main failure [V4,B3]', t => {
   const box = fixture(t);
   attachCompanion(box, 'test/inherited.test.js', "import assert from 'node:assert/strict';", "import assert from 'node:assert/strict'; // Companion edit.");
