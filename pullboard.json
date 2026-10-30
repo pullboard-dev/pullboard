@@ -170,5 +170,6 @@
     "quarantine": true
   },
   "relay": { "outbox": true },
+  "cells": { "cache": true },
   "worktreeMaintenance": { "enabled": true, "every": "1h", "grace": "1d", "exclude": ["/Users/coreyolson/Code/Open Source/pullboard-local-core-24"] }
 }
