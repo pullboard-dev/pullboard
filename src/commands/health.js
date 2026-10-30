@@ -13,18 +13,24 @@ import { readBlocks } from '../blocks.js';
 import { rigorReport } from '../board-rigor.js';
 import { dispatchHealth } from '../dispatch-health.js';
 import { readGitSyncRepairs } from '../git-sync-files.js';
+import { runnerLeaseHealth } from '../../packages/resources/index.js';
 
 /** Run `pullboard health` and return its exit code. */
 export function run(io) {
   const ctx = context(io);
   const report = boardHealth(ctx.file, { root: ctx.info.root, config: ctx.config, now: ctx.clock.now(), dispatchHealth });
   report.gitSyncRepairs = readGitSyncRepairs(ctx.info.root);
+  const runnerHealth = runnerLeaseHealth(ctx.clock.now().getTime());
+  report.overdueRunnerLeases = runnerHealth.filter(row => row.deadline !== undefined);
+  report.runnerLifecycleProblems = runnerHealth.filter(row => row.problem);
   report.blocks = blockReport(readBlocks(ctx.info.commonDir, { since: new Date(ctx.clock.now().getTime() - 86_400_000) }), seatsByPath(ctx.file));
   io.result?.(report);
   for (const line of healthLines(report)) io.say(line);
+  for (const lease of report.overdueRunnerLeases) io.say(`runner execution deadline ${new Date(lease.deadline).toISOString()} passed; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; controller pid ${lease.controllerPid}; ${lease.repo}`);
+  for (const lease of report.runnerLifecycleProblems) io.say(`runner lifecycle observation unavailable; holder pid ${lease.pid}${lease.item ? ` item #${lease.item}` : ''}; ${lease.problem}; ${lease.repo}`);
   for (const repair of report.gitSyncRepairs) io.say('Git sync recovery: ' + JSON.stringify(repair));
   for (const line of blockLines(report.blocks)) io.say(line);
-  return report.stuck.length ? 1 : 0;
+  return report.stuck.length || report.overdueRunnerLeases.length || report.runnerLifecycleProblems.length ? 1 : 0;
 }
 
 /** Each seat's id by its worktree path, so a block names who was stopped; a missing board names none. */
