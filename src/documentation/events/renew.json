@@ -4,7 +4,7 @@
     {
       "order": 13,
       "actor": "builder",
-      "detail": "`leaseUntil`, `digest`, optional `grantEngine`, typed-pipeline `submitAdmission` (native id, commit, tree), `submitOutcome` (original refusal code/text, frozen digest, derived `pipelineCause`)"
+      "detail": "`leaseUntil`, `digest`, optional `grantEngine`, admitted-submit `submitAdmission` (native id, commit, tree), typed-pipeline `submitOutcome` (original refusal code/text, frozen digest, derived `pipelineCause`)"
     }
   ]
 }
