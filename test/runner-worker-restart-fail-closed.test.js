@@ -257,7 +257,7 @@ test('ordinary probeRunnerHealth exposes the actual pinned restart SQLite refusa
   for (const directory of [bin, worker, root, machineHome]) mkdirSync(directory, { recursive: true });
   installSshStandIn({ bin, worker, home, machineHome, requests: join(box.dir, 'requests.jsonl'), nodeCommand: process.execPath });
   const input = { resourceFile: join(machineHome, 'resources.sqlite'),
-    healthURL: pathToFileURL(join(import.meta.dirname, '../src/runner-health.js')).href,
+    healthURL: pathToFileURL(join(import.meta.dirname, '../src/runners.js')).href,
     runner: { host: HOST, node: process.execPath, root, slots: 1, browser: 0 } };
   const env = { ...box.env, PATH: bin + ':' + box.env.PATH };
   delete env.NODE_TEST_CONTEXT;

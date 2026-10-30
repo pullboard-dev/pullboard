@@ -38,7 +38,9 @@ function unknown(diagnostic, reason, error) {
 }
 
 // Installed SDK proc_pidpath uses proc_info(2, pid, flavor 11, 0, buffer, 4096); raw success is status 0, not strlen.
-const PERL_EXECUTABLE = `my $buf = "\\0" x 4096; my $n = syscall(336, 2, $ARGV[0], 11, 0, $buf, length($buf));
+const PERL_EXECUTABLE = `exit 1 unless @ARGV == 1 && $ARGV[0] =~ /\\A[1-9][0-9]{0,9}\\z/;
+my $pid = 0 + $ARGV[0]; exit 1 if $pid > 2147483647;
+my $buf = "\\0" x 4096; my $n = syscall(336, 2, $pid, 11, 0, $buf, length($buf));
 exit 1 if $n != 0; my $nul = index($buf, "\\0");
 exit 1 if $nul < 1 || $nul >= length($buf); print substr($buf, 0, $nul);`;
 
