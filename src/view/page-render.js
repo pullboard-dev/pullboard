@@ -145,11 +145,14 @@ function render() {
     }];
   }));
   const needsPanel = ${needsPanelHtml.toString()};
-  if (view.tab === 'dashboard') dashboardView.draw(p, needsPanel({...needsModel,compact:true},needsPresentation), {
-    rules: homeRules(p.spec),
-    capacity: homeCapacity(p.capacityForecast),
-  });
-  else {
+  if (view.tab === 'dashboard') {
+    const dashboardNeeds = needsPanelModel(personalNeeds,p,{ person, expanded: expandedNeeds, compact: true });
+    dashboardView.draw(p, needsPanel({...dashboardNeeds,headerSeparately:true},needsPresentation), {
+      needsHeader: needsPanel({...dashboardNeeds,headerOnly:true},needsPresentation),
+      rules: homeRules(p.spec),
+      capacity: homeCapacity(p.capacityForecast),
+    });
+  } else {
     const needsHtml = needsPanel(needsModel,needsPresentation);
     if (view.tab === 'items') {
       $('needs').hidden = !personalNeeds.length || view.state !== 'active' || Boolean(view.lane);
