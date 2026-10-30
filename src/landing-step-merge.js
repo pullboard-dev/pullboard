@@ -1,5 +1,6 @@
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from './engine-numbers.js';
+import { placeLandingHistory } from './landing-history-plan.js';
 import { resolveMechanicalIndex } from './mechanical-merge.js';
 import { writeFormatTable } from './format-registry.js';
 import { refreshLandingDocs } from './landing-docs.js';
@@ -74,15 +75,8 @@ export async function mergeGroup(state, items) {
       }
     }
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
-    const engines = assignEngineNumbers(batch.root);
-    if (existsSync(join(batch.root, 'src', 'formats')) && existsSync(join(batch.root, 'docs', 'formats.md'))
-      && writeFormatTable(batch.root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
-    for (const file of refreshLandingDocs(batch.root)) if (!engines.files.includes(file)) engines.files.push(file);
-    if (engines.files.length) {
-      git(batch.root, ['add', '--', ...engines.files]);
-      git(batch.root, ['commit', '--amend', '--no-edit']);
-      for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
-    }
+    const engines = amendLandingEngines(batch.root);
+    for (const engine of engines.assigned) state.say(`engine ${engine.name}: ${engine.number} for #${item.item_id}`);
     const first = git(batch.root, ['rev-list', '--first-parent', '--reverse', 'HEAD']).split('\n')
       .find((commit) => tryGit(batch.root, ['merge-base', '--is-ancestor', checked, commit]).status === 0);
     merged.push({ id: item.item_id, commit: item.item_commit, ...(checked !== item.item_commit ? { reviewedCommit: checked } : {}), merge: first });
@@ -113,6 +107,22 @@ export async function mergeGroup(state, items) {
   }
   for (const change of doctrineCounts) state.say(`doctrine ${change.id}: ${change.before} -> ${change.count}`);
   return { items: merged, conflicts, resolutions, tip: headCommit(batch.root), doctrineCounts };
+}
+
+/** Allocate and stage engine history, then place it before amending that same item merge. */
+export function amendLandingEngines(root) {
+  const engines = assignEngineNumbers(root);
+  if (existsSync(join(root, 'src', 'formats')) && existsSync(join(root, 'docs', 'formats.md'))
+    && writeFormatTable(root) && !engines.files.includes('docs/formats.md')) engines.files.push('docs/formats.md');
+  for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);
+  if (engines.files.length) {
+    // Canonical rule placement accepts only staged regular files, including this just-generated history.
+    git(root, ['add', '--', ...engines.files]);
+    const placed = placeLandingHistory(root, engines.files);
+    if (placed.length) git(root, ['add', '--', ...placed]);
+    git(root, ['commit', '--amend', '--no-edit']);
+  }
+  return engines;
 }
 
 /** Validate and snapshot process-local providers before any landing admission or worker action. */
