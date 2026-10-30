@@ -130,6 +130,28 @@ export function checkCuts(root, plan, name, { allLaterCells = false, temporaryEx
   return [...problems].sort();
 }
 
+/** Lower-cell imports that skip the lower cell's front door (index.js or core.js), keyed by moved-path-stable identity.
+ *  Why: DR12 seals a cell's boundary once its cut lands; submit compares these rows with accepted main so only additions refuse. */
+export function frontDoorBypasses(root, plan, name, { inventory: sharedInventory } = {}) {
+  const cell = plan.cells.find(row => row.name === name);
+  if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name}; use a cell from node bin/cells-plan.js --cuts <cell>`);
+  const { edges } = sharedInventory ?? cellInventory(root, { importsIn, commonJsIn });
+  const map = readPathMap(root), owner = ownerFor(plan, map);
+  const origin = new Map([...map].map(([from, to]) => [to, from]));
+  const stable = file => origin.get(file) ?? file;
+  const rows = new Map();
+  for (const [file, imports] of edges) {
+    if (testFile(file) || owner(file) !== name) continue;
+    for (const { target } of imports) {
+      if (testFile(target)) continue;
+      const lower = plan.cells.find(row => row.name === owner(target));
+      if (!lower || lower.order >= cell.order || target === lower.frontDoor || target === `${lower.root}/core.js`) continue;
+      rows.set(`${stable(file)}->${stable(target)}`, `${name} imports lower ${lower.name} past its front door ${lower.frontDoor}: ${file} -> ${target}`);
+    }
+  }
+  return rows;
+}
+
 /** Read existing items through the real joined CLI; one exact stable title identifies one importing cell's item. */
 function existingCuts(root, plan) {
   const run = spawnSync('pullboard', ['list', 'core', '--all', '--json'], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });

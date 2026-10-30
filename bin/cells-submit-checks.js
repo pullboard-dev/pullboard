@@ -15,6 +15,7 @@ import { readCellLintBaseline } from '../packages/codemap/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
+import { frontDoorBypasses } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
 import { readPlan } from './cells-plan.js';
 import { shardFile } from './cells-plan.js';
@@ -167,7 +168,14 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     const previous = before.cells.some(cell => cell.name === name);
     const oldCuts = previous ? checkCuts(mainRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
     const newCuts = checkCuts(candidateRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
-    problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}`));
+    problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}; import a lower cell or take a port`));
+    // DR12: once a cell's upward cut has landed on accepted main, a new import that skips a lower front door refuses too.
+    if (previous && !oldCuts.length) {
+      const oldDoors = frontDoorBypasses(mainRoot, before, name, { inventory: oldInventory });
+      for (const [key, text] of frontDoorBypasses(candidateRoot, after, name, { inventory: newInventory })) {
+        if (!oldDoors.has(key)) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
+      }
+    }
     const moved = [before, after].some((plan, index) => plan.cells.find(cell => cell.name === name)?.paths
       .some(([from, to]) => [mainMap, candidateMap][index].get(from) === to));
     if (!moved) continue;
