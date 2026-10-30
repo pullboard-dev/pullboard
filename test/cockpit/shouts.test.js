@@ -765,6 +765,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     await chrome.stable("(document.querySelector('.fold-line[data-fold=\"idle\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.fold-line[data-fold=\"idle\"]'))").then(open => open ? chrome.click("document.querySelector('.fold-line[data-fold=\"idle\"]')") : undefined);
     const agents = JSON.parse(await chrome.stable('JSON.stringify(data.project.agents.map((a) => [a.agent_id, a.agent_path]))'));
@@ -814,7 +815,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     // An agent's name filters the feed to its shouts, from or to it, and addresses the composer to it.
     await click('#agents [data-agent="web-2"]');
     s = await state();
-    assert.deepEqual(s.cards, [['coordinator', 'web-2'], ['web-2', 'coordinator']], 'only shouts from or to web-2');
+    assert.deepEqual(s.cards, [['web-2', 'coordinator'], ['coordinator', 'web-2']], 'the native conversation keeps only shouts from or to web-2 in chronological order');
     assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
     await click('#feed .feed-bar [data-agent=""]');
     s = await state();
@@ -848,6 +849,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     await chrome.send('Page.reload');
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length > 0 && !!document.querySelector("[data-tab=shouts]")');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     s = await state();
     assert.deepEqual([s.bare, s.panel, s.toggle], [true, false, 'Show agents'], 'still hidden after a reload');
