@@ -3,8 +3,10 @@
 /** Approved item-panel presentation over native item, verdict, baseline and history records [N26,B23]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -51,6 +53,14 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
   const executable = chromeExecutable();
   assert.ok(executable, 'The frozen item-panel journey requires real Chrome.');
   const box = machine(), demo = project(box, 'item-panel');
+  // The seeded check is also executed by the native submission, so its fixture needs a real runner and test.
+  mkdirSync(join(demo.repo, 'bin'), { recursive: true });
+  mkdirSync(join(demo.repo, 'test', 'cockpit'), { recursive: true });
+  writeFileSync(join(demo.repo, 'bin', 'run-tests.js'), "const { spawnSync } = require('node:child_process'); const result = spawnSync(process.execPath, ['--test', ...process.argv.slice(2)], { stdio: 'inherit' }); process.exit(result.status ?? 1);\n");
+  writeFileSync(join(demo.repo, 'test', 'cockpit', 'item-panel.test.js'), "const { test } = require('node:test'); test('fixture check', () => {});\n");
+  box.git(demo.repo, 'add', 'bin/run-tests.js', 'test/cockpit/item-panel.test.js');
+  box.git(demo.repo, 'commit', '-q', '-m', 'test: add fixture check runner [G1]');
+  box.git(demo.web, 'merge', '--ff-only', 'main');
   const id = seedPanelItems(box, demo);
   assert.equal(id, 1, 'the private native fixture creates its identified primary item');
   box.run(demo.repo, 'milestone', 'add', 'Panel release', '--items', String(id));
