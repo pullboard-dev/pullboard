@@ -5,6 +5,8 @@ import { completeGate } from './landing-completion.js';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import * as store from './board.js';
+import { readTestOutcomes } from './test-outcomes.js';
+import { formatTestOutcomes } from './test-outcomes.js';
 
 /** Derive failing test identities from TAP or spec reporter names and source locations, refusing unknown paths. */
 export function landingFailures(output, root, { excludeCancelled = false } = {}) {
@@ -50,8 +52,12 @@ export function coveredFailures(state, gate) {
  * than summary counts or the package manager's own failure report means something else failed,
  * so the stage is unaccounted and null is returned [B3,R3].
  */
-export function tapFailures(output, root) {
+export function tapFailures(output, root, { outcomeRunId = null } = {}) {
   const lines = output.split('\n');
+  // Check every diagnostic position, including records before TAP's final count.
+  const outcomes = readTestOutcomes(output, outcomeRunId);
+  const nativeLines = new Set(outcomes ? formatTestOutcomes(outcomeRunId, outcomes).trimEnd().split('\n') : []);
+  if (lines.some(line => line.startsWith('# pullboard test outcomes ') && !nativeLines.has(line))) return null;
   const failures = [];
   let yaml = null;
   let active = null;
@@ -87,7 +93,8 @@ export function tapFailures(output, root) {
     if (stopped) cancelled = Number(stopped[1]);
   }
   if (yaml !== null || !version || summary === null || summary < 1 || summary !== failures.length || cancelled !== 0) return null;
-  const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line));
+  // Only the controller's authenticated component may name a native diagnostic invocation.
+  const trailer = lines.slice(summaryAt + 1).every((line) => !line.trim() || /^# [a-z_]+ \d+(?:\.\d+)?\s*$/u.test(line) || /^npm (?:ERR!|error|warn|notice)\b/u.test(line) || nativeLines.has(line));
   return trailer ? failures : null;
 }
 
@@ -113,7 +120,7 @@ export function accountedFailures(gate, root) {
       continue;
     }
     if (stage.status === 0) continue;
-    const own = stage.status === 1 ? tapFailures(stage.output ?? '', executionRoot) : null;
+    const own = stage.status === 1 ? tapFailures(stage.output ?? '', executionRoot, { outcomeRunId: stage.testOutcomeRunId }) : null;
     if (!own) return null;
     failures.push(...own);
   }
@@ -129,8 +136,8 @@ export function accountedFailures(gate, root) {
 function pipelineFailures(components, root) {
   if (!Array.isArray(components) || components.some((entry) => !Number.isInteger(entry?.status))) return null;
   const failures = [];
-  for (const { status, output } of components.filter((entry) => entry.status !== 0)) {
-    const own = status === 1 ? tapFailures(output ?? '', root) : null;
+  for (const { status, output, testOutcomeRunId } of components.filter((entry) => entry.status !== 0)) {
+    const own = status === 1 ? tapFailures(output ?? '', root, { outcomeRunId: testOutcomeRunId }) : null;
     if (!own) return null;
     failures.push(...own);
   }
