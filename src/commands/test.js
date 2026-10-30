@@ -1,6 +1,8 @@
 /** The pullboard test command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
+import { mainFailureNotices } from '../main-red.js';
+import { listItems } from '../board-query.js';
 import { compareMainFailures } from '../main-red.js';
 import { withMainCheckout } from '../main-red.js';
 import { runTestFiles } from '../test-run.js';
@@ -27,14 +29,14 @@ export async function run(io, { first, second, rest, values }) {
   const agent = resourceAgent(ctx) ?? `pid-${process.pid}`;
   const item = claimedItem(ctx, agent);
   const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, affected: values.affected === true, agent, item, onWait: gateWaitReporter(io) });
+  result.mainFailures = mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
+    { items: withBoardRead(ctx, board => listItems(board, { all: true })), exclude: item });
+  delete result.failureCases;
+  delete result.mainComparison;
+  for (const notice of result.mainFailures) io.say(notice.message);
   io.result?.(result);
   if (!values.json && result.output) io.say(result.output.trimEnd());
   io.err(`pullboard test: ${result.green ? 'green' : 'red'} on ${result.runner} in ${result.seconds}s${result.local ? `: ${result.local}` : ''}`);
-  for (const entry of result.known) {
-    io.err(entry.result === 'red'
-      ? `known main failure: ${entry.file} fails on main ${String(result.main).slice(0, 12)} too`
-      : `new failure: ${entry.file} ${entry.result === 'absent' ? 'is not on' : 'passes on'} main ${String(result.main).slice(0, 12)}`);
-  }
   if (result.mainUnavailable) io.err(`main comparison unavailable: ${result.mainUnavailable}`);
   return result.green ? 0 : 1;
 }

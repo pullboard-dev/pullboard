@@ -3,6 +3,7 @@ import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
@@ -46,10 +47,12 @@ import {
 import { sameEnvironment } from './execution-environment.js';
 import { Refused } from './refused.js';
 import {
+  matchingMainFailures,
   failureSignatures,
   cachedFailureSignatures,
   MAIN_FAILURE_SIGNATURE_VERSION,
 } from './main-failure-matches.js';
+import { linkKnownMainReworks } from './known-main-reworks.js';
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
@@ -118,7 +121,8 @@ function readCache(file) {
       for (const [path, outcome] of Object.entries(files)) {
         if (typeof path === 'string' && path && ['red', 'green'].includes(outcome?.result)) {
           const failures = cachedFailureSignatures(outcome, path);
-          entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
+          entries[commit][path] = { result: outcome.result, ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}),
+            ...(typeof outcome.receiptId === 'string' ? { receiptId: outcome.receiptId } : {}) };
         }
       }
     }
@@ -255,15 +259,17 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
             || !sameEnvironment(run.environment, execution.environment))) {
             throw new Refused('LAND_ENVIRONMENT', 'the merge-base comparison did not execute on the candidate check executor and exact runtime');
           }
+          let receiptId;
           if (run.receiptId) {
             try {
               const id = retainComparisonReceipt(root, checkout, run.receiptId);
+              if (id) receiptId = id;
               if (id && onMeasuredReceipt) await onMeasuredReceipt(id);
             } catch { /* Timing retention never changes the exact-main failure verdict. */ }
           }
           const failures = detailed ? run.isGreen ? [] : failureSignatures(run, checkout) : null;
           if (detailed && !run.isGreen && !failures) throw new Error('focused main output has no complete named failure account');
-          return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}) };
+          return { result: run.isGreen ? 'green' : 'red', ...(failures ? { failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION } : {}), ...(receiptId ? { receiptId } : {}) };
         }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, diagnostic: true, browser, gui, remote, agent: process.env.PULLBOARD_AGENT, kind: 'main-red', onWait, ...runnerAdmission, ...(pinned ? { requiredExecutor: executor } : {}) });
         // History a runner may not receive keeps the comparison on this machine, as it ran before runners.
         try { return await measure(pinned ? executor.kind === 'ssh' : true); }
@@ -393,4 +399,39 @@ function matchingReworks(root, board, commit, files, loaded = null) {
     if (owners.length === 1) matches.push({ file, row, item: owners[0] });
   }
   return matches;
+}
+
+/** Present only complete case comparisons with a retained native receipt; these words grant no authority. */
+export function mainFailureNotices(root, failures, comparison, { items = [], exclude } = {}) {
+  if (!failures?.length || !comparison?.main || comparison.unavailable) return [];
+  let runner;
+  try { runner = policyAt(root, comparison.main).config.affectedTests; }
+  catch { return []; } // Missing accepted policy cannot bind a comparison receipt.
+  if (typeof runner !== 'string' || !runner.trim()) return [];
+  const store = receiptStore(root);
+  return failures.flatMap(failure => {
+    if (!cachedFailureSignatures({ result: 'red', failures: [failure], signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION }, failure.file)) return [];
+    const entries = comparison.files.filter(row => row.file === failure.file);
+    if (entries.length !== 1) return [];
+    const entry = entries[0];
+    const receipt = readGateReceipt(store, entry.receiptId);
+    const word = "'" + ('./' + failure.file).replaceAll("'", "'\\''") + "'";
+    const command = `PULLBOARD_TEST_REUSE=0 ${runner.trimEnd()} ${word}`;
+    if (!receipt || receipt.kind !== 'main-red' || receipt.head !== comparison.main || receipt.main !== comparison.main
+      || receipt.command !== createHash('sha256').update(command).digest('hex')
+      || receipt.green !== (entry.result === 'green') || !Array.isArray(entry.failures)
+      || entry.result === 'red' && !cachedFailureSignatures(entry, failure.file)) return [];
+    const matched = matchingMainFailures([failure], comparison, comparison.main);
+    const mainCases = entry.failures.filter(row => row.name === failure.name);
+    // A duplicate case or incomplete native failure account cannot become a candidate-only claim.
+    if (entry.result === 'red' && (mainCases.length > 1 || entry.failures.length !== receipt.failures.length || entry.failures.some(row =>
+      !receipt.failures.some(actual => actual.file === row.file && actual.name === row.name)))) return [];
+    const owner = matched && linkKnownMainReworks(matched, items, exclude)?.failures[0].item;
+    const status = matched ? 'also-main' : 'candidate-only';
+    const message = matched
+      ? `also fails on main at ${comparison.main}: ${failure.file} :: ${failure.name} (not yours; ${owner ? `owner #${owner}` : 'accepted'})`
+      : `fails only with your change: ${failure.file} :: ${failure.name}`;
+    return [{ status, main: comparison.main, file: failure.file, name: failure.name,
+      receiptId: receipt.id, ...(owner ? { owner } : {}), message: `${message} [main receipt ${receipt.id}]` }];
+  });
 }
