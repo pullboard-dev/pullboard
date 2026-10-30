@@ -4,6 +4,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js
 import { finalizeLandingEnvelope } from './land-envelope.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
 import { refreshLandedCodeMap } from './landing-main-notices.js';
+import { postLandSuite } from './post-land-suite.js';
 import { mergeOnlyLandingProblem } from './merge-only-verdict.js';
 import { requireOutsideOwner } from './outside-source.js';
 import { existsSync } from 'node:fs';
@@ -128,6 +129,7 @@ export async function publish(state) {
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
   await refreshLandedCodeMap(state);
+  await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip}`);
   return state.batch;
 }
@@ -157,5 +159,6 @@ export async function finishTrunk(state) {
   const main = mainCheckout(state.root);
   if (main?.commit === state.batch.base && isClean(state.root) && !untracked(state.root).length) git(state.root, ['merge', '--ff-only', state.batch.tip]);
   await refreshLandedCodeMap(state);
+  await postLandSuite(state, state.landingPorts?.postLandSuite);
   state.say(`landed ${state.batch.items.map((entry) => `#${entry.id}`).join(', ')} at ${state.batch.tip} on the local trunk; pullboard publish pushes it once the whole suite passes`);
 }
