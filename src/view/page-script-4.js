@@ -239,6 +239,7 @@ function statusGo(to) {
     const key = 'pb.seen.' + view.root;
     view.unread = { root: view.root, after: Number(view.seen[key] ?? keep(key) ?? 0) };
     view.agent = null;
+    view.shoutFilter = 'all';
     openTab('shouts');
   }
   // The agents it counts are the panel's rows, so it opens the panel even where the person hid it.

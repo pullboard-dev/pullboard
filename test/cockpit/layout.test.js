@@ -735,6 +735,7 @@ test('targets are 44px for touch and compact under a mouse [N26]', { timeout: 15
     await tab('items');
     const touchItems = await audit();
     await tab('shouts');
+    await openShoutConversation(chrome, 'item:2');
     const touchShouts = await audit();
     assert.equal(touchItems.tap, '44px', 'under touch the target is 44px');
     for (const [name, r] of [['Items', touchItems], ['Shouts', touchShouts]]) assert.deepEqual(r.short, [], `touch ${name}: every action at least 44px high: ${JSON.stringify(r.short)}`);
