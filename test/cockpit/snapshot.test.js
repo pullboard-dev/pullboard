@@ -572,6 +572,27 @@ const replayControlsStayPut = (wideFonts = false, classicScrollbar = false) => a
     for (const width of (wideFonts ? [375] : [375, 1280])) {
       await verifyWidth(width);
     }
+    /** Verify that a larger replay counter cannot move the fixed Play, Pause, and speed tracks. */
+    const countLayout = async (index) => {
+      await chrome.stable(`(() => {
+        snapshotReplay.events = new Array(123456);
+        snapshotReplay.index = ${index};
+        replayControls();
+        return true;
+      })()`);
+      return JSON.parse(await chrome.stable(`JSON.stringify({
+        count: document.querySelector('#replay-progress').textContent,
+        boxes: Object.fromEntries(['#replay-play', '#replay-pause', '#replay-speed'].map(selector => {
+          const rect = document.querySelector(selector).getBoundingClientRect();
+          return [selector, { x: rect.x, y: rect.y, width: rect.width, height: rect.height }];
+        }))
+      })`));
+    };
+    const shortCount = await countLayout(0);
+    const longCount = await countLayout(1234);
+    assert.equal(shortCount.count, 'event 0 of 123,456', 'the initial counter has a short current index and full denominator');
+    assert.equal(longCount.count, 'event 1,234 of 123,456', 'the running counter grows to four current-index digits');
+    assert.deepEqual(longCount.boxes, shortCount.boxes, 'a growing counter leaves Play, Pause, and speed in their original boxes');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
     await host.close();
