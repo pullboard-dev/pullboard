@@ -156,6 +156,8 @@ test('the tour registers a labelled demo that view lists and forget removes [N10
   });
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(withoutAction(result.stdout, 'pullboard view').trimEnd().split('\n').at(-1), 'see it: pullboard view');
+  assert.equal(result.stdout.match(/^next: pullboard view$/gmu)?.length, 1, 'the outer command retains its action');
+  assert.doesNotMatch(result.stdout, /^ +next: pullboard next --wait 1$/mu, 'nested child commands add no fallback footers');
   const demoRoot = /Look around: cd (\S+) && pullboard log/.exec(result.stdout)?.[1];
   assert.ok(demoRoot, 'the retained demo path is printed');
   const registered = JSON.parse(readFileSync(join(box.env.PULLBOARD_HOME, 'projects.json'), 'utf8')).projects;
