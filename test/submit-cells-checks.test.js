@@ -1,3 +1,4 @@
+import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -49,7 +50,8 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
     .some(problem => problem.includes('cannot prove cut through bin/bridge.js')), 'an unknown root-tool loader also refuses');
 });
 
-import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
+import { withMainCheckout } from '../src/main-red.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { cellLintReport } from '../packages/codemap/index.js';
@@ -57,6 +59,9 @@ import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
+
+/** Bind real higher-controller services for every immutable fixture inspection. */
+const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 
 /** Commit the actual small plan and complete canonical baseline, with no production-source substitution. */
 function plannedFixture(t, prepare = () => {}) {
@@ -108,7 +113,7 @@ test('submit keeps accepted placement authority when a candidate drops a row int
   writePlan(box.root, plan);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted row src\/refused.js disappeared/u);
   early.paths.push(row);
-  early.order = 999;
+  early.order = 44;
   writePlan(box.root, plan);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /accepted cell kernel identity\/order\/front door changed/u);
 });
@@ -157,4 +162,145 @@ test('submit ignores candidate checker code and refuses a forged overlapping own
   writePlan(box.root, plan);
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /overlapping cell root/u,
     'a new cell cannot shadow all accepted package owners');
+});
+
+test('submit requires real controller services before reading any input [C7,D3]', async () => {
+  await assert.rejects(preflight(null, null, null, null), /canonical checkout and parser services are required/u);
+});
+
+import childProcess from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
+import { lex } from '../packages/kernel/index.js';
+import { bindingReadsForModules } from '../packages/codemap/index.js';
+import { withBindingReadCache } from '../packages/codemap/index.js';
+import { foreignNodeOptions } from '../src/test-isolation.js';
+
+/** Count actual compiler children, preserving every successful V8 observation. */
+function bindingCompilerCalls(t, observed = {}) {
+  const original = childProcess.spawnSync;
+  let calls = 0;
+  t.mock.method(childProcess, 'spawnSync', (...args) => {
+    const flags = args[1];
+    if (args[0] === process.execPath && Array.isArray(flags) && flags.includes('--experimental-vm-modules')) {
+      calls++;
+      const code = flags[flags.indexOf('-e') + 1] ?? '';
+      const kind = code.includes('moduleRequests') ? 'imports' : 'bindings';
+      observed[kind] = (observed[kind] ?? 0) + 1;
+    }
+    return original(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  return () => calls;
+}
+
+/** The same real imported capability and original-offset probe body the fixture analyzer supplies. */
+function bindingModules() {
+  const prefix = "import { join } from 'node:path';\n";
+  const source = prefix + "const actual = join(root, 'state.json');\n";
+  return [{ file: 'binding-cache.js', source, body: ' '.repeat(prefix.length - 1) + '\n' + lex(source).code.slice(prefix.length), bindings: [{ local: 'join' }] }];
+}
+
+const bindingCacheEligible = () => !foreignNodeOptions(process.env.NODE_OPTIONS);
+
+test('one eligible binding census reuses real probes and returns independent Maps for exact inputs [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), modules = bindingModules();
+  withBindingReadCache(() => {
+    const first = bindingReadsForModules(modules), expected = structuredClone(first);
+    assert.ok(first.get('binding-cache.js').get('join').reads.length > 0);
+    first.get('binding-cache.js').get('join').reads.push(-1); first.set('forged', new Map());
+    assert.deepEqual(bindingReadsForModules(modules), expected);
+    assert.equal(calls(), 1, 'the hit reuses an actual real compiler observation');
+    const changed = bindingModules(); changed[0].source = changed[0].source.replace('state.json', 'other.json');
+    bindingReadsForModules(changed);
+    assert.equal(calls(), 2, 'different actual source bytes compile again');
+    const body = bindingModules(); body[0].body = ' '.repeat(body[0].body.length);
+    assert.equal(bindingReadsForModules(body).get('binding-cache.js').get('join').reads.length, 0);
+    assert.equal(calls(), 3, 'a different probe body is a different computation');
+  }, { eligible: bindingCacheEligible });
+  bindingReadsForModules(modules);
+  assert.equal(calls(), 4, 'the completed census cannot lend its result to another caller');
+});
+
+test('foreign runtime options invalidate binding reuse inside the current census [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), before = process.env.NODE_OPTIONS;
+  try {
+    withBindingReadCache(() => {
+      bindingReadsForModules(bindingModules()); bindingReadsForModules(bindingModules());
+      assert.equal(calls(), 1);
+      process.env.NODE_OPTIONS = '--no-warnings';
+      bindingReadsForModules(bindingModules()); bindingReadsForModules(bindingModules());
+      assert.equal(calls(), 3, 'the canonical foreign-options classifier forces actual fresh compilers');
+    }, { eligible: bindingCacheEligible });
+  } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
+});
+
+test('binding compiler failures never become cached authority [C7,D3]', t => {
+  const original = childProcess.spawnSync;
+  let calls = 0;
+  t.mock.method(childProcess, 'spawnSync', (...args) => ++calls === 1
+    ? { status: 1, stderr: 'private binding compiler transport failed' } : original(...args));
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  withBindingReadCache(() => {
+    assert.throws(() => bindingReadsForModules(bindingModules()), /private binding compiler transport failed/u);
+    assert.ok(bindingReadsForModules(bindingModules()).get('binding-cache.js').get('join').reads.length > 0);
+    bindingReadsForModules(bindingModules());
+    assert.equal(calls, 2, 'only the later genuine successful compiler result is reusable');
+  }, { eligible: bindingCacheEligible });
+});
+
+test('accessor arrays and generator callers retain ordinary real binding computation [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), modules = bindingModules(), row = modules[0];
+  Object.defineProperty(modules, '0', { enumerable: true, configurable: true, get: () => row });
+  withBindingReadCache(() => {
+    assert.deepEqual(bindingReadsForModules(modules), bindingReadsForModules(modules));
+    assert.equal(calls(), 2, 'an accessor-backed array slot never supplies reusable identity');
+    const generator = function* () { yield row; };
+    assert.deepEqual(bindingReadsForModules(generator()), bindingReadsForModules(generator()));
+    assert.equal(calls(), 4, 'existing generator callers are consumed normally, never guessed into an array cache');
+  }, { eligible: bindingCacheEligible });
+});
+
+
+test('eligible runtime context changes require a fresh real binding compiler observation [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), before = process.env.NODE_OPTIONS;
+  const owned = new URL('../src/browser-slot-guard.js', import.meta.url).href;
+  const next = before === `--import=${owned}` ? `--import ${owned}` : `--import=${owned}`;
+  try {
+    withBindingReadCache(() => {
+      bindingReadsForModules(bindingModules());
+      assert.equal(calls(), 1);
+      process.env.NODE_OPTIONS = next;
+      assert.equal(bindingCacheEligible(), true, 'the actual owned browser preload remains canonically eligible');
+      bindingReadsForModules(bindingModules()); bindingReadsForModules(bindingModules());
+      assert.equal(calls(), 2, 'a changed eligible material context compiles afresh, then may reuse only that result');
+    }, { eligible: bindingCacheEligible });
+  } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
+});
+
+test('cached and canonically bypassed complete submit diagnostics agree with actual parser and binding work [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t, box => {
+    box.put('test/reader.test.js', "import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nexport function observe(root) { return readFileSync(join(root, 'src/refused.js'), 'utf8'); }\n");
+    git(box.root, 'add', '-A'); git(box.root, 'commit', '-q', '-m', 'actual existing fixture reader obligation');
+  });
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  const candidate = commitCandidate(box), observed = {}, calls = bindingCompilerCalls(t, observed);
+  let cached;
+  try { await requireSubmitCells(box.root, box.main, candidate, box.item); }
+  catch (error) { cached = error; }
+  assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
+  const first = { ...observed }, before = process.env.NODE_OPTIONS;
+  observed.imports = 0; observed.bindings = 0;
+  try {
+    process.env.NODE_OPTIONS = '--no-warnings';
+    assert.equal(bindingCacheEligible(), false);
+    let uncached;
+    try { await requireSubmitCells(box.root, box.main, candidate, box.item); }
+    catch (error) { uncached = error; }
+    assert.equal(uncached?.message, cached.message, 'the exact full diagnostics do not change when canonical policy bypasses both caches');
+    assert.ok(observed.imports > first.imports, 'actual submit entry bypasses import-parser reuse');
+    assert.ok(observed.bindings > first.bindings, 'actual submit entry bypasses repeated binding-probe reuse');
+    assert.ok(calls() > 0);
+  } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });

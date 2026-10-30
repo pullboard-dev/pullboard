@@ -1,13 +1,11 @@
+import { withBindingReadCache } from '../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { withMainCheckout } from '../src/main-red.js';
 import { git } from '../src/git.js';
 import { Refused } from '../src/refused.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
@@ -120,8 +118,15 @@ function temporaryProblems(mainRoot, candidateRoot, criterion) {
     .map(row => `${file}: frozen criterion does not name exact edge ${row.importer} -> ${row.target}`);
 }
 
+/** Memoize only within this census using actual higher-controller runtime policy. */
+export function cellsSnapshotProblems(mainRoot, candidateRoot, options) {
+  if (typeof options?.withImportParseCache !== 'function' || typeof options?.cacheEligible !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical census cache services are required');
+  return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible }));
+}
+
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
-export function cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files } = {}) {
+function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers } = {}) {
+  if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
   if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
   const before = readPlan(mainRoot);
   // Even the index's shard names are untrusted data; no metadata alias may read outside this snapshot.
@@ -138,7 +143,6 @@ export function cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
   if (policy.length) return { cells: [], problems: policy };
-  const parsers = { importsIn, commonJsIn };
   const oldInventory = cellInventory(mainRoot, parsers), newInventory = cellInventory(candidateRoot, parsers);
   const oldReport = cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
@@ -163,11 +167,13 @@ export function cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
 }
 
 /** Controller structural preflight: exact immutable commits, canonical finally-cleaned snapshots, no candidate execution. */
-export async function requireSubmitCells(root, acceptedMain, commit, item) {
+export async function requireSubmitCells(root, acceptedMain, commit, item, services) {
+  if (typeof services?.withImportParseCache !== 'function' || typeof services?.cacheEligible !== 'function' || typeof services?.withMainCheckout !== 'function' || typeof services?.parsers?.importsIn !== 'function' || typeof services?.parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical checkout and parser services are required');
+  const { withMainCheckout, parsers, withImportParseCache, cacheEligible } = services;
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion ?? '';
   if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, candidateRoot => {
-    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion });
+    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible });
     refuse(result.problems);
     if (git(mainRoot, ['rev-parse', 'HEAD']) !== acceptedMain || git(candidateRoot, ['rev-parse', 'HEAD']) !== commit
       || git(mainRoot, ['status', '--porcelain', '--untracked-files=all']) || git(candidateRoot, ['status', '--porcelain', '--untracked-files=all'])) {

@@ -5,7 +5,6 @@ import assert from 'node:assert/strict';
 import {
   existsSync,
   mkdirSync,
-  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -22,6 +21,7 @@ import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
+import { loadConfig } from '../src/config.js';
 import { requirePlannedSource } from '../src/submit-preflight.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -42,7 +42,7 @@ function plannedProject(t, { companionLanes = false } = {}) {
   plan.cells = plan.cells.map(cell => ({ ...cell, paths: [], reexports: [], cuts: [], imports: [] }));
   plan.stays = []; plan.retired = [];
   writePlan(box.repo, plan);
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  const config = loadConfig(box.repo);
   if (companionLanes) {
     config.lanes.view = { owns: ['src/view/', 'apps/view/'], specs: ['G1'] };
     config.lanes.core = { owns: ['bin/cells-plan.json', 'bin/cells-plan/'], specs: ['G1'] };
