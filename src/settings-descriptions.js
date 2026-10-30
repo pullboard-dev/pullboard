@@ -9,6 +9,8 @@ const ROWS = [
   ['gate.memoryFloorMB', 'Memory floor', 'The queue holds new checks while free memory is below this; blank means it never waits for memory.', 'Capacity', 'MB'],
   ['gate.browserFreeChecks', 'Browser-free checks skip the browser slot', 'A check that never opens a browser takes an ordinary slot instead of waiting for a browser slot.', 'Capacity', 'on/off'],
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
+  ['gate.loadAwareDispatch', 'Prefer quieter runners', 'Dispatch prefers recent runner-reported CPU readings among compatible free runners.', 'Capacity', 'on/off'],
+  ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],
   ['gate.queue.currentReleaseFirst', 'Current release first', 'Among otherwise tied checks on each board, work in the release being shipped goes ahead of later releases.', 'Order', 'on/off'],
@@ -130,7 +132,7 @@ const ROWS = [
 ];
 
 // The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; test/settings-descriptions.test.js holds this equal to help.js SETTING_FORMS.
-const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.runnersOnly', 'gate.runnerWaitMs']);
+const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs']);
 
 export const SETTING_DESCRIPTIONS = Object.freeze(Object.fromEntries(ROWS.map(([key, label, description, group, unit]) => [key, Object.freeze({ label, description, group, unit, cli: CLI_FORMS.has(key) ? key : null })])));
 export const CLI_SETTABLE = Object.freeze([...CLI_FORMS]);
