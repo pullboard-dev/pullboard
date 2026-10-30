@@ -137,10 +137,10 @@ test('existing cut debt is reported without refusing an unchanged candidate [C7,
   const result = await requireSubmitCells(box.root, box.main, box.main, box.item, () => []);
   assert.deepEqual(result.problems, []);
   // A touched file retains the same older edge, so it appears as debt rather than a new refusal.
-  box.put('src/stats.js', "import { board } from './board.js'; export const stats = () => [board, 2];\n");
+  box.put('src/board.js', "import { Refused } from './refused.js'; import { claims } from './claims.js'; export const board = () => [Refused, claims, 2];\n");
   const changed = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => []);
   assert.deepEqual(changed.problems, []);
-  assert.ok(Array.isArray(changed.existingCuts));
+  assert.ok(changed.existingCuts.some(row => /store still imports later items: src\/board.js -> src\/claims.js/u.test(row)), 'the actual existing upward edge is reported');
 });
 
 test('current main cannot conceal a candidate new edge that was absent at its actual merge base [C7,D3]', async t => {
