@@ -6,7 +6,11 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 import * as store from '../src/board.js';
-import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../src/resources.js';
+import { openBoard } from '../src/native-board.js';
+import { GATE_SLOT_HELD_ENV } from '../packages/resources/index.js';
+import { GATE_SLOT_POOL_ENV } from '../packages/resources/index.js';
+import { GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
+import { BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
 
 /** Read append-only subprocess markers; each completed line is one independently observed transition. */
 function markers(path) { return readFileSync(path, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
@@ -54,7 +58,7 @@ function runBatch(box, enabled) {
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const enabled = process.argv[2] === "true";',
-    'const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
+    'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
     'try { const config = loadConfig(root); config.landing = { ...config.landing, parallel: enabled };',
     'const result = await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config, owner: "coordinator", maximum: 3, write: async (operation, args) => board.enginePorts.store[operation](board, ...args), say: () => {}, checkLease: async () => {}, checkLeaseNow: () => {} });',
     'console.log(JSON.stringify(result)); } finally { store.closeBoard(board); }',
@@ -233,12 +237,13 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const direct = [
     `import * as store from ${JSON.stringify(url('board.js'))};`,
+    `import { openBoard } from ${JSON.stringify(url("native-board.js"))};`,
     `import { runLandingBatch } from ${JSON.stringify(url('land.js'))};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
     `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
-    'const root = process.argv[1]; const board = store.openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
+    'const root = process.argv[1]; const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
     'try { await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, owner: "private-nested-api", write: async (operation, args) => board.enginePorts.store[operation](board, ...args), say: () => {} }); console.log(JSON.stringify({ code: null })); }',
     'catch (error) { console.log(JSON.stringify({ code: error.code, message: error.message })); } finally { store.closeBoard(board); }',
   ].join('\n');

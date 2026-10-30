@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/resources.js */
+/** @pullboard-test-loads packages/resources/index.js */
 /** @pullboard-test-loads src/gate.js */
 /** Private native admission restricts placement without granting capacity or capabilities [Q1,Q2,E27]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
@@ -10,7 +10,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../src/resources.js')).href;
+const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href;
 const GATE = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
 
 /** Execute only fixture-owned admission against an isolated machine database. */
@@ -92,4 +92,28 @@ ${executionServicesSource(GATE)}
     assert.equal(called,false);
   `], { cwd: box.repo, env: box.env });
   assert.equal(result.status, 0, result.failure);
+});
+
+
+test('matching-runner allowlists prefer a free original and retain registration and capability guards [Q1,Q2,E27]', { timeout: 20000 }, async t => {
+  await privateAdmission(t, `
+    const requiredExecutor={kind:'ssh',host:'fixture-a',hosts:['fixture-a','fixture-b']};
+    const a=await take({requiredExecutor});
+    assert.equal(a.runner.host,'fixture-a','free original wins');
+    const b=await take({requiredExecutor});
+    assert.equal(b.runner.host,'fixture-b','busy original does not strand an eligible peer');
+    const stop={code:'fixture-wait'};
+    await assert.rejects(take({requiredExecutor,shortEligible:true,shortCapacityProvider:()=>1,
+      onWait:state=>{if(!state.admitted){assert.deepEqual(state.line.find(row=>row.requiredExecutor)?.requiredExecutor,requiredExecutor);throw stop;}}}),error=>error===stop);
+    b.release();
+    await assert.rejects(take({requiredExecutor,browser:true,
+      onWait:state=>{if(!state.admitted)throw stop;}}),error=>error===stop,'peer without browser never substitutes for a browser check');
+    a.release();
+    const missingPreferred={kind:'ssh',host:'removed',hosts:['removed','fixture-b']};
+    assert.equal((await take({requiredExecutor:missingPreferred})).runner.host,'fixture-b','registry loss narrows the list rather than abandoning an eligible member');
+    await assert.rejects(take({requiredExecutor:{kind:'ssh',host:'removed',hosts:['removed']}}),{code:'BAD_RUNNER_POOL'});
+    for(const hosts of [[],['fixture-a','fixture-a'],['fixture-b'],['fixture-a',' bad'],Array(2),Array.from({length:65},(_,i)=>'host-'+i)]) {
+      await assert.rejects(take({requiredExecutor:{kind:'ssh',host:'fixture-a',hosts}}),{code:'BAD_RESOURCE_METADATA'});
+    }
+  `);
 });

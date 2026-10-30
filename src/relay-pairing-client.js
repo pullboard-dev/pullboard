@@ -15,6 +15,7 @@ import {
   join,
 } from 'node:path';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import {
   exportBoard,
   importBoard,
@@ -126,7 +127,7 @@ async function signIn(url, io) {
 /** Return an exported local board with its persistent identity. */
 function localSnapshot(root) {
   const info = repoInfo(root);
-  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try { return { board: store.boardId(board), snapshot: exportBoard(board) }; }
   finally { store.closeBoard(board); }
 }
@@ -195,7 +196,7 @@ export async function relayPair(root, io, { DEFAULT_RELAY, originRepository, syn
 /** Refuse a nonempty target board before spending its one-use code. */
 function requireFreshTarget(root) {
   const info = repoInfo(root);
-  const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try {
     const eventLog = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('event_log_version');
     if (!isInitialBoard(board) || eventLog?.meta_value !== String(store.EVENT_LOG_VERSION)) {
@@ -240,7 +241,7 @@ export async function relayJoin(root, code, address, io, { name: labelInput } = 
   try {
     keyStorage = storeBoardKey(bundle.board, Buffer.from(bundle.key, 'base64url'));
     const info = repoInfo(root);
-    const board = store.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+    const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
     try { importBoard(board, bundle.snapshot); }
     finally { store.closeBoard(board); }
     saveState(file, {

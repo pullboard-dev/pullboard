@@ -35,7 +35,7 @@ Set up
                                         short slots for runs that name their test files are opt-in: pullboard settings gate.shortSlots <n> (default 0)
                                         signed person moves are opt-in: pullboard settings person.signed on makes each wait for your passkey; only the passkey turns it off
                                         runner-first dispatch is opt-in: pullboard settings gate.runnersFirst on|off (default off)
-                                        submit/verify runner-only admission is opt-in: pullboard settings gate.runnersOnly on|off (default off)
+                                        test/gate/submit/verify runner-only admission is opt-in: pullboard settings gate.runnersOnly on|off (default off)
                                         runner admission deadline: pullboard settings gate.runnerWaitMs <n> (default 300000ms)
                                         worker budget: pullboard settings workers.budget 40/day (or /week), seat-hours run --scale may spend (default off)
   pullboard runner add <ssh-host> --slots <n> --browser <n> [--node <remote-path>] [--root <remote-path>]
@@ -362,6 +362,8 @@ Lifecycle, read from src/machine.js
 
 Additional commands
   pullboard heartbeat                 record this seat's local session activity; no board move
+  pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
+  pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.
 --json prints one versioned document for every command, and one per line for watch; refusals include their code and next step.

@@ -83,7 +83,8 @@ test('malformed and duplicate data declarations fail closed [C7,CD64]', () => {
 
 test('an uncommitted manifest edit cannot supply data-read authority [C7,CD64]', t => {
   const p = project(t);
-  p.write(FILE, SOURCE + '// hooks.js keeps normal scan selection independent of the manifest.\n');
+  // A real dynamic operand selects this reader even when its manifest has no authority.
+  p.write(FILE, SOURCE.replace('process.env.GENERATED_HOOK;', "process.env.GENERATED_HOOK + '/hooks.js';"));
   p.commit();
   p.write('bin/cells-plan/data-reads/commits.json', JSON.stringify({ version: 1, reads: [{ ...ROW, why: 'Uncommitted altered declaration.' }] }));
   const problems = p.check();
@@ -93,7 +94,8 @@ test('an uncommitted manifest edit cannot supply data-read authority [C7,CD64]',
 
 test('an untracked manifest cannot supply data-read authority [C7,CD64]', t => {
   const p = project(t);
-  p.write(FILE, SOURCE + '// hooks.js keeps normal scan selection independent of the manifest.\n');
+  // A real dynamic operand selects this reader even when its manifest has no authority.
+  p.write(FILE, SOURCE.replace('process.env.GENERATED_HOOK;', "process.env.GENERATED_HOOK + '/hooks.js';"));
   p.commit();
   p.git('rm', '--cached', 'bin/cells-plan/data-reads/commits.json');
   p.git('commit', '-q', '-m', 'chore: remove tracked declaration while retaining its untracked bytes');

@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -31,7 +32,7 @@ test('patch attach, list, and remove bind a submitted source and require coordin
   run(box, box.web, 'claim', String(item), '--json');
   const source = box.git(box.repo, 'rev-parse', 'HEAD');
   // @pullboard-board-file journey: inspect the durable item changed by real CLI patch commands
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const tree = box.git(box.repo, 'rev-parse', `${source}^{tree}`);
   submitFixture(board, item, { agentId: author, commit: source, tree });

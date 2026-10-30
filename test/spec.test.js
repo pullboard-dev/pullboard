@@ -9,6 +9,7 @@ import { checkLoosening } from '../src/doctrine-checks.js';
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
 import * as store from '../src/board.js';
+import { openBoard, draftSpecRow, recordRowVerification } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -1138,20 +1139,20 @@ test('a verdict on a spec row is recorded by an outside verifier [S1,V4,H16]', t
     'the row grammar preserves a structured verifier verdict');
   assert.deepEqual(lintSpec(parsed), []);
   const box = specBox(t, { specSource: '# Demo\n\n## G · Goals\n' });
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const author = store.register(board, { lane: 'core', path: join(box.root, 'author'), parentDigest: 'a'.repeat(64) });
   const sibling = store.register(board, { lane: 'review', path: join(box.root, 'sibling'), parentDigest: 'a'.repeat(64) });
   const verifier = store.register(board, { lane: 'review', path: join(box.root, 'outside'), parentDigest: 'b'.repeat(64) });
-  store.draftSpecRow(board, { agentId: author, row: { id: 'G1', text: 'Keep the original row.',
+  draftSpecRow(board, { agentId: author, row: { id: 'G1', text: 'Keep the original row.',
     gate: 'review', tier: 'must', section: 'G · Goals', target: 'spec' } });
   assert.equal(box.run('apply').status, 0);
   const source = readFileSync(join(box.root, box.specName), 'utf8').split('\n').find(value => value.startsWith('- G1 '));
   const before = store.events(board).length;
-  for (const agentId of [author, sibling]) assert.throws(() => store.recordRowVerification(board,
+  for (const agentId of [author, sibling]) assert.throws(() => recordRowVerification(board,
     { agentId, source, decision: 'accepted', reason }), { code: 'ROW_VERIFY_SELF' });
   assert.equal(store.events(board).length, before, 'refused self and sibling verdicts leave the board unchanged');
-  store.recordRowVerification(board, { agentId: verifier, source, decision: 'accepted', reason });
+  recordRowVerification(board, { agentId: verifier, source, decision: 'accepted', reason });
   assert.equal(box.run('apply').status, 0);
   const check = box.run('check');
   assert.equal(check.status, 0, check.stdout + check.stderr);
@@ -1162,7 +1163,7 @@ test('a verdict on a spec row is recorded by an outside verifier [S1,V4,H16]', t
   const json = JSON.parse(box.run('show', 'G1', '--json').stdout);
   assert.deepEqual(json.row.verify, { decision: 'accepted', by: verifier, reason });
   assert.equal(json.row.status, 'draft', 'a verifier verdict does not approve normative text');
-  store.recordRowVerification(board, { agentId: verifier, source, decision: 'rejected', reason: 'A counterexample remains.' });
+  recordRowVerification(board, { agentId: verifier, source, decision: 'rejected', reason: 'A counterexample remains.' });
   assert.equal(box.run('apply').status, 0);
   assert.match(box.run('show', 'G1').stdout, /verify: rejected by/u);
   const valid = readFileSync(join(box.root, box.specName), 'utf8');
@@ -1172,14 +1173,14 @@ test('a verdict on a spec row is recorded by an outside verifier [S1,V4,H16]', t
   assert.match(forged.stdout, /ROW_VERIFY_RECEIPT/u);
   writeFileSync(join(box.root, box.specName), valid);
   for (const changed of [source.replace('G1', 'G99'), source.replace('original row', 'different row')]) {
-    assert.throws(() => store.recordRowVerification(board, { agentId: verifier, source: changed, decision: 'accepted', reason }),
+    assert.throws(() => recordRowVerification(board, { agentId: verifier, source: changed, decision: 'accepted', reason }),
       { code: 'ROW_VERIFY_PROVENANCE' });
   }
   const unknown = store.register(board, { lane: 'review', path: join(box.root, 'unknown') });
-  assert.throws(() => store.recordRowVerification(board, { agentId: unknown, source, decision: 'accepted', reason }),
+  assert.throws(() => recordRowVerification(board, { agentId: unknown, source, decision: 'accepted', reason }),
     { code: 'ROW_VERIFY_PROVENANCE' });
   writeFileSync(join(box.root, box.specName), valid.replace(/\n/gu, '\r\n'));
-  store.recordRowVerification(board, { agentId: verifier, source, decision: 'accepted', reason });
+  recordRowVerification(board, { agentId: verifier, source, decision: 'accepted', reason });
   assert.equal(box.run('apply').status, 0);
   const windowsSource = readFileSync(join(box.root, box.specName), 'utf8');
   assert.ok(!/(?<!\r)\n/u.test(windowsSource), 'applying a new verdict preserves CRLF source endings');
@@ -1202,11 +1203,11 @@ test('verifier fields reject duplicate and malformed annotations without swallow
 
 test('spec verify binds the real caller and preserves a pending person decision [S1,V4,P6]', t => {
   const box = specBox(t, { specSource: '# Demo\n\n## G · Goals\n' });
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: box.root, parentDigest: 'c'.repeat(64) });
   const author = store.register(board, { lane: 'core', path: join(box.root, 'author'), parentDigest: 'a'.repeat(64) });
-  store.draftSpecRow(board, { agentId: author, row: { id: 'G1', text: 'Keep the actual requirement.',
+  draftSpecRow(board, { agentId: author, row: { id: 'G1', text: 'Keep the actual requirement.',
     gate: 'review', tier: 'must', section: 'G · Goals' } });
   assert.equal(box.run('apply').status, 0);
   const original = readFileSync(join(box.root, box.specName), 'utf8');
@@ -1250,7 +1251,7 @@ test('an exact row verifier receipt replays once with its engine floor and nativ
   const replica = fixtureBoard(t);
   const author = store.register(board, { lane: 'core', path: join(root, 'author'), parentDigest: 'a'.repeat(64) });
   const verifier = store.register(board, { lane: 'review', path: join(root, 'verifier'), parentDigest: 'b'.repeat(64) });
-  store.draftSpecRow(board, { agentId: author, row: { id: 'G1', text: 'An exact requirement.',
+  draftSpecRow(board, { agentId: author, row: { id: 'G1', text: 'An exact requirement.',
     gate: 'review', tier: 'must', section: 'G · Goals' } });
   const move = prepareEngineMove(board, 'recordRowVerification', [{ agentId: verifier,
     source: '- G1 [draft, must] An exact requirement. | gate: review', decision: 'accepted', reason: 'Reviewed exactly.' }]);

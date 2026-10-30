@@ -1,3 +1,6 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { serialize } from 'node:v8';
+import { types } from 'node:util';
 /** Compile mutations to distinguish actual identifier reads from property spelling, never executing code [CD62,C7]. */
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
@@ -105,8 +108,75 @@ function apply(row, at, valid, qualified) {
   if (!valid[0] && !valid[1] && !valid[2]) row.potentialShadow = true;
 }
 
-/** Batch independent module probes in bounded chunks; never start a compiler child for every module or execute source. */
+const bindingReadScopes = new AsyncLocalStorage();
+
+/** Reuse only real compiler observations inside one explicitly eligible higher-level census. */
+export function withBindingReadCache(work, { eligible } = {}) {
+  if (typeof eligible !== 'function') return work();
+  return bindingReadScopes.run({ eligible, values: new Map(), bytes: 0 }, work);
+}
+
+/** An unavailable eligibility observation never authorizes reuse. */
+function reusable(scope) {
+  try { return scope?.eligible() === true; } catch { return false; }
+}
+
+/** Cache only complete plain data; omitted properties, accessors and proxies never supply identity. */
+function cacheableModules(modules) {
+  const array = value => {
+    if (!Array.isArray(value) || types.isProxy(value) || Object.getPrototypeOf(value) !== Array.prototype
+      || Reflect.ownKeys(value).length !== value.length + 1) return false;
+    for (let index = 0; index < value.length; index++) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !Object.hasOwn(descriptor, 'value')) return false;
+    }
+    return true;
+  };
+  const record = (value, keys) => value && !types.isProxy(value)
+    && [Object.prototype, null].includes(Object.getPrototypeOf(value))
+    && Reflect.ownKeys(value).every(key => typeof key === 'string' && keys.includes(key)
+      && Object.getOwnPropertyDescriptor(value, key).enumerable && Object.hasOwn(Object.getOwnPropertyDescriptor(value, key), 'value'));
+  return array(modules) && modules.every(row => record(row, ['file', 'source', 'body', 'bindings', 'scopeBraces'])
+    && ['file', 'source', 'body', 'bindings'].every(key => Object.hasOwn(row, key))
+    && (Object.hasOwn(row, 'scopeBraces') || !('scopeBraces' in row))
+    && typeof row.file === 'string' && typeof row.source === 'string' && typeof row.body === 'string'
+    && (row.scopeBraces === undefined || typeof row.scopeBraces === 'boolean') && array(row.bindings)
+    && row.bindings.every(binding => record(binding, ['local']) && Object.hasOwn(binding, 'local') && typeof binding.local === 'string'));
+}
+
+/** Complete actual inputs and runtime context are rechecked after derivation before publication. */
+function bindingCacheKey(modules) {
+  if (!cacheableModules(modules)) return null;
+  try {
+    const values = modules.map(row => [row.file, row.source, row.body, row.scopeBraces, row.bindings.map(binding => binding.local)]);
+    return serialize([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, COMPILER, values]).toString('base64');
+  } catch { return null; }
+}
+
+/** Exact ordered probe inputs and runtime context identify a real immutable compiler result. */
 export function bindingReadsForModules(modules) {
+  const scope = bindingReadScopes.getStore();
+  if (!reusable(scope)) return buildBindingReads(modules);
+  const key = bindingCacheKey(modules);
+  if (key === null) return buildBindingReads(modules);
+  if (scope.values.has(key)) {
+    try { return structuredClone(scope.values.get(key).value); }
+    catch { scope.bytes -= scope.values.get(key).bytes; scope.values.delete(key); }
+  }
+  const result = buildBindingReads(modules);
+  if (reusable(scope) && key === bindingCacheKey(modules)) {
+    try {
+      const bytes = Buffer.byteLength(key) + serialize(result).byteLength;
+      if (scope.values.size < 1024 && scope.bytes + bytes <= 64 * 1024 * 1024) {
+        scope.values.set(key, { value: structuredClone(result), bytes }); scope.bytes += bytes;
+      }
+    } catch { /* Optional memo failure never replaces a real compiler result. */ }
+  }
+  return result;
+}
+
+/** Batch independent module probes in bounded chunks; never start a compiler child for every module or execute source. */
+function buildBindingReads(modules) {
   const results = new Map(), preparedModules = [];
   let chunk = [], recipients = [], bytes = 0;
   /** Compile one bounded independent chunk, preserving every original module offset and binding identity. */

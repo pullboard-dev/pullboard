@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { moveArgs } from '../src/api-moves.js';
@@ -32,14 +33,14 @@ function acceptedSnapshot(context = false) {
   box.git(reviewer, 'switch', '-q', '--detach', box.git(box.web, 'rev-parse', 'HEAD'));
   const accepted = box.run(reviewer, 'verify', '1', 'accept', '--note', 'native private check passed', '--json');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return context ? { box, reviewer, snapshot: exportBoard(board) } : exportBoard(board); } finally { store.closeBoard(board); }
 }
 
 test('withdrawal true is engine-fenced while false retains historical reopen meaning [V2,V6,H16]', t => {
   const snapshot = acceptedSnapshot(), directory = mkdtempSync(join(tmpdir(), 'pullboard-withdraw-engine-'));
   const boards = ['false', 'old-true', 'current'].map(name => {
-    const board = store.openBoard(join(directory, name + '.sqlite'));
+    const board = openBoard(join(directory, name + '.sqlite'));
     importBoard(board, snapshot);
     return board;
   });
@@ -84,7 +85,7 @@ test('withdrawing the latest accept never revives an earlier accept of the same 
   box.git(reviewer, 'merge', '-q', '--no-edit', 'main');
   const reviewed = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the actual new trunk composition passes', '--json');
   assert.equal(reviewed.code, 0, reviewed.err + reviewed.out);
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const rows = board.db.prepare('SELECT * FROM verdict WHERE item_id = ? ORDER BY verdict_id').all(1);
   assert.equal(rows.length, 2, 'two genuine native reviews bind the same submitted commit to successive trunks');

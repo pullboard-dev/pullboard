@@ -1,3 +1,6 @@
+import { firstRefusal } from '../../../../src/board-item-read.js';
+import { compositionFamilyFallback } from '../../../../src/review-composition.js';
+import { reviewWait } from '../../../../src/review-routing.js';
 import { eligibilityProblem } from '../../../../src/review-eligibility.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 import { familyIndex } from '../../../../src/review-policy.js';
@@ -29,22 +32,20 @@ import {
   tryGit,
 } from '../../../../src/git.js';
 import { gateControlFindings } from '../../../../src/gate-control.js';
-import {
-  boardBusyError,
-  buildOrder,
-  foreignBlockers,
-  milestonePriorities,
-  milestones,
-  canTake,
-  listItems,
-  listAgents,
-  openBoardReadOnly,
-  PERSON,
-  ROUTES,
-  roadmap,
-  rowDecisions,
-  unverifiedSubmissions,
-} from '../../../../src/board.js';
+import { boardBusyError } from '../../../../src/board.js';
+import { buildOrder } from '../../../../src/board.js';
+import { foreignBlockers } from '../../../../src/board.js';
+import { milestonePriorities } from '../../../../src/board.js';
+import { milestones } from '../../../../src/board.js';
+import { canTake } from '../../../../src/board.js';
+import { listItems } from '../../../../src/board.js';
+import { listAgents } from '../../../../src/board.js';
+import { openBoardReadOnly } from '../../../../src/board.js';
+import { PERSON } from '../../../../src/board.js';
+import { ROUTES } from '../../../../src/board.js';
+import { rowDecisions } from '../../../../src/board.js';
+import { unverifiedSubmissions } from '../../../../src/board.js';
+import { roadmap } from '../../../../src/board-milestones.js';
 import { staleRowDecisions } from '../../../../src/row-decision-state.js';
 import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../../src/queue.js';
@@ -165,7 +166,25 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
       }));
     }
 
+    const released = events.last.get('release');
+    const expiry = released ? JSON.parse(released.event_detail) : null;
+    const refusal = status === 'open' && expiry?.expiredClaim ? firstRefusal(board, id) : null;
+    if (refusal) found(report.waiting, finding('CLAIM_EXPIRED', item, {
+      since: released.event_at, now: at, title: 'lapsed idle claim freed',
+      why: `${expiry.expiredClaim.holder}'s lapsed claim returned to open; first refusal lasts until ${refusal.until}`,
+      next: `${refusal.builder} resumes with pullboard claim ${id}, or releases its first refusal`,
+      command: `pullboard claim ${id}`, owner: { role: 'builder', who: refusal.builder },
+      detail: { ...expiry.expiredClaim, firstRefusalUntil: refusal.until },
+    }));
+
     if (status === 'submitted') {
+      const fallback = compositionFamilyFallback(board, item);
+      if (fallback) found(report.waiting, finding('REVIEW_FAMILY_FALLBACK', item, {
+        since: events.last.get('submit')?.event_at ?? item.item_updated_at, now: at,
+        title: 'independent family review', why: `Current composition spans the joined families; owner ${fallback.owner} (${fallback.family}) sets the different-family boundary; all material author and session exclusions remain`,
+        next: 'an independent seat from another family takes the review', command: `pullboard next --verify ${id}`,
+        owner: { role: 'builder', who: fallback.owner }, detail: fallback,
+      }));
       const reviewer = item.item_review_by;
       const lapsed = reviewer && (item.item_review_until ?? '') <= asOf;
       const submittedAt = events.last.get('submit')?.event_at ?? item.item_updated_at;
@@ -185,6 +204,21 @@ export function healthReport({ db, root, config, now, dispatchHealth }) {
           why: blocked.message,
           next: blocked.fix, command: `pullboard show ${id}`,
           owner: { role: 'coordinator', who: COORDINATOR }, detail: { builder: item.item_built_by, undeclared: blocked.undeclared, excluding: blocked.excluding },
+        }));
+      }
+      const wait = reviewWait(board, item);
+      if (wait && wait.ageMs > (config?.review?.starveMinutes ?? 10) * 60_000) {
+        const exclusions = [...seats().values()].map(agent => ({ agent: agent.agent_id,
+          problem: eligibilityProblem(board, item, agent, { policy: config?.verify?.policy, familyPolicy: config?.verify?.family }) }));
+        const eligible = exclusions.filter(entry => !entry.problem).map(entry => entry.agent);
+        const excluding = exclusions.filter(entry => entry.problem).map(entry => ({ agent: entry.agent, code: entry.problem.code, rule: entry.problem.message }));
+        found(report.stuck, finding('REVIEW_STARVED', item, {
+          since: wait.since, now: at, title: 'review starved',
+          why: eligible.length ? `submitted ${Math.floor(wait.ageMs / 60_000)} minutes ago without a live reviewer`
+            : `no joined agent is eligible: ${excluding.map(entry => `${entry.agent}: ${entry.code}`).join('; ') || 'no joined agents'}`,
+          next: eligible.length ? `an eligible idle agent takes pullboard next before new build work` : `inspect the eligibility checks with pullboard show ${id}`,
+          command: `pullboard show ${id}`, owner: { role: 'coordinator', who: COORDINATOR },
+          detail: { ageMs: wait.ageMs, eligible, excluding },
         }));
       }
       if (!lapsed && !reviewer && age(submittedAt) >= limits.ms.stuck) {
@@ -435,10 +469,22 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
   }
 
   const open = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased].filter((entry) => entry.status === 'open');
+  /** A returned repair belongs with its still-active last builder, not a different occupied holder. */
+  const reworkBuilder = item => {
+    const last = board.db.prepare("SELECT event_kind FROM event WHERE item_id=? AND event_kind IN ('reject','reopen','submit') ORDER BY event_id DESC LIMIT 1").get(item.item_id);
+    return last?.event_kind === 'reject' ? active.find(agent => agent.id === item.item_built_by && agent.lane === item.item_lane && canTake(agent.route, item.item_route)) : null;
+  };
+  const returned = new Set();
+
   // A lapsed claim is CLAIM_LAPSED's to report; only a live claim can rank behind free work.
   for (const claim of items.filter((item) => item.item_status === 'claimed' && Date.parse(item.item_lease_until ?? '') > at)) {
     const holder = agents.find((agent) => agent.id === claim.item_owner);
     if (!holder) continue;
+    const claimEvent = board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim'").get(claim.item_id, holder.id)?.id;
+    const proved = claimEvent && board.db.prepare(`SELECT 1 FROM event WHERE event_id>? AND event_by=? AND
+      ((item_id=? AND event_kind='proof-run') OR (event_kind='gate-run' AND json_extract(event_detail,'$.run.proof.item')=?)) LIMIT 1`)
+      .get(claimEvent, holder.id, claim.item_id, claim.item_id);
+    if (proved) continue;
     // Model exactly the release printed below: legal child or returned claims remain occupied.
     const releasedClaims = [claim.item_id];
     const compare = buildOrder(board, { releasedClaims });
@@ -447,6 +493,21 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     const ahead = open.filter((entry) => freeToHolder(entry) && entry.lane === holder.lane && canTake(holder.route, entry.route))
       .map((entry) => raw.get(entry.id))
       .filter((item) => item && compare(item, claim) < 0)
+      .filter(item => {
+        const builder = reworkBuilder(item);
+        if (!builder) return true;
+        if (!returned.has(item.item_id)) {
+          returned.add(item.item_id);
+          findings.push(finding('IDLE_AGENT', item, {
+            subject: builder.id, key: `IDLE_AGENT:agent:${builder.id}:rework:${item.item_id}`, since: since(item.item_id), now,
+            title: 'returned work waits for its active builder',
+            why: `#${item.item_id} was rejected and its last builder ${builder.id} is active in ${builder.lane}`,
+            next: `resume #${item.item_id} with pullboard claim ${item.item_id}`, command: `pullboard claim ${item.item_id}`,
+            owner: { role: 'builder', who: builder.id }, detail: { lane: builder.lane, route: builder.route, item: item.item_id },
+          }));
+        }
+        return false;
+      })
       .sort(compare);
     if (!ahead.length) continue;
     const first = ahead[0];

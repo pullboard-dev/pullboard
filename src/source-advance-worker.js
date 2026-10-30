@@ -10,6 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from './board.js';
+import { openBoardForRead } from './native-board.js';
 import { codeIsFromMain } from './git.js';
 import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
@@ -19,6 +20,7 @@ import { captureSourceAdvanceBasis } from './source-advance-origin.js';
 import { prepareSourceAdvance } from './source-advance-origin.js';
 import { prepareSourceAdvanceReturn } from './source-advance-origin.js';
 import { withSourceComposition } from './source-advance-compose.js';
+import { quarantineVerdictSnapshot } from './quarantine.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {
@@ -30,7 +32,7 @@ export function sourceAdvanceDirectory(info) { return join(info.commonDir, 'pull
 
 /** Read a short native snapshot and close its connection before tests, admission or network work. */
 function readBoard(info, work) {
-  const board = store.openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Error('source-advance board is unavailable');
   try { return work(board); } finally { store.closeBoard(board); }
 }
@@ -147,10 +149,14 @@ async function advance(root, directory, job, write, services) {
       const policy = mainPolicy(root);
       if (policy.commit !== job.basis.trunk) throw new Error('main changed before source-advance admission');
       const config = policy.config;
+      const quarantines = readBoard(repoInfo(root), board => {
+        board.quarantineEnabled = () => config.flakes?.quarantine === true;
+        return quarantineVerdictSnapshot(board);
+      });
       custody.started();
       const gate = await runSubmitGate(composition.directory, config, { base: composition.inputHead, changed: composition.changed,
         executionServices: services.executionServices, check: frozenCheck(job.item), timing: frozenCheckTiming(job.item), agent: 'coordinator', item: String(job.item.item_id), sourceAdvance: true,
-        proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit' } });
+        proofContext: { item: job.item.item_id, frozenDigest: job.basis.bar, seat: 'coordinator', kind: 'submit', quarantines } });
       if (!gate.cleanupUnverified && !(gate.profile?.landingShards?.unverified?.length > 0)) custody.terminal();
       const artifacts = retainArtifacts(directory, job, gate, composition, services);
       const result = await complete(root, write, services, async (board, order, lease) => {

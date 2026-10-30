@@ -244,12 +244,31 @@ test('a controller and worker mixed across an upgrade are refused before SSH whi
   assert.equal(result.freshGreen, true, 'both upgraded allowlists are coherent when loaded by a fresh controller');
 });
 
+test('a changed composed resource provider leaf refuses the old controller generation before SSH [C7]', t => {
+  const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-lifecycle-tooling');
+  mkdirSync(installed);
+  copyPackageFiles(join(import.meta.dirname, '..'), installed);
+  const url = pathToFileURL(join(installed, 'src/runners.js')).href;
+  const leaf = join(installed, 'packages/resources/src/shell/controller-custody.js');
+  const result = child(box, `import {runOnRunnerAsync} from ${JSON.stringify(url)};
+    import {existsSync,readFileSync,writeFileSync} from 'node:fs';
+    const leaf=${JSON.stringify(leaf)};
+    writeFileSync(leaf,readFileSync(leaf,'utf8')+'\\n// private lifecycle provider generation changed\\n');
+    let failure;
+    try {await runOnRunnerAsync(process.cwd(),'true',{runner:${JSON.stringify({ ...box.runner, host: HOST })}});}
+    catch(error){failure={name:error.name,code:error.code};}
+    console.log(JSON.stringify({failure,sent:existsSync(${JSON.stringify(box.requests)})}));`);
+  assert.equal(result.failure?.name, 'Refused');
+  assert.equal(result.failure?.code, 'RUNNER_TOOLING_CHANGED');
+  assert.equal(result.sent, false, 'a stale lifecycle provider cannot contact or quarantine a host');
+});
+
 test('an asynchronous runner dispatch never uses a preloaded resource generation [C7]', t => {
   const box = fixture(t, { dropFirst: false }), installed = join(box.dir, 'installed-preloaded-tooling');
   mkdirSync(installed);
   copyPackageFiles(join(import.meta.dirname, '..'), installed);
   const observations = join(box.dir, 'resource-generation.jsonl');
-  const resources = toolSourcePath(installed, 'src/resources.js');
+  const resources = toolSourcePath(installed, 'packages/resources/index.js');
   const signature = 'export function recordRunnerGui(host, gui) {';
   const observer = `\n  observeGeneration(${JSON.stringify(observations)}, JSON.stringify({ pid: process.pid, generation: 'resource-generation-before' }) + '\\n');`;
   const original = readFileSync(resources, 'utf8');

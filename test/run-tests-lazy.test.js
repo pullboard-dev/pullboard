@@ -70,7 +70,9 @@ function sourceTreeReader(source) {
 
 /** Independently trace historical literal importer paths without assuming their cache completeness. */
 function knownLiteralBoardImporters(closures, modules) {
-  const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', 'test/runners.test.js'];
+  const runners = [...modules.keys()].filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
+  assert.ok(runners.length > 0, 'the split runner scenarios remain actual importer roots');
+  const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', ...runners];
   const releaseImports = importsIn([modules.get('src/release-queue.js')])[0];
   for (const file of ['board-read-open.js', 'board-query.js', 'board-read-auxiliary.js']) assert.ok(releaseImports.includes(`./${file}`), `release capture uses canonical reader ${file}`);
   assert.ok(!releaseImports.includes('./board.js'), 'release capture does not import the writer facade');

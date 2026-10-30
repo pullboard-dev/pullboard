@@ -21,6 +21,7 @@ import { COLLECTION_REPORT_PREFIX } from '../src/gate-run-receipt.js';
 import { formatCollectionReport } from '../src/gate-run-receipt.js';
 import { randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
+import { openBoardForRead, openBoard } from '../src/native-board.js';
 
 /** Keep a real installed runtime but give the fixture its own two-file committed test universe. */
 function timingProject(t) {
@@ -49,7 +50,7 @@ function timingProject(t) {
 
 /** Read the native recorded history through its existing public board projection. */
 function recorded(box) {
-  const board = store.openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   assert.ok(board);
   try { return nativeGateRuns(board); } finally { store.closeBoard(board); }
 }
@@ -91,7 +92,7 @@ test('a direct full suite records one durable source-bound run, including a comp
   assert.equal(both[1].green, false);
   assert.equal(both[1].full, true, 'both committed files completed even though a real assertion failed');
   assertMeasured(both[1], box, red.stdout);
-  const board = store.openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { assert.deepEqual(nativeFlakeQuarantines(board), [], 'direct-suite evidence cannot establish a quarantine'); }
   finally { store.closeBoard(board); }
   const filtered = await runFixtureChildAsync(process.execPath, ['bin/run-tests.js', '--test-skip-pattern=first'],
@@ -108,18 +109,18 @@ test('a direct full suite records one durable source-bound run, including a comp
 test('a sharded landing retains each actual attempt and immutable board-bound timing [C7,H16]', async t => {
   const box = timingProject(t);
   const replica = fixtureBoard(t);
-  const initial = store.openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const initial = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { importBoard(replica, exportBoard(initial)); } finally { store.closeBoard(initial); }
   const source = `import {runGate} from './src/gate.js';
 import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
- import * as store from './src/board.js';
+ import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {readFileSync} from 'node:fs'; import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
 const run=await runGate(process.cwd(),JSON.parse(readFileSync('pullboard.json','utf8')),{ executionServices,trustStamp:false,landing:true,agent:'coordinator'});
 if(!run.isGreen) throw new Error(run.output);
 const receipt=readGateReceipt(receiptStore(process.cwd()),run.receiptId);
-const board=store.openBoard('.git/pullboard/board.sqlite');
+const board=openBoard('.git/pullboard/board.sqlite');
 try { board.enginePorts.store.recordGateRun(board,{agentId:'coordinator',receipt,lane:'web'}); } finally {store.closeBoard(board);}
 console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
@@ -138,7 +139,7 @@ console.log(run.output); console.log(JSON.stringify({receiptId:run.receiptId}));
   assert.equal(normalized.timing ?? null, null, 'legacy phase times remain unknown');
   assert.equal(normalized.full ?? null, null, 'legacy full coverage remains unknown');
   // @pullboard-board-file persistence: bind native receipts to this fixture's actual store before sealed replay and tamper checks.
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const receipt = readGateReceipt(receiptStore(box.repo), rows[0].id);
     const move = prepareEngineMove(board, 'recordGateRun', [{ agentId: 'coordinator', receipt, lane: 'web' }]);
@@ -164,20 +165,22 @@ test('a selected real landing failure remains accounted under its native private
     gate: 'node bin/run-tests.js --test-concurrency=1 test/one.test.js' }) + '\n');
   commitFixtureFiles(box, ['pullboard.json']);
   const source = `import {readFileSync,existsSync} from 'node:fs';
-import {runGate} from './src/gate.js'; import * as store from './src/board.js';
+import {runGate} from './src/gate.js'; import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {accountedFailures,waivedFailures,liveWaiverProjection} from './src/land.js';
 import {runnerExecutionServices} from './src/runners.js';
 import {landingExecutionServices} from './src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
+import {quarantineWaivers} from './src/quarantine.js';
+const landingPorts={quarantineWaivers};
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 // @pullboard-board-file persistence: install and read a live native waiver in this private fixture's actual board.
-const board=store.openBoard('.git/pullboard/board.sqlite');
+const board=openBoard('.git/pullboard/board.sqlite');
 try {
 const waiver=store.recordLandingWaiver(board,{agentId:'person',channel:'terminal',id:'timing-selected-native-waiver',
  test:'test/one.test.js',until:'2099-01-01',reason:'private selected landing accounting regression'});
-const run=await runGate(root,config,{executionServices,landing:true,stages:true,trustStamp:false,agent:'coordinator',waivers:liveWaiverProjection(board)});
-const accounted=accountedFailures(run,root),covered=waivedFailures(board,accounted);
+const run=await runGate(root,config,{executionServices,landing:true,stages:true,trustStamp:false,agent:'coordinator',waivers:liveWaiverProjection(board,landingPorts)});
+const accounted=accountedFailures(run,root),covered=waivedFailures(board,accounted,landingPorts);
 const receipt=readGateReceipt(receiptStore(root),run.receiptId);
 console.log(JSON.stringify({raw:run.output,stages:run.stages,source:{commit:receipt.head,tree:receipt.tree},
  green:run.isGreen,waiver,accounted,covered,stamp:existsSync('.git/pullboard-gate-green')}));
@@ -252,13 +255,13 @@ import {landingExecutionServices} from './src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
  import {compareMainFailures} from './src/main-red.js';
 import {accountedFailures} from './src/land.js';
-import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js'; import * as store from './src/board.js';
+import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js'; import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 const red=await runGate(root,config,{ executionServices,trustStamp:false,agent:'coordinator',stages:true}); assert.equal(red.isGreen,false);
 assert.match(red.output,/# pullboard suite timing /); assert.equal(accountedFailures(red,root)?.length,1);
 const ids=[]; const options={commit:${JSON.stringify(box.head)},detailed:true,onMeasuredReceipt:async id=>{
 const receipt=readGateReceipt(receiptStore(root),id); assert.ok(receipt);
-const board=store.openBoard('.git/pullboard/board.sqlite');
+const board=openBoard('.git/pullboard/board.sqlite');
 try {board.enginePorts.store.recordGateRun(board,{agentId:'coordinator',receipt,lane:'web'});} finally {store.closeBoard(board);}
 ids.push(id);}};
 const first=await compareMainFailures(root,red.profile,undefined,red.output,options);

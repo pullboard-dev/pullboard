@@ -95,20 +95,24 @@ export function roadmapCardsHtml(read, presentation = {}) {
     return (rows.length ? progress + '<ul>' + rows.map((row) => milestoneRowHtml(row, { ...rowPresentation.get(row), hidden: held === milestone.name && !row.held })).join('') + '</ul>' : '<p class="milestone-empty">No items yet.</p>')
       + (milestone.note ? '<p class="milestone-note">' + (notes.get(read) ?? esc(milestone.note)) + '</p>' : '');
   };
-  /** Keep folding consistent with the View's other keyboard-accessible disclosure controls. */
-  const wrap = (tag, classes, key, first, heading, contents, afterHead = '') => {
+  /** Keep folding consistent while the roadmap disclosure reuses the shared release-header presentation. */
+  const wrap = (tag, classes, key, first, heading, contents, afterHead = '', sharedHeader = false) => {
     const open = isOpen(key, first);
-    return '<' + tag + ' class="' + classes + '" data-key="' + esc(key) + '"><div class="milestone-head" data-roadmap-key="' + esc(key) + '" role="button" tabindex="0" aria-expanded="' + open + '">' + heading.replace('<h2>', '<h2>' + caret) + '</div>' + afterHead + '<div class="milestone-body"' + (open ? '' : ' hidden') + '>' + contents + '</div></' + tag + '>';
+    const head = '<div class="milestone-head' + (sharedHeader ? ' release-header-toggle' : '') + '" data-roadmap-key="' + esc(key) + '" role="button" tabindex="0" aria-expanded="' + open + '">'
+      + (sharedHeader ? caret + heading : heading.replace('<h2>', '<h2>' + caret)) + '</div>';
+    const summary = sharedHeader ? '<div class="release-header">' + head + afterHead + '</div>' : head + afterHead;
+    return '<' + tag + ' class="' + classes + '" data-key="' + esc(key) + '">' + summary + '<div class="milestone-body"' + (open ? '' : ' hidden') + '>' + contents + '</div></' + tag + '>';
   };
   /** Open every upcoming milestone by default; the person's current-page fold remains in the view map. */
   const card = (m) => {
     const header = headerFor(m);
     const legacyTarget = m.milestone.target ? '<div class="milestone-targetline">Target <time datetime="' + esc(m.milestone.target) + '">' + esc(targets.get(m) ?? m.milestone.target) + '</time>' + (m.milestone.pastTarget ? ' <span class="chip warn">past target</span>' : '') + '</div>' : '';
+    const heading = header ? header.top : '<h2>' + (headings.get(m) ?? esc(m.milestone.name)) + '</h2>' + count(m) + capacity(m);
     return wrap('section', 'card-panel milestone' + (header ? ' roadmap-has-summary' : ''), 'm:' + m.milestone.name, true,
-      '<h2>' + (headings.get(m) ?? esc(m.milestone.name)) + '</h2>' + (header ? header.count : count(m)) + capacity(m), body(m), header ? header.detail + (m === next ? mobileHistory : '') : legacyTarget + (m === next ? mobileShipping : ''));
+      heading, body(m), header ? header.detail + (m === next ? mobileHistory : '') : legacyTarget + (m === next ? mobileShipping : ''), Boolean(header));
   };
   /** Summarize one shipped milestone with its first note line and total count. */
-  const line = (m) => wrap('div', 'milestone shipped-one', 'm:' + m.milestone.name, false, '<h2>' + esc(m.milestone.name) + '</h2><small>' + esc(firstLine(m.milestone.note)) + '</small>' + (m.milestone.shipped?.commit ? '<code class="roadmap-shipped-commit" title="' + esc(m.milestone.shipped.commit) + '">' + esc(m.milestone.shipped.commit.slice(0, 12)) + '</code>' : '') + '<span class="milestone-count">' + m.total + (m.total === 1 ? ' item' : ' items') + '</span>' + capacity(m), body(m));
+  const line = (m) => wrap('div', 'milestone shipped-one', 'm:' + m.milestone.name, false, '<h2>' + esc(m.milestone.name) + '</h2><small>' + esc(firstLine(m.milestone.note)) + '</small>' + '<span class="milestone-count">' + m.total + (m.total === 1 ? ' item' : ' items') + '</span>' + capacity(m), body(m), (m.milestone.shipped?.commit ? '<button class="hash-copy" type="button" title="' + esc(m.milestone.shipped.commit) + '" aria-label="Copy full hash ' + esc(m.milestone.shipped.commit) + '" data-copy="' + esc(m.milestone.shipped.commit) + '"><code class="roadmap-shipped-commit" title="' + esc(m.milestone.shipped.commit) + '">' + esc(m.milestone.shipped.commit.slice(0, 12)) + '</code></button>' : ''));
   const releaseButtons = coming.map((m) => {
     const key = 'm:' + m.milestone.name;
     return '<button class="roadmap-release" data-roadmap-jump="' + esc(key) + '" type="button"><span>' + esc(m.milestone.name) + '</span><b>' + m.done + '/' + m.total + '</b></button>';

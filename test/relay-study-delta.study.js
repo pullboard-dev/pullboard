@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { readRelay } from './relay-study-fixture.js';
@@ -18,7 +19,7 @@ function bytes(rows, pick, side) {
 test('relay study measures one sealed move against its checkpoint at 10k and 50k events [H5,H17]', { timeout: 300_000 }, async t => {
   const box = await relayClientFixture(t);
   await box.link();
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   for (const target of [10_000, 50_000]) {
     let events = board.db.prepare('SELECT COUNT(*) AS n FROM event').get().n;

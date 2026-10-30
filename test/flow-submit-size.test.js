@@ -4,6 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -41,7 +42,7 @@ test('a native submit records its immutable changed-line base and head for flow 
   assert.match(text.out, /waiting for an agent/u);
   assert.match(text.out, /filed for later/u);
   assert.match(text.out, /item #1/u);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const events = store.events(board);
     const submission = events.findLast(event => event.event_kind === 'submit');
@@ -62,7 +63,7 @@ test('submission size replays identically and refuses unsupported or malformed m
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.sandbox();
-  const source = store.openBoard(join(box.dir, 'source.sqlite'));
+  const source = openBoard(join(box.dir, 'source.sqlite'));
   const copies = [];
   t.after(() => { for (const board of [source, ...copies]) store.closeBoard(board); });
   // The older submit control needs joins and a claim that its writer could actually have recorded.
@@ -74,7 +75,7 @@ test('submission size replays identically and refuses unsupported or malformed m
     freeze: () => ({ text: '{"rows":[]}', digest: 'f'.repeat(64) }) }]);
   const document = exportBoard(source);
   for (let index = 0; index < 4; index += 1) {
-    const board = store.openBoard(join(box.dir, `replica-${index}.sqlite`));
+    const board = openBoard(join(box.dir, `replica-${index}.sqlite`));
     importBoard(board, document);
     copies.push(board);
   }

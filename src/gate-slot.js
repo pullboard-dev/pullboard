@@ -8,7 +8,7 @@ import {
   readMachineMemory,
   takeResource,
   requiredExecutorOf,
-} from './resources.js';
+} from '../packages/resources/index.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
@@ -60,6 +60,7 @@ export function settleReceipt(lease) {
     executionPhases: lease.executionPhases ?? null,
     ...(sourcePreparation ? { sourcePreparation } : {}),
     ...(lease.lateRunnerDispatch ? { lateRunnerDispatch: { ...lease.lateRunnerDispatch } } : {}),
+    ...(lease.infrastructureAttempts?.length ? { infrastructureAttempts: [...lease.infrastructureAttempts] } : {}),
     ...(local ? lease.timingEvidence?.() ?? { exclusive: false, unfencedClients: [] }
       : { exclusive: executor?.exclusive === true, unfencedClients: executor?.unfencedClients ?? [] }) };
   return lease.receipt;
@@ -74,7 +75,7 @@ export function settleReceipt(lease) {
  * hold (gate.memoryFloorMB) holds short slots too, since a short run uses the same machine memory.
  *
  * @param {(lease: { waitMs: number, token?: string, pool?: string, browser?: boolean, slotClass?: 'gate'|'short', release: () => void }) => any | Promise<any>} action - Work to perform while holding a slot.
- * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836) and, for tests, the machine memory reader.
+ * @param {{ landing?: boolean, itemCheck?: boolean, shortEligible?: boolean, diagnostic?: boolean, browser?: boolean, gui?: boolean, remote?: boolean, requiredExecutor?: {kind:'local'}|{kind:'ssh',host:string,hosts?:string[]}, runnerOnly?: boolean, runnerWaitMs?: number, runnerDeadlineAt?: number, timing?: boolean, agent?: string, item?: string|number, kind?: string, onWait?: (state: object) => void, onReceipt?: (receipt: object) => void, readMemory?: typeof readMachineMemory }} [options] - Queue class, short-slot eligibility, remote eligibility, progress reporter, the run's receipt once its slot is released (#836) and, for tests, the machine memory reader.
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
@@ -93,7 +94,7 @@ export async function withGateSlot(root, action, options = {}) {
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
-async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices } = {}) {
+async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false } = {}) {
   const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
   const tracker = startReceipt();
@@ -129,6 +130,8 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const floorMB = memoryFloorMB();
   const capacityProvider = () => settingsProvider().gateSlots;
   const source = runnerSource(root);
+  const retryInfrastructure = (infrastructureRetry || itemCheck || kind === 'review') && (itemCheck || kind === 'review');
+  const infrastructureAttempts = [];
   const policyTrunk = source ? mainCheckout(root) ?? carriedRunnerTrunk(root) : null;
   if (runnerOnly && (!remote || !source)) throw new Refused('RUNNER_SOURCE', 'Runner-only work needs a clean committed checkout for runner execution; commit the source and retry, with no local fallback');
   // Read the board once before queueing, never inside the machine admission transaction.
@@ -154,6 +157,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     browser,
     gui,
     timing,
+    infrastructureRetry: retryInfrastructure,
     allowIdleCapacityUpdate: true,
     remote: remote && Boolean(source),
     runnerOnly,
@@ -161,7 +165,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerProvider: () => loadMachineSettings().runners ?? [],
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
-    runnerIdleProbe: runner => probeRunnerHealth(runner, undefined, { idle: true }),
+    runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
     runnersFirstProvider: gateRunnersFirstEnabled,
     runnerWaitMs: runnerWaitMs ?? gateRunnerWaitMs(),
     runnerDeadlineAt,
@@ -169,19 +173,53 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     memory: floorMB === null ? undefined : memoryAdmission({ floorBytes: () => (memoryFloorMB() ?? floorMB) * 1024 ** 2, read: readMemory }),
     onWait,
   });
+  infrastructureAttempts.push(...(lease.infrastructureAttempts ?? []));
   tracker.mark('admittedAt');
   let healthyTransportRetry = false;
   try {
     while (true) {
       lease.source = source;
       lease.runMetadata = { landing, itemCheck, diagnostic, gui, timing, item: String(item), kind,
+        ...(lease.runner && lease.token && lease.pool ? { resourceOwner: { token: lease.token, pool: lease.pool } } : {}),
         ...(policyTrunk?.commit ? { trunk: { ref: policyTrunk.branch ?? policyTrunk.ref, commit: policyTrunk.commit } } : {}) };
       timed(lease).tracker.mark('actionAt');
-      try { return await action(lease); }
+      try {
+        const result = await action(lease);
+        if (infrastructureAttempts.length) {
+          infrastructureAttempts.push({ kind: 'retry', code: null, runner: lease.runner?.host ?? 'local',
+            outcome: result?.isGreen === false || result?.state === 'red' ? 'check-red' : 'completed', at: new Date().toISOString() });
+          lease.infrastructureAttempts = [...infrastructureAttempts];
+        }
+        return result;
+      }
       catch (error) {
+        if (error instanceof Refused && error.code === 'RUNNER_SOURCE_CHANGED' && error.runnerCancellation?.version === 1) {
+          if (lease.runner) {
+            if (typeof lease.cancelRunner !== 'function') throw new Refused('RESOURCE_LEASE_LOST', 'source cancellation needs the owned remote lease cancellation operation');
+            lease.cancelRunner(error.runnerCancellation.diagnostic);
+          }
+          throw error;
+        }
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
         const cleanup = error instanceof Refused && error.code === 'RUNNER_CLEANUP_TIMEOUT';
-        if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) throw error;
+        if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) {
+          if (infrastructureAttempts.length) {
+            infrastructureAttempts.push({ kind: 'retry', code: error?.code ?? error?.name ?? 'unknown', runner: lease.runner?.host ?? 'local',
+              outcome: 'error', at: new Date().toISOString() });
+            lease.infrastructureAttempts = [...infrastructureAttempts];
+          }
+          throw error;
+        }
+        const failure = { kind: cleanup ? 'cleanup-timeout' : 'transport-lost', code: cleanup ? error.code : error.code ?? 'TRANSPORT_LOST',
+          runner: lease.runner.host, at: new Date().toISOString(), diagnostic: error.diagnostic ?? null };
+        if (retryInfrastructure && infrastructureAttempts.length >= 1) {
+          lease.infrastructureAttempts = [...infrastructureAttempts, failure];
+          const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runner ${lease.runner.host} failed again (${failure.code}) after the one automatic infrastructure retry; inspect the retained runner diagnostics before retrying`);
+          refused.infrastructureAttempts = [...infrastructureAttempts, failure];
+          throw refused;
+        }
+        infrastructureAttempts.push(failure);
+        lease.infrastructureAttempts = [...infrastructureAttempts];
         // A separate Node process cannot prove that a worker which missed READY can accept a job.
         const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
           || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
@@ -202,8 +240,26 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
               : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
-        lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
-          local: cleanup && !runnerOnly && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic });
+        try {
+          lease = await lease.requeueRunner(cleanup ? 'cleanup-unverified' : admissionDeadline ? 'worker-unresponsive' : 'transport-lost', {
+            local: cleanup && !runnerOnly && restriction?.kind !== 'ssh', quarantine: !health?.healthy, diagnostic,
+            infrastructureRetryCount: retryInfrastructure ? infrastructureAttempts.length : 0,
+            infrastructureAttempts: [...infrastructureAttempts] });
+        } catch (requeueError) {
+          const requeueAttempt = requeueError?.code === 'RUNNER_WAIT_DEADLINE'
+            ? { kind: 'runner-wait', code: requeueError.code, runner: requeueError.infrastructureAttempt?.runners?.[0]?.host ?? null,
+              runners: requeueError.infrastructureAttempt?.runners ?? [], at: new Date().toISOString(), message: requeueError.message }
+            : null;
+          const attempts = [...infrastructureAttempts, ...(requeueAttempt ? [requeueAttempt] : [])];
+          if (attempts.length) requeueError.infrastructureAttempts = attempts;
+          if (retryInfrastructure && requeueAttempt) {
+            const refused = new Refused('RUNNER_INFRA_RETRY_EXHAUSTED', `runner ${failure.runner} failed (${failure.code}); its one queued retry then reached ${requeueError.code}: ${requeueError.message}`);
+            refused.infrastructureAttempts = attempts;
+            throw refused;
+          }
+          throw requeueError;
+        }
+        lease.infrastructureAttempts = [...infrastructureAttempts];
       }
     }
   } finally {

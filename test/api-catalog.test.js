@@ -22,7 +22,8 @@ import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
 import { main, resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../src/api.js';
-import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, openBoard, verdictsFor } from '../src/board.js';
+import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { projectState } from '../src/serve.js';
@@ -33,6 +34,7 @@ import { fetchFresh } from './http-fixture.js';
 import { fixtureJSON as intakeFixtureJSON, intakeFixture } from './intake-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { exerciseAdditiveRoots, exercisePatchCommands } from './api-catalog-extra-roots.js';
+import { assertSpecCorrectionRefreezesCitations } from './spec-refreeze-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
@@ -260,7 +262,7 @@ function parseOneDocument(stdout) {
 }
 
 
-catalogCase('[A1] command results match the catalog across roots and subcommands', async () => {
+catalogCase('[A1] command results match the catalog across roots and subcommands', async (t) => {
   const box = await project();
   const { repo } = box;
   assert.equal(box.initialized.version, 1);
@@ -296,6 +298,8 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   assert.equal(heartbeat.presence, 'live');
   assert.ok(Number.isFinite(Date.parse(heartbeat.heartbeatAt)), 'an explicit hook returns its real local observation');
   await json(box, repo, 'stats');
+  assert.equal((await json(box, repo, 'stats', ['pipeline', '--limit', '5'], 'pipeline')).pipeline.limit, 5);
+  assert.equal((await json(box, repo, 'stats', ['moves', '--limit', '5'], 'moves')).moves.limit, 5);
   const capacity = await json(box, repo, 'capacity');
   assert.equal(capacity.report.suite.minutes, null);
   assert.equal(capacity.report.files.lowerBound, true);
@@ -387,9 +391,10 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
 
   await json(box, repo, 'add', ['coordinator', 'Refreeze item', '--specs', 'G1']);
   await json(box, repo, 'claim', ['4']);
-  writeFileSync(join(repo, 'SPEC.md'), SPEC.replace('The fixture keeps its board.', 'The fixture keeps its local board.'));
-  await json(box, repo, 'refreeze', ['4']);
-  writeFileSync(join(repo, 'SPEC.md'), SPEC);
+  // #1870 requires governing rows: exercise actual person-approved spec apply and changed frozen bars.
+  assertSpecCorrectionRefreezesCitations(t);
+  assert.equal((await json(box, repo, 'refreeze', ['4'])).unchanged, true);
+  await json(box, repo, 'release', ['4', '--no-next']);
 
   await json(box, repo, 'add', ['coordinator', 'Escalate item', '--route', 'light', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   await json(box, repo, 'claim', ['5']);
@@ -874,7 +879,9 @@ catalogCase('[A1,C7] map exposes its main stamp and every rendered view through 
   assert.match(slice.map, /src\/map-fixture\.js/u);
   const plain = await box.run(box.repo, 'map', 'mapFixture');
   assert.equal(plain.status, 0, plain.stderr);
-  assert.equal(plain.stdout, `${card.map}\n`, 'JSON carries exactly the ordinary rendered card');
+  assert.match(plain.stdout, /\nnext: pullboard next --wait 1\n$/u, 'the text-only footer is present');
+  assert.equal(plain.stdout.replace(/\nnext: pullboard next --wait 1\n$/u, '\n'), `${card.map}\n`,
+    'JSON carries exactly the ordinary rendered card, excluding only its trailing text action');
 });
 
 catalogCase('[A1] intake records a real outside pull request through the CLI', async (t) => {

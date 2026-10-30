@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join, resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import { exportBoard } from '../src/exchange.js';
+import { beginCommandPhase } from '../src/command-phase.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync, startFixtureChild } from './fixture-child.js';
 
@@ -16,7 +17,7 @@ const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 /** Snapshot the real private board without acquiring a write lock. */
 function snapshot(file) {
   const db = new DatabaseSync(file, { readOnly: true });
-  try { return exportBoard({ db }); }
+  try { return exportBoard({ db }, { beginCommandPhase }); }
   finally { db.close(); }
 }
 
@@ -25,8 +26,9 @@ async function holdNamedWriter(box, file) {
   const releaseFile = join(box.dir, 'release-queue-board-writer');
   const source = `
     import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
     import { existsSync } from 'node:fs';
-    const board = store.openBoard(process.argv[1], undefined, {
+    const board = openBoard(process.argv[1], undefined, {
       writeContext: { command: 'private-lock-holder', seat: 'core-holder' },
     });
     try {

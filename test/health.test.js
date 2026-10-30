@@ -15,6 +15,8 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { addMilestone } from '../src/board-milestones.js';
 import { main } from '../src/cli.js';
 import { boardHealth, healthReport } from '../packages/health/index.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
@@ -107,7 +109,7 @@ function branchCommit(box, branch, from, path, text) {
 /** Open the fixture board with a clock the test turns by hand. */
 function boardAt(box) {
   const clock = { at: NOW - 40 * HOUR, now() { return new Date(this.at); } };
-  const board = store.openBoard(box.file, clock);
+  const board = openBoard(box.file, clock);
   /** Move the board's clock to a moment before NOW. */
   const at = (ms) => { clock.at = NOW - ms; };
   return { board, at };
@@ -211,8 +213,8 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   const parentItem = built('Parent in review', builders[11], parent);
   const conflictHold = built('Conflict hold', builders[0], cleared, 'REJECT');
   store.holdItem(board, conflictHold, { agentId: 'coordinator', reason: 'conflicts with the a.txt batch' });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.1.1', items: [lapsed, rejected, reopened] });
-  store.addMilestone(board, { agentId: 'coordinator', name: '0.1.2', items: [later] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.1.1', items: [lapsed, rejected, reopened] });
+  addMilestone(board, { agentId: 'coordinator', name: '0.1.2', items: [later] });
   store.closeBoard(board); // Health opens its own read-only connection.
 
   const beforeBoard = boardDigest(box.file);
@@ -330,6 +332,23 @@ test('health on a healthy board says nothing is stuck [A6]', async (t) => {
   assert.deepEqual(boardDigest(box.file), before, 'health changes nothing on a healthy board');
 });
 
+test('health preserves a real stuck finding instead of the exact healthy body [A6]', async t => {
+  const box = repo(t);
+  const { board, at } = boardAt(box);
+  store.register(board, { lane: 'coordinator', path: box.root });
+  at(48 * HOUR);
+  store.holdLane(board, 'docs', { agentId: 'coordinator', reason: 'A genuinely stale fixture lane hold.' });
+  store.closeBoard(board);
+  const result = await cli(box.root, ['health']);
+  assert.equal(result.code, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /^\d+ stuck:/mu);
+  assert.notEqual(result.stdout, 'nothing is stuck\n', 'the unchanged healthy-body oracle still refuses a genuine finding');
+  assert.ok(!result.stdout.includes('nothing is stuck'));
+  const json = await cli(box.root, ['health', '--json']);
+  assert.equal(json.code, 1, json.stdout + json.stderr);
+  assert.ok(JSON.parse(json.stdout).stuck.some(finding => finding.cause === 'HOLD_STALE' && finding.subject === 'lane docs'));
+});
+
 test('a submitted item with no reviewer goes to the coordinator, not its builder [A6]', async (t) => {
   // A board with no review lane still gets a command the real shout path accepts: it goes to the
   // coordinator, and the builder is never the owner of their own review (#910).
@@ -360,7 +379,7 @@ test('a submitted item with no reviewer goes to the coordinator, not its builder
   assert.equal(argv[0], 'pullboard', entry.command);
   const shouted = await cli(box.root, argv.slice(1));
   assert.equal(shouted.code, 0, `the generated command is accepted: ${shouted.stderr}${shouted.stdout}`);
-  const reread = store.openBoard(box.file, { now: () => new Date(NOW) });
+  const reread = openBoard(box.file, { now: () => new Date(NOW) });
   try {
     const sent = store.allShouts(reread).filter((shout) => shout.shout_to === 'all').map((shout) => shout.shout_text);
     assert.ok(sent.some((text) => text.includes(`#${waiting} needs a reviewer outside ${builder}'s controller and session`)), `every agent hears the request: ${sent.join(' | ')}`);
@@ -568,7 +587,7 @@ test('health reports a gate that refused every run [C7,D1]', async (t) => {
 
 test('a positive control inherits the gate slot it runs under [C7,D1]', async (t) => {
   const box = repo(t);
-  const resources = pathToFileURL(resolve('src/resources.js')).href;
+  const resources = pathToFileURL(resolve('packages/resources/index.js')).href;
   // The control asks whether it inherited the gate's admission; a child that does not is refused and reads red.
   const probe = `node --input-type=module -e "const { inheritedGateSlot } = await import('${resources}'); process.exit(inheritedGateSlot({ root: process.cwd() }) ? 0 : 1)"`;
   commitPolicy(box, { gate: 'true', positiveControl: probe });

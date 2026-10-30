@@ -4,6 +4,7 @@ import { computerName } from './computer-name.js';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import * as store from './board.js';
+import { openBoard } from './native-board.js';
 import {
   phoneProposal,
   publishPhoneApproval,
@@ -70,7 +71,7 @@ export function unlinkedRelayProjects() {
 
 /** Read the registered local board identity without executing any person action. */
 function projectBoard(root) {
-  const board = store.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try { return plannedRelayBoard(root, store.boardId(board)); } finally { store.closeBoard(board); }
 }
 

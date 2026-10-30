@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { receiptLog } from '../src/gate-receipt.js';
 import { machineHome } from '../packages/resources/index.js';
 import { loadMachineSettings } from '../src/settings.js';
@@ -29,7 +30,7 @@ function receipts(root) {
 }
 /** Separate fixture actors have explicit synthetic parents; they make no claim about actual reviewer independence. */
 function actors(box) {
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     store.register(board, { lane: 'coordinator', path: box.repo, parent: 'mixed-mode-fixture-reviewer' });
     store.register(board, { lane: 'web', path: box.web, parent: 'mixed-mode-fixture-local' });

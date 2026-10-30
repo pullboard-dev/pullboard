@@ -26,7 +26,7 @@ import {
   tryGit,
 } from '../../../../src/git.js';
 import { withGateSlot } from '../../../../src/gate.js';
-import { gateSlotEnvironment } from '../../../../src/resources.js';
+import { gateSlotEnvironment } from '../../../resources/index.js';
 import { Refused } from '../../../../src/refused.js';
 import {
   historyPathMap,

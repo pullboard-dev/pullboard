@@ -68,7 +68,9 @@ export async function requestFor(root, command, { runner, source, browser = fals
     // Loaded on demand: read commands that import this module never pay for the key analyzer.
     const exchange = reuse ? await (await import('./test-action-transfer.js')).prepareTestResultExchange(root, command, selected.commit) : null;
     const { worker, tooling, runtime } = trustedTooling();
-    const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).map(({ kind, test }) => ({ kind, test })) : [];
+    const projection = metadata.landing === true && Array.isArray(waivers) ? waivers.filter(entry => ['file', 'name', 'case'].includes(entry?.kind) && typeof entry.test === 'string' && entry.test).filter(entry => entry.kind !== 'case' || typeof entry.file === 'string' && entry.file && !entry.file.startsWith('/')
+      && !/[\\\r\n\0]/u.test(entry.file) && entry.file.split('/').every(part => part && part !== '.' && part !== '..'))
+      .map(({ kind, test, file }) => ({ kind, test, ...(kind === 'case' ? { file } : {}) })) : [];
     if (secretsIn([{ path: 'runner continuation', line: 1, text: JSON.stringify(projection) }]).length) throw new Refused('RUNNER_SECRET', 'the continuation projection contains a possible secret; keep this run local');
     const stage = /^[a-z][a-z0-9-]{0,63}$/u.test(metadata.testStage ?? '') ? metadata.testStage : metadata.landing ? 'land' : 'focused';
     const id = randomUUID();

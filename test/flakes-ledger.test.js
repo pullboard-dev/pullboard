@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -12,7 +13,7 @@ import { submitFixture } from './board-submit-fixture.js';
 /** Seed only a private in-memory board, using ordinary registration operations and a controlled clock. */
 function ledgerFixture(t) {
   let time = Date.parse('2026-10-20T00:00:00Z');
-  const board = store.openBoard(':memory:', { now: () => new Date(time) });
+  const board = openBoard(':memory:', { now: () => new Date(time) });
   t.after(() => store.closeBoard(board));
   store.register(board, { lane: 'coordinator', path: '/synthetic/main' });
   const builder = store.register(board, { lane: 'app', path: '/synthetic/build', route: 'strong' });
@@ -70,7 +71,7 @@ test('a landed repair is fixed until the same test is seen again [D1,H16]', t =>
 });
 
 test('flake observations replay exactly and duplicate engine receipts do not add sightings [H16]', t => {
-  const box = ledgerFixture(t), replica = store.openBoard(':memory:');
+  const box = ledgerFixture(t), replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(box.board));
   for (let sequence = 1; sequence <= 2; sequence++) {

@@ -1,18 +1,11 @@
 /** Capture one board's release priority before joining the machine resource transaction [C7,V4]. */
-import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { isAbsolute } from 'node:path';
-import { join } from 'node:path';
 import { openBoardReadOnly } from './board-read-open.js';
+import { runnerBoardFile } from '../packages/resources/index.js';
 import {
   boardId,
   listItems,
 } from './board-query.js';
 import { milestones } from './board-read-auxiliary.js';
-import {
-  cleanGitEnvironment,
-  repoInfo,
-} from './git.js';
 
 /**
  * Capture the item's roadmap rank once, without opening or migrating a board for writing.
@@ -26,7 +19,7 @@ import {
  * @returns {{ board: string, rank: number }|undefined}
  */
 export function captureReleaseQueue(root, item) {
-  const file = boardFileFor(root);
+  const file = runnerBoardFile(root);
   if (!file) return undefined;
   const db = openBoardReadOnly(file);
   try {
@@ -44,26 +37,6 @@ function releaseRankInputs(board) {
   return milestones(board).map(milestone => ({ items: milestone.items.map(id => ({
     id, status: typeof id === 'number' ? items.get(id)?.item_status ?? 'missing' : 'unavailable',
   })).filter(item => item.status !== 'withdrawn') }));
-}
-
-/**
- * Find the board database a gate caller queues under: the checkout's own, or, for a private clone of the
- * board repo (a builder's integration clone), the board of the repo it was cloned from. Without a board
- * anywhere the run keeps its queue position, as before [C7,O5].
- *
- * @param {string} root - The gate caller's checkout.
- * @param {number} [hops] - How many clone origins may be followed.
- * @returns {string|null}
- */
-function boardFileFor(root, hops = 3) {
-  let info;
-  try { info = repoInfo(root); } catch { return null; }
-  const file = join(info.commonDir, 'pullboard', 'board.sqlite');
-  if (existsSync(file)) return file;
-  if (hops <= 0) return null;
-  const origin = spawnSync('git', ['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
-  const url = origin.status === 0 ? origin.stdout.trim() : '';
-  return url && isAbsolute(url) && existsSync(url) ? boardFileFor(url, hops - 1) : null;
 }
 
 /**

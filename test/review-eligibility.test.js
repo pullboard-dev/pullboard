@@ -1,5 +1,7 @@
 /** @pullboard-test-input source-tree */
+import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
 import * as queueStore from '../src/board.js';
+import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
 /** Private board-state fixtures exercise independence; synthetic commits and events are not gate proof [V4,B26]. */
 import assert from 'node:assert/strict';
@@ -35,9 +37,10 @@ const LEASE = 3_600_000;
 const freeze = () => ({ text: '{}', digest: 'synthetic-review-bar' });
 
 /** Declare every vendor and persisted parent explicitly; no model label supplies an inferred family. */
-function fixture(t, { historical = false, requireFamilies = true } = {}) {
+function fixture(t, { historical = false, requireFamilies = true, engine } = {}) {
   const board = fixtureBoard(t);
-  if (historical) board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE - 1;
+  if (engine !== undefined) board.executionEngineVersion = engine;
+  else if (historical) board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE - 1;
   const join = (id, family, parent) => store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core', path: `/fixture/${id}`,
     family, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
   join('coordinator', 'human', 'e');
@@ -70,8 +73,8 @@ test("a helper's posted fact does not make a seat ineligible [V4,B26]", t => {
   assert.equal(f.reserve(id, 'core-3').item_review_by, 'core-3', 'a released claim without a commit is not Standard authorship');
 });
 
-test('one eligibility projection reads shared history once and the next sees new facts [C7,V4,B26]', t => {
-  const f = fixture(t), id = f.add({ sensitive: true }), item = f.submit(id);
+test('Pre-composition: one eligibility projection reads shared history once and the next sees new facts [C7,V4,B26]', t => {
+  const f = fixture(t); f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1; const id = f.add({ sensitive: true }), item = f.submit(id);
   const original = f.board.db;
   let historyReads = 0;
   const observed = { ...f.board, db: {
@@ -104,8 +107,8 @@ test('one eligibility projection reads shared history once and the next sees new
   assert.deepEqual(exportBoard(f.board), changed, 'freshness needs no persistent cache');
 });
 
-test('a strict item refuses any seat that touched it [V4,B26]', t => {
-  const f = fixture(t), id = f.add({ sensitive: true });
+test('Pre-composition: a strict item refuses any seat that touched it [V4,B26]', t => {
+  const f = fixture(t); f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1; const id = f.add({ sensitive: true });
   store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'A native diagnostic fact counts under Strict.' });
   const item = f.submit(id);
   const before = store.events(f.board);
@@ -121,14 +124,14 @@ test('next offers a review only to an eligible seat [V4,B26]', t => {
   f.submit(eligible, 'core-1');
   const offered = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' });
   assert.equal(offered.item.item_id, eligible, 'the older same-vendor item is never offered');
-  const queue = workQueue(f.board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: queueStore.roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, 'core-5', { familyPolicy: 'require' });
+  const queue = workQueue(f.board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, 'core-5', { familyPolicy: 'require' });
   const ids = [...queue.releases.flatMap(r => r.items), ...queue.unreleased].map(item => item.id);
   assert.equal(ids.includes(same), false, 'the work queue uses the same vendor rule');
   assert.equal(ids.includes(eligible), true);
 });
 
-test('Strict permits its own reservation and verdict but an ordinary check still counts as a write [V4,B26]', t => {
-  const f = fixture(t), id = f.add({ sensitive: true });
+test('Pre-composition: Strict permits its own reservation and verdict but an ordinary check still counts as a write [V4,B26]', t => {
+  const f = fixture(t); f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1; const id = f.add({ sensitive: true });
   const item = f.submit(id);
   f.reserve(id, 'core-5');
   // Explicitly synthetic history tests the protocol distinction; this is not a native gate receipt.
@@ -234,8 +237,8 @@ test('the review vendor setting defaults off and requires its native engine on r
 });
 
 
-test('engine 142 family records retain their shape and become Strict under modern review [V4,B26,H16]', t => {
-  const f = fixture(t);
+test('Pre-composition: engine 142 family records retain their shape and become Strict under modern review [V4,B26,H16]', t => {
+  const f = fixture(t); f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1;
   f.board.executionEngineVersion = 142;
   const id = f.add({ reviewFamily: 'ClAuDe' });
   const added = store.events(f.board).find(event => event.event_kind === 'add' && event.item_id === id);
@@ -245,7 +248,7 @@ test('engine 142 family records retain their shape and become Strict under moder
   const edited = store.events(f.board).filter(event => event.event_kind === 'edit' && event.item_id === id).at(-1);
   assert.equal(JSON.parse(edited.event_detail).reviewFamily, 'CLAUDE');
   assert.equal(Object.hasOwn(JSON.parse(edited.event_detail), 'reviewPolicy'), false);
-  delete f.board.executionEngineVersion;
+  f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1;
   assert.deepEqual(itemReviewPolicy(f.board, id), { version: 1, sensitive: false, reviewFamily: 'CLAUDE', tier: 'strict' });
   store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'Native old-family item is still strict after upgrade.' });
   f.submit(id);
@@ -259,10 +262,10 @@ test('engine 142 family records retain their shape and become Strict under moder
 });
 
 
-test('modern Strict policy fences old-engine reserve, selection and verdict replay [V4,B26,H16]', t => {
+test('Pre-composition: modern Strict policy fences old-engine reserve, selection and verdict replay [V4,B26,H16]', t => {
   for (const policy of [{ sensitive: true }, { reviewFamily: 'claude' }]) {
     for (const operation of ['reserveReview', 'reserveNextReview', 'verify']) {
-      const f = fixture(t), id = f.add(policy);
+      const f = fixture(t); f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1; const id = f.add(policy);
       store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'A real native write forbids this session under Strict.' });
       // Explicit synthetic frozen policy is required by real ordered verify replay, not runtime proof.
       store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
@@ -274,6 +277,7 @@ test('modern Strict policy fences old-engine reserve, selection and verdict repl
         ? { agentId: 'core-3', decision: 'ACCEPT', note: 'Synthetic replay authority control.', head: item.item_commit,
           digest: item.item_frozen_digest, policy: 'any', check: 'none' } : options];
       const move = prepareEngineMove(f.board, operation, args, { id: `strict-floor-${operation}-${id}` });
+      move.engine = STRICT_COMPOSITION_ENGINE - 1;
       const before = exportBoard(f.board);
       assert.throws(() => applyEngineMove(f.board, { ...move, engine: 142 },
         { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), { code: 'RELAY_MOVE' }, operation);
@@ -292,14 +296,14 @@ test('modern Strict policy fences old-engine reserve, selection and verdict repl
 });
 
 
-test('ordered activation protects legacy family items and preserves genuine engine 142 receipts [V4,B26,H16]', t => {
+test('Pre-composition: ordered activation protects legacy family items and preserves genuine engine 142 receipts [V4,B26,H16]', t => {
   for (const activation of ['success', 'refusal']) {
   const f = fixture(t, { historical: true });
   f.board.clock = { now: () => new Date('2026-10-27T00:02:00.000Z') };
   const id = f.add({ reviewFamily: 'claude' });
   store.appendFact(f.board, id, { agentId: 'core-2', kind: 'note', text: 'Historical item write becomes a Strict touch after rollout.' });
   f.submit(id);
-  delete f.board.executionEngineVersion;
+  f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1;
   const args = [id, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' }];
   const old = { ...prepareEngineMove(f.board, 'reserveReview', args, { id: 'genuine-142-review' }), engine: 142 };
   const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
@@ -309,10 +313,12 @@ test('ordered activation protects legacy family items and preserves genuine engi
   const modern = activation === 'success'
     ? prepareEngineMove(f.board, 'appendFact', [id, { agentId: 'core-2', kind: 'note', text: 'Modern recorded native mutation activates review semantics.' }], { id: 'activate-review-prefix' })
     : prepareEngineMove(f.board, 'reserveReview', [id, { ...args[1], agentId: 'core-3' }], { id: 'activate-refusal-prefix' });
+  modern.engine = STRICT_COMPOSITION_ENGINE - 1;
   const activated = applyEngineMove(f.board, modern, { sequence: 2, at: '2026-10-27T00:02:00.000Z' });
   assert.equal(activated.error?.code, activation === 'success' ? undefined : 'STRICT_REVIEW_TOUCHED');
   const newArgs = [id, { ...args[1], agentId: 'core-3' }];
   const next = prepareEngineMove(f.board, 'reserveReview', newArgs, { id: 'new-review-old-item' });
+  next.engine = STRICT_COMPOSITION_ENGINE - 1;
   const before = exportBoard(f.board);
   assert.throws(() => applyEngineMove(f.board, { ...next, engine: 142 },
     { sequence: 3, at: '2026-10-27T00:03:00.000Z' }), { code: 'RELAY_MOVE' });
@@ -352,7 +358,7 @@ test('strict vendor eligibility and native reservation agree while historical re
 
 test('routing activation fences vendor-rule downgrades while genuine historical receipts replay unchanged [C7,V4,B26,H16]', t => {
   for (const operation of ['reserveReview', 'reserveNextReview', 'verify']) {
-    const f = fixture(t, { requireFamilies: false });
+    const f = fixture(t, { requireFamilies: false, engine: REVIEW_ROUTING_ENGINE - 1 });
     f.board.clock = { now: () => new Date('2026-10-27T00:02:00.000Z') };
     const id = f.add({ sensitive: true, reviewFamily: null });
     store.claim(f.board, id, { agentId: 'core-1', lane: 'core', leaseMs: LEASE,
@@ -364,6 +370,7 @@ test('routing activation fences vendor-rule downgrades while genuine historical 
     const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' });
     assert.equal(first.error, undefined, 'the historical known-vendor policy allowed this untouched session');
     const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+    delete f.board.executionEngineVersion;
     store.release(f.board, id, 'core-4', 'Release the historical review before routing activation.');
     assert.throws(() => store.reserveReview(f.board, id, options), { code: 'REVIEW_COOLDOWN' });
     // Honor the real release cooldown before asking the independent vendor guard to decide.
@@ -461,7 +468,7 @@ test('the real withOpenedBoard installs the alias list from accepted main and th
 });
 
 test('aliases and the strict builder rule apply only from their engine; an older sealed move replays unchanged [C7,V4,B26,H16]', t => {
-  const f = fixture(t, { requireFamilies: false });
+  const f = fixture(t, { requireFamilies: false, engine: FAMILY_ALIAS_ENGINE - 1 });
   f.board.clock = { now: () => new Date('2026-10-28T00:02:00.000Z') };
   joinSeat(f.board, 'core-6', 'OpenAI', '6');
   const id = f.add({ sensitive: true, reviewFamily: null }), item = f.submit(id);
@@ -472,6 +479,7 @@ test('aliases and the strict builder rule apply only from their engine; an older
   const first = applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T00:01:00.000Z' });
   assert.equal(first.error, undefined, 'recorded before aliases existed, OpenAI and codex were two vendors');
   const receipt = f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value;
+  delete f.board.executionEngineVersion;
   store.release(f.board, id, 'core-6', 'Release the historical review before the alias engine applies.');
   f.board.clock = { now: () => new Date('2026-10-28T01:03:00.000Z') };
   const fresh = prepareEngineMove(f.board, 'reserveReview', [id, options]);

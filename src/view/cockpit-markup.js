@@ -1,6 +1,6 @@
 /** Return the original markup section of the self-contained cockpit document. */
 export function cockpitMarkup(sections) {
-  const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
+  const { repositoryAttribute, cssAttribute, hostedLocal, snapshot, readOnly, requestMode, privateCost, hostedMarkup, signIn, settingsMarkup, starMarkup } = sections;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -31,13 +31,13 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
 <header class="top">
   <nav class="tabs" id="tabs" aria-label="Board">
     <button class="tab" data-tab="dashboard" type="button">Dashboard</button>
-    <button class="tab" data-tab="home" type="button">Home</button>
     <button class="tab" data-tab="items" type="button">Items</button>
     <button class="tab" data-tab="shouts" type="button">Shouts</button>
     <button class="tab" data-tab="spec" type="button">Spec</button>
     <button class="tab" data-tab="doctrine" type="button">Doctrine</button>
     <button class="tab" data-tab="activity" type="button">Activity</button>
     <button class="tab" data-tab="roadmap" type="button">Roadmap</button>
+    ${privateCost ? '<button class="tab" data-tab="cost" type="button">Cost</button>' : ''}
   </nav>
   <div class="top-find"><input id="q" type="search" placeholder="Search" aria-label="Search items, Spec, Doctrine and shouts" autocomplete="off"><div class="find-results" id="find-results" role="listbox" aria-label="Search results" hidden></div></div>
 </header>
@@ -55,22 +55,12 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
     <button class="ghost" id="share-pair" type="button" hidden>Pair a device</button>
     <button class="ghost" id="share-close" type="button">Cancel sign-in</button>
   </section>
-  <section class="card-panel snapshot-controls" id="snapshot-controls" ${snapshot ? '' : 'hidden'} aria-label="Snapshot replay">
-    <span>Read-only snapshot</span>
-    <div class="snapshot-control-actions">
-      <button class="ghost" id="replay-play" type="button">Play from first event</button>
-      <button class="ghost" id="replay-pause" type="button" disabled>Pause</button>
-      <label>Speed <select id="replay-speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
-    </div>
-    <output id="replay-progress" aria-live="polite">Loading events…</output>
-  </section>
   <section id="group-view" class="group-view" hidden>
     <section class="card-panel group-panel"><h2>Needs you</h2><div id="group-needs"></div></section>
     <section class="card-panel group-panel"><h2>Activity</h2><div class="feed" id="group-activity"></div></section>
   </section>
   <section class="card-panel person-requests" id="person-requests" aria-label="Your requests" aria-live="polite" hidden></section>
   <section data-pane="dashboard" id="dashboard" class="dashboard" aria-label="Dashboard"></section>
-  <section data-pane="home" class="home" aria-label="Home"><section class="card-panel home-card" id="home-rules" aria-label="Your rules"></section><section class="card-panel home-card home-capacity" id="home-capacity" aria-label="Useful agent capacity"></section><section class="card-panel home-card" aria-label="Needs you"><h2>Needs you</h2><ol class="needs home-needs" id="home-needs"></ol><p class="empty" id="home-calm" hidden>Nothing needs you.</p></section></section>
   <section data-pane="items" class="two">
     <div class="primary">
       <section class="card-panel proof-stats" id="proof-stats" aria-label="Board proof stats" hidden></section>
@@ -121,11 +111,17 @@ ${hostedLocal && !snapshot ? '<div class="hosted-mark" aria-hidden="true"><svg v
   </section>
   ${settingsMarkup()}
   <section data-pane="roadmap" class="roadmap-layout" id="roadmap" aria-label="Roadmap"></section>
+  ${privateCost ? '<section data-pane="cost" id="cost" aria-label="Cost"></section>' : ''}
   ${hostedLocal && !snapshot ? starMarkup() : ''}
 </main>
 </div>
 </div>
-<footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span></footer>
+<footer class="status${snapshot ? ' snap' : ''}" aria-label="Board status"><span class="live" id="live"></span><span class="status-board" id="status-board"></span>${snapshot ? `<div class="snapshot-controls" id="snapshot-controls" aria-label="Snapshot replay">
+  <button class="snapshot-play" id="replay-play" type="button" aria-label="Play from first event" title="Play from first event"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.5 13 8l-9 5.5z" fill="currentColor"/></svg></button>
+  <button class="snapshot-pause" id="replay-pause" type="button" aria-label="Pause replay" title="Pause replay" disabled><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 3h3v10H4zm5 0h3v10H9z" fill="currentColor"/></svg></button>
+  <label class="snapshot-speed">Speed <select id="replay-speed" aria-label="Replay speed"><option value="1">1×</option><option value="4">4×</option><option value="16">16×</option></select></label>
+  <output id="replay-progress" aria-live="polite">event 0 of 0</output>
+</div>` : ''}</footer>
 <div class="spec-reason-backdrop" id="spec-decline-dialog" hidden>
   <form class="spec-reason-dialog" id="spec-decline-form" aria-labelledby="spec-decline-title">
     <h2 id="spec-decline-title">Decline spec row</h2>

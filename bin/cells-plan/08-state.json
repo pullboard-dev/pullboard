@@ -5,6 +5,7 @@
  "root": "packages/state",
  "frontDoor": "packages/state/index.js",
  "paths": [
+  ["src/review-default-engine.js","packages/state/src/core/review-default-engine.js","rule"],
   ["src/activity-delivery-engine.js","packages/state/src/core/activity-delivery-engine.js","seed"],
   ["src/activity-news-engine.js","packages/state/src/core/activity-news-engine.js","seed"],
   ["src/agent-grant-engine.js","packages/state/src/core/agent-grant-engine.js","seed"],
@@ -174,6 +175,7 @@
   ["src/family-declare-engine.js","packages/state/src/core/family-declare-engine.js","rule"],
   ["src/main-audit-engine.js","packages/state/src/core/main-audit-engine.js","rule"],
   ["src/stale-state-engine.js","packages/state/src/core/stale-state-engine.js","rule"],
+  ["src/lease-lapse-engine.js","packages/state/src/core/lease-lapse-engine.js","rule"],
   ["src/move-history/171.json","packages/state/src/shell/move-history/171.json","rule"],
   ["src/engine-move-advance-item-source.js","packages/state/src/core/engine-move-advance-item-source.js","rule"],
   ["src/engine-move-answer-decision.js","packages/state/src/core/engine-move-answer-decision.js","rule"],
@@ -214,7 +216,17 @@
   ["src/engine-move-register.js","packages/state/src/core/engine-move-register.js","rule"],
   ["src/engine-move-apply-row-decisions.js","packages/state/src/core/engine-move-apply-row-decisions.js","rule"],
   ["src/move-history/172.json","packages/state/src/shell/move-history/172.json","rule"],
-  ["src/move-history/173.json","packages/state/src/shell/move-history/173.json","rule"]
+  ["src/move-history/173.json","packages/state/src/shell/move-history/173.json","rule"],
+  ["src/strict-composition-engine.js","packages/state/src/core/strict-composition-engine.js","rule"],
+  ["src/move-history/174.json","packages/state/src/shell/move-history/174.json","rule"],
+  ["src/move-history/175.json","packages/state/src/shell/move-history/175.json","rule"],
+  ["src/quarantine-verdict-engine.js","packages/state/src/shell/quarantine-verdict-engine.js","rule"],
+  ["src/move-history/176.json","packages/state/src/shell/move-history/176.json","rule"],
+  ["src/auto-submit-quarantine-engine.js","packages/state/src/shell/auto-submit-quarantine-engine.js","rule"],
+  ["src/move-history/177.json","packages/state/src/shell/move-history/177.json","rule"],
+  ["src/move-history/178.json","packages/state/src/shell/move-history/178.json","rule"],
+  ["src/known-main-owner-pattern-engine.js","packages/state/src/shell/known-main-owner-pattern-engine.js","rule"],
+  ["src/move-history/179.json","packages/state/src/shell/move-history/179.json","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",

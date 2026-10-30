@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { seal, unseal } from '../packages/kernel/src/core/seal.js';
@@ -21,8 +22,8 @@ after(helpers.cleanup);
 
 test('an approver signed member list survives sealed native replay and revokes by revision [H15,H16,E17]', async t => {
   const box = helpers.project();
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
-  const replica = store.openBoard(join(box.dir, 'replica.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const replica = openBoard(join(box.dir, 'replica.sqlite'));
   t.after(() => { store.closeBoard(replica); store.closeBoard(board); });
   const state = { board: store.boardId(board), repository: 'fixture/repository', login: 'alice' };
   const signingKey = join(box.dir, 'alice');

@@ -19,12 +19,13 @@ export function receiptRecorder(ctx, { agentId, acceptedConfig, board, ordered, 
     const lane = owners[files[0]] ?? Object.keys(acceptedConfig.lanes)[0];
     /** Report matching active identities after recording, retaining the actual failed count and exit. */
     const write = async target => {
-      await ordered(ctx, target, 'recordGateRun', [{ agentId, receipt, lane, ...(receipt.testOutcomes ? { owners } : {}) }]);
+      await ordered(ctx, target, 'recordGateRun', [{ agentId, receipt, lane, ...(receipt.testOutcomes ? { owners } : {}),
+        ...(receipt.version === 2 && (receipt.kind === 'submit' || receipt.kind === 'check' && receipt.proof?.diagnosticAdmission && receipt.proof.submitPhase === 'diagnostic') ? { autoSubmit: true } : {}) }]);
       if (!quarantineOn(target) || !receipt.testOutcomes) return;
       const active = flakeQuarantines(target).filter(row => row.nativeCore && row.status === 'quarantined');
       for (const row of receipt.testOutcomes) {
         const entry = active.find(value => value.file === row.file && value.name === row.name);
-        if (entry && !row.skipped) ctx.io.say(`quarantined: ${row.file} :: ${row.name} (repair #${entry.item}); actual ${row.passed ? 'pass' : 'fail'}, blocking verdict unchanged`);
+        if (entry && !row.skipped) ctx.io.say(`quarantined: ${row.file} :: ${row.name} (repair #${entry.item}); actual ${row.passed ? 'pass' : 'fail'}, ${receipt.blockingVerdict ? `blocking verdict ${receipt.blockingVerdict.green ? 'green' : 'red'}, event ${entry.eventId}` : 'blocking verdict unchanged'}`);
       }
     };
     await (board ? write(board) : withBoard(ctx, write));

@@ -43,7 +43,7 @@ export const MACHINE_CALLBACKS = {
   'board-reopen.js': {
     'board.nativePorts.sealSourceAdvanceReturn': 'source-advance-origin.js#sealSourceAdvanceReturn',
     'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
-    'board.nativePorts.deriveRigorCause': 'rigor-auto.js#deriveRigorCause',
+    'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
   },
   'board-record-landing-batch.js': {
     'board.nativePorts.landingEnvironment.requireBatch': 'landing-environment-guards.js#requireBatch',
@@ -63,7 +63,7 @@ export const MACHINE_CALLBACKS = {
     verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget',
     computedConflictProblem: 'computed-conflict-receipt.js#computedConflictProblem',
   },
-  'reject-clause.js': { deriveRigorCause: 'rigor-auto.js#deriveRigorCause' },
+  'reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
   'board-health.js': {
     normalizedDispatch: 'dispatch-health.js#normalizedDispatch',
     rejectedWorkReturns: 'rejected-work-return.js#rejectedWorkReturns',
@@ -73,8 +73,8 @@ export const MACHINE_CALLBACKS = {
   // Native verification ports retain these exact receipt and projection guards.
   'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
   'proof-counters.js': {
-    appendRigorCounter: 'rigor-counters.js#appendRigorCounter',
-    ensureRigorCounters: 'rigor-counters.js#ensureRigorCounters',
+    appendRigorCounter: '../packages/rigor/src/shell/rigor-counters.js#appendRigorCounter',
+    ensureRigorCounters: '../packages/rigor/src/shell/rigor-counters.js#ensureRigorCounters',
   },
   // The native root supplies these setup guards through the physical store's explicit ports.
   'board-store.js': {
@@ -86,10 +86,10 @@ export const MACHINE_CALLBACKS = {
     freeze: 'cli.js#freezer',
     'board.nativePorts.sealSourceAdvanceReturn': 'source-advance-origin.js#sealSourceAdvanceReturn',
     'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
-    'board.nativePorts.deriveRigorCause': 'rigor-auto.js#deriveRigorCause',
-    'board.nativePorts.recordAutomaticRigorDrafts': 'rigor-auto.js#recordAutomaticRigorDrafts',
-    'board.nativePorts.newRigorNotices': 'rigor-notices.js#newRigorNotices',
-    'board.nativePorts.rigorNoticeText': 'rigor-notices.js#rigorNoticeText',
+    'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
+    'board.nativePorts.recordAutomaticRigorDrafts': '../packages/rigor/src/shell/rigor-auto.js#recordAutomaticRigorDrafts',
+    'board.nativePorts.newRigorNotices': '../packages/rigor/src/core/rigor-notices.js#newRigorNotices',
+    'board.nativePorts.rigorNoticeText': '../packages/rigor/src/core/rigor-notices.js#rigorNoticeText',
     'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict',
     'board.nativePorts.landingEnvironment.requireBatch': 'landing-environment-guards.js#requireBatch',
     'board.nativePorts.landingEnvironment.requireRevision': 'landing-environment-guards.js#requireRevision',
@@ -174,4 +174,14 @@ export function declaredBoardOrder(machineRules, prechecked, verb) {
   return machineRules.effectiveGuards(move)
     .filter((id) => !prechecked[verb].includes(id))
     .map((id) => (id === machineRules.IN_STATE ? move.refuse : machineRules.MACHINE.guards.find((guard) => guard.id === id).refuse));
+}
+
+/** Preserve actual Git refusal reachability and detect a newly planted moved-body refusal. */
+export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
+  const entry = 'git.js#repoInfo';
+  assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('NOT_A_REPO'));
+  const planted = editedSource('../packages/git/src/shell/git.js', /^export function repoInfo\(cwd, \{ env \} = \{\}\) \{$/m,
+    "$&\n  throw new Refused('GIT_PACKAGE_PROBE', 'planted Git body refusal');");
+  assert.ok(codeWalk(planted).refusalsOf(entry).has('GIT_PACKAGE_PROBE'),
+    'a Git compatibility shim cannot hide a new refusal in its actual implementation');
 }

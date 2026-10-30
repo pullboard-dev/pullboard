@@ -1,4 +1,4 @@
-/** @pullboard-module-loads src/board.js src/main-audit-state.js src/gate-run-receipt.js */
+/** @pullboard-module-loads src/native-board.js src/main-audit-state.js src/gate-run-receipt.js */
 /** Shared real main-audit fixture; synthetic acceptance is setup, never runtime proof [C7]. */
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
@@ -47,12 +47,13 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   writeFileSync(join(repo,'pullboard.json'),JSON.stringify({gate:'node bin/run-tests.js',landingShards:2,verify:'any',lanes:{alpha:{owns:['test/a.test.js'],specs:[]},beta:{owns:['test/b.test.js','test/c.test.js'],specs:[]}},shared:['src/','bin/','package.json','pullboard.json']}));
   mkdirSync(join(repo,'test'));for(const name of ['a','b','c'])writeFileSync(join(repo,'test',name+'.test.js'),`import {test} from 'node:test';test('base ${name}',()=>{});\n`);
   git(repo,env,'init','-q','-b','main');git(repo,env,'add','-A');git(repo,env,'commit','-q','-m','chore: base audit fixture');const base=git(repo,env,'rev-parse','HEAD');
-  const store=await import(pathToFileURL(join(installed,'src/board.js')));
+  const { board: store }=await import(pathToFileURL(join(installed,'src/native-board.js')));
+  const native = await import(pathToFileURL(join(installed,'src/native-board.js')));
   const {activateMainAudits,mainAuditKey}=await import(pathToFileURL(join(installed,'src/main-audit-state.js')));
   const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'src/gate-run-receipt.js')));
   const boardFile=join(repo,'.git/pullboard/board.sqlite');
   /** Close board ownership before any process execution or native admission. */
-  function board(action){const db=store.openBoard(boardFile,undefined,{isMain:true});try{return action(db);}finally{store.closeBoard(db);}}
+  function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true});try{return action(db);}finally{store.closeBoard(db);}}
   const actors=board(db=>{db.executionEngineVersion=1;try{return[store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'alpha',path:join(scratch,'builder')}),store.register(db,{lane:'beta',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;}});
   const identity=board(db=>({id:store.boardId(db),after:store.events(db).at(-1).event_id}));await activateMainAudits(repo,identity.after,identity.id);
   const candidate=join(scratch,'candidate');git(repo,env,'worktree','add','--detach',candidate,base);
@@ -92,8 +93,15 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   }
   /** Existing tests retain a successful terminal worker helper. */
   async function runWorker(){await startWorker().finish();}
-  /** Observe queue reservations read-only, without lease or stale-row mutation. */
-  function queue(){const db=new DatabaseSync(join(machine,'resources.sqlite'),{readOnly:true});try{return db.prepare('SELECT * FROM waiter').all();}finally{db.close();}}
+  /** Observe actual queue rows while its workers initialize or commit, without retrying an assertion or changing leases. */
+  function queue(){
+    const db=new DatabaseSync(join(machine,'resources.sqlite'),{readOnly:true});
+    try {
+      // Match the production queue connection's bounded busy handler: this observer shares its real database.
+      db.exec('PRAGMA busy_timeout = 10000');
+      return db.prepare('SELECT * FROM waiter').all();
+    } finally { db.close(); }
+  }
   /** Hold both private production gate slots, releasing only this owned child's actions by IPC. */
   async function holdBoth(){
     const module=pathToFileURL(join(installed,'src/gate.js')).href;

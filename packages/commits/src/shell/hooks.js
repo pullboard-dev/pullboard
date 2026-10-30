@@ -8,6 +8,7 @@ import {
   execFileSync,
   spawnSync,
 } from 'node:child_process';
+import { gitExecFileSync } from "../../../../src/git-adapter.js";
 import { gitBoardDataPush } from "../core/board-format.js";
 import { hostname } from 'node:os';
 import {
@@ -42,6 +43,8 @@ import {
 import { Refused } from "../../../../src/refused.js";
 import { parseCommitMessage } from "../core/commit-message.js";
 import { outOfLane } from "../../../../src/lanes.js";
+import { importOnlyChange } from "../../../../src/import-only-change.js";
+import { planRowChange } from "../../../../src/plan-row-change.js";
 import {
   citedIds,
   deletedIds,
@@ -272,6 +275,49 @@ export function stagedPaths(root, base = null) {
   return { touched, written };
 }
 
+/** Read one exact blob header from the index or a committed tree, refusing paths and modes that are not plain files. */
+function importFileEntry(root, revision, path) {
+  const raw = revision === ':index'
+    ? git(root, ['ls-files', '--stage', '-z', '--', `:(literal)${path}`])
+    : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
+  if (!raw.endsWith('\0') || raw.slice(0, -1).includes('\0')) return null;
+  const row = raw.slice(0, -1);
+  const tab = row.indexOf('\t');
+  if (tab < 0 || row.slice(tab + 1) !== path) return null;
+  const fields = row.slice(0, tab).split(' ');
+  const [mode, type, object] = fields;
+  if (mode !== '100644' && mode !== '100755') return null;
+  if (revision === ':index' ? fields.length !== 3 || object !== '0' : type !== 'blob') return null;
+  const oid = revision === ':index' ? type : object;
+  return /^[a-f0-9]{40,64}$/u.test(oid ?? '') ? { mode, oid } : null;
+}
+
+/** Read one bounded text blob by its already parsed object identity. */
+function importFileBlob(root, oid) {
+  try {
+    const bytes = gitExecFileSync(['cat-file', 'blob', oid], {
+      cwd: root, env: gitChildEnv(root), encoding: null, maxBuffer: 8 * 1024 * 1024,
+    });
+    return Buffer.isBuffer(bytes) && bytes.length <= 8 * 1024 * 1024 ? bytes : null;
+  } catch { return null; }
+}
+
+/** Check a staged foreign path against its exact HEAD and index blobs. */
+function stagedImportOnlyChange(root, path) {
+  const before = importFileEntry(root, 'HEAD', path);
+  const after = importFileEntry(root, ':index', path);
+  if (!before || !after || before.mode !== after.mode) return false;
+  return importOnlyChange(importFileBlob(root, before.oid), importFileBlob(root, after.oid));
+}
+
+/** Name added source lines when a foreign staged edit is outside the mechanical import allowance. */
+function stagedChangedLines(root, path) {
+  try {
+    const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
+    return addedLines(diff).filter(row => row.path === path).map(row => `${path}:${row.line}`);
+  } catch { return []; }
+}
+
 /**
  * The lines a staged diff adds, each with its file and line number.
  *
@@ -396,12 +442,27 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
     ? foreignPaths.filter((path) => resolvedMergeConflictPath(root, path, mergeHeads))
     : [];
   resolved.forEach((path) => onNotice?.(`resolved accepted-main conflict in ${path}; the coordinator owns ${path}`));
-  problems.push(
-    ...foreignPaths.filter((path) => !resolved.includes(path)
-      && !(path === ownershipConfig.spec && specGateMoveOnly(root, path)))
-      .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]))
-      .map((path) => `outside the ${agent.agent_lane} lane: ${path}; shout its owner instead`),
-  );
+  const checkedForeign = foreignPaths.filter((path) => !resolved.includes(path)
+    && !(path === ownershipConfig.spec && specGateMoveOnly(root, path)));
+  /** Read exact index or HEAD blobs, never unstaged worktree bytes. */
+  const planRead = (revision, path) => {
+    const entry = importFileEntry(root, revision, path);
+    return entry && { ...entry, bytes: importFileBlob(root, entry.oid) };
+  };
+  const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
+    before: path => planRead('HEAD', path), after: path => planRead(':index', path),
+    ownNewFile: path => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length
+      && !git(root, ['ls-tree', '-z', 'HEAD', '--', `:(literal)${path}`])
+      && Boolean(importFileEntry(root, ':index', path)),
+  })]));
+  const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path) || planChanges.get(path).allowed);
+  for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
+  problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
+    .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
+    .map(({ path, label }) => {
+      const lines = stagedChangedLines(root, path);
+      return `outside the ${agent.agent_lane} lane: ${label}${lines.length ? ` at ${lines.join(', ')}` : ''}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}; only static import changes or canonical rows for owned new files are permitted mechanically; shout its owner for any other edit`;
+    }));
   return problems;
 }
 

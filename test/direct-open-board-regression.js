@@ -111,7 +111,8 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   // Create a separate normal board from main code. The branch's new migration and trigger must
   // still install here; only the repository-shared path is protected from unmerged declarations.
   const createPrivate = run(process.execPath, ['--input-type=module', '-e', `
-    import { openBoard, closeBoard } from './src/board.js';
+    import { closeBoard } from './src/board.js';
+    import { openBoard } from './src/native-board.js';
     const board = openBoard(${JSON.stringify(privateFile)});
     closeBoard(board);
   `], main, env);
@@ -123,7 +124,8 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   // This is deliberately a direct API caller: no options object and no CLI wrapper supplying
   // isMain. It reads and performs an ordinary claim using the existing main-board schema.
   const directProbe = run(process.execPath, ['--input-type=module', '-e', `
-    import { openBoard, closeBoard, getItem, claim } from './src/board.js';
+    import { closeBoard, getItem, claim } from './src/board.js';
+    import { openBoard } from './src/native-board.js';
     const board = openBoard(${JSON.stringify(sharedFile)});
     try {
       const before = getItem(board, ${itemId});
@@ -159,7 +161,8 @@ export function assertDirectOpenBoardIsolation(t, sourceRoot) {
   const lowered = new DatabaseSync(privateFile);
   try { lowered.exec('PRAGMA user_version = 1'); } finally { lowered.close(); }
   const privateProbe = run(process.execPath, ['--input-type=module', '-e', `
-    import { openBoard, closeBoard } from './src/board.js';
+    import { closeBoard } from './src/board.js';
+    import { openBoard } from './src/native-board.js';
     const board = openBoard(${JSON.stringify(privateFile)});
     closeBoard(board);
   `], branch, env);

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Refused } from '../src/refused.js';
 import { apiJson } from '../src/api-http.js';
 import { readApiBody } from '../src/api-http.js';
-import { openBoard } from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { closeBoard } from '../src/board.js';
 import { atomic } from '../src/board-event-log.js';
 import { readBoardLinks } from '../src/board-link.js';

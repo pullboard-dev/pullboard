@@ -6,16 +6,17 @@ import { gateStages } from './gate-stages.js';
 import { readStages } from './gate-stages.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from './refused.js';
-import { recordRunnerGui } from './resources.js';
+import { recordRunnerGui } from '../packages/resources/index.js';
 import { sourcePreparationFields } from './runner-overhead.js';
 import { remoteFileDenial } from './sandbox-denial.js';
+import { retainTestResultCompletion } from './test-result-store.js';
 import { importTestResults } from './test-result-store.js';
 import { runnerPhaseFields } from './timing.js';
 import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
 
 /** Bound diagnostic text, exclude protocol payloads, and suppress any possible credential instead of echoing it. */
-function transportText(value) {
+export function transportText(value) {
   const text = String(value ?? '').split(/\r?\n/u).filter(line => !line.startsWith('PULLBOARD_RUNNER_')).join('\n').slice(-8192);
   return secretsIn(text.split('\n').map((line, index) => ({ path: 'runner transport', line: index + 1, text: line }))).length
     ? '[possible credential redacted]' : text;
@@ -113,12 +114,17 @@ export function resultFrom(request, result, { privateCheckPhases }) {
   // A cache packet is considered only after the nonce, exact source, complete output and private
   // source guard have authenticated this completion. A dropped run imports no passing receipt.
   if (request.exchange && !receipt.signal && (!privateResult || privateResult.state === 'pass')) {
-    importTestResults(request.exchange.store, receipt.testResults, request.spec.testResults.inputKeys);
+    // Optional reuse failure cannot change the authenticated execution result.
+    try {
+      const completion = retainTestResultCompletion(request.exchange.store, receipt);
+      importTestResults(request.exchange.store, receipt.testResults, request.spec.testResults.inputKeys, completion);
+    } catch { /* Missing retained provenance forces fresh execution next time. */ }
   }
   return { isGreen: receipt.code === 0 && !receipt.signal, output: text, sandboxBlocked, ...(receipt.timedOut ? { timedOut: true } : {}),
     environment: receipt.environment ?? null, testRuntimes: receipt.testRuntimes ?? null, executionCapabilities: { gui: receipt.gui ?? null },
     ...(request.spec.stageMarker ? { stages: staged?.stages ?? null } : {}),
     seconds: Math.round(receipt.wallMs / 1000), exitCode: receipt.code,
+    executionReceipt: { kind: 'runner-completion', id: receipt.id, commit: receipt.commit, tree: receipt.tree },
     executionRunner: request.runner.host, executionRoot: receipt.root, remoteWallMs: receipt.wallMs,
     ...(receipt.executionPhases ? { executionPhases: runnerPhaseFields(receipt.executionPhases) } : {}),
     ...(receipt.sourcePreparation ? { sourcePreparation: sourcePreparationFields(receipt.sourcePreparation) } : {}),

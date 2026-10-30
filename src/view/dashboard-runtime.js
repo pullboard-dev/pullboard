@@ -6,7 +6,7 @@
 export function dashboardRuntime({ model, html, api, boardPath, current, redraw, summary, floor = null }) {
   const histories = new Map();
   let drawnFloor = null;
-  let lastNeeds = { root: null, html: '' };
+  let lastNeeds = { root: null, html: '', header: '' };
   /** Read missing history once per prefix; never draw one board's history over another board. */
   function read(root, prefix) {
     const key = root + '|' + boardPath(root);
@@ -33,9 +33,9 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     return held;
   }
   /** Draw immediately from live claims, then enrich only with the complete ordered prefix when available. */
-  function draw(project, needs) {
-    if (needs !== undefined) lastNeeds = { root: project.root, html: needs };
-    else needs = lastNeeds.root === project.root ? lastNeeds.html : '';
+  function draw(project, needs, { rules = '', capacity = '', needsHeader = '' } = {}) {
+    if (needs !== undefined) lastNeeds = { root: project.root, html: needs, header: needsHeader };
+    else { needs = lastNeeds.root === project.root ? lastNeeds.html : ''; needsHeader = lastNeeds.root === project.root ? lastNeeds.header : ''; }
     const region = document.getElementById('dashboard');
     if (!region) return;
     const prefix = project.sequence ?? Math.max(0, ...(project.events ?? []).map(event => event.event_id));
@@ -50,16 +50,16 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
       && cached.prefix === prefix && cached.complete === complete && cached.now === now ? cached.state
       : model(project, held.events.filter(event=>event.event_id<=prefix), { complete, now });
     held.modelCache = { projectKey, events: held.events, prefix, complete, now, state };
-    const progress = state.milestone ? summary(state.milestone)?.detail ?? '' : '';
+    const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
+    const progress = state.milestone ? summary(state.milestone, { now, locale, timeZone })?.header ?? '' : '';
     // Native details keep each Show-more/quiet disclosure open across live refreshes.
     const expanded = [...region.querySelectorAll('details[open]')].map(entry=>entry.dataset.dashboardDisclosure);
     const onFloor = Boolean(floor?.open());
     // Browser preferences enter through this DOM adapter; pure renderers never discover host defaults.
-    const { locale, timeZone } = new Intl.DateTimeFormat().resolvedOptions();
     const note = held.error?'<p class="muted" role="status">Dashboard history is unavailable; live work remains visible.</p>':'';
     let quietRows;
     const quietOpen = expanded.includes('quiet');
-    region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone }) : html(state, { needs, progress, locale, timeZone, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') }))+note;
+    region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone }) : html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') }))+note;
     region.classList?.toggle('floor-page', onFloor);
     // Opening or leaving the floor starts at its top; a live redraw of the same page keeps the reader's place.
     if (drawnFloor !== null && drawnFloor !== onFloor) globalThis.scrollTo?.(0, 0);

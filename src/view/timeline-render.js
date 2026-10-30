@@ -24,7 +24,7 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
     + esc(['health-resolved', 'health-failure'].includes(entry.kind) ? 'Sentinels' : entry.by || 'The board') + '</b>';
   /** Use the same verb glyph and tone for every instance of one native move. */
   const icon = kind => {
-    const paths = { proof: 'M6 2.5h4M7 2.5v4L3.5 12.5h9L9 6.5v-4', pass: 'm3 8 3.5 3.5L13 5',
+    const paths = { build: 'm9.5 2.5 4 4-1.5 1.5-4-4zM8 4 2.5 9.5l4 4L12 8', sentinel: 'M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8 M6 8a2 2 0 1 0 4 0a2 2 0 1 0-4 0', proof: 'M6 2.5h4M7 2.5v4L3.5 12.5h9L9 6.5v-4', pass: 'm3 8 3.5 3.5L13 5',
       review: 'M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8',
       note: 'M4 4h8M4 8h8M4 12h5', back: 'm6 4-3.5 3.5L6 11M2.5 7.5H10', measure: 'M2.5 11a5.5 5.5 0 1 1 11 0M8 11l2.5-3' };
     return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="' + paths[kind] + '"/></svg>';
@@ -86,9 +86,10 @@ export function timelineHtml({ entries, steps, flow, open = [] }) {
     } else grouped.push({ ...row, eventIds: [...row.eventIds] });
   }
   return '<ol class="tl">' + grouped.map(row => {
-    const tone = row.type === 'fact' ? row.state : row.kind === 'accept' ? 'pass' : row.kind === 'proof-run' ? 'proof'
-      : row.kind === 'reject' ? 'back' : row.kind === 'reserve' ? 'review' : 'note';
-    const mainHtml = row.sentence + (row.count > 1 ? row.count === 2 ? ' twice' : ' ' + row.count + ' times' : '') + (row.label ? ' ' + row.label : '');
+    const tone = ['health-failure', 'health-resolved'].includes(row.kind) ? 'sentinel' : ['claim', 'renew', 'submit'].includes(row.kind) ? 'build' : row.type === 'fact' ? row.state : row.kind === 'accept' ? 'pass' : row.kind === 'proof-run' ? 'proof'
+      : ['reject', 'reopen'].includes(row.kind) ? 'back' : row.kind === 'reserve' ? 'review' : 'note';
+    const kindLabel = row.type === 'move' && row.kind !== 'proof-run' ? '<span class="tl-kind tl-kind-move ' + tone + '">' + esc(({ build: 'build', review: 'review', back: 'sent back', sentinel: 'sentinel', pass: 'passed', note: 'note' })[tone]) + '</span>' : '';
+    const mainHtml = row.sentence + (row.count > 1 ? row.count === 2 ? ' twice' : ' ' + row.count + ' times' : '') + (row.label ? ' ' + row.label : '') + (kindLabel ? ' ' + kindLabel : '');
     return sharedRowHtml({ variant: 'timeline', state: tone, className: row.classes,
       attributes: { id: row.id, 'data-event-id': row.eventIds[0], 'data-event-ids': row.eventIds.join(' '), 'data-timeline-kind': row.kind },
       iconHtml: icon(tone), mainHtml, time: row.count > 1 ? row.time + '–' + row.lastTime : row.time,

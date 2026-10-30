@@ -1,3 +1,7 @@
+import { MOVE_REGISTRY } from './move-registry.js';
+import { MOVE_OPERATIONS } from './move-registry.js';
+import { minimumMoveEngine } from './move-registry.js';
+import { declaredMoveActor } from './move-registry.js';
 import { activeViewAgents } from './view-state-summary.js';
 import { viewProofSummary } from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
@@ -44,7 +48,7 @@ import { recordTrainLanding } from './record-train-landing.js';
 import {
   newRigorNotices,
   rigorNoticeText,
-} from './rigor-notices.js';
+} from '../packages/rigor/index.js';
 import { sealSourceAdvanceReturn } from './source-advance-origin.js';
 import { conflictValue } from './computed-conflict-receipt.js';
 import { NEXT_STEPS } from './next-step-words.js';
@@ -52,7 +56,7 @@ import * as landingEnvironment from './landing-environment-guards.js';
 import {
   deriveRigorCause,
   recordAutomaticRigorDrafts,
-} from './rigor-auto.js';
+} from '../packages/rigor/index.js';
 import { normalizedDispatch } from './dispatch-health.js';
 import { rejectedWorkReturns } from './rejected-work-return.js';
 import { guardLandingWrite } from './board-landing-lease.js';
@@ -62,6 +66,14 @@ import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisi
 import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
 import * as store from './board.js';
+import { addMilestone } from './board-milestones.js';
+import { editMilestone } from './board-milestones.js';
+import { editMilestoneItems } from './board-milestones.js';
+import { orderMilestoneItems } from './board-milestones.js';
+import { moveMilestone } from './board-milestones.js';
+import { removeMilestone } from './board-milestones.js';
+import { roadmap } from './board-milestones.js';
+import { shipMilestone } from './board-milestones.js';
 import { sourceAdvanceCASProblem } from './source-advance.js';
 import { beginCommandPhase } from './command-phase.js';
 import { exportedMeta } from './person-signing.js';
@@ -137,7 +149,7 @@ import {
 import {
   appendRigorCounter,
   ensureRigorCounters,
-} from './rigor-counters.js';
+} from '../packages/rigor/index.js';
 import {
   committedItemAuthors,
   twoTierReviews,
@@ -169,7 +181,21 @@ import {
   itemReviewPolicy,
 } from './review-policy.js';
 
-export * as board from './board.js';
+import { normalizeReviewDefaults } from './review-default.js';
+
+import * as self from './native-board.js';
+import * as milestoneOperations from './board-milestones.js';
+
+/** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
+const NATIVE_BOARD_NAMES = ['openBoardForRead', 'openBoard', 'draftSpecRow', 'decideSpecRevisions', 'recordRowVerification', 'advanceItemSource', 'proposeSentinel', 'decideSentinel', 'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation', 'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals', 'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding', 'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'recordTrainLanding'];
+const MILESTONE_NAMES = ['addMilestone', 'editMilestone', 'editMilestoneItems', 'orderMilestoneItems', 'moveMilestone', 'removeMilestone', 'roadmap', 'shipMilestone'];
+const libraryBoard = {};
+/** Properties read through live bindings, so a cyclic first load never reads a store export before it exists. */
+function libraryExport(name, read) { Object.defineProperty(libraryBoard, name, { enumerable: true, get: read }); }
+for (const name of Reflect.ownKeys(store)) if (typeof name === 'string') libraryExport(name, () => store[name]);
+for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
+for (const name of MILESTONE_NAMES) libraryExport(name, () => milestoneOperations[name]);
+export const board = Object.freeze(libraryBoard);
 export { closeBoard } from './board-read-open.js';
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
@@ -186,9 +212,10 @@ export function nativeBoardPorts() {
     listAgents: store.listAgents, verdictWithdrawalTarget, computedConflictProblem, firstRefusal,
     itemReviewPolicy, reviewPolicyChange, saveItemReviewPolicy,
     milestones: store.milestones, listItems: store.listItems, buildOrder: store.buildOrder,
-    canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap: store.roadmap, ROUTES: store.ROUTES,
+    canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
     beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
@@ -197,7 +224,9 @@ export function nativeBoardPorts() {
     prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
-    relayPerson, requestPerson, validPresence
+    relayPerson, requestPerson, validPresence,
+    openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification,
+    addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone
   });
   return Object.freeze({
     nativePorts, enginePorts, operations: enginePorts.operations, logEvent,
@@ -206,7 +235,7 @@ export function nativeBoardPorts() {
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
+    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
       ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
       boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),

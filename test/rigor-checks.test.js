@@ -18,20 +18,21 @@ import { testNameProblems } from '../bin/checks/test-names.js';
 import { emptyCatchProblems } from '../bin/checks/empty-catch.js';
 import { testInputProblems } from '../bin/checks/test-inputs.js';
 import * as store from '../src/board.js';
+import { openBoard, draftSpecRow } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { loadConfig } from '../src/config.js';
-import { draftConflictSplits } from '../src/rigor-splits.js';
+import { draftConflictSplits } from '../packages/rigor/index.js';
 import { proposeDoctrine } from '../src/doctrine-rulings.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
-import { conflictNoteFiles, conflictReport } from '../src/rigor-conflicts.js';
+import { conflictNoteFiles, conflictReport } from '../packages/rigor/index.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
 import {
   breachLine,
   changeRange,
   qualityBreaches,
-} from '../src/rigor-quality.js';
+} from '../packages/rigor/index.js';
 
 const conflictE2e = createE2eHelpers();
 after(conflictE2e.cleanup);
@@ -140,7 +141,7 @@ function fixture(name) {
 /** Record synthetic conflict history through public board moves, without claiming gates ran. */
 function conflictHistory({ automatic = true } = {}) {
   const box = conflictE2e.project('true');
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   if (!automatic) board.executionEngineVersion = RIGOR_AUTO_ENGINE - 1;
   try {
     const builder = store.register(board, { lane: 'web', path: join(box.dir, 'history-builder'), model: 'Fixture builder' });
@@ -207,7 +208,7 @@ test('a hot file becomes a draft split proposal [D1,C7]', () => {
   const lane = box.run(box.web, 'rigor', '--draft-splits', '--json');
   assert.equal(lane.code, 1, lane.out + lane.err);
   assert.match(lane.out + lane.err, /COORDINATOR_ONLY/u);
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const reservation = store.rowDrafts(board).find(row => row.id === draft.row.id);
     assert.equal(reservation.target, 'doctrine', 'the ordinary draft is durably reserved on the project board');
@@ -425,7 +426,7 @@ test('Pullboard\'s four checks count what main has [D1, C7]', async (t) => {
 
 test('a legacy split draft resumes after its row is reserved [D1,H16]', async () => {
   const box = conflictHistory({ automatic: false });
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const report = conflictReport(store.events(board));
     const ctx = { info: { root: box.repo, isMain: true }, config: loadConfig(box.repo) };
@@ -437,7 +438,7 @@ test('a legacy split draft resumes after its row is reserved [D1,H16]', async ()
       /** Interrupt once after the real durable reservation, before the ordinary file write. */
       reserve: row => {
         calls += 1;
-        const entry = store.draftSpecRow(board, { agentId: 'coordinator', row, written: true });
+        const entry = draftSpecRow(board, { agentId: 'coordinator', row, written: true });
         if (!interrupted) { interrupted = true; throw new Error('fixture interruption after durable reservation'); }
         return entry;
       },
@@ -467,13 +468,13 @@ test('a legacy split draft resumes after its row is reserved [D1,H16]', async ()
 
 test('concurrent legacy split proposals keep one reserved row [D1,H16]', async () => {
   const box = conflictHistory({ automatic: false });
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const report = conflictReport(store.events(board));
     const ctx = { info: { root: box.repo, isMain: true }, config: loadConfig(box.repo) };
     const dependencies = {
       read: () => ({ coordinator: true, rows: store.rowDrafts(board), decisions: store.rowDecisions(board) }),
-      reserve: row => store.draftSpecRow(board, { agentId: 'coordinator', row, written: true }),
+      reserve: row => draftSpecRow(board, { agentId: 'coordinator', row, written: true }),
     };
     // The first await leaves an actual reservation; the second call recovers it before the first writes.
     await Promise.all([draftConflictSplits(ctx, report, dependencies), draftConflictSplits(ctx, report, dependencies)]);

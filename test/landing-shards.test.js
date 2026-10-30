@@ -40,7 +40,7 @@ test('GUI-marked landing files use only a runner with a GUI session [C7,V4]', (t
   writeFileSync(selected, '/** @pullboard-test-gui */\n' + readFileSync(selected, 'utf8'));
   git(box.repo, box.env, 'add', '.');
   git(box.repo, box.env, 'commit', '-q', '-m', 'test: GUI-marked private fixture');
-  const script = `import {recordRunnerGui} from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+  const script = `import {recordRunnerGui} from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/resources/index.js')).href)};
 for(const host of ${JSON.stringify(hosts)}) recordRunnerGui(host,host==='fixture-gui');
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
 ${executionServicesSource(pathToFileURL(join(SOURCE, 'src/gate.js')).href)}
@@ -72,7 +72,7 @@ process.stdout.write(JSON.stringify({ green: result.isGreen, calls }));`;
 test('a GUI-marked shard waits for a local slot when runner GUI capability is unknown [C7,V4]', t => {
   const box = fixture({ runner: true });
   t.after(() => rmSync(box.dir, { recursive: true, force: true }));
-  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/resources/index.js')).href)};
 // This scenario seeds its capability after registration, whose real desktop probe may report true.
 recordRunnerGui(${JSON.stringify(HOST)}, null);
 import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/gate.js')).href)};
@@ -111,7 +111,7 @@ test('a no-GUI remote parent gives its first GUI shard to a compatible local slo
   const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
   settings.runners = settings.runners.map(runner => ({ ...runner, gui: false }));
   writeFileSync(settingsPath, JSON.stringify(settings));
-  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'src/resources.js')).href)};
+  const script = `import { recordRunnerGui } from ${JSON.stringify(pathToFileURL(join(SOURCE, 'packages/resources/index.js')).href)};
 // This scenario seeds its capability after registration, whose real desktop probe may report true.
 recordRunnerGui(${JSON.stringify(HOST)}, false);
 import assert from 'node:assert/strict';
@@ -683,7 +683,7 @@ test('a collect-all shard cancelled by its owner reports drained but incomplete 
   for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
   const gateUrl=pathToFileURL(join(box.repo,'src/gate.js')).href;
-  const resourceUrl=pathToFileURL(join(box.repo,'src/resources.js')).href;
+  const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
   const reportUrl=pathToFileURL(join(box.repo,'src/gate-run-receipt.js')).href;
   const id='11111111-1111-4111-8111-111111111111';
   const program=`import {spawn} from 'node:child_process';import {once} from 'node:events';

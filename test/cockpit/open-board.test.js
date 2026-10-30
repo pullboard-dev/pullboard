@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cockpitPage } from '../../src/cockpit.js';
-import { Refused } from '../../src/refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { createRelayBrowserHandler } from '../../relay/browser-page.js';
 import { RELAY_SCREEN_WORDS } from '../../relay/browser-notice.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, proofShot, press } from './fixture.js';

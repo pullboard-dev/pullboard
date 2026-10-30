@@ -1,10 +1,11 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Native cached HTTP state keeps the same explicit clock as a fresh relay reader [H5,H16,A2]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { addMilestone } from '../src/board-milestones.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
@@ -27,7 +28,7 @@ async function clockFixture(t) {
   const box = await relayClientFixture(t);
   const base = Date.now() + 1_000;
   const clock = { value: base };
-  const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(base) });
+  const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'), { now: () => new Date(base) });
   t.after(() => store.closeBoard(board));
   const id = store.boardId(board);
   let builds = 0;
@@ -84,7 +85,7 @@ function seedLandingPace(box) {
     store.merged(box.board, id, { agentId: 'coordinator', commit: head });
   }
   const pending = store.addItem(box.board, { by: 'coordinator', lane: box.lane, title: 'Pace forecast input', criterion: 'A pending item observes the current landing window' });
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'Clock pace', items: [pending] });
+  addMilestone(box.board, { agentId: 'coordinator', name: 'Clock pace', items: [pending] });
 }
 
 test('native and relay readers cross a landing pace window at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, native lifecycle inputs, HTTP and cleanup; no timed wait.

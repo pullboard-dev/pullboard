@@ -1,3 +1,4 @@
+import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
 import { checkTimingEngine } from '../check-timing.js';
 import { REJECT_CLAUSE_ENGINE } from '../reject-clause-engine.js';
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
@@ -36,7 +37,7 @@ function minimumEngine(args, board, at) {
   const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+  return Math.max(Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
     args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 
@@ -50,6 +51,7 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
   "STRICT_REVIEW_TOUCHED": "ask a session that has not written to this strict item",
   "RUNNER_WORK_SPEC": "upgrade or repair the controller and runner together, then retry the named invalid work specification",
+  "RUNNER_LIFECYCLE_PROVIDER": "restart with the current installed controller so its canonical item lifecycle observer is composed",
   "RUNNER_BROWSER_SLOT_REQUIRED": "nothing to do: the run reruns on a local gate slot; if it repeats, set gate.browserByLaunch the same on this machine and that runner",
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "ALREADY_MERGED": "file the follow-up as a new item: pullboard add <lane> \"<title>\"",
@@ -104,6 +106,7 @@ export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   "SELF_VERIFY": "ask a different agent to verify it; from main create its worktree with pullboard worktree <lane> --model \"<model name>\"",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",
+  "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
   "SLOT_DB_LOCKED": "the run never started, so it is not a red; rerun the same command once the named process releases the slot database",
   "STACKED_ON_UNVERIFIED": "wait for the earlier item to be accepted, or rebuild on main without its commits",
   "STALE_VERDICT": "merge current main into the submitted commit, commit a clean composition, then ask another agent to re-review it before landing",

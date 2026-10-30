@@ -163,7 +163,10 @@ function familySnapshot(board) {
 /** Agent rows share one read snapshot while retaining the ordinary single-seat and older-engine semantics. */
 export function withDerivedFamilies(board, rows) {
   if (!rows.length) return [];
-  if ((board.executionEngineVersion ?? Infinity) < FAMILY_DECLARE_ENGINE) return rows.map(row => withDerivedFamily(board, row));
+  if ((board.executionEngineVersion ?? Infinity) < FAMILY_DECLARE_ENGINE) return rows.map(row => {
+    const derived = withDerivedFamily(board, row);
+    return derived ? { ...derived, family: derived.agent_family } : derived;
+  });
   board.db.exec('SAVEPOINT family_bulk_read');
   try {
     const snapshot = familySnapshot(board), records = new Map();
@@ -178,7 +181,7 @@ export function withDerivedFamilies(board, rows) {
         if (!records.has(seat)) records.set(seat, seatRecords(board, seat, {}, snapshot));
         for (const record of records.get(seat)) if (!first || record.order < first.order) first = record;
       }
-      return { ...row, agent_family: first?.family ?? null };
+      return { ...row, agent_family: first?.family ?? null, family: first?.family ?? null };
     });
   } finally { board.db.exec('RELEASE family_bulk_read'); }
 }

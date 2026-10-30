@@ -8,14 +8,15 @@ import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, re
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { listResources } from '../src/resources.js';
+import { listResources } from '../packages/resources/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');
 const CALLER_REPORTER = resolve(import.meta.dirname, 'timing-reporter-fixture.js');
-const RESOURCE_MODULE = resolve(import.meta.dirname, '../src/resources.js');
+const RESOURCE_MODULE = resolve(import.meta.dirname, '../packages/resources/index.js');
 const TEMP = [];
 const SPEC = '# Demo\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n- G2 [approved, must] The API answers. | gate: api test\n';
 const CONFIG = { gate: 'true', spec: 'SPEC.md', verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } }, shared: ['docs/'] };
@@ -286,7 +287,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   const shellCommit = featureCommit(box, box.web);
   assert.equal(box.run(box.web, 'submit', '2').status, 0);
 
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
   try { item = store.getItem(board, 2); }
   finally { store.closeBoard(board); }

@@ -1,3 +1,7 @@
+import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../known-main-owner-pattern-engine.js';
+import { ENGINE_VERSION } from '../engine-metadata.js';
+import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
+import { itemReviewPolicyEngine } from '../review-policy.js';
 import { checkTimingEngine } from '../check-timing.js';
 import { itemPatchRecords } from '../item-patch-state.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
@@ -31,9 +35,10 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  return Math.max(args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
-      && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? KNOWN_MAIN_REWORKS_ENGINE : 1,
+      && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? ((board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
+        ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE) : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
     outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at));
 }
@@ -47,11 +52,15 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "MAIN_FACTS_BUSY": "wait for the immutable main facts derivation to finish, then retry",
   "SUBMIT_PIN_NOT_MAIN": "run pullboard submit again so it captures the current main",
   "RUNNER_WORK_SPEC": "upgrade or repair the controller and runner together, then retry the named invalid work specification",
+  "RUNNER_LIFECYCLE_PROVIDER": "restart with the current installed controller so its canonical item lifecycle observer is composed",
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "BAD_CONFIG": "fix pullboard.json as the message says, then commit it: git commit -m \"chore: fix pullboard config\" pullboard.json",
   "BAD_REVIEW_POLICY": 'restore the native review policy before reviewing this item',
   "BAR_NOT_READY":"read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar",
   "CHILDREN_OPEN": "finish the child items (pullboard list --all), or ask the coordinator to withdraw them",
+  "CELLS_PLAN_COUNTS": "repair the named placement source or cut count, commit, then submit again",
+  "CELLS_PLAN_RETIRED": "repair the named retirement contract or retain its original placement, commit, then submit again",
+  "CELLS_SUBMIT": "repair the named new cell diagnostic or unplaced path, commit it, then submit again",
   "CRITERIA_CHANGED": "ask the coordinator to refreeze it: pullboard shout coordinator --kind question \"please refreeze #<id>\"",
   "CRITERION_PROVES_NOTHING": "set a check that fails before the work: pullboard edit <id> --check \"<command>\", or ask the person to accept this one: pullboard check accept <id>",
   "DIRTY": "commit your changes, then run the command again",
@@ -83,6 +92,7 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "RATCHET_ROSE": "fix the new doctrine problems named in the report, commit, and submit again; only the person can sign an increased count",
   "RATCHET_UNCOUNTED": "fix the named doctrine check to exit zero or one within its configured timeout, or ask the coordinator to repair it, then submit again",
   "RUNNER_RESULT_INVALID": "inspect the retained transport diagnostic and repair the named protocol or capsule failure before retrying",
+  "RUNNER_INFRA_RETRY_EXHAUSTED": "inspect the retained runner diagnostic, restore the named runner, then retry this command",
   "RUNNER_BROWSER_SLOT_REQUIRED": "nothing to do: the run reruns on a local gate slot; if it repeats, set gate.browserByLaunch the same on this machine and that runner",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "RUNNER_WAIT_DEADLINE": "check the runners the message names, or restore local gate capacity with pullboard settings, then retry",

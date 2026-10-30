@@ -13,6 +13,7 @@ import { closeSync } from 'node:fs';
 import { createReadStream } from 'node:fs';
 import { openSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
@@ -29,6 +30,7 @@ function bridgeResult(request, result, phase) {
     const prefix = `[${reply.error.code}] `;
     const refused = new Refused(reply.error.code, reply.error.message.startsWith(prefix) ? reply.error.message.slice(prefix.length) : reply.error.message);
     if (reply.error.runnerAttempt) refused.runnerAttempt = reply.error.runnerAttempt;
+    if (reply.error.runnerCancellation) refused.runnerCancellation = reply.error.runnerCancellation;
     throw refused;
   }
   if (reply.error?.name === 'RunnerDropped') throw new RunnerDropped(request.options.runner.host, reply.error.diagnostic);
@@ -90,24 +92,87 @@ export async function serveRunnerController(ports) {
   let input = '';
   for await (const chunk of process.stdin) input += chunk;
   const request = JSON.parse(input);
+  if (typeof ports.runnerItemState !== 'function' || typeof ports.controllerDeadline !== 'function') throw new Refused('RUNNER_LIFECYCLE_PROVIDER', 'runner controller needs its canonical item lifecycle and deadline observers');
   const canceled = new AbortController();
+  const custody = ports.controllerDeadline(request.options.metadata?.resourceOwner, request.parentPid);
+  let cancellation = null;
   const abort = () => canceled.abort();
   for (const signal of ['SIGTERM', 'SIGHUP', 'SIGINT']) process.on(signal, abort);
   process.stdout.on('error', abort);
-  // Budget: notice loss of the exact originating controller once per second while SSH is active.
-  const parentWatch = setInterval(() => { if (process.ppid !== request.parentPid) abort(); }, 1000);
-  if (process.ppid !== request.parentPid) abort();
-  try { process.stdout.write(JSON.stringify({ result: await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, ports) })); }
+  const roots = [...new Set([request.root, fileURLToPath(new URL('../', import.meta.url))])];
+  const identities = roots.map(root => {
+    try { const state = statSync(root); return { root, dev: state.dev, ino: state.ino }; }
+    catch (error) { return { root, error: error.code }; }
+  });
+  let item;
+  try {
+    item = ports.runnerItemState(request.root, request.options.metadata?.item);
+    const label = String(request.options.metadata?.item ?? ''), id = Number(label);
+    if (!item && /^[1-9][0-9]*$/u.test(label) && Number.isSafeInteger(id)) {
+      item = { item: id, board: null };
+      custody.observationProblem('item status is unavailable');
+    }
+  }
   catch (error) {
-    process.stdout.write(JSON.stringify({ error: { name: error.name, code: error.code, message: error.message, host: error.host, runnerAttempt: error.runnerAttempt, diagnostic: error.diagnostic } }));
+    item = { item: Number(request.options.metadata?.item), board: null };
+    custody.observationProblem(`initial item observation failed: ${error.code ?? error.name}`);
+  }
+  /** Observe only this request's source identities; cancellation drains its owned transport below. */
+  const observe = () => {
+    if (cancellation) abort();
+    if (process.ppid !== request.parentPid) abort();
+    for (const expected of identities) {
+      let reason;
+      try {
+        const state = statSync(expected.root);
+        if (expected.error || !state.isDirectory() || state.dev !== expected.dev || state.ino !== expected.ino) reason = 'source identity changed';
+      } catch (error) { reason = `source observation failed: ${error.code}`; }
+      if (reason) {
+        cancellation ??= { version: 1, reason, root: expected.root };
+        abort();
+      }
+    }
+    if (item && !cancellation) {
+      let problem;
+      try {
+        const current = ports.runnerItemState(request.root, item.item);
+        if (!current) problem = 'item status is unavailable';
+        else if (current.item !== item.item || item.board && current.board !== item.board) problem = 'item board identity changed';
+        else {
+          if (!item.board) item = current;
+          if (current.terminal) {
+            cancellation = { version: 1, reason: 'item is terminal', root: request.root, board: item.board, item: item.item };
+            abort();
+          }
+        }
+      } catch (error) { problem = `item observation failed: ${error.code ?? error.name}`; }
+      custody.observationProblem(problem);
+    }
+  };
+  // Budget: observe the originating process and exact source directories once per second while SSH is active.
+  const parentWatch = setInterval(observe, 1000);
+  observe();
+  try {
+    const result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody });
+    if (cancellation) throw new Error('source cancellation completed without a transport failure');
+    process.stdout.write(JSON.stringify({ result }));
+  }
+  catch (error) {
+    if (cancellation) {
+      const original = error;
+      error = new Refused('RUNNER_SOURCE_CHANGED', `controller stopped: ${cancellation.reason} (${cancellation.root})`);
+      error.runnerCancellation = { ...cancellation, diagnostic: original.diagnostic ?? { reason: 'source-cancelled', phase: 'controller' } };
+    }
+    process.stdout.write(JSON.stringify({ error: { name: error.name, code: error.code, message: error.message, host: error.host, runnerAttempt: error.runnerAttempt, diagnostic: error.diagnostic, runnerCancellation: error.runnerCancellation } }));
     process.exitCode = 1;
-  } finally { clearInterval(parentWatch); }
+  } finally { clearInterval(parentWatch); custody.close(); }
 }
 
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
 async function runInController(root, command, options, ports) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
   const request = await requestFor(root, command, options, ports);
+  const deadline = ports.controllerCustody;
   let removeAbort = () => {};
   let runnerWaitTimer;
   let runnerWaitKill;
@@ -163,7 +228,11 @@ async function runInController(root, command, options, ports) {
       let newline;
       while ((newline = control.indexOf('\n')) >= 0) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
-        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}`) { request.phase = 'ready'; clearTimeout(runnerWaitTimer); }
+        if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}`) {
+          request.phase = 'ready'; clearTimeout(runnerWaitTimer);
+          try { deadline.ready(request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs); }
+          catch (failure) { error ??= failure; abort(); }
+        }
         const cleanupPrefix = `PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${request.spec.id} `;
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
         if (line === `PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${request.spec.id}`) {
@@ -202,7 +271,10 @@ async function runInController(root, command, options, ports) {
     const bounded = request.rawOutputPath ? Buffer.concat([head, ...(rawBytes > half * 2 ? [Buffer.from('\n[output capped at 8 MiB; middle omitted]\n')] : []), tail]) : Buffer.concat(output);
     return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
-  } finally { clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort(); request.cleanup(); }
+  } finally {
+    clearTimeout(runnerWaitTimer); clearTimeout(runnerWaitKill); if (rawFd !== null) closeSync(rawFd); removeAbort();
+    request.cleanup();
+  }
 }
 
 /** Give a pre-upgrade cached self-spawn caller a typed restart without reading input or starting transport. */

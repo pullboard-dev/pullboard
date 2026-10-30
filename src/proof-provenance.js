@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { environmentProblem } from './config.js';
 import { testOutcomeFields } from './test-outcomes.js';
+import { quarantineVerdictFields } from './quarantine-verdict.js';
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
 const ID = /^[a-f0-9-]{36}$/u;
@@ -88,6 +89,7 @@ function checkedFields(value) {
   if (Object.hasOwn(value ?? {}, 'environment') && value.environment !== null && environmentProblem(value.environment)) throw bad();
   const proof = value?.version === 2 ? proofFields(value.proof) : null;
   const version = value?.version;
+  const hasBlockingVerdict = Object.hasOwn(value ?? {}, 'blockingVerdict');
   const hasParticipation = Object.hasOwn(value ?? {}, 'participationDigest');
   if (hasParticipation && (version !== 1 || value.kind !== 'release' || !DIGEST.test(value.participationDigest ?? ''))
     || value?.kind === 'release' && !hasParticipation) throw bad();
@@ -100,7 +102,7 @@ function checkedFields(value) {
   if (value?.kind === 'main-red' && (!hasTiming || value.full !== false || timing?.compareMs === null || !timing)) throw bad();
   if (hasTiming !== hasFull || hasTiming && (version !== 1 || !timing
     || !(value.full === null || typeof value.full === 'boolean'))) throw bad();
-  const kinds = version === 2 ? ['check', 'submit', 'verdict'] : ['gate', 'land', 'submit', 'release', ...(hasTiming ? ['suite', 'main-red'] : [])];
+  const kinds = version === 2 ? ['check', 'submit', 'verdict', ...(hasBlockingVerdict ? ['land'] : [])] : ['gate', 'land', 'submit', 'release', ...(hasTiming ? ['suite', 'main-red'] : [])];
   if (!value || ![1, 2].includes(version) || version === 2 && !proof || !ID.test(value.id ?? '') || !kinds.includes(value.kind)
     || !(version === 2 && value.tree === null) && !SHA.test(value.tree ?? '')
     || !(version === 2 && value.head === null) && !SHA.test(value.head ?? '')
@@ -112,6 +114,11 @@ function checkedFields(value) {
     if (!line(file, 4096) || file.startsWith('/') || file.includes('\\') || file.split('/').some((part) => !part || part === '.' || part === '..') || !line(name, 8192)) throw bad();
     return { file, name };
   });
+  const blockingVerdict = hasBlockingVerdict ? quarantineVerdictFields(value.blockingVerdict,
+    { green: value.green, exitCode: version === 2 ? proof?.exitCode : value.blockingVerdict?.exitCode, failures }) : null;
+  if (hasBlockingVerdict && (!blockingVerdict || version === 2 && !proof.sourceClean
+    || !testOutcomes || testOutcomes.filter(row => !row.passed && !row.skipped).length !== failures.length
+    || failures.some(failure => !testOutcomes.some(row => row.file === failure.file && row.name === failure.name && !row.passed && !row.skipped)))) throw bad();
   const load = value.load;
   if (!(version === 2 && load === null) && (!load || !Array.isArray(load.average) || load.average.length !== 3 || load.average.some((number) => !Number.isFinite(number) || number < 0)
     || !Number.isSafeInteger(load.cpus) || load.cpus < 1 || !Number.isSafeInteger(load.freeMB) || load.freeMB < 0)) throw bad();
@@ -119,6 +126,7 @@ function checkedFields(value) {
     green: value.green, failures, load: load === null ? null : { average: [...load.average], cpus: load.cpus, freeMB: load.freeMB }, at: value.at,
     ...(proof ? { proof } : {}), ...(Object.hasOwn(value, 'environment') ? { environment: value.environment } : {}),
     ...(hasTestOutcomes ? { testOutcomes } : {}),
+    ...(hasBlockingVerdict ? { blockingVerdict } : {}),
     ...(hasCollection ? { collection } : {}), ...(hasParticipation ? { participationDigest: value.participationDigest } : {}),
     ...(hasTiming ? { full: value.full, timing } : {}) };
 }
@@ -133,7 +141,9 @@ function identity(value, limit = 512) {
 /** Validate the native facts attached to a version-two gate receipt. */
 export function proofFields(value) {
   const hasPhase = Object.hasOwn(value ?? {}, 'submitPhase');
-  if (hasPhase && !['criterion', 'proof'].includes(value.submitPhase)) return null;
+  if (hasPhase && !['criterion', 'proof', 'diagnostic'].includes(value.submitPhase)) return null;
+  const hasDiagnosticAdmission = Object.hasOwn(value ?? {}, 'diagnosticAdmission');
+  if (hasDiagnosticAdmission && !/^[a-f0-9-]{36}$/u.test(value.diagnosticAdmission ?? '')) return null;
   const hasAdmission = Object.hasOwn(value ?? {}, 'submitAdmission');
   if (hasAdmission && !/^[a-f0-9-]{36}$/u.test(value.submitAdmission ?? '')) return null;
   if (!value || !Number.isSafeInteger(value.item) || value.item < 1
@@ -155,7 +165,7 @@ export function proofFields(value) {
     environment: actualEnvironment === null ? null : { node: actualEnvironment.node, platform: actualEnvironment.platform, arch: actualEnvironment.arch },
     seat: value.seat, runner: value.runner, exitCode: value.exitCode,
     counts: Object.fromEntries(names.map(name => [name, value.counts[name]])), durationMs: value.durationMs, sourceClean: value.sourceClean,
-    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}) };
+    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}), ...(hasDiagnosticAdmission ? { diagnosticAdmission: value.diagnosticAdmission } : {}) };
 }
 
 /** Read explicit TAP or Node reporter totals; absent counters stay unknown rather than becoming zero. */

@@ -1,10 +1,19 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/needs-you-rows.test.js': { kind: 'journey', reason: 'Native writers seed item809 and person questions; authenticated HTTP and real Chrome verify summary identity, preserved raw detail/action targets, header navigation, redraw and phone layout.' },
+  'test/cockpit/items-walk-1029.test.js': { kind: 'journey', reason: 'Real private native build, review and health moves, authenticated HTTP and real desktop/phone Chrome verify hash display, waiting links, history verb tones and person clocks.' },
+  'test/cockpit/export-replay-control.test.js': { kind: 'journey', reason: 'A seeded exported native board is opened in real Chrome at phone width to verify snapshot replay lives in the status bar, never above page content, and keeps its exact live event count while playing and paused.' },
+  'test/cockpit/cost-tab.test.js': { kind: 'journey', reason: 'A private authenticated local view reads native landing and usage events, while an explicit presenter-only priced scenario checks twenty-row order and median bands; the journey verifies exported privacy and phone/desktop rendering.' },
+
+  'test/cockpit/window-compare.test.js': { kind: 'journey', reason: 'Private native export/import seeds event windows for real authenticated HTTP and Chrome; API values, minute clocks, tile direction colors, stage shares and the complete table are checked at desktop and phone widths.' },
+  'test/cockpit/spec-redesign.test.js': { kind: 'journey', reason: 'Native Git approvals, actual existing/missing gate files and native citations are rendered and opened in authenticated real Chrome at desktop and phone widths; person confirmation and change composition retain native authority.' },
+  'test/cockpit/doctrine-redesign.test.js': { kind: 'journey', reason: 'A private native repository with standard and local Doctrine rows, committed gate files and citations is rendered in authenticated real Chrome; source, checks, review states, section counts, absent standard decision controls and local decisions are verified.' },
   'test/cockpit/view-startup.test.js': { kind: 'adapter', reason: 'A genuine large native registration history drives a separately owned CLI view process, authenticated HTTP page and initial board state under the frozen startup budget; no browser rendering claim.' },
   'test/cockpit/count-consistency.test.js': { kind: 'journey', reason: 'Real native items, milestones, rules and event-stream updates are compared with rendered counts in every tab, filter choices, Pipeline and the Dashboard floor.' },
   'test/cockpit/roadmap-count.test.js': { kind: 'journey', reason: 'Real native milestones, acceptance and recorded trunk landing update an authenticated live Chrome Roadmap and its remaining-work browser title through the event stream.' },
   'test/cockpit/plain-words.test.js': { kind: 'journey', reason: 'Genuine legacy model-less seat, ordered native health/review/fact events, authenticated HTTP and Chrome scan of person-visible names, words and chart hover text; pure label assertions retain explicit timestamp inputs.' },
   'test/cockpit/item-timeline.test.js': { kind: 'journey', reason: 'Actual native checks/facts and live authenticated HTTP detail, followed by Chrome rail geometry, disclosure, and item/code navigation at desktop and phone widths.' },
+  'test/cockpit/timeline-notes.test.js': { kind: 'journey', reason: 'Actual native note, approval and submitted commit are checked in authenticated Chrome across timeline expansion, Needs you and item details, including full-hash copy.' },
   "test/cockpit/needs-actions-pure.test.js": {
     "kind": "logic",
     "reason": "Exact advertised row actions and explicit person authority produce controls over plain data; native decisions and Chrome interaction remain journeys."
@@ -129,6 +138,14 @@ export const VIEW_TEST_ROLES = Object.freeze({
     "kind": "journey",
     "reason": "Actual native summary/history HTTP shape, complete prefix, claim/review lease and merge receipt binding"
   },
+  "test/cockpit/dashboard-walk-1029.test.js": {
+    "kind": "journey",
+    "reason": "A private native board with live review and held work is rendered in real Chrome at desktop and phone widths; Dashboard geometry, time labels, duration units, group labels, reviewer status and held-key alignment are measured."
+  },
+  "test/cockpit/pipeline-panel.test.js": {
+    "kind": "journey",
+    "reason": "A private landed native item is rendered in real Chrome and its stage times, retry causes, totals and unmeasured gaps are compared with the exact API projection."
+  },
   "test/cockpit/dashboard-clock.test.js": {
     "kind": "journey",
     "reason": "dashboard-clock: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
@@ -152,6 +169,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
   "test/cockpit/dashboard.test.js": {
     "kind": "journey",
     "reason": "dashboard: existing real browser interaction/layout or native CLI/API fixture; pure assertions must also have independent renderer witnesses"
+  },
+  "test/cockpit/release-header.test.js": {
+    "kind": "journey",
+    "reason": "Real native landings and a seeded release are compared in authenticated Chrome on Dashboard and Roadmap at desktop and phone widths."
   },
   "test/cockpit/demo.test.js": {
     "kind": "journey",

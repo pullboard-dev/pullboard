@@ -8,7 +8,7 @@ import {
   planRowVerificationApply,
   rowVerificationFindings,
 } from '../spec-verdicts.js';
-import { planAutomaticRigorApply } from '../rigor-auto-apply.js';
+import { planAutomaticRigorApply } from '../../packages/rigor/index.js';
 import {
   planSpecRevision,
   prepareSpecRevisionDecisions,
@@ -125,9 +125,9 @@ import {
 } from 'node:url';
 import {
   citations,
-  context,
   coordinatorFile,
   idList,
+  main,
   ordered,
   primaryCheckoutRoot,
   reserveRow,
@@ -137,6 +137,7 @@ import {
   whoAmI,
   withBoard,
 } from '../cli.js';
+import { personCommandContext } from '../cli-context.js';
 import {
   assertNoCitedSpecDecline,
   prepareSpecRefreezes,
@@ -158,7 +159,7 @@ function verifierFindings(ctx, parsed) {
  * @returns {Promise<number>}
  */
 export async function specCommand(io, { first, second, rest, values }) {
-  const ctx = context(io);
+  const ctx = personCommandContext(io, { main, ordered });
   const commandFlags = {
     '--json': ['json'],
     check: ['json'],

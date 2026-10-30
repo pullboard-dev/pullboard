@@ -8,6 +8,7 @@ import { recoveryIdentity } from '../packages/resources/index.js';
 import { DatabaseSync } from 'node:sqlite';
 import {
   mkdirSync,
+  linkSync,
   lstatSync,
   readFileSync,
   readdirSync,
@@ -96,8 +97,67 @@ export function runnerLaunchAllowed(root, identity) {
     const file = join(root, 'recovery-launches', identity.request, 'identity.json');
     if (!statSync(file).isFile() || statSync(file).size > 4096) return false;
     const actual = JSON.parse(readFileSync(file, 'utf8'));
-    return actual.neverStarted === false && sameRecovery(actual, identity);
+    return actual.neverStarted === false && actual.cancelled !== true && sameRecovery(actual, identity);
   } catch { return false; /* Unknown launch custody never permits a job to start. */ }
+}
+
+/** Publish a complete startup owner or cancellation claim atomically; a crash cannot leave an empty winning record. */
+function claimStartup(root, identity, payload) {
+  const directory = join(root, 'recovery-launches', identity.request);
+  const temporary = join(directory, `.startup-${randomUUID()}.json`);
+  writeFileSync(temporary, JSON.stringify({ ...identity, ...payload }) + '\n', { flag: 'wx', mode: 0o600 });
+  try { linkSync(temporary, join(directory, 'startup.json')); return true; }
+  catch (error) { if (error.code === 'EEXIST') return false; throw error; }
+  finally { unlinkSync(temporary); }
+}
+
+/** Claim the same startup boundary that idle cancellation uses, recording custody before work can spawn. */
+export function claimRunnerWorker(root, identity) {
+  if (!runnerLaunchAllowed(root, identity)) return false;
+  const owner = processCensus()?.get(process.pid);
+  if (!owner) return false;
+  try {
+    if (!claimStartup(root, identity, { owner: { pid: owner.pid, started: owner.started } })) return false;
+    return runnerLaunchAllowed(root, identity);
+  } catch { return false; }
+}
+
+/** Fence only matching started custody; a live startup owner keeps the hold even before it creates a job. */
+function cancelRunnerLaunch(root, identity) {
+  try {
+    if (claimRunnerLaunch(root, identity, true)) return { cancelled: true };
+    const directory = join(root, 'recovery-launches', identity.request), file = join(directory, 'identity.json');
+    const stat = lstatSync(file);
+    if (!stat.isFile() || stat.size > 4096) throw new Error('invalid launch custody');
+    const actual = JSON.parse(readFileSync(file, 'utf8'));
+    if (!sameRecovery(actual, identity)) throw new Error('foreign launch custody');
+    if (actual.neverStarted === true) return { cancelled: true };
+    if (actual.neverStarted !== false && actual.cancelled !== true) throw new Error('unknown launch state');
+    if (!claimStartup(root, identity, { cancelled: true })) {
+      const startup = join(directory, 'startup.json'), entry = lstatSync(startup);
+      if (!entry.isFile() || entry.size > 4096) throw new Error('invalid startup custody');
+      const state = JSON.parse(readFileSync(startup, 'utf8'));
+      if (!sameRecovery(state, identity)) throw new Error('foreign startup custody');
+      if (state.cancelled !== true) {
+        const owner = state.owner;
+        if (!Number.isSafeInteger(owner?.pid) || owner.pid < 1 || typeof owner.started !== 'string' || !owner.started.trim()) throw new Error('unknown startup owner');
+        const census = processCensus(), observed = census?.get(owner.pid);
+        if (!census) return { cancelled: false, reason: `runner startup pid ${owner.pid} could not be verified` };
+        if (observed && !observed.state.startsWith('Z') && observed.started === owner.started)
+          return { cancelled: false, reason: `runner process or job working directory remains: startup pid ${owner.pid}` };
+        if (!observed) {
+          try { process.kill(owner.pid, 0); return { cancelled: false, reason: `runner startup pid ${owner.pid} could not be verified` }; }
+          catch (error) { if (error.code !== 'ESRCH') throw error; }
+        }
+      }
+    }
+    // Omitting neverStarted fences older workers too, without falsely claiming this request never started.
+    const { neverStarted, ...retained } = actual;
+    const temporary = join(directory, `.cancelled-${randomUUID()}.json`);
+    writeFileSync(temporary, JSON.stringify({ ...retained, cancelled: true, priorNeverStarted: actual.priorNeverStarted ?? neverStarted }) + '\n', { flag: 'wx', mode: 0o600 });
+    renameSync(temporary, file);
+    return { cancelled: true };
+  } catch { return { cancelled: false, reason: 'exact launch cancellation custody could not be verified' }; }
 }
 
 /** Persist verified process/lease drainage before removing the last observable job directory. */
@@ -146,6 +206,9 @@ export function runnerHealthReply(root, request) {
       if (!statSync(claim).isFile() || statSync(claim).size > 4096) return { ...base, reason: 'invalid launch custody record' };
       const actual = JSON.parse(readFileSync(claim, 'utf8'));
       if (actual.neverStarted === true && sameRecovery(actual, identity)) continue;
+      if (sameRecovery(actual, identity) && (actual.neverStarted === false || actual.cancelled === true))
+        return { ...base, idleRequired: true, reason: 'started request has no exact completion record' };
+      return { ...base, reason: 'launch custody does not match the exact request' };
     } catch { /* An unknown claim, incomplete write or permission failure remains unavailable. */ }
     return { ...base, reason: 'started request has no exact completion record' };
   }
@@ -161,7 +224,7 @@ export function recordRunnerOwner(directory) {
 }
 
 /** Observe live owners and job working directories; old files alone are not running jobs. */
-function runnerProcessesIdle(root) {
+function runnerProcessesIdle(root, diagnostic) {
   const options = { encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
     env: { PATH: '/usr/bin:/bin:/usr/sbin', LC_ALL: 'C', LANG: 'C', TZ: 'UTC' } };
   const commands = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,args='], options);
@@ -178,7 +241,7 @@ function runnerProcessesIdle(root) {
     const actual = census.get(Number(row[1]));
     if (!actual || actual.pid === process.pid || actual.state.startsWith('Z')) continue;
     const worker = entry.exec(row[2]);
-    if (worker && !/^\s+--health(?:\s|$)/u.test(row[2].slice(worker.index + worker[0].length))) return false;
+    if (worker && !/^\s+--health(?:\s|$)/u.test(row[2].slice(worker.index + worker[0].length))) { diagnostic.pid = actual.pid; return false; }
   }
   const jobs = join(canonicalRoot, 'jobs');
   let directories;
@@ -196,7 +259,7 @@ function runnerProcessesIdle(root) {
         try { process.kill(owner.pid, 0); return false; }
         catch (error) { if (error.code !== 'ESRCH') return false; }
       }
-      if (actual && !actual.state.startsWith('Z') && actual.started === owner.started) return false;
+      if (actual && !actual.state.startsWith('Z') && actual.started === owner.started) { diagnostic.pid = actual.pid; return false; }
     } catch (error) { if (error.code !== 'ENOENT') return false; }
   }
   /** Compare directory components so jobs-old never counts as a running job. */
@@ -207,7 +270,7 @@ function runnerProcessesIdle(root) {
   if (process.platform === 'linux') {
     for (const pid of pids) {
       try {
-        if (statSync(`/proc/${pid}`).uid === process.getuid() && inJobs(readlinkSync(`/proc/${pid}/cwd`))) return false;
+        if (statSync(`/proc/${pid}`).uid === process.getuid() && inJobs(readlinkSync(`/proc/${pid}/cwd`))) { diagnostic.pid = pid; return false; }
       } catch (error) { if (!['ENOENT', 'ESRCH'].includes(error.code)) return false; }
     }
     return true;
@@ -222,7 +285,7 @@ function runnerProcessesIdle(root) {
       pid = Number(line.slice(1)); complete = false;
     } else if (line === 'fcwd' && pid !== null && !complete) continue;
     else if (line.startsWith('n') && pid !== null && !complete && isAbsolute(line.slice(1))) {
-      if (inJobs(line.slice(1))) return false;
+      if (inJobs(line.slice(1))) { diagnostic.pid = pid; return false; }
       ownSeen ||= pid === process.pid; complete = true;
     } else return false;
   }
@@ -235,6 +298,15 @@ export function runnerIdleReply(root, request) {
   try {
     if (!/^[a-f0-9-]{36}$/u.test(request?.nonce ?? '') || !statSync(root).isDirectory())
       return { ...base, reason: 'runner root is unavailable' };
+    if (request.previous !== undefined) {
+      const identities = Array.isArray(request.previous) ? request.previous : [request.previous];
+      if (!identities.length || identities.length > 128 || !identities.every(identity => recoveryIdentity(identity) && identity.launchFence === 1))
+        return { ...base, reason: 'exact launch identities are required before idle fallback' };
+      for (const identity of identities) {
+        const result = cancelRunnerLaunch(root, identity);
+        if (!result.cancelled) return { ...base, reason: result.reason };
+      }
+    }
     const jobs = join(root, 'jobs');
     let jobDirectory;
     try { jobDirectory = lstatSync(jobs); }
@@ -260,8 +332,11 @@ export function runnerIdleReply(root, request) {
     unlinkSync(marker);
     try { jobDirectory = lstatSync(jobs); }
     catch (error) { if (error.code !== 'ENOENT') throw error; jobDirectory = null; }
-    if (jobDirectory && !jobDirectory.isDirectory() || !runnerProcessesIdle(root))
-      return { ...base, reason: 'runner process or job working directory appeared or could not be verified' };
+    const diagnostic = {};
+    if (jobDirectory && !jobDirectory.isDirectory() || !runnerProcessesIdle(root, diagnostic))
+      return { ...base, reason: Number.isSafeInteger(diagnostic.pid)
+        ? `runner process or job working directory remains: pid ${diagnostic.pid}`
+        : 'runner process or job working directory appeared or could not be verified' };
     return { ...base, idle: true, writable: true, reason: 'no live runner process, job working directory or resource lease and runner root writable' };
   } catch { return { ...base, reason: 'runner idle or writable state could not be verified' }; }
 }

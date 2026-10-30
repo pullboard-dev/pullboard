@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { moveArgs } from '../src/api-moves.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
@@ -22,7 +23,7 @@ const ALL_FILES = ['web/feature.js', ...ODD_FILES];
 
 /** Read an item, its thread and its verdicts through a short-lived board connection. */
 function readItem(box, id) {
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { return { ...store.getItem(board, id), thread: store.itemThread(board, id), verdicts: store.verdictsFor(board, id) }; }
   finally { store.closeBoard(board); }
 }
@@ -175,10 +176,10 @@ test('an older engine refuses a trunk conflict reopen before changing anything [
   accept(box, item.id, item.commit);
   const trunk = moveTrunk(box);
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-conflict-engine-'));
-  const source = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const source = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   const snapshot = exportBoard(source);
   store.closeBoard(source);
-  const replica = store.openBoard(join(directory, 'replica.sqlite'));
+  const replica = openBoard(join(directory, 'replica.sqlite'));
   t.after(() => { store.closeBoard(replica); rmSync(directory, { recursive: true, force: true }); });
   importBoard(replica, snapshot);
   assert.ok(ENGINE_VERSION >= CONFLICT_ENGINE);

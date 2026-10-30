@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard, restoreRelaySnapshot, semanticBoardDigest } from '../src/exchange.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
@@ -17,7 +18,7 @@ import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';
 function fixture(t) {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-local-heartbeat-'));
   let at = Date.parse('2026-01-01T00:00:00Z');
-  const boards = [0, 1].map(index => store.openBoard(join(dir, `${index}.sqlite`), { now: () => new Date(at) }));
+  const boards = [0, 1].map(index => openBoard(join(dir, `${index}.sqlite`), { now: () => new Date(at) }));
   store.register(boards[0], { lane: 'coordinator', path: dir });
   let sequence = 0;
   /** Apply a real ordered private engine receipt with the declared coordinator machine. */

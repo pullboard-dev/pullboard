@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from '../src/cli.js';
@@ -19,7 +20,7 @@ function seededProject(t) {
   t.after(kit.cleanup);
   const box = kit.project('true');
   // @pullboard-board-file journey: the real status, digest and HTTP readers open this seeded project board
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   const now = Date.now();
   let clock = now - 3 * 24 * HOUR;
   board.clock = { now: () => new Date(clock) };

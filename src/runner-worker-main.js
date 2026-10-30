@@ -27,6 +27,7 @@ import { sampleRunnerLoad } from './runner-load.js';
 import { pinSourceCacheJob } from './runner-source-cache.js';
 import { recordRunnerCompletion } from './runner-transport.js';
 import { recordRunnerOwner } from './runner-transport.js';
+import { TEST_RESULT_REQUEST_ENV } from './test-result-store.js';
 import { TEST_RESULT_ORIGIN_ENV } from './test-result-store.js';
 import { TEST_RESULT_STORE_ENV } from './test-result-store.js';
 import { importTestResults } from './test-result-store.js';
@@ -134,7 +135,7 @@ export async function main(S) {
     if (spec.testResults) importTestResults(resultStore, spec.testResults.packet, spec.testResults.inputKeys);
     // A request without an exchange comes from a caller that opted out of reuse: run every file, read no store.
     const commandEnv = { ...env, ...(spec.testResults ? { [TEST_RESULT_STORE_ENV]: resultStore,
-      [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
+      [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, [TEST_RESULT_REQUEST_ENV]: spec.id, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
       // An audit-coverage run always executes every file, whatever the exchange holds.
       ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,

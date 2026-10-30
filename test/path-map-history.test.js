@@ -7,15 +7,16 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { checkBaseline } from '../src/check-baseline.js';
 import { itemsTouching } from '../packages/commits/index.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { coChangedPaths, historicalPaths, mappedCheck, readPathMap } from '../packages/codemap/index.js';
-import { prepareCauseProof, runCheckAt } from '../src/rigor-proof.js';
+import { prepareCauseProof, runCheckAt } from '../packages/rigor/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
-import { proveCauseCheck } from '../src/rigor-proof.js';
+import { proveCauseCheck } from '../packages/rigor/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 
@@ -190,7 +191,7 @@ test('why on an old name includes work landed at the new name [C7]', () => {
 test('flake and Rigor read projections join moved names while original SQLite events stay unchanged [C7]', () => {
   const box = movedFixture();
   /** @pullboard-board-file persistence: the case proves the original SQLite events on disk stay unchanged after a move. */
-  const board = store.openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   try {
     const actor = store.register(board, { lane: 'web', path: join(box.dir, 'observation-seat') });
     /** Synthetic receipt metadata tests identity projection without claiming a native flake. */

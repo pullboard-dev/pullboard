@@ -1,3 +1,4 @@
+import { STRICT_COMPOSITION_ENGINE } from './strict-composition-engine.js';
 import { classifiedStrict } from './review-tier.js';
 import { reviewTierFloor } from './review-tier.js';
 import { REVIEW_ROUTING_ENGINE } from './review-routing-engine.js';
@@ -57,6 +58,7 @@ export function itemReviewPolicy(board, id) {
 /** Modern recorded policy is an authority witness; old reviews cannot reinterpret its rules. */
 export function itemReviewPolicyEngine(board, id) {
   if (!board) return 1;
+  if (board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_composition:active'").get()) return Math.max(STRICT_COMPOSITION_ENGINE, reviewTierFloor(board, id));
   const tierEngine = reviewTierFloor(board, id);
   if (tierEngine > 1) return tierEngine;
   const routingEngine = routingPolicyEngine(board);
@@ -67,6 +69,7 @@ export function itemReviewPolicyEngine(board, id) {
 
 /** A queue selector must understand every modern policy before excluding or choosing its target. */
 export function anyItemReviewPolicyEngine(board) {
+  if (board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_composition:active'").get()) return Math.max(STRICT_COMPOSITION_ENGINE, reviewTierFloor(board));
   const tierEngine = reviewTierFloor(board);
   if (tierEngine > 1) return tierEngine;
   const routingEngine = routingPolicyEngine(board);

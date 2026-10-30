@@ -18,6 +18,7 @@ import { foreignNodeOptions } from '../src/test-isolation.js';
 import { parseSpec } from '../src/spec.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { claimFreezer } from '../src/cli/claim.js';
 import { loadConfig } from '../src/config.js';
 
@@ -98,7 +99,7 @@ test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion 
   const second = item(box, 'Refused claim');
   const agent = JSON.parse(box.run(box.web, 'whoami', '--json').out).id;
   // @pullboard-board-file journey: the real CLI subprocess persisted this project board, so the claim guards read that file
-  const board = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const ctx = { info: { root: box.web, isMain: false }, config: loadConfig(box.web) };
     const provider = claimFreezer(ctx, board);
@@ -114,7 +115,7 @@ test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion 
   assert.equal(box.run(box.web, 'claim', first).code, 0);
   const db = cache(box); db.exec('DELETE FROM facts'); db.close();
   // @pullboard-board-file journey: the real CLI subprocess persisted this project board, so the claim guards read that file
-  const held = store.openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const held = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const ctx = { info: { root: box.web, isMain: false }, config: loadConfig(box.web) };
     const provider = claimFreezer(ctx, held);
