@@ -4,6 +4,7 @@
  */
 import { existsSync } from 'node:fs';
 import * as store from './board.js';
+import { nativeBoardPorts } from './native-board.js';
 
 /** Read one consent line without waiting for EOF in an interactive terminal [V2]. */
 export async function firstInputLine(stdin) {
@@ -38,7 +39,7 @@ export function hookRead(ctx, read) {
   let db;
   try {
     db = store.openBoardReadOnly(ctx.file);
-    return read({ db, clock: ctx.clock });
+    return read({ db, clock: ctx.clock, enginePorts: nativeBoardPorts().enginePorts });
   } catch (error) {
     throw store.boardBusyError(ctx.file, startedAt, error);
   } finally { db?.close(); }

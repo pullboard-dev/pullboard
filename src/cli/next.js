@@ -1,3 +1,4 @@
+import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { laneSeatContext } from '../seat-checkout.js';
 import { nextSessionSeats } from '../seat-checkout.js';
@@ -98,7 +99,7 @@ function nextPick(ctx, board, values) {
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
   // never this seat's to resume or be pointed at (#958).
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
-    && item.item_parent_id === null && item.item_owner === me.id
+    && item.item_parent_id === null && item.item_owner === me.id && !pendingSubmitHandoff(board, item)
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle };

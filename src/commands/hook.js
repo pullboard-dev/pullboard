@@ -1,3 +1,4 @@
+import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../landing-waivers.js';
 import { quarantineWaivers } from '../quarantine.js';
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
@@ -86,7 +87,8 @@ export async function hookCommand(io, { first, second }) {
   let problems = [];
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
-    const agent = info.isMain ? null : hookRead(ctx, (board) => store.agentAt(board, info.root));
+    const agent = info.isMain ? null : hookRead(ctx, (board) => store.agentAt(board, info.root)
+      ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
