@@ -5,10 +5,12 @@ const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js',
 /** Public, real-Git landing contention fixture; no private drill data is used [B3,R3,Q1,Q2,E8]. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { mainAuditKey } from '../src/main-audit-state.js';
+import { readMainAudit } from '../src/main-audit-state.js';
 import { readAuditJob } from './main-audit-project.js';
 import {
   readGateReceipt,
@@ -162,7 +164,44 @@ async function repairedPolicyControls(box, batch) {
   } finally { store.closeBoard(board); }
 }
 
-/** Count every foreground invocation; exclude only an independently source-bound audit of these batches. */
+/** Recognize only this board's recorded exact source composition, never a temporary-path prefix alone. */
+function sourceAdvancePolicyCall(box, batches, record, board, audits) {
+  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
+  if (!existsSync(directory)) return false;
+  const matches = readdirSync(directory).filter(name => /^[a-f0-9]{64}\.json$/u.test(name))
+    .map(name => ({ key: name.slice(0, -5), job: readMainAudit(join(directory, name)) }))
+    .filter(({ job }) => job?.directory === record.cwd);
+  if (!matches.length) return false;
+  assert.equal(matches.length, 1, 'a gate root binds exactly one native source-advance job');
+  const { key, job } = matches[0];
+  const entry = batches.flatMap(batch => batch.items).find(item => item.id === job.item);
+  assert.ok(entry, 'the source advance belongs to an item in these exact landed batches');
+  assert.equal(job.version, 1);
+  assert.equal(job.basis?.version, 1);
+  assert.equal(job.basis.board, board);
+  assert.equal(job.basis.submitted, entry.commit);
+  assert.ok(batches.some(batch => batch.tip === job.basis.trunk), 'only a genuinely landed policy tip is independent');
+  assert.equal(key, createHash('sha256').update(JSON.stringify([board, job.item, job.basis])).digest('hex'));
+  assert.ok(['running', 'advanced', 'returned', 'incomplete'].includes(job.state), 'the native worker recorded the composition before its gate');
+  assert.match(job.head, /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u);
+  assert.equal(box.git(box.repo, 'rev-parse', job.head + '^1'), job.basis.inputHead);
+  assert.equal(box.git(box.repo, 'rev-parse', job.head + '^2'), job.basis.trunk);
+  assert.equal(box.git(box.repo, 'rev-parse', job.head + '^{tree}'), job.tree);
+  for (const id of job.receiptIds ?? []) {
+    const receipt = readGateReceipt(receiptStore(box.repo), id);
+    assert.ok(receipt, 'a closed source advance retains each genuine phase receipt');
+    assert.equal(receipt.head, job.head);
+    assert.equal(receipt.tree, job.tree);
+    assert.equal(receipt.kind, 'submit');
+  }
+  const identity = `source-advance:${key}`;
+  assert.equal(audits.has(identity), false, 'a duplicate audit invocation cannot disappear from the policy count');
+  audits.add(identity);
+  assert.deepEqual(record.args, ['--new-policy'], 'the exact native source advance uses its accepted policy');
+  return true;
+}
+
+/** Count every foreground invocation; exclude only independently source-bound native work for these batches. */
 function landingPolicyCalls(box, batches, records) {
   const roots = new Set(batches.map(batch => batch.root));
   const directory = join(box.repo, '.git', 'pullboard', 'main-audits');
@@ -171,6 +210,7 @@ function landingPolicyCalls(box, batches, records) {
   const audits = new Set();
   for (const record of records) {
     if (roots.has(record.cwd)) { calls.push(record.args); continue; }
+    if (sourceAdvancePolicyCall(box, batches, record, board, audits)) continue;
     assert.equal(dirname(record.cwd), directory, 'an unknown gate root cannot disappear from the policy count');
     assert.match(basename(record.cwd), /^source-[a-f0-9]{64}$/u);
     const key = basename(record.cwd).slice('source-'.length);
@@ -348,7 +388,11 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
     assert.notDeepEqual(landingPolicyCalls(box, batches, [...records, { cwd: batches[0].root, args: [] }]),
       [[], ['--new-policy']], 'an extra foreground gate remains a failure of the original oracle');
     const audit = records.find(record => !batches.some(batch => batch.root === record.cwd));
-    if (audit) assert.throws(() => landingPolicyCalls(box, batches, [...records, audit]), /duplicate audit invocation/u);
+    if (audit) {
+      assert.throws(() => landingPolicyCalls(box, batches, [...records, audit]), /duplicate audit invocation/u);
+      assert.throws(() => landingPolicyCalls(box, batches, records.map(record => record === audit ? { ...record, args: [] } : record)),
+        /accepted.*policy|accepted new policy/u, 'a bound background root never excuses the wrong policy');
+    }
     t.diagnostic(`policy journal: ${calls.length} foreground invocations; ${records.length - calls.length} independently bound audit invocations`);
   }
   for (const entry of entries) {
