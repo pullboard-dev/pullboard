@@ -667,7 +667,10 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     await page.type('q', '');
 
     await page.click({ tab: 'shouts' });
-    const feed = page.show('feed');
+    const feed = ['item:1', 'item:7'].map(key => {
+      page.run(`view.shoutThread = ${JSON.stringify(key)}; render();`);
+      return page.show('feed');
+    }).join('');
     assert.ok(feed.includes(`<a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> is next;`), feed);
     assert.ok(feed.includes(`<a class="ref" href="/items/2" data-go="item:2" title="Farewell banner">#2</a> shipped`));
     assert.ok(feed.includes(`(<a class="ref" href="/items/99" data-go="item:99">#99</a> is not an item) and it&#39;s done`), 'an unknown item still has its address, and the apostrophe stays intact');

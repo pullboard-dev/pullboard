@@ -139,10 +139,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 main { padding: var(--space-5) var(--space-6) var(--space-9); }
-/* The status bar: the page's own surface, frosted so the list shows faintly through it; red when the view is cut off, violet on a snapshot. Each part opens what it counts. */
-.status { --status-bg: color-mix(in srgb, var(--surface) 68%, transparent); --status-ink: var(--ink-muted); --status-strong: var(--ink); --status-hover: color-mix(in srgb, var(--ink) 7%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; display: flex; align-items: stretch; height: 28px; padding: 0 var(--space-2); background: var(--status-bg); color: var(--status-ink); font-size: var(--text-xs); white-space: nowrap; overflow: hidden; }
-.status.snap { --status-bg: color-mix(in srgb, var(--violet-soft) 80%, transparent); --status-ink: var(--violet); --status-strong: var(--violet); }
-.status:not(.snap):has(.live:not(:empty)) { --status-bg: color-mix(in srgb, var(--reject-soft) 85%, transparent); --status-ink: var(--reject); --status-strong: var(--reject); }
+/* The opaque status surface keeps scrolling text out of the person's status line. */
+.status { --status-bg: var(--surface); --status-ink: var(--ink-muted); --status-strong: var(--ink); --status-hover: color-mix(in srgb, var(--ink) 7%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; display: flex; align-items: stretch; height: 28px; padding: 0 var(--space-2); background: var(--status-bg); color: var(--status-ink); font-size: var(--text-xs); white-space: nowrap; overflow: hidden; }
+.status.snap { --status-bg: var(--violet-soft); --status-ink: var(--violet); --status-strong: var(--violet); }
+.status:not(.snap):has(.live:not(:empty)) { --status-bg: var(--reject-soft); --status-ink: var(--reject); --status-strong: var(--reject); }
 .status b { color: var(--status-strong); font: 600 var(--text-2xs) var(--mono); }
 .status .live { display: inline-flex; align-items: center; gap: var(--space-2); margin: 0; padding: 0 var(--space-3); color: inherit; }
 .status .live::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--reject); }
@@ -595,10 +595,6 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 [data-pane="shouts"].bare > aside { display: none; }
 /* The asks as cards in a quiet panel; the amber lives in the heading's dot, not in a box. */
 #decisions { background: var(--surface); border-color: var(--line); padding: var(--space-4) var(--space-4) var(--space-1); }
-#decisions > .shout { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 0 var(--space-4); padding: var(--space-4) var(--space-0); border-top: 1px solid var(--line); }
-#decisions > .head + .shout { border-top: 0; }
-#decisions .shout.clamp:not(.open) .text { -webkit-line-clamp: 3; }
-#decisions .answer { margin-top: var(--space-2); }
 /* Shouts as cards (#250): who and when on top, what was said below, each agent in a colour of its own. No
  * card carries a coloured edge; colour lives in the avatar, the name and the chips. */
 :root { --hue-0: light-dark(#0f766e, #5eead4); --hue-1: light-dark(#1d4ed8, #93b4f8); --hue-2: light-dark(#6d28d9, #c4b5fd); --hue-3: light-dark(#be185d, #f9a8d4);
@@ -610,33 +606,21 @@ form.inline { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: 
 #feed > .day-rule { display: flex; align-items: center; gap: var(--space-4); margin: var(--space-4) 0 var(--space-0); color: var(--ink-faint); font: 600 var(--text-2xs) var(--mono); letter-spacing: var(--tracking-label); text-transform: uppercase; }
 #feed > .day-rule::before, #feed > .day-rule::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
 #feed > .day-rule:first-child { margin-top: var(--space-0); }
-.shout.lead .avatar, .agent-card.lead .avatar, .agent-pill.lead .avatar { border-radius: var(--radius-lg); background: var(--ink); color: var(--surface); }
-.shout.lead .avatar svg { width: 18px; height: 18px; }
 .shout.lead .who { color: var(--ink); }
-.shout .avatar, .agent-card .avatar, .agent-pill .avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 var(--text-2xs) var(--mono); }
-.shout .avatar.wide { font-size: 9px; letter-spacing: var(--tracking-tight); }
 .shout-main { min-width: 0; }
 .shout header { display: flex; flex-wrap: nowrap; align-items: baseline; gap: var(--space-0) var(--space-3); }
 .shout .who, .shout .to { display: flex; flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
 /* A recipient with no model to shorten, such as coordinator and you, gives way with an ellipsis before the age is pushed out. */
 .shout .to:not(:has(.agent-label, .agent-address)) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.shout .agent-label { display: inline-grid; grid-template-columns: max-content minmax(0, 1fr); min-width: 0; }
-.shout .agent-label.prefix { grid-template-columns: minmax(0, 1fr) max-content; }
-.shout .agent-model { overflow: hidden; text-overflow: ellipsis; white-space: pre; }
 .shout header .mark { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#feed .shout:has(.mark.ask) .to { flex: none; min-width: max-content; padding-right: var(--space-1); }
 .shout header time { flex: none; }
 .shout .who { color: var(--h); font-weight: 700; }
 .shout .to, .shout .item { color: var(--ink-faint); }
-.shout .item { font: var(--text-xs) var(--mono); }
 .shout header time { margin-left: auto; color: var(--ink-faint); font-size: var(--text-xs); white-space: nowrap; }
 /* A waiting ask keeps its address and age whole; a wider fallback font shortens its kind instead. */
-#decisions .shout header { flex-wrap: nowrap; }
-#decisions .shout .who, #decisions .shout .to { flex: 0 1 auto; min-width: min-content; white-space: nowrap; }
-#decisions .shout .to:not(:has(.agent-label, .agent-address)) { min-width: 0; }
-#decisions .shout header .mark { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#decisions .shout header time { flex: none; }
 .shout .text { margin-top: var(--space-1); overflow-wrap: break-word; }
-.shout.clamp:not(.open) .text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
+.shout.clamp:not(.open) .text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .shout .more { display: none; align-items: center; min-height: var(--tap); margin: calc(var(--space-3) * -1) 0 calc(var(--space-4) * -1); padding: 0; border: 0; background: none; color: var(--accent-strong); font-weight: 600; font-size: var(--text-sm); cursor: pointer; }
 .shout.clamp .more { display: inline-flex; }
 .shout .band { margin-top: var(--space-3); padding: var(--space-2) var(--space-4); border-radius: var(--radius-lg); background: var(--warn-soft); color: var(--warn); font-weight: 600; font-size: var(--text-sm); }
@@ -833,40 +817,29 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* The agents panel: a row for each agent holding work, a pill for each holding none. */
 .agent-card { border-radius: var(--radius-lg); }
 .agent-card.on { background: color-mix(in srgb, var(--h) 9%, transparent); }
-.agent-row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 1px var(--space-4); align-items: center; width: 100%; min-height: 48px; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.agent-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-1) var(--space-3); align-items: center; width: 100%; min-height: 48px; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .agent-row:hover { background: var(--surface-2); }
-.agent-row .avatar { grid-row: 1 / span 2; width: 28px; height: 28px; font-size: 10px; }
-.agent-row .avatar.wide { font-size: 8px; }
-.agent-card.lead .avatar svg, .agent-pill.lead .avatar svg { width: 60%; height: 60%; }
 .agent-who { display: flex; align-items: baseline; gap: var(--space-3); min-width: 0; }
-.agent-who b { color: var(--h); font-size: var(--text-sm); }
+.agent-who b { color: var(--violet); font: 600 var(--text-sm) var(--mono); }
 .agent-card.lead .agent-who b, .agent-pill.lead > span { color: var(--ink); }
-.agent-who time { margin-left: auto; color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
 .agent-doing { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-size: var(--text-xs); color: var(--ink-muted); }
 .agent-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agent-what i { font: normal var(--text-2xs) var(--mono); color: var(--ink-faint); }
 .agent-doing .chip { flex: none; font-size: var(--text-2xs); padding-block: 0; }
-.agent-more { flex: none; font: var(--text-2xs) var(--mono); color: var(--ink-faint); }
 .agent-card .agent-work { padding: 0 var(--space-3) 0 var(--space-9); font-size: var(--text-xs); }
 .fold-line { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--tap); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; color: var(--ink-muted); font: inherit; font-size: var(--text-xs); text-align: left; cursor: pointer; }
 .fold-line:hover { background: var(--surface-2); }
 .fold-more { margin-left: auto; color: var(--accent-strong); font-weight: 600; }
 /* The fold line reaches 4px from the card edge on every side, its words in line with the card text. */
 
-.agents-quiet { margin: var(--space-1) 0 0; padding: var(--space-4) var(--space-3) var(--space-0); border-top: 1px solid var(--line); color: var(--ink-faint); font-size: var(--text-xs); }
 .all-agents { margin-top: var(--space-0); font-size: var(--text-sm); }
 .agents-idle { margin-top: var(--space-1); padding-top: var(--space-0); border-top: 1px solid var(--line); }
-.idle-summary { display: flex; align-items: center; gap: var(--space-3); width: 100%; min-height: var(--tap); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; color: var(--ink-muted); font: inherit; font-size: var(--text-xs); text-align: left; cursor: pointer; }
-.idle-summary:hover { background: var(--surface-2); }
-.idle-more { margin-left: auto; color: var(--accent-strong); font-weight: 600; }
 .idle-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 .agent-pill { display: flex; align-items: center; min-width: 0; min-height: var(--tap); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; color: inherit; font: inherit; cursor: pointer; }
 .agent-pill:hover { background: var(--surface-2); }
 .agent-pill.on { background: color-mix(in srgb, var(--h) 9%, transparent); }
 .agent-pill > span { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--ink-muted); font-size: var(--text-xs); }
 .agent-pill:hover > span, .agent-pill.on > span { border-color: var(--h); color: var(--h); }
-.agent-pill .avatar { width: 20px; height: 20px; font-size: 8px; }
-.agent-pill .avatar.wide { font-size: 6.5px; }
 
 /* The composer's address, when it is not the coordinator: a chip the person can clear. */
 .composer .to-chip { display: inline-flex; flex: none; align-items: center; align-self: center; gap: var(--space-0); margin-left: var(--space-2); padding-left: var(--space-4); border-radius: var(--radius-pill); background: var(--violet-soft); color: var(--violet); font-size: var(--text-xs); white-space: nowrap; }
@@ -877,10 +850,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .shout .heard::before { content: "✓"; color: var(--accent-strong); font-weight: 700; }
 .shout .heard.not { color: var(--ink-faint); }
 .shout .heard.not::before { content: "…"; color: var(--ink-faint); }
-.heard-faces { display: inline-flex; padding-right: var(--space-2); }
-.heard-face { display: grid; place-items: center; width: 18px; height: 18px; margin-right: calc(var(--space-2) * -1); border: 1.5px solid var(--surface); border-radius: 50%; background: color-mix(in srgb, var(--h) 16%, var(--surface)); color: var(--h); font: 700 7px var(--mono); }
-.heard-face.lead { border-radius: var(--radius-sm); background: var(--ink); color: var(--surface); }
-.heard-face svg { width: 11px; height: 11px; }
 .roadmap-only { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 0 var(--space-1); color: var(--ink-muted); font-size: var(--text-sm); }
 
 /* One corner in both modes: the logo, then the project name, in the same place and size. Docked, the project list sits
@@ -912,9 +881,6 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 .asks-slot:empty { display: none; }
 .asks-toggle { flex: none; padding: var(--space-2) var(--space-3); border: 0; border-radius: var(--radius-lg); background: none; color: var(--ink-muted); font: inherit; font-size: var(--text-sm); white-space: nowrap; cursor: pointer; }
 .asks-toggle:hover, .asks-toggle[aria-expanded="true"] { background: var(--surface-2); color: var(--ink); }
-.shouts-card > #decisions { margin: var(--space-0) var(--space-4) var(--space-3); padding: var(--space-0) var(--space-4); border: 0; border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: none; }
-.shouts-card > #decisions[hidden] { display: none; }
-.shouts-card > #decisions > .shout:first-child { border-top: 0; }
 .shouts-card > .feed { min-width: 0; }
 /* A sent shout shows as its card in the feed, so only a refusal speaks, on its own line above the composer. */
 .shout-form > .console { flex: 1 1 100%; order: -1; margin: 0; }
@@ -1385,6 +1351,43 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
   #settings-content .settings-scopes button { min-width: 0; white-space: normal; }
 }
 
+/* Shouts conversations share one bounded feed column and one compact state column [N26]. */
+#shouts-pane > *, .shouts-card > *, .shout-main { min-width: 0; max-width: 100%; }
+#shouts-pane .primary { overflow: hidden; }
+#shouts-pane .detail { min-width: 0; }
+.shouts-card > .shout-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+/* An empty narrow composer clips its placeholder to one line; actual messages still size to their content. */
+.shouts-card .composer textarea:placeholder-shown { field-sizing: fixed; height: var(--tap); }
+.shout-form > .answering, .shout-form > .console { grid-column: 1 / -1; }
+#asks-slot { min-width: 0; max-width: 100%; }
+#asks-slot .seg { flex: none; }
+.conversation-row { display: flex; align-items: center; gap: var(--space-4); width: 100%; min-width: 0; padding: var(--space-4) 0; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+.conversation-row:hover { background: var(--surface-2); }
+.conversation-copy { display: grid; gap: var(--space-1); flex: 1; min-width: 0; }
+.conversation-title, .conversation-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-title { font-weight: 600; }
+.conversation-title code { color: var(--ink-faint); font: var(--text-xs) var(--mono); }
+.conversation-preview { color: var(--ink-muted); font-size: var(--text-sm); }
+.conversation-meta { display: grid; justify-items: end; gap: var(--space-1); flex: none; color: var(--ink-faint); font-size: var(--text-xs); }
+.conversation-heading { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: var(--space-2); overflow-wrap: anywhere; }
+.conversation-heading .link { justify-self: start; }
+#feed > .shout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+#feed .shout.lead { background: var(--accent-soft); border-radius: var(--radius-md); padding-inline: var(--space-3); }
+#feed .shout .who { color: var(--violet); font: 600 var(--text-sm) var(--mono); }
+#feed .shout.lead .who { color: var(--accent-strong); }
+#feed .shout .to { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.agent-row .agent-who { overflow: hidden; align-self: end; }
+.agent-row .agent-model { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); font-size: var(--text-2xs); }
+.agent-state { grid-column: 2; grid-row: 1 / span 2; display: grid; justify-items: end; gap: var(--space-1); }
+.agent-state time { color: var(--ink-faint); font: var(--text-2xs) var(--mono); }
+.agent-row .agent-doing { grid-column: 1; }
+@media (width < 600px) {
+  .shouts-card > .shout-form { gap: var(--space-1); padding-inline: var(--space-2); }
+  .shout-form .composer { flex: 1 1 0; min-width: 0; }
+  .shout-form .composer textarea { min-width: 0; width: 100%; }
+  #asks-slot .seg button { padding-inline: var(--space-1); font-size: var(--text-2xs); }
+  .conversation-row { gap: var(--space-2); }
+}
 /* The comparison overview stays open; its complete canonical table is a separate disclosure. */
 .window-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
 .window-head h2 { margin: 0; }

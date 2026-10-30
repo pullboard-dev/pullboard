@@ -290,6 +290,7 @@ test('the page uses only API v1 for state, code and every offered move [A3,N26,N
     const page = await openPage(view);
     const id = await boardId(view, alpha.repo);
     await page.click({ tab: 'shouts' });
+    page.run("view.shoutThread = 'none'; render();");
     await page.click({ code: ref });
     assert.match(page.show('feed'), /<i>1<\/i>greeting\.html/);
     assert.equal(await page.run("act('add', {lane:'web', title:'API item', specs:'G1', brief:'Files: web/api.html'})"), true);

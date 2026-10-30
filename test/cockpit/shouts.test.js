@@ -13,6 +13,15 @@ import { BIN, fetchLive, boardOf, shoutNameText, tapTarget, SPEC, machine, proje
 import { assertFirstStateDelay, press as sharedPress } from './stable.js';
 
 
+/** Open a native conversation before measuring its messages; overview rows intentionally carry only previews. */
+async function openConversation(chrome, key = 'none') {
+  const selector = '#feed [data-shout-thread="' + key + '"]';
+  await chrome.waitFor(`!!document.querySelector(${JSON.stringify(selector)})`);
+  await press(chrome, `document.querySelector(${JSON.stringify(selector)})`);
+  await chrome.waitFor("!!document.querySelector('#feed .conversation-heading')");
+}
+
+
 test('the shouts tab counts shouts you have not seen [N26]', async () => {
   const box = machine();
   const alpha = project(box, 'alpha');
@@ -105,14 +114,17 @@ test('a shout shows the evidence it carries [B22]', async () => {
   const view = await startView(box);
   try {
     const page = await openPage(view);
-    page.run("openTab('shouts'); render();");
+    page.run("openTab('shouts'); view.shoutThread = 'item:1'; render();");
     const feed = page.show('feed');
     const card = (kind, outcome) => `<div class="receipt"><div><span class="badge">${kind}</span> <span class="outcome">${outcome}</span></div><div class="receipt-foot"><a class="ref" href="/items/1" data-go="item:1" title="Greeting">#1</a> · web-1 (Test Model) · <button class="hash-copy" type="button" title="${head}" aria-label="Copy full hash ${head}" data-copy="${head}"><code class="inline sha" title="${head}">${head.slice(0, 12)}</code></button></div></div>`;
-    const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button">more<\/button>/, '');
+    const after = (text) => feed.slice(feed.indexOf(text + '</div>') + text.length + 6).replace(/^<button class="more" data-more type="button" aria-expanded="false">Show all<\/button>/, '');
     assert.ok(after('the page loads in 80ms').startsWith(card('receipt', 'measured &lt;fast&gt;')), `what was measured, for which item, by whom, at which commit: ${after('the page loads in 80ms').slice(0, 400)}`);
     assert.ok(after('tried a cache').startsWith(card('attempt', 'failed')), 'and what was tried');
-    assert.match(feed, /<span class="item">#1<\/span>/, 'the card names its item on top');
-    assert.ok(feed.includes('nothing to show</div>'), 'a shout with no evidence has no card');
+    assert.match(feed, /<b>#1 Greeting<\/b>/, 'the opened conversation names the real item above its messages');
+    page.run("view.shoutThread = 'none'; render();");
+    const plain = page.show('feed');
+    assert.ok(plain.includes('nothing to show</div>'), 'the No item conversation retains its native words');
+    assert.doesNotMatch(plain, /class="receipt"/, 'a shout with no evidence has no receipt');
   } finally {
     await view.stop();
   }
@@ -138,12 +150,13 @@ test('a shout from the view shows the person as its author [N26,A9]', { timeout:
     page.element('shout-text').value = 'Web, keep it short';
     await page.fire('shout-form', 'submit');
     await page.run('refresh()');
-    const cards = () => [...shoutNameText(page.show('feed')).matchAll(/<b class="who">([^<]*)<\/b><span class="to">→ ([^<]*)<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
+    page.run("view.shoutThread = 'none'; render();");
+    const cards = () => [...page.show('feed').matchAll(/<b class="who"[^>]* title="([^"]*)">([^<]*)<\/b><span class="to">→ (?:<span[^>]*>)?([^<]*)(?:<\/span>)?<\/span>[^]*?<div class="text">([^<]*)<\/div>/g)].map((m) => m.slice(1));
     assert.deepEqual(cards(), [
-      ['you', 'web', 'Web, keep it short'],
-      ['you', 'coordinator', 'Hello from the person'],
-      ['web-1 (Test Model)', 'coordinator and you', 'web-1 is on the greeting'],
-    ], 'the view reads "you" for the person, to the coordinator and to a lane, and an agent keeps its seat and model');
+      ['Test Model', 'web-1', 'coordinator and you', 'web-1 is on the greeting'],
+      ['unknown', 'you', 'coordinator', 'Hello from the person'],
+      ['unknown', 'you', 'web', 'Web, keep it short'],
+    ], 'the conversation keeps native author and recipient order, naming the model only on hover');
 
     const said = (events) => events.filter((event) => event.event_kind === 'shout').map((event) => event.event_by);
     assert.deepEqual(said(JSON.parse(box.run(alpha.repo, 'log', '--json')).events), ['web-1', 'person', 'person'], 'pullboard log --json records the person as the author');
@@ -198,6 +211,7 @@ test('a short code chip at a line end stays whole, and long code stays one chip 
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('!!document.querySelector(\'[data-tab="shouts"]\')');
     await chrome.click('document.querySelector(\'[data-tab="shouts"]\')');
+    await openConversation(chrome);
     await chrome.waitFor(`[...document.querySelectorAll('#feed code.inline')].some((code) => code.textContent === ${JSON.stringify(wide)})`);
     for (const width of [320, 375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
@@ -296,13 +310,15 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
     await chrome.click(`document.querySelector('[data-tab="shouts"]')`);
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelectorAll("#feed > .shout").length >= 4');
 
-    const rendered = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+    /** Measure only messages in the actually opened native conversation and the unchanged Items/Needs surfaces. */
+    const readRendered = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
       const shout = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('Inline'));
       const shoutCode=[...(shout?.querySelectorAll('code.inline')||[])].find(code=>code.textContent==='--flag'), shoutLine=shout?.querySelector('.text');
       const shoutRect=shoutCode?.getBoundingClientRect(), shoutLineRect=shoutLine?.getBoundingClientRect();
-      const ask = [...document.querySelectorAll('#decisions .shout')].find((row) => row.textContent.includes('Inline'));
+      const ask = document.querySelector('#needs [data-needs-key=\"decision:1\"] .needs-detail');
       const titleNode = document.querySelector('#chain .row .t');
       const outside = [...document.querySelectorAll('#feed > .shout')].find((row) => row.textContent.includes('alert(2)'));
       const itemDetail = document.querySelector('#detail');
@@ -313,26 +329,32 @@ test('real Chrome styles shout code and item text without growing linked lines [
           const content = entry.querySelector('.text');
           return content && content.textContent.trim() === message;
         });
+        if (!row) return null;
         const content = row.querySelector('.text');
         const height = content.getBoundingClientRect().height;
         const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
         return { height, lineHeight, lines: Math.round(height / lineHeight) };
       };
       return {
-        shoutHtml: shout.innerHTML, shoutScripts: shout.querySelectorAll('script').length,
+        shoutHtml: shout?.innerHTML, shoutScripts: shout?.querySelectorAll('script').length,
         shoutCodeMetrics: {display:shoutCode&&getComputedStyle(shoutCode).display,width:shoutRect?.width,lineWidth:shoutLineRect?.width},
-        askHtml: ask.innerHTML, titleHtml: titleNode.innerHTML,
+        askHtml: ask?.innerHTML, titleHtml: titleNode.innerHTML,
         linkedMetrics: lineMetrics('X #1'), plainMetrics: lineMetrics('X'),
         wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'),
         linkedButtons: [...document.querySelectorAll('#feed > .shout')].find((entry) => entry.textContent.includes('A linked line'))?.querySelectorAll('a.ref[data-go]').length,
-        previewLinks: shout.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
-        outsideHtml: outside.innerHTML, askNestedButtons: [...ask.querySelectorAll('button')].filter(link => link.parentElement.closest('button')).length,
+        previewLinks: shout?.querySelectorAll('button[data-code^="SPEC.md:1-2@"]').length,
+        outsideHtml: outside?.innerHTML, askNestedButtons: [...(ask?.querySelectorAll('button') || [])].filter(link => link.parentElement.closest('button')).length,
         criterionHtml: itemDetail.querySelector('.text')?.innerHTML, briefHtml: itemDetail.querySelector('.text.muted')?.innerHTML,
         needsNestedButtons: [...document.querySelectorAll('#needs button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentNestedButtons: [...document.querySelectorAll('#agents button.ref')].filter(link => link.parentElement.closest('button')).length,
         agentItemHeight: agentItem?.getBoundingClientRect().height,
       };
     })())`));
+    const noItemRendered = await readRendered();
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome, 'item:1');
+    const itemRendered = await readRendered();
+    const rendered = { ...noItemRendered, linkedMetrics: itemRendered.linkedMetrics, wrapLinked: itemRendered.wrapLinked, linkedButtons: itemRendered.linkedButtons };
     assert.equal(rendered.shoutCodeMetrics.display, 'inline', `1280px shout code computes inline: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
     assert.ok(rendered.shoutCodeMetrics.width > 0 && rendered.shoutCodeMetrics.width < rendered.shoutCodeMetrics.lineWidth / 2,
       `1280px shout code is a compact chip: ${JSON.stringify(rendered.shoutCodeMetrics)}`);
@@ -340,7 +362,7 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.shoutHtml, /<code class="inline cmd(?: long" title="pullboard shout --decision)?">pullboard shout --decision<\/code>/, 'a pullboard command is inline code, with the flags that follow it');
     assert.match(rendered.shoutHtml, /<code class="inline cmd">--flag<\/code>/, 'a flag on its own is a command chip');
     assert.match(rendered.shoutHtml, /<code class="inline path">src\/cockpit\.js<\/code>/, 'slash paths are path chips');
-    assert.match(rendered.shoutHtml, /<code class="inline sha" title="0123456789abcdef0123456789abcdef01234567">0123456789<\/code>/, 'a hex SHA is a ten-character chip with the whole SHA on hover');
+    assert.match(rendered.shoutHtml, /<code class="inline sha" title="0123456789abcdef0123456789abcdef01234567">0123456789ab<\/code>/, 'a hex SHA is a twelve-character chip with the whole SHA on hover');
     assert.ok((rendered.shoutHtml.match(/<code class="code block">/g) ?? []).length >= 2, 'fences and dollar-prefixed lines are code blocks');
     assert.match(rendered.shoutHtml, /<code class="code block">\$ pullboard claim 1<\/code>/, 'the shell prompt stays visible in command blocks');
     assert.match(rendered.shoutHtml, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, 'script text is escaped inside code');
@@ -348,6 +370,8 @@ test('real Chrome styles shout code and item text without growing linked lines [
     assert.match(rendered.outsideHtml, /&lt;script&gt;alert\(2\)&lt;\/script&gt; outside code/, 'script text outside code is escaped too');
     assert.equal(rendered.previewLinks, 1, 'only a path:lines@SHA reference with the original whole-word boundaries becomes an actionable preview');
     assert.match(rendered.shoutHtml, /Invalid prefix:<code class="inline long" title="SPEC\.md:1-2@[0-9a-f]+">SPEC\.md:1-2@/, 'a path:lines@SHA suffix after a colon stays plain inline code');
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome);
     await chrome.click(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]')`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"]').getAttribute('aria-expanded') === 'true'`);
     await chrome.waitFor(`document.querySelector('#feed button[data-code^="SPEC.md:1-2@"] + .code-ref .code-wrap > .code')?.textContent.includes('Demo spec')`);
@@ -391,14 +415,17 @@ test('real Chrome styles shout code and item text without growing linked lines [
     await chrome.click("document.querySelector('#add-cancel')");
     await chrome.waitFor("document.querySelector('#add-form').hidden");
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden])") && document.querySelector("#feed code.inline")?.getBoundingClientRect().width > 0');
-    const phoneMetrics = JSON.parse(await chrome.stable(`JSON.stringify((() => {
+    /** Compare native linked and plain line boxes after visiting their respective conversations at the same viewport. */
+    const readPhone = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
       /** Measure the complete rendered content line box, including its item link. */
       const lineMetrics = (message) => {
         const row = [...document.querySelectorAll('#feed > .shout')].find((entry) => {
           const content = entry.querySelector('.text');
           return content && content.textContent.trim() === message;
         });
+        if (!row) return null;
         const content = row.querySelector('.text');
         const height = content.getBoundingClientRect().height;
         const lineHeight = parseFloat(getComputedStyle(content).lineHeight);
@@ -408,6 +435,11 @@ test('real Chrome styles shout code and item text without growing linked lines [
       const code=[...(row?.querySelectorAll('code.inline')||[])].find(entry=>entry.textContent==='--flag'), line=row?.querySelector('.text'), codeRect=code?.getBoundingClientRect(), lineRect=line?.getBoundingClientRect();
       return { linked: lineMetrics('X #1'), plain: lineMetrics('X'), wrapLinked: lineMetrics(${JSON.stringify(wrappedLinkedText)}), wrapPlain: lineMetrics('OK'), shoutCode:{display:code&&getComputedStyle(code).display,width:codeRect?.width,lineWidth:lineRect?.width} };
     })())`));
+    const noItemPhone = await readPhone();
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome, 'item:1');
+    const itemPhone = await readPhone();
+    const phoneMetrics = { ...noItemPhone, linked: itemPhone.linked, wrapLinked: itemPhone.wrapLinked };
     assert.equal(phoneMetrics.shoutCode.display, 'inline', `375px shout code computes inline: ${JSON.stringify(phoneMetrics.shoutCode)}`);
     assert.ok(phoneMetrics.shoutCode.width > 0 && phoneMetrics.shoutCode.width < phoneMetrics.shoutCode.lineWidth / 2,
       `375px shout code is a compact chip: ${JSON.stringify(phoneMetrics.shoutCode)}`);
@@ -457,6 +489,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   const chips = `See #1 in src/cockpit.js at ${sha}; run pullboard check --json, then \`npm test\`.`;
   const long = lines('A long note that folds.', 12);
   const mixed = 'Moved #2 along.';
+  const bodyOnly = 'Body-only #2 goes to Farewell.';
   const longCommand = 'node bin/run-tests.js test/relay-person-requests.test.js', longPath = 'test/relay-person-requests.test.js';
   const longerPath = 'docs/a/very/long/path/that/keeps/going/well/past/any/phone/screen/width.md';
   const longChips = `Ran \`${longCommand}\` on ${longPath} and ${longerPath} today.`;
@@ -472,6 +505,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
   box.run(alpha.web, 'shout', 'all', 'the page loads in 80ms', '--evidence', 'receipt', '--outcome', 'measured 80ms', '--item', '1', '--commit', head);
   box.run(alpha.web, 'shout', 'all', chips);
   box.run(alpha.web, 'shout', 'all', mixed, '--evidence', 'receipt', '--outcome', 'moved', '--item', '1', '--commit', head);
+  box.run(alpha.web, 'shout', 'all', bodyOnly);
   box.run(alpha.web, 'shout', 'all', longChips);
   box.run(alpha.web, 'shout', 'all', refsShout);
   box.run(alpha.web, 'shout', 'all', blockShout);
@@ -485,8 +519,7 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 12');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
-    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
-    await chrome.stable("(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.asks-toggle[data-fold=\"waiting\"]'))").then(open => open ? chrome.click("document.querySelector('.asks-toggle[data-fold=\"waiting\"]')") : undefined);
+    await openConversation(chrome, 'item:1');
     const ids = JSON.parse(await chrome.stable('JSON.stringify(Object.fromEntries(data.project.shouts.map((s) => [s.shout_text, s.shout_id])))'));
     const answerId = await chrome.stable(`data.project.shouts.find((s) => s.shout_answers === ${asked.shout_id}).shout_id`);
     const stamps = JSON.parse(await chrome.stable('JSON.stringify(data.project.shouts.map((s) => [s.shout_id, s.shout_at]))'));
@@ -498,30 +531,31 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
       const card = (place, id) => {
         const e = document.querySelector(place + ' #shout-' + id) ?? [...document.querySelectorAll(place + ' .shout')].find((c) => c.dataset.shoutId === String(id));
         if (!e) return null;
-        const avatar = e.querySelector('.avatar'), who = e.querySelector('.who'), time = e.querySelector('header time'), text = e.querySelector('.text');
+        const who = e.querySelector('.who'), time = e.querySelector('header time'), text = e.querySelector('.text');
         const edges = [e, ...e.querySelectorAll('.receipt, .band')].map((part) => { const s = style(part); return { left: [s.borderLeftWidth, s.borderLeftColor], right: [s.borderRightWidth, s.borderRightColor] }; });
         return {
-          classes: e.className, avatar: { text: avatar.textContent, svg: !!avatar.querySelector('svg'), radius: style(avatar).borderTopLeftRadius, color: style(avatar).color, background: style(avatar).backgroundColor, box: box(avatar) },
-          who: { text: who.textContent, color: style(who).color }, to: e.querySelector('.to')?.textContent, item: e.querySelector('header .item')?.textContent ?? null,
+          classes: e.className, avatars: e.querySelectorAll('.avatar').length,
+          who: { text: who.textContent, color: style(who).color, model: who.title }, to: e.querySelector('.to')?.textContent, item: document.querySelector('#feed .conversation-heading b')?.textContent ?? null,
           item_color: e.querySelector('header .item') && style(e.querySelector('header .item')).color, ink: style(text).color,
-          time: { text: time.textContent, title: time.title, box: box(time) }, header: box(e.querySelector('header')), text: { box: box(text), lines: Math.round(text.clientHeight / parseFloat(style(text).lineHeight)), clamped: text.scrollHeight > text.clientHeight + 1 },
+          time: { text: time.textContent, title: time.title, box: box(time) }, header: box(e.querySelector('header')), text: { content: text.textContent, box: box(text), lines: Math.round(text.clientHeight / parseFloat(style(text).lineHeight)), clamped: text.scrollHeight > text.clientHeight + 1 },
           more: (() => { const m = e.querySelector('.more'); return m && style(m).display !== 'none' ? m.textContent : null; })(),
           band: e.querySelector('.band') ? { text: e.querySelector('.band').textContent, done: e.querySelector('.band').classList.contains('done'), href: e.querySelector('.band a')?.getAttribute('href') ?? null } : null,
           receipt: e.querySelector('.receipt') ? { badge: e.querySelector('.receipt .badge').textContent, outcome: e.querySelector('.receipt .outcome').textContent, foot: e.querySelector('.receipt-foot').textContent,
             sha: e.querySelector('.receipt-foot code.sha')?.textContent, shaTitle: e.querySelector('.receipt-foot code.sha')?.title } : null,
-          answer: e.querySelector('.answer')?.textContent ?? null, edges,
+          answer: e.querySelector('.answer')?.textContent ?? null, bodyLinks: [...e.querySelectorAll('.text a.ref[data-go]')].map(link => [link.textContent, link.dataset.go]), edges,
         };
       };
       const chip = (selector) => { const e = document.querySelector('#feed #shout-${ids[chips]} .text ' + selector); return e && { text: e.textContent, title: e.title, display: style(e).display, rects: e.getClientRects().length, color: style(e).color, background: style(e).backgroundColor }; };
       const feed = document.querySelector('#feed'), rule = feed.querySelector('.day-rule'), label = rule?.querySelector('span');
       return {
         page: { width: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, body: document.body.scrollWidth },
-        feedKinds: [...feed.children].map((e) => e.classList.contains('day-rule') ? 'rule:' + e.textContent : e.classList.contains('shout') ? 'shout:' + e.dataset.shoutId : e.className),
+        messageIds: [...feed.querySelectorAll('.shout')].map(e => Number(e.dataset.shoutId)),
+        feedKinds: [...feed.children].filter(e => e.matches('.day-rule,.shout')).map((e) => e.classList.contains('day-rule') ? 'rule:' + e.textContent : e.classList.contains('shout') ? 'shout:' + e.dataset.shoutId : e.className),
         rule: rule && { box: box(rule), label: box(label) },
         heads: [...document.querySelectorAll('#decisions .head')].map((h) => h.textContent),
         decisions: [...document.querySelectorAll('#decisions .shout')].map((e) => e.dataset.shoutId),
         feed: { older: card('#feed', ${ids[older]}), colour: card('#feed', ${ids[colour]}), ship: card('#feed', ${ids[ship]}), chips: card('#feed', ${ids[chips]}), long: card('#feed', ${ids[long]}),
-          receipt: card('#feed', ${ids['the page loads in 80ms']}), answer: card('#feed', ${answerId}), friday: card('#feed', ${ids['Launch on Friday?']}), mixed: card('#feed', ${ids[mixed]}) },
+          receipt: card('#feed', ${ids['the page loads in 80ms']}), answer: card('#feed', ${answerId}), friday: card('#feed', ${ids['Launch on Friday?']}), mixed: card('#feed', ${ids[mixed]}), bodyOnly: card('#feed', ${ids[bodyOnly]}) },
         longs: [...document.querySelectorAll('#feed #shout-${ids[longChips]} .text code.inline')].map((e) => {
           const c = e.getBoundingClientRect(), t = e.closest('.text').getBoundingClientRect();
           return { text: e.textContent, title: e.title, rects: e.getClientRects().length, inside: c.left >= t.left - 0.5 && c.right <= t.right + 0.5, cut: e.scrollWidth > e.clientWidth + 1, ends: getComputedStyle(e).textOverflow };
@@ -545,33 +579,63 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
       };
     })())`));
 
+    /** Visit every real thread before combining measured observations; no message is supplied by a different fixture. */
+    const readConversations = async () => {
+      const threads = {};
+      for (const key of ['item:1', 'none', 'item:2']) {
+        if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+        await openConversation(chrome, key);
+        threads[key] = await read();
+      }
+      const one = threads['item:1'], none = threads.none;
+      return { ...none, threads, chips: one.chips, answerTarget: one.answerTarget, rule: one.rule,
+        repeated: Object.values(threads).flatMap(thread => thread.repeated),
+        feed: Object.fromEntries(Object.values(threads).flatMap(thread => Object.entries(thread.feed).filter(([, card]) => card))) };
+    };
+
     const seen = {};
     for (const scheme of ['light', 'dark']) {
       for (const width of [1280, 375]) {
         await shoutsAt(chrome, width, scheme);
         const at = `${width}px ${scheme}`;
-        const r = await read();
-        assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
+        const r = await readConversations();
+        for (const [key, thread] of Object.entries(r.threads)) assert.ok(thread.page.scroll <= thread.page.width && thread.page.body <= thread.page.width,
+          `${at} ${key}: no sideways scroll: ${JSON.stringify(thread.page)}`);
+        const expectedThreads = {
+          'item:1': [ids[older], ids[ship], answerId, ids['the page loads in 80ms'], ids[chips], ids[mixed]],
+          'item:2': [ids[bodyOnly]],
+          none: [ids[colour], ids[longChips], ids[refsShout], ids[blockShout], ids['Launch on Friday?'], ids[long]],
+        };
+        for (const [key, expected] of Object.entries(expectedThreads)) assert.deepEqual(r.threads[key].messageIds, expected.sort((a,b)=>a-b),
+          `${at}: exact native ${key} membership, including answer inheritance and explicit native item recipient precedence`);
+        assert.deepEqual(Object.values(r.threads).flatMap(thread => thread.messageIds).sort((a,b)=>a-b), stamps.map(([id]) => id).sort((a,b)=>a-b),
+          `${at}: every original native message is measured exactly once`);
         const { older: old, colour: asking, ship: shipped, chips: chipCard, long: folded, receipt, answer, friday, mixed: both } = r.feed;
 
-        // A card: avatar, name in its colour, arrow and recipient, item, and the age at the top right over the text.
+        // Native identity and geometry remain; the approved design has no avatar and moves the model to a tooltip.
         for (const [name, c] of Object.entries(r.feed)) {
-          assert.ok(c, `${at}: the ${name} shout is a card`);
-          assert.equal(c.classes.includes('lead') ? c.avatar.background : c.avatar.color, c.who.color, `${at}: ${name}: the name is in its avatar's colour`);
-          assert.ok(Math.abs(c.time.box.right - c.header.right) <= 1 && c.time.box.top < c.text.box.top, `${at}: ${name}: the age sits at the top right: ${JSON.stringify([c.time, c.header])}`);
-          assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below the header`);
-          for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no box in the card carries a coloured edge`);
+          assert.ok(c, `${at}: the ${name} native message renders`);
+          assert.equal(c.avatars, 0, `${at}: ${name} has no avatar`);
+          assert.ok(Math.abs(c.time.box.right - c.header.right) <= 1 && c.time.box.top < c.text.box.top, `${at}: ${name}: the clock sits at the top right`);
+          assert.ok(c.text.box.top >= c.header.bottom - 1, `${at}: ${name}: the text sits below its header`);
+          for (const edge of c.edges) assert.deepEqual(edge.left, edge.right, `${at}: ${name}: no colored border edge`);
         }
-        assert.deepEqual([old.avatar.text, old.who.text, old.to], ['W1', 'web-1 (Test Model)', '→ coordinator'], `${at}: initials, name, arrow and recipient`);
-        assert.equal(old.avatar.radius, '50%', `${at}: an agent's avatar is a circle`);
-        assert.equal(chipCard.avatar.color, old.avatar.color, `${at}: one agent keeps one colour`);
-        assert.notEqual(asking.avatar.color, old.avatar.color, `${at}: another agent has its own`);
-        assert.ok(answer.avatar.svg && answer.avatar.radius !== '50%' && Math.abs(answer.avatar.box.width - answer.avatar.box.height) < 1 && answer.classes.includes('lead'),
-          `${at}: the coordinator's avatar is a square with the Pullboard mark: ${JSON.stringify(answer.avatar)}`);
-        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1', '#1', '#1', null, '#2'], `${at}: the item is the first #N that names one, or else the evidence's`);
-        assert.notEqual(old.item_color, old.who.color, `${at}: the item is muted, not the agent's colour`);
-        assert.deepEqual([folded.time.text, shipped.time.text, asking.time.text], ['now', '2m ago', '1h ago'], `${at}: ages read now, 2m ago, 1h ago`);
-        assert.ok(/\d\d:\d\d$/.test(shipped.time.title) && /^\S+ \d+ \d\d:\d\d$/.test(old.time.title), `${at}: the clock time is on hover, with the date when it was another day`);
+        assert.deepEqual([old.who.text, old.who.model, old.to], ['web-1', 'Test Model', '→ coordinator'], `${at}: the exact sender, model hover and recipient`);
+        assert.equal(asking.who.color, old.who.color, `${at}: agent names use the same approved violet`);
+        assert.notEqual(answer.who.color, old.who.color, `${at}: the coordinator uses the accent color`);
+        assert.ok(answer.classes.includes('lead') && answer.who.text === 'coordinator', `${at}: a native coordinator answer keeps its identity`);
+        assert.deepEqual([old.item, chipCard.item, receipt.item, asking.item, both.item], ['#1 Greeting', '#1 Greeting', '#1 Greeting', 'No item', '#1 Greeting'],
+          `${at}: native item recipients decide the conversation while unknown #99 stays No item`);
+        assert.equal(r.feed.bodyOnly.item, '#2 Farewell', `${at}: absent an item recipient, the first real body item decides`);
+        assert.deepEqual(both.bodyLinks, [['#2', 'item:2']], `${at}: the original mixed receipt still navigates its exact body reference`);
+        assert.equal(both.text.content, mixed, `${at}: the native words are never rewritten to match the recipient`);
+        const clockOf = id => {
+          const date = new Date(stamps.find(([key]) => key === id)[1]), hour = date.getHours();
+          return (hour % 12 || 12) + ':' + String(date.getMinutes()).padStart(2, '0') + ' ' + (hour < 12 ? 'AM' : 'PM');
+        };
+        assert.deepEqual([folded.time.text, shipped.time.text, asking.time.text].map(value => value.replace(/\s/gu,' ')),
+          [ids[long], ids[ship], ids[colour]].map(clockOf), `${at}: every clock comes from its exact native timestamp`);
+        assert.ok(shipped.time.title.endsWith(clockOf(ids[ship])) && old.time.title.includes(clockOf(ids[older])), `${at}: native clock details remain on hover`);
 
         // Chips: inline, whole, ref, path and hash each in a colour of their own; a sha shows ten characters.
         for (const [kind, c] of Object.entries(r.chips)) {
@@ -604,35 +668,46 @@ test('shouts read as cards [N26]', { timeout: 120_000 }, async (t) => {
         assert.deepEqual([receipt.receipt.badge, receipt.receipt.outcome], ['receipt', 'measured 80ms']);
         assert.ok(receipt.receipt.foot.startsWith('#1 · web-1 (Test Model) · ') && receipt.receipt.sha === head.slice(0, 12) && receipt.receipt.shaTitle === head, `${at}: the receipt's footer: ${JSON.stringify(receipt.receipt)}`);
 
-        // A long shout folds at six lines; the asks above the composer are the same cards, folded at three.
-        assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [6, true, 'more'], `${at}: a long shout folds at six lines with more`);
-        assert.equal(old.more, null, `${at}: a short shout has no more`);
-        assert.deepEqual(r.heads, ['Decision needed'], `${at}: the asks above the composer: the person's under their head, the rest opened from their fold line`);
-        assert.deepEqual([r.asks.friday.answer, r.asks.colour.answer], ['Answer', null], `${at}: the person's ask has an Answer button; one waiting on others has none`);
-        assert.deepEqual([r.asks.colour.text.lines, r.asks.colour.text.clamped, r.asks.colour.more], [3, true, 'more'], `${at}: an ask folds at three lines`);
-        assert.ok(r.asks.friday.avatar.svg && r.asks.friday.who.text === 'coordinator', `${at}: the asks are the feed's cards`);
+        // The approved three-line disclosure applies to messages, while native person-only Answer controls remain.
+        assert.deepEqual([folded.text.lines, folded.text.clamped, folded.more], [3, true, 'Show all'], `${at}: a long native message folds at three lines`);
+        assert.equal(old.more, null, `${at}: a short message has no disclosure`);
+        assert.deepEqual(r.heads, [], `${at}: the superseded decisions wall is absent`);
+        assert.deepEqual([friday.answer, asking.answer], ['Answer', null], `${at}: only the person's native question has an Answer control`);
+        assert.deepEqual([asking.text.lines, asking.text.clamped, asking.more], [3, true, 'Show all'], `${at}: the pending question retains all its words behind disclosure`);
+        assert.equal(friday.who.text, 'coordinator', `${at}: the person's question keeps its recorded author`);
 
-        // Days: none above today's shouts; a rule in the middle names the earlier day where the feed crosses into it.
-        let day = new Date().toDateString();
-        const expected = [...stamps.flatMap(([id, iso]) => { const was = day; day = new Date(iso).toDateString(); return day === was ? [`shout:${id}`] : ['rule', `shout:${id}`]; })];
-        assert.deepEqual(r.feedKinds.map((k) => k.startsWith('rule:') ? 'rule' : k), expected, `${at}: a rule only where the day changes, none above today's: ${r.feedKinds}`);
-        assert.ok(r.feedKinds[r.feedKinds.indexOf(`shout:${ids[older]}`) - 1].startsWith('rule:') && !r.feedKinds.some((k) => k === 'rule:Today'), `${at}: the earlier day is named above its first shout`);
-        assert.ok(Math.abs((r.rule.label.left + r.rule.label.right) / 2 - (r.rule.box.left + r.rule.box.right) / 2) < 2, `${at}: the day sits in the middle of its rule`);
+        // Every actual conversation retains chronological native messages and every crossed day, including Today on return.
+        for (const [key, thread] of Object.entries(r.threads)) {
+          let day = new Date().toDateString();
+          const expected = thread.messageIds.flatMap(id => {
+            const before = day; day = new Date(stamps.find(([native]) => native === id)[1]).toDateString();
+            return day === before ? ['shout:' + id] : ['rule', 'shout:' + id];
+          });
+          assert.deepEqual(thread.feedKinds.map(kind => kind.startsWith('rule:') ? 'rule' : kind), expected,
+            `${at} ${key}: day rules occur only at native day transitions`);
+        }
+        const olderThread = r.threads['item:1'].feedKinds;
+        const olderDay = twoDays.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+        assert.equal(olderThread[olderThread.indexOf('shout:' + ids[older]) - 1], 'rule:' + olderDay, `${at}: the older native day is named exactly`);
+        assert.ok(olderThread.includes('rule:Today'), `${at}: the ascending conversation names its return to today`);
+        assert.ok(Math.abs((r.rule.label.left + r.rule.label.right) / 2 - (r.rule.box.left + r.rule.box.right) / 2) < 2, `${at}: the day stays centered`);
         seen[at] = { ink: old.ink, who: old.who.color };
       }
     }
     assert.notDeepEqual(seen['1280px light'], seen['1280px dark'], 'dark mode changes the cards');
 
     // Folding: more opens the whole shout, less closes it, and an open shout stays open across a refresh.
+    await press(chrome, "document.querySelector('#feed [data-shout-thread=\"\"]')");
+    await openConversation(chrome);
     await shoutsAt(chrome, 1280, 'light');
     const foldOf = () => chrome.stable(`JSON.stringify((() => { const c = document.querySelector('#feed #shout-${ids[long]}'), t = c.querySelector('.text'); return [c.querySelector('.more').textContent, Math.round(t.clientHeight / parseFloat(getComputedStyle(t).lineHeight))]; })())`).then(JSON.parse);
     await chrome.click(`document.querySelector('#feed #shout-${ids[long]} .more')`);
-    assert.deepEqual(await foldOf(), ['less', 12], 'more shows every line');
+    assert.deepEqual(await foldOf(), ['Show less', 12], 'more shows every line');
     box.run(alpha.web, 'shout', 'all', 'A later shout.');
-    await chrome.waitFor(`data.project.shouts.some((s) => s.shout_text === 'A later shout.') && document.querySelector('#feed .shout .text')?.textContent === 'A later shout.'`, 15_000); // budget: hang ceiling for the new shout to replace the feed card; no throughput claim.
-    assert.deepEqual(await foldOf(), ['less', 12], 'an open shout stays open across a refresh');
+    await chrome.waitFor(`data.project.shouts.some((s) => s.shout_text === 'A later shout.') && [...document.querySelectorAll('#feed .shout .text')].some(node => node.textContent === 'A later shout.')`, 15_000); // budget: hang ceiling for the new shout to replace the feed card; no throughput claim.
+    assert.deepEqual(await foldOf(), ['Show less', 12], 'an open shout stays open across a refresh');
     await chrome.click(`document.querySelector('#feed #shout-${ids[long]} .more')`);
-    assert.deepEqual(await foldOf(), ['more', 6], 'less folds it again');
+    assert.deepEqual(await foldOf(), ['Show all', 3], 'less folds it again');
 
     // The block opens on its header to the lines it names, in its own frame.
     const blockRef = `document.querySelector('#feed #shout-${ids[blockShout]} .code-ref > button.ref.block')`;
@@ -690,6 +765,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 4');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     await chrome.stable("(document.querySelector('.fold-line[data-fold=\"idle\"]'))?.getAttribute('aria-expanded') !== 'true' && !!(document.querySelector('.fold-line[data-fold=\"idle\"]'))").then(open => open ? chrome.click("document.querySelector('.fold-line[data-fold=\"idle\"]')") : undefined);
     const agents = JSON.parse(await chrome.stable('JSON.stringify(data.project.agents.map((a) => [a.agent_id, a.agent_path]))'));
@@ -739,7 +815,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     // An agent's name filters the feed to its shouts, from or to it, and addresses the composer to it.
     await click('#agents [data-agent="web-2"]');
     s = await state();
-    assert.deepEqual(s.cards, [['coordinator', 'web-2'], ['web-2', 'coordinator']], 'only shouts from or to web-2');
+    assert.deepEqual(s.cards, [['web-2', 'coordinator'], ['coordinator', 'web-2']], 'the native conversation keeps only shouts from or to web-2 in chronological order');
     assert.deepEqual([s.bar, s.to, s.on], ['Shouts with web-2 show all', 'web-2', ['web-2']], 'the bar says whose, the composer is addressed to them, and the agent is marked');
     await click('#feed .feed-bar [data-agent=""]');
     s = await state();
@@ -773,6 +849,7 @@ test('the shout composer, agent filter and agents panel [N26]', { timeout: 120_0
     await chrome.send('Page.reload');
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length > 0 && !!document.querySelector("[data-tab=shouts]")');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     s = await state();
     assert.deepEqual([s.bare, s.panel, s.toggle], [true, false, 'Show agents'], 'still hidden after a reload');
@@ -810,6 +887,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor('typeof data !== "undefined" && data?.project?.shouts?.length >= 1');
     await chrome.click("document.querySelector('[data-tab=shouts]')");
+    await openConversation(chrome);
     await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
     await chrome.click("document.querySelector('#agents .fold-line[data-fold=\"idle\"]')");
     /** The composer and every shout of the person's, with what its Heard line says. */
@@ -866,7 +944,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
     box.run(alpha.web, 'inbox');
     await chrome.waitFor(`${heardOf('Hold the merge, please.')} === 'Heard by coordinator and 1 agent'`, 15_000); // budget: hang ceiling for both inbox reads to appear; no throughput claim.
     const all = (await read()).heard.find(([text]) => text === 'Hold the merge, please.');
-    assert.deepEqual(all.slice(2), [2, 'Heard by coordinator, web-1 (Test Model)'], 'with their avatars, and every name on hover');
+    assert.deepEqual(all.slice(2), [0, 'Heard by coordinator, web-1 (Test Model)'], 'with no avatars, retaining every native recipient name on hover');
 
     // Picking an agent addresses the composer to it; the chip's x returns it to the coordinator.
     await chrome.click(`document.querySelector('#agents [data-agent="web-1"]')`);
@@ -899,7 +977,7 @@ test('the composer goes to the coordinator and says who heard [N26]', { timeout:
 });
 
 /** Keep a waiting ask's address and age readable when a fallback font widens its header [N26]. */
-test("a waiting ask's who and when stay on one line with wide fonts [N26]", { timeout: 120_000 }, async () => {
+test("a waiting ask's who and when stay on one line with wide fonts [N26]", { timeout: 120_000 }, async (t) => {
   const executable = chromeExecutable();
   assert.ok(executable, 'Chrome is required for the wide-font regression');
   const box = machine();
@@ -913,24 +991,24 @@ test("a waiting ask's who and when stay on one line with wide fonts [N26]", { ti
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 375, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.waitFor("data?.project && innerWidth === 375");
     await press(chrome, "document.querySelector('[data-tab=shouts]')");
-    await pressedInto(chrome, "view.tab === 'shouts' && !!document.querySelector('.asks-toggle')");
-    await press(chrome, "document.querySelector('.asks-toggle')");
-    await pressedInto(chrome, "!!document.querySelector('#decisions .shout:not(:has(.answer)) header')");
+    await openConversation(chrome);
+    await pressedInto(chrome, "!!document.querySelector('#feed .shout:not(:has(.answer)) header')");
     // Change font metrics only: the production layout must fit the same real waiting ask.
-    await chrome.stable("(() => { const sheet = document.styleSheets[0]; sheet.insertRule('#decisions .shout header { font-family: monospace; letter-spacing: 1px; }', sheet.cssRules.length); })()");
+    await chrome.stable("(() => { const sheet = document.styleSheets[0]; sheet.insertRule('#feed .shout header { font-family: monospace; letter-spacing: 1px; }', sheet.cssRules.length); })()");
     const result = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-      const card = document.querySelector('#decisions .shout:not(:has(.answer))'), header = card.querySelector('header');
+      const card = document.querySelector('#feed .shout:not(:has(.answer))'), header = card.querySelector('header');
       const rect = (element) => { const r = element.getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width, height:r.height }; };
       const who = header.querySelector('.who'), address = who.querySelector('.agent-id') || who, age = header.querySelector('time'), kind = header.querySelector('.mark');
       const range = document.createRange(); range.selectNodeContents(address);
       const recipient = header.querySelector('.to .agent-id') || header.querySelector('.to'), recipientRange = document.createRange(); recipientRange.selectNodeContents(recipient);
       const copy = header.cloneNode(true); copy.style.cssText += ';position:fixed;visibility:hidden;width:max-content'; header.parentElement.append(copy);
-      const natural = copy.getBoundingClientRect().width; copy.remove();
+      const naturalBox = copy.getBoundingClientRect(), natural = naturalBox.width, line = naturalBox.height; copy.remove();
       return { header:rect(header), age:rect(age), ageText:age.textContent, ageWidth:age.clientWidth, ageScroll:age.scrollWidth,
-        address:rect(address), addressText:address.textContent, addressInk:rect(range), line:parseFloat(getComputedStyle(who).lineHeight),
-        recipient:rect(recipient), recipientInk:rect(recipientRange), recipientText:recipient.textContent, spacing:getComputedStyle(header).letterSpacing, natural, kind:{ text:kind.textContent, width:kind.clientWidth, scroll:kind.scrollWidth, overflow:getComputedStyle(kind).textOverflow, title:kind.title, label:kind.getAttribute('aria-label') },
+        address:rect(address), addressText:address.textContent, addressInk:rect(range), line,
+        recipient:rect(recipient), recipientInk:rect(recipientRange), recipientText:recipient.textContent, recipientStyle:{font:getComputedStyle(recipient).font,width:getComputedStyle(recipient).width,minWidth:getComputedStyle(recipient).minWidth,paddingRight:getComputedStyle(recipient).paddingRight,overflow:getComputedStyle(recipient).overflow,boxSizing:getComputedStyle(recipient).boxSizing}, spacing:getComputedStyle(header).letterSpacing, natural, kind:{ text:kind.textContent, width:kind.clientWidth, scroll:kind.scrollWidth, overflow:getComputedStyle(kind).textOverflow, title:kind.title, label:kind.getAttribute('aria-label') },
         page:[document.documentElement.clientWidth, document.documentElement.scrollWidth] };
     })())`));
+    t.diagnostic(JSON.stringify(result));
     assert.equal(result.spacing, '1px', 'the positive control widens the actual waiting header');
     assert.ok(result.natural > result.header.width, `the full header cannot fit without shortening text: ${JSON.stringify(result)}`);
     assert.ok(result.header.height <= result.line + 1, `the waiting ask stays on one line with wide fonts: ${JSON.stringify(result)}`);
@@ -1013,9 +1091,14 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
       await sharedPress(chrome, `document.querySelector(${JSON.stringify(selector)})`);
     };
     await press('[data-tab="shouts"]');
-    await chrome.waitFor('document.querySelector("[data-pane=shouts]:not([hidden]) #feed .shout")');
-    if (await chrome.stable(`document.querySelector('.asks-toggle[data-fold="waiting"]')?.getAttribute('aria-expanded') === 'false'`)) await press('.asks-toggle[data-fold="waiting"]');
+    await chrome.waitFor('!!document.querySelector("#feed .conversation-row")');
+    const threads = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#feed .conversation-row')].map(row => row.dataset.shoutThread))"));
+    const nativeIds = JSON.parse(await chrome.stable("JSON.stringify(data.project.shouts.map(row => row.shout_id).sort((a,b) => a-b))"));
     for (const font of ['monospace', '']) for (const scheme of ['light','dark']) {
+      const observed = [];
+      for (const thread of threads) {
+      if (await chrome.stable("!!document.querySelector('#feed .conversation-heading')")) await press('#feed [data-shout-thread=""]');
+      await openConversation(chrome, thread);
       // A portable fallback exercises the wider font metrics used by CI, alongside the native font.
       await chrome.stable(`document.documentElement.style.setProperty('--sans', ${JSON.stringify(font)})`);
       await shoutsAt(chrome,375,scheme);
@@ -1025,13 +1108,13 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
       const metrics=await chrome.stable(`(() => {
         const width=document.documentElement.clientWidth;
         const edge=e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width};};
-        const cards=[...document.querySelectorAll('#feed .shout,#decisions .shout')];
+        const cards=[...document.querySelectorAll('#feed .shout')];
         const contentOver=[...document.body.querySelectorAll('*')].filter(e=>e.getClientRects().length && (edge(e).right>width+0.1 || e.scrollWidth>e.clientWidth+1)).slice(0,30).map(e=>{
           const s=getComputedStyle(e);return {kind:e.id||e.className||e.tagName,...edge(e),client:e.clientWidth,scroll:e.scrollWidth,display:s.display,minWidth:s.minWidth,font:s.font,overflow:s.overflow};});
-        return {width,scroll:document.documentElement.scrollWidth,body:document.body.scrollWidth,contentOver,
+        return {width,scroll:document.documentElement.scrollWidth,body:document.body.scrollWidth,contentOver,messageIds:cards.map(card=>Number(card.dataset.shoutId)),
           headers:cards.map(card=>({box:edge(card.querySelector('header')),text:edge(card.querySelector('.text')),age:{...edge(card.querySelector('time')),whole:card.querySelector('time').scrollWidth<=card.querySelector('time').clientWidth},children:[...card.querySelector('header').children].map(e=>({kind:e.className||e.tagName,...edge(e)}))})),
-          models:[...document.querySelectorAll('#feed .agent-model')].map(e=>e.textContent),
-          ids:cards.flatMap(card=>[...card.querySelectorAll('.agent-id')].map(id=>({id:edge(id),card:edge(card)}))),
+          models:cards.map(card=>card.querySelector('.who').title),
+          ids:cards.flatMap(card=>[...card.querySelectorAll('.who,.to')].map(id=>({id:edge(id),card:edge(card)}))),
           over:cards.flatMap(card=>[...card.querySelectorAll('header,header>*')].filter(e=>edge(e).right>width).map(e=>({kind:e.className||e.tagName,...edge(e)})))};
       })()`);
       assert.equal(metrics.width,360, scheme+': actual page content is 360px, including on classic-scrollbar Chrome');
@@ -1041,6 +1124,9 @@ test('shout cards fit beside a classic scrollbar [N26]', { timeout: 120_000 }, a
         scheme+': each header fits one line with its complete age at the right: '+JSON.stringify(metrics.headers));
       assert.ok(metrics.ids.length>0&&metrics.ids.every(({id,card})=>id.width>0&&id.left>=card.left&&id.right<=card.right),
         scheme+': every address remains visible inside its card');
+      observed.push(...metrics.messageIds);
+      }
+      assert.deepEqual(observed.sort((a,b)=>a-b), nativeIds, 'every native message is measured once across its real conversations');
     }
     assert.deepEqual(chrome.exceptions, [], 'the real page raises no uncaught exception');
   } finally {
