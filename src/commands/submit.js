@@ -270,7 +270,9 @@ export async function submitHere(ctx, id, infra) {
   ctx = { ...ctx, config: policy.config };
   withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id)));
   const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
-  submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies });
+  let mechanicalPaths = [];
+  submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
+    onMechanicalPaths: paths => { mechanicalPaths = paths; } });
   const { me, claimHead } = withBoard(ctx, (board) => {
     const who = whoAmI(ctx, board);
     const item = store.getItem(board, id);
@@ -388,7 +390,9 @@ export async function submitHere(ctx, id, infra) {
     ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
-  const displayedReport = `${check}; ${scope}\n${renderTestSummary(summary)}`;
+  const mechanicalFlag = mechanicalPaths.length
+    ? `cross-lane mechanical import edits: ${mechanicalPaths.join(', ')}` : '';
+  const displayedReport = `${check}; ${scope}${mechanicalFlag ? `\n${mechanicalFlag}` : ''}\n${renderTestSummary(summary)}`;
   const checkAccepted = Boolean(gate.check?.green || criterionMatched);
   // Only fully accounted exact-main failures or live person waivers pass a red proof; the item check stays mandatory [B3].
   const waived = !gate.isGreen && checkAccepted ? withBoard(ctx, (board) => waivedFailures(board, accountedFailures(gate, root), { quarantineWaivers })) : null;
@@ -453,7 +457,10 @@ export async function submitHere(ctx, id, infra) {
       ...(size ? { submissionSize: size } : {}),
       ...(companion ? { companion } : {}),
       submissionProof: { version: 1, files: gate.files, full: gate.full, deferred: gate.deferred, reason: boundedProofReason(gate.reason), ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), ...(knownMainFailures ? { knownMainFailures } : {}) },
-      ...(gate.deferred ? { note: gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate' } : {}) }]);
+      ...((gate.deferred || mechanicalFlag) ? { note: [
+        ...(gate.deferred ? [gate.deferredFiles ? deferredSelectionNote(gate.deferredFiles) : 'full suite deferred to the landing gate'] : []),
+        ...(mechanicalFlag ? [mechanicalFlag] : []),
+      ].join('\n') } : {}) }]);
     // One fact records the merge and the evidence that the main move touched nothing this proof depends on.
     if (trunkMove) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: trunkMoveFact(trunkMove) }]);
     // One decision shout (a lane question, routed to the lead or coordinator because a builder cannot send kind decision) asks the coordinator to own the repair; it is sent only once the submission is recorded.
