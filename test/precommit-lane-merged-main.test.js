@@ -1,0 +1,80 @@
+/** The pre-commit lane guard recognizes accepted-main changes staged without MERGE_HEAD [L3,C7]. */
+import assert from 'node:assert/strict';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+
+const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');
+
+/** Create isolated main and core worktrees with Pullboard's real installed commit hooks. */
+function fixture(t) {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-precommit-merged-main-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const shims = join(dir, 'bin'), main = join(dir, 'main'), lane = join(dir, 'lane');
+  mkdirSync(shims);
+  mkdirSync(main);
+  writeFileSync(join(shims, 'pullboard'), `#!/bin/sh\nexec "${process.execPath}" "${BIN}" "$@"\n`);
+  chmodSync(join(shims, 'pullboard'), 0o755);
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+  Object.assign(env, {
+    PATH: `${shims}:${process.env.PATH}`,
+    GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Merged Main Fixture', GIT_AUTHOR_EMAIL: 'merged-main@example.invalid',
+    GIT_COMMITTER_NAME: 'Merged Main Fixture', GIT_COMMITTER_EMAIL: 'merged-main@example.invalid',
+    HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'board-home'), PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+  });
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8' });
+  const cli = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
+  assert.equal(git(main, 'init', '-q', '-b', 'main').status, 0);
+  assert.equal(cli(main, 'init').status, 0, 'the native CLI initializes the private fixture and installs hooks');
+  writeFileSync(join(main, 'pullboard.json'), JSON.stringify({
+    spec: 'SPEC.md', practice: 'PRACTICE.md', gate: '', lease: '2h', verify: { policy: 'any' },
+    lanes: { core: { owns: ['core/'], specs: ['L3'] }, view: { owns: ['view/'], specs: ['L3'] } }, shared: [],
+  }, null, 2));
+  writeFileSync(join(main, 'SPEC.md'), '# Fixture\n\n## L · Limits\n- L3 [approved, must] Lane ownership is enforced. | gate: any\n');
+  mkdirSync(join(main, 'core'));
+  mkdirSync(join(main, 'view'));
+  writeFileSync(join(main, 'core', 'file.js'), 'export const owned = true;\n');
+  writeFileSync(join(main, 'view', 'file.js'), 'export const accepted = false;\n');
+  assert.equal(git(main, 'add', '-A').status, 0);
+  const seed = git(main, 'commit', '-q', '-m', 'chore: seed the private fixture [L3]');
+  assert.equal(seed.status, 0, seed.stderr);
+  assert.equal(git(main, 'worktree', 'add', '-q', '-b', 'core/fixture', lane).status, 0);
+  const joined = cli(lane, 'join', 'core', '--model', 'gpt-6-luna', '--family', 'openai');
+  assert.equal(joined.status, 0, joined.stderr + joined.stdout);
+  return { main, lane, git };
+}
+
+/** Stage a change on main that the lane integrates without creating MERGE_HEAD. */
+function squashAcceptedMain(box) {
+  writeFileSync(join(box.main, 'view', 'file.js'), 'export const accepted = true;\n');
+  assert.equal(box.git(box.main, 'add', 'view/file.js').status, 0);
+  const mainCommit = box.git(box.main, 'commit', '-q', '-m', 'chore: accepted main change [L3]');
+  assert.equal(mainCommit.status, 0, mainCommit.stderr);
+  const squash = box.git(box.lane, 'merge', '--squash', 'main');
+  assert.equal(squash.status, 0, squash.stderr + squash.stdout);
+  assert.notEqual(box.git(box.lane, 'rev-parse', '--verify', 'MERGE_HEAD').status, 0,
+    'squash integration leaves no merge-head marker for the hook to inspect');
+  writeFileSync(join(box.lane, 'core', 'file.js'), 'export const owned = false;\n');
+  assert.equal(box.git(box.lane, 'add', 'core/file.js').status, 0);
+}
+
+test('a lane may commit an accepted-main squash together with its own change [L3,C7]', t => {
+  const box = fixture(t);
+  squashAcceptedMain(box);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): keep accepted main change [L3]');
+  assert.equal(commit.status, 0, `${commit.stderr}\n${commit.stdout}`);
+});
+
+test('the accepted-main allowance does not permit a builder edit to the same foreign file [L3,C7]', t => {
+  const box = fixture(t);
+  squashAcceptedMain(box);
+  writeFileSync(join(box.lane, 'view', 'file.js'), 'export const accepted = false;\nexport const builder = true;\n');
+  assert.equal(box.git(box.lane, 'add', 'view/file.js').status, 0);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): alter a foreign file [L3]');
+  assert.notEqual(commit.status, 0, 'the real installed pre-commit hook refuses the changed foreign object');
+  assert.match(commit.stdout + commit.stderr, /outside the core lane: view\/file\.js/u);
+});
