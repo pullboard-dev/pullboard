@@ -1,5 +1,5 @@
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
-import { pipelineCause } from './pipeline-cause.js';
+import { pipelineCause } from '../packages/kernel/index.js';
 import { boardWriteSnapshot } from './board-write-preparation.js';
 import { requireBoardWriteSnapshot } from './board-write-preparation.js';
 import { verdictWithdrawalTarget } from './verdict-withdrawal.js';

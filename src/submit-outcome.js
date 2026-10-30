@@ -2,7 +2,7 @@
 import { Refused } from './refused.js';
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
-import { pipelineCause } from './pipeline-cause.js';
+import { pipelineCause } from '../packages/kernel/index.js';
 
 /** Validate on both origin and replay before the ordinary claim guards execute. */
 export function checkedSubmitOutcome(board, id, actor, value, admission) {

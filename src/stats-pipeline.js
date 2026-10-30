@@ -1,4 +1,4 @@
-import { pipelineCauseType } from './pipeline-cause.js';
+import { pipelineCauseType } from '../packages/kernel/index.js';
 /** Recorded lifecycle intervals and attempts for a bounded window of landed items [R1,R2,C7]. */
 import { Refused } from './refused.js';
 import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';

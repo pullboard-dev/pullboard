@@ -1,5 +1,5 @@
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
-import { pipelineCause } from './pipeline-cause.js';
+import { pipelineCause } from '../packages/kernel/index.js';
 /** Identify the frozen requirement a rejection disputes and stop repeated unchanged rounds [V6,R2,B30,H16]. */
 import { createHash } from 'node:crypto';
 import { Refused } from './refused.js';
