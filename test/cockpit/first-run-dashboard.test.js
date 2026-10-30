@@ -10,6 +10,8 @@ import { machine, project, startView, chromeExecutable, openSnapshotChrome, clos
 const kit = firstRunKit();
 /** Words a first-run reader never sees, apart from the literal strings the approved design itself uses. */
 const BANNED = /\b(main|items?|tests?|subagents?)\b|github|claude|codex|openai|anthropic|\bnpm\b|vercel|netlify/iu;
+/** How long past its dwell the tour may take to make its first move on a loaded runner. */
+const TOUR_SLACK = kit.dwell(0) * 3;
 const ALLOWED = ['Items →', 'Tests pass', 'subagents'];
 /** Visible words with the design's own literals taken out, so a banned word anywhere else fails. */
 const plain = text => ALLOWED.reduce((left, allowed) => left.replaceAll(allowed, ''), text);
@@ -172,7 +174,7 @@ test('a fresh board opens on the first-run page: three boxes, the loop, the chec
     const start = Date.now(), first = await tour();
     assert.deepEqual([first.step, first.lit, first.caption, first.dots, first.on], ['0', ['0'], kit.steps[0][1], 5, 0], 'the tour opens on You with one caption');
     assert.equal(first.dwell, kit.dwell(0));
-    await chrome.waitFor('document.querySelector("[data-first-run-tour]").dataset.step === "1"', 12_000);
+    await chrome.waitFor('document.querySelector("[data-first-run-tour]").dataset.step === "1"', kit.dwell(0) + TOUR_SLACK);
     const waited = Date.now() - start, second = await tour();
     assert.ok(waited >= kit.dwell(0) - 500 && waited <= kit.dwell(0) + 4000, `the tour waited about ${kit.dwell(0)} ms before its first move, not ${waited}`);
     assert.deepEqual([second.lit, second.caption, second.on], [['1'], kit.steps[1][1], 1]);
