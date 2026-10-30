@@ -899,7 +899,10 @@ async function openSnapshotChrome(executable, url, profile, { signal, onOwned } 
         const request = message.params.request;
         requests.push({ method: request.method, url: request.url, headers: request.headers ?? {} });
       }
-      if (message.method === 'Runtime.exceptionThrown') exceptions.push(message.params.exceptionDetails.text);
+      if (message.method === 'Runtime.exceptionThrown') {
+        const details = message.params.exceptionDetails;
+        exceptions.push(details.exception?.description ?? details.text);
+      }
     });
     /** Send one CDP command and clear its timeout on either response or failure. */
     const send = (method, params = {}) => new Promise((resolve, reject) => {
