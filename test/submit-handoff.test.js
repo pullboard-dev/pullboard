@@ -272,6 +272,8 @@ function mainAdvanceFixture(t) {
   for (const folder of ['bin', 'test', 'web']) mkdirSync(join(box.repo, folder), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.repo, 'web/feature.js'), "export const feature = 'base';\n");
+  writeFileSync(join(box.repo, 'web/other.js'), "export const other = 'independent';\n");
+  writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('independent feature [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), [
     "import {spawnSync} from 'node:child_process';",
     "const env={...process.env};delete env.NODE_TEST_CONTEXT;",
