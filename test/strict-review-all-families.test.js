@@ -1,3 +1,4 @@
+import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../src/no-eligible-reviewer-engine.js';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -24,13 +25,14 @@ const REVIEW = { policy: 'any', familyPolicy: 'require' };
 const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n+++ b/x.txt\n@@ -0,0 +1,4 @@\n+a\n+b\n+c\n+d\n';
 
 /** Private fixture authors and independent reviewers have persisted, explicitly distinct parents. */
-function fixture(t, { third = false } = {}) {
+function fixture(t, { third = false, noIndependentClaude = false } = {}) {
   const board = fixtureBoard(t);
   const seats = [['coordinator', 'coordinator', undefined, 'f'], ['core-1', 'core', 'openai', 'a'],
     ['core-2', 'core', 'claude', 'b'], ['core-3', 'core', 'openai', 'c'], ['core-4', 'core', 'claude', 'd'],
     ['core-5', 'core', 'claude', 'b']];
   if (third) seats.push(['core-6', 'core', 'gemini', 'e']);
   for (const [id, lane, family, parent] of seats) {
+    if (noIndependentClaude && id === 'core-4') continue;
     store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), session: parent.repeat(64), model: 'Synthetic fixture model' });
     heartbeatSeat(board, id);
   }
@@ -145,4 +147,21 @@ test('new native activation fences downgraded review while preserving genuine hi
   assert.equal(applyEngineMove(f.board, fresh, { sequence: 3, at: f.board.clock.now().toISOString() }).error, undefined);
   assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: f.board.clock.now().toISOString() }), first);
   assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
+});
+
+test('real submit preflight uses candidate size for companion-owned reachability and rolls every observation back [V4,H16]', t => {
+  const f = fixture(t, { noIndependentClaude: true });
+  f.claim('core-1');
+  // A real legacy attachment predates the reachability guard; upgrading must not strand its composition.
+  f.board.executionEngineVersion = NO_ELIGIBLE_REVIEWER_ENGINE - 1;
+  f.attach('core-2');
+  delete f.board.executionEngineVersion;
+  const ports = { atomic: store.atomic, submit: store.submit };
+  const review = { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) };
+  const before = exportBoard(f.board);
+  assert.throws(() => submitPreflight(f.board, f.id, { agentId: 'core-1', commit: COMMIT, tree: TREE }, ports, review), { code: 'NO_ELIGIBLE_REVIEWER' }, 'missing counts conservatively choose the last builder');
+  assert.deepEqual(exportBoard(f.board), before);
+  assert.doesNotThrow(() => submitPreflight(f.board, f.id, { agentId: 'core-1', commit: COMMIT, tree: TREE,
+    submissionSize: { base: 'c'.repeat(40), head: COMMIT, lines: 1, method: 'added-plus-deleted-no-renames' } }, ports, review), 'matching candidate size selects companion owner and permits independent OpenAI core-3');
+  assert.deepEqual(exportBoard(f.board), before, 'preflight records no submit, size, event or authority');
 });
