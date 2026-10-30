@@ -108,7 +108,7 @@
  ],
  "cuts": [
   {"cell":"link","imports":1,"edges":["src/relay.js->src/landing-relay.js"]},
-  {"cell":"gate","imports":1,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js"]}
+  {"cell":"gate","imports":2,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js","src/test-run.js->src/main-failure-matches.js"]}
  ],
  "ratchets": {
   "legacySource": -4,

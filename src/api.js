@@ -1,3 +1,4 @@
+import { costAnalytics } from '../packages/stats/index.js';
 import { activeViewAgents } from './view-state-summary.js';
 import { viewProofSummary } from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
@@ -869,7 +870,7 @@ function isLiteralIPv4(host) {
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
  * @param {{ secret: string | Buffer, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners } = {}) {
+export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
   if (typeof now !== 'function') throw new TypeError('createLocalApiHandler needs an observation clock');
   if (typeof getPort !== 'function') throw new TypeError('createLocalApiHandler needs a bound-port getter');
@@ -1141,7 +1142,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       const cookieFetchSiteAllowed = fetchSite === undefined || fetchSite === 'same-origin';
       if (!ownHost || (!validKey && (!validCookie || !cookieFetchSiteAllowed))) throw new Refused('AUTH_REQUIRED', 'this API needs its session secret and own host; use the address pullboard serve printed');
       if (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host && !permittedOrigins.has(req.headers.origin)) throw new Refused('API_ORIGIN', 'use the API from its own origin');
-      return { local: true };
+      return { local: true, privateLocal: !req.headers.origin || req.headers.origin === 'http://' + req.headers.host };
     },
     settings: (selected) => {
       if (!settingsProviders) throw new Refused('SERVICE_ERROR', 'this API was started without its settings providers; start it through pullboard serve or pullboard view');
@@ -1174,6 +1175,13 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
     code: (board, ref) => withGitReadFacts(() => codeAt(board.root, ref)),
+    costAnalytics: (board, window, who) => {
+      if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
+      return withGitReadFacts(() => withReadBoard(board.root, current => costAnalytics({
+      items: store.listItems(current), agents: store.listAgents(current), events: store.events(current),
+      window, now: new Date(now()), modelPresentation: costModelPresentation,
+      }), codeIsMain, boardOpeners));
+    },
     events: (board, after) => withGitReadFacts(() => afterEvents(board.root, after, codeIsMain, boardOpeners)),
     eventLogVersion: () => store.EVENT_LOG_VERSION,
     move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
