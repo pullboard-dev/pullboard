@@ -899,7 +899,7 @@ document.addEventListener('click', (event) => {
     return;
   }
   if (view.filterOpen && !event.target.closest('.filter-control')) { view.filterOpen = false; render(); }
-  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],#proj-switch,#console');
+  const t = event.target.closest('[data-needs-list],[data-needs-confirm],[data-filter-toggle],[data-filter-choice],[data-status],[data-roadmap-jump],[data-shout-id],[data-roadmap-key],[data-roadmap-all],[data-roadmap-held],[data-cost-row],[data-root],[data-tab],[data-go],[data-item],[data-items-view],[data-state],[data-rows],[data-row],[data-row-decision],[data-row-change],[data-sentinel-decision],[data-section-approve],[data-release],[data-shout],[data-new],[data-code],[data-code-all],[data-code-less],[data-stats-toggle],[data-first-run-step],[data-first-run-copy],[data-first-run-hide],[data-first-run-phone],#proj-switch,#console');
   if (!event.target.closest('.side')) fold(false);
   if (!t) return;
   if (t.id === 'proj-switch') { fold(!$('side').classList.contains('open')); return; }
@@ -915,6 +915,10 @@ document.addEventListener('click', (event) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
   }
+  if (t.dataset.firstRunStep !== undefined) { dashboardView.tourStep(Number(t.dataset.firstRunStep)); return; }
+  if (t.dataset.firstRunCopy !== undefined) { navigator.clipboard?.writeText(t.previousElementSibling.textContent); t.textContent = 'Copied'; return; }
+  if (t.dataset.firstRunHide !== undefined) { keep('pb.firstrun.' + view.root, 'hidden'); render(); return; }
+  if (t.dataset.firstRunPhone !== undefined) { event.preventDefault(); $('share-start')?.click(); return; }
   if (t.dataset.statsToggle !== undefined) {
     view.statsOpen = !view.statsOpen;
     render();

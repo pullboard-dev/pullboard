@@ -1499,3 +1499,60 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
   .settings-bar .settings-scopes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; overflow: visible; }
   .settings-bar .settings-scopes button { min-width: 0; white-space: normal; min-height: 44px; }
 }
+
+/* The first-run Dashboard: until its checklist is complete, three short facts, the loop and the one thing to do. Mirrors the approved mockup. */
+.first-run { display: grid; gap: 14px; min-width: 0; }
+.first-run-rules { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) 28px minmax(0, 1fr); align-items: stretch; }
+.first-run-rules li:not(.arr) { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 10.5px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 2px var(--shade); font-size: 15px; font-weight: 600; line-height: 1.35; }
+.first-run-rules .arr { display: grid; place-items: center; color: var(--ink-faint); font-size: 18px; }
+.first-run-rules b { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-size: 14px; }
+.first-run-rules em { display: block; white-space: nowrap; font-style: normal; color: var(--accent-strong); }
+.first-run-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10.5px; box-shadow: var(--shadow); }
+.first-run-two { display: grid; grid-template-columns: 360px minmax(0, 1fr); align-items: stretch; padding: 24px 28px; }
+.first-run-how { padding: 0 28px 0 0; border-right: 1px solid var(--line-soft); min-width: 0; }
+.first-run-start { padding-left: 28px; min-width: 0; }
+.first-run-dia { margin: 0; } .first-run-dia svg { width: 100%; height: auto; display: block; }
+.first-run-dia .node rect { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.5; }
+.first-run-dia .node text { fill: var(--ink-muted); font: 600 12.5px var(--sans); text-anchor: middle; }
+.first-run-dia .node .sub { font: 400 10.5px var(--sans); }
+.first-run-dia .node.now rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.first-run-dia .node.now text { fill: var(--accent-strong); }
+.first-run-dia path { fill: none; stroke: var(--ink-faint); stroke-width: 1.6; }
+.first-run-dia path.back { stroke: var(--reject); stroke-dasharray: 4 3; }
+.first-run-dia path.next { stroke-dasharray: 3 4; }
+.first-run-dia .lbl { fill: var(--ink-faint); font: 10.5px var(--sans); } .first-run-dia .lbl.back { fill: var(--reject); }
+.first-run-caption { min-height: 28px; margin: 8px 0 0; text-align: center; font-size: 15px; font-weight: 500; color: var(--ink); }
+.first-run-tour { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 6px; }
+.first-run-tour button { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--ink-muted); font-size: 16px; line-height: 1; cursor: pointer; }
+.first-run-dots { display: inline-flex; gap: 6px; } .first-run-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--line); } .first-run-dots i.on { background: var(--accent); }
+.first-run-start h2 { margin: 0 0 12px; font-size: 24px; color: var(--accent-strong); letter-spacing: -.01em; }
+.first-run-line { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.first-run-line code { flex: 1; min-width: 0; font: 15px/1.4 var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+.first-run-line button { border: 0; border-radius: 6px; padding: 6px 16px; background: var(--accent); color: var(--on-accent); font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.first-run-checks { list-style: none; margin: 16px 0 12px; padding: 0; display: grid; gap: 6px; }
+.first-run-checks li { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-faint); }
+.first-run-checks li i { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line-strong); font-style: normal; font-size: 11px; font-weight: 800; }
+.first-run-checks li.ok { color: var(--ink); } .first-run-checks li.ok i { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.first-run-checks li.now { color: var(--ink); font-weight: 600; } .first-run-checks li.now i { border-color: var(--accent); color: var(--accent-strong); }
+.first-run-checks li small.hint { margin-left: auto; color: var(--ink-muted); font-weight: 500; font-size: 13px; }
+.first-run-checks li small.hint a { color: var(--accent-strong); font-weight: 700; text-decoration: none; }
+.first-run-checks li.after { display: flex; align-items: baseline; margin-top: 6px; padding-left: 30px; font-size: 16px; font-weight: 700; color: var(--ink-faint); }
+.first-run-checks li.after.ok { color: var(--accent-strong); }
+.first-run-arch { padding: 16px 18px; }
+.first-run-dhead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.first-run-dhead h2 { margin: 0; font-size: 18px; color: var(--accent-strong); }
+.first-run-dhead span { font-size: 13px; color: var(--ink-muted); }
+.first-run-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.first-run-tile { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 10px; align-items: center; padding: 12px 14px; border-radius: 10.5px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 2px var(--shade); }
+.first-run-tile .ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent-strong); }
+.first-run-tile .ico svg { width: 16px; height: 16px; }
+.first-run-tile .k { display: block; font-size: 12px; color: var(--ink-muted); white-space: nowrap; }
+.first-run-tile b { display: block; font-size: 15px; line-height: 1.25; white-space: nowrap; }
+.first-run-tile a { display: block; margin-top: 2px; font-size: 12px; font-weight: 600; color: var(--accent-strong); text-decoration: none; }
+.first-run-later { margin: 0; text-align: center; color: var(--ink-faint); font-size: 13px; padding: 6px; }
+@media (max-width: 1240px) { .first-run-rules { grid-template-columns: 1fr; gap: 0; } .first-run-rules .arr { transform: rotate(90deg); height: 22px; } }
+@media (max-width: 1100px) { .first-run-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .first-run-two { grid-template-columns: 1fr; padding: 20px; } .first-run-how { border-right: 0; padding: 0 0 20px; border-bottom: 1px solid var(--line-soft); } .first-run-start { padding: 20px 0 0; } }
+@media (max-width: 700px) { .first-run-checks li { flex-wrap: wrap; } .first-run-checks li small.hint { margin-left: 30px; flex-basis: 100%; } .first-run-line { flex-wrap: wrap; } }
+/* Phone setup lives in the checklist's last line while the first-run page shows, so the sign-in banner steps aside. */
+body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }

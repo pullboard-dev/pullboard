@@ -1372,8 +1372,8 @@ export function holdsLease({ name, scope = 'repo', root = process.cwd(), token }
   } finally { db.close(); }
 }
 
-/** Raise live capacity atomically; a decrease waits for an empty queue without evicting holders. */
-export function setResourceCapacity({ name, capacity, scope = 'machine', root = process.cwd(), allowZero = false, persist = () => {} }) {
+/** Change live capacity atomically; worker synchronization may safely shrink around holders that fit while waiters remain queued. */
+export function setResourceCapacity({ name, capacity, scope = 'machine', root = process.cwd(), allowZero = false, allowSafeDecrease = false, persist = () => {} }) {
   if (typeof name !== 'string' || !name.trim() || name.trim() !== name) throw new Refused('BAD_RESOURCE_NAME', 'resource name must be nonempty trimmed text');
   if (name.startsWith('runner:')) throw new Refused('RESERVED_RUNNER_RESOURCE', 'runner resource rows are managed by the machine gate; use runner settings');
   if (!Number.isSafeInteger(capacity) || capacity < (allowZero && scope === 'machine' && ['gate', 'browser'].includes(name) ? 0 : 1)) throw new Refused('BAD_RESOURCE_CAPACITY', 'resource capacity must be a positive integer');
@@ -1382,9 +1382,13 @@ export function setResourceCapacity({ name, capacity, scope = 'machine', root = 
     return update(db, () => {
       const state = snapshot(db, name);
       const current = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name)?.capacity;
-      if ((state.holders.length || state.line.length) && (current === undefined || capacity < current)) {
+      const occupiedDecrease = (state.holders.length || state.line.length) && (current === undefined || capacity < current);
+      if (state.holders.length > capacity || occupiedDecrease && allowSafeDecrease !== true) {
         const holders = state.holders.map(holder => `${holder.agent} (${holder.repo})`).join(', ') || 'none';
-        throw new Refused('RESOURCE_BUSY', `resource "${name}" has ${state.holders.length} holder(s) and ${state.line.length} waiter(s); running: ${holders}; wait for it to become idle, then retry pullboard settings ${name === 'browser' ? 'browserSlots' : 'gateSlots'} ${capacity}`);
+        const reason = state.holders.length > capacity
+          ? `requested capacity ${capacity} is below its ${state.holders.length} active holder(s)`
+          : `changing capacity ${current ?? 'unset'} to ${capacity} waits for an empty queue`;
+        throw new Refused('RESOURCE_BUSY', `resource "${name}" has capacity ${current ?? 'unset'}; ${reason}; ${state.line.length} waiter(s); running: ${holders}; wait for the resource to become idle, then retry pullboard settings ${name === 'browser' ? 'browserSlots' : 'gateSlots'} ${capacity}`);
       }
       persist();
       db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET capacity = excluded.capacity').run(name, capacity);
