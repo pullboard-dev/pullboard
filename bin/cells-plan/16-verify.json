@@ -39,7 +39,8 @@
   ["src/reject-clause.js","packages/verify/src/shell/reject-clause.js","imports"],
   ["src/review-tier.js","packages/verify/src/core/review-tier.js","rule"],
   ["src/check-widen.js","packages/verify/src/core/check-widen.js","imports"],
-  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"]
+  ["src/review-reachability.js","packages/verify/src/core/review-reachability.js","imports"],
+  ["src/review-composition.js","packages/verify/src/core/review-composition.js","rule"]
  ],
  "reexports": [
   "src/bar-actor.js",

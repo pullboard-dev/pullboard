@@ -1,0 +1,106 @@
+/** Real native SQLite moves prove current-composition authority and the bounded vendor fallback [V4,H16]. */
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import * as store from '../src/board.js';
+import { fixtureBoard } from './board-fixture.js';
+import { heartbeatSeat } from '../src/seat-presence.js';
+import { reviewEligibility } from '../src/review-eligibility.js';
+import { compositionOwner } from '../src/review-composition.js';
+import { refuseUnreviewable } from '../src/review-reachability.js';
+import { submitPreflight } from '../src/submit-preflight.js';
+import { healthReport } from '../packages/health/index.js';
+import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
+
+const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
+const freeze = () => ({ text: '{}', digest: 'synthetic-composition-bar' });
+const REVIEW = { policy: 'any', familyPolicy: 'require' };
+const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n+++ b/x.txt\n@@ -0,0 +1,4 @@\n+a\n+b\n+c\n+d\n';
+
+/** Private fixture authors and independent reviewers have persisted, explicitly distinct parents. */
+function fixture(t, { third = false } = {}) {
+  const board = fixtureBoard(t);
+  const seats = [['coordinator', 'coordinator', undefined, 'f'], ['core-1', 'core', 'openai', 'a'],
+    ['core-2', 'core', 'claude', 'b'], ['core-3', 'core', 'openai', 'c'], ['core-4', 'core', 'claude', 'd'],
+    ['core-5', 'core', 'claude', 'b']];
+  if (third) seats.push(['core-6', 'core', 'gemini', 'e']);
+  for (const [id, lane, family, parent] of seats) {
+    store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: 'Synthetic fixture model' });
+    heartbeatSeat(board, id);
+  }
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Composition fixture', sensitive: true });
+  /** Claim through the native guard, never direct item-state writes. */
+  const claim = builder => store.claim(board, id, { agentId: builder, lane: 'core', leaseMs: 3_600_000, freeze });
+  /** Attach real patch bytes through native author binding and reachability. */
+  const attach = (author, key = 'companion') => store.attachItemPatch(board, id, { agentId: 'coordinator', key, commit: COMMIT, patch: PATCH, author, presubmit: true });
+  /** Record only a synthetic board proof shape; this fixture makes no runtime receipt claim. */
+  const submit = lines => store.submit(board, id, { agentId: 'core-1', commit: COMMIT, tree: TREE, files: [],
+    ...(lines === undefined ? {} : { submissionSize: { base: 'c'.repeat(40), head: COMMIT, lines, method: 'added-plus-deleted-no-renames' } }),
+    submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'synthetic native board-state fixture; no execution proof' } });
+  const projection = () => reviewEligibility(board, store.getItem(board, id), REVIEW);
+  return { board, id, claim, attach, submit, projection };
+}
+
+test('Strict uses current material authors, excluding earlier holders and removed companions from fresh review rules [V4,H16]', t => {
+  const f = fixture(t);
+  f.claim('core-2');
+  f.attach('core-2', 'removed');
+  store.removeItemPatch(f.board, f.id, { agentId: 'coordinator', key: 'removed' });
+  store.release(f.board, f.id, 'core-2', 'Private fixture hands off without source adoption');
+  f.claim('core-1');
+  f.attach('core-3', 'current');
+  f.submit();
+  const result = f.projection();
+  assert.ok(result.eligible.includes('core-2'), JSON.stringify(result));
+  assert.ok(result.eligible.includes('core-4'));
+  assert.ok(result.ineligible.some(row => row.agent === 'core-3' && row.code === 'SELF_VERIFY'));
+  store.reserveReview(f.board, f.id, { agentId: 'core-2', leaseMs: 60_000, ...REVIEW });
+  assert.equal(store.getItem(f.board, f.id).item_review_by, 'core-2');
+});
+
+test('a current companion family stays excluded when a third joined family can independently review [V4]', t => {
+  const f = fixture(t, { third: true });
+  f.claim('core-1'); f.attach('core-2'); f.submit();
+  const result = f.projection();
+  assert.equal(result.owner, undefined, 'no fallback while an unauthored family exists');
+  assert.ok(result.ineligible.some(row => row.agent === 'core-4' && row.code === 'O2_FAMILY_MATCH'));
+  assert.ok(result.eligible.includes('core-6'));
+});
+
+test('mixed-family composition remains independently reviewable while every current author and parent stays excluded [V4,H16]', t => {
+  const f = fixture(t);
+  f.claim('core-1'); f.attach('core-2');
+  assert.doesNotThrow(() => submitPreflight(f.board, f.id, { agentId: 'core-1', commit: COMMIT, tree: TREE },
+    { atomic: store.atomic, submit: store.submit }, { refuse: (board, item) => refuseUnreviewable(board, item, REVIEW) }));
+  f.submit();
+  const result = f.projection();
+  assert.equal(result.owner, 'core-1', 'missing legacy size chooses the last builder');
+  assert.ok(result.eligible.includes('core-4'), JSON.stringify(result));
+  for (const author of ['core-1', 'core-2']) assert.ok(result.ineligible.some(row => row.agent === author && row.code === 'SELF_VERIFY'));
+  assert.ok(result.ineligible.some(row => row.agent === 'core-5' && row.code === 'SELF_SESSION_VERIFY'));
+  assert.doesNotThrow(() => refuseUnreviewable(f.board, store.getItem(f.board, f.id), REVIEW));
+  const report = healthReport({ db: f.board.db, root: process.cwd(), config: { verify: REVIEW }, now: f.board.clock.now(), dispatchHealth: () => ({ findings: [] }) });
+  assert.equal(report.stuck.some(row => row.cause === 'NO_ELIGIBLE_REVIEWER' && row.item === f.id), false);
+  const owner = report.waiting.find(row => row.cause === 'REVIEW_FAMILY_FALLBACK');
+  assert.equal(owner?.owner.who, 'core-1');
+  assert.match(owner.why, /owner core-1/u);
+});
+
+test('owner uses matching native submit size against active patch hunk lines; a tie retains last builder [V4,H16]', t => {
+  for (const [lines, expected, eligible] of [[1, 'core-2', 'core-3'], [4, 'core-1', 'core-4'], [5, 'core-1', 'core-4']]) {
+    const f = fixture(t); f.claim('core-1'); f.attach('core-2'); f.submit(lines);
+    assert.equal(compositionOwner(f.board, store.getItem(f.board, f.id)), expected);
+    const result = f.projection();
+    assert.equal(result.owner, expected);
+    assert.ok(result.eligible.includes(eligible), JSON.stringify(result));
+    assert.ok(result.ineligible.some(row => row.agent === 'core-2' && row.code === 'SELF_VERIFY'));
+  }
+});
+
+test('old ordered review semantics still exclude historical contributors and refuse mixed-family reachability [V4,H16]', t => {
+  const f = fixture(t); f.claim('core-1'); f.attach('core-2'); f.submit();
+  f.board.executionEngineVersion = STRICT_COMPOSITION_ENGINE - 1;
+  const result = f.projection();
+  assert.equal(result.owner, undefined);
+  assert.ok(result.ineligible.some(row => row.agent === 'core-4' && row.code === 'O2_FAMILY_MATCH'));
+  assert.throws(() => refuseUnreviewable(f.board, store.getItem(f.board, f.id), REVIEW), { code: 'NO_ELIGIBLE_REVIEWER' });
+});
