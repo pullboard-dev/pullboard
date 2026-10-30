@@ -27,8 +27,9 @@ const requireSubmitCells = (root, main, commit, item, readCutItems = () => accep
     cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 
 /** Commit a planned fixture with its real lint baseline, so main is a clean accepted snapshot. */
-function plannedFixture(t) {
+function plannedFixture(t, prepare = () => {}) {
   const box = fixture(t);
+  prepare(box);
   writePlan(box.root, computePlan(box.root));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'plan actual fixture');
@@ -167,4 +168,13 @@ test('an edge introduced only by newer accepted main is not attributed to the ca
   const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
   assert.equal(result.cutBase, base);
   assert.deepEqual(result.problems, []);
+});
+
+test('a newly declared computed import cannot bypass a landed cell front door within old unknown debt [C7,D3]', async t => {
+  const source = "export const load = name => import(name);\n";
+  const box = plannedFixture(t, box => box.put('src/cli.js', source));
+  const board = cutBoard(t, 'app:cli', 'verified', box.main);
+  box.put('src/cli.js', '/** @pullboard-module-loads src/board.js */\n' + source);
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db)),
+    /app:cli imports lower store past its front door .*src\/cli.js -> src\/board.js/u);
 });
