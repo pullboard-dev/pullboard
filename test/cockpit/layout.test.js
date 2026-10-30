@@ -1,4 +1,5 @@
 /** @pullboard-test-gui */
+/** @pullboard-test-input src/view.css src/view/cost.css */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -76,7 +77,7 @@ test('the Dashboard and retained tabs fit two rows on a phone [N26]', async () =
     assert.match(phone, /\.tab \{ display: grid; justify-items: center; align-content: center;/, 'each tab centres its label in its share');
     assert.match(style, /\n\.tabs \{ display: flex; flex-wrap: wrap; gap: var\(--space-0\); \}\n/, 'wider, the tabs keep the row they have');
     const tabs = [...html.matchAll(/<button class="tab" data-tab="([a-z]+)" type="button">([A-Za-z]+)<\/button>/g)];
-    assert.deepEqual(tabs.map((match) => match[2]), ['Dashboard', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], 'Dashboard leads the retained tabs, each its label alone: their counts are in the status bar');
+    assert.deepEqual(tabs.map((match) => match[2]), ['Dashboard', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap', 'Cost'], 'Dashboard leads the retained tabs, each its label alone: their counts are in the status bar');
   } finally {
     await view.stop();
   }
@@ -140,7 +141,7 @@ test('no box carries a coloured edge [N26]', async () => {
     await view.stop();
   }
 });
-test("the view's styles live in their own file [N26]", async () => {
+test("the authenticated local view assembles its shared and private styles [N26]", async () => {
   const box = machine();
   const alpha = project(box, 'alpha', SPEC, { products: { Pages: ['G1', 'G2'] } });
   box.run(alpha.repo, 'add', 'web', 'Greeting', '--specs', 'G1', '--criterion', 'greets');
@@ -155,7 +156,11 @@ test("the view's styles live in their own file [N26]", async () => {
     const css = await fetchPage(view, '/view.css');
     assert.equal(css.status, 200);
     assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
-    assert.equal(await css.text(), readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8'), 'src/view.css, as it is');
+    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8');
+    const privateCss = readFileSync(new URL('../../src/view/cost.css', import.meta.url), 'utf8');
+    assert.equal(sharedCss.split('/* @private-view-css src/view/cost.css */').length - 1, 1, 'the local view has one private-style insertion point');
+    const expectedCss = sharedCss.replace('/* @private-view-css src/view/cost.css */', privateCss);
+    assert.equal(await css.text(), expectedCss, 'the authenticated view assembles its shared and private stylesheets');
     assert.equal((await fetchLive(`${view.base}/view.css`)).status, 403, 'nothing without the secret');
     const stranger = await new Promise((done, fail) => {
       request({ host: '127.0.0.1', port: view.link.port, path: `/view.css?k=${view.key}`, headers: { host: 'pullboard.example' } }, (res) => done(res.statusCode)).on('error', fail).end();
@@ -330,7 +335,7 @@ test('the board reads at a glance from the status bar [N26]', { timeout: 180_000
         const r = await read();
         assert.ok(r.page.scroll <= r.page.width && r.page.body <= r.page.width, `${at}: no sideways scroll: ${JSON.stringify(r.page)}`);
         // The header carries the tabs and nothing else: no counts, no clock.
-        assert.deepEqual(r.tabs, ['Dashboard', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap'], `${at}: the tabs carry no counts`);
+        assert.deepEqual(r.tabs, ['Dashboard', 'Items', 'Shouts', 'Spec', 'Doctrine', 'Activity', 'Roadmap', 'Cost'], `${at}: the tabs carry no counts`);
         assert.ok(r.live === '' && r.liveInBar && !/live|\d\d:\d\d/.test(r.header), `${at}: a live board says nothing in the header: ${r.header}`);
         // On a phone the bar stays out of the way while the board is live.
         if (width === 375) assert.equal(r.barShown, false, `${at}: no status bar on a phone while live`);

@@ -87,6 +87,11 @@ function render() {
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
   const gatedOf = (item) => stateOf(item) === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane));
+  if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
+    const history = readCostHistory(p);
+    $('cost').innerHTML = costTabHtml(history.model, view.costOpen, history);
+    document.title = $('proj-name').textContent + ' · Cost · Pullboard';
+  }
   if (view.tab === 'roadmap') {
   // Every refresh redraws the Roadmap. Left alone, that would send the phone's release chips back to their start
   // and the panel back to its top under a person mid-scroll, so both keep where they were.
@@ -422,7 +427,7 @@ function render() {
       addressed: view.tab === kind && view.addressDetail !== null, approvalIds: agentApprovals.map(row => row.id), feedback });
     const { labels, counts: n, shown: shownRows, feedbackId, sectionCounts } = selectedRows;
     if (kind === 'spec') {
-      const tab = document.querySelector('[data-tab=spec]');
+      const tab = $('tabs').querySelector?.('[data-tab=spec]');
       if (tab) { tab.title = selectedRows.decisionTitle; tab.innerHTML = 'Spec <b>' + n.decide + '</b>'; }
     }
     const undecidedIds = new Set(selectedRows.undecidedIds);
