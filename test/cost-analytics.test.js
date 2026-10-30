@@ -1,6 +1,12 @@
 /** Private cost cohorts, native model names and statistically honest comparisons [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { createServer } from 'node:http';
+import { createLocalApiHandler } from '../src/api.js';
+import { refusalDocument } from '../src/next-step-words.js';
+import { apiBoardOpeners } from './board-fixture.js';
+import { apiHttpFixture } from './api-fixture.js';
+import { fetchFresh } from './http-fixture.js';
 import { costAnalytics } from '../src/cost-analytics.js';
 import { wilson } from '../src/cost-analytics.js';
 
@@ -55,4 +61,32 @@ test('shared or absent usage remains unknown and windows honor local day boundar
   assert.equal(result.totals.agentMs, null);
   assert.equal(result.totals.medianItemMs, null);
   assert.equal(result.longest.length, 0);
+});
+
+test('a later seat model change never relabels an earlier submission [N26]', () => {
+  const input = seeded([['Old', 1, 0]]);
+  input.agents.find(agent => agent.agent_id === 'b1').model = 'New';
+  input.events.push({ event_id: 1000, event_kind: 'model', event_by: 'b1', event_detail: JSON.stringify({ model: 'New' }) });
+  const result = costAnalytics(input);
+  assert.equal(result.unknownBuilderModelShare, 1);
+  assert.equal(result.builders.rows.length, 0);
+});
+
+
+test('private local endpoint serves analytics and refuses hosted origins and missing credentials [N26]', async t => {
+  const box = apiHttpFixture(t);
+  let port;
+  const handler = createLocalApiHandler({ secret: 'fixture-secret', getPort: () => port, projects: () => [{ root: box.root, name: 'fixture' }], boardOpeners: apiBoardOpeners, refusalDocument, costModelPresentation: presentation, allowedOrigins: ['https://app.pullboard.dev'] });
+  const server = createServer(handler);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  port = server.address().port;
+  t.after(() => new Promise(resolve => { handler.close(); server.close(resolve); server.closeIdleConnections(); }));
+  const base = `http://127.0.0.1:${port}`, headers = { 'x-pullboard-key': 'fixture-secret' };
+  const boards = await (await fetchFresh(base + '/api/v1/boards', { headers })).json();
+  const path = '/api/v1/boards/' + boards.boards[0].id + '/cost-analytics?window=7d';
+  const response = await fetchFresh(base + path, { headers });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).costAnalytics.window, '7d');
+  assert.notEqual((await fetchFresh(base + path, { headers: { ...headers, origin: 'https://app.pullboard.dev' } })).status, 200);
+  assert.notEqual((await fetchFresh(base + path)).status, 200);
 });

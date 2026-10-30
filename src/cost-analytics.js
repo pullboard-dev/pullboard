@@ -65,7 +65,13 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
     if (event.event_kind === 'shared-usage') for (const allocation of info.allocations ?? []) shared.add(allocation.item);
   }
   const seats = new Map(agents.map(agent => [agent.agent_id ?? agent.id, agent]));
-  const named = actor => { const seat = seats.get(actor); const model = seat?.model ?? seat?.agent_model; return model && model !== 'unknown' ? modelPresentation(model, seat.family ?? seat.agent_family) : null; };
+  const named = (actor, eventId = Infinity) => {
+    const seat = seats.get(actor), changes = ordered.filter(event => event.event_kind === 'model' && event.event_by === actor);
+    const prior = changes.filter(event => event.event_id <= eventId).at(-1);
+    // A later model change makes the original unrecorded join model unknowable.
+    const model = prior ? detail(prior).model : changes.length ? null : seat?.model ?? seat?.agent_model;
+    return model && model.toLowerCase() !== 'unknown' ? modelPresentation(model, seat?.family ?? seat?.agent_family) : null;
+  };
   const projected = [];
   for (const item of items) {
     const id = item.item_id ?? item.id, history = histories.get(id) ?? [];
@@ -74,9 +80,9 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
     if (!Number.isFinite(at) || at < from.getTime() || at > to.getTime()) continue;
     const returns = history.filter(event => ['reject', 'reopen'].includes(event.event_kind) && event.event_id < landing.event_id);
     const firstSubmit = history.find(event => event.event_kind === 'submit');
-    const builder = named(firstSubmit?.event_by);
+    const builder = named(firstSubmit?.event_by, firstSubmit?.event_id);
     const accepts = history.filter(event => event.event_kind === 'accept' && event.event_id < landing.event_id);
-    const verifier = named(accepts.at(-1)?.event_by);
+    const verifier = named(accepts.at(-1)?.event_by, accepts.at(-1)?.event_id);
     const allocations = [...latest.values()].filter(value => value.item === id);
     const grouped = new Map();
     for (const allocation of allocations) for (const row of allocation.records ?? []) {
@@ -98,7 +104,7 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
   for (const row of projected) {
     if (row.builder) { const b = builders.get(row.builder.key) ?? { model: row.builder.key, label: row.builder.name, vendor: row.builder.vendor, built: 0, passedFirst: 0, times: [] }; b.built++; if (!row.sentBack) b.passedFirst++; b.times.push(row.agentMs); builders.set(b.model, b); }
     for (const event of row.history.filter(event => ['accept', 'reject'].includes(event.event_kind))) {
-      const person = named(event.event_by); if (!person) continue;
+      const person = named(event.event_by, event.event_id); if (!person) continue;
       const v = verifiers.get(person.key) ?? { model: person.key, label: person.name, vendor: person.vendor, verdicts: 0, accepts: 0, reopenedLater: 0 };
       v.verdicts++; if (event.event_kind === 'accept') { v.accepts++; if (row.history.some(later => later.event_kind === 'reopen' && later.event_id > event.event_id)) v.reopenedLater++; } verifiers.set(v.model, v);
     }
