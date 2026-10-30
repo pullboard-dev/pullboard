@@ -6,6 +6,7 @@ import { once } from 'node:events';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -20,7 +21,7 @@ import { startFixtureChild } from './fixture-child.js';
 
 /** Keep every fixture and observation inside a unique private directory. */
 function fixture(t) {
-  const root = mkdtempSync(join(tmpdir(), 'pullboard-clone-cleanup-'));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-clone-cleanup-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const namespace = join(root, 'clones');
   mkdirSync(namespace, { mode: 0o700 });

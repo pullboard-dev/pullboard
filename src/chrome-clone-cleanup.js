@@ -14,7 +14,7 @@ const HOUR = 60 * 60 * 1000;
 const NAME = /^code_sign_clone\.[A-Za-z0-9._-]{6}$/u;
 
 /** Read a bounded native census and retain only clone-relevant facts, never unrelated command or path text. */
-function chromeCloneCustody() {
+function chromeCloneCustody(directory) {
   const ps = spawnSync('/bin/ps', ['-axo', 'pid=,comm='], { encoding: 'utf8', timeout: 2000,
     maxBuffer: 8 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
   if (ps.error || ps.status !== 0 || ps.stderr.trim()) return null;
@@ -29,7 +29,7 @@ function chromeCloneCustody() {
     maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
   if (files.error || files.status !== 0 || files.stderr.trim()) return null;
   const paths = [];
-  const namespaces = chromeCloneDirectories();
+  const namespaces = [directory];
   let pid = null;
   for (const line of files.stdout.split('\n')) {
     if (!line) continue;
@@ -74,7 +74,7 @@ export function sweepChromeClones({ directories = chromeCloneDirectories(), cust
     } catch (error) { if (error.code !== 'ENOENT') summary.unknown = true; continue; }
     const before = available(canonical);
     // One complete census per namespace, never O(clones × process-table-size).
-    const observed = custody();
+    const observed = custody(canonical);
     if (!observed || observed.browserLive) { summary.kept += names.length; summary.unknown ||= !observed; continue; }
     for (const name of names) {
       if (Date.now() >= deadline) { summary.unknown = true; break; }
