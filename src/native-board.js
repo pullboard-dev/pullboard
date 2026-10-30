@@ -1,62 +1,100 @@
-import { quarantineVerdictSnapshot } from './quarantine.js';
-import { validateQuarantineGate } from './quarantine.js';
-import { validateQuarantineLandingProof } from './quarantine.js';
-import { validateQuarantineVerdict } from './quarantine.js';
-import { recordSealedGateRun } from './quarantine.js';
-import { sealQuarantineVerdict } from './quarantine.js';
-import { MOVE_REGISTRY } from './move-registry.js';
-import { MOVE_OPERATIONS } from './move-registry.js';
-import { minimumMoveEngine } from './move-registry.js';
-import { declaredMoveActor } from './move-registry.js';
-import { activeViewAgents } from './view-state-summary.js';
-import { viewProofSummary } from './view-state-summary.js';
+import {
+  quarantineVerdictSnapshot,
+  validateQuarantineGate,
+  validateQuarantineLandingProof,
+  validateQuarantineVerdict,
+  recordSealedGateRun,
+  sealQuarantineVerdict,
+  flakeQuarantines,
+  gateRuns,
+  recordGateRun,
+  requireBound,
+} from './quarantine.js';
+import {
+  sealKnownMainAutofile,
+  receiptFields,
+  boardReceiptStore,
+  readGateReceipt,
+  receiptBody,
+} from './gate-run-receipt.js';
+import {
+  MOVE_REGISTRY,
+  MOVE_OPERATIONS,
+  minimumMoveEngine,
+  declaredMoveActor,
+} from './move-registry.js';
+import {
+  activeViewAgents,
+  viewProofSummary,
+} from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
-import { personRequestStatuses } from './relay-requests.js';
+import {
+  personRequestStatuses,
+  requestMoveProblem,
+  recordRequestMove,
+  relayPerson,
+  requestPerson,
+} from './relay-requests.js';
 import { projectState } from './serve.js';
-import { projectFit } from './blueprint-fit.js';
-import { pendingFit } from './blueprint-fit.js';
-import { fitFile } from './blueprint-fit.js';
+import {
+  projectFit,
+  pendingFit,
+  fitFile,
+} from './blueprint-fit.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
-import { advanceItemSource } from './source-advance.js';
-import { proposeSentinel } from './sentinels.js';
-import { decideSentinel } from './sentinels.js';
-import { beginSentinelRun } from './sentinels.js';
-import { finishSentinelRun } from './sentinels.js';
-import { flakeLedger } from './flakes.js';
-import { recordFlakeObservation } from './flakes.js';
-import { flakeQuarantines } from './quarantine.js';
-import { gateRuns } from './quarantine.js';
-import { recordGateRun } from './quarantine.js';
-import { personProposals } from './person-signing.js';
-import { personSigning } from './person-signing.js';
-import { proposePersonMove } from './person-signing.js';
-import { setPersonSigning } from './person-signing.js';
+import {
+  advanceItemSource,
+  sourceAdvanceCASProblem,
+} from './source-advance.js';
+import {
+  proposeSentinel,
+  decideSentinel,
+  beginSentinelRun,
+  finishSentinelRun,
+} from './sentinels.js';
+import {
+  flakeLedger,
+  recordFlakeObservation,
+} from './flakes.js';
+import {
+  personProposals,
+  personSigning,
+  proposePersonMove,
+  setPersonSigning,
+  signedMoveProblem,
+  exportedMeta,
+  guardRestore,
+} from './person-signing.js';
 import { recordPublishFinding } from './pr-findings.js';
-import { landingWaivers } from './landing-waivers.js';
-import { landingWaiverFor } from './landing-waivers.js';
-import { waivedLandingProof } from './landing-waivers.js';
-import { prepareTrainLanding } from './train-landing.js';
-import { prepareNativeTrainLanding } from './train-landing.js';
-import { sealItemPatchSubmit } from './item-patch-submit.js';
-import { sealItemPatchFollow } from './item-patch-submit.js';
-import { sealSourceAdvance } from './source-advance-origin.js';
+import {
+  landingWaivers,
+  landingWaiverFor,
+  waivedLandingProof,
+} from './landing-waivers.js';
+import {
+  prepareTrainLanding,
+  prepareNativeTrainLanding,
+} from './train-landing.js';
+import {
+  sealItemPatchSubmit,
+  sealItemPatchFollow,
+} from './item-patch-submit.js';
+import {
+  sealSourceAdvance,
+  sealSourceAdvanceReturn,
+} from './source-advance-origin.js';
 import { computedReturnArgs } from './computed-conflict-return.js';
-import { requirePreparedComputedConflict } from './computed-conflict-receipt.js';
-import { preflightComputedConflict } from './computed-conflict-receipt.js';
-import { signedMoveProblem } from './person-signing.js';
-import { requireBound } from './quarantine.js';
-import { requestMoveProblem } from './relay-requests.js';
-import { recordRequestMove } from './relay-requests.js';
-import { relayPerson } from './relay-requests.js';
-import { requestPerson } from './relay-requests.js';
+import {
+  requirePreparedComputedConflict,
+  preflightComputedConflict,
+  conflictValue,
+} from './computed-conflict-receipt.js';
 import { validPresence } from './person-presence.js';
 import { recordTrainLanding } from './record-train-landing.js';
 import {
   newRigorNotices,
   rigorNoticeText,
 } from '../packages/rigor/index.js';
-import { sealSourceAdvanceReturn } from './source-advance-origin.js';
-import { conflictValue } from './computed-conflict-receipt.js';
 import { NEXT_STEPS } from './next-step-words.js';
 import * as landingEnvironment from './landing-environment-guards.js';
 import {
@@ -72,23 +110,18 @@ import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisi
 import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
 import * as store from './board.js';
-import { addMilestone } from './board-milestones.js';
-import { editMilestone } from './board-milestones.js';
-import { editMilestoneItems } from './board-milestones.js';
-import { orderMilestoneItems } from './board-milestones.js';
-import { moveMilestone } from './board-milestones.js';
-import { removeMilestone } from './board-milestones.js';
-import { roadmap } from './board-milestones.js';
-import { shipMilestone } from './board-milestones.js';
-import { sourceAdvanceCASProblem } from './source-advance.js';
+import {
+  addMilestone,
+  editMilestone,
+  editMilestoneItems,
+  orderMilestoneItems,
+  moveMilestone,
+  removeMilestone,
+  roadmap,
+  shipMilestone,
+} from './board-milestones.js';
 import { beginCommandPhase } from './command-phase.js';
-import { exportedMeta } from './person-signing.js';
-import { guardRestore } from './person-signing.js';
-import { receiptFields } from './gate-run-receipt.js';
 
-import { boardReceiptStore } from './gate-run-receipt.js';
-import { readGateReceipt } from './gate-run-receipt.js';
-import { receiptBody } from './gate-run-receipt.js';
 import { boardEnginePorts } from './board-engine-ports.js';
 import {
   openBoardStore,
@@ -228,7 +261,7 @@ export function nativeBoardPorts() {
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,

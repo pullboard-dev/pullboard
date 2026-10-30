@@ -5,6 +5,7 @@
  "root": "packages/gate",
  "frontDoor": "packages/gate/index.js",
  "paths": [
+  ["src/known-main-autofile-receipts.js","packages/gate/src/shell/known-main-autofile-receipts.js","rule"],
   ["src/affected-tests.js","packages/gate/src/shell/affected-tests.js","seed"],
   ["src/audit-coverage-reporter.js","packages/gate/src/core/audit-coverage-reporter.js","rule"],
   ["src/audit-coverage.js","packages/gate/src/core/audit-coverage.js","rule"],
