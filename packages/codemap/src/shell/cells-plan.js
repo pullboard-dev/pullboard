@@ -369,7 +369,7 @@ export function buildCellsPlan({ paths, edges, sources, seed, base }) {
     const signed = value => (value > 0 ? `+${value}` : String(value));
     const criterion = [
       `Cells move ${index + 1} of ${order.length} (RFC 0006; plan entry ${index + 1} in bin/cells-plan.json): the ${files.length === 1 ? 'path' : `${files.length} paths`} the entry lists for ${kind} ${name} move with git mv to their planned targets under ${root}, and ${root}/index.js is the front door, re-exporting the ${shims.length === 1 ? 'module' : `${shims.length} modules`} other code imports.`,
-      'Each of those old paths keeps a re-export shim; nothing else outside the cell changes except path-map.json and the cell lint baseline.',
+      `Each of those old paths keeps a re-export shim through ${root}/index.js, never a moved leaf directly; that front door remains reachable from a production app. Nothing else outside the cell changes except path-map.json and the cell lint baseline.`,
       ...(cuts.length ? [`First the ${cutImports === 1 ? 'import' : `${cutImports} imports`} from earlier cells into it that the entry lists as cuts ${cutImports === 1 ? 'is' : 'are'} gone, each cut by an item in the importing cell, so no cycle between cells forms.`] : []),
       `The cell lint counts change as the entry states (legacySource ${signed(legacyShims - legacyMoved)}, shims ${signed(legacyShims)}, boundaries ${signed(shims.length - internal)}) and none rises; node bin/cells-plan.js --moved ${cell} passes, and the full suite passes on Node 22.13 and 24.`,
     ].join(' ');
