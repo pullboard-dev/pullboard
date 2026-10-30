@@ -196,7 +196,8 @@ function itemLeaseFixture(t, helpers) {
     mkdirSync(folder);
     const gate = helpers.holdingGate({ dir: folder });
     const added = clockedCli(box, box.repo, 'add', 'web', `Queued lease ${number}`, '--specs', 'G1',
-      '--criterion', 'The queued command retains only its own live item lease.', '--check', gate.command, '--json');
+      '--criterion', 'The queued command retains only its own live item lease.', '--check', gate.command, '--wait', '--json');
+    assert.notEqual(added.item.item_check_baseline?.result, 'pending', 'the fixture completes its baseline before preparing any item claim');
     const id = added.item.item_id;
     box.ids.push(id); box.gates.push(gate);
     if (number < 4) {
@@ -270,6 +271,9 @@ function admittedCompletionReplicas(box, id, snapshot) {
         store.claim(peer, id, options);
         instant = Date.parse(store.itemById(peer, id).item_lease_until) + 1;
       }
+      // A move from before strict composition replays on a board from before it was activated, so the
+      // private peer drops the review-policy markers; the assertions below are unchanged.
+      if (['admission engine', 'historical engine'].includes(scenario)) peer.db.prepare("DELETE FROM board_meta WHERE meta_key LIKE 'review_%' OR meta_key LIKE 'line_setting:%'").run();
       const move = prepareEngineMove(peer, 'submit', [id, { agentId: receipt.seat,
         commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
         tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
