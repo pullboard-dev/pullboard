@@ -956,7 +956,7 @@ test('a pending Spec question can be answered in the view [I1,B26]', { timeout: 
     const state = await boardOf(view, demo.repo);
     const answer = state.spec.find(row => row.id === 'G1');
     const decisions = state.events.filter(event => event.event_kind === 'row_decision');
-    assert.equal(answer.stage, 'approved, pending apply', 'the answer is recorded as the pending row decision');
+    assert.equal(answer.stage, 'answered Postgres, pending apply', 'the answer is recorded as the pending row decision');
     assert.equal(answer.decision.text, 'Which store holds the data: Postgres. Choices: SQLite, Postgres.', 'the board stores the exact choice in the answered row text');
     assert.deepEqual(decisions.map(event => [event.event_by, JSON.parse(event.event_detail).channel]), [['person', 'view']], 'the answer uses the person view channel');
     assert.deepEqual(chrome.exceptions, [], 'Chrome reports no uncaught exceptions');
