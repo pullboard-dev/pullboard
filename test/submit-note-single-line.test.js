@@ -43,10 +43,10 @@ test('deferred suite and cross-lane mechanical edit submit both notices on one l
   commit(box, builder, 'refactor(web): repoint consumer import [G1]');
   const submitted = json(box, builder, 'submit', String(item), '--no-next');
   assert.equal(submitted.gate.deferred, true);
-  assert.match(submitted.gate.report, /cross-lane mechanical import edits: api\/consumer\.js/u);
+  assert.match(submitted.gate.report, /cross-lane mechanical edits: api\/consumer\.js/u);
   const shown = json(box, builder, 'show', String(item));
   assert.equal(shown.item_status, 'submitted');
   const event = shown.thread.findLast(row => row.kind === 'submit');
-  assert.equal(event.detail.note, 'full suite deferred to the landing gate; cross-lane mechanical import edits: api/consumer.js');
+  assert.equal(event.detail.note, 'full suite deferred to the landing gate; cross-lane mechanical edits: api/consumer.js');
   assert.doesNotMatch(event.detail.note, /[\r\n\u2028\u2029]/u);
 });
