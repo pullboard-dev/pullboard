@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { ENGINE_REGISTRY } from '../src/machine.js';
+import { ENGINE_REGISTRY, ENGINE_VERSION } from '../src/machine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
@@ -38,10 +38,11 @@ test('check-repoint moves retain their feature floor in a later engine and refus
   unpackRelease('HEAD', futureClient);
 
   const featureEngine = ENGINE_REGISTRY['train-check-repoint'];
+  const futureEngineNumber = Math.max(ENGINE_VERSION, featureEngine) + 1;
   writeFileSync(join(futureClient, 'src/train-check-repoint-engine.js'),
     `/** The original landing-assigned feature floor. */\nexport const TRAIN_CHECK_REPOINT_ENGINE = ${featureEngine};\n`);
   writeFileSync(join(futureClient, 'src/future-engine.js'),
-    `/** A later engine added only to this private replay fixture. */\nexport const FUTURE_ENGINE = ${featureEngine + 1};\n`);
+    `/** A later engine added only to this private replay fixture. */\nexport const FUTURE_ENGINE = ${futureEngineNumber};\n`);
 
   const oldClientUrl = pathToFileURL(join(oldClient, 'src/'));
   const futureClientUrl = pathToFileURL(join(futureClient, 'src/'));
@@ -50,8 +51,9 @@ test('check-repoint moves retain their feature floor in a later engine and refus
     import(new URL('machine.js', futureClientUrl)), import(new URL('engine.js', futureClientUrl)),
     import(new URL('move-registry.js', futureClientUrl)),
   ]);
-  assert.equal(oldMachine.ENGINE_VERSION, featureEngine - 1);
-  assert.equal(futureMachine.ENGINE_VERSION, featureEngine + 1);
+  assert.ok(oldMachine.ENGINE_VERSION < featureEngine,
+    'the genuine older executable refuses a move above its actual engine');
+  assert.equal(futureMachine.ENGINE_VERSION, futureEngineNumber);
   const move = { version: 1, engine: featureEngine, id: 'check-repoint-feature',
     operation: 'recordTrainLanding', args: [{ checkRepointPlan: { version: 1 } }] };
   assert.throws(() => oldEngine.requireSupportedEngine(move), error => error.code === 'ENGINE_VERSION',
