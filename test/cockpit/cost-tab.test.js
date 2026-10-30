@@ -323,8 +323,9 @@ test('the private view shows its last twenty native landings; a public export ke
     await chrome.waitFor("document.querySelector('#cost-detail-22')");
     const pricedDetail = await chrome.stable("document.querySelector('#cost-detail-22').innerText");
     assert.match(pricedDetail, /fixture-priced-model/u, 'the real journey exposes the priced model in its session detail');
-    assert.ok(pricedDetail.includes(nativeVendor ?? 'Vendor unknown'),
-      'the actual Cost detail renders the API vendor, including an explicit unknown');
+    const vendorSummary = await chrome.stable("document.querySelector('#cost .cost-vendors').innerText");
+    assert.ok(vendorSummary.includes(nativeVendor ?? 'Vendor unknown'),
+      'the actual By vendor tile renders the API vendor, including an explicit unknown');
     assert.match(pricedDetail, /Cost\s+\$3\.00/u, 'the session detail uses the configured private rate');
     const publicView = await serveFolder(publicOutput, '/public/');
     try {
