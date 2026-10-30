@@ -1,5 +1,7 @@
 /** @pullboard-test-gui */
 /** A real cached native HTTP board refreshes Dashboard pace even when it has no milestone [N26,A2]. */
+import { apiBoardOpeners } from '../board-fixture.js';
+
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
@@ -35,7 +37,7 @@ test('Dashboard pace crosses every cached window without a milestone or a native
   store.merged(board, 1, { agentId: 'coordinator', commit: head });
   const id = store.boardId(board), secret = randomBytes(24).toString('base64url');
   let builds = 0;
-  const api = await serveApi({ refusalDocument, secret, runCommand: main, projects: () => [{ root: alpha.repo, name: 'dashboard-clock' }],
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects: () => [{ root: alpha.repo, name: 'dashboard-clock' }],
     scope: { projectRoot: alpha.repo }, isMain: true, now: () => clock.at, onStateBuild: () => { builds++; } });
   t.after(api.close);
   const original = exportBoard(board);

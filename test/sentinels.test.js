@@ -1,3 +1,4 @@
+import { apiBoardOpeners } from './board-fixture.js';
 import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
 import { decideSentinel as nativeDecideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun as nativeBeginSentinelRun } from '../src/sentinels.js';
@@ -592,7 +593,7 @@ test('a person approves or declines a sentinel by its exact proposal [N26,P6]', 
     'the person sees the exact command, directory, schedule, owner and proposal digest');
   /** Exercise the existing API-to-CLI adapter on this actual private person-view board. */
   const act = (intent, channel = 'view') => executeMove(box.root, intent,
-    (argv, streams) => main(argv, { ...streams, clock: box.clock }), undefined, channel);
+    (argv, streams) => main(argv, { ...streams, clock: box.clock }), undefined, channel, undefined, apiBoardOpeners);
   const approval = personRequestMove({ verb: 'sentinel-approve', args: { name: proposal.name, digest: proposal.digest } });
   assert.deepEqual(moveArgs(approval), ['sentinel', 'approve', `--digest=${proposal.digest}`, '--json', '--', proposal.name]);
   for (const args of [{ name: proposal.name }, { ...approval.args, digest: 'not-a-digest' }, { ...approval.args, as: 'person' }]) {

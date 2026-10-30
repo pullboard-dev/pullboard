@@ -112,7 +112,7 @@ function completionCount(board, id) {
 
 /** Run the actual worker function in a clean child process using the fixture environment. */
 function runWorker(box, id, request) {
-  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2]);`;
+  const source = `import { runCheckBaselineWorker } from ${JSON.stringify(WORKER_MODULE)};\nimport { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};\nawait runCheckBaselineWorker(process.cwd(), Number(process.argv[1]), process.argv[2], { openBoard });`;
   return runFixtureChild(process.execPath, ['--input-type=module', '-e', source, String(id), request], {
     cwd: box.repo, env: box.env, encoding: 'utf8',
   });

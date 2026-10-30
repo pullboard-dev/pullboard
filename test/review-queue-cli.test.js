@@ -1,4 +1,6 @@
 /** Real CLI and authenticated API review suggestions preserve explicit build and review intent [Q1,V15,A1,A2]. */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -231,7 +233,7 @@ test('[Q1,V15,A2] authenticated API next returns a real unreserved offer and exp
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
   const apiKey = randomUUID();
-  const api = await serveApi({ refusalDocument, secret: apiKey, projects: () => [{ root: box.root }],
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret: apiKey, projects: () => [{ root: box.root }],
     runCommand: (args, io) => main(args, { ...io, clock: box.clock }) });
   t.after(() => api.close());
   const boardId = store.boardId(box.board);

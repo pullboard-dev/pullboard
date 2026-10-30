@@ -5,6 +5,8 @@
  "root": "apps/cli",
  "frontDoor": "apps/cli/index.js",
  "paths": [
+  ["src/worktree-maintenance-diagnostics.js","apps/cli/src/shell/worktree-maintenance-diagnostics.js","rule"],
+  ["test/worktree-maintenance-scheduler.test.js","apps/cli/tests/worktree-maintenance-scheduler.test.js","rule"],
   ["test/worktree-maintenance-retention.fixture.js","apps/cli/tests/worktree-maintenance-retention.fixture.js","rule"],
   ["src/worktree-maintenance-retention.js","apps/cli/src/shell/worktree-maintenance-retention.js","rule"],
   ["src/worktree-maintenance-scheduler.js","apps/cli/src/shell/worktree-maintenance-scheduler.js","rule"],

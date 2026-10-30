@@ -42,10 +42,15 @@ export function nativeBoardOpeners() {
   return { openBoard: store.openBoard, openBoardForRead: store.openBoardForRead };
 }
 
+/** Bind native request execution at this real CLI composition root. */
+async function executeNativePersonRequests(root, io, runCommand) {
+  return executePersonRequests(root, io, runCommand, nativeBoardOpeners());
+}
+
 /** Build a CLI context with the signed-person capabilities of its application layer. */
 export function personCommandContext(io, { main, ordered } = {}) {
   const ctx = context(io);
-  ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests, main, ordered };
+  ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests: executeNativePersonRequests, main, ordered };
   return ctx;
 }
 

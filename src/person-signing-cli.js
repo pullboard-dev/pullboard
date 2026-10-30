@@ -3,7 +3,6 @@
  * `pullboard settings person.signed` switch, and pinning the relay's stamp key from this board's own relay origin.
  */
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import {
   attestAuthority,
   authorityAttested,
@@ -35,6 +34,12 @@ const AUTHORITY_PATH = '/.well-known/pullboard-person-authority';
 function authorityOrigin(origin, io, builtInOrigin) {
   if (origin === builtInOrigin) return process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0';
   return typeof io?.trustedRelayOrigin === 'string' && io.trustedRelayOrigin === origin;
+}
+
+/** Require the actual native opener before a missing capability can enter a no-board catch. */
+function personBoardOpener(ports) {
+  if (typeof ports?.openBoard !== 'function') throw new TypeError('person signing requires its actual native board opener');
+  return ports.openBoard;
 }
 
 /**
@@ -82,6 +87,7 @@ export async function pinRelayAuthority(root, board, io = {}, { timeoutMs = 10_0
  * @param {{ DEFAULT_RELAY: string, relayStatus: (root: string) => any }} relayPorts
  */
 export async function attestBeforeCommand(root, io, relayPorts) {
+  const openBoard = personBoardOpener(relayPorts);
   let board;
   try { board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')); }
   catch { return; } // No board here: nothing to vouch for, and the command reports its own refusal.
@@ -182,6 +188,7 @@ export function signsPersonMoves(cwd) {
  */
 export async function personMovesSigned(cwd, io, relayPorts) {
   if (!signsPersonMoves(cwd)) return false;
+  const openBoard = personBoardOpener(relayPorts);
   let board;
   try { board = openBoard(join(repoInfo(cwd).commonDir, 'pullboard', 'board.sqlite')); }
   catch { return true; } // Unreadable here: keep the passkey step, which refuses by name if it cannot go on.

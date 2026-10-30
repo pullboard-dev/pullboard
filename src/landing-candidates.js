@@ -4,7 +4,6 @@ import {
   join,
 } from 'node:path';
 import * as store from './board.js';
-import { openBoardForRead } from './native-board.js';
 import {
   invalidateGitFacts,
   mainCheckout,
@@ -80,7 +79,7 @@ export async function runLandingCandidateWorker(options, { write, checkLease, sa
 }
 
 /** Execute only through an owned IPC channel; a candidate can ask its parent, never publish. */
-function candidateMain(options, { checkAtCommit, landingPorts }) {
+function candidateMain(options, { checkAtCommit, landingPorts, openBoardForRead }) {
   let next = 0;
   const pending = new Map();
   /** Ask the current landing owner to fence and acknowledge one operation. */
@@ -132,13 +131,14 @@ function candidateMain(options, { checkAtCommit, landingPorts }) {
 }
 
 /** Enter only from the literal bin composition under the original candidate IPC guard. */
-export function landingCandidateEntry({ checkAtCommit, landingPorts }) {
+export function landingCandidateEntry({ checkAtCommit, landingPorts, openBoardForRead }) {
   if (!process.send || process.argv[2] !== 'candidate') return;
+  if (typeof openBoardForRead !== 'function') throw new TypeError('landing candidate requires its actual native read opener');
   let started = false;
   process.on('disconnect', () => { if (!started) process.exitCode = 1; });
   process.once('message', message => {
     if (message.type !== 'start') { process.disconnect(); return; }
     started = true;
-    candidateMain(message.options, { checkAtCommit, landingPorts });
+    candidateMain(message.options, { checkAtCommit, landingPorts, openBoardForRead });
   });
 }

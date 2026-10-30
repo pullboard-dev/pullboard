@@ -1,3 +1,5 @@
+import { maintenanceTimerWarning } from '../worktree-maintenance-diagnostics.js';
+import { recordMaintenanceLastRun } from '../worktree-maintenance-diagnostics.js';
 /** Repository maintenance is opt-in and runs from its real coordinator checkout [B3,C7]. */
 import { actOn } from '../cli.js';
 import { context } from '../cli.js';
@@ -20,12 +22,16 @@ export async function run(io, { first, second, rest, values }) {
   if (values.key !== undefined) throw new Refused('USAGE', '--key belongs only to the registered maintenance timer');
   const report = await actOn(io, async (opened, _board, me) =>
     runWorktreeMaintenance(opened.info.root, mainPolicy(opened.info.root).config, maintenanceCommandPorts(opened, me.id)));
+  if (report.enabled) {
+    try { recordMaintenanceLastRun(ctx.info.commonDir); }
+    catch (error) { io.err(`maintenance last-run diagnostic unavailable: ${error.code ?? error.name}: ${error.message}`); }
+  }
   io.result?.(report);
   io.say(maintenanceSummary(report));
   if (report.enabled) {
     const { scheduleWorktreeMaintenance } = await import('../worktree-maintenance-scheduler.js');
     try { await scheduleWorktreeMaintenance(ctx); }
-    catch { io.err('maintenance timer could not be registered; run pullboard maintenance to retry scheduling'); }
+    catch (error) { io.err(maintenanceTimerWarning(error)); }
   }
   return 0;
 }
