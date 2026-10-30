@@ -171,7 +171,7 @@ export function costTabModel(project, events, prices = null) {
     const sharedUsage = sharedItems.has(id);
     const checkpoints = usage.filter(entry => entry.item === id).map(entry => {
       const owner = agents.get(entry.agent) ?? {};
-      return { ...entry, vendor: owner.family ?? owner.agent_family ?? owner.vendor ?? 'Vendor unknown', role: entry.phaseKnown ? usageRole(history, entry.agent, entry.eventId) : 'unattributed', costUSD: sharedUsage ? null : recordCost(entry, prices) };
+      return { ...entry, vendor: owner.family ?? 'Vendor unknown', role: entry.phaseKnown ? usageRole(history, entry.agent, entry.eventId) : 'unattributed', costUSD: sharedUsage ? null : recordCost(entry, prices) };
     });
     const aggregates = new Map();
     for (const checkpoint of checkpoints) {
