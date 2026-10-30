@@ -2,6 +2,7 @@
 /** Process composition has explicit app ownership; ordinary libraries keep their real edges [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -12,6 +13,15 @@ import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { cellLintBaseline } from '../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../packages/codemap/index.js';
+import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { withMainCheckout } from '../src/main-red.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
+import { withImportParseCache } from '../src/module-import-cache.js';
+import { foreignNodeOptions } from '../src/test-isolation.js';
 
 const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
 
@@ -113,4 +123,66 @@ test('stale or forged entry metadata cannot suppress a library edge [C7,D3,CD64]
   assert.ok(checkCuts(root, plan, 'low', { allLaterCells: true }).some(problem => problem.includes('not a placed process entry')));
   assert.throws(() => writePlan(root, plan), error => error.code === 'CELLS_ENTRY');
   assert.throws(() => placePath(root, 'src/native.js', { cell: 'low', entry: true }), error => error.code === 'CELLS_ENTRY');
+});
+
+/** Pin complete accepted rows and actual census authority before changing process ownership. */
+function acceptedEntry(t, { declared = false } = {}) {
+  const value = box(t), { root, path } = value, plan = readPlan(root);
+  const known = new Set([...plan.stays.map(row => row.path), ...plan.cells.flatMap(cell => cell.paths.map(row => row[0]))]);
+  for (const file of git(root, 'ls-files').trim().split('\n')) {
+    if (/^(?:src|bin)\/.+\.js$/u.test(file) && !known.has(file)) plan.stays.push({ path: file, reason: 'unrelated private fixture source stays unchanged' });
+  }
+  writePlan(root, plan);
+  if (declared) placePath(root, path, { cell: 'app:lib', entry: true });
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'accepted process fixture');
+  writeCellLintBaseline(root, cellLintBaseline(cellLintReport(root, { importsIn, commonJsIn })), { initialize: true });
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'accepted baseline inventory');
+  const complete = cellLintBaseline(cellLintReport(root, { importsIn, commonJsIn }));
+  rmSync(join(root, 'bin/cell-lint-baselines'), { recursive: true });
+  writeCellLintBaseline(root, complete, { initialize: true });
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '--allow-empty', '-m', 'accepted complete entry baseline');
+  return { ...value, main: git(root, 'rev-parse', 'HEAD').trim() };
+}
+
+/** Run the real trusted controller over immutable commits, without trusting the placement writer. */
+function inspectEntry(value) {
+  git(value.root, 'add', '-A');
+  git(value.root, 'commit', '-q', '--allow-empty', '-m', 'candidate process ownership');
+  return requireSubmitCells(value.root, value.main, git(value.root, 'rev-parse', 'HEAD').trim(),
+    { item_frozen: JSON.stringify({ criterion: 'Explicit source-validated process ownership only.' }) },
+    { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+}
+
+test('trusted submit admits an actual explicit process rehome and keeps its source binding [C7,D3,CD64]', async t => {
+  const value = acceptedEntry(t);
+  placePath(value.root, value.path, { cell: 'app:lib', entry: true });
+  assert.deepEqual((await inspectEntry(value)).problems, []);
+});
+
+test('trusted submit refuses a library substituted after entry placement [C7,D3,CD64]', async t => {
+  const value = acceptedEntry(t);
+  placePath(value.root, value.path, { cell: 'app:lib', entry: true });
+  value.put(value.path, 'export const library = true;\n');
+  await assert.rejects(inspectEntry(value), /not a placed process entry/u);
+});
+
+test('trusted submit still refuses later relabeling without explicit entry authority [C7,D3,CD64]', async t => {
+  const value = acceptedEntry(t);
+  placePath(value.root, value.path, { cell: 'app:lib', entry: true });
+  const plan = readPlan(value.root);
+  delete plan.entries;
+  writePlan(value.root, plan);
+  await assert.rejects(inspectEntry(value), /was relabeled as later/u);
+});
+
+test('trusted submit preserves already accepted process ownership [C7,D3,CD64]', async t => {
+  const value = acceptedEntry(t, { declared: true });
+  const plan = readPlan(value.root);
+  delete plan.entries;
+  writePlan(value.root, plan);
+  await assert.rejects(inspectEntry(value), /accepted process entry ownership changed/u);
 });

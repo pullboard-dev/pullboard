@@ -15,6 +15,7 @@ import { readCellLintBaseline } from '../packages/codemap/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
+import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
@@ -41,6 +42,13 @@ function refuse(problems) {
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
 function policyProblems(before, after, beforeMap, afterMap, candidateRoot) {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
+  const entryProblems = entryPlacementProblems(candidateRoot, after);
+  problems.push(...entryProblems);
+  const afterEntries = Array.isArray(after.entries) ? after.entries : [];
+  const entries = new Set(entryProblems.length ? [] : afterEntries.map(row => row.path));
+  for (const entry of before.entries ?? []) {
+    if (!afterEntries.some(row => row.path === entry.path && row.cell === entry.cell)) problems.push(`accepted process entry ownership changed: ${entry.path}`);
+  }
   const rows = new Map(), targets = new Set(), orders = new Set(), roots = new Set();
   const relative = value => typeof value === 'string' && value.length > 0 && !/[\\:\x00-\x1f]/u.test(value)
     && value.split('/').every(part => part && part !== '.' && part !== '..');
@@ -71,7 +79,7 @@ function policyProblems(before, after, beforeMap, afterMap, candidateRoot) {
       const current = rows.get(row[0]);
       const retired = after.retired?.some(entry => entry.cell === cell.name && JSON.stringify(entry.row) === JSON.stringify(row));
       if (!current && !retired) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
-      if (current && current.cell.order > cell.order) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
+      if (current && current.cell.order > cell.order && !entries.has(row[0])) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
     }
   }
   for (const entry of before.retired ?? []) if (!after.retired?.some(row => JSON.stringify(row) === JSON.stringify(entry))) {
