@@ -6,8 +6,9 @@
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart1(scope) {
-  const { connection, hostedOptions, moduleOption, pageStartup, paths, readOnly, requestMode, snapshot, tabValue } = scope;
+  const { connection, hostedOptions, moduleOption, pageStartup, paths, privateCost, readOnly, requestMode, snapshot, tabValue } = scope;
 return `const snapshot = ${JSON.stringify(snapshot)};
+const privateCost = ${JSON.stringify(Boolean(privateCost))};
 let readOnly = ${JSON.stringify(readOnly)};
 let requests = ${JSON.stringify(requestMode)};
 const pageReadOnly = ${JSON.stringify(readOnly)};
@@ -77,11 +78,13 @@ function addressTab() {
   if (typeof location === 'undefined') return null;
   if (snapshot) {
     const tab = (location.hash || '').slice(1).split('/')[0] || '';
-    return ['home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap'].includes(tab) ? tab : null;
+    return ['home', 'items', 'shouts', 'spec', 'doctrine', 'activity', 'roadmap', ...(privateCost ? ['cost'] : [])].includes(tab) ? tab : null;
   }
   if (location.hash === '#items/pipeline') return 'items';
   if (/^#items\\/\\d+$/.test(location.hash)) return 'items';
-  return (routed ? location.pathname === '/roadmap' : location.hash === '#roadmap') ? 'roadmap' : null;
+  const pathTab = routed ? location.pathname.split('/').filter(Boolean).at(-1) : null;
+  return routed ? pathTab === 'roadmap' ? 'roadmap' : privateCost && pathTab === 'cost' ? 'cost' : null
+    : location.hash === '#roadmap' ? 'roadmap' : null;
 }
 /** Build an address for an item in the current app or an exported snapshot, preserving repo scope. */
 function itemAddress(id, root = view.root) {
@@ -97,10 +100,10 @@ function itemAddress(id, root = view.root) {
 function homeTab(page) {
   if (routed) return 'dashboard';
   const kept = keep('pb.tab');
-  return kept && kept !== 'roadmap' ? kept : page?.project && !page.project.items?.length ? 'home' : 'items';
+  return kept && kept !== 'roadmap' && (kept !== 'cost' || privateCost) ? kept : page?.project && !page.project.items?.length ? 'home' : 'items';
 }
 
-const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || homeTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, open: {}, addressDetail: null, shout: null, scrollPlace: false };
+const view = { roadmapOpen: new Map(), root: keep('pb.project'), tab: addressTab() || homeTab(), itemsView: typeof location !== 'undefined' && location.hash === '#items/pipeline' ? 'pipeline' : 'list', filterOpen: false, seen: {}, code: {}, item: null, adding: false, declining: null, state: 'active', rows: { spec: 'decide', doctrine: 'all' }, row: { spec: null, doctrine: null }, agent: null, allAgents: false, agentsHidden: keep('pb.agents') === 'hidden', statsOpen: false, costOpen: null, open: {}, addressDetail: null, shout: null, scrollPlace: false };
 let switchGeneration = 0;
 // Each board read in the order it started, and the newest one drawn: an answer older than that one is stale.
 let refreshStarted = 0;

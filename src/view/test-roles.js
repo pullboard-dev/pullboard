@@ -1,5 +1,6 @@
 /** Explicit test roles are an inventory, not completion evidence or a browser-admission exemption [N26,C7]. */
 export const VIEW_TEST_ROLES = Object.freeze({
+  'test/cockpit/cost-tab.test.js': { kind: 'journey', reason: 'A private authenticated local view reads native landing and usage events, while an explicit presenter-only priced scenario checks twenty-row order and median bands; the journey verifies exported privacy and phone/desktop rendering.' },
   'test/cockpit/view-startup.test.js': { kind: 'adapter', reason: 'A genuine large native registration history drives a separately owned CLI view process, authenticated HTTP page and initial board state under the frozen startup budget; no browser rendering claim.' },
   'test/cockpit/count-consistency.test.js': { kind: 'journey', reason: 'Real native items, milestones, rules and event-stream updates are compared with rendered counts in every tab, filter choices, Pipeline and the Dashboard floor.' },
   'test/cockpit/roadmap-count.test.js': { kind: 'journey', reason: 'Real native milestones, acceptance and recorded trunk landing update an authenticated live Chrome Roadmap and its remaining-work browser title through the event stream.' },

@@ -1,4 +1,32 @@
 /**
+ * Read the private board's cost event history once per board state sequence.
+ * This function is serialized into the private page script and uses its page-local state.
+ * @param {Record<string, any>} project - The current board state.
+ * @returns {{loading: false, error: string}|{sequence: number, loading: boolean, error: string|null, model: any}} The private-history status or cached entry.
+ */
+function readCostHistory(project) {
+  if (!privateCost || snapshot || hosted.local || readOnly || data.group) return { loading: false, error: 'Cost is available in the private local view only.' };
+  const root = view.root;
+  const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
+  const kept = costHistory.get(root);
+  if (kept?.sequence === sequence) return kept;
+  const entry = { sequence, loading: true, error: null, model: null };
+  costHistory.set(root, entry);
+  api(boardPath(root) + '/events').then(reply => {
+    if (costHistory.get(root) !== entry || root !== view.root || !Array.isArray(reply.events)) return;
+    entry.model = costTabModel(data.project, reply.events, data.project.costPrices ?? null);
+    entry.loading = false;
+    if (view.tab === 'cost') render();
+  }).catch(error => {
+    if (costHistory.get(root) !== entry) return;
+    entry.loading = false;
+    entry.error = String(error.message || error);
+    if (view.tab === 'cost') render();
+  });
+  return entry;
+}
+
+/**
  * Part 3 of the hosted page's script, verbatim from src/cockpit.js lines 1310-1690 (#745): its
  * text is what the page served before the split, with the values its ${} expressions read passed in as scope.
  *
@@ -6,8 +34,13 @@
  * @returns {string} The script text of this part.
  */
 export function pageScriptPart3(scope) {
-  const { applyStateDelta, expandItemSummaries } = scope;
-return `/** Whether a selected project is backed by the read-only relay transport. */
+  const { applyStateDelta, costTabScript, expandItemSummaries, privateCost } = scope;
+const privateCostSource = privateCost ? `${costTabScript()}
+const costHistory = new Map();
+${readCostHistory.toString()}` : '';
+return `${privateCostSource}
+
+/** Whether a selected project is backed by the read-only relay transport. */
 function relayProject(root = view.root) {
   const board = data?.projects.find((entry) => entry.root === root && entry.ok);
   return boardSources.get(board?.id)?.kind === 'relay';
