@@ -473,14 +473,16 @@ function sentinelDraftActions(row) {
   return canDecide ? '<div class="sentinel-decision-actions actions"><button class="approve-row" data-sentinel-decision="approve" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Approve</button><button class="decline-row" data-sentinel-decision="decline" data-sentinel-name="' + esc(row.ref) + '" data-sentinel-digest="' + esc(row.digest) + '" type="button">Decline</button></div>' : '';
 }
 
+/** Show one unapproved sentinel with its cited evidence and complete copyable proof hashes. */
 function sentinelDraftRow(row) {
-  const side = (label, proof) => label + ' commit ' + proof.commit.slice(0, 12) + ' exit ' + proof.exit;
+  /** Display a short proof hash while keeping its full value available for hover and copy. */
+  const side = (label, proof) => label + ' commit <button class="hash-copy" type="button" title="' + esc(proof.commit) + '" aria-label="Copy full hash ' + esc(proof.commit) + '" data-copy="' + esc(proof.commit) + '"><code class="inline sha" title="' + esc(proof.commit) + '">' + esc(proof.commit.slice(0, 12)) + '</code></button> exit ' + esc(proof.exit);
   const evidence = row.evidence;
-  const proof = evidence && evidence.proof ? 'Proof: ' + evidence.proof.check + ', ' + side('red', evidence.proof.red) + ', ' + side('green', evidence.proof.green) + '.' : '';
+  const proof = evidence && evidence.proof ? 'Proof: ' + esc(evidence.proof.check) + ', ' + side('red', evidence.proof.red) + ', ' + side('green', evidence.proof.green) + '.' : '';
   const repeats = evidence ? 'Drafted from ' + evidence.occurrences + (evidence.occurrences === 1 ? ' repeat of ' : ' repeats of ') + evidence.key + (evidence.items.length ? ' on ' + evidence.items.map((item) => '#' + item.id).join(', ') : '') + '.' : 'Proposed by an agent with no repeat cited.';
   const actions = sentinelDraftActions(row);
   return '<li class="row ask" data-sentinel-draft="' + esc(row.ref) + '"><span class="dot ask"></span><div><div class="t"><span>' + esc(row.ref) + '</span>' + esc(row.text) + '</div>'
-    + '<div class="muted sentinel-proof">' + esc(repeats + (proof ? ' ' + proof : '')) + '</div>'
+    + '<div class="muted sentinel-proof">' + esc(repeats) + (proof ? ' ' + proof : '') + '</div>'
     + '<div class="muted">Command: <code>' + esc(row.check) + '</code></div><div class="muted">Directory: ' + esc(row.directory) + '</div>'
     + '<div class="muted">Schedule: ' + esc(row.every) + '</div><div class="muted">Owner: ' + esc(row.owner) + '</div>'
     + '<div class="meta"><span class="why"><b>NEEDS YOU</b> a sentinel draft awaiting your approval, not watching yet</span></div>' + actions + '</div><span class="chip warn">Approve or Decline</span></li>';
@@ -1164,6 +1166,17 @@ $('local-note').addEventListener('click', async (event) => {
   const button = event.target instanceof Element ? event.target.closest('button[data-copy]') : null;
   if (!button || !button.dataset.copy) return;
   button.textContent = await copyWords(button.dataset.copy) ? 'Copied' : 'Select and copy';
+});
+/** Copy a displayed short hash through the same clipboard path used by hosted notes. */
+document.addEventListener('click', async (event) => {
+  const button = event.target?.closest?.('button.hash-copy[data-copy]');
+  if (!button) return;
+  const fullHash = button.dataset.copy;
+  const originalTitle = fullHash;
+  button.title = await copyWords(fullHash) ? 'Copied full hash' : 'Could not copy full hash';
+  /** Restore the original hover text once the brief copy confirmation has passed. */
+  const restoreTitle = () => { if (button.isConnected) button.title = originalTitle; };
+  setTimeout(restoreTitle, 1400);
 });
 /**
  * Look for this machine's view again, by itself, while a screen waits on it or a signed-in person waits for a board:
