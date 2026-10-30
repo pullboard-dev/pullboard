@@ -204,7 +204,7 @@ function sourceAdvancePolicyCall(box, batches, record, board, audits) {
 }
 
 /** Close only a recorded native wake, never infer completion from current process absence. */
-async function closePolicySourceWake(box, helpers, expectedGeneration) {
+export async function closePolicySourceWake(box, helpers, expectedGeneration) {
   const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
   assert.ok(Number.isSafeInteger(expectedGeneration) && expectedGeneration > 0);
   return helpers.waitFor(() => { // Budget: 120s runaway ceiling for actual native source publication and owner drain.
@@ -213,19 +213,6 @@ async function closePolicySourceWake(box, helpers, expectedGeneration) {
     return !existsSync(join(directory, 'owner.json')) && settled?.generation >= expectedGeneration
       && settled.generation === wake?.generation ? settled : false;
   }, 'the exact native source wake closes before private branch repair or cleanup', 120_000);
-}
-
-/** Settle only the exact native wake recorded by this private fixture before counting foreground publish calls. */
-export async function settleRecordedSourceWake(box, helpers) {
-  const directory = join(box.repo, '.git', 'pullboard', 'source-advances');
-  const path = join(directory, 'wake.json');
-  if (!existsSync(path)) {
-    assert.equal(existsSync(join(directory, 'owner.json')), false, 'an unrecorded source worker cannot be treated as settled');
-    return null;
-  }
-  const wake = readMainAudit(path);
-  assert.ok(Number.isSafeInteger(wake?.generation) && wake.generation > 0, 'the fixture records a valid exact native wake');
-  return closePolicySourceWake(box, helpers, wake.generation);
 }
 
 /** Count every foreground invocation; exclude only independently source-bound native work for these batches. */
