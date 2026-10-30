@@ -38,6 +38,8 @@ import { memoizedActionKeys } from './test-action-key-memo.js';
 import { hostname } from 'node:os';
 import {
   TEST_RESULT_ORIGIN_ENV,
+  TEST_RESULT_REQUEST_ENV,
+  completedTestResult,
   TEST_RESULT_STORE_ENV,
   TEST_RESULT_VERSION,
   storeTestResult,
@@ -365,7 +367,8 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   const run = [];
   for (const file of selectors) {
     const entry = reusableResult(store, file.key);
-    if (!entry || entry.file !== file.path || entry.inputKey !== file.inputKey) { run.push(file); continue; }
+    if (!entry || entry.file !== file.path || entry.inputKey !== file.inputKey
+      || env[TEST_RESULT_REQUEST_ENV] && !completedTestResult(entry)) { run.push(file); continue; }
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
     write(`# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
     write(`# result-origin ${JSON.stringify(entry.origin)}\n`);
@@ -381,6 +384,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   mkdirSync(join(store, 'red'), { recursive: true, mode: 0o700 });
   pruneRuns(store);
   writeAtomic(join(runDir, 'keys.json'), { root, store, stage, commit,
+    request: env[TEST_RESULT_REQUEST_ENV] ?? null,
     machine: env[TEST_RESULT_ORIGIN_ENV] || `local-${digest(hostname()).slice(0, 16)}`,
     inputs: Object.fromEntries(run.filter(file => file.key).map(file => [file.path, { inputKey: file.inputKey, context: file.context }])),
     files: Object.fromEntries(run.filter(file => file.key).map(file => [file.path, file.key])) });
@@ -416,7 +420,7 @@ export function settleTestActions(runDir, { store, stage, commit, landing, code 
         const at = new Date().toISOString();
         storeTestResult(store, { version: VERSION, key: staged.key, file: staged.file, ...plan.inputs[staged.file],
           status: 'pass', stage, commit, node: process.version, at, tap,
-          origin: { machine: plan.machine, stage, commit, at } });
+          origin: { machine: plan.machine, stage, commit, at, ...(plan.request ? { request: plan.request } : {}) } });
       }
     }
   } catch (error) {
@@ -441,6 +445,7 @@ export function recordTestAction(file) {
   // A test's own fixture runners must not read or write the enclosing fleet job's cache.
   delete process.env[TEST_RESULT_STORE_ENV];
   delete process.env[TEST_RESULT_ORIGIN_ENV];
+  delete process.env[TEST_RESULT_REQUEST_ENV];
   delete process.env.PULLBOARD_TEST_CACHE_TOOLING;
   if (!runDir || process.env.NODE_TEST_CONTEXT !== 'child-v8') return;
   let plan, path;
@@ -457,7 +462,7 @@ export function recordTestAction(file) {
         const at = new Date().toISOString();
         storeTestResult(plan.store, { version: VERSION, key, file: path, ...plan.inputs[path], status: 'fail', code,
           stage: plan.stage, commit: plan.commit, at,
-          origin: { machine: plan.machine, stage: plan.stage, commit: plan.commit, at } });
+          origin: { machine: plan.machine, stage: plan.stage, commit: plan.commit, at, ...(plan.request ? { request: plan.request } : {}) } });
       }
     } catch (error) { process.stderr.write(`run-tests: the result of ${path} was not recorded: ${error.message}\n`); }
   });
