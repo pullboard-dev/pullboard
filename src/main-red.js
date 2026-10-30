@@ -1,5 +1,6 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
 import { testClosures } from './affected-tests.js';
+import { selectAffectedTests } from './affected-tests.js';
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { spawnSync } from 'node:child_process';
@@ -255,6 +256,8 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
     const changed = new Set(diff.stdout.split('\0').filter(Boolean));
     // These inputs select execution itself; no source-import closure can prove them irrelevant.
     if ([...changed].some(path => ['pullboard.json', 'package.json', 'package-lock.json', 'npm-shrinkwrap.json', 'yarn.lock', 'pnpm-lock.yaml', 'bin/run-tests.js'].includes(path))) return false;
+    const selection = selectAffectedTests(root, { base: source, commit: composed, changed: [...changed] });
+    if (selection.full || failures.some(failure => selection.files.includes(failure.file))) return false;
     for (const commit of new Set([base, source, composed])) {
       const { closures } = testClosures(root, commit);
       for (const failure of failures) {

@@ -402,6 +402,7 @@ export async function submitHere(ctx, id, infra) {
       await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
     }
     submissionReceiptIds.push(...(proof.proofReceiptIds ?? []));
+    if (companion) companion.receiptIds = [...submissionReceiptIds];
     gate = { ...proof, check: gate.check, criterionRed: gate.criterionRed };
   }
   const summary = retainTestOutput(root, readFileSync(gate.log, 'utf8'), { root, profile: gate.profile });

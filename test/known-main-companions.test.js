@@ -183,3 +183,17 @@ test('companion input proof refuses imported helper changes and unknown closures
   const unknown = commit(box, box.builder);
   assert.equal(companionMainFailuresUntouched(box.builder, { base: unknown, source: unknown, composed: unknown }, failures), false);
 });
+
+test('companion source-tree and documentation data changes cannot inherit a reader failure [V4,B3]', t => {
+  const box = fixture(t);
+  put(box.builder, 'src/scanned.js', 'export const value = 1;\n');
+  put(box.builder, 'test/scanner.test.js', "/** @pullboard-test-input source-tree */\nimport {readFileSync} from 'node:fs';\nimport {test} from 'node:test';\ntest('source scanner',()=>readFileSync(new URL('../src/scanned.js',import.meta.url),'utf8'));\n");
+  put(box.builder, 'test/docs-reader.test.js', "import {readFileSync} from 'node:fs';\nimport {test} from 'node:test';\ntest('doc reader',()=>readFileSync(new URL('../docs/companion.md',import.meta.url),'utf8'));\n");
+  const base = commit(box, box.builder);
+  put(box.builder, 'src/scanned.js', 'export const value = 2;\n');
+  const sourceChange = commit(box, box.builder);
+  assert.equal(companionMainFailuresUntouched(box.builder, { base, source: base, composed: sourceChange }, [{file:'test/scanner.test.js'}]), false);
+  put(box.builder, 'docs/companion.md', 'Changed data.\n');
+  const docsChange = commit(box, box.builder);
+  assert.equal(companionMainFailuresUntouched(box.builder, { base, source: sourceChange, composed: docsChange }, [{file:'test/docs-reader.test.js'}]), false);
+});
