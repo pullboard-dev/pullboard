@@ -1,3 +1,4 @@
+import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
 import { itemReviewPolicyEngine } from '../review-policy.js';
 import { checkTimingEngine } from '../check-timing.js';
 import { itemPatchRecords } from '../item-patch-state.js';
@@ -32,7 +33,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  return Math.max(itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? KNOWN_MAIN_REWORKS_ENGINE : 1,
     args[1]?.submissionSize !== undefined ? FLOW_SIZE_ENGINE : 1,
@@ -53,6 +54,9 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "BAD_REVIEW_POLICY": 'restore the native review policy before reviewing this item',
   "BAR_NOT_READY":"read pullboard bar <id>; ask its author to complete the named red baseline and measurement/edge notes, then have an outside parent session sign the current bar",
   "CHILDREN_OPEN": "finish the child items (pullboard list --all), or ask the coordinator to withdraw them",
+  "CELLS_PLAN_COUNTS": "repair the named placement source or cut count, commit, then submit again",
+  "CELLS_PLAN_RETIRED": "repair the named retirement contract or retain its original placement, commit, then submit again",
+  "CELLS_SUBMIT": "repair the named new cell diagnostic or unplaced path, commit it, then submit again",
   "CRITERIA_CHANGED": "ask the coordinator to refreeze it: pullboard shout coordinator --kind question \"please refreeze #<id>\"",
   "CRITERION_PROVES_NOTHING": "set a check that fails before the work: pullboard edit <id> --check \"<command>\", or ask the person to accept this one: pullboard check accept <id>",
   "DIRTY": "commit your changes, then run the command again",

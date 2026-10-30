@@ -14,6 +14,7 @@ import { outOfLane } from './lanes.js';
 import { Refused } from './refused.js';
 import { specGateMoveOnly } from './spec-gate-move.js';
 import { importOnlyChange } from './import-only-change.js';
+import { planRowChange } from './plan-row-change.js';
 
 /** Resolve the trunk snapshot and refuse a conflict without touching an index or worktree [B34,V6].
  *
@@ -105,9 +106,20 @@ export function submissionPaths(root, item, commit, { config, mainCommit, depend
       && !outOfLane(ownership, dependency.lane, [path]).length
       && object === pathObject(root, dependency.commit, path));
   });
-  const mechanical = denied.filter(path => importOnlyAtCandidate(root, snapshot, commit, path));
+  /** Read a bounded regular blob from an authenticated candidate or accepted snapshot. */
+  const read = (revision, path) => {
+    const entry = pathBlobEntry(root, revision, path);
+    return entry && { ...entry, bytes: policyGit(root, ['cat-file', 'blob', entry.oid], { encoding: null }) };
+  };
+  const planChanges = new Map(denied.map(path => [path, planRowChange(path, {
+    before: path => read(snapshot, path), after: path => read(commit, path),
+    ownNewFile: path => !outOfLane(ownership, item.item_lane, [path]).length
+      && !pathObject(root, snapshot, path) && bases.every(start => !pathObject(root, start, path))
+      && Boolean(pathBlobEntry(root, commit, path)),
+  })]));
+  const mechanical = denied.filter(path => importOnlyAtCandidate(root, snapshot, commit, path) || planChanges.get(path).allowed);
   const remaining = denied.filter(path => !mechanical.includes(path));
-  if (remaining.length) throw new Refused('OUTSIDE_LANE', 'outside the ' + item.item_lane + ' lane: ' + outOfLane(ownership, item.item_lane, remaining).join(', ') + ` under frozen policy ${policy.commit}; only static import binding/specifier changes are permitted mechanically; shout the owner for any other edit or ask the coordinator to refreeze if ownership changed`);
+  if (remaining.length) throw new Refused('OUTSIDE_LANE', 'outside the ' + item.item_lane + ' lane: ' + remaining.map(path => `${outOfLane(ownership, item.item_lane, [path]).join(', ')}${planChanges.get(path).problem ? ` (${planChanges.get(path).problem})` : ''}`).join(', ') + ` under frozen policy ${policy.commit}; only static import changes or canonical rows for owned new files are permitted mechanically; shout the owner for any other edit or ask the coordinator to refreeze if ownership changed`);
   if (mechanical.length) onMechanicalPaths?.([...new Set(mechanical)].sort());
   return paths;
 }

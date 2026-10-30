@@ -37,7 +37,17 @@ export function assertUsagePresentation(events, itemId, board) {
   const final = { root: board.root, agents: board.agents, items: [item], events, shouts: [], decisions: [], asked: [], decisionQueue: [], holds: [], milestones: [] };
   const snapshotReplay = { events, final, index: events.length, playing: false };
   const nodes = new Map();
-  const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
+  /** Return a stable minimal DOM node for the generated replay controls. */
+  function node(id) {
+    if (!nodes.has(id)) {
+      const value = {};
+      /** Preserve the ARIA attribute the served control updates. */
+      value.setAttribute = (name, text) => { value[name] = text; };
+      nodes.set(id, value);
+    }
+    return nodes.get(id);
+  }
+  const $ = id => node(id);
   const context = { snapshotReplay, structuredClone, FLOW, lifecycleEvent, lifecycleMove, $ };
   /** Evaluate a served top-level arrow helper, such as eventWords, in the given context. */
   const emittedConst = (name, scope) => {
@@ -64,7 +74,7 @@ export function assertUsagePresentation(events, itemId, board) {
     const expected = index === events.length ? ids : events.slice(0, index).slice(-80).reverse().map(event => event.event_id);
     assert.deepEqual(Array.from(projected.events, event => event.event_id), expected, 'projection preserves its raw event window');
     replayControls();
-    assert.ok($('replay-progress').textContent.startsWith('Event ' + index + ' / ' + events.length), 'numeric cursor and denominator retain all events');
+    assert.ok($('replay-progress').textContent.startsWith('event ' + index.toLocaleString('en-US') + ' of ' + events.length.toLocaleString('en-US')), 'the counter names its current event and complete denominator');
     assert.doesNotMatch($('replay-progress').textContent, /(?:shared-)?usage/u, 'the replay label omits accounting');
   }
   const data = { project: final };

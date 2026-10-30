@@ -80,17 +80,20 @@ export function retiredProblems(root, plan, inventory) {
 }
 
 /** Follow this cell's imports and forwarding modules, leaving another cell's own imports to its cut. */
-export function checkCuts(root, plan, name) {
+export function checkCuts(root, plan, name, { allLaterCells = false, temporaryExceptions = true, inventory: sharedInventory } = {}) {
+  if (typeof allLaterCells !== 'boolean' || typeof temporaryExceptions !== 'boolean') throw new TypeError('cut modes must be explicit booleans');
+  const cell = plan.cells.find(row => row.name === name);
   const group = importCuts(plan).find(row => row.cell === name);
-  if (!group) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
-  const inventory = cellInventory(root, { importsIn, commonJsIn });
+  if (!cell || !group && !allLaterCells) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
+  const inventory = sharedInventory ?? cellInventory(root, { importsIn, commonJsIn });
   const { files } = inventory;
   const { edges, unknown, computed } = withDeclaredLoads(files, inventory.edges, inventory.unknown);
   const map = readPathMap(root);
   const owner = ownerFor(plan, map);
   const temporary = temporaryCellEdges(files);
-  const allowed = new Set(temporary.problems.length ? [] : temporary.edges.map(row => `${mappedPath(map, row.importer)}->${mappedPath(map, row.target)}`));
-  const forbidden = new Set(group.targets), problems = new Set([...temporary.problems, ...retiredProblems(root, plan, inventory)]), seen = new Set();
+  const allowed = new Set(!temporaryExceptions || temporary.problems.length ? [] : temporary.edges.map(row => `${mappedPath(map, row.importer)}->${mappedPath(map, row.target)}`));
+  const forbidden = new Set(allLaterCells ? plan.cells.filter(row => row.order > cell.order).map(row => row.name) : group.targets);
+  const problems = new Set([...temporary.problems, ...retiredProblems(root, plan, inventory)]), seen = new Set();
   const pending = [...edges.keys()].filter(file => !testFile(file) && owner(file) === name);
   while (pending.length) {
     const file = pending.pop();
@@ -98,7 +101,7 @@ export function checkCuts(root, plan, name) {
     seen.add(file);
     const unresolved = unknown.filter(row => row.file === file);
     const cell = owner(file);
-    if (cell !== name && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
+    if (cell !== name && !(allLaterCells && cell === null) && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
       computed.has(file))) continue;
     for (const row of unresolved) problems.add(`cannot prove cut through ${file}: ${row.reason}`);
     for (const { target } of edges.get(file) ?? []) {

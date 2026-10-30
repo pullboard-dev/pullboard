@@ -2,6 +2,7 @@
 export const VIEW_TEST_ROLES = Object.freeze({
   'test/cockpit/shouts-redesign.test.js': { kind: 'journey', reason: 'Real native questions, answers, claims and submitted work drive authenticated Chrome conversation grouping, private clock labels, disclosure, filters and feed/agent/status geometry at desktop and phone widths.' },
   'test/cockpit/items-walk-1029.test.js': { kind: 'journey', reason: 'Real private native build, review and health moves, authenticated HTTP and real desktop/phone Chrome verify hash display, waiting links, history verb tones and person clocks.' },
+  'test/cockpit/export-replay-control.test.js': { kind: 'journey', reason: 'A seeded exported native board is opened in real Chrome at phone width to verify snapshot replay lives in the status bar, never above page content, and keeps its exact live event count while playing and paused.' },
   'test/cockpit/cost-tab.test.js': { kind: 'journey', reason: 'A private authenticated local view reads native landing and usage events, while an explicit presenter-only priced scenario checks twenty-row order and median bands; the journey verifies exported privacy and phone/desktop rendering.' },
   'test/cockpit/window-compare.test.js': { kind: 'journey', reason: 'Private native export/import seeds event windows for real authenticated HTTP and Chrome; API values, minute clocks, tile direction colors, stage shares and the complete table are checked at desktop and phone widths.' },
   'test/cockpit/spec-redesign.test.js': { kind: 'journey', reason: 'Native Git approvals, actual existing/missing gate files and native citations are rendered and opened in authenticated real Chrome at desktop and phone widths; person confirmation and change composition retain native authority.' },
@@ -134,6 +135,10 @@ export const VIEW_TEST_ROLES = Object.freeze({
   "test/cockpit/dashboard-api-journey.test.js": {
     "kind": "journey",
     "reason": "Actual native summary/history HTTP shape, complete prefix, claim/review lease and merge receipt binding"
+  },
+  "test/cockpit/pipeline-panel.test.js": {
+    "kind": "journey",
+    "reason": "A private landed native item is rendered in real Chrome and its stage times, retry causes, totals and unmeasured gaps are compared with the exact API projection."
   },
   "test/cockpit/dashboard-clock.test.js": {
     "kind": "journey",

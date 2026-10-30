@@ -89,7 +89,8 @@
   ["src/git-wait-reporter.js","packages/gate/src/core/git-wait-reporter.js","imports"],
   ["src/run-timing.js","packages/gate/src/shell/run-timing.js","imports"],
   ["src/test-output-summary.js","packages/gate/src/shell/test-output-summary.js","rule"],
-  ["src/affected-graph-cache.js","packages/gate/src/shell/affected-graph-cache.js","rule"]
+  ["src/affected-graph-cache.js","packages/gate/src/shell/affected-graph-cache.js","rule"],
+  ["src/quarantine-run-verdict.js","packages/gate/src/shell/quarantine-run-verdict.js","rule"]
  ],
  "reexports": [
   "src/affected-tests.js",
