@@ -21,6 +21,7 @@ test('activity shows each submit note and verdict with landing evidence [N26]', 
   const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     logEvent(board, 'web-1', 'submit', 1, { note: 'Builder note <safe>', gateGreen: true, submissionProof: { files: ['test/example.test.js'], reason: 'Focused evidence' } });
+    logEvent(board, 'reviewer', 'reject', 1, { reason: 'RIGOR', note: 'Rejection note <safe>' });
     logEvent(board, 'reviewer', 'accept', 1, { note: 'Reviewer note <safe>' });
     logEvent(board, 'coordinator', 'merged', 1, { commit: 'a'.repeat(40) });
     logEvent(board, 'coordinator', 'main-moved', null, { sha: 'b'.repeat(40), items: [1] });
@@ -39,6 +40,7 @@ test('activity shows each submit note and verdict with landing evidence [N26]', 
       const result = JSON.parse(await chrome.stable(`JSON.stringify({ text: document.querySelector('#activity').innerText, html: document.querySelector('#activity').innerHTML, overflow: document.documentElement.scrollWidth > innerWidth })`));
       assert.match(result.text, /Builder note <safe>[\s\S]*Checks: test\/example\.test\.js[\s\S]*Focused evidence[\s\S]*Check passed/u);
       assert.match(result.text, /Reviewer note <safe>/u);
+      assert.match(result.text, /Reason: rigor[\s\S]*Rejection note <safe>/u);
       assert.match(result.text, /Landed at a{12}/u);
       assert.match(result.text, /Items: #1[\s\S]*Main at b{12}/u);
       assert.doesNotMatch(result.html, /<safe>/u, 'event prose is escaped');
