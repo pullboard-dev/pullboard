@@ -36,7 +36,9 @@ test('global Settings distinguish repos and never reuse another selected board i
     await page.click({ tab: 'settings' });
     assert.match(page.show('settings-content'), /53m/u);
     assert.doesNotMatch(page.show('settings-content'), /47m/u);
+    await page.click({ settingsScope: 'board' });
     await page.click({ settingsOpen: '' });
+    await page.click({ settingsScope: 'repo' });
     assert.match(page.show('settings-content'), /47m/u);
     assert.match(page.show('settings-content'), /53m/u);
     assert.ok(page.requests.every(request => request.method === 'GET'));
@@ -57,7 +59,7 @@ test('Settings render hostile values as read-only text in a narrow real browser 
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: false });
     await chrome.click(`document.querySelector('#proj-switch')`);
     await chrome.click(`document.querySelector('[data-tab="settings"]')`);
-    await chrome.waitFor('document.querySelectorAll("#settings-content tr[data-setting-key]").length > 0');
+    await chrome.waitFor('document.querySelectorAll("#settings-content .set[data-setting-key]").length > 0');
     await chrome.click(`document.querySelector('[data-settings-scope="repo"]')`);
     await chrome.waitFor('document.querySelector("#settings-content").textContent.includes("settings-owned")');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 320, height: 800, deviceScaleFactor: 1, mobile: false });

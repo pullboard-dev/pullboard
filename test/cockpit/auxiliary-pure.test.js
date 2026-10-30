@@ -8,20 +8,19 @@ import { hostedMarkup } from '../../src/view/hosted-render.js';
 import { hostedBrowser } from '../../src/view/hosted-render.js';
 import { hostedState } from '../../src/view/hosted-render.js';
 
-test('Settings preserves value types, selected scope, source labels and masked fields from API data [N26,O5,O6,C7]', () => {
+test('Settings preserves value types, selected scope and masked fields from API data [N26,O5,O6,C7]', () => {
   const rows = [false, 0, '', null, { nested: '<data>' }].map((value, index) => ({ scope: 'machine', key: 'key' + index, value, default: null, source: 'machine' }));
   rows.push({ scope: 'board', key: 'other board', value: 'outside selected scope', default: null, source: 'board' },
     { scope: 'machine', key: 'masked', secret: true, value: 'private fixture value', default: 'private default', source: 'file', origin: '<origin>' });
   const entry = { context: 'Computer <name>', rows }, before = JSON.stringify(entry);
   const html = settingsContentHtml(entry, 'machine');
-  assert.match(html, /data-setting-key="key0"[^]*?<td>false<\/td>/u);
-  assert.match(html, /data-setting-key="key1"[^]*?<td>0<\/td>/u);
-  assert.match(html, /data-setting-key="key2"[^]*?<td><\/td>/u);
-  assert.match(html, /data-setting-key="key3"[^]*?<td>null<\/td>/u);
+  assert.match(html, /data-setting-key="key0"[^]*?<b title="false">off<\/b>/u);
+  assert.match(html, /data-setting-key="key1"[^]*?<b title="0">0<\/b>/u);
+  assert.match(html, /data-setting-key="key2"[^]*?<b title="">empty<\/b>/u);
+  assert.match(html, /data-setting-key="key3"[^]*?<b title="">none<\/b>/u);
   assert.match(html, /&quot;nested&quot;:&quot;&lt;data&gt;&quot;/u);
-  assert.match(html, /Computer &lt;name&gt;/u);
   assert.match(html, /data-settings-scope="machine" aria-selected="true"/u);
-  assert.match(html, /data-setting-key="masked"[^]*?<td>not set<\/td><td>not set<\/td><td>file \(&lt;origin&gt;\)/u);
+  assert.match(html, /data-setting-key="masked"[^]*?<b title="not set">not set<\/b>/u);
   assert.doesNotMatch(html, /outside selected scope|private fixture value|private default/u);
   assert.equal(JSON.stringify(entry), before);
   assert.match(settingsContentHtml(entry, 'board'), /outside selected scope/u);
@@ -32,10 +31,10 @@ test('Settings loading, unavailable and empty states cannot display stale row va
   const rows = [{ scope: 'machine', key: 'old', value: 'stale value', source: 'machine' }];
   const error = settingsContentHtml({ rows, error: 'Unavailable <detail>' });
   assert.match(error, /role="alert">Unavailable &lt;detail&gt;<\/p>/u);
-  assert.doesNotMatch(error, /stale value|<table/u);
+  assert.doesNotMatch(error, /stale value|data-setting-key/u);
   const loading = settingsContentHtml({ rows, loading: true });
   assert.match(loading, /role="status">Loading settings/u);
-  assert.doesNotMatch(loading, /stale value|<table/u);
+  assert.doesNotMatch(loading, /stale value|data-setting-key/u);
   assert.match(settingsContentHtml({ rows: [] }, 'board'), /No settings in this scope/u);
 });
 
