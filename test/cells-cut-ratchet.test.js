@@ -1,3 +1,6 @@
+import { fixtureBoard } from './board-fixture.js';
+import { landedCutItemRows } from '../bin/cells-submit-checks.js';
+import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../src/module-import-cache.js';
 /** A cell's landed import cut is a ratchet: new upward or front-door-skipping imports refuse at submit, old ones do not [C7,D3]. */
 import assert from 'node:assert/strict';
@@ -16,7 +19,9 @@ import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 
 /** Bind the real controller services, as submit does. */
-const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+const requireSubmitCells = (root, main, commit, item, readCutItems = () => acceptedCutItems(root, main)) => preflight(root, main, commit, item,
+  { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems,
+    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 
 /** Commit a planned fixture with its real lint baseline, so main is a clean accepted snapshot. */
 function plannedFixture(t) {
@@ -57,4 +62,92 @@ test('a landed cell adding a lower import past the front door refuses naming it 
   box.put('src/cli.js', "import { stats } from './stats.js';\nimport { flow } from './stats-flow.js';\nimport { board } from './board.js';\nconsole.log(stats, flow, board);\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item),
     /app:cli imports lower store past its front door .*: src\/cli.js -> src\/board.js; import the lower cell's front door or take a port/u);
+});
+
+/** Add one actual private-board cut row; production schema and reader determine its authority. */
+function cutRow(board, name, status, merged) {
+  board.db.prepare(`INSERT INTO item (item_lane,item_title,item_status,item_merged_commit,item_created_by,item_created_at,item_updated_at)
+    VALUES ('core',?,?,?,?,?,?)`).run(`Cells import cuts: ${name} removes imports into later cells`, status, merged, 'coordinator', '2026-10-30', '2026-10-30');
+}
+
+test('an empty cut graph without a landed board item grants neither refusal [C7,D3]', async t => {
+  const box = plannedFixture(t), board = fixtureBoard(t);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  box.put('src/cli.js', "import { board } from './board.js'; console.log(board);\n");
+  box.put('cut-items.json', JSON.stringify({ kernel: { status: 'verified', merged: box.main } }));
+  const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db));
+  assert.deepEqual(result.problems, [], 'candidate status metadata and static cleanliness are not cut authority');
+});
+
+test('actual board status and pinned ancestry activate the upward ratchet only after landing [C7,D3]', async t => {
+  const box = plannedFixture(t), board = fixtureBoard(t);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  const candidate = commitCandidate(box), read = () => landedCutItemRows(board.db);
+  for (const [status, merged] of [['open', box.main], ['submitted', box.main], ['verified', null], ['withdrawn', box.main], ['verified', candidate]]) {
+    board.db.prepare('DELETE FROM item').run();
+    cutRow(board, 'kernel', status, merged);
+    assert.deepEqual((await requireSubmitCells(box.root, box.main, candidate, box.item, read)).problems, [], `${status}/${merged} is not a cut landed on pinned main`);
+  }
+  board.db.prepare('DELETE FROM item').run();
+  cutRow(board, 'kernel', 'verified', box.main);
+  await assert.rejects(requireSubmitCells(box.root, box.main, candidate, box.item, read), /kernel still imports later stats: src\/refused.js -> src\/stats-flow.js/u);
+  board.db.prepare("INSERT INTO board_meta(meta_key,meta_value) VALUES ('item_redirect:' || (SELECT item_id FROM item), '1')").run();
+  assert.deepEqual((await requireSubmitCells(box.root, box.main, candidate, box.item, read)).problems, [], 'redirected historical cut rows cannot activate the ratchet');
+});
+
+test('a landed cut still refuses new edges when its accepted graph has older debt [C7,D3]', async t => {
+  const box = plannedFixture(t), board = fixtureBoard(t);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  box.main = commitCandidate(box);
+  cutRow(board, 'kernel', 'verified', box.main);
+  box.put('src/refused.js', "import './stats-flow.js'; import './stats.js'; export class Refused extends Error {}\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db)),
+    /kernel still imports later stats: src\/refused.js -> src\/stats.js/u);
+});
+
+test('landed front-door enforcement does not mistake older upward debt for an unlanded cut [C7,D3]', async t => {
+  const box = plannedFixture(t), board = fixtureBoard(t);
+  box.put('src/stats-flow.js', "import './cli.js'; export const flow = true;\n");
+  box.main = commitCandidate(box);
+  cutRow(board, 'stats', 'verified', box.main);
+  box.put('src/stats.js', "import { board } from './board.js'; import './refused.js'; export const stats = () => board;\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => landedCutItemRows(board.db)),
+    /stats imports lower kernel past its front door .*src\/stats.js -> src\/refused.js/u);
+});
+
+test('existing cut debt is reported without refusing an unchanged candidate [C7,D3]', async t => {
+  const box = plannedFixture(t);
+  const result = await requireSubmitCells(box.root, box.main, box.main, box.item, () => []);
+  assert.deepEqual(result.problems, []);
+  // A touched file retains the same older edge, so it appears as debt rather than a new refusal.
+  box.put('src/stats.js', "import { board } from './board.js'; export const stats = () => [board, 2];\n");
+  const changed = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item, () => []);
+  assert.deepEqual(changed.problems, []);
+  assert.ok(Array.isArray(changed.existingCuts));
+});
+
+test('current main cannot conceal a candidate new edge that was absent at its actual merge base [C7,D3]', async t => {
+  const box = plannedFixture(t), base = box.main;
+  const source = "import './stats-flow.js'; export class Refused extends Error {}\n";
+  box.put('src/refused.js', source);
+  const candidate = commitCandidate(box);
+  git(box.root, 'checkout', '--detach', base);
+  box.put('src/refused.js', source);
+  box.put('README.md', 'Accepted main advanced independently.\n');
+  box.main = commitCandidate(box);
+  assert.equal(git(box.root, 'merge-base', box.main, candidate).trim(), base);
+  await assert.rejects(requireSubmitCells(box.root, box.main, candidate, box.item),
+    /kernel still imports later stats: src\/refused.js -> src\/stats-flow.js/u);
+});
+
+test('an edge introduced only by newer accepted main is not attributed to the candidate [C7,D3]', async t => {
+  const box = plannedFixture(t), base = box.main;
+  box.put('src/stats.js', "import { board } from './board.js'; export const stats = () => [board, 2];\n");
+  const candidate = commitCandidate(box);
+  git(box.root, 'checkout', '--detach', base);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  box.main = commitCandidate(box);
+  const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
+  assert.equal(result.cutBase, base);
+  assert.deepEqual(result.problems, []);
 });
