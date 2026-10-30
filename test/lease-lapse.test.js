@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
 import { itemById, firstRefusal } from '../src/board-item-read.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
@@ -116,7 +117,7 @@ test('sealed lapsed-claim expiry replays identically despite fresh replica-local
   const { box, id } = await lapsed(t);
   const snapshot = captureLapsedClaims({ info: { root: box.root }, config: box.config, clock: box.clock }, box.board, box.seats.actor.id);
   assert.equal(snapshot.claims[0].id, id);
-  const replica = store.openBoard(':memory:', box.clock);
+  const replica = openBoard(':memory:', box.clock);
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(box.board));
   heartbeatSeat(replica, box.seats.builder.id);

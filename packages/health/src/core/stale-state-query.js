@@ -29,13 +29,14 @@ function observedSeats(board, actors) {
 
 /**
  * Combine only actually observed activity. For a review, absent work or heartbeat evidence never proves silence.
- * A claim belongs to its seat id (#1933, coordinator 30 Oct): only board writes, shouts, proofs and heartbeats under
- * that id count, so a seat with no presence reads as absent and a checkout's file activity, which a reused or gone
+ * A claim past its lease belongs to its seat id (#1933, coordinator 30 Oct): only board writes, shouts, proofs and
+ * heartbeats under that id count, so a seat with no presence reads as absent and a checkout's file activity, which a reused or gone
  * checkout cannot attribute to the seat, is neither required nor read.
  */
 function activity(board, item, actor, anchor, kind, seats, workObservation, now) {
   const unknown = [];
-  const seatOnly = kind === 'claim';
+  // Only once the lease has ended; a live claim's checkout work still protects a builder editing without board writes.
+  const seatOnly = kind === 'claim' && staleInstant(item.item_lease_until, now) !== null && Date.parse(item.item_lease_until) <= now;
   const heartbeat = seats.get(actor)?.heartbeatAt;
   if (heartbeat ? staleInstant(heartbeat, now) === null : !seatOnly) unknown.push('heartbeat unavailable or future');
   let work = null;
