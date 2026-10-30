@@ -18,6 +18,8 @@ import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
+import { landedCutItemRows } from '../bin/cells-submit-checks.js';
+import { fixtureBoard } from './board-fixture.js';
 import { withMainCheckout } from '../src/main-red.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
@@ -146,7 +148,7 @@ function acceptedEntry(t, { declared = false } = {}) {
   writeCellLintBaseline(root, complete, { initialize: true });
   git(root, 'add', '-A');
   git(root, 'commit', '-q', '--allow-empty', '-m', 'accepted complete entry baseline');
-  return { ...value, main: git(root, 'rev-parse', 'HEAD').trim() };
+  return { ...value, main: git(root, 'rev-parse', 'HEAD').trim(), board: fixtureBoard(t) };
 }
 
 /** Run the real trusted controller over immutable commits, without trusting the placement writer. */
@@ -156,7 +158,7 @@ function inspectEntry(value) {
   return requireSubmitCells(value.root, value.main, git(value.root, 'rev-parse', 'HEAD').trim(),
     { item_frozen: JSON.stringify({ criterion: 'Explicit source-validated process ownership only.' }) },
     { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
-      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+      readCutItems: () => landedCutItemRows(value.board.db), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
 }
 
 test('trusted submit admits an actual explicit process rehome and keeps its source binding [C7,D3,CD64]', async t => {
