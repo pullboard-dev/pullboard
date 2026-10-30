@@ -13,6 +13,49 @@ import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-chi
 const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 const roots = [];
 
+test('executor-pinned main comparisons run afresh, preserve generic cache and refuse another runtime [V4,C7]', t => {
+  const box = fixture(t, {
+    spec: '# Fixture\n\n## G · Goals\n- G1 [approved, must] The inherited case passes. | gate: test/inherited.test.js\n',
+    source: "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('inherited red [G1]', () => assert.equal(1, 2));\n",
+  });
+  const driver = join(box.directory, 'pinned-comparison.mjs');
+  writeFileSync(driver, [
+    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
+    `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/execution-environment.js')).href)};`,
+    'const [root, mode] = process.argv.slice(2);',
+    "const profile = {tests:[{file:'test/inherited.test.js',passed:false}]};",
+    'const environment = executionEnvironment();',
+    "const execution = mode === 'generic' ? undefined : { executor: {kind:'local'}, environment: mode === 'unknown' ? null : mode === 'mismatch' ? {...environment,node:'99.0.0'} : environment };",
+    'const result = await compareMainFailures(root, profile, undefined, "", {execution});',
+    'console.log(JSON.stringify(result));',
+  ].join('\n'));
+  const run = mode => {
+    const result = runFixtureChild(process.execPath, [driver, box.root, mode],
+      { cwd: box.root, env: box.env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const cached = run('generic');
+  assert.equal(cached.files[0].result, 'red');
+  const common = runFixtureGit(['rev-parse', '--path-format=absolute', '--git-common-dir'],
+    { cwd: box.root, env: box.env }).trim();
+  const cachePath = join(common, 'pullboard/main-red.json');
+  const cacheBefore = readFileSync(cachePath, 'utf8');
+  const callsBefore = runCount(box);
+  assert.equal(run('matching').files[0].result, 'red');
+  assert.ok(runCount(box) > callsBefore, 'a pinned comparison executes rather than reusing generic evidence');
+  assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'pinned evidence does not alter the generic cache');
+  const mismatch = run('mismatch');
+  assert.deepEqual(mismatch.files, []);
+  assert.match(mismatch.unavailable, /exact runtime/u);
+  assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'a runtime mismatch cannot publish generic evidence');
+  const beforeUnknown = runCount(box);
+  const unknown = run('unknown');
+  assert.deepEqual(unknown.files, []);
+  assert.match(unknown.unavailable, /no complete executor and runtime identity/u);
+  assert.equal(runCount(box), beforeUnknown, 'missing execution facts refuse before any comparison run');
+});
+
 after(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
@@ -97,8 +140,8 @@ function addItems(box, rows) {
   return rows.map(({ title, specId, route = 'mid' }) => {
     const file = { G1: 'test/inherited.test.js', G2: 'test/unrelated.test.js', G3: 'test/earlier.test.js', G4: 'test/middle.test.js' }[specId];
     const result = cli(box.root, box.env, 'add', 'core', title, '--specs', specId, '--route', route,
-      // These recovery cases exercise an unsatisfied item check; inherited proof failures have separate acceptance coverage.
-      '--criterion', title, '--check', 'node test/runner.js', '--brief', `Files: ${file}\nTest: ${title}`);
+      // These recovery cases exercise an unsatisfied item check; the extra failing stage keeps it unaccountable as a known main red (known-main-frozen.test.js covers the accountable case).
+      '--criterion', title, '--check', 'node test/runner.js; exit 1', '--brief', `Files: ${file}\nTest: ${title}`);
     assert.equal(result.code, 0, result.err || result.out);
     return Number(/^#(\d+)$/mu.exec(result.out)?.[1]);
   });
