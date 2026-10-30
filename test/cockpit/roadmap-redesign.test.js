@@ -15,6 +15,7 @@ import { chromeExecutable } from './fixture.js';
 import { openSnapshotChrome } from './fixture.js';
 import { closeSnapshotChrome } from './fixture.js';
 import { press } from './fixture.js';
+import { pressedInto } from './fixture.js';
 
 test('the Roadmap uses the approved shared release design at phone and desktop widths [N26]', { timeout: 90_000 }, async () => {
   const executable = chromeExecutable();
@@ -49,6 +50,7 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
     chrome = await openSnapshotChrome(executable, view.link.href, profile);
     await chrome.waitFor("data?.project?.milestones?.some(milestone => milestone.name.startsWith('0.9.4'))");
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
+    await pressedInto(chrome, "!document.querySelector('[data-pane=roadmap]').hidden && document.querySelector('#roadmap-list > .milestone')");
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
       await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#roadmap-list > .milestone')`);
