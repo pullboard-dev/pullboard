@@ -101,7 +101,7 @@ export function checkCuts(root, plan, name, { allLaterCells = false, temporaryEx
     seen.add(file);
     const unresolved = unknown.filter(row => row.file === file);
     const cell = owner(file);
-    if (cell !== name && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
+    if (cell !== name && !(allLaterCells && cell === null) && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
       computed.has(file))) continue;
     for (const row of unresolved) problems.add(`cannot prove cut through ${file}: ${row.reason}`);
     for (const { target } of edges.get(file) ?? []) {
