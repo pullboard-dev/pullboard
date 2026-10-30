@@ -12,7 +12,7 @@ import { parseSpec } from '../src/spec.js';
 import { serveMcp } from '../packages/mcp/index.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { legacyWebQuestions } from './blueprint-question.fixture.js';
+import { writeLegacyWebQuestions } from './blueprint-question.fixture.js';
 import { readBlueprint } from '../src/blueprints.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -91,8 +91,7 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
   const repo = join(box.dir, 'newcomer');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'legacy-web-app.json'), JSON.stringify(legacyWebQuestions(readBlueprint('web-app'))));
-  const initialized = box.run(repo, 'init', '--blueprint', 'legacy-web-app.json');
+  const initialized = box.run(repo, 'init', '--blueprint', writeLegacyWebQuestions(repo, readBlueprint('web-app')));
   assert.equal(initialized.code, 0, initialized.err || initialized.out);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: preserve newcomer setup');

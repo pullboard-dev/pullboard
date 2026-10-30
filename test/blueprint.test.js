@@ -11,7 +11,7 @@ import { blueprintRowIds, starterStates } from '../src/blueprint-report.js';
 import { parseSpec } from '../src/spec.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { assertStarterChecks } from './blueprint-starter-fixture.js';
-import { legacyWebQuestions } from './blueprint-question.fixture.js';
+import { writeLegacyWebQuestions } from './blueprint-question.fixture.js';
 import { assertArchitectureBlueprintCoverage } from './blueprint-architecture-coverage.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -1290,8 +1290,7 @@ function batchCode(reading) {
 function fitBoard() {
   const box = freshBoard({ lanes: { web: { owns: ['web/'] } } });
   writeFileSync(join(box.repo, 'package.json'), `${JSON.stringify({ name: 'lib', scripts: { test: 'node --test' } })}\n`);
-  writeFileSync(join(box.repo, 'legacy-web-app.json'), JSON.stringify(legacyWebQuestions(PUBLISHED)));
-  const added = json(box, 'blueprint', 'add', 'legacy-web-app.json');
+  const added = json(box, 'blueprint', 'add', writeLegacyWebQuestions(box.repo, PUBLISHED));
   box.git('add', '-A');
   box.git('commit', '-q', '-m', 'chore: add the web-app blueprint');
   const worktree = join(box.dir, 'seat');
