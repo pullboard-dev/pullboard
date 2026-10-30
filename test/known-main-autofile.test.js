@@ -26,6 +26,7 @@ test('opted-in submit files one linked repair for an identical unowned main fail
   const generic = cli(box, box.builder, 'add', 'core', 'Unrelated repair', '--criterion', 'Not a derived repair.');
   assert.equal(generic.status, 1);
   assert.equal(JSON.parse(generic.stdout).error.code, 'AGENT_GRANT_ITEM', 'the opt-in never widens ordinary creation');
+  // @pullboard-board-file persistence: snapshot the actual private CLI board before its atomic submit for replay.
   const beforeBoard = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let before, nativePlan;
   try {
@@ -59,6 +60,7 @@ test('opted-in submit files one linked repair for an identical unowned main fail
   });
   assert.equal(new Set(candidates.map(row => row.id)).size, unordered.length, 'no phase or extra receipt is omitted');
   const comparisons = receipts.filter(row => row.kind === 'main-red');
+  // @pullboard-board-file persistence: authenticate actual native receipts against the private fixture's persisted submit policy.
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {
     board.gitRoot = box.builder;
@@ -107,6 +109,7 @@ test('automatic filing stays off by default and preserves the existing unowned-m
   const result = submit(box);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(rows(box, "SELECT item_id FROM item WHERE item_title LIKE 'Main red:%'").length, 0);
+  // @pullboard-board-file persistence: authenticate actual native receipts against the private fixture's persisted submit policy.
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   try {
     board.gitRoot = box.builder;

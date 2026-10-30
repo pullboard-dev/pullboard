@@ -65,7 +65,7 @@ export function fileKnownMainAutofile(board, id, options, items) {
     if (!lane || lane === 'coordinator') throw new Refused('SUBMISSION_PROOF', `automatic Main red repair has no declared owner lane for ${file}; ask the coordinator to file or route its repair`);
     const item = { by: options.agentId, lane, title: `Main red: ${file}`, route: 'strong', specIds: [], parentId: null, after: [],
       criterion: `Repair these exact cases on main ${known.main}: ${names.join('; ')}. First introducing landing: unknown. Filed by submit #${id} from identical native candidate/main failure signatures.`,
-      brief: `Files: ${file}\nTest: ${options.autoMainReds.runner.trim()} ${word(file)}\nSource: submit #${id}; main ${known.main}` };
+      brief: `Files: ${file}\nTest: Run the stored exact-file check; every case named in the criterion must pass.\nSource: submit #${id}; main ${known.main}` };
     const validated = validateItemAddition(board, item);
     // This engine's approved authority derives this one check; it does not impersonate the coordinator or widen addItem.
     const repair = insertItem(board, item, { ...validated, command: `${options.autoMainReds.runner.trim()} ${word(file)}` });
