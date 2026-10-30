@@ -1,4 +1,6 @@
 /** Person requests stay open until answered and their messages enter the event log (A2). */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -127,7 +129,7 @@ test("the API passes blank shout text to the CLI's own refusal [A2,A9]", async (
   const box = e2e.project('true');
   const secret = randomUUID();
   let port = 0;
-  handler = createLocalApiHandler({ refusalDocument,
+  handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
     secret, getPort: () => port, runCommand: main,
     projects: () => [{ root: box.repo, name: 'Shout fixture', project: '', added: '2026-01-01T00:00:00.000Z' }],
   });
@@ -188,4 +190,22 @@ test("the API passes blank shout text to the CLI's own refusal [A2,A9]", async (
   const inbox = box.run(box.web, 'inbox', '--json');
   assert.equal(inbox.code, 0, inbox.err || inbox.out);
   assert.deepEqual(JSON.parse(inbox.out).shouts.map(row => row.shout_text), ['Keep this valid message.']);
+});
+
+test('the API refuses incomplete native board providers before discovery or commands [A2,C7,D3]', () => {
+  let discoveries = 0;
+  let commands = 0;
+  const options = {
+    refusalDocument,
+    secret: randomUUID(),
+    getPort: () => 0,
+    /** A refused provider must not reach the real command boundary. */
+    runCommand: async () => { commands++; return 0; },
+    /** No repository or board discovery is permitted before provider validation. */
+    projects: () => { discoveries++; return []; },
+  };
+  for (const boardOpeners of [undefined, {}, { openBoard: apiBoardOpeners.openBoard }, { openBoardForRead: apiBoardOpeners.openBoardForRead }]) {
+    assert.throws(() => createLocalApiHandler({ ...options, boardOpeners }), /actual native board openers/u);
+  }
+  assert.deepEqual({ discoveries, commands }, { discoveries: 0, commands: 0 });
 });

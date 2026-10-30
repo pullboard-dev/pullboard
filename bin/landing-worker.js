@@ -8,12 +8,13 @@ if (process.argv[1] === FILE && process.send) {
   // The guardian installs its original watchdog without loading the private-check executor.
   if (process.argv[2] === 'guardian') landingWorkerEntry({ workerFile: FILE, parseProcessCensus });
   else if (process.argv[2] === 'worker') {
+    const { openBoard } = await import('../src/native-board.js');
     const { checkAtCommit } = await import('../src/runner-private-check.js');
     const { badgeCounts, writeBadges } = await import('../src/badge.js');
     const { flakeSource, observeNativeFailure } = await import('../src/native-flakes.js');
     const { quarantineWaivers, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns } = await import('../src/quarantine.js');
     const landingPorts = { badgeCounts, writeBadges, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns };
-    landingWorkerEntry({ checkAtCommit, landingPorts, parseProcessCensus, workerFile: FILE,
+    landingWorkerEntry({ checkAtCommit, landingPorts, parseProcessCensus, openBoard, workerFile: FILE,
       candidateWorkerFile: fileURLToPath(new URL('./landing-candidate.js', import.meta.url)) });
   }
 }

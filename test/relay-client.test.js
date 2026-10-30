@@ -1,4 +1,7 @@
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
+import { withApiCommandEnvironment } from './api-fixture.js';
+import { apiBoardOpeners } from './board-fixture.js';
+
 import { relayRecovered } from '../src/relay.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
@@ -957,20 +960,12 @@ async function competingReplicaClaims(fixture, timing) {
   const restoreApiOutboxDefault = await enterLegacyAckPolicy(fixture);
   /** Run the actual local API command under this clone's isolated device credentials. */
   async function apiCommand(argv, io) {
-    const names = ['PATH', 'HOME', 'PULLBOARD_HOME', 'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM'];
-    const previous = new Map(names.map((name) => [name, process.env[name]]));
-    try {
-      for (const name of names) process.env[name] = envs[0][name];
-      return await timing.wait('execute one local CLI operation for the cloned-board HTTP API', () => main(argv, io));
-    } finally {
-      for (const [name, value] of previous) {
-        if (value === undefined) delete process.env[name]; else process.env[name] = value;
-      }
-    }
+    return withApiCommandEnvironment(envs[0], () => timing.wait(
+      'execute one local CLI operation for the cloned-board HTTP API', () => main(argv, io)));
   }
   let localApi;
   try {
-    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ refusalDocument, runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
+    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
     const address = new URL(localApi.url);
     const response = await timing.wait('send the first API move through clone A', () => fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' },

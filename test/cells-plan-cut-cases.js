@@ -1,6 +1,9 @@
+/** @pullboard-test-input source-tree */
 /** Import-cut filing uses the committed plan, real CLI and real source graphs [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { copyFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
@@ -83,6 +86,12 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
       for (const edge of group.edges) assert.ok(brief.includes(`[${edge.id}] ${edge.from} -> ${edge.to}`), edge.id);
     }
     const box = board(t);
+    // The real plan's process-entry claims must be checked against the actual entry source.
+    for (const { path } of PLAN.entries ?? []) {
+      const destination = join(box.repo, path);
+      mkdirSync(join(destination, '..'), { recursive: true });
+      copyFileSync(new URL(`../${path}`, import.meta.url), destination);
+    }
     writePlan(box.repo, PLAN);
     const dry = runFixtureChild(process.execPath, [BIN, '--file-cuts'], { cwd: box.repo, env: box.env, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     assert.equal(dry.status, 0, dry.stdout + dry.stderr);

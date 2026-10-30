@@ -2,6 +2,8 @@
  * The spec view (S7): one offline page with the spec, open questions, sign-offs and practice, where
  * no text from the files can inject markup.
  */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -307,12 +309,12 @@ test('scoped API answers and its cache and stream never resolve a foreign roadma
   let port = 0;
   const scopedSecret = randomUUID();
   const options = { secret: scopedSecret, getPort: () => port, runCommand: main };
-  const scopedHandler = createLocalApiHandler({ refusalDocument, ...options, scope: { projectRoot: localLinkedPath } });
+  const scopedHandler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument, ...options, scope: { projectRoot: localLinkedPath } });
   const scoped = await serveHandler(t, scopedHandler, options.secret);
   port = scoped.port;
   const plainSecret = randomUUID();
   let plainPort = 0;
-  const plainHandler = createLocalApiHandler({ refusalDocument, ...options, secret: plainSecret, getPort: () => plainPort });
+  const plainHandler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument, ...options, secret: plainSecret, getPort: () => plainPort });
   const plain = await serveHandler(t, plainHandler, plainSecret);
   plainPort = plain.port;
 

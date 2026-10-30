@@ -1,5 +1,7 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import {
   RELAY_PRESENTATION_PORTS,
   after,
@@ -64,7 +66,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   let streamController;
   let streamReader;
   let builds = 0;
-  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; } });
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: reviewer, name: 'Verdict fixture' }], onStateBuild: () => { builds += 1; } });
   t.after(async () => {
     streamController?.abort();
     await streamReader?.cancel().catch(() => {});
@@ -218,7 +220,7 @@ test('a verdict reads stale when main moves under its files [E8]', { timeout: 12
   const peerBoardId = withBoard(peer, store.boardId);
   assert.equal(snapshotState(relaySnapshot(peer, {}, RELAY_PRESENTATION_PORTS), peerBoardId).items[0].verdictState?.code, 'STALE_VERDICT',
     'a sealed phone presentation also fails closed until the reviewed objects arrive');
-  const peerApi = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: peer, name: 'Peer verdict fixture' }] });
+  const peerApi = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: peer, name: 'Peer verdict fixture' }] });
   t.after(() => peerApi.close());
   const peerAddress = new URL(peerApi.url);
   /** Keep this peer's server alive across an object-only fetch without a board write. */

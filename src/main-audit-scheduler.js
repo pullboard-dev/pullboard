@@ -36,9 +36,10 @@ function started(pid) {
 }
 
 /** Schedule one durable wake without borrowing foreground admission or stopping somebody else's process. */
-export async function scheduleMainAudit(root, directory, dueAt) {
+export async function scheduleMainAudit(root, directory, dueAt, workerUrl) {
   const due = Date.parse(dueAt);
   if (!Number.isFinite(due) || due <= Date.now()) return;
+  if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('main audit scheduler requires its actual process entry URL');
   await withFileLock(join(directory, 'timer.guard.sqlite'), async () => {
     const file = join(directory, 'timer.json'), old = readMainAudit(file);
     if (old) {
@@ -51,7 +52,7 @@ export async function scheduleMainAudit(root, directory, dueAt) {
     }
     const token = randomUUID(), env = gitChildEnv(root);
     for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD', 'PULLBOARD_CHECKOUT_SESSION_TOKEN']) delete env[key];
-    const child = spawn(process.execPath, [fileURLToPath(new URL('../bin/main-audit.js', import.meta.url)), root, token, '--scheduled', '--wake-at', dueAt],
+    const child = spawn(process.execPath, [fileURLToPath(workerUrl), root, token, '--scheduled', '--wake-at', dueAt],
       { cwd: root, env, detached: true, stdio: 'ignore' });
     await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
     saveMainAudit(file, { version: 1, pid: child.pid, started: started(child.pid), token, dueAt });
