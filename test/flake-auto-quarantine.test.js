@@ -10,6 +10,7 @@ import { commitFixtureFiles } from './package-copy-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { openBoard, flakeQuarantines, gateRuns } from '../src/native-board.js';
 import * as store from '../src/board.js';
+import { proofRunReceipt } from '../src/proof-receipts.js';
 import { submitFlakePairs } from '../src/auto-submit-quarantine.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
 
@@ -51,7 +52,7 @@ function fixture(t, deterministic = false) {
 function snapshot(box) {
   // @pullboard-board-file journey: actual Submit and native gate records persisted by this private CLI fixture
   const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
-  try { return { quarantines: flakeQuarantines(board), runs: gateRuns(board), items: store.listItems(board, { all: true }) }; }
+  try { return { quarantines: flakeQuarantines(board), runs: gateRuns(board), items: store.listItems(board, { all: true }), admissions: store.events(board).filter(event => ['claim', 'renew'].includes(event.event_kind)).map(event => JSON.parse(event.event_detail).submitAdmission).filter(Boolean) }; }
   finally { store.closeBoard(board); }
 }
 
@@ -82,9 +83,15 @@ test('two actual Submit pairs quarantine once, retain raw receipts, and let the 
   const receipts = entry.runs.map(id => readGateReceipt(receiptStore(box.root), id));
   assert.ok(receipts.every(Boolean), 'all four proving receipts are native-produced private bytes');
   assert.equal(new Set(receipts.map(receipt => receipt.proof.diagnosticAdmission)).size, 2);
+  assert.equal(state.admissions.length, 2, 'each actually acquired Submit lease creates exactly one authenticated native witness');
+  assert.ok(receipts.every(receipt => state.admissions.some(admission => admission.id === receipt.proof.diagnosticAdmission)));
   for (const receipt of receipts.filter(receipt => receipt.kind === 'check')) {
     assert.equal(receipt.proof.submitPhase, 'diagnostic');
     assert.equal(receipt.proof.frozenDigest, null, 'a diagnostic cannot attest the frozen Submit bar');
+    // @pullboard-board-file journey: challenge the actual diagnostic receipt against the actual claimed item bar
+    const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'), undefined, { isMain: true });
+    try { assert.throws(() => proofRunReceipt(board, { agentId: receipt.proof.seat, itemId: box.id, receiptId: receipt.id }), error => error.code === 'PROOF_RUN_STALE'); }
+    finally { store.closeBoard(board); }
   }
   const ledger = box.cli('flakes').document;
   const row = ledger.flakes.find(value => value.name === TITLE);
