@@ -13,7 +13,7 @@ export function submitHandoff(board, id) {
 /** An active immutable job frees its holder to claim ordinary work without making it reviewable. */
 export function pendingSubmitHandoff(board, item) {
   const job = submitHandoff(board, item.item_id);
-  return item.item_status === 'claimed' && job?.agentId === item.item_owner
+  return item.item_status === 'claimed' && job?.agentId === item.item_owner && job.digest === item.item_frozen_digest
     && ['queued', 'running'].includes(job.state) ? job : null;
 }
 

@@ -4,7 +4,7 @@ import { submitHandoff, pendingSubmitHandoff } from './submit-handoff-read.js';
 export { submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './submit-handoff-read.js';
 /** Durable queue observations do not grant submission or review authority [C7,V4,H16]. */
 import { atomic, logEvent } from './board-event-log.js';
-import { setItem } from './board.js';
+import { release } from './board.js';
 import { firstRefusalDetail } from './claims.js';
 import { itemPatchDigest } from './item-patch-state.js';
 import { getItem, now } from './board-query.js';
@@ -120,7 +120,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       const reservation = reopenFirstRefusalMinutes > 0
         ? firstRefusalDetail(board, { ...item, item_built_by: job.agentId }, reopenFirstRefusalMinutes)
         : { reopenFirstRefusal: { builder: job.agentId, until: new Date(board.clock.now().getTime() + job.leaseMs).toISOString() } };
-      setItem(board, id, { item_status: 'open', item_owner: null, item_lease_until: null });
+      release(board, id, job.agentId, 'the queued canonical submit was refused');
       logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, ...reservation });
       insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${result.error.code}); read pullboard show ${id} for the original refusal and claim it to resume.`, lanes: [] });
     }
