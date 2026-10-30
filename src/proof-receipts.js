@@ -76,7 +76,7 @@ export function recordProofRun(board, request) {
   return atomic(board, () => {
     const { receipt, existing } = proofReceiptFields(board, request, run);
     if (existing) return existing;
-    logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: Object.hasOwn(receipt, 'failures') && !receipt.blockingVerdict ? EXIT_RULES_ENGINE : receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
+    logEvent(board, request.agentId, 'proof-run', request.itemId, { engine: Object.hasOwn(receipt, 'failures') && !Object.hasOwn(receipt, 'blockingVerdict') ? EXIT_RULES_ENGINE : receipt.blockingVerdict ? QUARANTINE_VERDICT_ENGINE : PROOF_RUN_ENGINE, receipt });
     return receipt;
   });
 }
