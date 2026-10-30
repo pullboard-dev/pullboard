@@ -30,9 +30,10 @@ function project(t) {
   git('init', '-q', '-b', 'main');
   git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.invalid');
   const target = 'packages/commits/src/shell/hooks.js';
+  write('package.json', JSON.stringify({ type: 'module', bin: 'src/hooks.js' }));
   write('packages/commits/index.js', `export * from './src/shell/hooks.js';\n`);
   write(target, 'export const hooks = true;\n');
-  write('src/hooks.js', `export * from '../${target}';\n`);
+  write('src/hooks.js', "export * from '../packages/commits/index.js';\n");
   write(FILE, SOURCE);
   write('bin/cells-plan/data-reads/commits.json', JSON.stringify({ version: 1, reads: [ROW] }));
   /** Commit real source bytes before each static snapshot analysis. */
