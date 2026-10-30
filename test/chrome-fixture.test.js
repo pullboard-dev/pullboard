@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { createEvaluator, createSender, createWaiter, findChromeExecutable, launchChromeProcess, startChrome, waitForTargetAbsent } from './chrome-fixture.js';
+import { chromeLaunchArgs } from './chrome-launch-args.js';
 import { assertNoKilledChromeClone } from './chrome-clone-proof.js';
 
 test('a killed test Chrome leaves no code-sign clone [C7]', { skip: process.platform !== 'darwin' || !findChromeExecutable() }, async t => {
@@ -703,4 +704,23 @@ test('a wait keeps waiting through a DevTools error from a page navigation [C7]'
   } finally {
     await chrome.close();
   }
+});
+
+test('fixture close quits actual Chrome cleanly before any signal fallback [C7]', { timeout: 40000 }, async t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-clone-graceful-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const profile = join(root, 'profile');
+  mkdirSync(profile, { mode: 0o700 });
+  const launched = launchChromeProcess({ executable: findChromeExecutable(), args: chromeLaunchArgs(profile) });
+  t.after(() => launched.close());
+  const deadline = Date.now() + 30000;
+  while (!existsSync(join(profile, 'DevToolsActivePort')) && Date.now() < deadline) {
+    assert.equal(launched.child.exitCode, null, launched.stderr);
+    assert.equal(launched.child.signalCode, null, launched.stderr);
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.ok(existsSync(join(profile, 'DevToolsActivePort')), launched.stderr);
+  await launched.close();
+  assert.equal(launched.child.exitCode, 0, 'Browser.close must produce a clean native exit');
+  assert.equal(launched.child.signalCode, null, 'a signal fallback is not graceful proof');
 });

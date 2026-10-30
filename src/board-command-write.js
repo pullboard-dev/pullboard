@@ -8,7 +8,7 @@ import { Refused } from './refused.js';
 const PREPARE_ATTEMPTS = 4;
 
 // Like the writer dispatch, each preparation belongs to its exact native operation, never the wire.
-const PREPARATIONS = Object.freeze({ claim: store.prepareClaim });
+const PREPARATIONS = Object.freeze({ claim: store.prepareClaim, queueSubmitHandoff: store.prepareQueueSubmitHandoff });
 
 /**
  * Preserve native authority before preparation and revalidate it under the actual writer lock.

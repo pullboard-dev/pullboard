@@ -3,6 +3,7 @@ import {
   heldNote,
 } from './held-items.js';
 import { agentFloorModel } from './agent-floor-model.js';
+import { firstRunKit } from './first-run.js';
 import { agentFloorHtml } from './agent-floor-render.js';
 import { recordRowHtml } from './record-row.js';
 import { verdictHtml as verdictRenderer } from './verdict-render.js';
@@ -36,7 +37,7 @@ const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})(), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),

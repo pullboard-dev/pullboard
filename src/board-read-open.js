@@ -13,7 +13,11 @@ import {
 } from './board-schema-source.js';
 import { Refused } from './refused.js';
 // Preserve eager validation of feature declarations without loading lifecycle guards.
-import './engine-metadata.js';
+import { ENGINE_REGISTRY } from './engine-metadata.js';
+import { ENGINE_VERSION } from './engine-metadata.js';
+
+/** Supply exact discovered engine thresholds to read-only projections. */
+function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: ENGINE_REGISTRY['submit-handoff'] }; }
 
 /**
  * The clock the board reads, real unless a test passes its own.
@@ -28,7 +32,7 @@ export const systemClock = { now: () => new Date() };
 export function openBoardForRead(file, clock = systemClock) {
   if (file === ':memory:' || !existsSync(file)) return null;
   const db = openBoardReadOnly(file);
-  try { readEventLogVersion(db); return { db, clock, readOnly: true, current: boardIsCurrent(db, SCHEMA_DIGEST, SCHEMA_VERSION) }; }
+  try { readEventLogVersion(db); return { db, clock, enginePorts: Object.freeze({ submitHandoffEngines }), readOnly: true, current: boardIsCurrent(db, SCHEMA_DIGEST, SCHEMA_VERSION) }; }
   catch (error) { db.close(); throw error; }
 }
 

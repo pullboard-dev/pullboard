@@ -67,12 +67,12 @@ export function registeredCapacity(api, spec, root, machineHomePath) {
   const previous = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_MACHINE_HOME = machineHomePath;
   try {
-    /** Set one pool row; a busy pool cannot shrink, so this run is refused rather than oversubscribed. */
+    /** Set one pool row to the board's registered capacity, refusing only an unsafe active-holder overflow. */
     const size = (name, capacity) => {
-      try { return api.setResourceCapacity({ name, capacity, scope: 'machine', root }).capacity; }
+      try { return api.setResourceCapacity({ name, capacity, scope: 'machine', root, allowSafeDecrease: true }).capacity; }
       catch (error) {
         if (error?.code !== 'RESOURCE_BUSY') throw error;
-        throw new Refused('RUNNER_CAPACITY_BUSY', `this runner is registered with ${capacity} ${name} slot(s), fewer than its busy pool holds; it shrinks once its running jobs end`);
+        throw new Refused('RUNNER_CAPACITY_BUSY', `this runner is registered with ${capacity} ${name} slot(s), but its worker pool cannot shrink from its current capacity safely: ${error.message}`);
       }
     };
     // A runner registered with no browsers never receives a browser run, so its browser row is left alone.

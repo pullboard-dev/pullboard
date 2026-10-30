@@ -65,7 +65,7 @@ test('Items walk renders short context hashes, plain waiting chips and colored h
       assert.ok(actual.times.every(time => /\b(?:1[0-2]|[1-9]):\d{2}\s*[AP]M\b/u.test(time)), JSON.stringify(actual.times));
       assert.ok(actual.copy.some(([label, full]) => label === head.slice(0, 12) && full === head), 'full source remains available to copy');
     }
-    assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .meta .why').textContent"), 'Behavior did not match Reviewed submitted ' + head.slice(0, 12));
+    assert.equal(await chrome.stable("document.querySelector('#chain [data-item=\"1\"] .meta').textContent"), 'Behavior did not match Reviewed submitted ' + head.slice(0, 12));
     assert.deepEqual(chrome.exceptions, []);
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

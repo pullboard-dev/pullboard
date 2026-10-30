@@ -17,13 +17,14 @@ export function boardEnginePorts(providers) {
   if (!providers?.MOVE_REGISTRY || typeof providers.MOVE_REGISTRY !== 'object' || Array.isArray(providers.MOVE_REGISTRY)) throw new Refused('NO_POLICY', 'Supply the explicit native engine provider MOVE_REGISTRY before opening storage.');
   if (!Array.isArray(providers?.MOVE_OPERATIONS)) throw new Refused('NO_POLICY', 'Supply the explicit native engine provider MOVE_OPERATIONS before opening storage.');
   for (const name of [
+    'submitHandoffEngines', 'firstRefusalDetail', 'itemPatchDigest',
     'minimumMoveEngine', 'declaredMoveActor',
     'recordTrainLanding', 'advanceItemSource', 'proposeSentinel', 'decideSentinel',
     'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation',
     'flakeQuarantines', 'gateRuns', 'recordGateRun', 'personProposals',
     'personSigning', 'proposePersonMove', 'setPersonSigning', 'recordPublishFinding',
     'landingWaivers', 'landingWaiverFor', 'waivedLandingProof', 'prepareTrainLanding',
-    'prepareNativeTrainLanding', 'sealKnownMainAutofile', 'sealItemPatchSubmit', 'sealItemPatchFollow', 'sealSourceAdvanceReturn',
+    'prepareNativeTrainLanding', 'sealKnownMainAutofile', 'sealSubmitHandoffQueue', 'submitHandoffBoardRoot', 'sealItemPatchSubmit', 'sealItemPatchFollow', 'sealSourceAdvanceReturn',
     'sealSourceAdvance', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict',
     'signedMoveProblem', 'requireBound', 'requestMoveProblem', 'recordRequestMove',
     'relayPerson', 'requestPerson', 'validPresence',
@@ -32,13 +33,14 @@ export function boardEnginePorts(providers) {
     if (typeof providers?.[name] !== 'function') throw new Refused('NO_POLICY', `Supply the explicit native engine provider ${name} before opening storage.`);
   }
   const {
+    submitHandoffEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
     beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,
     flakeQuarantines, gateRuns, recordGateRun, personProposals,
     personSigning, proposePersonMove, setPersonSigning, recordPublishFinding,
     landingWaivers, landingWaiverFor, waivedLandingProof, prepareTrainLanding,
-    prepareNativeTrainLanding, sealKnownMainAutofile, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
+    prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn,
     sealSourceAdvance, computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict,
     signedMoveProblem, requireBound, requestMoveProblem, recordRequestMove,
     relayPerson, requestPerson, validPresence,
@@ -47,8 +49,8 @@ export function boardEnginePorts(providers) {
   const store = Object.freeze({ ...rawStore, recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone });
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
-  return Object.freeze({ store, withSeatPresence, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
-    minimumOperationEngine: (operation, args, board, at) => minimumMoveEngine(operation, args, board, at, conditionalHoldFloor), prepareTrainLanding, prepareNativeTrainLanding, sealKnownMainAutofile, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
+  return Object.freeze({ store, withSeatPresence, submitHandoffEngines, firstRefusalDetail, itemPatchDigest, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,
+    minimumOperationEngine: (operation, args, board, at) => minimumMoveEngine(operation, args, board, at, conditionalHoldFloor), prepareTrainLanding, prepareNativeTrainLanding, sealKnownMainAutofile, sealSubmitHandoffQueue, submitHandoffBoardRoot, sealItemPatchSubmit, sealItemPatchFollow, sealSourceAdvanceReturn, sealSourceAdvance,
     computedReturnArgs, requirePreparedComputedConflict, preflightComputedConflict, boundProofReceipt,
     requireOutsideReceipt, signedMoveProblem, requireCoordinatorHold, requireBound,
     requestMoveProblem, recordRequestMove, relayPerson, requestPerson,

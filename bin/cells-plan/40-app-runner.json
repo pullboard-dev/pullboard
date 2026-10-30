@@ -5,6 +5,7 @@
  "root": "apps/runner",
  "frontDoor": "apps/runner/index.js",
  "paths": [
+  ["src/chrome-clone-cleanup.js","apps/runner/src/shell/chrome-clone-cleanup.js","rule"],
   ["src/private-check-worker.js","apps/runner/src/shell/private-check-worker.js","seed"],
   ["src/runner-custody.js","apps/runner/src/shell/runner-custody.js","seed"],
   ["src/runner-private-check.js","apps/runner/src/shell/runner-private-check.js","seed"],

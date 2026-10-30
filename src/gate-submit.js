@@ -1,3 +1,4 @@
+import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import { testOutcomeFields } from './test-outcomes.js';
 import { sourceAdvancePlan } from '../packages/codemap/index.js';
@@ -127,13 +128,14 @@ function submitTestOutcomes(profiles) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, runnerAdmission = {}, executionServices, signatureCapture }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture }) {
+
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
   if (trunk !== undefined && trunk !== null && !contains(root, trunk, mainPolicy(root).commit)) {
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
-  await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices });
+  await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
   const plan = submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
@@ -165,7 +167,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     pinRunMain(lease, onFailure);
     lease.pinnedMain = trunk ?? null;
     const startedAt = Date.now();
-    const log = gitPath(outputRoot, 'pullboard-submit.log');
+    const log = outputLog ?? gitPath(outputRoot, 'pullboard-submit.log');
     const checkLog = `${log}.check.log`;
     const proofLog = `${log}.proof.log`;
     const criterion = check ? runProfiledShell(root, check, {
