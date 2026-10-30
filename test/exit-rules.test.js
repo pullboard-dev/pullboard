@@ -221,6 +221,7 @@ test('ordinary native failed checks retain cases through receipt recording and s
       assert.equal(active.code, 0, active.out + active.err);
     }
   }
+  // @pullboard-board-file journey: real CLI checks persist native receipts consumed by the claim stop and replay.
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   t.after(() => store.closeBoard(board));
   const receipts = store.proofReceipts(board, id);
