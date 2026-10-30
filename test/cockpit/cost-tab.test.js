@@ -26,6 +26,7 @@ import { openSnapshotChrome } from './fixture.js';
 import { closeSnapshotChrome } from './fixture.js';
 import { press } from './fixture.js';
 import { serveFolder } from './fixture.js';
+import { openBoard } from '../../src/native-board.js';
 
 /** Make one deterministic presenter-only usage history; it is not native provider data. */
 function pricedHistory() {
@@ -207,7 +208,7 @@ test('the private view shows its last twenty native landings; a public export ke
     box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', alpha.itemBranches.get(`${alpha.baseBranch}:${id}`));
     box.run(alpha.repo, 'merged', String(id), box.git(alpha.repo, 'rev-parse', 'HEAD'));
   }
-  const board = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const agent = store.listAgents(board).find(row => row.agent_lane === 'web');
     assert.ok(agent, 'the seeded board has the native web builder');
@@ -228,7 +229,7 @@ test('the private view shows its last twenty native landings; a public export ke
   const settingsFile = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const previousSettings = existsSync(settingsFile) ? JSON.parse(readFileSync(settingsFile, 'utf8')) : {};
   writeFileSync(settingsFile, JSON.stringify({ ...previousSettings, costPrices: fixturePrices }));
-  const diagnosticBoard = store.openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  const diagnosticBoard = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
   let pricingDiagnostic;
   try {
     const nativeEvents = store.events(diagnosticBoard);
