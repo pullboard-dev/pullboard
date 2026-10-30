@@ -1,4 +1,5 @@
 /** @pullboard-test-gui */
+/** @pullboard-test-input src/view.css src/view/cost.css */
 /** Private cost presentation and actual local-board rendering with configured machine prices [N26]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -267,6 +268,7 @@ test('the private view shows its last twenty native landings; a public export ke
   const publicOutput = join(box.dir, 'cost-public-export');
   box.run(alpha.repo, 'view', '--export', publicOutput, '--public');
   const publicHtml = readFileSync(join(publicOutput, 'index.html'), 'utf8');
+  const publicCss = readFileSync(join(publicOutput, 'view.css'), 'utf8');
   const listing = JSON.parse(readFileSync(join(publicOutput, 'api/v1/boards.json'), 'utf8'));
   const boardDirectory = join(publicOutput, 'api/v1/boards', listing.boards[0].id);
   const publicState = JSON.parse(readFileSync(join(boardDirectory, 'state.json'), 'utf8'));
@@ -274,6 +276,7 @@ test('the private view shows its last twenty native landings; a public export ke
   assert.doesNotMatch(publicHtml, /data-tab="cost"|id="cost"|costTabModel|freshInputTokens/u,
     'the public page has neither the Cost controls nor its private token renderer');
   assert.doesNotMatch(publicHtml, /fixture-priced-model/u, 'the public page never receives the machine price table');
+  assert.doesNotMatch(publicCss, /\.cost-(?:page|row|tiles)\b/u, 'public snapshots do not include the private Cost stylesheet');
   const publicDocuments = JSON.stringify({ publicState, publicEvents });
   assert.doesNotMatch(publicDocuments, /"(?:costUSD|knownCostUSD|costPrices|freshInputTokens|cacheReadInputTokens|cacheWriteInputTokens|inputTokens|outputTokens|knownInputTokens|knownOutputTokens|wallMs)"\s*:/u,
     'the actual public state, event history, item thread and history contain no private cost counters');

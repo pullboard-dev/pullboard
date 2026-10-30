@@ -1,7 +1,7 @@
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css */
+/** @pullboard-test-input src/view.css src/view/cost.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -80,8 +80,12 @@ import { publicSnapshot } from './view/public-export.js';
 import { openBoardForRead } from './board-read-open.js';
 import { loadMachineSettings } from './settings-read.js';
 
-/** The page's styles (N26), read once: the page links them, so it needs no inline style. */
-const VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
+/** Shared and private-local styles stay separate until the authenticated view assembles its sheet. */
+const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8');
+const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
+const PRIVATE_VIEW_CSS_MARKER = '/* @private-view-css src/view/cost.css */';
+const VIEW_CSS = SHARED_VIEW_CSS.replace(PRIVATE_VIEW_CSS_MARKER, PRIVATE_COST_CSS);
+const SNAPSHOT_VIEW_CSS = SHARED_VIEW_CSS.replace(PRIVATE_VIEW_CSS_MARKER, '');
 export const LOOPBACK = '127.0.0.1';
 /**
  * The hosted page's origin (N26, A2): the one origin besides the view's own page that may call the view, and the only
@@ -192,7 +196,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
   const boardPath = join(output, 'api', 'v1', 'boards', listing.boards[0].id);
   mkdirSync(boardPath, { recursive: true });
   writeFileSync(join(output, 'index.html'), renderPage('', { snapshot: true }));
-  writeFileSync(join(output, 'view.css'), VIEW_CSS);
+  writeFileSync(join(output, 'view.css'), SNAPSHOT_VIEW_CSS);
   writeFileSync(join(output, 'api', 'v1', 'boards.json'), JSON.stringify(listing) + '\n');
   writeFileSync(join(boardPath, 'state.json'), JSON.stringify(state) + '\n');
   writeFileSync(join(boardPath, 'events.json'), JSON.stringify(events) + '\n');
