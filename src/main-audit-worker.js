@@ -35,7 +35,6 @@ import {
   join,
 } from 'node:path';
 import * as store from './board.js';
-import { openBoardForRead } from './native-board.js';
 import {
   codeIsFromMain,
 } from './git.js';
@@ -81,7 +80,8 @@ function git(root, args, encoding = 'utf8') {
   return gitExecFileSync(args, { cwd: root, env: gitChildEnv(root), encoding, stdio: ['ignore', 'pipe', 'pipe'] });
 }
 /** Read native history without retaining an open board across locks, admission or execution. */
-function readBoard(info, action) {
+function readBoard(info, action, openBoardForRead) {
+  if (typeof openBoardForRead !== 'function') throw new TypeError('main audit requires its actual native read opener');
   const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) throw new Error('main audit board is unavailable');
   try { return action(board); } finally { store.closeBoard(board); }
@@ -113,7 +113,7 @@ function ownerLive(owner) {
   } catch { return true; }
 }
 /** Build obligations only from genuinely landed receipts whose tip is on actual local main. */
-function snapshot(root, info, activation) {
+function snapshot(root, info, activation, openBoardForRead) {
   return readBoard(info, board => {
     const boardId = store.boardId(board);
     if (activation.board !== boardId) throw new Error('main audit activation belongs to another board');
@@ -134,7 +134,7 @@ function snapshot(root, info, activation) {
       jobs.set(mainAuditKey(job), job);
     }
     return [...jobs.values()];
-  });
+  }, openBoardForRead);
 }
 /** Publish one ordinary coordinator notice for an incomplete job; failures retain the need to notify. */
 async function notifyIncomplete(file, job, reason, write) {
@@ -147,7 +147,7 @@ async function notifyIncomplete(file, job, reason, write) {
   saveMainAudit(file, { ...saved, noticeRecorded: true });
 }
 /** Route every file and named assertion using the normal existing defect operation. */
-async function routeFailures(source, job, receipt, config, write, sinceEventId) {
+async function routeFailures(source, job, receipt, config, write, sinceEventId, openBoardForRead) {
   const files = [...new Set(receipt.failures.map(failure => failure.file))];
   for (const file of files) {
     const bytes = git(source, ['show', `${job.tip}:${file}`], null);
@@ -164,14 +164,14 @@ async function routeFailures(source, job, receipt, config, write, sinceEventId) 
       lane, batchId: job.batchId, branch: job.branch, requireOpen: true, auditSinceEventId: sinceEventId }]);
     // Native routing must return an actual outstanding repair, not a previously closed same-blob item.
     if (!Number.isSafeInteger(defect?.item) || !names.every(name => defect.names?.includes(name))
-      || !readBoard(repoInfo(source), board => ['open', 'claimed', 'submitted'].includes(store.getItem(board, defect.item).item_status))) {
+      || !readBoard(repoInfo(source), board => ['open', 'claimed', 'submitted'].includes(store.getItem(board, defect.item).item_status), openBoardForRead)) {
       throw new Error(`main audit repair route is not open for ${file}`);
     }
   }
   if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
 }
 /** Run or finish routing one job; a durable complete receipt avoids rerunning an already observed suite. */
-async function audit(root, directory, job, write, options, testValueServices, executionServices) {
+async function audit(root, directory, job, write, options, testValueServices, executionServices, openBoardForRead) {
   const key = mainAuditKey(job) + (options.forceFull ? `-release-${options.runId}` : ''), file = join(directory, `${key}.json`);
   const source = join(directory, `source-${key}`);
   let saved = readMainAudit(file);
@@ -208,7 +208,7 @@ async function audit(root, directory, job, write, options, testValueServices, ex
       git(root, ['worktree', 'add', '--detach', source, job.tip]); created = true;
       if (git(source, ['rev-parse', 'HEAD']).trim() !== job.tip || git(source, ['rev-parse', 'HEAD^{tree}']).trim() !== job.tree
         || git(source, ['status', '--porcelain', '--untracked-files=all']) !== '') throw new Error('audit source is not the exact clean landed tree');
-      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options, testValueServices));
+      const plan = await readBoard(repoInfo(root), board => planMainAudit(source, board, directory, job, config, options, testValueServices), openBoardForRead);
       if (!plan.run.length) {
         const previous = lastGreenAudit(root, directory);
         if (!previous) throw new Error('all-reused plan lost its complete green origin');
@@ -236,13 +236,13 @@ async function audit(root, directory, job, write, options, testValueServices, ex
       lane: job.items[0]?.lane ?? Object.keys(config.lanes)[0] }]);
     // Routing can be resumed with the same genuine receipt without another execution.
     // Source is needed only for immutable Git objects; original repo retains the same objects after cleanup.
-    await routeFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0);
+    await routeFailures(root, job, receipt, config, write, saved.plan?.previousEventId ?? 0, openBoardForRead);
     if (receipt.collection?.complete !== true || (saved.plan?.reused.length
       ? JSON.stringify(receipt.collection.files) !== JSON.stringify(saved.plan.run) : receipt.collection.full !== true)) throw new Error('not all planned files completed; audit obligation remains incomplete');
     const { incomplete, error, noticeRecorded, ...completed } = saved;
     saveMainAudit(file, { ...completed, state: 'complete', green: receipt.green });
     retainGreenAudit(directory, job, saved, receipt);
-    readBoard(repoInfo(root), board => retainAuditCadence(board, directory, config, { runSeconds: saved.runSeconds ?? 0 }));
+    readBoard(repoInfo(root), board => retainAuditCadence(board, directory, config, { runSeconds: saved.runSeconds ?? 0 }), openBoardForRead);
   } catch (error) {
     const current = readMainAudit(file) ?? job;
     saveMainAudit(file, { ...current, error: String(error.message), incomplete: true });
@@ -263,6 +263,8 @@ async function audit(root, directory, job, write, options, testValueServices, ex
 /** Drain finite snapshots until all wakes observed by this owner have been serviced. */
 export async function runMainAudits(root, token, { scheduled = false, forceFull = false } = {}, services) {
   const info = repoInfo(root);
+  const openBoardForRead = services?.openBoardForRead;
+  if (typeof openBoardForRead !== 'function') throw new TypeError('main audit requires its actual native read opener');
   if (!info.isMain || !codeIsFromMain() || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')) return;
   const directory = mainAuditDirectory(info);
   if (!existsSync(join(directory, 'activation.json'))) return;
@@ -272,7 +274,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const schedule = readMainAudit(join(directory, 'schedule.json'));
   if (scheduled && (!schedule || schedule.dueAt === null || Date.parse(schedule.dueAt) > Date.now())) {
-    if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt);
+    if (schedule?.dueAt) await scheduleMainAudit(root, directory, schedule.dueAt, services.workerUrl);
     return; // Unknown cadence needs an explicit manual/release audit, never an invented immediate schedule.
   }
   const ownerFile = join(directory, 'owner.json'), lock = join(directory, 'owner.guard.sqlite');
@@ -297,12 +299,12 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
     if (!['context', 'ordered', 'withBoard'].every(name => typeof services?.[name] === 'function')) throw new TypeError('main audit needs explicit native writer services');
     const write = writer(root, services);
     for (;;) {
-      const jobs = snapshot(root, info, activation);
+      const jobs = snapshot(root, info, activation, openBoardForRead);
       for (const job of scheduled || forceFull ? jobs.slice(-1) : jobs) {
         const key = mainAuditKey(job);
         if (visited.has(key)) continue;
         visited.add(key);
-        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices); }
+        try { await audit(root, directory, job, write, { forceFull, runId: token }, services.testValue, services.executionServices, openBoardForRead); }
         catch (error) {
           const file = join(directory, `${key}.json`);
           const saved = readMainAudit(file) ?? job;
@@ -323,7 +325,7 @@ export async function runMainAudits(root, token, { scheduled = false, forceFull 
       });
       if (next === null) {
         const cadence = readMainAudit(join(directory, 'schedule.json'));
-        if (scheduled && cadence?.dueAt && Date.parse(cadence.dueAt) > Date.now()) await scheduleMainAudit(root, directory, cadence.dueAt);
+        if (scheduled && cadence?.dueAt && Date.parse(cadence.dueAt) > Date.now()) await scheduleMainAudit(root, directory, cadence.dueAt, services.workerUrl);
         return;
       }
       generation = next;

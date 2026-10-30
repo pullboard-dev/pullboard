@@ -1,4 +1,6 @@
 /** Stable API validation retains recorded flow facts and native clock boundaries [A2,R1,R2]. */
+import { apiBoardOpeners } from './board-fixture.js';
+
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -22,7 +24,7 @@ async function apiFixture(t, { now } = {}) {
   const box = fixtures.project('true');
   const secret = randomUUID();
   let port = 0;
-  const handler = createLocalApiHandler({ refusalDocument, secret, getPort: () => port, runCommand: main,
+  const handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument, secret, getPort: () => port, runCommand: main,
     projects: () => [{ root: box.repo, name: 'Flow validator', project: '', added: '2026-01-01T00:00:00Z' }], stateDetail: 'summary', ...(now ? { now } : {}) });
   const server = createServer(handler);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

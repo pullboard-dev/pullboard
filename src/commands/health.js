@@ -1,3 +1,4 @@
+import { maintenanceTimerHealth } from '../worktree-maintenance-scheduler.js';
 import { flakeQuarantines } from '../quarantine.js';
 import { toolBuildHealth } from '../pinned-tool-build.js';
 import { fileURLToPath } from 'node:url';
@@ -33,10 +34,15 @@ export async function run(io) {
   if (ctx.config.worktreeMaintenance?.enabled === true) {
     const { maintenanceHealth } = await import('../worktree-maintenance.js');
     const { readMaintenanceSnapshot } = await import('../worktree-maintenance-command.js');
+    report.maintenanceTimer = maintenanceTimerHealth(ctx.info.commonDir);
     report.dirtyWorktrees = maintenanceHealth(ctx.info.commonDir, await readMaintenanceSnapshot(ctx), ctx.clock.now().getTime());
   }
   report.blocks = blockReport(readBlocks(ctx.info.commonDir, { since: new Date(ctx.clock.now().getTime() - 86_400_000) }), seatsByPath(ctx.file));
   io.result?.(report);
+  if (report.maintenanceTimer) {
+    const timer = report.maintenanceTimer;
+    io.say(`maintenance timer: ${timer.state}; key ${timer.key ?? 'unknown'}; pid ${timer.pid ?? 'unknown'}; last run ${timer.lastRun?.completedAt ?? 'unknown'}${timer.cause ? '; ' + timer.cause : ''}`);
+  }
   for (const line of healthLines(report)) io.say(line);
   if (report.toolBuild.enabled) io.say(report.toolBuild.build
     ? `Pinned tool build ${report.toolBuild.build.commit}; age ${Math.floor(report.toolBuild.ageMs / 1000)}s; running ${report.toolBuild.runningCommit ?? 'live installation'}`

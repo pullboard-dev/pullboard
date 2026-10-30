@@ -1,3 +1,4 @@
+import { apiBoardOpeners } from './board-fixture.js';
 import { compactItemSummaries } from '../src/view-state-summary.js';
 import { expandItemSummaries } from '../src/view-state-summary.js';
 /** Authenticated native view projections stay bounded at the real board's scale [N26,A2]. */
@@ -106,7 +107,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0, var
   function rebuildReport() { ensureProofCounters(board); }
 
   let builds = 0;
-  const api = await serveApi({ refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'State scale fixture' }],
+  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'State scale fixture' }],
     now: () => now, onStateBuild: () => { builds += 1; } });
   t.after(() => api.close());
   const url = new URL(api.url);

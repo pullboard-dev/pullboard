@@ -1,4 +1,5 @@
 /** The complete person-signing case, extracted without changing its native fixtures or assertions [E22,H16]. */
+import { apiBoardOpeners } from './board-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
@@ -69,7 +70,7 @@ export async function personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyR
   assert.equal((await box.cli('status')).document.person.signed, true);
 
   // S10b: whatever the OS user can read, an agent can read, so the local view's channel is refused too.
-  const viewed = await executeMove(box.root, { verb: 'answer', item: ask, args: { as: 'person', text: 'through the view secret' } }, main);
+  const viewed = await executeMove(box.root, { verb: 'answer', item: ask, args: { as: 'person', text: 'through the view secret' } }, main, undefined, undefined, undefined, apiBoardOpeners);
   assert.equal(viewed.body.error?.code, 'PERSON_SIGNED', 'the view channel is not the person once signing is on');
 
   // Linked, a terminal person move goes to the passkey as an action-bound request and says where to confirm.
