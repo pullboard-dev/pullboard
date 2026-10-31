@@ -1,4 +1,4 @@
-/** The done alias shares submission and verdict-wait behavior with submit [V2]. */
+/** The done alias shares submission and gate-completion wait behavior with submit [V2]. */
 import { run as submit } from './submit.js';
 
 /** Run the historical alias through the same public command implementation. */

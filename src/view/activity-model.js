@@ -83,7 +83,7 @@ export function activityModel(project, { words } = {}) {
   };
   const verbs = { claim: 'started building', release: 'let go of', fact: 'added a note', note: 'added a note', 'proof-run': 'ran the proof',
     reserve: 'started reviewing', accept: 'passed', reject: 'sent back', reopen: 'sent back', submit: 'submitted for review',
-    add: 'added', merged: 'landed', withdraw: 'withdrew', patch: 'updated', renew: 'continued building', lapse: 'released an expired lease for' };
+    add: 'added', merged: 'landed', 'main-moved': 'moved main', withdraw: 'withdrew', patch: 'updated', renew: 'continued building', lapse: 'released an expired lease for' };
   for (const event of events) {
     if (['health-failure', 'health-resolved'].includes(event.event_kind) || isNotice(event)) { pending.push(event); continue; }
     if (event.event_kind === 'health-scan') { run(event); continue; }
@@ -97,7 +97,7 @@ export function activityModel(project, { words } = {}) {
         words: text, verb: question ? 'asked' : 'told', item: relatedItem(event, detail, shout, text), agent: agents.get(event.event_by) });
       continue;
     }
-    if (!event.item_id || !verbs[event.event_kind] || consumed.has(event.event_id)) continue;
+    if ((!event.item_id && event.event_kind !== 'main-moved') || !verbs[event.event_kind] || consumed.has(event.event_id)) continue;
     let released = null;
     if (event.event_kind === 'claim') {
       released = releases.get(handoffKey(event))?.find(other => other.item_id !== event.item_id && !consumed.has(other.event_id));
@@ -105,7 +105,8 @@ export function activityModel(project, { words } = {}) {
     }
     rows.push({ id: event.event_id, at: event.event_at, category: 'work', kind: event.event_kind, verb: words ? words({ kind: event.event_kind === 'fact' ? detail.kind || 'fact' : event.event_kind }).label : verbs[event.event_kind],
       by: event.event_by, agent: agents.get(event.event_by), item: event.item_id ? items.get(event.item_id) ?? { id: event.item_id, title: '' } : null,
-      released: released ? items.get(released.item_id) ?? { id: released.item_id, title: '' } : null });
+      released: released ? items.get(released.item_id) ?? { id: released.item_id, title: '' } : null,
+      detail: ['submit', 'accept', 'reject', 'merged', 'main-moved'].includes(event.event_kind) ? detail : null });
   }
   if (pending.length) run(null);
   // A release may precede its matching claim; remove the earlier standalone row after pairing.

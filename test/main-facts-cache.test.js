@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readlinkSync } from 'node:fs';
@@ -132,7 +133,7 @@ test('wrong-lane and ONE_CLAIM guards refuse before invoking the real criterion 
   } finally { store.closeBoard(held); }
 });
 
-test('a busy healthy cache refuses without performing a duplicate derivation [B2,C7]', { timeout: 20_000 }, () => {
+test('a busy cache falls back to an uncached derivation [B2,C7]', { timeout: 20_000 }, () => {
   // Budget: the production SQLite ten-second busy bound expires once; no scheduling-speed assertion.
   const box = e2e.project();
   cachedMainFact(box.repo, 'busy', ['same-key'], () => ({ rows: [] }), value => Array.isArray(value?.rows));
@@ -140,8 +141,8 @@ test('a busy healthy cache refuses without performing a duplicate derivation [B2
   let invocations = 0;
   db.exec('BEGIN IMMEDIATE');
   try {
-    assert.throws(() => cachedMainFact(box.repo, 'busy', ['same-key'], () => { invocations++; return { rows: [] }; }, value => Array.isArray(value?.rows)), { code: 'MAIN_FACTS_BUSY' });
-    assert.equal(invocations, 0);
+    assert.deepEqual(cachedMainFact(box.repo, 'busy', ['same-key'], () => { invocations++; return { rows: [] }; }, value => Array.isArray(value?.rows)), { rows: [] });
+    assert.equal(invocations, 1);
   } finally { db.exec('ROLLBACK'); db.close(); }
 });
 
@@ -306,3 +307,84 @@ test('two fresh processes racing for one immutable fact perform one actual deriv
 });
 
 test.after(e2e.cleanup);
+
+
+test('cache evicts old commits transactionally and reclaims its configured size [B6,C7]', () => {
+  const box = e2e.project();
+  const previousBytes = process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES;
+  const previousRecent = process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS;
+  process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = '65536';
+  process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = '2';
+  try {
+    const value = n => ({ payload: String(n).repeat(12000) });
+    for (let n = 0; n < 8; n++) cachedMainFact(box.repo, 'bounded', [`commit-${n}`], () => value(n), result => typeof result?.payload === 'string');
+    const db = cache(box);
+    try {
+      const groups = db.prepare('SELECT DISTINCT commit_id FROM facts ORDER BY commit_id').all().map(row => row.commit_id);
+      assert.ok(groups.length <= 2, JSON.stringify(groups));
+      assert.ok(groups.includes('commit-7'), JSON.stringify(groups));
+      assert.ok(db.prepare('PRAGMA page_count').get().page_count * db.prepare('PRAGMA page_size').get().page_size <= 65536);
+    } finally { db.close(); }
+  } finally {
+    if (previousBytes === undefined) delete process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES; else process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = previousBytes;
+    if (previousRecent === undefined) delete process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS; else process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = previousRecent;
+  }
+});
+
+test('legacy oversized cache is reclaimed and a smaller limit never changes derived values [B6,C7]', () => {
+  const box = e2e.project();
+  const directory = join(box.repo, '.git', 'pullboard-main-facts');
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const file = join(directory, 'facts.sqlite');
+  const legacy = new DatabaseSync(file);
+  legacy.exec('CREATE TABLE facts(key TEXT PRIMARY KEY, body TEXT NOT NULL, digest TEXT NOT NULL)');
+  legacy.prepare('INSERT INTO facts VALUES (?,?,?)').run('old', 'x'.repeat(150000), 'old');
+  legacy.close();
+  chmodSync(file, 0o600);
+  const prior = process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES;
+  process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = '65536';
+  try {
+    assert.deepEqual(cachedMainFact(box.repo, 'legacy', ['new'], () => ({ actual: true }), value => value?.actual === true), { actual: true });
+    const db = cache(box);
+    try {
+      assert.ok(db.prepare('PRAGMA page_count').get().page_count * db.prepare('PRAGMA page_size').get().page_size <= 65536);
+      assert.equal(db.prepare("SELECT COUNT(*) AS n FROM facts WHERE key='old'").get().n, 0);
+    } finally { db.close(); }
+  } finally {
+    if (prior === undefined) delete process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES; else process.env.PULLBOARD_MAIN_FACTS_MAX_BYTES = prior;
+  }
+});
+
+test('current main retains all namespace facts while older commits rotate [B6,C7]', () => {
+  const box = e2e.project();
+  const current = box.git(box.repo, 'rev-parse', 'HEAD');
+  box.git(box.repo, 'config', 'pullboard.trunk', 'refs/heads/main');
+  box.git(box.repo, 'checkout', '--detach');
+  const prior = process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS;
+  process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = '1';
+  try {
+    const derive = () => ({ value: true }), valid = result => result?.value === true;
+    cachedMainFact(box.repo, 'criterion', [current, 'tool'], derive, valid);
+    cachedMainFact(box.repo, 'affected', { commit: current, tool: 'tool' }, derive, valid);
+    for (let n = 0; n < 4; n++) cachedMainFact(box.repo, 'criterion', [`older-${n}`], derive, valid);
+    const db = cache(box);
+    try {
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM facts WHERE commit_id=?').get(current).n, 2);
+      assert.equal(db.prepare('SELECT COUNT(DISTINCT commit_id) AS n FROM facts').get().n, 2);
+    } finally { db.close(); }
+  } finally {
+    if (prior === undefined) delete process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS; else process.env.PULLBOARD_MAIN_FACTS_RECENT_COMMITS = prior;
+  }
+});
+
+test('a non-private cache is skipped without changing the computed result [B6,C7]', () => {
+  const box = e2e.project();
+  const directory = join(box.repo, '.git', 'pullboard-main-facts');
+  mkdirSync(directory, { recursive: true, mode: 0o755 });
+  chmodSync(directory, 0o755);
+  let calls = 0;
+  const value = cachedMainFact(box.repo, 'private', ['commit'], () => { calls++; return { actual: true }; }, result => result?.actual === true);
+  assert.deepEqual(value, { actual: true });
+  assert.equal(calls, 1);
+  assert.equal(existsSync(join(directory, 'facts.sqlite')), false);
+});

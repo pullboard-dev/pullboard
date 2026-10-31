@@ -11,7 +11,7 @@ import { repositoryImport } from '../core/import-map.js';
 export function cellOf(file) { return /^(?:apps|packages)\/[^/]+\//u.exec(file)?.[0].slice(0, -1) ?? null; }
 
 /** Exclude test and contract modules from production reachability roots and edges. */
-export function testFile(file) { return /(?:^|\/)(?:test|tests|contract)\//u.test(file) || /\.test\.[cm]?js$/u.test(file); }
+export function testFile(file) { return file === 'packages/testkit/index.js' || file.startsWith('packages/testkit/src/') || /(?:^|\/)(?:test|tests|contract)\//u.test(file) || /\.test\.[cm]?js$/u.test(file); }
 
 /** Read only the exact committed migration marker; working-tree files and live board state grant nothing. */
 export function committedCellTransition(root) {
