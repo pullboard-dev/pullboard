@@ -1,9 +1,9 @@
 import { workQueue } from '../packages/items/index.js';
 import { costAnalytics } from '../packages/stats/index.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
-import { projectFit } from './blueprint-fit.js';
-import { pendingFit } from './blueprint-fit.js';
-import { fitFile } from './blueprint-fit.js';
+import { projectFit } from '../packages/blueprints/index.js';
+import { pendingFit } from '../packages/blueprints/index.js';
+import { fitFile } from '../packages/blueprints/index.js';
 import { lifecycleEvent } from './item-list.js';
 import { withdrawnFrom } from './item-list.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
