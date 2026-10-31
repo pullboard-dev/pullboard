@@ -55,7 +55,7 @@ function accepted(box, builderParent, reviewerParent, { historicalUnknown = fals
     const prior = store.register(box.board, { lane: 'web', path: join(box.root, `prior-${number}`) });
     store.claim(box.board, id, { agentId: prior, lane: 'web', leaseMs: 3600000,
       freeze: () => ({ text, digest }) });
-    store.release(box.board, id, prior);
+    store.release(box.board, id, prior, 'Return the prior fixture claim before the verdict check.', 'OTHER');
   }
   store.claim(box.board, id, { agentId: builder, lane: 'web', leaseMs: 3600000,
     freeze: () => ({ text, digest }) });

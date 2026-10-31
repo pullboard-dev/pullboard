@@ -25,7 +25,7 @@ test('an eleven-minute submission interrupts a free builder before the queue rat
   const boundary = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(boundary.code, 0, boundary.out + boundary.err);
   assert.equal(boundary.document.item.item_id, build, 'exactly ten minutes does not override ordinary dispatch');
-  store.release(box.board, build, box.seats.actor.id);
+  store.release(box.board, build, box.seats.actor.id, 'Return the private fixture claim for the next selection', 'OTHER');
   box.advance(60_000);
   store.appendFact(box.board, waiting, { agentId: 'coordinator', kind: 'note', text: 'A fresh note does not reset submission age.' });
   const offered = await cli(box, box.seats.actor.path, ['next']);

@@ -15,10 +15,12 @@ export function docsRepository(t) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const env = { ...cleanGitEnvironment(), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
   delete env.NODE_TEST_CONTEXT;
-  const archive = runFixtureChild('git', ['archive', 'HEAD'], { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
+  const archiveFile = join(root, '.source.tar');
+  const archive = runFixtureChild('git', ['archive', '--output', archiveFile, 'HEAD'], { cwd: join(import.meta.dirname, '..'), env });
   assert.equal(archive.status, 0, archive.context);
-  const extracted = runFixtureChild('tar', ['-xf', '-', '-C', root], { input: archive.stdout, env });
+  const extracted = runFixtureChild('tar', ['-xf', archiveFile, '-C', root], { env });
   assert.equal(extracted.status, 0, extracted.context);
+  rmSync(archiveFile);
   /** Execute Git only inside this private fixture. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env });
   /** Run a real candidate executable with the ordinary inherited Node options. */
