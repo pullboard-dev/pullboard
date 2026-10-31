@@ -693,7 +693,7 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
     'packages/kernel/src/core/seal.js',
     'relay/browser-client.js',
     'relay/browser-model.js',
-    'src/refused.js',
+    'packages/kernel/src/core/refused.js',
   ]) {
     const damagedImage = copiedImage(t, [omitted]);
     const damagedPort = await unusedPort();
@@ -776,19 +776,20 @@ async function servedAsset(handler, path) {
 async function servedRelayClient(t) {
   const folder = mkdtempSync(join(tmpdir(), 'pullboard-relay-client-'));
   t.after(() => rmSync(folder, { recursive: true, force: true }));
-  mkdirSync(join(folder, 'relay'));
   const handler = createRelayBrowserHandler({ authenticate: async () => { throw new Error('relay assets need no session'); } });
-  const pending = ['client.js'];
+  const pending = ['/relay/client.js'];
   const written = new Set();
   while (pending.length > 0) {
-    const name = pending.pop();
-    if (written.has(name)) continue;
-    written.add(name);
-    const source = await servedAsset(handler, '/relay/' + name);
-    writeFileSync(join(folder, 'relay', name), source);
-    for (const match of source.matchAll(/from\s+['"]\.\/([\w.-]+\.js)['"]/gu)) pending.push(match[1]);
+    const path = pending.pop();
+    if (written.has(path)) continue;
+    written.add(path);
+    const source = await servedAsset(handler, path);
+    mkdirSync(join(folder, dirname(path)), { recursive: true });
+    writeFileSync(join(folder, path), source);
+    for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)['"](\.{1,2}\/[^'"]+)['"]/gu)) pending.push(new URL(match[1], 'https://relay.example' + path).pathname);
   }
-  return import(pathToFileURL(join(folder, 'relay', 'client.js')).href);
+  t.diagnostic(`served ${written.size} modules`);
+  return { written, module: await import(pathToFileURL(join(folder, 'relay', 'client.js')).href) };
 }
 
 /** Install a browser page whose storage refuses every write and whose relay serves one sealed board. */
@@ -874,7 +875,8 @@ test('[H5,H15] an early pairing survives until the transport takes it when stora
   const snapshot = { version: 1, tables: { board_meta: [{ meta_key: 'board_id', meta_value: board }], item: [], agent: [], event: [], shout: [], verdict: [] } };
   const sealed = Buffer.from(await seal(key, new TextEncoder().encode(JSON.stringify(snapshot)), { boardId: board, kind: 'snapshot', sequence: 0 })).toString('base64url');
   const page = refusingStoragePage(t, { hash: '#board=' + board + '&key=' + encodeBoardKey(key), board, sealed });
-  const { rememberPairing, createTransport } = await servedRelayClient(t);
+  const { written, module: { rememberPairing, createTransport } } = await servedRelayClient(t);
+  assert.ok([...written].some(path => /^\/relay\/m\/packages\/[^/]+\/core\.js$/u.test(path)), 'a moved package module is served at its repository path and loads beside the flat relay names');
 
   assert.equal(rememberPairing()?.board, board, 'the page reads its pairing link at start, before any transport exists');
   assert.equal(page.location.hash === '', true, 'reading the link strips its fragment from the address bar');
