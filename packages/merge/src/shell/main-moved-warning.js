@@ -1,7 +1,7 @@
 /** Observe in-flight heads after a landing without changing any peer checkout [N2,B3]. */
 import { headCommit } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
-import { mechanicalConflictFiles } from '../../../../src/mechanical-merge.js';
+import { mechanicalConflictFiles } from './mechanical-merge.js';
 
 /** Compare each recorded submission or live registered builder HEAD with one immutable landed tip. */
 export function mainMovedWarnings({ root, board, trunk }, reads) {

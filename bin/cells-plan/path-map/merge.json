@@ -1,4 +1,5 @@
 {
   "src/generated-doc-conflicts.js": "packages/merge/src/core/generated-doc-conflicts.js",
-  "src/main-moved-warning.js": "packages/merge/src/shell/main-moved-warning.js"
+  "src/main-moved-warning.js": "packages/merge/src/shell/main-moved-warning.js",
+  "src/mechanical-merge.js": "packages/merge/src/shell/mechanical-merge.js"
 }
