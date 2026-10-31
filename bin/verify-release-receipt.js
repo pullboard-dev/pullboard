@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /** Verify an authenticated recorded receipt for the exact tagged commit before hosted npm OIDC publication [I15]. */
 import { parseArgs } from 'node:util';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { verifyHostedRelease } from '../packages/sandbox/index.js';
 import { releaseReceiptFields } from '../src/release-gate-receipt.js';
 import { releaseReceiptProblem } from '../src/release-gate-receipt.js';
@@ -8,7 +10,7 @@ import { latestGitHubReleaseRun } from '../src/release-transport.js';
 import { readGitHubReleaseReceipt } from '../src/release-transport.js';
 import { ReleaseTransportError } from '../src/release-transport.js';
 
-try {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) try {
   const { values } = parseArgs({ options: { repository: { type: 'string' }, head: { type: 'string' }, run: { type: 'string' } }, allowPositionals: false });
   const result = await verifyHostedRelease(process.cwd(), { repository: values.repository, head: values.head, runId: values.run },
     { releaseReceiptFields, releaseReceiptProblem, latestGitHubReleaseRun, readGitHubReleaseReceipt, ReleaseTransportError });
