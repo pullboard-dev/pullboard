@@ -1,4 +1,4 @@
-import { seatFamily } from './family-declaration.js';
+import { seatFamily } from '../packages/items/core.js';
 /** Optional item-specific reviewer families, independent of model names [V1,V2,H16]. */
 import { AUTOMATIC_DISPATCH_ENGINE } from './automatic-dispatch-engine.js';
 import { familyName } from './review-policy.js';

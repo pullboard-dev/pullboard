@@ -1,5 +1,5 @@
 import { ITEM_NOTES_ENGINE } from '../item-notes-engine.js';
-import { ITEM_NOTE_KINDS } from '../item-notes.js';
+import { ITEM_NOTE_KINDS } from '../../packages/items/core.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by appendFact, discovered without a shared registry edit [C7,V4,H16]. */
 import { CAUSE_ENGINE } from '../engine-metadata.js';

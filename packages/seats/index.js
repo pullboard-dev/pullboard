@@ -149,7 +149,7 @@ export {
   validateNativeDependencies,
   dependencyReferences,
   localDependencyIds,
-} from './src/core/dependency-references.js';
+} from './core.js';
 export {
   reviewRoutingEnabled,
 } from './src/core/review-routing-enabled.js';

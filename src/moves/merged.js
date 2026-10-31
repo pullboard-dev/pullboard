@@ -2,7 +2,7 @@ import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by merged, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { OUTSIDE_INTAKE_ENGINE } from '../outside-intake-engine.js';
-import { outsideSource } from '../outside-source.js';
+import { outsideSource } from '../../packages/items/core.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

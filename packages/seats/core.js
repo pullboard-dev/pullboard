@@ -10,3 +10,9 @@ export {
 export {
   flowWindowBounds,
 } from './src/core/flow-window-bounds.js';
+export {
+  parseDependency,
+  validateNativeDependencies,
+  dependencyReferences,
+  localDependencyIds,
+} from './src/core/dependency-references.js';

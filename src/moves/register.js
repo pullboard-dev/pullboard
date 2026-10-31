@@ -3,7 +3,7 @@ import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 import { VERIFIER_STANDING_ENGINE } from '../engine-metadata.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
-import { familyDeclareFloor } from '../family-declaration.js';
+import { familyDeclareFloor } from '../../packages/items/core.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function historicalMinimum(args) {
