@@ -160,3 +160,12 @@ export { prepareBefore as engine_move_queue_submit_handoff_prepareBefore } from 
 export { engineBindings } from "./core.js";
 export { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
 export { RELEASE_REASONS_ENGINE } from '../../src/release-reasons-engine.js';
+export { DECISION_ORIGIN_ENGINE } from '../../src/decision-origin-engine.js';
+export { ITEM_NOTES_ENGINE } from '../../src/item-notes-engine.js';
+export { CRITICAL_PATH_ENGINE } from '../../src/critical-path-engine.js';
+export { SUBMISSION_PROOF_ENGINE } from '../../src/move-engine-constants.js';
+export { RIGOR_AUTO_ENGINE } from '../../src/rigor-auto-engine.js';
+export { AGENT_GRANT_ENGINE } from '../../src/agent-grant-engine.js';
+export { HANDOFF_ENGINE } from '../../src/handoff-engine.js';
+export { RULING_OWNER_ENGINE } from '../../src/ruling-owner-engine.js';
+export { DECISION_QUEUE_ENGINE } from '../../src/decision-queue-engine.js';

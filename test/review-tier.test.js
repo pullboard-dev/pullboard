@@ -199,3 +199,27 @@ test('native CLI edit --review-tier strict --reason persists its policy and show
   assert.equal(shown.status, 0, shown.stderr || shown.stdout);
   assert.equal(JSON.parse(shown.stdout).reviewEligibility.tier, 'strict');
 });
+
+
+test('items move retains Strict for each protected destination and excludes unrelated siblings [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  const paths = [
+    'packages/items/src/shell/parent-session.js',
+    'packages/items/src/shell/item-patches.js',
+    'packages/items/src/shell/item-patch-state.js',
+    'packages/items/src/shell/item-patch-compose.js',
+    'packages/items/src/core/item-patch-paths.js',
+    'packages/items/src/shell/item-authors.js',
+  ];
+  for (const path of paths) {
+    assert.equal(gateJudgmentPath(path), true, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'strict', path);
+  }
+  for (const path of ['packages/items/src/shell/parent-session-notes.js',
+    'packages/items/src/core/item-patch-paths-extra.js', 'packages/items/src/core/brief.js']) {
+    assert.equal(gateJudgmentPath(path), false, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
+});
