@@ -8,6 +8,8 @@ import { unreviewableStrict } from '../../../../src/review-reachability.js';
 import { withLocalSeatPresence } from '../../../../src/seat-presence.js';
 import { mechanicalConflictFiles } from '../../../../src/mechanical-merge.js';
 import { localDependencyIds } from '../../../../src/item-dependencies.js';
+import { dependencyLabel } from '../../../items/index.js';
+import { itemFileCollisions } from '../../../items/index.js';
 /**
  * `pullboard health`: every stuck item on the board, why it is stuck, since when, the one next step
  * and who takes it [A6]. Doctor checks a board's integrity; health checks its flow, so nobody has
@@ -408,7 +410,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  * @returns {Finding[]}
  */
 function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
-  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold });
+  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold, localDependencyIds, dependencyLabel, itemFileCollisions });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
   const waiting = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased]
