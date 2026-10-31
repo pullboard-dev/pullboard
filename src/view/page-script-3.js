@@ -40,7 +40,12 @@ export function pageScriptPart3(scope) {
 const privateCostSource = privateCost ? `${costTabScript()}
 const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
-${readCostHistory.toString()}` : '';
+${readCostHistory.toString()}
+function costPaneHtml(history, project) {
+  if (history.loading) return '<p class="empty" role="status">Loading cost history…</p>';
+  if (history.error) return '<p class="empty" role="status">Cost history is unavailable.</p>';
+  return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length) });
+}` : '';
 return `${privateCostSource}
 
 /** Whether a selected project is backed by the read-only relay transport. */
