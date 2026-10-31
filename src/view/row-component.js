@@ -43,7 +43,11 @@ export function sharedRowHtml(row) {
     verified: '<path d="m3.5 8.5 3 3 6-6.5"/>',
   };
   const glyph = item && paths[row.state] ? '<svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + paths[row.state] + '</svg>' : '';
-  const seatChip = item && row.seat ? '<span class="chip item-seat ' + state + '"' + attrs({ title: row.chipTitle }) + '>' + glyph + esc(row.seat) + '</span>' : chip;
+  const seatStage = row.seatStage;
+  const seatLabel = seatStage ? seatStage.stage + ': ' + seatStage.detail : null;
+  const seat = '<span class="chip item-seat ' + state + '"' + attrs({ title: [row.chipTitle, seatLabel].filter(Boolean).join(' · ') || null, 'aria-label': seatLabel }) + '>' + glyph + esc(row.seat) + '</span>';
+  const seatChip = item && row.seat ? (seatStage ? '<span class="item-stage"' + attrs({ 'data-stage': seatStage.key, role: 'group', title: seatStage.detail, 'aria-label': seatLabel }) + '><span class="stage-line">' + seat
+    + (seatStage.marksHtml ? '<span class="stage-marks">' + seatStage.marksHtml + '</span>' : '') + '</span><small class="stage-detail"' + attrs({ title: seatStage.detail }) + '>' + esc(seatStage.detail) + '</small></span>' : seat) : chip;
   const marker = '<span class="dot ' + state + '" aria-hidden="true">' + (row.iconHtml ?? glyph) + '</span>';
   const copy = '<div class="row-copy"><div class="t srow-text">' + primary + '</div><div class="meta">' + meta + '</div></div>';
   const age = time ? '<span class="row-age">' + time + '</span>' : '';

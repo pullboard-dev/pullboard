@@ -1036,7 +1036,7 @@ code.inline.long { white-space: break-spaces; overflow-wrap: anywhere; }
 /* The approved dense Roadmap detail uses the view's own light/dark tokens [N26]. */
 .milestone-item[role="button"] { cursor: pointer; }
 .milestone-item[role="button"]:hover { background: var(--surface-2); }
-.roadmap-status { display: inline-flex; align-items: center; gap: var(--space-2); }
+/* @pullboard-stage-styles */
 .roadmap-blocked svg, .roadmap-landed svg, .roadmap-items svg { width: 12px; height: 12px; flex: none; }
 .roadmap-detail { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: var(--space-2) var(--space-4); margin: var(--space-4) 0 0; font-size: var(--text-xs); line-height: var(--leading-body); }
 .roadmap-detail dt { display: flex; align-self: start; align-items: flex-start; gap: var(--space-2); color: var(--ink-muted); white-space: nowrap; }
