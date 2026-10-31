@@ -130,6 +130,29 @@ A signed board uses event-log format 2; older tools refuse it.
 
 A builder never picks an engine number (#1101). An item that adds a board move adds its own `src/<name>-engine.js` leaf as `export const NAME_ENGINE = unassignedEngine();` (importing `unassignedEngine` from `./engine-next.js`); on its branch the leaf reads as one above the highest landed engine. The landing merge writes the next number into the leaf, in landing order, inside that item's merge commit, and sets the `move engine` row above to the highest landed number. A landed number never changes, so recorded moves replay as they were written. Moves are recorded under landed numbers only: code with an unnumbered engine is for its branch's own tests, and a move it records on a real board before landing may later read under another item's number, so the item lands before its moves are used.
 
+The unassigned `COMPACT_VERDICT_REVIEW_ENGINE` leaf adds lossless wire-only YAML review-path trees (#14). A `verify` move uses `review.paths: {format: 'pullboard-review-path-yaml-v1', bytes, sha256, yaml}` only when the complete encoded object is smaller than the literal array. `yaml` is a string containing an actual YAML block mapping, not a JSON object relabeled as YAML. `bytes` and `sha256` bind the UTF-8 JSON of the complete original sorted unique path array. The reader bounds expansion to the existing 32 MiB Git-capture ceiling and checks the exact envelope fields, canonical tree, literal path grammar, expanded byte length and SHA-256 before verification. Stored reviews and snapshots still contain exact arrays: there are no globs, omitted paths, changed notes or relaxed freshness checks. This is not a universal guarantee that every review fits the relay request limit.
+
+The dependency-free reader accepts only the emitted YAML subset:
+
+- Each nonempty key is one literal path component, double-quoted with canonical `JSON.stringify` escapes. Additionally U+007F–U+009F, U+2028, U+2029, U+FFFE and U+FFFF are escaped as lowercase `\uNNNN` so YAML cannot normalize line breaks or reject non-printable characters. Slashes separate levels, never appear within keys, and punctuation/wildcards have no special meaning.
+- Two spaces indent each level; siblings are sorted by JavaScript string order. A branch ends in `:` and has children. An exact leaf ends in `: null`. LF terminates every line; the empty tree is exactly `{}\n` (one mapping and a trailing LF).
+- If both `node` and `node/child.txt` are reviewed (for example a file/directory transition across revisions), `node` is a branch with `"": null` as its first child. This empty-key marker means exactly the parent path, not the subtree. A branch with only that marker is noncanonical; use a normal leaf instead.
+- No unquoted keys, comments, document markers, aliases, anchors, tags, flow collections (except the empty root), implicit values, duplicate keys, empty branches or alternate escaping/indentation are accepted. Re-encoding must reproduce the exact tree; malformed or ambiguous input is refused rather than repaired. This is not a general YAML parser.
+
+For `['node', 'node.txt', 'node/child.txt', 'src/[literal]*?.js', 'src/line\nbreak.js']`, the `yaml` string is:
+
+```yaml
+"node":
+  "": null
+  "child.txt": null
+"node.txt": null
+"src":
+  "[literal]*?.js": null
+  "line\nbreak.js": null
+```
+
+Landing assigns this feature's engine number normally. Older CLI engines stop before receipt/cursor changes; the hosted browser currently requires exact engine equality and also stops. Release CLI and hosted reader assets together, with the hosted `/relay/engine.js` derived from the same package; do not serve this Node-only codec (`node:crypto` and the native engine leaf) as a browser module. The browser currently consumes presentation snapshots, not executable review args, so no codec import is added there. Browser runtime and mixed-version rollout still need release qualification. Already queued moves are not rewritten by this change; recovery must preserve their original logical intent and ordered identity.
+
 Engine 130 (`MECHANICAL_MERGE_ENGINE`) gives new automatic conflict returns version-two `computedConflict` receipts. Health, fresh conflict returns and landing share conservative mechanical decisions: structural JSON retains independent additions and unchanged-value removals, jointly raised numeric counters keep the larger value, and add-only text unions must pass a syntax-only check for JavaScript. Health classifies declared generated `docs/lifecycle.md` without executing item code; only landing runs its generator in the merged tree before its gate. A failed generator blocks with `LAND_MERGE`, naming the item, file and generator, rather than reopening accepted work as a conflict. Version-one receipts continue to verify their original plain-Git conflict paths on replay; version-two receipts verify mechanical conflict paths. The receipt version is part of the immutable-object cache identity. Fresh authors cannot reuse version-one semantics, and a version-two receipt requires engine 130 before changing a board or replay cursor.
 
 Relay transport capability `apiVersion: 2` is independent of these versions and

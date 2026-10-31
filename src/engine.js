@@ -47,6 +47,7 @@ import {
 } from './submit-invariants.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from './merge-only-verdict-engine.js';
 import { requireCoordinatorHold } from './coordinator-hold.js';
+import { compactReviewMove, expandReviewArgs, requireCompactReviewEngine } from './compact-verdict-review.js';
 
 import {
   MOVE_REGISTRY,
@@ -155,12 +156,13 @@ export function prepareEngineMove(board, operation, args, { id = randomUUID(), a
   if (operation === 'editMilestone' && values[1] && 'target' in values[1]) values[1].target = canonicalMilestoneTarget(values[1].target);
   const move = { version: 1, engine: ENGINE_VERSION, id, operation, args: values, ...(actor === undefined ? {} : { actor }) };
   // JSON is the wire format: optional undefined fields become absent on every replica alike.
-  return JSON.parse(JSON.stringify(move));
+  return JSON.parse(JSON.stringify(compactReviewMove(move)));
 }
 
 /** Stop before interpreting actors or operations that a newer engine may have changed. */
 export function requireSupportedEngine(move) {
   if (Number.isSafeInteger(move?.engine) && move.engine > ENGINE_VERSION) throw new Refused('ENGINE_VERSION', `move engine version ${move.engine} is newer than this pullboard engine version ${ENGINE_VERSION}; upgrade pullboard before applying the relay order`);
+  requireCompactReviewEngine(move);
 }
 
 /** Validate protocol identity before a future engine or malformed input can alter any replica. */
@@ -174,7 +176,7 @@ function validateMove(move) {
 
 /** Restore only the frozen criterion callback; no receiver runs another machine's Git or shell. */
 export function executableArgs(move, board) {
-  const args = structuredClone(move.args);
+  const args = expandReviewArgs(move, structuredClone(move.args));
   if (move.operation === 'rehomeItem' && args[1]?.sourceMoveId !== move.id) throw new Refused('RELAY_MOVE', 'a re-home source MOVEID does not match its sealed move');
   if (move.operation === 'appendFact') {
     if (!args[1] || typeof args[1] !== 'object' || Array.isArray(args[1])) throw new Refused('RELAY_MOVE', 'a fact needs its typed arguments; use the current Pullboard engine');
