@@ -11,9 +11,10 @@ if (process.argv[1] === FILE && process.send) {
     const { openBoard } = await import('../src/native-board.js');
     const { checkAtCommit } = await import('../src/runner-private-check.js');
     const { badgeCounts, writeBadges } = await import('../src/badge.js');
+    const { flakeLedger } = await import('../src/flakes.js');
     const { flakeSource, observeNativeFailure } = await import('../src/native-flakes.js');
     const { quarantineWaivers, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns } = await import('../src/quarantine.js');
-    const landingPorts = { badgeCounts, writeBadges, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns };
+    const landingPorts = { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns };
     landingWorkerEntry({ checkAtCommit, landingPorts, parseProcessCensus, openBoard, workerFile: FILE,
       candidateWorkerFile: fileURLToPath(new URL('./landing-candidate.js', import.meta.url)) });
   }
