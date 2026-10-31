@@ -22,14 +22,28 @@ import {
   publisherHolding,
 } from './relay-checkpoint.js';
 import { publishLatestCheckpoint } from './relay.js';
-import { openBoard, nativeBoardPorts } from './native-board.js';
+import {
+  openBoard,
+  nativeBoardPorts,
+} from './native-board.js';
 import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import { relayOrdering } from './relay-ordering.js';
-import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from './relay-outbox.js';
+import {
+  flushOutbox,
+  queueMove,
+  outboxHasPendingCreatedItem,
+  outboxFields,
+  ACKNOWLEDGED_OPERATIONS,
+  outboxQueueable,
+} from './relay-outbox.js';
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { replay as replayConflictRecord } from './relay-conflict-record.js';
-import { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } from './relay-baseline-settle.js';
+import {
+  remoteBoardMissing,
+  uncertainUploadFailure,
+  decideUncertainBaseline,
+} from './relay-baseline-settle.js';
 
 const [root, file] = process.argv.slice(2);
 const { due, done, asked, checked, pid, log } = checkpointFiles(file);

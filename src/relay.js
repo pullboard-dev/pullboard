@@ -123,7 +123,10 @@ import {
   transientRelayFailure,
   transportFailure,
 } from './relay-move-fallback.js';
-import { outboxFile, readOutboxSummary } from '../packages/link/index.js';
+import {
+  outboxFile,
+  readOutboxSummary,
+} from '../packages/link/index.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
 import { computerName } from './computer-name.js';
 import { relayFiles } from './local-state.js';

@@ -5,12 +5,27 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runRelaySender } from './relay-sender-worker.js';
 import { outboxWaiting } from './relay-outbox.js';
-import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from './relay-outbox.js';
+import {
+  flushOutbox,
+  queueMove,
+  outboxHasPendingCreatedItem,
+  outboxFields,
+  ACKNOWLEDGED_OPERATIONS,
+  outboxQueueable,
+} from './relay-outbox.js';
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { replay as replayConflictRecord } from './relay-conflict-record.js';
-import { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } from './relay-baseline-settle.js';
-import { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } from './relay-checkpoint.js';
+import {
+  remoteBoardMissing,
+  uncertainUploadFailure,
+  decideUncertainBaseline,
+} from './relay-baseline-settle.js';
+import {
+  checkpointInBackground,
+  scheduleCheckpoint,
+  requestCheckpointCheck,
+} from './relay-checkpoint.js';
 import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import { relayOrdering } from './relay-ordering.js';
 
