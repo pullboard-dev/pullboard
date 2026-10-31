@@ -1,1 +1,1 @@
-export { rowDecisions } from "../packages/spec/index.js";
+export { rowDecisions } from "../packages/spec/core.js";
