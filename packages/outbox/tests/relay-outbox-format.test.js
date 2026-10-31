@@ -2,12 +2,22 @@
 /** Sealed local outbox compatibility uses the actual old reader, not an imitation of its version check [B26,H16,H17]. */
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { readOutbox, writeOutbox } from '../src/shell/relay-outbox.js';
+import {
+  fileURLToPath,
+  pathToFileURL,
+} from 'node:url';
+import {
+  readOutbox,
+  writeOutbox,
+} from '../src/shell/relay-outbox.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const ROOT = fileURLToPath(new URL('../../..', import.meta.url));

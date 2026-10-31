@@ -1,15 +1,28 @@
 /** @pullboard-test-input source-tree */
 /** A move sends only its own event; one background publisher sends the checkpoint once moves go quiet [H5]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
-import { dirname, join } from 'node:path';
+import {
+  dirname,
+  join,
+} from 'node:path';
 import { test } from 'node:test';
 import { tmpdir } from 'node:os';
 import { relayClientFixture } from '../../../test/relay-client-fixture.js';
-import { CHECKPOINT_BACKGROUND_ENV, CHECKPOINT_QUIET_ENV, scheduleCheckpoint } from '../src/shell/relay-checkpoint.js';
+import {
+  CHECKPOINT_BACKGROUND_ENV,
+  CHECKPOINT_QUIET_ENV,
+  scheduleCheckpoint,
+} from '../src/shell/relay-checkpoint.js';
 
 /** Whether a relay call uploads a checkpoint: an API1 state write or an API2 page publish. */
 function checkpointUpload(call) {
