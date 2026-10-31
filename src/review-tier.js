@@ -11,6 +11,9 @@ const SOURCE_DIRECTORIES = ['relay/', 'src/gate/', 'src/auth/', 'src/relay/', 's
   'bin/checks/', '.githooks/', '.husky/', '.github/workflows/'];
 const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
+  // Exact store bodies retain their established Strict classification (#1570).
+  'packages/store/src/core/known-main-reworks.js',
+  'packages/store/src/shell/proof-receipts.js',
   // Exact sensitive merge bodies retain their original Strict classification (#1566).
   'packages/merge/src/shell/merge-only-verdict.js',
   'packages/merge/src/shell/train-mechanical-merge.js',
@@ -51,6 +54,7 @@ const SOURCE_FILES = new Set([
   'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
 ]);
 const GUARD_TESTS = new Set([
+  'packages/store/tests/verdict-check.test.js',
   'test/flakes.test.js', 'test/flakes-ledger.test.js', 'test/affected-tests.test.js', 'test/affected-source-loads.test.js',
   'test/selection-fallbacks.test.js', 'test/run-tests.test.js', 'test/run-tests-worker-identity.test.js',
   'test/gate.test.js', 'test/gate-admission.test.js', 'test/gui-admission.test.js',
