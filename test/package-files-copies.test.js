@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/runner-tooling-snapshot.js src/runner-module-parser.js src/runner-module-parser-worker.js src/runners.js */
+/** @pullboard-test-loads src/runner-tooling-snapshot.js src/runner-module-parser.js packages/runners/src/shell/runner-module-parser-worker.js src/runners.js */
 /** Private shipped-source fixtures; these tests do not claim execution on a physical runner [C7,P3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -85,7 +85,7 @@ test('a loaded controller refuses changed private compiler bytes before an optio
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   const snapshot = await import(pathToFileURL(join(installed, 'src/runner-tooling-snapshot.js')).href);
   const loaded = snapshot.captureRunnerTooling(installed);
-  for (const file of ['src/runner-module-parser.js', 'src/runner-module-parser-worker.js']) {
+  for (const file of ['packages/runners/src/shell/runner-module-parser.js', 'packages/runners/src/shell/runner-module-parser-worker.js']) {
     const path = join(installed, file);
     const original = readFileSync(path);
     try {
@@ -101,7 +101,7 @@ test('a private compiler startup failure refuses instead of supplying an empty c
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  writeFileSync(join(installed, 'src/runner-module-parser-worker.js'), 'this is not valid module syntax {\n');
+  writeFileSync(join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js'), 'this is not valid module syntax {\n');
   const script = `import assert from 'node:assert/strict';
 const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'src/runner-module-parser.js')).href)});
 const parser=createRunnerModuleParser();
@@ -120,7 +120,7 @@ test('a private compiler cannot replace a requested import with a forged empty r
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'forged-reply-prepared');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  writeFileSync(join(installed, 'src/runner-module-parser-worker.js'), `import {existsSync,writeFileSync,renameSync} from 'node:fs';
+  writeFileSync(join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js'), `import {existsSync,writeFileSync,renameSync} from 'node:fs';
 import {join} from 'node:path';
 const directory=process.argv[2];
 /** Publish an actual bounded but wrongly bound protocol reply in this private fixture. */
@@ -149,7 +149,7 @@ test('a compiler swap restored before its reply cannot erase a real import [C7,P
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'swapped-compiler-executed');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  const worker = join(installed, 'src/runner-module-parser-worker.js');
+  const worker = join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js');
   const original = readFileSync(worker, 'utf8');
   const forged = `import {existsSync,readFileSync,writeFileSync,renameSync} from 'node:fs';
 import {join} from 'node:path';
@@ -545,7 +545,7 @@ test('runner closure retains the 4096 file cap independently of byte accounting 
 test('private compiler missing duplicate and spurious hints retain atomic request authority [C7,P3]',async t=>{
   const f=fixture(t);
   const protocol=join(f.directory,'protocol');mkdirSync(protocol);
-  const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../src/runner-module-parser-worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
+  const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../packages/runners/src/shell/runner-module-parser-worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
   let stderr='';worker.stderr.on('data',part=>{stderr+=part;});
   const closed=new Promise(resolve=>worker.once('close',(code,signal)=>resolve({code,signal})));
   t.after(async()=>{if(worker.exitCode===null&&worker.signalCode===null)worker.kill('SIGKILL');await closed;});

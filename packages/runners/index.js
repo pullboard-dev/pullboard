@@ -19,3 +19,4 @@ export { requestFor } from "./src/shell/runner-request.js";
 export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/shell/runner-dispatch.js";
 export { pinRunnerTooling, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerCommand } from "./src/shell/runner-remote-tooling.js";
 export { packageFiles, shimTargets, toolSourcePath, copyPackageFiles } from "./src/shell/package-files.js";
+export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src/shell/runner-module-parser.js";
