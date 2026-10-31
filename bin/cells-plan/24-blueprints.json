@@ -22,13 +22,7 @@
   ["src/blueprints/writing.json","packages/blueprints/src/shell/blueprints/writing.json","seed"],
   ["test/blueprint.test.js","packages/blueprints/tests/blueprint.test.js","seed"]
  ],
- "reexports": [
-  "src/blueprint-fit-command.js",
-  "src/blueprint-fit.js",
-  "src/blueprint-report.js",
-  "src/blueprint-set.js",
-  "src/blueprints.js"
- ],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},
   {"cell":"git","imports":1,"before":true},
