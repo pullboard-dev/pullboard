@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { openBoard } from '../src/native-board.js';
+import * as nativeBoard from '../src/native-board.js';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
@@ -70,7 +71,7 @@ test('ship review wait names its deadline without undoing the completed gate [V4
   const value = JSON.parse(submitted.out);
   const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
   const lines = [];
-  const io = { cwd: box.web, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
+  const io = { cwd: box.web, nativeBoard, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), id, value, receipt,
     { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem },
     { deadlineMs: 0 }), { code: 'SUBMISSION_WAIT_TIMEOUT' });
