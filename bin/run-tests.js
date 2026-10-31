@@ -38,7 +38,7 @@ import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
 import { hasTestFiles as selectedFilesPresent } from '../src/test-selection.js';
 import { explicitTestFiles as selectedFiles } from '../src/test-selection.js';
 import { formatTestOutcomes } from '../src/test-outcomes.js';
-import { removeGitRepositorySelectors } from '../src/git-child-selectors.js';
+import { removeGitRepositorySelectors } from '../packages/git/index.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.
 removeGitRepositorySelectors(process.env, text => process.stderr.write(text));
 /** Keep selected path parsing on the same native option-arity contract. */

@@ -12,7 +12,7 @@ import { preserveInvariantEvidence } from "../../../../src/submit-invariants.js"
 import { validateLandingBatch } from "../../../../src/submit-invariants.js";
 import { validateLandingRevision } from "../../../../src/submit-invariants.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.js";
-import { landingBatches } from "../../../../src/git-landing-batches.js";
+import { landingBatches } from "../../../git/index.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
 import { carriesFlakeDiagnostics } from "../../../../src/flake-engine.js";
 import { coordinatorOnly } from "./board.js";

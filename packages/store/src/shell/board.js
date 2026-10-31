@@ -57,7 +57,7 @@ import { factReference } from "../../../spec/index.js";
 import { landingFlakes } from "../core/board-landing-exceptions.js";
 import { landingWaiverCovers } from "../core/board-landing-exceptions.js";
 import { landingWaiverKind } from "../core/board-landing-exceptions.js";
-import { landingBatches } from "../../../../src/git-landing-batches.js";
+import { landingBatches } from "../../../git/index.js";
 import { recordRelayRefusal } from "./board-relay-refusal.js";
 import { linkPublishRepair } from "./board-publish-repair.js";
 import { register } from "./board-register.js";

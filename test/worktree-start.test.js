@@ -8,7 +8,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { configProblems, defaults } from '../packages/config/index.js';
 import { machineNameProblems, machineNames } from '../packages/commits/index.js';
-import { installStep } from '../src/worktree.js';
+import { installStep } from '../packages/git/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

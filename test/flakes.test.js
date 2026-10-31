@@ -24,7 +24,7 @@ import { openBoard } from '../src/native-board.js';
 import { openBoardForRead } from '../src/native-board.js';
 import { land } from '../src/land.js';
 import { nudgeMainAudit } from '../src/main-audit-nudge.js';
-import { nudgeSourceAdvances } from '../src/source-advance-nudge.js';
+import { nudgeSourceAdvances } from '../packages/git/index.js';
 import { runMainAudits } from '../src/main-audit-worker.js';
 import { hasSourceAdvanceJobs } from '../packages/sandbox/index.js';
 import { runSourceAdvances } from '../packages/sandbox/index.js';

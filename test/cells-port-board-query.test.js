@@ -20,6 +20,7 @@ import { readyItems } from '../src/queue-readiness.js';
 import { workQueue } from '../src/queue.js';
 import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem } from '../packages/verify/index.js';
+import { lineSettings } from '../packages/state/index.js';
 import { routingCapacity } from '../src/routing-capacity.js';
 import { observeWorkers } from '../src/worker-scale.js';
 
@@ -83,6 +84,6 @@ test('real read-only status scale and roadmap readers preserve ready order witho
   const queue = workQueue(reader, ports);
   assert.deepEqual(queue, workQueue(writer, ports), 'the same persisted snapshot retains all queue ordering and blockers');
   assert.ok(queue.unreleased.find(item => item.id === blocked).waits.some(reason => reason.includes(`#${first}`)));
-  assert.equal(routingCapacity(reader, queries.listAgents(reader), store.foreignBlockers, { ...queries, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence }).readyItems, 1);
+  assert.equal(routingCapacity(reader, queries.listAgents(reader), store.foreignBlockers, { ...queries, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }).readyItems, 1);
   assert.equal(observeWorkers(reader, { lane: 'core', managed: [] }).builds, 1);
 });

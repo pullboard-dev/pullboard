@@ -18,7 +18,7 @@ import {
 import {
   pushedFirstParentCommits,
   pushReceiptProblems as evaluatePushReceiptProblems,
-} from '../src/pre-push-receipts.js';
+} from '../packages/git/index.js';
 import {
   readGateReceipt,
   receiptBody,
