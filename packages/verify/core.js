@@ -1,4 +1,4 @@
-import { COORDINATOR } from '../config/index.js';
+import { COORDINATOR } from '../queue/core.js';
 import { Refused } from '../kernel/index.js';
 
 /** Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. */

@@ -1,3 +1,4 @@
-/** Keep the displayed version sourced from package metadata without a help cycle. */
-import packageData from '../package.json' with { type: 'json' };
-export const VERSION = packageData.version;
+/** Named compatibility entry for the config cell [C7,CD60]. */
+export {
+  VERSION,
+} from '../packages/config/index.js';
