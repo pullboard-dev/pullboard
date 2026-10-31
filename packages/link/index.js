@@ -1,3 +1,33 @@
-/** Link's front door: the outbox summary readers other cells import. */
-export { outboxFile, outboxSummaryFile, readOutboxSummary, readOutboxCount } from '../../src/relay-outbox-summary.js';
-export { beginCommandPhase, commandPhaseSnapshot } from '../../src/command-phase.js';
+/** Canonical entry points for the link cell; every moved body other code imports is exported here once [C7]. */
+export { outboxFile, outboxSummaryFile, readOutboxCount, readOutboxSummary } from './src/shell/relay-outbox-summary.js';
+export { beginCommandPhase, commandPhaseSnapshot } from './src/shell/command-phase.js';
+export { approvalContext, createApprovalReply, openApproval, restoreLinkReply, sealApproval, signApprovalIntent, verifyApprovalIntent } from './src/core/relay-approval.js';
+export { nameBoardInConfig, namedBoard, onlyNamedBoardChanged, writeNamedBoard } from './src/shell/relay-board-config.js';
+export { run } from './src/shell/relay-canary-command.js';
+export { claimRelayCanaryTick, markCanaryNoticeRecorded, observeRelayHealth, observeRelayHealthFile, pendingRelayCanaryNotices, readRelayHealth, readRelayHealthFile, recordClientHealth } from './src/shell/relay-canary-health.js';
+export { relayCanaryNeeds } from './src/shell/relay-canary-needs.js';
+export { probeRelayCanary } from './src/shell/relay-canary-probe.js';
+export { RELAY_CANARY_INTERVAL_MS, runRelayCanary, startRelayCanaryWatch } from './src/shell/relay-canary-watch.js';
+export { orderedMoveCommand } from './src/core/relay-command-order.js';
+export { createdItemAt, createdItems, createsItems, entryCreatedItems, rememberCreatedItems } from './src/core/relay-created-items.js';
+export { environmentAgent, environmentLink } from './src/shell/relay-environment.js';
+export { clearRelayExclusion, excludeRelayByPerson, recordRelayExclusionIntent, relayExclusion, reportClearedExclusion, withRelayExclusion } from './src/shell/relay-exclusion-state.js';
+export { githubKeys, handOverBoardKeys, handOverKeys, requestBoardKey, statementBytes } from './src/shell/relay-handover.js';
+export { PAIR_ENVELOPE_BYTES, PAIR_PACKAGE_BODY_BYTES, PAIR_PACKAGE_BYTES, PAIR_STORED_BYTES, SEALED_SNAPSHOT_BYTES, SNAPSHOT_BODY_BYTES } from './src/core/relay-limits.js';
+export { readRelayLink } from './src/shell/relay-link-read.js';
+export { SENDER_BACKGROUND_ENV, SENDER_CLAIM_STALE_MS, alive, boardNote, localFirstBoard, localFirstLink, nudgeRelaySender, senderFiles, senderHolding, senderInBackground } from './src/shell/relay-local-first.js';
+export { locked } from './src/shell/relay-lock.js';
+export { acceptDeviceEnrollment, beginDeviceEnrollment, readRelayMachine, relayMachineOwner, relayPersonRoot, removeRecordedDevice, updateRelayMachine, wrapForRecordedDevice } from './src/shell/relay-machine.js';
+export { authorizeMember, memberAuthorityStamp, prepareBoardMembers } from './src/shell/relay-membership.js';
+export { baselineNotAccepted, transientRelayFailure, transportFailure } from './src/core/relay-move-fallback.js';
+export { briefLines, detailLines, outboxLines } from './src/shell/relay-output.js';
+export { executePersonRequests } from './src/shell/relay-request-execution.js';
+export { personRequestRecords, personRequestStatuses, receivePersonRequest, recordRequestMove, relayPerson, requestIntentDigest, requestMoveProblem, requestPerson, requestStageText } from './src/shell/relay-requests.js';
+export { boardPhones, joinedComputers, relayRoster, rosterLines } from './src/shell/relay-roster.js';
+export { actorTransport, cacheSeatToken, ensurePersonCoordinator, nameNextSeat, refuseRevokedSeat, seatReceipt, withSeatName } from './src/shell/relay-seats.js';
+export { autoLinkProject, cancelViewSignIn, offerRelayAtInit, relayOnAll, relayOnAllCommand, revokeRelayDevice, startViewSignIn, unlinkedRelayProjects, viewSignInPairingNavigation, viewSignInStatus } from './src/shell/relay-setup.js';
+export { signSshVouch, verifySshVouch } from './src/shell/relay-ssh-proof.js';
+export { recoveryRefusalMatches, recoverySummary, unlinkedRelayStatus } from './src/core/relay-status-fields.js';
+export { relayStorage, relayStorageLine } from './src/core/relay-storage.js';
+export { clearUploadPauseNotices, firstUploadPauseNotice, permanentUploadRefusal, safePauseMessage, uploadPauseType, uploadRetryReady } from './src/shell/relay-upload-pause.js';
+export { DEFAULT_RELAY, assertRehomeSourceItemOrdered, deliverDeviceWraps, formatSnapshotLimit, localRecords, originRepository, pendingCheckpointProblem, pendingSnapshotSize, publishLatestCheckpoint, relayCommandReceipt, relayCommandReceiptReported, relayDeviceRequest, relayLinkAvailability, relayLinked, relayMachineContext, relayMachineSignIn, relayOff, relayOn, relayOperation, relayOrigin, relayPersonCoordinator, relayRecover, relayRecovered, relayRequestDevice, relayRevoke, relayRevokeDevice, relayRosterRead, relayStatus, relayTokens, request, restoreCheckpoint, revokeRelayPersonSession, saveLink, syncRelay } from './src/shell/relay.js';

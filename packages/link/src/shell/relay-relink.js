@@ -12,8 +12,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { repoInfo } from './git.js';
-import { Refused } from './refused.js';
+import { repoInfo } from '../../../../src/git.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Locate the key-free next-epoch intent beside the shared local board. */
 function markerFile(root) {

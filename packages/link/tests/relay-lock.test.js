@@ -1,13 +1,18 @@
 /** The relay lock has one holder at a time, even when many waiters find the same dead owner [H5]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { utimesSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 
-const LOCK_MODULE = new URL('../src/relay-lock.js', import.meta.url).href;
+const LOCK_MODULE = new URL('../src/shell/relay-lock.js', import.meta.url).href;
 
 /**
  * A process number no process can hold: far above any system's limit. Not one that just exited, nor a free one in the

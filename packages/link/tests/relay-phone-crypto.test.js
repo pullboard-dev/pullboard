@@ -2,7 +2,12 @@
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
-import { createApprovalReply, openApproval, restoreLinkReply, sealApproval, signApprovalIntent, verifyApprovalIntent } from '../src/relay-approval.js';
+import { createApprovalReply } from '../src/core/relay-approval.js';
+import { openApproval } from '../src/core/relay-approval.js';
+import { restoreLinkReply } from '../src/core/relay-approval.js';
+import { sealApproval } from '../src/core/relay-approval.js';
+import { signApprovalIntent } from '../src/core/relay-approval.js';
+import { verifyApprovalIntent } from '../src/core/relay-approval.js';
 
 /** Return a valid device-bound revoke context, with overrides for exact-binding controls. */
 function revokeContext(overrides = {}) {

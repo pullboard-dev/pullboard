@@ -64,6 +64,8 @@ const SOURCE_FILES = new Set([
   'src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js', 'src/runner-request.js',
   'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
 ]);
+// An old Standard body keeps its tier after moving under a cell the area rule would otherwise raise to Strict (#1574).
+const STANDARD_MOVED = new Set(['packages/link/src/shell/command-phase.js']);
 const GUARD_TESTS = new Set([
   'test/flakes.test.js', 'test/flakes-ledger.test.js', 'test/affected-tests.test.js', 'test/affected-source-loads.test.js',
   'test/selection-fallbacks.test.js', 'test/run-tests.test.js', 'test/run-tests-worker-identity.test.js',
@@ -76,6 +78,8 @@ const GUARD_TESTS = new Set([
   'test/relay-auth-expired.test.js', 'test/relay-machine-auth.test.js', 'test/relay-agent.test.js',
   'test/relay-outbox-format.test.js', 'test/relay-parity.test.js', 'test/relay-parity-clock.test.js',
   'test/relay-sealed.test.js', 'test/relay-key.test.js', 'test/relay-device-keys.test.js', 'test/relay-phone-crypto.test.js',
+  // Exact moved link guard bodies retain their Strict classification (#1574).
+  'packages/link/tests/relay-device-keys.test.js', 'packages/link/tests/relay-phone-crypto.test.js',
   'test/landing-shards.test.js', 'test/landing-lease.test.js', 'test/landing-local-lease.test.js',
   'test/landing-waiver-replay.test.js', 'test/landing-stage-composition.test.js',
   'test/train-mechanical-merge.test.js', 'test/pre-push-receipts.test.js', 'test/land.test.js',
@@ -88,6 +92,7 @@ export function gateJudgmentPath(path) {
   if (typeof path !== 'string') return false;
   const value = path.replace(/^\.\//u, '');
   if (/\.(?:md|mdx|rst|adoc)$/iu.test(value)) return false;
+  if (STANDARD_MOVED.has(value)) return false;
   if (SOURCE_FILES.has(value) || GUARD_TESTS.has(value)) return true;
   if (SOURCE_DIRECTORIES.some(prefix => value.startsWith(prefix))) return true;
   if (/^src\/[^/]+\.js$/u.test(value)) {

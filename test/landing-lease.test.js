@@ -10,7 +10,7 @@ import { openBoard } from '../src/native-board.js';
 import { assertLandingLease, guardLandingWrite, LANDING_LEASE_MS } from '../src/board-landing-lease.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { landingRelayCallbacks } from '../src/landing-relay.js';
+import { landingRelayCallbacks } from '../packages/link/src/core/landing-relay.js';
 
 /** Create isolated physical databases sharing an initial board and a controllable receipt clock. */
 function fixture(t) {

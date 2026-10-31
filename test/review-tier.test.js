@@ -256,3 +256,20 @@ test('verify move retains Strict for each protected destination and excludes unr
     assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
   }
 });
+
+
+test('link move retains Strict for moved guard tests and keeps the Standard command phase Standard [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  for (const path of ['packages/link/tests/relay-device-keys.test.js', 'packages/link/tests/relay-phone-crypto.test.js',
+    'packages/link/src/shell/relay-lock.js']) {
+    assert.equal(gateJudgmentPath(path), true, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'strict', path);
+  }
+  for (const path of ['packages/link/src/shell/command-phase.js', 'packages/link/tests/relay-lock.test.js',
+    'packages/link/tests/relay-device-keys-extra.test.js']) {
+    assert.equal(gateJudgmentPath(path), false, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
+});

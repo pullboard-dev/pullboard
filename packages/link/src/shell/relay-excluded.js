@@ -1,19 +1,15 @@
 /** Publish explicit exclusion facts without sending repository names or paths to the relay [H5,H17]. */
 import { createHash } from 'node:crypto';
 import { hostname } from 'node:os';
-import { originRepository } from './github-origin.js';
-import { listApiProjects } from './projects.js';
-import {
-  readRelayMachine,
-  updateRelayMachine,
-  wrapForRecordedDevice,
-} from './relay-machine.js';
-import { ENGINE_VERSION } from './engine-metadata.js';
-import {
-  generateBoardKey,
-  seal,
-} from '../packages/kernel/src/core/seal.js';
-import { Refused } from './refused.js';
+import { originRepository } from '../../../seats/index.js';
+import { listApiProjects } from '../../../seats/index.js';
+import { readRelayMachine } from './relay-machine.js';
+import { updateRelayMachine } from './relay-machine.js';
+import { wrapForRecordedDevice } from './relay-machine.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
+import { generateBoardKey } from '../../../kernel/src/core/seal.js';
+import { seal } from '../../../kernel/src/core/seal.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Rebuild and seal this machine's current list using only its locally authenticated device roster. */
 export async function publishExcludedBoards(session, io, request) {

@@ -1,37 +1,29 @@
 /** relay on in a clone joins the board its pullboard.json names, and never links a second one [E12,E17]. */
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import * as store from './board.js';
-import {
-  importBoard,
-  isInitialBoard,
-} from './exchange.js';
-import { appliedSequence } from './engine.js';
-import {
-  codeIsFromMain,
-  repoInfo,
-} from './git.js';
-import {
-  forgetBoardKey,
-  readBoardKey,
-  storeBoardKey,
-} from './relay-key.js';
+import * as store from '../../../../src/board.js';
+import { importBoard } from '../../../../src/exchange.js';
+import { isInitialBoard } from '../../../../src/exchange.js';
+import { appliedSequence } from '../../../state/index.js';
+import { codeIsFromMain } from '../../../../src/git.js';
+import { repoInfo } from '../../../../src/git.js';
+import { forgetBoardKey } from '../../../keys/index.js';
+import { readBoardKey } from '../../../keys/index.js';
+import { storeBoardKey } from '../../../keys/index.js';
 import { requestBoardKey } from './relay-handover.js';
 import { namedBoard } from './relay-board-config.js';
 import { relayRelink } from './relay-relink.js';
 import { updateRelayMachine } from './relay-machine.js';
-import { listApiProjects } from './projects.js';
-import { Refused } from './refused.js';
-import { mainPolicy } from './trusted-policy.js';
-import {
-  localRecords,
-  relayPersonCoordinator,
-  relayStatus,
-  request,
-  restoreCheckpoint,
-  saveLink,
-  syncRelay,
-} from './relay.js';
+import { listApiProjects } from '../../../seats/index.js';
+import { Refused } from '../../../kernel/core.js';
+import { mainPolicy } from '../../../sandbox/index.js';
+import { localRecords } from './relay.js';
+import { relayPersonCoordinator } from './relay.js';
+import { relayStatus } from './relay.js';
+import { request } from './relay.js';
+import { restoreCheckpoint } from './relay.js';
+import { saveLink } from './relay.js';
+import { syncRelay } from './relay.js';
 
 const TOKEN = /^pm_[A-Za-z0-9_-]{43}$/u;
 

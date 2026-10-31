@@ -1,5 +1,5 @@
 /** Validate relay origins independently of link state or transport [H5]. */
-import { Refused } from './refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Require a trusted origin; HTTP exists only for loopback development and test relays. */
 export function relayOrigin(address) {
