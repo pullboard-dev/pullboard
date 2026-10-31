@@ -3,7 +3,7 @@
  */
 import { boardBusyError } from '../src/board-access.js';
 import { openBoardReadOnly } from '../src/board-read-open.js';
-import { rowDecisions } from '../src/row-decisions-query.js';
+import { rowDecisions } from '../packages/spec/index.js';
 import { checkLoosening } from '../packages/doctrine/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
@@ -15,9 +15,9 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { defaults } from '../src/config.js';
+import { defaults } from '../packages/config/index.js';
 import { addedLines, blockedPaths, commitCitationWarnings, commitMsgProblems, hookScript, matchesPattern, preCommitProblems, secretsIn, unwiredHookProblems } from '../packages/commits/index.js';
-import { parseSpec } from '../src/spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

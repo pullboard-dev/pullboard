@@ -7,10 +7,10 @@ import {
   bundledBlueprints,
   readBlueprint,
 } from './blueprints.js';
-import { loadConfig } from '../../../../src/config.js';
+import { loadConfig } from '../../../config/index.js';
 import { loadDoctrine } from '../../../../src/doctrine.js';
 import { Refused } from '../../../kernel/index.js';
-import { loadSpec } from '../../../../src/spec.js';
+import { loadSpec } from '../../../spec/index.js';
 
 /**
  * @typedef {object} StarterState

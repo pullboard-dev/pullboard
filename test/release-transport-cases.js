@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { GitHubReleaseTransport, ReleaseTransportError, unpackReleaseReceipt } from '../src/release-transport.js';
-import { verifyHostedRelease } from '../src/release-hosted.js';
+import { verifyHostedRelease } from '../packages/sandbox/index.js';
 import { releaseReceiptFields } from '../src/release-gate-receipt.js';
 import { releaseReceiptProblem } from '../src/release-gate-receipt.js';
 

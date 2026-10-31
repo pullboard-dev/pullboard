@@ -1,7 +1,7 @@
 /** The pullboard lane command, in its own module so an item adding another command never edits these lines. */
 import {
   CONFIG_FILE,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   repoInfo,
 } from '../git.js';

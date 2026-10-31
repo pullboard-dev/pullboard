@@ -2,7 +2,7 @@
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
-import { formatJson } from '../src/mechanical-merge.js';
+import { formatJson } from '../packages/merge/index.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -53,7 +53,7 @@ export function readSeed(root) {
   return { ...stored, files: flat(stored.cells), tests: flat(stored.tests) };
 }
 
-export { formatJson } from '../src/mechanical-merge.js';
+export { formatJson } from '../packages/merge/index.js';
 
 /** Name one cell's shard file, ordered so a directory listing reads leaf-first. */
 export function shardFile(cell) {

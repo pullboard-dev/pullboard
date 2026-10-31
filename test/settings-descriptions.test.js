@@ -6,14 +6,14 @@ import { join } from 'node:path';
 /** Every setting in the inventory carries a label, one sentence, a group and a display unit, and the CLI shows them [O5,O6,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { settingsInventory } from '../src/settings-inventory.js';
-import { describeSetting, SETTING_DESCRIPTIONS, CLI_SETTABLE } from '../src/settings-descriptions.js';
+import { settingsInventory } from '../packages/config/index.js';
+import { describeSetting, SETTING_DESCRIPTIONS, CLI_SETTABLE } from '../packages/config/index.js';
 import { SETTING_FORMS } from '../src/help.js';
 import { performanceCores } from '../src/gate.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from '../src/config.js';
+} from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Read the production inventory in the fixture's own machine home, restoring the caller's environment. */

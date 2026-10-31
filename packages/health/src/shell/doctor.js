@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import { tryGit } from '../../../../src/git.js';
 import {
   submissionPaths,
   dependencySnapshots,
-} from '../../../../src/trusted-policy.js';
+} from '../../../sandbox/index.js';
 import {
   BLANKS,
   STATES,
@@ -26,8 +26,8 @@ import {
 import {
   staleFrozenItems,
   staleItemFinding,
-} from '../../../../src/approved-rows.js';
-import { loadSpec } from '../../../../src/spec.js';
+} from '../../../spec/index.js';
+import { loadSpec } from '../../../spec/index.js';
 import { loadDoctrine } from '../../../../src/doctrine.js';
 import {
   preMergeHookProblems,

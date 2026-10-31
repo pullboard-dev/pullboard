@@ -17,7 +17,7 @@ import {
 import {
   CONFIG_FILE,
   configFromSource,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /**

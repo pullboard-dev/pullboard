@@ -1,6 +1,6 @@
-import { reviewPatchAuthors } from '../src/review-composition.js';
-import { committedItemAuthors } from '../src/review-independence.js';
-import { twoTierReviews } from '../src/review-independence.js';
+import { reviewPatchAuthors } from '../packages/verify/index.js';
+import { committedItemAuthors } from '../packages/verify/index.js';
+import { twoTierReviews } from '../packages/verify/index.js';
 /** Source-bound patches retain author independence and exact replay without manufacturing proof [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

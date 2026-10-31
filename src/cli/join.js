@@ -9,7 +9,7 @@ import { context } from '../cli-context.js';
 import { idArg } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
 import { CHECKOUT_BOARD_ONLY } from '../cli-main.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import { displayAgentName } from '../agent-names.js';
 import { bindLocalSession } from '../agent-session.js';
 import { HOOK_CHECKOUT_WAIT_MS } from '../agent-session.js';

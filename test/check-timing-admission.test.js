@@ -68,8 +68,8 @@ for (const timing of [true, false]) {
 
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { frozenCriterion } from '../src/spec.js';
-import { parseSpec } from '../src/spec.js';
+import { frozenCriterion } from '../packages/spec/index.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { parseCheckTiming } from '../src/check-timing.js';
 import { frozenCheckTiming } from '../src/check-timing.js';
 import { CHECK_TIMING_ENGINE } from '../src/check-timing-engine.js';

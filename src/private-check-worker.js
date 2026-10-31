@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import {
   captureTestRuntimes,
   executionEnvironment,
-} from './execution-environment.js';
+} from '../packages/sandbox/index.js';
 import {
   createWriteStream,
   readFileSync,

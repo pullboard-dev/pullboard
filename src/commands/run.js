@@ -5,7 +5,7 @@ import {
   runItems,
 } from '../run.js';
 import { scaleWorkers } from '../worker-scale.js';
-import { workerBudget } from '../settings.js';
+import { workerBudget } from '../../packages/config/index.js';
 import { worktreeFor } from './worktree.js';
 import {
   claimOrdered,

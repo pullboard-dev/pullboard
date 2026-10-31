@@ -12,7 +12,7 @@ import { HELP, resultCommands } from '../src/cli.js';
 import * as helpDeclaration from '../src/help.js';
 import { importStyleViolations } from './import-style-helpers.js';
 import { pathToFileURL } from 'node:url';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { laneOf } from '../src/lanes.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

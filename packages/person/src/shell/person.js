@@ -3,7 +3,7 @@ import {
   SSH_SHELL_MARKERS,
 } from "../../../kernel/src/core/discovery.js";
 /** Person actions use the view when a terminal is remote or belongs to an agent [B26]. */
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 /**

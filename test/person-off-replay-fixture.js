@@ -11,7 +11,7 @@ import { openBoard } from '../src/native-board.js';
 import * as signing from '../src/person-signing.js';
 import { presenceAttestation } from '../src/person-presence.js';
 import { preparePersonRequest } from '../src/person-request.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import {
   applyRelayMove,
   prepareEngineMove,

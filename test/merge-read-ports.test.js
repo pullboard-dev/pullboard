@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { mergeOnlyBasis } from '../src/merge-only-verdict.js';
-import { mergeOnlyProblem } from '../src/merge-only-verdict.js';
-import { mergeOnlySourceValid } from '../src/merge-only-verdict.js';
-import { mergeOnlyLandingProblem } from '../src/merge-only-verdict.js';
-import { prepareMergeOnlySubmit } from '../src/merge-only-submit.js';
-import { mainMovedWarnings } from '../src/main-moved-warning.js';
+import { mergeOnlyBasis } from '../packages/merge/index.js';
+import { mergeOnlyProblem } from '../packages/merge/index.js';
+import { mergeOnlySourceValid } from '../packages/merge/index.js';
+import { mergeOnlyLandingProblem } from '../packages/merge/index.js';
+import { prepareMergeOnlySubmit } from '../packages/merge/index.js';
+import { mainMovedWarnings } from '../packages/merge/index.js';
 
 /** Populate an actual native item without inventing an acceptance or source receipt. */
 function fixture(t) {

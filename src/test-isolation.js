@@ -14,7 +14,7 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runtimeCaptureSource } from './execution-environment.js';
+import { runtimeCaptureSource } from '../packages/sandbox/index.js';
 import { childJournalPreloadSource } from './child-journal-preload.js';
 
 /** Stands in for the OS account home when machine state falls back to it (packages/resources/src/shell/machine-home.js). */

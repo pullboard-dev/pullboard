@@ -3,7 +3,7 @@ import { recordMaintenanceLastRun } from '../worktree-maintenance-diagnostics.js
 /** Repository maintenance is opt-in and runs from its real coordinator checkout [B3,C7]. */
 import { actOn } from '../cli.js';
 import { context } from '../cli.js';
-import { mainPolicy } from '../trusted-policy.js';
+import { mainPolicy } from '../../packages/sandbox/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { maintenanceCommandPorts } from '../worktree-maintenance-command.js';
 import { maintenanceSummary } from '../worktree-maintenance.js';

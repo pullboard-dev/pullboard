@@ -13,7 +13,7 @@ import { healthFindingIdentity } from "../core/board-health-receipts.js";
 import { healthTargets } from "../core/board-health-receipts.js";
 import { deliverHealthNotices } from "../core/board-health-receipts.js";
 import { HEALTH_SENTINEL_ENGINE } from "../core/board-health-receipts.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { PERSON } from "./board-query.js";
 
 import { CPU_SENTINEL_ENGINE } from "../../../../src/cpu-sentinel-engine.js";

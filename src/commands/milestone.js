@@ -1,6 +1,6 @@
 /** The pullboard milestone command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { checkReleaseReferences } from '../reference-release.js';
+import { checkReleaseReferences } from '../../packages/spec/index.js';
 import {
   mainCheckout,
 } from '../git.js';

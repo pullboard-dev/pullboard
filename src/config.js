@@ -15,4 +15,4 @@ export {
   cadenceMilliseconds,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
-} from '../packages/config/src/shell/config.js';
+} from '../packages/config/index.js';

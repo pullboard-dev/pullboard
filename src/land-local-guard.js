@@ -6,7 +6,7 @@ import { pinRunMain } from './gate.js';
 import { withLandingGateSlot } from './gate.js';
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
-import { browserFreeChecksEnabled } from './settings.js';
+import { browserFreeChecksEnabled } from '../packages/config/index.js';
 
 import { Refused } from '../packages/kernel/index.js';
 

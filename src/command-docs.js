@@ -1,6 +1,6 @@
 /** CLI help formatting consumes the same lower-layer declaration contracts as JSON results [C7,A1,N26]. */
-import { commandDocs } from './command-declaration-read.js';
-export { commandDocs, declaredCommandShapes } from './command-declaration-read.js';
+import { commandDocs } from '../packages/config/index.js';
+export { commandDocs, declaredCommandShapes } from '../packages/config/index.js';
 
 /** Generate a browser-safe leaf; the browser never discovers files or initializes command writers. */
 export function commandHelpModule(root) {

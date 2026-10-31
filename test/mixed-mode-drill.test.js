@@ -9,7 +9,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { receiptLog } from '../src/gate-receipt.js';
 import { machineHome } from '../packages/resources/index.js';
-import { loadMachineSettings } from '../src/settings.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { startFixtureChild } from './fixture-child.js';
 import { bridgeProvider, runBridgeCLI } from './pr-bridge-fixture.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';

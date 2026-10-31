@@ -3,7 +3,7 @@ import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 
 import { events as readStatsEvents } from '../src/board.js';
-import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
+import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { runFixtureGit } from './fixture-child.js';

@@ -9,7 +9,7 @@ import {
 } from 'node:fs';
 import { gitPath } from '../../../../src/git.js';
 import { agentSessionDigest } from '../../../../src/person.js';
-import { parseSpec } from '../../../../src/spec.js';
+import { parseSpec } from '../../../spec/index.js';
 
 /** Damaged or foreign local cursors replay activity instead of discarding unseen obligations. */
 export function readActivityCursor(root, agent, board) {

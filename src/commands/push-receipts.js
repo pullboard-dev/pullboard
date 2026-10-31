@@ -3,8 +3,8 @@ import { readGateReceipt } from '../gate-run-receipt.js';
 import { receiptBinds } from '../gate-run-receipt.js';
 import { gateRuns } from '../quarantine.js';
 import { getItem } from '../board.js';
-import { COORDINATOR } from '../config.js';
-import { policyAt } from '../trusted-policy-read.js';
+import { COORDINATOR } from '../../packages/config/index.js';
+import { policyAt } from '../../packages/sandbox/index.js';
 import { checkNeedsBrowser } from '../browser-admission.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
@@ -26,9 +26,9 @@ import {
 } from '../git.js';
 import { pushedFirstParentCommits } from '../../packages/git/index.js';
 import { nativePushReceiptProblems } from '../../packages/git/index.js';
-import { runPushReceiptSmoke } from '../push-receipt-smoke.js';
+import { runPushReceiptSmoke } from '../../packages/sandbox/index.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { mainPolicy } from '../trusted-policy-read.js';
+import { mainPolicy } from '../../packages/sandbox/index.js';
 
 /** Check actual pre-push stdin and native evidence, then run only the explicit accepted smoke policy. */
 export async function run(io) {

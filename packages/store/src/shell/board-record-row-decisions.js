@@ -4,9 +4,9 @@ import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { SPEC_REVISION_ENGINE } from "../../../../src/spec-revision-engine.js";
-import { validRevisionApproval } from "../../../../src/spec-revisions.js";
+import { validRevisionApproval } from "../../../spec/index.js";
 import { Refused } from "../../../kernel/index.js";
-import { parseSpec } from "../../../../src/spec.js";
+import { parseSpec } from "../../../spec/index.js";
 
 /** Persist the current decision index inside its caller's board transaction. */
 export function writeRowDecisions(board, records) {

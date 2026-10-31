@@ -14,7 +14,7 @@ import {
   COORDINATOR,
   configFromSource,
   loadConfig,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /**

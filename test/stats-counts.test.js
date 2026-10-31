@@ -1,6 +1,6 @@
 /** Event-derived submission, rejection and merge counts preserve historical acceptance proof [R1,R2]. */
 import { events as readStatsEvents } from '../src/board.js';
-import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
+import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync } from 'node:fs';

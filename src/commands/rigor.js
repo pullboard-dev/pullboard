@@ -3,7 +3,7 @@ import * as store from '../board.js';
 import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

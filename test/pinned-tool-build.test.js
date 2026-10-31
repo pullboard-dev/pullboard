@@ -11,7 +11,7 @@ import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 import { gatedToolBuild } from '../src/pinned-tool-publish.js';
 import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../src/tool-build-scheduler.js';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../src/pinned-tool-build.js';
 import { copyPackageFiles } from '../src/package-files.js';
 
@@ -22,7 +22,7 @@ after(e2e.cleanup);
 function gate(box) {
   const module = new URL('../src/gate.js', import.meta.url).href;
   const script = `import {runGate} from ${JSON.stringify(module)};
-import {loadConfig} from ${JSON.stringify(new URL('../src/config.js', import.meta.url).href)};
+import {loadConfig} from ${JSON.stringify(new URL('../packages/config/src/shell/config.js', import.meta.url).href)};
 ${executionServicesSource(module)}
 const result=await runGate(process.cwd(),loadConfig(process.cwd()),{executionServices,trustStamp:false,landing:true,agent:'coordinator'});
 if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:result.receiptId}));`;

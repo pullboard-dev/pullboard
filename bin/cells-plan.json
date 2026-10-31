@@ -1518,6 +1518,10 @@
     {
       "path": "bin/static-style-checks.js",
       "cell": "app:cli"
+    },
+    {
+      "path": "bin/verify-release-receipt.js",
+      "cell": "app:cli"
     }
   ],
   "engineStays": [

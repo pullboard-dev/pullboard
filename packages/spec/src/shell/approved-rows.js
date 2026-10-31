@@ -21,7 +21,7 @@ import { Refused } from '../../../kernel/index.js';
 import {
   CONFIG_FILE,
   configFromSource,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 
 const TRUST_FILES = ['.pullboard/signers', '.pullboard/first-commit', '.pullboard/signers.initial', SIGNOFFS_FILE];
 

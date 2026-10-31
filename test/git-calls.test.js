@@ -24,7 +24,7 @@ import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/run.js')).href;
-const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
+const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
 const GIT_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/git.js')).href;
 
 /** Find the real Git executable before the fixture adds its counting shim to PATH. */

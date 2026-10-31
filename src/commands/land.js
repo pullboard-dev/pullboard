@@ -17,7 +17,7 @@ import { syncRelay } from '../relay.js';
 import * as store from '../board.js';
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   gateWaitReporter,
 } from '../gate-wait.js';
@@ -36,7 +36,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   staleVerdictRefusal,
-} from '../verdict-freshness.js';
+} from '../../packages/verify/index.js';
 import {
   randomUUID,
 } from 'node:crypto';

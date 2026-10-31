@@ -3,9 +3,9 @@
   "order": 20,
   "version": {
     "kind": "constant",
-    "file": "src/spec.js",
+    "file": "packages/spec/src/shell/spec.js",
     "constant": "SPEC_GRAMMAR_VERSION"
   },
-  "source": "`SPEC_GRAMMAR_VERSION` in `src/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar)",
+  "source": "`SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar)",
   "upgrade": "Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs."
 }

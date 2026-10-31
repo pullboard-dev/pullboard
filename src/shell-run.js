@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import {
   captureTestRuntimes,
   executionEnvironment,
-} from './execution-environment.js';
+} from '../packages/sandbox/index.js';
 import { randomUUID } from 'node:crypto';
 import {
   mkdtempSync,
@@ -27,7 +27,7 @@ import {
   stagedScript,
 } from './gate-stages.js';
 import { Refused } from '../packages/kernel/index.js';
-import { sandboxBlockedOperation } from './sandbox-denial.js';
+import { sandboxBlockedOperation } from '../packages/sandbox/index.js';
 
 /**
  * Run a shell command in a checkout for a digest: both streams in one pipe, in order, read whole

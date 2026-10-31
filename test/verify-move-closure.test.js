@@ -54,7 +54,7 @@ test('the worker and move registry reach exactly the verify files they reached b
 });
 
 test('the broad verify front door fails the closure control [C7,CD60,H16]', () => {
-  const broad = file => file === 'src/proof-provenance.js' ? "export * from '../packages/verify/index.js';\n" : read(file);
+  const broad = file => file === 'packages/verify/src/core/proof-provenance.js' ? "export * from '../../index.js';\n" : read(file);
   const reached = closure(MOVES, broad);
   assert.ok(reached.verify.length > 7, 'the broad index pulls the whole cell into the registry');
   assert.ok(reached.native.includes('node:child_process'), 'and reaches actual process launchers');

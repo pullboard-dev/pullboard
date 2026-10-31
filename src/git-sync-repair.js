@@ -15,7 +15,7 @@ import {
 import {
   gitSyncFiles,
   readGitSyncMarker,
-} from './git-sync-files.js';
+} from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 /** Retain one exact conflicting marker under its own immutable recovery summary. */

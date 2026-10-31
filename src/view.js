@@ -3,7 +3,7 @@
  * page for people. One self-contained HTML file: no server, no network, nothing to install. Every
  * piece of text from the files is escaped, so a row can never inject markup into the page.
  */
-import { standings } from './spec.js';
+import { standings } from '../packages/spec/index.js';
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 

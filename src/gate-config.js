@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import {
   CONFIG_FILE,
   loadConfig,
-} from './config.js';
+} from '../packages/config/index.js';
 import { repoInfo } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
 

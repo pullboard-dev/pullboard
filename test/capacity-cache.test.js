@@ -9,8 +9,8 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { CAPACITY_VERSION } from '../packages/stats/index.js';
 import { readCapacity } from '../packages/stats/index.js';
-import { ensureProofCounters } from '../src/proof-counters.js';
-import { proofCounter } from '../src/proof-counters.js';
+import { ensureProofCounters } from '../packages/verify/index.js';
+import { proofCounter } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 const PREFIX = 'local:proof-stats:v2:capacity-';

@@ -10,8 +10,8 @@ import {
 } from '../packages/commits/index.js';
 import { landingMessage } from '../src/landing-message.js';
 import { commitMsgProblems } from '../packages/commits/index.js';
-import { defaults } from '../src/config.js';
-import { parseSpec } from '../src/spec.js';
+import { defaults } from '../packages/config/index.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { itemsTouching } from '../packages/commits/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

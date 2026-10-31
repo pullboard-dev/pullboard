@@ -23,27 +23,27 @@ import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { runOnRunner } from './runners.js';
-import { frozenCheckCeilingMs } from './config.js';
+import { frozenCheckCeilingMs } from '../packages/config/index.js';
 import {
   privateCheckEnvelope,
   privateGuard,
 } from './runner-private-mode.js';
-import { proofCounts } from './proof-provenance.js';
+import { proofCounts } from '../packages/verify/index.js';
 import {
   policyGit,
   trunkRef,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import {
   itemPolicy,
   frozenCheck,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import { mappedCheck } from '../packages/codemap/index.js';
-import { environmentProblem } from './config.js';
+import { environmentProblem } from '../packages/config/index.js';
 import {
   digestOf,
   writeTimingProfile,
 } from './gate-output.js';
-import { sandboxBlockedScanner } from './sandbox-denial.js';
+import { sandboxBlockedScanner } from '../packages/sandbox/index.js';
 import {
   logLines,
   timingFromLog,

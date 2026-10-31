@@ -1,7 +1,7 @@
 /** Plain obligations and explicit clock observations; native Needs interactions remain journeys [N26,B26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { personNeeds } from '../../src/row-decision-text.js';
+import { personNeeds } from '../../packages/spec/core.js';
 import { heldNote } from '../../src/view/held-items.js';
 import { heldChip } from '../../src/view/held-items.js';
 

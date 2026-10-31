@@ -1,5 +1,5 @@
-import { rulingOwner } from '../ruling-owner-context.js';
-import { rulingRowReader } from '../ruling-owner-context.js';
+import { rulingOwner } from '../../packages/spec/index.js';
+import { rulingRowReader } from '../../packages/spec/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { addressedSeat } from '../seat-address.js';
 /** The pullboard shout command, in its own module so an item adding another command never edits these lines. */
@@ -10,7 +10,7 @@ import { refuseRestatedReport } from '../coordinator-shout-purpose.js';
 import { handoffMoveProblem } from '../../packages/state/index.js';
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   laneNames,
 } from '../lanes.js';

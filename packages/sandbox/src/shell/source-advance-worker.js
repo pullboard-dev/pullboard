@@ -56,7 +56,7 @@ import {
 } from './source-advance-origin.js';
 import {
   withSourceComposition,
-} from '../../../../src/source-advance-compose.js';
+} from '../../../merge/index.js';
 
 /** Read immutable Git facts with a bounded child; never execute repository hooks. */
 function git(root, args) {

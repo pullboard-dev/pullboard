@@ -34,8 +34,8 @@ import {
   reviewHolder,
 } from "./board-query.js";
 import { outsideBuildProblem } from "../../../../src/outside-source.js";
-import { barReadyProblem } from "../../../../src/bar-readiness.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { barReadyProblem } from "../../../verify/index.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { routeOf } from "../../../../src/seats.js";
 import { canTake } from "../../../../src/route-escalation.js";

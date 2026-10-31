@@ -11,7 +11,7 @@ import { selectAffectedTests } from '../src/affected-tests.js';
 import { explicitCheckFiles } from '../src/browser-admission.js';
 import { composeAfterProof } from '../src/submit-composition.js';
 import { trunkMoveFact } from '../src/submit-composition.js';
-import { judgeTrunkMove } from '../src/verdict-trunk.js';
+import { judgeTrunkMove } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',

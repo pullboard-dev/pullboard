@@ -6,13 +6,13 @@ import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { applyEngineMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
-import { defaults } from '../src/config.js';
+import { defaults } from '../packages/config/index.js';
 import { reworkFamilyRoute } from '../src/rework-family-routing.js';
 import { sealReworkRoutingPolicy } from '../src/rework-family-routing.js';
 import { canTake } from '../src/route-escalation.js';
 import { routeOf } from '../src/seats.js';
 import { SEAT_LIVE_WINDOW_MS } from '../src/seat-presence.js';
-import { maintenanceDurations } from '../src/worktree-maintenance-config.js';
+import { maintenanceDurations } from '../packages/config/index.js';
 
 const COMMIT = 'a'.repeat(40);
 

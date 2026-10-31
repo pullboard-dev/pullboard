@@ -33,7 +33,7 @@ import { Refused } from "../../../kernel/index.js";
 import {
   gitSyncFiles,
   gitSyncMarkerLinked,
-} from '../../../../src/git-sync-files.js';
+} from '../../../config/index.js';
 import {
   GIT_BOARD_REF,
   validateGitBoardCommit,

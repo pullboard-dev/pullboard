@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { lex } from '../../kernel/index.js';
 import { styleSources } from '../../codemap/index.js';
 import { readEngineLeaves } from '../../../src/engine-numbers.js';
-import { gateJudgmentPath } from '../../../src/review-tier.js';
+import { gateJudgmentPath } from '../../verify/index.js';
 import {
   runFixtureExecFile as execFileSync,
   runFixtureChild,
