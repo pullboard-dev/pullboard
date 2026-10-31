@@ -3,14 +3,24 @@
  * Submit asks why when a change edits an existing test or gate file, and a new test file needs no reason [C7,V4].
  */
 import assert from 'node:assert/strict';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { appendFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { after, test } from 'node:test';
-import { configFromSource } from '../src/config.js';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { configFromSource } from '../src/shell/config.js';
 
-const BIN = join(import.meta.dirname, '../bin/pullboard.js');
+const BIN = join(import.meta.dirname, '../../../bin/pullboard.js');
 const SPEC = '# Submit proof fixture\n\n## G · Goals\n- G1 [approved, must] The selected test proves the change. | gate: test\n';
 const dirs = [];
 
@@ -22,7 +32,7 @@ test('infra-note policies reject invalid known values and warn on unknown keys [
     assert.throws(() => configFromSource(JSON.stringify({ submit })), error => error.code === 'BAD_CONFIG');
   }
   // A fresh real process proves the forward-compatible warning, including its exact nested path.
-  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/config.js', import.meta.url).href)};
+  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/shell/config.js', import.meta.url).href)};
 console.log(JSON.stringify(configFromSource('{"submit":{"requireInfraNotes":true}}').submit));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr);

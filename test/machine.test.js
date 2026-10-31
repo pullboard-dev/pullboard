@@ -151,7 +151,7 @@ const CAUGHT = {
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
-  'line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
+  '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // observeNativeFailure catches its optional pair/recording errors; they cannot become lifecycle refusals.
   'commands/verify.js#verifyHere': ['cli.js#freezer', 'cli/claim.js#freezer', 'native-flakes.js#observeFailure'],
@@ -602,7 +602,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by refreeze but not declared there',
   ], 'only caught proof readers are excluded; a new guard inside their caller is still audited');
 
-  const inArrow = editedSource('route-escalation.js', /^export const canTake = .*$/m, "import { Refused } from './refused.js';\nexport const canTake = (agentRoute, itemRoute) => { if (!agentRoute) throw new Refused('NO_ROUTE', 'no route'); return ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute); };");
+  const inArrow = editedSource('../packages/seats/src/core/route-escalation.js', /^export const canTake = .*$/m, "import { Refused } from '../../../kernel/core.js';\nexport const canTake = (agentRoute, itemRoute) => { if (!agentRoute) throw new Refused('NO_ROUTE', 'no route'); return ROUTES.indexOf(itemRoute) <= ROUTES.indexOf(agentRoute); };");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inArrow).sort(), [
     'NO_ROUTE is raised by accept and reject but not declared there',
     'NO_ROUTE is raised by claim but not declared there',
@@ -1302,12 +1302,14 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
  */
 function statusWriters(read) {
   const writers = [];
-  for (const file of fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js'))) {
+  const files = [...fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js')),
+    '../packages/config/src/core/json.js'];
+  for (const file of files) {
     const source = read(file);
     const allowedNames = file === 'board.js' ? ['moveItem'] : file === 'item-fields.js' ? ['setItem'] : file === 'board-query.js' ? ['current'] : [];
     const allowed = allowedNames.map((name) => functionsIn(source).get(name));
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
-    if (file === 'json.js') {
+    if (file === 'json.js' || file === '../packages/config/src/core/json.js') {
       const catalog = /^export const JSON_SHAPES = \{[\s\S]*?^\};/m.exec(source);
       if (catalog) spans.push([catalog.index, catalog.index + catalog[0].length]);
     }
@@ -1337,8 +1339,10 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(lowercase), ['board-record-attempt.js#reopenByHand']);
   const computed = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
   assert.deepEqual(statusWriters(computed), ['board-record-attempt.js#reopenByKey']);
-  const besideCatalog = editedSource('json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
-  assert.deepEqual(statusWriters(besideCatalog), ['json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
+  const besideCatalog = editedSource('../packages/config/src/core/json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
+  assert.deepEqual(statusWriters(besideCatalog), ['../packages/config/src/core/json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
+  const besideShim = editedSource('json.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
+  assert.deepEqual(statusWriters(besideShim), ['json.js#reopenByKey'], 'the legacy shim remains scanned alongside its moved catalog body');
 });
 
 test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {

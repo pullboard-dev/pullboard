@@ -2,17 +2,28 @@
  * Lanes (L1, L2) and the config they live in.
  */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { configProblems, defaults, durationMs, loadConfig } from '../src/config.js';
-import { isLane, laneNames, laneOf, outOfLane } from '../src/lanes.js';
-import { crossLaneFixture } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
-import { specGateMoveOnly } from '../src/spec-gate-move.js';
-import { submissionPaths } from '../src/trusted-policy.js';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { configProblems } from '../src/shell/config.js';
+import { defaults } from '../src/shell/config.js';
+import { durationMs } from '../src/shell/config.js';
+import { loadConfig } from '../src/shell/config.js';
+import { isLane } from '../../../src/lanes.js';
+import { laneNames } from '../../../src/lanes.js';
+import { laneOf } from '../../../src/lanes.js';
+import { outOfLane } from '../../../src/lanes.js';
+import { crossLaneFixture } from '../../../test/e2e-helpers.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { specGateMoveOnly } from '../../../src/spec-gate-move.js';
+import { submissionPaths } from '../../../src/trusted-policy.js';
 
 const CONFIG = {
   ...defaults(),
@@ -30,7 +41,7 @@ test('the longest owned prefix decides a path\'s lane; unowned paths are the coo
   assert.equal(laneOf(CONFIG, 'README.md'), 'coordinator');
 });
 
-test('a lane may change its own paths and shared ones; the coordinator may change anything', () => {
+test('a lane may change its own paths and shared ones; the coordinator may change anything [L2,L3]', () => {
   const paths = ['apps/web/a.js', 'apps/web/src/views/b.js', 'apps/api/c.js', 'redteam/d.test.js'];
   assert.deepEqual(outOfLane(CONFIG, 'web', paths), [
     "apps/web/src/views/b.js (ui's)",
@@ -125,7 +136,7 @@ test('a config with a bad lane refuses and names the field [L1]', () => {
   assert.ok(configProblems({ ...CONFIG, verify: 'anyone' }).some((problem) => problem.includes('"verify.policy"')));
 });
 
-test('config merges nested groups over the defaults, and leases read as durations', () => {
+test('config merges nested groups over the defaults, and leases read as durations [O2,B4]', () => {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-config-'));
   try {
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', commits: { maxHeader: 60 }, lease: '90m' }));

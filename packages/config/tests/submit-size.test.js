@@ -2,11 +2,13 @@
  * Material test fixture parent: core616/tests53, submitted383cd010; repaired by core631 whole420/475.
  */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { configFromSource } from '../src/config.js';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { configFromSource } from '../src/shell/config.js';
 
 /** Submit a real committed change under the board's configured budget and inspect its public result. */
 function submitSized(helpers, lines, budget) {

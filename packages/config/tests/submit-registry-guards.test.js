@@ -1,12 +1,16 @@
 /** Registry obligations survive submit deferral and use the project's own runner [C7,V4,V16]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { after, test } from 'node:test';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { selectRegistryGuards } from '../src/registry-guards.js';
-import { configFromSource } from '../src/config.js';
-import { git } from '../src/git.js';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { after } from 'node:test';
+import { test } from 'node:test';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { selectRegistryGuards } from '../../../src/registry-guards.js';
+import { configFromSource } from '../src/shell/config.js';
+import { git } from '../../../src/git.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

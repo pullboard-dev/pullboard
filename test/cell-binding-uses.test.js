@@ -356,13 +356,17 @@ function manyCalls() {
 
 /**
  * Supply exactly one producer's committed bytes: its original identity and, once a cells move maps it, the shim at
- * that identity and the body the committed path map names. Why: the fixture bar stays the actual imported producer
+ * that identity, its canonical package front door and the body the committed path map names. Why: the fixture bar stays the actual imported producer
  * while a move changes where its body lives, so no move has to edit these cases.
  */
 function mappedProducer(identity) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const mapped = mappedWorkingSource(root, identity);
   const files = new Map([[mapped.implementationPath, mapped.body], ...(mapped.shimPath ? [[mapped.shimPath, mapped.shimBody]] : [])]);
+  if (mapped.shimPath && mapped.implementationPath.startsWith('packages/seats/')) {
+    const front = mappedWorkingSource(root, 'packages/seats/index.js');
+    files.set(front.implementationPath, front.body);
+  }
   return file => {
     assert.ok(files.has(file) && files.get(file) !== null, 'this fixture supplies exactly its actual imported producer source');
     return { source: files.get(file).toString('utf8'), object: runFixtureGit(['rev-parse', `HEAD:${file}`], { cwd: root }) };
@@ -889,4 +893,27 @@ test('member substitution alone is not delete or call authority [C7]', () => {
     assert.deepEqual([...readOnlyMemberRanges(source, [{ start, end: start + 'box.marker'.length }])], [start],
       'callers must retain their independent delete and method-call guards even though expression substitution compiles');
   }
+});
+
+
+test('named producer front doors retain exact committed intermediate evidence and legal final commas only [C7]', () => {
+  const consumer = "import {readFileSync} from 'node:fs'; import {locate} from '../src/producer.js'; readFileSync(locate(info));";
+  const options = { file: 'test/frontdoor-producer.js', moves: [['src/producer.js', 'packages/seats/src/shell/producer.js']] };
+  const body = "import {join} from 'node:path'; export function locate(info) { return join(info.gitDir, 'pullboard-checkout-session.json'); }";
+  const sources = {
+    'src/producer.js': "export {locate,} from '../packages/seats/index.js';",
+    'packages/seats/index.js': "export {locate,} from './src/shell/producer.js';",
+    'packages/seats/src/shell/producer.js': body,
+  };
+  const inspect = replacement => fixtureSourceEdits(consumer, { ...options,
+    readSource: file => ({ ...sources, ...replacement }[file] ? blob({ ...sources, ...replacement }[file]) : null) });
+  assert.deepEqual(inspect({}), { edits: [], problems: [] });
+  for (const replacement of [
+    { 'packages/seats/index.js': undefined },
+    { 'packages/seats/index.js': "export {missing as locate,} from './src/shell/producer.js';" },
+    { 'packages/seats/index.js': "export {locate,,} from './src/shell/producer.js';" },
+    { 'packages/seats/index.js': "export {,locate} from './src/shell/producer.js';" },
+    { 'packages/seats/index.js': "export {locate} from '../../src/producer.js';" },
+    { 'packages/seats/src/shell/producer.js': body.replace('pullboard-checkout-session.json', 'producer.js') },
+  ]) assert.ok(inspect(replacement).problems.length, JSON.stringify(replacement));
 });
