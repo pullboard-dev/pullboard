@@ -74,3 +74,7 @@
 .cost-range line { stroke: var(--blue); stroke-width: 3; } .cost-range circle { fill: var(--blue); }
 .cost-time-bar .first { fill: var(--ink-faint); } .cost-time-bar .back { fill: var(--reject); }
 .cost-model-dot { display: inline-flex; align-items: center; gap: var(--space-1); margin-right: var(--space-2); } .cost-model-dot i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-faint); }
+/* The comparison table and item rows shrink inside the page; the table scrolls within its card. */
+.cost-page > *, .cost-model-table-wrap { min-width: 0; }
+.cost-longest .cost-row { grid-template-columns: auto minmax(0, 2fr) minmax(0, 1fr) minmax(40px, .5fr) auto auto; }
+@media (width < 900px) { .cost-longest .cost-row { grid-template-columns: auto minmax(0, 1fr) auto; } }
