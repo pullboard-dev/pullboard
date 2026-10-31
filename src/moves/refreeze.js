@@ -1,4 +1,4 @@
-import { checkTimingEngine } from '../check-timing.js';
+import { checkTimingEngine } from '../../packages/items/index.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by refreeze, discovered without a shared registry edit [C7,V4,H16]. */
 import { BAR_READY_ENGINE } from '../bar-ready-engine.js';

@@ -2,7 +2,7 @@ import { reviewPatchAuthors } from '../review-composition.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../review-composition.js';
-import { frozenCheckTiming } from '../check-timing.js';
+import { frozenCheckTiming } from '../../packages/items/index.js';
 import {
   testOutputSummary,
   retainTestOutput,

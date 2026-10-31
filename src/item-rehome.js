@@ -1,4 +1,4 @@
-import { saveCheckTiming } from './check-timing.js';
+import { saveCheckTiming } from '../packages/items/index.js';
 /** Durable source tombstones and idempotent destination application for cross-board re-homing [E15,H16]. */
 import { createHash } from 'node:crypto';
 import { IN_STATE } from './machine.js';

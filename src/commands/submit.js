@@ -28,7 +28,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gateRunnerAdmission } from '../settings.js';
-import { frozenCheckTiming } from '../check-timing.js';
+import { frozenCheckTiming } from '../../packages/items/index.js';
 import {
   retainTestOutput,
   renderTestSummary,

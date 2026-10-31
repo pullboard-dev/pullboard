@@ -1,4 +1,4 @@
-import { checkTimingEngine } from '../check-timing.js';
+import { checkTimingEngine } from '../../packages/items/index.js';
 import { itemReviewPolicy } from '../review-policy.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { PRIVATE_REHOME_ENGINE } from '../private-rehome-engine.js';

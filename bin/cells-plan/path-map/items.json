@@ -1,6 +1,7 @@
 {
   "src/blocks.js": "packages/items/src/shell/blocks.js",
   "src/brief.js": "packages/items/src/core/brief.js",
+  "src/check-timing.js": "packages/items/src/core/check-timing.js",
   "src/critical-path-order.js": "packages/items/src/core/critical-path-order.js",
   "src/decision-origin.js": "packages/items/src/core/decision-origin.js",
   "src/handoff.js": "packages/items/src/core/handoff.js",
