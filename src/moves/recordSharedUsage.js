@@ -1,7 +1,7 @@
 /** Sanitized usage retains its own replay boundary and authenticated actor [N2,H16]. */
 import { COST_ENGINE } from '../cost-engine.js';
 import { COST_INPUT_SPLIT_ENGINE } from '../cost-input-split-engine.js';
-import { hasInputSplit } from '../../packages/stats/index.js';
+import { hasInputSplit } from '../../packages/stats/core.js';
 
 /** Legacy usage retains its original floor; additive provider splits require their own engine. */
 function minimumEngine(args) { return hasInputSplit(args[0]?.records) ? COST_INPUT_SPLIT_ENGINE : COST_ENGINE; }
