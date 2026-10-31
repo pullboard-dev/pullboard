@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from './review-composition.js';
 import { policyAt } from './trusted-policy-read.js';
 import { frozenCheck } from './trusted-policy.js';
 import { itemPolicy } from './trusted-policy.js';
@@ -267,7 +268,7 @@ export function nativeBoardPorts() {
     newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
     atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
     recordRowDecisions: store.recordRowDecisions, now,
-    committedItemAuthors, twoTierReviews, strictReviewProblem,
+    reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
     agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
