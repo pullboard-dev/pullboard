@@ -1,7 +1,7 @@
 /** Ordinary item holds share their existing transaction and event semantics [B4,C7]. */
-import { Refused } from '../../../kernel/index.js';
-import { ENGINE_VERSION } from '../../../state/index.js';
-import { RIGOR_AUTO_ENGINE } from '../../../state/index.js';
+import { Refused } from "../../../kernel/index.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
+import { RIGOR_AUTO_ENGINE } from "../../../state/index.js";
 
 /** Hold an open or already claimed item under the existing coordinator authority. */
 export function applyItemHold(board, id, { agentId, reason, until }, dependencies) {

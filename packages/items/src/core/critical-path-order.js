@@ -1,8 +1,8 @@
 /** Unit-item Hu priorities use only the recorded dependency graph, never invented duration estimates [N2,H16]. */
-import { ENGINE_VERSION } from '../../../state/index.js';
-import { CRITICAL_PATH_ENGINE } from '../../../state/index.js';
-import { briefFiles } from './brief.js';
-import { itemFiles } from './item-files.js';
+import { ENGINE_VERSION } from "../../../state/index.js";
+import { CRITICAL_PATH_ENGINE } from "../../../state/index.js";
+import { briefFiles } from "./brief.js";
+import { itemFiles } from "./item-files.js";
 
 /** Historical next moves retain their original collision and ordering policy. */
 export function criticalPathEnabled(board) {

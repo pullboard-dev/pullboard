@@ -6,8 +6,8 @@ import {
   offerItemId,
   offerReference,
   resolveOfferBoard,
-} from '../core/item-offer-contract.js';
-import { Refused } from '../../../kernel/index.js';
+} from "../core/item-offer-contract.js";
+import { Refused } from "../../../kernel/index.js";
 const FIELDS = ['version', 'sourceBoardId', 'item', 'commit', 'verifier', 'verdict'];
 /** Refuse malformed, mismatched or unauthenticated private receipts before a consumer can apply them. */
 function refuse() { throw new Refused('ITEM_RECEIPT', 'use the exact minimal receipt from the source board and verify its source, item, commit and verdict binding'); }

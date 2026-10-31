@@ -1,5 +1,5 @@
 /** Read-only submit-invariant proposals from recorded selection and exact-commit evidence [C7,V4]. */
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from "../../../kernel/index.js";
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 
@@ -14,7 +14,7 @@ function projectFile(value) {
 }
 
 
-import { SUBMISSION_PROOF_ENGINE } from '../../../state/index.js';
+import { SUBMISSION_PROOF_ENGINE } from "../../../state/index.js";
 
 /** Accept only measured finite nonnegative durations; unavailable is always null. */
 function duration(value) { return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null; }

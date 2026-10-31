@@ -3,12 +3,17 @@
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import * as store from "../../../src/board.js";
+import { openBoard } from "../../../src/native-board.js";
 
 test('an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
   const module = new URL('../src/shell/item-offer.js', import.meta.url);

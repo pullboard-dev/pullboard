@@ -4,7 +4,7 @@ import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { IMPLIES_ENGINE } from '../move-engine-constants.js';
 import { DECISION_ORIGIN_ENGINE } from '../decision-origin-engine.js';
-import { carriesOrigin } from '../decision-origin.js';
+import { carriesOrigin } from '../../packages/items/core.js';
 import { carriesImplies } from '../../packages/state/src/core/move-implies.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 

@@ -5,9 +5,9 @@
  * origin: a real person answer carries it, and no caller can name it, so an agent's word is never shown
  * as the person's (P6). A decision with no recorded origin reads as unknown, never as the person's.
  */
-import { DECISION_ORIGIN_ENGINE } from '../../../state/index.js';
-import { ENGINE_VERSION } from '../../../state/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { DECISION_ORIGIN_ENGINE } from '../../../../src/decision-origin-engine.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
+import { Refused } from "../../../kernel/index.js";
 
 /** The origins an agent may name; `person` is reserved for a real person answer. */
 export const NAMEABLE_ORIGINS = Object.freeze(['person-relayed', 'agent', 'inherited']);

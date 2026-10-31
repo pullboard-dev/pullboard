@@ -2,7 +2,11 @@
 /** Durable namespaced decision delivery, with actual SQLite and a signed authority port [B21,H16]. */
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -19,7 +23,7 @@ function signature(value) {
 test('a decision hand-off returns one matching answer to its source board, once [B21,H16]', async t => {
   assert.equal(existsSync(new URL('../src/shell/decision-handoff.js', import.meta.url)), true,
     'the durable decision hand-off contract must exist');
-  const { decisionHandoffs, optionsDigest } = await import('../src/shell/decision-handoff.js');
+  const { decisionHandoffs, optionsDigest } = await import("../src/shell/decision-handoff.js");
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-decision-handoff-'));
   const databases = [];
   t.after(() => { for (const db of databases) db.close(); rmSync(dir, { recursive: true }); });

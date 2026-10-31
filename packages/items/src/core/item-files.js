@@ -1,4 +1,4 @@
-import { briefFiles } from './brief.js';
+import { briefFiles } from "./brief.js";
 
 /**
  * The files an item touches, as far as the board knows: the files its submission changed, else the

@@ -1,7 +1,7 @@
 /** Versioned coordinator, computed-conflict and exact-reviewer reopen authority [V2,H16]. */
-import { AGENT_GRANT_ENGINE } from '../../../state/index.js';
-import { SUBMITTED_CONFLICT_ENGINE } from '../../../state/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { AGENT_GRANT_ENGINE } from "../../../state/index.js";
+import { SUBMITTED_CONFLICT_ENGINE } from "../../../state/index.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Preserve historical authority and refusal order without granting a caller assertion new authority. */
 export function reopenAuthority(board, found, actor, options, withdrawn, { listAgents, verdictWithdrawalTarget, computedConflictProblem }) {

@@ -1,6 +1,6 @@
 /** Exact conflict classification without changing original events or granting workflow authority [C7,D1]. */
-import { conflictNote } from '../../../kernel/index.js';
-import { shownPath } from '../../../kernel/index.js';
+import { conflictNote } from "../../../kernel/index.js";
+import { shownPath } from "../../../kernel/index.js";
 
 /** Read only the complete canonical machine-note syntax; this is not authenticated Git evidence. */
 export function conflictNoteFiles(note) {

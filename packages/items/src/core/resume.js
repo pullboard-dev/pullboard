@@ -7,8 +7,8 @@
  * and its next step reads them first. Resume only looks: `pullboard inbox` is what marks shouts
  * read, so a session that starts and stops never swallows a message nobody read.
  */
-import { differFromHead } from '../../../git/index.js';
-import { SIGNOFFS_FILE } from '../../../spec/index.js';
+import { differFromHead } from "../../../git/index.js";
+import { SIGNOFFS_FILE } from "../../../spec/index.js";
 
 /** How many of the newest unread shouts resume names; the rest are a count and a command. */
 export const INBOX_NEWEST = 3;

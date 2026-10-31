@@ -4,7 +4,7 @@
  * route a brief must name its files and its test, because a lighter model works from the brief alone.
  */
 
-import { briefSections } from '../../../spec/index.js';
+import { briefSections } from "../../../spec/index.js";
 
 /** Remove closed parenthetical notes while leaving an unmatched note visible to path checks.
  *

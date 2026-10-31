@@ -1,6 +1,6 @@
 /** Follow the exact acknowledged submission rather than treating submission as completion [V2,B13]. */
 import { setTimeout as pause } from 'node:timers/promises';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from "../../../kernel/index.js";
 
 /** Read under a short-lived connection, releasing it before any sleep or network work. */
 function submissionOutcome(ctx, id, commit, submittedEvent, { withBoardRead, events, verdictsFor, getItem }) {

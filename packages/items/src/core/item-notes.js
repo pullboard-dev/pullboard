@@ -1,7 +1,7 @@
 /** Item conversation labels and context-pack presentation, without board-wide messages [B29,B31,B32,N14]. */
-import { ENGINE_VERSION } from '../../../state/index.js';
-import { ITEM_NOTES_ENGINE } from '../../../state/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
+import { ITEM_NOTES_ENGINE } from '../../../../src/item-notes-engine.js';
+import { Refused } from "../../../kernel/index.js";
 
 const LEGACY_FACT_KINDS = Object.freeze(['capture', 'measurement', 'note', 'diff', 'decision', 'rejection', 'supersession', 'root-cause', 'bar-check', 'bar-answer']);
 /** Conversation answers are observations, never signed decisions or person approvals. */

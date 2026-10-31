@@ -6,17 +6,17 @@ import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE } from '../../../config/index.js';
-import { DOCTRINE_FILE } from '../../../config/index.js';
-import { LEGACY_DOCTRINE_FILE } from '../../../config/index.js';
-import { configFromSource } from '../../../config/index.js';
-import { withCommittedFiles } from '../../../git/index.js';
-import { cleanGitEnvironment } from '../../../git/index.js';
-import { headCommit } from '../../../git/index.js';
-import { mainSourceBlobs } from '../../../git/index.js';
-import { mainCheckout } from '../../../git/index.js';
-import { tryGit } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { CONFIG_FILE } from "../../../config/index.js";
+import { DOCTRINE_FILE } from "../../../config/index.js";
+import { LEGACY_DOCTRINE_FILE } from "../../../config/index.js";
+import { configFromSource } from "../../../config/index.js";
+import { withCommittedFiles } from "../../../git/index.js";
+import { cleanGitEnvironment } from "../../../git/index.js";
+import { headCommit } from "../../../git/index.js";
+import { mainSourceBlobs } from "../../../git/index.js";
+import { mainCheckout } from "../../../git/index.js";
+import { tryGit } from "../../../git/index.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Compare actual filesystem identities without granting a guessed metadata parent project authority. */
 function samePath(left, right) {

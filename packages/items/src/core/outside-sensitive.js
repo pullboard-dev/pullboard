@@ -1,6 +1,6 @@
 /** Explain owner-sensitive outside changes from trusted main policy and exact Git objects, never execution. */
-import { git } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { git } from "../../../git/index.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Fixed trust boundaries cannot be removed by a project's extensions or the contributed configuration. */
 export const OUTSIDE_SENSITIVE_PATHS = Object.freeze([

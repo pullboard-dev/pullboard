@@ -1,5 +1,5 @@
 /** The changed-line count of a submit against main, and the split note an oversized one prints [V4,C7]. */
-import { tryGit } from '../../../git/index.js';
+import { tryGit } from "../../../git/index.js";
 
 /** The item size budget in changed lines (added plus deleted) against main; the note appears above twice it. */
 export const ITEM_SIZE_BUDGET = 100;

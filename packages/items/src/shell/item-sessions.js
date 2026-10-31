@@ -12,7 +12,7 @@ import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from "../../../kernel/index.js";
 
 /** A caller must explicitly capture a native digest or the no-agent null result, never omit identity [V1,B3]. */
 function requireCapturedSession(digest) {

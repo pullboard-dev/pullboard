@@ -11,6 +11,12 @@ const SOURCE_DIRECTORIES = ['relay/', 'src/gate/', 'src/auth/', 'src/relay/', 's
   'bin/checks/', '.githooks/', '.husky/', '.github/workflows/'];
 const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
+  // Exact moved identities retain their existing Strict classification (#1565).
+  'packages/items/src/shell/parent-session.js',
+  'packages/items/src/shell/item-patches.js',
+  'packages/items/src/shell/item-patch-state.js',
+  'packages/items/src/shell/item-patch-compose.js',
+  'packages/items/src/core/item-patch-paths.js',
   'package.json', 'pullboard.json', 'bin/run-tests.js',
   // Check admission, selection and the evidence that decides whether a failure blocks.
   'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',

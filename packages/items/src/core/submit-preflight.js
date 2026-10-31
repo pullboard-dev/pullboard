@@ -4,9 +4,9 @@
  * whole proof ran; on 19 Oct #890 spent 679 s before HEAD_NOT_NEW. Here the real submit move runs in a transaction
  * that always rolls back, with a stand-in proof, so every board guard decides now and nothing is recorded.
  */
-import { tryGit } from '../../../git/index.js';
-import { inPlanScope } from '../../../codemap/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { tryGit } from "../../../git/index.js";
+import { inPlanScope } from "../../../codemap/index.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Bind placement to committed source, never an unstaged plan or the process working directory. */
 export function requirePlannedSource(root, base, commit) {

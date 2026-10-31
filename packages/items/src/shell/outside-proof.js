@@ -5,7 +5,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { Refused } from '../../../kernel/index.js';
+import { Refused } from "../../../kernel/index.js";
 
 /** Check the receipt beside this exact board, never a caller-selected host path. Replay retains its sealed facts. */
 export function requireOutsideReceipt(board, receipt) {

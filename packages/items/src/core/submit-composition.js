@@ -1,7 +1,7 @@
 /** Opted-in submission proofs run a committed composition with the pinned current trunk [M1,V4]. */
-import { contains } from '../../../git/index.js';
-import { git } from '../../../git/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { contains } from "../../../git/index.js";
+import { git } from "../../../git/index.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Refuse before execution, and again after it, if the exact main snapshot was not proved. */
 export function requireSubmitComposition(root, candidate, trunk, expectedMain) {

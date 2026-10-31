@@ -1,5 +1,5 @@
 import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
-import { checkTimingEngine } from '../check-timing.js';
+import { checkTimingEngine } from '../../packages/items/core.js';
 import { REJECT_CLAUSE_ENGINE } from '../reject-clause-engine.js';
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
 import { itemReviewPolicyEngine } from '../review-policy.js';

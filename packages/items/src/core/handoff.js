@@ -1,10 +1,10 @@
 /** Atomic replacement receipts on the ordinary board, independent of chat tools [B3,N19,H16]. */
-import { HANDOFF_ENGINE } from '../../../state/index.js';
-import { ENGINE_VERSION } from '../../../state/index.js';
-import { agentHandoff } from '../../../state/index.js';
-import { itemHandoff } from '../../../state/index.js';
-import { requireHandoffActive } from '../../../state/index.js';
-import { Refused } from '../../../kernel/index.js';
+import { HANDOFF_ENGINE } from "../../../state/index.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
+import { agentHandoff } from "../../../state/index.js";
+import { itemHandoff } from "../../../state/index.js";
+import { requireHandoffActive } from "../../../state/index.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Only a registered worktree seat can give up or take an agent's role. */
 function worktreeAgent(board, id, agentById) {

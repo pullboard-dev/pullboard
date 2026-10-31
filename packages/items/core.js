@@ -34,3 +34,7 @@ export function familyName(value, aliases = null) {
   return aliases?.get(name) ?? name;
 }
 
+export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTiming, checkTimingEngine } from './src/core/check-timing.js';
+export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/core/decision-origin.js';
+export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/core/item-notes.js';
+export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies } from './src/shell/family-declaration.js';

@@ -15,7 +15,7 @@ import {
 import {
   gitConfig,
   repoInfo,
-} from '../../../git/index.js';
+} from "../../../git/index.js";
 import { homedir } from 'node:os';
 
 /** The ledger of refusals that stopped someone's command, beside the board in Git's common folder. */
