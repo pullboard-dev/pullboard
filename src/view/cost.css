@@ -86,3 +86,6 @@
 .cost-chart-legend .back { background: var(--reject); }
 .cost-chart-day > .cost-day-total { display: block; min-height: 1em; color: var(--ink-muted); font-size: var(--text-xs); }
 .cost-chart-days { background: repeating-linear-gradient(to top, transparent 0, transparent 39px, var(--line) 40px); }
+
+.cost-chart-plot { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2); }
+.cost-chart-axis { display: flex; flex-direction: column; justify-content: space-between; padding-block: 1em 2em; color: var(--ink-faint); font-size: var(--text-xs); }
