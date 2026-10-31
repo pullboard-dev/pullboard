@@ -225,6 +225,27 @@ test('items move retains Strict for each protected destination and excludes unre
 });
 
 
+test('moves move retains Strict for each protected body and excludes unrelated siblings [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  for (const [old, moved] of [['src/moves/reserveReview.js', 'packages/moves/src/core/moves/reserveReview.js'],
+    ['src/moves/reserveNextReview.js', 'packages/moves/src/core/moves/reserveNextReview.js'],
+    ['src/moves/verify.js', 'packages/moves/src/core/moves/verify.js'],
+    ['src/moves/submit.js', 'packages/moves/src/core/moves/submit.js'],
+    ['src/move-registry.js', 'packages/moves/src/shell/move-registry.js']]) {
+    assert.equal(gateJudgmentPath(old), true, old);
+    assert.equal(gateJudgmentPath(moved), gateJudgmentPath(old), moved);
+    const item = f.submit(f.add(), [moved]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'strict', moved);
+  }
+  for (const path of ['packages/moves/src/core/moves/reserveReviewExtra.js', 'packages/moves/src/core/moves/addItem.js',
+    'packages/moves/src/core/bar-ready-setting.js', 'packages/moves/src/shell/moves/recordUsage.js', 'packages/moves/index.js']) {
+    assert.equal(gateJudgmentPath(path), false, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
+});
+
+
 test('merge move retains Strict for sensitive bodies and excludes unrelated siblings [V4,B26,H16]', t => {
   const f = fixture(t, { historical: true });
   for (const path of ['packages/merge/src/shell/merge-only-verdict.js',
