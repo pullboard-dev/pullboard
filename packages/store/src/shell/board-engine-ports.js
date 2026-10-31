@@ -3,7 +3,6 @@ import { Refused } from "../../../../src/refused.js";
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
 import * as rawStore from "./board.js";
 import { withSeatPresence } from "./seat-presence.js";
-import { conditionalHoldFloor } from "../../../health/index.js";
 
 import { boundProofReceipt } from "./proof-receipts.js";
 import { requireOutsideReceipt } from "../../../../src/outside-proof.js";
@@ -17,7 +16,7 @@ export function boardEnginePorts(providers) {
   if (!providers?.MOVE_REGISTRY || typeof providers.MOVE_REGISTRY !== 'object' || Array.isArray(providers.MOVE_REGISTRY)) throw new Refused('NO_POLICY', 'Supply the explicit native engine provider MOVE_REGISTRY before opening storage.');
   if (!Array.isArray(providers?.MOVE_OPERATIONS)) throw new Refused('NO_POLICY', 'Supply the explicit native engine provider MOVE_OPERATIONS before opening storage.');
   for (const name of [
-    'submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily',
+    'conditionalHoldFloor', 'submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily',
     'minimumMoveEngine', 'declaredMoveActor',
     'recordTrainLanding', 'advanceItemSource', 'proposeSentinel', 'decideSentinel',
     'beginSentinelRun', 'finishSentinelRun', 'flakeLedger', 'recordFlakeObservation',
@@ -36,7 +35,7 @@ export function boardEnginePorts(providers) {
     if (typeof providers.sandboxPolicyReads?.[name] !== 'function') throw new Refused('NO_POLICY', `Supply the explicit native engine provider sandboxPolicyReads.${name} before opening storage.`);
   }
   const {
-    submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily,
+    conditionalHoldFloor, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,
     beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation,

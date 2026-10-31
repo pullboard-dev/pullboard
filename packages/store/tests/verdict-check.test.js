@@ -379,6 +379,11 @@ function normalized(file, source, identities = new Map()) {
   for (const [name, leaf] of [['HEALTH_CAP_ENGINE', 'health-cap-engine.js'], ['RECURRING_JOB_ENGINE', 'job-engine.js'], ['RIGOR_NOTICE_ENGINE', 'rigor-notice-engine.js']]) {
     source = source.replace('export { ' + name + ' } from "../../../../src/' + leaf + '";', 'export { ' + name + ' };');
   }
+  if (file === 'packages/store/src/shell/board-engine-ports.js') {
+    source = source.replace("    'conditionalHoldFloor', 'submitHandoffEngines',", "    'submitHandoffEngines',")
+      .replace('    conditionalHoldFloor, submitHandoffEngines,', '    submitHandoffEngines,')
+      .replace('import { withSeatPresence } from "./seat-presence.js";\n', 'import { withSeatPresence } from "./seat-presence.js";\nimport { conditionalHoldFloor } from "../../../health/index.js";\n');
+  }
   const { code, strings } = lex(source);
   const edits = [];
   for (const row of strings) {
