@@ -5,7 +5,6 @@
  "root": "packages/kernel",
  "frontDoor": "packages/kernel/index.js",
  "paths": [
-  ["src/command-phase.js","packages/kernel/src/core/command-phase.js","rule"],
   ["src/discovery.js","packages/kernel/src/core/discovery.js","seed"],
   ["src/js-lex.js","packages/kernel/src/core/js-lex.js","seed"],
   ["src/literal-shell-words.js","packages/kernel/src/core/literal-shell-words.js","seed"],

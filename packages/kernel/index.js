@@ -5,4 +5,3 @@ export * from './src/core/literal-shell-words.js';
 export * from './src/core/refused.js';
 export * from './src/core/registry-guards.js';
 export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/core/pipeline-cause.js';
-export { beginCommandPhase, commandPhaseSnapshot } from './src/core/command-phase.js';
