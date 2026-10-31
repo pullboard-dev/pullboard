@@ -2,13 +2,13 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { runnerPackage } from '../../../../src/runner-package.js';
-import { runnerPackageReader } from '../../../../src/runner-package.js';
+import { runnerPackage } from './runner-package.js';
+import { runnerPackageReader } from './runner-package.js';
 import { Refused } from '../../../kernel/index.js';
-import { assertRunnerModuleParserCurrent } from '../../../../src/runner-module-parser.js';
+import { assertRunnerModuleParserCurrent } from './runner-module-parser.js';
 import { createHash } from 'node:crypto';
 import { importsIn } from '../../../../src/module-imports.js';
-import { createRunnerModuleParser } from '../../../../src/runner-module-parser.js';
+import { createRunnerModuleParser } from './runner-module-parser.js';
 
 const readers = new WeakMap();
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.

@@ -1,11 +1,11 @@
 /** Dispatch runner work through a fresh controller process and hold its SSH session [C7]. */
 import { RunnerDropped } from '../../../../src/gate-policy-load.js';
 import { Refused } from '../../../kernel/index.js';
-import { historyPack } from '../../../../src/runner-history-pack.js';
-import { loadedToolingFiles } from '../../../../src/runner-remote-tooling.js';
-import { requestFor } from '../../../../src/runner-request.js';
-import { resultFrom } from '../../../../src/runner-result.js';
-import { runnerFailure } from '../../../../src/runner-result.js';
+import { historyPack } from './runner-history-pack.js';
+import { loadedToolingFiles } from './runner-remote-tooling.js';
+import { requestFor } from './runner-request.js';
+import { resultFrom } from './runner-result.js';
+import { runnerFailure } from './runner-result.js';
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';

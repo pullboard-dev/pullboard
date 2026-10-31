@@ -7,7 +7,7 @@ import { readStages } from '../../../../src/gate-stages.js';
 import { secretsIn } from '../../../commits/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { recordRunnerGui } from '../../../resources/index.js';
-import { sourcePreparationFields } from '../../../../src/runner-overhead.js';
+import { sourcePreparationFields } from './runner-overhead.js';
 import { remoteFileDenial } from '../../../../src/sandbox-denial.js';
 import { retainTestResultCompletion } from '../../../../src/test-result-store.js';
 import { importTestResults } from '../../../../src/test-result-store.js';

@@ -1,18 +1,18 @@
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 // The front door: each runner step lives in its own module; this file only re-exports and dispatches.
-export { placeRunner, runnerStage } from '../../../../src/runner-stage-model.js';
+export { placeRunner, runnerStage } from '../core/runner-stage-model.js';
 import { validateRunner } from '../../../../src/gate-policy-load.js';
 import { runnerSource } from '../../../../src/gate-policy-load.js';
 import { RunnerDropped } from '../../../../src/gate-policy-load.js';
-import { inRunnerGeneration } from '../../../../src/runner-remote-tooling.js';
-import { pinRunnerTooling } from '../../../../src/runner-remote-tooling.js';
-import { runOnRunner } from '../../../../src/runner-dispatch.js';
-import { runOnRunnerAsync as runOnRunnerAsyncStep } from '../../../../src/runner-dispatch.js';
-import { serveRunnerController as serveRunnerControllerStep } from '../../../../src/runner-dispatch.js';
-import { refuseLegacyControllerEntry } from '../../../../src/runner-dispatch.js';
-import { probeRunnerHealth as probeRunnerHealthStep } from '../../../../src/runner-health.js';
-import { probeRunnerJob as probeRunnerJobStep } from '../../../../src/runner-health.js';
-import { runnerExecutionServices as runnerExecutionServicesStep } from '../../../../src/runner-health.js';
+import { inRunnerGeneration } from './runner-remote-tooling.js';
+import { pinRunnerTooling } from './runner-remote-tooling.js';
+import { runOnRunner } from './runner-dispatch.js';
+import { runOnRunnerAsync as runOnRunnerAsyncStep } from './runner-dispatch.js';
+import { serveRunnerController as serveRunnerControllerStep } from './runner-dispatch.js';
+import { refuseLegacyControllerEntry } from './runner-dispatch.js';
+import { probeRunnerHealth as probeRunnerHealthStep } from './runner-health.js';
+import { probeRunnerJob as probeRunnerJobStep } from './runner-health.js';
+import { runnerExecutionServices as runnerExecutionServicesStep } from './runner-health.js';
 export { validateRunner, runnerSource, RunnerDropped };
 export { runOnRunner };
 

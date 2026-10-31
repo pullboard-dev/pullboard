@@ -1,20 +1,20 @@
 /** Probe a runner's pinned worker health and hand the canonical runner operations to the gate [C7]. */
 import { validateRunner } from '../../../../src/gate-policy-load.js';
-import { runOnRunner } from '../../../../src/runner-dispatch.js';
-import { runOnRunnerAsync } from '../../../../src/runner-dispatch.js';
-import { ownedTransportCompletion } from '../../../../src/runner-dispatch.js';
-import { localRunnerDescriptor } from '../../../../src/runner-load.js';
-import { sampleRunnerLoad } from '../../../../src/runner-load.js';
-import { carriedRunnerTrunk } from '../../../../src/runner-policy.js';
-import { remoteWorkerCommand } from '../../../../src/runner-remote-tooling.js';
-import { shellWord } from '../../../../src/runner-remote-tooling.js';
-import { sshEnvironment } from '../../../../src/runner-remote-tooling.js';
-import { trustedTooling } from '../../../../src/runner-remote-tooling.js';
-import { probeRunnerTransport } from '../../../../src/runner-transport.js';
+import { runOnRunner } from './runner-dispatch.js';
+import { runOnRunnerAsync } from './runner-dispatch.js';
+import { ownedTransportCompletion } from './runner-dispatch.js';
+import { localRunnerDescriptor } from './runner-load.js';
+import { sampleRunnerLoad } from './runner-load.js';
+import { carriedRunnerTrunk } from './runner-policy.js';
+import { remoteWorkerCommand } from './runner-remote-tooling.js';
+import { shellWord } from './runner-remote-tooling.js';
+import { sshEnvironment } from './runner-remote-tooling.js';
+import { trustedTooling } from './runner-remote-tooling.js';
+import { probeRunnerTransport } from './runner-transport.js';
 import { recoveryIdentity } from '../../../resources/index.js';
-import { effectiveRunners } from '../../../../src/runner-slots.js';
-import { refreshRunnerMeasurements } from '../../../../src/runner-slots.js';
-import { transportText } from '../../../../src/runner-result.js';
+import { effectiveRunners } from './runner-slots.js';
+import { refreshRunnerMeasurements } from './runner-slots.js';
+import { transportText } from './runner-result.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 

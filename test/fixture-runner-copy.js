@@ -2,11 +2,11 @@
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
 import { join, posix } from 'node:path';
-import { copyPackageFiles } from '../src/package-files.js';
-import { runnerPackage } from '../src/runner-package.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 import { importsIn } from '../src/module-imports.js';
-import { createRunnerModuleParser } from '../src/runner-module-parser.js';
-import { runtimeUrls } from '../src/runner-runtime-urls.js';
+import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
+import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js';
 
 /** Retain unchanged production code and discovered move/engine declarations used by its eager imports.
  * This is a private fixture copier, not a runtime attestation or a general computed-import closure proof.
