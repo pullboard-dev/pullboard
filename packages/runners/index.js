@@ -11,3 +11,5 @@ export { readRunnerCapacities } from "./src/shell/runner-capacity-read.js";
 export { runnerUtilization, readRunnerUtilization } from "./src/shell/runner-utilization.js";
 export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, computeRunnerSlots, runnerIsComputed, effectiveRunner, effectiveRunners, RUNNER_MEASUREMENT_MS, refreshRunnerMeasurements } from "./src/shell/runner-slots.js";
 export { installRunnerPackage } from "./src/shell/runner-package-install.js";
+export { transportText, runnerFailure, resultFrom } from "./src/shell/runner-result.js";
+export { probeRunnerJob as healthProbeRunnerJob, probeRunnerHealth as healthProbeRunnerHealth, runnerExecutionServices as healthRunnerExecutionServices } from "./src/shell/runner-health.js";
