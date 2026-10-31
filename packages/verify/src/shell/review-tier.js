@@ -31,6 +31,10 @@ const SOURCE_FILES = new Set([
   // Exact sensitive merge bodies retain their original Strict classification (#1566).
   'packages/merge/src/shell/merge-only-verdict.js',
   'packages/merge/src/shell/train-mechanical-merge.js',
+  // Exact moved move bodies retain their existing Strict classification (#1583).
+  'packages/moves/src/core/moves/reserveReview.js', 'packages/moves/src/core/moves/reserveNextReview.js',
+  'packages/moves/src/core/moves/verify.js', 'packages/moves/src/core/moves/submit.js',
+  'packages/moves/src/shell/move-registry.js',
   // Exact moved identities retain their existing Strict classification (#1565).
   'packages/items/src/shell/parent-session.js',
   'packages/items/src/shell/item-patches.js',
@@ -78,7 +82,7 @@ const GUARD_TESTS = new Set([
   'test/machine.test.js', 'test/engine.test.js', 'test/engine-replay.test.js',
   'test/person.test.js', 'test/person-request.test.js', 'test/person-credential-vault.test.js', 'test/seal.test.js',
   'test/relay-auth-expired.test.js', 'test/relay-machine-auth.test.js', 'test/relay-agent.test.js',
-  'test/relay-outbox-format.test.js', 'test/relay-parity.test.js', 'test/relay-parity-clock.test.js',
+  'test/relay-outbox-format.test.js', 'packages/outbox/tests/relay-outbox-format.test.js', 'test/relay-parity.test.js', 'test/relay-parity-clock.test.js',
   'test/relay-sealed.test.js', 'test/relay-key.test.js', 'test/relay-device-keys.test.js', 'test/relay-phone-crypto.test.js',
   'test/landing-shards.test.js', 'test/landing-lease.test.js', 'test/landing-local-lease.test.js',
   'test/landing-waiver-replay.test.js', 'test/landing-stage-composition.test.js',

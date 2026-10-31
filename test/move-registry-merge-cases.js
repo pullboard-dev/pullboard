@@ -37,7 +37,7 @@ function commit(root, message) {
 /** Add one source move, one engine leaf and no shared registry or history edit. */
 function addFeature(root, name, symbol) {
   writeFileSync(join(root, `src/${name}-engine.js`), `import { unassignedEngine } from './engine-next.js';\nexport const ${symbol} = unassignedEngine();\n`);
-  writeFileSync(join(root, `src/moves/${name}.js`), `import { ${symbol} } from '../${name}-engine.js';
+  writeFileSync(join(root, `packages/moves/src/core/moves/${name}.js`), `import { ${symbol} } from '../../../../../src/${name}-engine.js';
 /** Return this feature's discovered engine without changing a shared number. */
 function minimumEngine() { return ${symbol}; }
 /** Bind the explicit options actor. */

@@ -70,7 +70,7 @@ const REVIEWED_EXECUTORS = new Map([
   ['src/cli/sweep.js', [{ function: 'sweepHere',
     site: "spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })",
     reason: 'sweep runs the separately selected checker; importing the CLI does not select or run it' }]],
-  ['src/sentinel-runner.js', [{ function: 'executeSentinel',
+  ['packages/sentinels/src/shell/sentinel-runner.js', [{ function: 'executeSentinel',
     site: "spawn(row.check, { cwd: directory, env: environment, shell: true, stdio: ['ignore', 'pipe', 'pipe'] })",
     reason: 'the Windows sentinel executor runs an approved check only when explicitly invoked' }]],
   ['packages/rigor/src/shell/rigor-proof.js', [{ function: 'runOwnedCheck',
@@ -327,7 +327,7 @@ async function regularCheckSource(root, file, committed) {
 /** Read the exact executable doctrine rules without running them; only the fixed readers qualify. */
 async function sourceOnlyDoctrine(root, committed, commit, env) {
   const [{ configFromSource, loadConfig }, { parseSpec }, { checkRule }] = await Promise.all([
-    import('./config.js'), import('./spec.js'), import('./doctrine-checks.js'),
+    import('./config.js'), import('./spec.js'), import('../packages/doctrine/index.js'),
   ]);
   const config = commit ? configFromSource(committedSource(root, committed, 'pullboard.json')) : loadConfig(root);
   let file = config.practice;

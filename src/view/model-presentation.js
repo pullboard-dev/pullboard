@@ -1,7 +1,10 @@
 /** Private Cost model names; imported only at a private presentation boundary [N26,P5]. */
 /** Name private view models and rate keys without constraining native model or family declarations. */
 export function modelPresentation(reported, family = '') {
-  const raw = typeof reported === 'string' ? reported.trim() : '';
+  const named = typeof reported === 'string' ? reported.trim() : '';
+  // A "/vendor" suffix is the declared family, not part of the model: "GPT-6/openai" is "GPT-6".
+  const slash = named.indexOf('/'), raw = slash > 0 ? named.slice(0, slash).trim() : named;
+  if (slash > 0 && !String(family).trim()) family = named.slice(slash + 1).trim();
   const key = raw.toLowerCase().replace(/[\s_]+/gu, '-');
   const known = {
     'claude-opus-5-5': ['Opus 5.5', 'Anthropic'],
@@ -10,6 +13,7 @@ export function modelPresentation(reported, family = '') {
     'gpt-6.1-terra': ['GPT-6.1 Terra', 'OpenAI'],
     'gpt-6-luna': ['GPT-6 Luna', 'OpenAI'],
     codex: ['Codex', 'OpenAI'],
+    'gpt-6-codex': ['Codex', 'OpenAI'],
   };
   const vendors = { openai: 'OpenAI', gpt: 'OpenAI', codex: 'OpenAI', anthropic: 'Anthropic', claude: 'Anthropic', google: 'Google', gemini: 'Google' };
   const familyKey = String(family).trim().toLowerCase();

@@ -1,5 +1,5 @@
 /** Disposable demo identity and clock isolation (I13,A10). */
-import { AGENT_SHELL_MARKERS } from '../../src/person.js';
+import { AGENT_SHELL_MARKERS } from '../../packages/kernel/index.js';
 
 export const FIXED_TIME = '2026-10-06T12:00:00.000Z';
 

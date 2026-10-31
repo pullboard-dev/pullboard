@@ -1452,6 +1452,22 @@
         "packages/runners/src/shell/runner-recovery.js",
         "rule"
       ]
+    },
+    {
+      "cell": "app:view",
+      "row": [
+        "src/needs.js",
+        "apps/view/src/core/needs.js",
+        "seed"
+      ]
+    },
+    {
+      "cell": "api",
+      "row": [
+        "src/api-moves.js",
+        "packages/api/src/core/api-moves.js",
+        "seed"
+      ]
     }
   ],
   "entries": [

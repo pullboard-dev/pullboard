@@ -45,7 +45,6 @@ const BROWSER_MODULES = {
   '/relay/model.js': new URL('./browser-model.js', import.meta.url),
   '/relay/lifecycle-move.js': new URL('../packages/items/src/core/lifecycle-move.js', import.meta.url),
   '/relay/seal.js': new URL('../packages/kernel/src/core/seal.js', import.meta.url),
-  '/relay/api-moves.js': new URL('../src/api-moves.js', import.meta.url),
   '/relay/person-bar-effect.js': new URL('../packages/person/src/core/person-bar-effect.js', import.meta.url),
   '/relay/person-request.js': new URL('../packages/person/src/core/person-request.js', import.meta.url),
   '/relay/refused.js': new URL('../packages/kernel/src/core/refused.js', import.meta.url),

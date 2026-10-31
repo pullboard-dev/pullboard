@@ -15,11 +15,11 @@ import {
 } from '../spec-revisions.js';
 import {
   fitCommand,
-} from '../blueprint-fit-command.js';
+} from '../../packages/blueprints/index.js';
 import {
   fitSummary,
   readFitBatch,
-} from '../blueprint-fit.js';
+} from '../../packages/blueprints/index.js';
 import * as store from '../board.js';
 import {
   hookRead,
@@ -31,7 +31,7 @@ import {
 } from '../config.js';
 import {
   proposeDoctrine,
-} from '../doctrine-rulings.js';
+} from '../../packages/doctrine/index.js';
 import {
   doctrineHistory,
 } from '../doctrine.js';

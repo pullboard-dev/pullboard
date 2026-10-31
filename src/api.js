@@ -1,9 +1,9 @@
 import { workQueue } from '../packages/items/index.js';
 import { costAnalytics } from '../packages/stats/index.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
-import { projectFit } from './blueprint-fit.js';
-import { pendingFit } from './blueprint-fit.js';
-import { fitFile } from './blueprint-fit.js';
+import { projectFit } from '../packages/blueprints/index.js';
+import { pendingFit } from '../packages/blueprints/index.js';
+import { fitFile } from '../packages/blueprints/index.js';
 import { lifecycleEvent } from './item-list.js';
 import { withdrawnFrom } from './item-list.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
@@ -86,11 +86,9 @@ import { trunkRevisionReader } from '../packages/git/index.js';
 import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
 import { settingsInventory } from './settings-inventory.js';
-import { moveArgs } from './api-moves.js';
 import { personRequestStatuses } from './relay-requests.js';
 import { relayCanaryNeeds } from './relay-canary-needs.js';
 import { relayFiles } from './local-state.js';
-export { moveArgs } from './api-moves.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([
@@ -783,7 +781,8 @@ function agentPath(root, name = COORDINATOR, isMain, boardOpeners) {
 /** Execute one actual CLI command and retain its emitted event without a latest-row race. */
 export async function executeMove(root, body, runCommand, isMain, personChannel = 'view', refusalDocument, boardOpeners) {
   if (Object.keys(body).some((key) => !['verb', 'item', 'args', 'agent'].includes(key))) throw new Refused('BAD_REQUEST', 'a move takes only verb, item, args and agent; remove the unknown fields');
-  const argv = moveArgs(body);
+  if (typeof boardOpeners?.moveArgs !== 'function') throw new TypeError('executeMove needs moveArgs from the higher composition root');
+  const argv = boardOpeners.moveArgs(body);
   let cwd;
   try { cwd = agentPath(root, body.agent, isMain, boardOpeners); } catch (error) {
     if (!(error instanceof Refused) || error.code === 'BAD_REQUEST') throw error;
@@ -1176,7 +1175,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       return withGitReadFacts(() => withReadBoard(board.root, current => costAnalytics({
-      items: store.listItems(current), agents: store.listAgents(current), events: store.events(current),
+      items: store.listItems(current, { all: true }), agents: store.listAgents(current), events: store.events(current),
       window, now: new Date(now()), modelPresentation: costModelPresentation,
       }), codeIsMain, boardOpeners));
     },

@@ -24,7 +24,7 @@ import {
   test,
 } from 'node:test';
 import { loadDoctrine } from '../src/doctrine.js';
-import { doctrineReport } from '../src/doctrine-checks.js';
+import { doctrineReport } from '../packages/doctrine/index.js';
 import { loadConfig } from '../src/config.js';
 import {
   QUALITY_RULES,

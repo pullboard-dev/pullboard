@@ -39,7 +39,7 @@ import { sentinelDigest } from '../src/sentinels.js';
 import { dueSentinels } from '../src/sentinels.js';
 import { sentinels } from '../src/sentinels.js';
 import { executeMove } from '../src/api.js';
-import { moveArgs } from '../src/api-moves.js';
+import { moveArgs } from '../packages/person/index.js';
 import { personRequestMove, preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestMoveProblem, requestStageText } from '../src/relay-requests.js';
 import { PEOPLE_ENGINE } from '../src/people-engine.js';
