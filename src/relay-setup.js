@@ -30,11 +30,11 @@ import {
   deliverDeviceWraps,
   relayDeviceRequest,
   relayLinked,
+  relayLinkAvailability,
   relayMachineSignIn,
   relayMachineContext,
   relayRevokeDevice,
   relayOn,
-  relayStatus,
   originRepository,
   revokeRelayPersonSession,
 } from './relay.js';
@@ -56,7 +56,7 @@ export function unlinkedRelayProjects() {
   const machine = readRelayMachine();
   if (!machine.autoLink) return [];
   return listApiProjects().filter(project => !machine.excluded.includes(project.root)).flatMap(project => {
-    try { if (relayStatus(project.root).linked) return []; } catch { /* Preserve the registered project as a named finding. */ }
+    try { if (relayLinkAvailability(project.root).linked) return []; } catch { /* Preserve the registered project as a named finding. */ }
     const pending = machine.approvals.find(entry => entry.root === project.root);
     return [{ code: pending ? 'PHONE_APPROVAL_PENDING' : 'RELAY_NOT_LINKED', message: pending ? approvalWait(project.name, pending, machine.devices) : 'not linked: ' + project.name + '; run pullboard relay on --all', next: pending && Date.now() < pending.context.expires ? 'Approve the named link on your paired phone.' : 'pullboard relay on --all' }];
   });
@@ -100,7 +100,7 @@ export async function autoLinkProject(root, io, { openBoard } = {}) {
   const machine = readRelayMachine();
   if (!machine.autoLink) return;
   const project = repoInfo(root).root;
-  if (machine.excluded.includes(project) || relayStatus(project).linked) return;
+  if (machine.excluded.includes(project) || relayLinked(project)) return;
   const repository = originRepository(project, { optional: true });
   if (!repository) return;
   const name = listApiProjects().find(entry => entry.root === project)?.name ?? project;

@@ -84,7 +84,7 @@ export async function joinNamedBoard(root, file, { board, url, repository, signI
   }
   await syncRelay(root, io);
   const name = listApiProjects().find(project => project.root === repoInfo(root).root)?.name ?? repository;
-  const result = { ...relayStatus(root), notice: `Joined ${name}: this clone works on board ${board.slice(0, 8)}, the one pullboard.json names.` };
+  const result = { ...relayStatus(root, io), notice: `Joined ${name}: this clone works on board ${board.slice(0, 8)}, the one pullboard.json names.` };
   io.err(result.notice);
   return result;
 }

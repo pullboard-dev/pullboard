@@ -337,7 +337,7 @@ async function runMain(argv, streams) {
   io.checkpointInBackground = streams.checkpointInBackground;
   io.scheduleCheckpoint = streams.scheduleCheckpoint;
   io.requestCheckpointCheck = streams.requestCheckpointCheck;
-  io.outboxPolicy = streams.outboxPolicy; io.flushOutbox = streams.flushOutbox; io.queueMove = streams.queueMove; io.outboxHasPendingCreatedItem = streams.outboxHasPendingCreatedItem;
+  io.outboxFields = streams.outboxFields; io.outboxPolicy = streams.outboxPolicy; io.flushOutbox = streams.flushOutbox; io.queueMove = streams.queueMove; io.outboxHasPendingCreatedItem = streams.outboxHasPendingCreatedItem;
   io.loadProcessPorts = streams.loadProcessPorts;
   /** Materialize only this invocation's explicit process capabilities, at most once. */
   io.prepareProcessPorts = async () => {
@@ -348,7 +348,7 @@ async function runMain(argv, streams) {
   io.hookWorker = streams.hookWorker;
   io.submitHandoffWorker = streams.submitHandoffWorker;
   /** Bind recursive CLI operations to this process root's native provider. */
-  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
   io.launchRelaySender = streams.launchRelaySender;
   let sync = true;
@@ -386,14 +386,16 @@ async function runMain(argv, streams) {
     try {
       // Checkout identity supplies the display role even if a person-channel check refuses first.
       try { const info = needsRepo ? git.repoInfo(io.cwd) : null; if (info?.isMain) io.caller('coordinator', info.root); } catch { /* Unknown checkouts retain existing guidance. */ }
+      let preflightRelay;
       if (parsed.values.as === 'person' && !parsed.values.help && !parsed.values.version) {
         await io.prepareProcessPorts();
         io.nativeBoard ??= await io.loadNativeBoard();
+        preflightRelay = await import('./relay.js');
       }
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, { ...(await import('./relay.js')),
+          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, { ...preflightRelay, relayStatus: root => preflightRelay.relayStatus(root, io),
             openBoard: (await import('./cli-context.js')).nativeBoardOpeners(io).openBoard }) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
         (await import('./person.js')).requirePersonChannel(io.personChannel);
         io.caller('person');

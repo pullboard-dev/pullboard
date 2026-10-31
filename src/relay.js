@@ -125,9 +125,6 @@ import {
   transientRelayFailure,
   transportFailure,
 } from './relay-move-fallback.js';
-import {
-  outboxFields,
-} from './relay-outbox.js';
 import { outboxFile, readOutboxSummary } from '../packages/link/index.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
 import { computerName } from './computer-name.js';
@@ -436,7 +433,7 @@ function behind(root, state) {
 }
 
 /** Expose key-free link status; only an explicit link operation includes its pairing carrier. */
-function summary(root, state, { pairing = false } = {}) {
+function summary(root, state, { pairing = false, outboxFields } = {}) {
   if (!state) {
     const deleted = deletedLink(root);
     const exclusion = relayExclusion(root);
@@ -797,7 +794,7 @@ async function flushMirror(root, file, state, io) {
     delete state.snapshot;
     saveLink(file, state);
   }
-  return summary(root, state);
+  return summary(root, state, { outboxFields: io.outboxFields });
 }
 
 /** A saved link is the opt-in boundary; unlinked callers neither read keys nor contact the relay. */
@@ -1193,10 +1190,10 @@ export async function syncRelay(root, io) {
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state) return null;
-    if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state); }
+    if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state, { outboxFields: io.outboxFields }); }
     try {
       if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
-      if (!await ensureOrdered(root, file, state, io)) return summary(root, state);
+      if (!await ensureOrdered(root, file, state, io)) return summary(root, state, { outboxFields: io.outboxFields });
       await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy));
       await catchUp(root, file, state, io, senderPolicy);
       if (state.pending) {
@@ -1212,7 +1209,7 @@ export async function syncRelay(root, io) {
       else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root, {}, presentationPorts))) await publishCheckpoint(root, file, state, io);
       await deliverDeviceWraps(root, io);
       if (io.keyRequestsWaiting && !state.environment) await (await import('./relay-handover.js')).handOverKeys(root, state, readBoardKey(state.board), request, io); // an agent token never hands over a key
-      return summary(root, state);
+      return summary(root, state, { outboxFields: io.outboxFields });
     }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
@@ -1228,7 +1225,7 @@ export async function syncRelay(root, io) {
       } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
-        recovery: recoverySummary(state), ...outboxFields(state),
+        recovery: recoverySummary(state), ...io.outboxFields(state),
         health: readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }) };
     }
   }, io);
@@ -1397,7 +1394,7 @@ export async function relayRecover(root, skip, io) {
           state.cursor = saved.state.sequence;
           delete state.recovery;
           saveLink(file, state);
-          return { ...summary(root, state), skipped: skip, ...(!ownAcknowledgement ? { adopted: true } : {}) };
+          return { ...summary(root, state, { outboxFields: io.outboxFields }), skipped: skip, ...(!ownAcknowledgement ? { adopted: true } : {}) };
         }
       }
       const remote = await request(state, '/api/v1/boards/' + state.board + '/events?after=' + cursor, {}, io);
@@ -1444,13 +1441,13 @@ export async function relayRecover(root, skip, io) {
       state.cursor = sequence;
       delete state.recovery;
       saveLink(file, state);
-      return { ...summary(root, state), skipped: skip };
+      return { ...summary(root, state, { outboxFields: io.outboxFields }), skipped: skip };
     } finally { store.closeBoard(staged); store.closeBoard(source); }
   });
 }
 
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
-export function relayStatus(root) { return withRelayExclusion(root, summary(root, loadLink(linkFile(root)))); }
+export function relayStatus(root, io) { return withRelayExclusion(root, summary(root, loadLink(linkFile(root)), { outboxFields: io?.outboxFields })); }
 
 /** Cancel one device ticket without the already-aborted caller signal. */
 async function cancelDeviceFlow(url, ticket, io) {
@@ -1615,9 +1612,9 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
         clearedExclusion = clearRelayExclusion(root);
         if (reusableSession === undefined) await publishExcludedBoards({ ...signed, account, url }, io, request);
       }
-      result = summary(root, state, { pairing: !quiet });
+      result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields });
     }
-    catch (error) { if (strict || !(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: !quiet }); }
+    catch (error) { if (strict || !(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields }); }
     if (!quiet) io.say(terminalQr(result.link));
     if (state.previousBoardNotice) {
       result.notice = 'Linked a fresh relay board. The old remote copy stays until you delete it from your phone.';

@@ -67,7 +67,8 @@ process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   loadNativeBoard: () => import('../src/native-board.js'),
   /** Compose process-only capabilities after a command actually requests them. */
-  loadProcessPorts: () => import('node:url').then(({ fileURLToPath }) => ({
+  loadProcessPorts: () => Promise.all([import('node:url'), import('../src/relay-outbox.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
+    outboxFields,
     /** Load the canonical guard only when a linked operation actually needs it. */
     withOutboxGuard: (...args) => import('../src/relay-outbox-guard.js').then(({ withOutboxGuard }) => withOutboxGuard(...args)),
     replayConflictRecord: (...args) => import('../src/relay-conflict-record.js').then(({ replay }) => replay(...args)),

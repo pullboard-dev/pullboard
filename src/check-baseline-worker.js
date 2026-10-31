@@ -114,7 +114,7 @@ export async function runCheckBaselineWorker(root, id, request, services) {
     checkpointInBackground: services.checkpointInBackground,
     scheduleCheckpoint: services.scheduleCheckpoint,
     requestCheckpointCheck: services.requestCheckpointCheck,
-    outboxPolicy: services.outboxPolicy, flushOutbox: services.flushOutbox, queueMove: services.queueMove, outboxHasPendingCreatedItem: services.outboxHasPendingCreatedItem,
+    outboxPolicy: services.outboxPolicy, outboxFields: services.outboxFields, flushOutbox: services.flushOutbox, queueMove: services.queueMove, outboxHasPendingCreatedItem: services.outboxHasPendingCreatedItem,
     /** Discard normal relay prose in the detached worker. */
     say() {},
     /** Retain delivery failures in the receipt rather than an abandoned terminal stream. */

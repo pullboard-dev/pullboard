@@ -115,7 +115,7 @@ export async function syncBefore(io, main) {
   }
   await retrySync(io);
   // An off that only the relay can vouch for is checked against the relay's own authority before anything reads it (#408).
-  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io, { DEFAULT_RELAY, relayStatus, openBoard: nativeBoardOpeners(io).openBoard }); }
+  try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io, { DEFAULT_RELAY, relayStatus: root => relayStatus(root, io), openBoard: nativeBoardOpeners(io).openBoard }); }
   catch (error) { reportQuietly(io, error); }
   try { await executePersonRequests(io.cwd, io, main, nativePersonRequestPorts(io)); }
   catch (error) { await reportQuietly(io, error); }
