@@ -1,3 +1,5 @@
+import { asSubmitted } from '../src/review-reachability.js';
+import { refuseUnreviewable } from '../src/review-reachability.js';
 /** A strict item no active seat could review is refused at submit and named by the sentinel [C7,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -5,7 +7,6 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
-import { refuseUnreviewable } from '../src/review-reachability.js';
 import { reviewEligibility } from '../src/review-eligibility.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { healthReport } from '../packages/health/index.js';
@@ -177,10 +178,10 @@ test('a live attach is refused when the only eligible reviewer is gone, while re
   heartbeatSeat(f.board, 'core-3');
   const item = store.getItem(f.board, id);
   const before = store.events(f.board);
-  const live = () => refuseLiveAttach(f.board, item, { key: 'companion', author: 'core-3' }, { atomic: store.atomic, review: REVIEW });
+  const live = () => refuseLiveAttach(f.board, item, { key: 'companion', author: 'core-3' }, { asSubmitted, refuseUnreviewable, atomic: store.atomic, review: REVIEW });
   assert.throws(live, error => error.code === 'NO_ELIGIBLE_REVIEWER' && error.message.includes('companion author core-3 (openai)'));
   assert.deepEqual(store.events(f.board), before, 'the live preview records nothing');
   assert.equal(attach(f, id, 'companion', 'core-3').changed, true, 'the ordered move counts registered seats, so replay succeeds');
   heartbeatSeat(f.board, 'core-2');
-  assert.doesNotThrow(() => refuseLiveAttach(f.board, store.getItem(f.board, id), { key: 'other', author: 'core-3' }, { atomic: store.atomic, review: REVIEW }), 'once the reviewer is active again the live check passes');
+  assert.doesNotThrow(() => refuseLiveAttach(f.board, store.getItem(f.board, id), { key: 'other', author: 'core-3' }, { asSubmitted, refuseUnreviewable, atomic: store.atomic, review: REVIEW }), 'once the reviewer is active again the live check passes');
 });
