@@ -75,7 +75,7 @@ import {
   hasSubmitRules,
   holdDoctrine,
   ruleLine,
-} from '../doctrine-checks.js';
+} from '../../packages/doctrine/index.js';
 import * as gateReceipt from '../gate-receipt.js';
 import { recordNativeProof } from '../proof-cli.js';
 import { proofRunReceipt } from '../proof-receipts.js';

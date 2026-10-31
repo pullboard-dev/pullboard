@@ -33,7 +33,7 @@ import { CONFIG_FILE } from '../config.js';
 import { COORDINATOR } from '../config.js';
 import { configFromSource } from '../config.js';
 import { loadDoctrine } from '../doctrine.js';
-import { agentDoctrine } from '../doctrine-rulings.js';
+import { agentDoctrine } from '../../packages/doctrine/index.js';
 import { signedMoveProblem } from '../person-signing.js';
 import { bindLocalSession } from '../agent-session.js';
 import { localSessionMatches } from '../agent-session.js';

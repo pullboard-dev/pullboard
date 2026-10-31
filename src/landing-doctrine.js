@@ -12,7 +12,7 @@ import {
 import {
   checkRulesAt,
   runRuleCheck,
-} from './doctrine-checks.js';
+} from '../packages/doctrine/index.js';
 import { checkNeedsBrowser } from './browser-admission.js';
 import { withGateSlot } from './gate.js';
 import { gateSlotEnvironment } from '../packages/resources/index.js';
