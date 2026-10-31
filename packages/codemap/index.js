@@ -15,3 +15,4 @@ export * from './src/shell/source-advance-plan.js';
 export * from './src/shell/source-inventory.js';
 export * from './src/shell/cell-lint-cell-shards.js';
 export * from './src/shell/map-slice-say.js';
+export { isDefaultTestFile } from './src/core/default-test-file.js';

@@ -1,0 +1,23 @@
+.roadmap-status { display: inline-flex; align-items: center; gap: var(--space-2); }
+.item-stage { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--space-0); min-width: 0; max-width: 100%; white-space: normal; text-align: left; }
+.stage-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); min-width: 0; }
+.stage-word { color: var(--ink); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); }
+.stage-detail { color: var(--ink-muted); font: 400 var(--text-2xs)/var(--leading-snug) var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage-mark { border-radius: var(--radius-sm); padding: 0 var(--space-1); background: var(--surface-2); color: var(--ink-muted); font: 600 var(--text-2xs)/var(--leading-snug) var(--sans); white-space: normal; }
+.stage-mark.gate { color: var(--warn); } .stage-mark.no { color: var(--reject); }
+.row .item-stage { grid-area: chip; justify-self: end; max-width: 10rem; overflow: hidden; }
+.pipeline-copy, .dash-item-copy { display: grid; gap: var(--space-0); min-width: 0; }
+.pipeline-copy .item-stage { margin-top: var(--space-1); }
+.dash-item-copy .item-stage { align-items: flex-start; }
+.dash-item .stage-word, .dash-item .stage-detail, .dash-item .stage-mark { color: var(--ink-muted); font-family: var(--sans); font-size: var(--text-2xs); }
+/* Items keep one compact chip line; the native detail remains on hover and for assistive readers. */
+#chain .stage-detail { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#chain .stage-line { flex-wrap: nowrap; }
+#chain .stage-marks { display: inline-flex; align-items: center; gap: var(--space-1); line-height: var(--leading-snug); }
+#chain .stage-mark { white-space: nowrap; }
+#chain .stage-marks > .chip { padding-block: 0; line-height: var(--leading-snug); }
+/* A shared chip track keeps every Items row the same height, with or without marks. */
+#chain .item-stage { height: var(--space-6); justify-content: center; }
+/* Marks precede the compact chip so the seat and its age retain their shared right edge. */
+#chain .row-side .item-stage { grid-area: auto; align-items: flex-end; }
+#chain .row-side .stage-line { flex-direction: row-reverse; justify-content: flex-start; }

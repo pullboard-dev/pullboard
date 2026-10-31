@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 const memory = new WeakMap();
 const HEARTBEAT_INTERVAL_MS = 60_000;
+export const SEAT_LIVE_WINDOW_MS = 10 * 60_000;
 const PRESENCE_BUSY_TIMEOUT_MS = 250;
 const LOCAL_TABLE = 'heartbeat';
 const IMPORTED_TABLE = 'imported_heartbeat';
@@ -161,7 +162,7 @@ export function withSeatPresence(board, seats, { localOnly = false } = {}) {
       ? (Date.parse(localAt) >= Date.parse(importedAt) ? localAt : importedAt)
       : localAt ?? importedAt;
     const elapsed = heartbeatAt === null ? Infinity : Math.max(0, now - Date.parse(heartbeatAt));
-    return { ...seat, heartbeatAt, presence: elapsed < 600_000 ? 'live' : elapsed < 1_800_000 ? 'idle' : 'gone' };
+    return { ...seat, heartbeatAt, presence: elapsed < SEAT_LIVE_WINDOW_MS ? 'live' : elapsed < 1_800_000 ? 'idle' : 'gone' };
   });
 }
 

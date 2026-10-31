@@ -42,6 +42,8 @@ import { canTake } from './route-escalation.js';
 import * as itemDependencies from './item-dependencies.js';
 import { firstRefusalProblem } from './claims.js';
 import { firstRefusal } from './board-item-read.js';
+import { reworkFamilyRoute } from './rework-family-routing.js';
+import { REWORK_SAME_FAMILY_ENGINE } from '../packages/state/index.js';
 import * as capacity from './line-capacity-board.js';
 import {
   atomic,
@@ -49,7 +51,7 @@ import {
 } from './board-event-log.js';
 
 /** Build the original claim guards once; only a successful preflight captures source bytes. */
-function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
+function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, reviewSkipped = null, reviewPolicy = 'any', familyPolicy = 'off', submitAdmission = null, submitOutcome = null, adoptCorrection = false, reworkRoutingPolicy = null }, { reviewerChecks, reviewReleaseCooldown, foreignBlockers }) {
   const admission = checkedSubmitAdmission(board, id, agentId, submitAdmission);
   const outcome = checkedSubmitOutcome(board, id, agentId, submitOutcome, admission);
   if (adoptCorrection && (board.executionEngineVersion ?? ENGINE_VERSION) < AUTOMATIC_DISPATCH_ENGINE) {
@@ -61,6 +63,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
   // Reworking your own rejected item is a claim of its own, beside the one live claim (B5): the
   // builder fixing what a verifier found need not drop its other work to do it.
   const isRework = (item) => item.item_verdict === 'REJECT' && item.item_built_by === agentId;
+  let reworkRouting = null;
   let frozen = null;
   let prepared = false;
   const how = {
@@ -98,7 +101,25 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         return null;
       },
       notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
-      builderFirstRefusal: () => (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal, exitContinuationProblem }) : null,
+      builderFirstRefusal: (found) => {
+        const continuation = exitContinuationProblem(board, id, agentId);
+        if (continuation) return continuation;
+        if (reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
+          reworkRouting = reworkFamilyRoute(board, found, { agentId, listAgents: board.nativePorts.listAgents,
+            routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,
+            policy: reworkRoutingPolicy, now: board.clock.now().getTime() });
+          if (reworkRouting.applies) {
+            if (reworkRouting.mode === 'policy-unknown') return new Refused('NO_POLICY', `item #${id} needs the accepted takeover and maintenance windows sealed into its claim; retry through the current CLI`);
+            if (reworkRouting.allowed !== null && !reworkRouting.allowed.includes(agentId)) {
+              return new Refused('REOPEN_HELD_FOR_BUILDER', reworkRouting.mode === 'builder'
+                ? `item #${id} waits for its live builder ${reworkRouting.builder}`
+                : `item #${id} waits for a live ${reworkRouting.builderFamily} family seat`);
+            }
+            return null;
+          }
+        }
+        return (board.executionEngineVersion ?? ENGINE_VERSION) >= REOPEN_FIRST_REFUSAL_ENGINE ? firstRefusalProblem(board, id, agentId, { firstRefusal }) : null;
+      },
       correctionRefrozen: () => adopts ? null : pendingRefreezeProblem(board, id),
       laneOpen: (found) => {
         // Declared: not checked when the caller renews its own live claim.
@@ -145,7 +166,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       item_lease_until: leaseUntil,
     }),
   };
-  return { how, leaseUntil, isRenewal, admission, outcome, adopts, frozen: () => frozen };
+  return { how, leaseUntil, isRenewal, admission, outcome, adopts, frozen: () => frozen, reworkRouting: () => reworkRouting };
 }
 
 const PREPARED_CLAIMS = new WeakMap();
@@ -229,6 +250,16 @@ export function claim(board, id, options, ports) {
       ...(admission ? { submitAdmission: admission } : {}),
       ...(outcome ? { submitOutcome: outcome } : {}),
       ...((board.executionEngineVersion ?? ENGINE_VERSION) >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}) });
+    const route = plan.reworkRouting();
+    if (!renewed && route?.applies && route.mode === 'fallback') {
+      const factId = prepared.reworkRoutingPolicy?.factId;
+      if (typeof factId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(factId)) {
+        throw new Refused('RELAY_MOVE', 'the fallback routing fact identity was not sealed into this claim; retry through the current CLI');
+      }
+      if (!board.db.prepare("SELECT 1 FROM event WHERE event_kind='fact' AND json_valid(event_detail) AND json_extract(event_detail,'$.id')=? LIMIT 1").get(factId)) {
+        logEvent(board, 'board', 'fact', id, { id: factId, kind: 'note', text: `No live ${route.builderFamily} family seat was available for rework #${id}; checked families: ${route.checkedFamilies.join(', ') || 'none'}. The ordinary queue assigned it to ${agentId}.`, ref: null, supersedes: null });
+      }
+    }
     return { leaseUntil, digest, renewed, ...(continuationSummary ? { continuationSummary } : {}) };
   });
 }

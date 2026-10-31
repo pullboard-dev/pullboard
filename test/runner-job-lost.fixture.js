@@ -55,8 +55,9 @@ function transport(t, mode) {
   const ssh = installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   renameSync(ssh, join(bin, 'ssh-delegate'));
   const ownerSource = `import {claimRunnerLaunch,claimRunnerWorker} from ${JSON.stringify(sourceURL('src/runner-transport.js'))};
+import {processCensus} from ${JSON.stringify(sourceURL('src/runner-custody.js'))};
 const [root,encoded]=process.argv.slice(1), recovery=JSON.parse(encoded);
-if(!claimRunnerLaunch(root,recovery)||!claimRunnerWorker(root,recovery))process.exit(2);
+if(!claimRunnerLaunch(root,recovery)||!claimRunnerWorker(root,recovery,processCensus))process.exit(2);
 process.stdout.write('CLAIMED\\n');setInterval(()=>{},1000);`;
   const wrapper = `#!/usr/bin/env node
 import {spawn} from 'node:child_process';

@@ -1,14 +1,34 @@
 /** SSH sign-off opt-in, rotation, row requirements and tamper rejection [S17,S18,S19,S20,S21]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import {
+  runFixtureExecFile as execFileSync,
+  runFixtureChild as spawnSync,
+  fixtureChildMessage,
+  runFixtureChild,
+  runFixtureGit,
+} from '../../../test/fixture-child.js';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { test } from 'node:test';
-import { canonical, verifySignature } from '../src/signature.js';
+import {
+  canonical,
+  verifySignature,
+} from '../src/shell/signature.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const SPEC = `# Sign-off fixture
 
 ## G · Goals

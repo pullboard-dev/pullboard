@@ -54,13 +54,13 @@ test('Items uses compact shared rows with native state icons, plain reasons and 
         assert.ok(row.chipBox && row.timeBox, width + ': age above chip');
         assert.ok(row.timeBox.bottom <= row.chipBox.y + 1, 'age is above the chip');
         assert.equal(row.chipOverflow, false, 'the actual seat address is never cut off');
-        assert.ok(Math.abs(row.timeBox.right - row.chipBox.right) <= 1, 'right aligned');
+        assert.ok(Math.abs(row.timeBox.right - row.chipBox.right) <= 1, 'right aligned: ' + JSON.stringify({ width, row }));
       }
       assert.equal(rows[0].chip, 'Ready'); assert.equal(rows[4].chip, 'Verified');
       assert.notEqual(rows[0].font, rows[1].font, 'free state is sans, held seat is mono');
       assert.equal(rows[1].chip, 'web-1');
       assert.equal(rows[2].chip, reviewer.agent);
-      assert.equal(rows[2].model, 'A deliberately long reviewer model name');
+      assert.ok(rows[2].model.startsWith('A deliberately long reviewer model name · In review: '), 'ruling 49037 keeps the model and adds the native stage on hover');
       assert.match(rows[3].meta, /^Behavior did not match Keep the complete reviewer explanation/u);
       assert.equal(rows[3].reasonCode, 'BEHAVIOR_MISMATCH');
       assert.equal(new Set(rows.slice(1).map(row => row.glyph)).size, 4, 'build, review, back and verified use distinct icons');
