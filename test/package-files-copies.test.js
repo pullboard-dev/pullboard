@@ -609,11 +609,18 @@ await assert.rejects(import(${JSON.stringify(pathToFileURL(join(installed, 'src/
 });
 
 test('moved controller step bodies stay bound to the loaded runner generation [C7,P3]', t => {
-  const f = fixture(t);
-  const installed = join(f.directory, 'installed');
+  const installed = mkdtempSync(join(tmpdir(), 'pullboard-controller-generation-'));
+  t.after(() => rmSync(installed, { recursive: true, force: true }));
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   const loaded = captureRunnerTooling(installed);
-  for (const file of ['packages/runners/index.js', 'packages/runners/src/shell/runners.js', 'packages/runners/src/shell/runner-dispatch.js']) {
+  const index = join(installed, 'packages/runners/index.js');
+  const originalIndex = readFileSync(index);
+  try {
+    writeFileSync(index, Buffer.concat([originalIndex, Buffer.from('\n// changed shared controller index\n')]));
+    assert.throws(() => currentRunnerTooling(installed, loaded, { rescan: false }),
+      error => error.code === 'RUNNER_TOOLING_CHANGED', 'packages/runners/index.js');
+  } finally { writeFileSync(index, originalIndex); }
+  for (const file of ['packages/runners/src/shell/runners.js', 'packages/runners/src/shell/runner-dispatch.js']) {
     const path = toolSourcePath(installed, file);
     const original = readFileSync(path);
     try {
