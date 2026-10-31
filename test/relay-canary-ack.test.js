@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { outboxFile } from '../src/relay-outbox.js';
+import { outboxFile } from '../packages/outbox/index.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 

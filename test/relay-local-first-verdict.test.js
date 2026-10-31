@@ -9,9 +9,9 @@ import { openBoard } from '../src/native-board.js';
 import { captureBoardChanges } from '../src/board-capture.js';
 import { applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { leaveConflictNotice, takeConflictNotices } from '../src/relay-conflicts.js';
-import { earlierMoves, refusalLine } from '../src/relay-outbox.js';
-import { undoQueued } from '../src/relay-outbox-undo.js';
+import { leaveConflictNotice, takeConflictNotices } from '../packages/outbox/index.js';
+import { earlierMoves, refusalLine } from '../packages/outbox/index.js';
+import { undoQueued } from '../packages/outbox/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Make genuine native submitted history, then freeze the public replay test's immutable policy. */

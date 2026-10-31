@@ -22,7 +22,7 @@ import { exitClaim, exitClaimDecision, exitedSession, requireExitActive, exitCon
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { EXIT_RULES_ENGINE } from '../src/exit-rules-engine.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
-import { bindRefs, resolveMove, strayItemRefs } from '../src/relay-outbox.js';
+import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 
 const policy = { enabled: true, tokens: 100, calls: 3 };
