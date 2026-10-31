@@ -67,7 +67,10 @@ async function timed(box, cwd, ...argv) {
   let err = '';
   const startedAt = performance.now();
   try {
-    const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'src', 'native-board.js')).href), stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
+    const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'src', 'native-board.js')).href),
+      hookWorker: join(box.release, 'src', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'src', 'submit-handoff-worker.js'),
+      /** Launch only the released sender actually requested by this command. */
+      launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'src', 'relay-sender-main.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
     return { code, out, err, ms: performance.now() - startedAt };
   } finally {
     HOMES.forEach((name, index) => { if (saved[index] === undefined) delete process.env[name]; else process.env[name] = saved[index]; });

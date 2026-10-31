@@ -86,7 +86,16 @@ async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
   const pending = runFixtureChildAsync(process.execPath, [helpers.BIN, 'ship', '--note', note, '--json'], { cwd: box.web, env: box.env });
   const child = pending.child;
   f.children.push(pending);
-  await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal');
+  let observedOut = '', observedErr = '';
+  child.stdout?.on('data', chunk => { observedOut += chunk; });
+  child.stderr?.on('data', chunk => { observedErr += chunk; });
+  try {
+    await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal');
+  } catch (error) {
+    t.diagnostic(JSON.stringify({ phase: 'await-submit', exitCode: child.exitCode,
+      status: onBoard(box, board => store.getItem(board, id).item_status), stdout: observedOut, stderr: observedErr }));
+    throw error;
+  }
   assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'submitted', 'ship must reach its actual submit event before verdict delivery');
   assert.equal(child.exitCode, null, 'ship waits for the actual verdict');
   onBoard(box, board => {
