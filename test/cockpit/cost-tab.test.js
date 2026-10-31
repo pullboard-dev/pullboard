@@ -284,6 +284,7 @@ test('the private view shows its last twenty native landings; a public export ke
   assert.doesNotMatch(publicDocuments, /"(?:event_kind|kind)":"(?:usage|shared-usage)"/u,
     'native usage and shared-usage events are absent from all public event projections');
 
+  writeFileSync(settingsFile, JSON.stringify({ ...previousSettings, costPrices: {} }));
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-cost-tab-'));
   let chrome;
   try {
@@ -301,6 +302,8 @@ test('the private view shows its last twenty native landings; a public export ke
     assert.deepEqual(ids, analytics.longest.map(row => row.id), 'the page renders the server-selected items in order');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
     await chrome.stable("document.documentElement.dataset.theme = 'light'");
+    await press(chrome, "document.querySelector('#cost [data-cost-row]')");
+    await chrome.waitFor("document.querySelector('#cost .cost-detail')");
     const shotPath = '/tmp/pullboard-2092-cost-light-1440.png';
     const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
     writeFileSync(shotPath, Buffer.from(shot.data, 'base64'));
@@ -314,8 +317,6 @@ test('the private view shows its last twenty native landings; a public export ke
       assert.ok(layout.buttonHeight >= (width < 900 ? 44 : 32), `${width}px landing row remains a reachable control`);
     }
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
-    await press(chrome, "document.querySelector('#cost [data-cost-row]')");
-    await chrome.waitFor("document.querySelector('#cost .cost-detail')");
     const detail = await chrome.stable("document.querySelector('#cost .cost-detail').innerText");
     assert.match(detail, /tokens in|No token count/u);
     assert.doesNotMatch(detail, /0 sessions/u, 'unknown native session counts stay blank');
