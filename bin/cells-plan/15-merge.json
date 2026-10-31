@@ -2,6 +2,7 @@
  "order": 15,
  "name": "merge",
  "kind": "package",
+ "pureFrontDoor": "packages/merge/core.js",
  "root": "packages/merge",
  "frontDoor": "packages/merge/index.js",
  "paths": [
