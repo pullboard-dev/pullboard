@@ -110,6 +110,7 @@ export async function runCheckBaselineWorker(root, id, request, services) {
     uncertainUploadFailure: services.uncertainUploadFailure,
     decideUncertainBaseline: services.decideUncertainBaseline,
     checkpointPublisher: services.checkpointPublisher,
+    relayOrdering: services.relayOrdering,
     checkpointInBackground: services.checkpointInBackground,
     scheduleCheckpoint: services.scheduleCheckpoint,
     requestCheckpointCheck: services.requestCheckpointCheck,

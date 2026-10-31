@@ -11,6 +11,7 @@ import { replay as replayConflictRecord } from '../src/relay-conflict-record.js'
 import { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } from '../src/relay-baseline-settle.js';
 import { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } from '../src/relay-checkpoint.js';
 import { checkpointPublisher } from '../src/relay-checkpoint-publish.js';
+import { relayOrdering } from '../src/relay-ordering.js';
 
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
 
@@ -45,4 +46,4 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
 }
 
 /** Bind the actual native openers at API fixture roots, never inside API projection code. */
-export const apiBoardOpeners = Object.freeze({ openBoard, openBoardForRead, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck });
+export const apiBoardOpeners = Object.freeze({ openBoard, openBoardForRead, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck });

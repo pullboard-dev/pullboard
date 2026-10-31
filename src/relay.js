@@ -118,7 +118,6 @@ import {
 import { terminalQr } from './qr.js';
 import { environmentLink } from './relay-environment.js';
 import { locked } from './relay-lock.js';
-import { relayOrdering } from './relay-ordering.js';
 import { nudgeRelaySender } from './relay-local-first.js';
 import { localFirstLink } from './relay-local-first.js';
 import {
@@ -961,9 +960,15 @@ function reportRecoveredReply(record, io) {
 }
 
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
-const ordering = relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard,
-  flush: (root, file, state, io, senderPolicy) => flushOutbox(outboxLink(root, file, state, io, senderPolicy)) });
-const { applyRecords, fetchCheckpoint, catchUp, postPending, sendPending } = ordering;
+async function orderingServices(io) {
+  return io.relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard,
+    flush: (root, file, state, output, senderPolicy) => flushOutbox(outboxLink(root, file, state, output, senderPolicy)) });
+}
+async function applyRecords(root, key, state, records, io) { return (await orderingServices(io)).applyRecords(root, key, state, records, io); }
+async function fetchCheckpoint(state, io, key, senderPolicy) { return (await orderingServices(io)).fetchCheckpoint(state, io, key, senderPolicy); }
+async function catchUp(root, file, state, io, senderPolicy) { return (await orderingServices(io)).catchUp(root, file, state, io, senderPolicy); }
+async function postPending(root, file, state, pending, io, senderPolicy) { return (await orderingServices(io)).postPending(root, file, state, pending, io, senderPolicy); }
+async function sendPending(root, file, state, io, senderPolicy) { return (await orderingServices(io)).sendPending(root, file, state, io, senderPolicy); }
 
 /** Set up this machine's coordinator token inside a paired join's own person sign-in (#579). */
 export async function relayPersonCoordinator(root, session, io) {

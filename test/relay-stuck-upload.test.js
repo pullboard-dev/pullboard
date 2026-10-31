@@ -110,8 +110,9 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
       const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${JSON.stringify(new URL('../src/relay-baseline-settle.js', import.meta.url).href)});
       const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${JSON.stringify(new URL('../src/relay-checkpoint.js', import.meta.url).href)});
       const { checkpointPublisher } = await import(${JSON.stringify(new URL('../src/relay-checkpoint-publish.js', import.meta.url).href)});
+      const { relayOrdering } = await import(${JSON.stringify(new URL('../src/relay-ordering.js', import.meta.url).href)});
       const diagnostics = [];
-      const io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, /** Retain safe diagnostic lines for exact per-move counts. */ err: line => diagnostics.push(line) };
+      const io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, /** Retain safe diagnostic lines for exact per-move counts. */ err: line => diagnostics.push(line) };
       try {
       await syncRelay(process.cwd(), io);
       await relayOperation(process.cwd(), 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text: 'first internal paused move' }], io);
@@ -546,9 +547,10 @@ test('a refused later checkpoint names each distinct ordered move with the same 
     const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${JSON.stringify(new URL('../src/relay-baseline-settle.js', import.meta.url).href)});
       const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${JSON.stringify(new URL('../src/relay-checkpoint.js', import.meta.url).href)});
       const { checkpointPublisher } = await import(${JSON.stringify(new URL('../src/relay-checkpoint-publish.js', import.meta.url).href)});
+      const { relayOrdering } = await import(${JSON.stringify(new URL('../src/relay-ordering.js', import.meta.url).href)});
     const root = process.cwd();
     const lines = [];
-    const io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, cwd: root, say(value) { lines.push(value); }, err(value) { lines.push(value); } };
+    const io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, cwd: root, say(value) { lines.push(value); }, err(value) { lines.push(value); } };
     const notices = () => lines.filter(line => line.includes('relay checkpoint refused for '));
     await syncRelay(root, io);
     const first = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', text: 'same io first ordered move', lanes: [] }], io);

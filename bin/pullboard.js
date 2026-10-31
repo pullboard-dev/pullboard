@@ -75,6 +75,7 @@ process.exitCode = await main(process.argv.slice(2), {
     uncertainUploadFailure: (...args) => import('../src/relay-baseline-settle.js').then(m => m.uncertainUploadFailure(...args)),
     decideUncertainBaseline: (...args) => import('../src/relay-baseline-settle.js').then(m => m.decideUncertainBaseline(...args)),
     checkpointPublisher: (...args) => import('../src/relay-checkpoint-publish.js').then(m => m.checkpointPublisher(...args)),
+    relayOrdering: (...args) => import('../src/relay-ordering.js').then(m => m.relayOrdering(...args)),
     checkpointInBackground: (...args) => import('../src/relay-checkpoint.js').then(m => m.checkpointInBackground(...args)),
     scheduleCheckpoint: (...args) => import('../src/relay-checkpoint.js').then(m => m.scheduleCheckpoint(...args)),
     requestCheckpointCheck: (...args) => import('../src/relay-checkpoint.js').then(m => m.requestCheckpointCheck(...args)),
