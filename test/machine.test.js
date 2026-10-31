@@ -144,6 +144,9 @@ const NON_MOVE_ENTRY_POINTS = [
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
+  // reason as data rather than raising the refusal from the reserve move.
+  'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem'],
   'review-reachability.js#unreviewableStrict': ['review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],

@@ -27,6 +27,7 @@ import { relayLinked } from '../relay.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
 import { claimOrdered } from './claim.js';
+import { currentReworkRoutingPolicy } from './claim.js';
 import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { claimFreezer } from './claim.js';
@@ -102,7 +103,8 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id && !pendingSubmitHandoff(board, item)
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
-    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle };
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board) };
   const own = heldItem ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
