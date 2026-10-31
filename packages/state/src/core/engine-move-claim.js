@@ -5,10 +5,13 @@ import { restoreFreeze } from './engine-move-freeze.js';
 
 /** Mark a claim made under line capacity settings, so replicas apply the same capacity rule [H16]. */
 export function prepareBefore(board, values) {
+  const settings = lineSettings(board);
+  const markers = {
+    ...(['wipPerReviewer', 'takeoverMinutes'].some(key => typeof settings[key] === 'number') ? { lineCapacity: true } : {}),
+    ...(values[1]?.reworkRoutingPolicy ? { reworkSameFamily: true } : {}),
+  };
   if (values[1]?.exitRules?.enabled && values[1].exitClaimKey === undefined) values[1] = { ...values[1], exitClaimKey: randomUUID() };
-  if (['wipPerReviewer', 'takeoverMinutes'].some(key => typeof lineSettings(board)[key] === 'number')) {
-    values[1] = { ...values[1], lineCapacity: true };
-  }
+  if (Object.keys(markers).length) values[1] = { ...values[1], ...markers };
 }
 
 /** Seal the frozen criterion in place of the caller's freeze callback [H3]. */

@@ -153,6 +153,29 @@ test('a moved shim that bypasses its unreachable front door fails by both paths 
   assert.match(run.stderr, /src\/refused\.js.*packages\/kernel\/index\.js/u);
 });
 
+test('only exact named own-body worker shims pass the bounded process-entry exception [C7,D3,CD64]', t => {
+  for (const mode of ['worker', 'non-worker', 'wrong-leaf', 'star', 'opaque', 'oversize']) {
+    const { root, put } = fixture(t);
+    put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js', files: ['package.json', 'src/**', 'packages/**'] }));
+    const plan = computePlan(root);
+    writePlan(root, plan);
+    put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+    put('packages/kernel/src/core/other.js', 'export class Refused extends Error {}\n');
+    put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    put('src/board.js', "import { Refused } from '../packages/kernel/index.js';\nexport const board = () => Refused;\n");
+    const leaf = mode === 'wrong-leaf' ? 'other' : 'refused';
+    const bindings = mode === 'star' ? '*' : '{ Refused }';
+    put('src/refused.js', `export ${bindings} from '../packages/kernel/src/core/${leaf}.js';\n`);
+    let worker = mode === 'non-worker' ? 'export const worker = true;\n' : "import { Refused } from './refused.js';\nexport const worker = Refused;\n";
+    if (mode === 'opaque') worker += 'new URL(process.env.UNKNOWN_WORKER_PATH, import.meta.url);\n';
+    if (mode === 'oversize') worker += `export const padding = '${'x'.repeat(1_048_576)}';\n`;
+    put('src/runner-worker.js', worker);
+    const problems = checkMoved(root, plan, 'kernel');
+    if (mode === 'worker') assert.deepEqual(problems, [], 'a closed actual worker may retain its exact named own-body shim');
+    else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
+  }
+});
+
 test('a correct shim does not make an otherwise unreachable moved package reachable [C7,D3,CD64]', t => {
   const { root, put } = fixture(t);
   put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));

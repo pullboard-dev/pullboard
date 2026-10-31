@@ -1,3 +1,4 @@
+import { processCensus } from './runner-custody.js';
 /** Read and strictly validate the controller's one-shot work specification [C7]. */
 import { runnerPolicyRecord } from './runner-policy.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
@@ -135,7 +136,7 @@ export async function readSpec(S) {
   if (value.root !== undefined && (typeof value.root !== 'string' || !isAbsolute(value.root))) throw new Error('invalid work specification');
   if (value.recovery?.launchFence === 1) {
     const root = value.root ?? join(isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir, '.pullboard-runner');
-    if (!claimRunnerWorker(root, value.recovery)) throw new Error('runner launch was fenced or unclaimed');
+    if (!claimRunnerWorker(root, value.recovery, processCensus)) throw new Error('runner launch was fenced or unclaimed');
   }
   return value;
 }

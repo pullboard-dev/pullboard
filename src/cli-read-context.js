@@ -115,6 +115,7 @@ export function context(io) {
   const ctx = { info, config, file, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
     get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
   if (config.worktreeMaintenance?.enabled === true) io.worktreeMaintenanceContext = ctx;
+  if (config.toolBuild?.autoGate === true) io.toolBuildGateContext = ctx;
   return ctx;
 }
 

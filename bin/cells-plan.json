@@ -1042,6 +1042,14 @@
     {
       "path": "src/move-history/185.json",
       "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "src/move-history/186.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/rework-same-family-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

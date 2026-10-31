@@ -2,7 +2,11 @@
 export function dashboardModel(project, history, { now, complete = true } = {}) {
   if (!Number.isFinite(now)) throw new TypeError('Dashboard projection requires an explicit clock reading');
   const hour = 3_600_000, start = now - 4 * hour;
-  const items = (project.items ?? []).map(item => ({ ...item,
+  const landingAt = new Map((project.landingBatches ?? []).flatMap(batch => (batch.items || []).map(entry => [entry.id, batch.startedAt])));
+  const holds = new Map((project.itemHolds ?? []).map(hold => [hold.item, hold.reason]));
+  const laneHolds = new Map((project.holds ?? []).map(hold => [hold.hold_lane, hold.hold_reason]));
+  const items = (project.items ?? []).map(item => ({ ...item, landingBatchAt: landingAt.get(item.id) || null,
+    heldReason: holds.get(item.id) || null, laneHoldReason: laneHolds.get(item.lane) || null,
     owner: item.status === 'claimed' ? item.claim?.by : null,
     reviewer: item.status === 'submitted' ? item.claim?.by : null, reviewUntil: item.claim?.until }));
   const byId = new Map(items.map(item => [item.id, item]));

@@ -6,6 +6,7 @@ export { itemHandoff } from './src/core/handoff-state.js';
 export { handoffMoveProblem } from './src/core/handoff-state.js';
 export { requireHandoffActive } from './src/core/handoff-state.js';
 export { lineSettings } from './src/core/line-settings-read.js';
+export { REWORK_SAME_FAMILY_ENGINE } from '../../src/rework-same-family-engine.js';
 export { manualLandingFailureQuoted } from './src/core/manual-landing-failure-quoted.js';
 export { canonicalMilestoneTarget } from './src/core/milestone-target.js';
 export { IMPLYING_OPERATIONS } from './src/core/move-implies.js';
