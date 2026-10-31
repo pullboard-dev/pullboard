@@ -103,6 +103,7 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     assert.match(list['4'].detail, /verifying/u);
     assert.deepEqual(list['5'].stage, 'Landing');
     assert.match(list['5'].detail, /batch/u);
+    assert.doesNotMatch(list['5'].detail, /\d{4}-\d{2}-\d{2}T/u, 'landing details are readable clock labels');
     assert.deepEqual(list['6'].stage, 'Merged');
     assert.equal(list['6'].detail, 'landed');
     assert.deepEqual(list['7'].stage, 'Verified');
@@ -145,9 +146,11 @@ test('every screen shows an item\'s stage from the seven approved words, in orde
     await press(chrome, "document.querySelector('[data-tab=dashboard]')");
     await chrome.waitFor("!document.querySelector('[data-pane=dashboard]').hidden && document.querySelector('#dashboard [data-go=\\\"item:5\\\"] .stage-word')");
     const dashboardStages = JSON.parse(await chrome.stable(`JSON.stringify({ landing: document.querySelector('#dashboard [data-go="item:5"] .stage-word')?.textContent,
+      landingDetail: document.querySelector('#dashboard [data-go="item:5"] .stage-detail')?.textContent,
       verified: document.querySelector('#dashboard [data-go="item:7"] .stage-word')?.textContent,
       reviewKey: document.querySelector('#dashboard [data-go="item:4"] .item-stage')?.dataset.stage })`));
-    assert.deepEqual(dashboardStages, { landing: 'Landing', verified: 'Verified', reviewKey: 'in-review' });
+    assert.deepEqual(dashboardStages, { landing: 'Landing', landingDetail: list['5'].detail, verified: 'Verified', reviewKey: 'in-review' }, 'Dashboard shares the readable landing-batch detail used by the Items screen');
+    assert.doesNotMatch(dashboardStages.landingDetail, /\d{4}-\d{2}-\d{2}T/u, 'Dashboard never exposes a raw ISO batch timestamp');
     assert.deepEqual(chrome.exceptions, [], 'stage screens have no uncaught browser errors');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);
