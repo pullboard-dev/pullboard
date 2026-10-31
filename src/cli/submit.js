@@ -6,7 +6,7 @@ import { agentDisplayName } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
 import { git } from '../git.js';
 import { tryGit } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { evidenceLine } from './shout.js';

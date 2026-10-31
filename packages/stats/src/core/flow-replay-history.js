@@ -1,5 +1,5 @@
 /** Text-free lifecycle observations for an offline replay, never a second board state machine [R1,R2]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 const KINDS = new Set(['join', 'add', 'claim', 'submit', 'reserve', 'accept', 'reject', 'merged', 'release', 'reopen', 'refreeze', 'lapse', 'escalate', 'withdraw']);
 

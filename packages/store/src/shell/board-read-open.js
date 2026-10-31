@@ -11,7 +11,7 @@ import {
   SCHEMA_DIGEST,
   SCHEMA_VERSION,
 } from "./board-schema-source.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 // Preserve eager validation of feature declarations without loading lifecycle guards.
 import { ENGINE_REGISTRY } from "../../../../src/engine-metadata.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";

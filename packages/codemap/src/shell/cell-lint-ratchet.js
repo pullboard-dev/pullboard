@@ -1,7 +1,7 @@
 import { mappedPath } from '../core/path-map.js';
 /** Explicit falling allowances for each cells finding; report generation never writes state [C7,CD64]. */
 import { CELL_METRICS } from './cell-lints.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Reject incomplete or malformed snapshots rather than silently forgiving unrecorded debt. */
 export function validateCellLintBaseline(value) {

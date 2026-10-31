@@ -32,7 +32,7 @@ import {
   publishVerificationStatuses,
   verificationPulls,
 } from './pr-verification.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { handledReferences } from './reference-lines.js';
 
 /** Keep publisher-local transport state distinct from the shared board and legacy push state. */

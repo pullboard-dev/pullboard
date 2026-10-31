@@ -12,7 +12,7 @@ import {
   ENGINE_VERSION,
   SUBMITTED_CONFLICT_ENGINE,
 } from '../../../../src/engine-metadata.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { conflictNote } from '../../../kernel/src/core/registry-guards.js';
 import { shownPaths } from '../../../kernel/src/core/registry-guards.js';
 

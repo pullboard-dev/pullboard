@@ -51,7 +51,7 @@ import {
   tryGit,
 } from './git.js';
 import { machineHome } from '../packages/resources/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { reviewerStartup } from './next-steps.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { remoteShell } from './person.js';

@@ -21,7 +21,7 @@ import { namedBoard } from './relay-board-config.js';
 import { relayRelink } from './relay-relink.js';
 import { updateRelayMachine } from './relay-machine.js';
 import { listApiProjects } from './projects.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { mainPolicy } from './trusted-policy.js';
 import {
   localRecords,

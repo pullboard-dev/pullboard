@@ -22,7 +22,7 @@ import {
   untracked,
 } from './git.js';
 import { submitHandoff } from './submit-handoff-read.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const CONTEXTS = new WeakMap();
 const BOARDS = new WeakMap();

@@ -50,7 +50,7 @@ import {
 import { personNeeds } from '../row-decision-text.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   unlinkedRelayProjects,
 } from '../relay-setup.js';

@@ -10,7 +10,7 @@ import {
 } from "./board.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import * as seats from "../../../../src/seats.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";
 

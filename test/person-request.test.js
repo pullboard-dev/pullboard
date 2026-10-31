@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { moveArgs } from '../src/api-moves.js';
 import { personRequestMove, preparePersonRequest, validatePersonRequest } from '../src/person-request.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 
 test('[H12,H16] each supported person intent becomes literal CLI arguments', () => {
   const cases = [

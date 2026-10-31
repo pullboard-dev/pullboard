@@ -8,7 +8,7 @@ import { cellOf } from './cell-lint-inventory.js';
 import { committedCellTransition } from './cell-lint-inventory.js';
 import { cycleEdges } from './cell-lint-inventory.js';
 import { testFile } from './cell-lint-inventory.js';
-import { lex } from '../../../../src/js-lex.js';
+import { lex } from '../../../kernel/index.js';
 
 export const CELL_METRICS = Object.freeze(['boundaries', 'cycles', 'shims', 'legacySource', 'fileSize', 'strays', 'documents', 'unreachable', 'unreachablePackages', 'unreachableExports', 'unknown']);
 const ROOT_FILES = new Set(['package.json', 'jsconfig.json', 'path-map.json', 'README.md', 'LICENSE', 'CHANGELOG.md', 'SPEC.md', 'DOCTRINE.md', 'AGENTS.md', '.gitignore', '.gitattributes', '.npmignore', '.nvmrc']);

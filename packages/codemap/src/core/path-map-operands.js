@@ -1,5 +1,5 @@
 /** Classify only supported literal Node and grep file operands; unknown shell grammar stays untouched [C7]. */
-import { literalShellWords } from '../../../../src/literal-shell-words.js';
+import { literalShellWords } from '../../../kernel/core.js';
 
 const NODE_DATA = new Set(['--test-name-pattern', '--test-skip-pattern', '--test-reporter', '--test-reporter-destination', '--test-concurrency', '--test-timeout', '--test-shard', '--import', '--require', '-r', '--loader', '--experimental-loader', '--conditions', '-C', '--input-type', '--disable-warning', '--title', '-e', '--eval', '-p', '--print']);
 const NODE_FLAGS = new Set(['--test', '--experimental-vm-modules', '--experimental-test-coverage', '--enable-source-maps', '--no-warnings']);

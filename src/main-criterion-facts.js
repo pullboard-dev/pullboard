@@ -2,7 +2,7 @@
 import { join } from 'node:path';
 import { gitSpawnSync } from './git-adapter.js';
 import { readFileSync } from 'node:fs';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { CONFIG_FILE } from './config.js';
 import { DOCTRINE_FILE } from './config.js';
 import { LEGACY_DOCTRINE_FILE } from './config.js';

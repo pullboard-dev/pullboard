@@ -9,7 +9,7 @@ import {
   logEvent,
 } from './board.js';
 import { COORDINATOR } from './config.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Require bounded provider identities; strings become observations, never commands. */
 function line(value, limit = 500) { return typeof value === 'string' && value.length > 0 && value.length <= limit && !/[\r\n\0]/u.test(value); }

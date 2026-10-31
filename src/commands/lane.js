@@ -10,7 +10,7 @@ import {
 } from '../lanes.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 
 /** Run `pullboard lane` and return its exit code. */
 export function run(io, { first, second, rest, values }) {

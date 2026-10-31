@@ -21,7 +21,7 @@ import { repoInfo } from './git.js';
 import { tryGit } from './git.js';
 import { landingFailures } from './land.js';
 import { landingRemote } from './land.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { publishPullRequests } from './pr-publish.js';
 import { publishStateFile } from './publish-pause.js';
 

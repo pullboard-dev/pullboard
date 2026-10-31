@@ -1,5 +1,5 @@
 import { COORDINATOR } from "../../../../src/config.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { ACTIVITY_NEWS_ENGINE } from "../../../../src/activity-news-engine.js";
 
 /** Validate explicitly marked board-wide news without weakening any existing message audience. */

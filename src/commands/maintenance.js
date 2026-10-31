@@ -4,7 +4,7 @@ import { recordMaintenanceLastRun } from '../worktree-maintenance-diagnostics.js
 import { actOn } from '../cli.js';
 import { context } from '../cli.js';
 import { mainPolicy } from '../trusted-policy.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { maintenanceCommandPorts } from '../worktree-maintenance-command.js';
 import { maintenanceSummary } from '../worktree-maintenance.js';
 import { runWorktreeMaintenance } from '../worktree-maintenance.js';

@@ -1,7 +1,7 @@
 /** Plan the baseline's own literal tool-data inventory before recording its falling allowances [C7,CD64]. */
 import { cellLintBaseline } from './cell-lint-ratchet.js';
 import { cellLintFiles } from './cell-lint-store.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Remove only the validated previous generation's stray/unreachable rows; all other files and metrics stay literal. */
 function withoutPrevious(report, previous) {

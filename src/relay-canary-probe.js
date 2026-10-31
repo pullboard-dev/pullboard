@@ -17,7 +17,7 @@ import {
 } from './relay.js';
 import { readBoardKey } from './relay-key.js';
 import { unseal } from '../packages/kernel/src/core/seal.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Keep the recorded result bounded and credential-free, even for unexpected errors. */
 function safeCode(error) {

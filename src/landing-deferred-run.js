@@ -21,7 +21,7 @@ import {
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Quote one selected path as a single shell argument. */
 function quote(value) { return `'${String(value).replaceAll("'", "'\\''")}'`; }

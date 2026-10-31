@@ -1,5 +1,5 @@
 /** Read external brief references without treating their private text as work instructions [C7]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { ID_RE } from './spec.js';
 import { tryGit } from '../../../../src/git.js';
 

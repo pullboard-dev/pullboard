@@ -13,7 +13,7 @@ import {
   MOVE_CANDIDATE,
   MOVE_FILE,
   discovered,
-} from './discovery.js';
+} from '../packages/kernel/index.js';
 
 /** Validate one trusted source declaration before any engine or sender uses it. */
 function declarationFor(file, value) {

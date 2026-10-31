@@ -2,7 +2,7 @@ import { recordRunnerMeasurement } from '../settings.js';
 /** The pullboard runner command, in its own module so an item adding another command never edits these lines. */
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   addRunner,
   loadMachineSettings,

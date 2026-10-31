@@ -55,7 +55,7 @@ import {
   laneNames,
   outOfLane,
 } from './lanes.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { missingGate } from './gate-config.js';
 
 /** Report changing machine queue state while an unattended item waits for a gate slot. */

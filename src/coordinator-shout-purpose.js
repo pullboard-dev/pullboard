@@ -1,5 +1,5 @@
 /** Keep routine item updates out of the coordinator's decision channel [C7]. */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { checkEvidence } from './board-shout-audience.js';
 
 /** Require agent coordinator kinds while preserving person and coordinator messages. */

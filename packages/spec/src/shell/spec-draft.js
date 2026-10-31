@@ -3,7 +3,7 @@
  * (spec draft, rigor draft) [S1,D1]. A draft is never approved here: only the person approves.
  */
 import { readFileSync } from 'node:fs';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { writeRowApply } from './row-decisions.js';
 import {
   insertSectionRows,

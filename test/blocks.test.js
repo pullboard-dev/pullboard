@@ -14,7 +14,7 @@ import {
   blockAudience,
   reportBlock,
 } from '../src/next-steps.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import {
   personBlockWords,
   readBlocks,

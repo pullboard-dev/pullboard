@@ -8,7 +8,7 @@ import { checkRoute } from "../../../../src/item-routing.js";
 import { COORDINATOR } from "../../../../src/config.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { VERIFIER_STANDING_ENGINE } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { saveJoinedSession } from "../../../../src/parent-session.js";
 import { agentAt } from "./board-query.js";
 import { newSeatId } from "../../../../src/seats.js";

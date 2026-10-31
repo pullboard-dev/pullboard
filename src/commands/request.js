@@ -1,5 +1,5 @@
 /** Typed coordinator-move requests never borrow the coordinator's authority [B3,N26]. */
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { actOn } from '../cli.js';
 import { context } from '../cli.js';
 import { idArg } from '../cli.js';

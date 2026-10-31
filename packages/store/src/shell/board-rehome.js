@@ -18,7 +18,7 @@ import {
   atomic,
   logEvent,
 } from "./board-event-log.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Preserve an existing check only when the validated source move carries that exact check [E15]. */
 export function validateRehomeCheck(by, check, sourceMove) {

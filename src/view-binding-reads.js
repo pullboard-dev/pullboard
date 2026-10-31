@@ -1,5 +1,5 @@
 /** Compile-only lexical binding checks for view purity [N26,C7]. */
-import { lex } from './js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 
 /** Locate free window reads in compiled source; lexical bindings never authorize another scope. */
 export function freeWindowOffsets(source) {

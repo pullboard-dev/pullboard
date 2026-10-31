@@ -4,7 +4,7 @@ import { roadmap } from '../board-milestones.js';
 /** The pullboard roadmap command, in its own module so an item adding another command never edits these lines. */
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import * as roadmapView from '../../packages/roadmap/index.js';
 import {
   context,

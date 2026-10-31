@@ -1,5 +1,5 @@
 /** Verify client-held person roots without trusting relay identity assertions [H15]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 const encoder = new TextEncoder();
 

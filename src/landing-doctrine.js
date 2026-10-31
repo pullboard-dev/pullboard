@@ -22,7 +22,7 @@ import {
   isClean,
   untracked,
 } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { parseSpec } from './spec.js';
 
 /** Count held submit rules, refuse increases atomically, and commit only measured lower count fields. */

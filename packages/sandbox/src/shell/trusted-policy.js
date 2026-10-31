@@ -21,7 +21,7 @@ import {
 } from '../../../../src/lanes.js';
 import {
   Refused,
-} from '../../../../src/refused.js';
+} from '../../../kernel/index.js';
 import {
   specGateMoveOnly,
 } from '../../../../src/spec-gate-move.js';

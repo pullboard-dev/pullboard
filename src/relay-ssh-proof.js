@@ -12,7 +12,7 @@ import {
   tmpdir,
 } from 'node:os';
 import { join } from 'node:path';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Run ssh-keygen in a private scratch folder, refusing plainly when OpenSSH is not installed. */
 function sshKeygen(args, input) {

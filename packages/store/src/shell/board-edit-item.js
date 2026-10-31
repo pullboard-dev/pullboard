@@ -25,7 +25,7 @@ import { checkRoute } from "../../../../src/item-routing.js";
 import { checkRouted } from "../../../../src/item-routing.js";
 import { COORDINATOR } from "../../../../src/config.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { barCorrectionFields } from "../../../../src/bar-corrections.js";
 import * as checkWiden from "../../../../src/check-widen.js";
 import { moveItem } from "./board.js";

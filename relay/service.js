@@ -17,7 +17,7 @@ import {
   readApiBody,
 } from '../src/api-http.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { createRelayJournal } from './journal.js';
 import { createRelayRetention } from './retention.js';
 import { createDeviceStore } from './device-store.js';

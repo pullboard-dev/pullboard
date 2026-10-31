@@ -2,7 +2,7 @@
 import { runnerSource } from './gate-policy-load.js';
 import { removeGitRepositorySelectors } from './git-child-selectors.js';
 import { secretsIn } from '../packages/commits/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { installRunnerPackage } from './runner-package-install.js';
 import { MAX_BLOB_BYTES } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';

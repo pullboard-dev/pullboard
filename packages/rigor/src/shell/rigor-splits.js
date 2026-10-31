@@ -1,7 +1,7 @@
 /** Ordinary architectural suggestions retain coordinator and person authority, without red/green proof [D1]. */
 import { loadDoctrine } from '../../../../src/doctrine.js';
 import { proposeDoctrine } from '../../../doctrine/index.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   automaticSourceFromText,
   readAutomaticRigorSource,

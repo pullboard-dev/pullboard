@@ -1,4 +1,4 @@
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Treat a present correction array, including an empty one, as the new apply protocol marker. */
 export function validate(args) {

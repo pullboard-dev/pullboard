@@ -9,7 +9,7 @@
  * a relay or API caller cannot mark a reject as the bar's.
  */
 import { ENGINE_VERSION } from './engine-metadata.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** The engine whose edits carry a reason and refuse an unexplained bar correction; older replays never did. */
 export const BAR_ENGINE = 19;

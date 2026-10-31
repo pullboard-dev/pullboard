@@ -9,7 +9,7 @@ import {
   cleanGitEnvironment,
   refuseGrafts,
 } from "../../../../src/git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Read exact Git objects without inherited repository selectors or replacement objects. */
 function gitResult(root, args) {

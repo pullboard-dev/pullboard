@@ -8,7 +8,7 @@ import { repoInfo } from './git.js';
 import { localSeatSessionDigest } from './agent-session.js';
 import { ownSessionReviews } from './next-review.js';
 import { dispatchWork } from './dispatch-eligibility.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Validate the optional ordered prospective observations without changing historical receipts. */
 export function normalizedDispatch(value) {

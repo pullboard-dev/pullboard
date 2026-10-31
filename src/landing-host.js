@@ -9,7 +9,7 @@ import {
   executionEnvironment,
   sameEnvironment,
 } from './execution-environment.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Check one machine's own choice; a board policy never opts another machine in. */
 export function requireLandingHost(board, config) {

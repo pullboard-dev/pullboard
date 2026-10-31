@@ -13,7 +13,7 @@ import {
   normalizePersonBarEffect,
   sameBarEffect,
 } from "../core/person-bar-effect.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Capture the current author revision even for boards whose bar-ready setting is off. */
 function beforeBar(board, id) {

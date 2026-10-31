@@ -12,7 +12,7 @@ import { CHECKOUT_BOARD_ONLY } from '../cli-main.js';
 import { CHECKOUT_LEASES } from '../cli-main.js';
 import { main } from '../cli-main.js';
 import { COORDINATOR } from '../config.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { runPrivateBoard } from '../private-board.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';

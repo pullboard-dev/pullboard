@@ -1,5 +1,5 @@
 /** Carry opaque person enrollment traffic without becoming its cryptographic trust root [H15]. */
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { personEnrollmentBody } from '../src/person-enrollment.js';
 
 /** Use the device store's private SQLite connection and durable revocation tombstones. */

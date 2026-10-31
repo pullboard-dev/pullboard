@@ -5,7 +5,7 @@ import {
   context,
   withBoardRead,
 } from '../cli.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { testValueReport } from '../test-value.js';
 import { readPlacementReport } from '../test-economics-index.js';
 

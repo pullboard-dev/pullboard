@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../../../../src/automatic-dispatch-engine.js';
 import { ENGINE_VERSION } from './machine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Validate a deterministic correction before the enclosing edit changes any shared state. */
 export function correctedBar(board, item, next, { correction, freeze }) {

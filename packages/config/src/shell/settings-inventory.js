@@ -24,7 +24,7 @@ import {
   gateQueueSettings,
   loadMachineSettings,
 } from './settings.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { describeSetting } from './settings-descriptions.js';
 import { environmentProblem } from './config.js';
 

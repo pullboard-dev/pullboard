@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadDoctrine } from '../../../../src/doctrine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   GROWTH_BUDGET,
   QUALITY_RULES,

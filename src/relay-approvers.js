@@ -4,7 +4,7 @@
  * else. Only a person, signed in as themselves, sends the list, and the relay takes a change only from a current
  * approver, so a new list takes effect once an approver signs in with it.
  */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { request } from './relay.js';
 import { mainPolicy } from './trusted-policy.js';
 

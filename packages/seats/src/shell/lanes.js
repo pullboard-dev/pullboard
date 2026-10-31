@@ -15,7 +15,7 @@ import {
   configFromSource,
   loadConfig,
 } from '../../../../src/config.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /**
  * Every lane name, the coordinator first.
