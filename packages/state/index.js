@@ -31,3 +31,4 @@ export { RELEASE_REASONS_ENGINE } from '../../src/release-reasons-engine.js';
 export { DECISION_ORIGIN_ENGINE } from '../../src/decision-origin-engine.js';
 export { ITEM_NOTES_ENGINE } from '../../src/item-notes-engine.js';
 export { CRITICAL_PATH_ENGINE } from '../../src/critical-path-engine.js';
+export { SUBMISSION_PROOF_ENGINE } from '../../src/move-engine-constants.js';

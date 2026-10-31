@@ -20,3 +20,5 @@ export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './s
 export { criticalPathEnabled, remainingPaths, criticalPathOrder } from './src/core/critical-path-order.js';
 export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst } from './src/core/resume.js';
 export { readResumeSources } from './src/shell/resume-sources.js';
+export { landingFileTimes, invariantEvidence, submitInvariantProposals, submitInvariantLine, validateLandingBatch, preserveInvariantEvidence, validateLandingRevision } from './src/core/submit-invariants.js';
+export { requirePlannedSource, submitPreflight } from './src/core/submit-preflight.js';
