@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { apiBoardOpeners } from './board-fixture.js';
@@ -168,7 +169,7 @@ test('an older pushed landing shows stale checked proof and a correction path ac
     assert.match(explanation, new RegExp(checked));
     assert.doesNotMatch(explanation, /then another agent runs pullboard verify 1 accept/u);
     assert.deepEqual(withBoard(box.repo, board => store.verdictsFor(board, 1)), verdicts, 'presentation does not rewrite proof');
-    const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'Older landing fixture' }] });
+    const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'Older landing fixture' }] });
     t.after(() => api.close());
     const address = new URL(api.url);
     const detail = await fetchFresh(address.origin + '/api/v1/boards/' + withBoard(box.repo, store.boardId) + '/items/1',
