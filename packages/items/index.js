@@ -25,3 +25,4 @@ export { requirePlannedSource, submitPreflight } from './src/core/submit-preflig
 export { applyItemHold, applyItemHoldRelease } from './src/core/item-holds.js';
 export { reopenAuthority } from './src/core/reopen-authority.js';
 export { openHandoff, takeHandoff } from './src/core/handoff.js';
+export { itemDecisionDetail, recordItemDecision, projectItemDecisions } from './src/core/item-decision-queue.js';

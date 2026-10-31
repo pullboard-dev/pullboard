@@ -36,3 +36,5 @@ export { RIGOR_AUTO_ENGINE } from '../../src/rigor-auto-engine.js';
 export { AGENT_GRANT_ENGINE } from '../../src/agent-grant-engine.js';
 export { SUBMITTED_CONFLICT_ENGINE } from '../../src/submitted-conflict-engine.js';
 export { HANDOFF_ENGINE } from '../../src/handoff-engine.js';
+export { RULING_OWNER_ENGINE } from '../../src/ruling-owner-engine.js';
+export { DECISION_QUEUE_ENGINE } from '../../src/decision-queue-engine.js';
