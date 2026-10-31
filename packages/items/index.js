@@ -3,3 +3,4 @@ export { originalSession, recordFamilyDeclareActivation, seatFamily, withDerived
 export { workQueue } from '../../src/queue.js';
 export { dependencyLabel } from '../../src/item-dependencies.js';
 export { itemFileCollisions } from '../../src/item-files.js';
+export { outsideSource, saveOutsideSource, requireOutsideOwner, outsideSandboxProblem, outsideBuildProblem } from './src/core/outside-source.js';
