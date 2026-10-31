@@ -22,6 +22,7 @@ import {
   publisherHolding,
 } from './relay-checkpoint.js';
 import { publishLatestCheckpoint } from './relay.js';
+import { nativeBoardPorts } from './native-board.js';
 import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import { relayOrdering } from './relay-ordering.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from './relay-outbox.js';
@@ -88,6 +89,7 @@ async function release() {
 
 /** Keep a short record of failures beside the link; the next command's status reports pending uploads. */
 const io = {
+  nativeBoardPorts,
   withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem,
   // Progress goes to the same short log as failures, so a stalled publisher shows how far it got.
   say(line) { io.err(line); },

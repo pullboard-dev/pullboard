@@ -68,7 +68,6 @@ import {
 } from 'node:zlib';
 import * as store from './board.js';
 import { openBoard } from './native-board.js';
-import { nativeBoardPorts } from './native-board.js';
 import {
   exportBoard,
   importBoard,
@@ -682,7 +681,7 @@ async function uploadInitialBaseline(root, file, state, io) {
 
 /** Probe blocked limits first; only a recovered relay receives a fresh baseline containing all paused local moves. */
 async function retryPausedBaseline(root, file, state, io) {
-  const presentationRuntime = nativeBoardPorts();
+  const presentationRuntime = io.nativeBoardPorts();
   const presentationPorts = presentationRuntime.presentation;
   if (!(state.baselinePause || state.baselineStale) || attemptedBaselineThisCommand(io, file)) return !(state.baselinePause || state.baselineStale);
   try {
@@ -713,7 +712,7 @@ async function sealedRecord(key, value, state, kind, sequence) {
 
 /** Catch up in local order, retaining exact ciphertext so a lost response cannot duplicate a move. */
 async function flushMirror(root, file, state, io) {
-  const presentationRuntime = nativeBoardPorts();
+  const presentationRuntime = io.nativeBoardPorts();
   const presentationPorts = presentationRuntime.presentation;
   const key = readBoardKey(state.board);
   const path = '/api/v1/boards/' + state.board;
@@ -845,7 +844,7 @@ async function replayRelayRecord(board, key, state, record, io) {
 
 // Checkpoint publishing lives in its own module, over these link and transport helpers (#1014).
 async function checkpointServices(io) {
-  return io.checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage, presentationPorts: () => nativeBoardPorts().presentation });
+  return io.checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage, presentationPorts: () => io.nativeBoardPorts().presentation });
 }
 async function publishCheckpoint(root, file, state, io) {
   return (await checkpointServices(io)).publishCheckpoint(root, file, state, io);
@@ -915,7 +914,7 @@ async function ensureOrdered(root, file, state, io) {
 
 /** Restore a compacted, authenticated native prefix before receiving any following operations. */
 export async function restoreCheckpoint(root, state, io, key, restore = restoreRelaySnapshot) {
-  const senderPolicy = nativeBoardPorts().enginePorts;
+  const senderPolicy = io.nativeBoardPorts().enginePorts;
   const document = await request(state, '/api/v1/boards/' + state.board + '/state', {}, io);
   const snapshot = document.state;
   if (!snapshot || !Number.isSafeInteger(snapshot.sequence) || snapshot.sequence < 0) throw new Refused('RELAY_RESPONSE', 'the relay snapshot has no valid coverage sequence; fetch it again');
@@ -1031,7 +1030,7 @@ async function queueLocally(root, file, operation, args, io, command, applyLocal
 
 /** Send one board operation before executing it locally, and report its canonical engine result. */
 export async function relayOperation(root, operation, args, io, command, applyLocally, onRecorded) {
-  const senderPolicy = nativeBoardPorts().enginePorts;
+  const senderPolicy = io.nativeBoardPorts().enginePorts;
   const { acknowledgedOperations, outboxQueueable } = await io.outboxPolicy();
   const roundTripStarted = Date.now();
   const file = linkFile(root);
@@ -1178,7 +1177,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
 
 /** Catch up an opted-in replica before/after a CLI command; offline reads retain local evidence. */
 export async function syncRelay(root, io) {
-  const presentationRuntime = nativeBoardPorts();
+  const presentationRuntime = io.nativeBoardPorts();
   const presentationPorts = presentationRuntime.presentation;
   const senderPolicy = presentationRuntime.enginePorts;
   const roundTripStarted = Date.now();
@@ -1357,7 +1356,7 @@ export function relayRecovered(root, { includePending = false } = {}) {
 
 /** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */
 export async function relayRecover(root, skip, io) {
-  const presentationRuntime = nativeBoardPorts();
+  const presentationRuntime = io.nativeBoardPorts();
   const presentationPorts = presentationRuntime.presentation;
   const senderPolicy = presentationRuntime.enginePorts;
   const file = linkFile(root);
@@ -1510,7 +1509,7 @@ async function deviceSignIn(url, io, { signal, intent, onSignIn } = {}) {
 
 /** Explicitly sign in through the relay and persist a sealed initial snapshot before uploading it. */
 export async function relayOn(root, address, io, { session, credential, quiet = false, strict = false, name } = {}) {
-  const presentationRuntime = nativeBoardPorts();
+  const presentationRuntime = io.nativeBoardPorts();
   const presentationPorts = presentationRuntime.presentation;
   const senderPolicy = presentationRuntime.enginePorts;
   const label = computerName(name);

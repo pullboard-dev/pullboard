@@ -104,6 +104,7 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   const receipt = { id, expected, baseline };
   const file = saveReceipt(root, receipt);
   const io = {
+    nativeBoardPorts: services.nativeBoardPorts,
     withOutboxGuard: services.withOutboxGuard,
     replayConflictRecord: services.replayConflictRecord,
     remoteBoardMissing: services.remoteBoardMissing,

@@ -30,7 +30,8 @@ async function serve(root, file, io) {
   const loadNativeBoard = () => import('./native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
-  const boardIo = { ...io, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
+  const nativeBoard = await loadNativeBoard();
+  const boardIo = { ...io, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('./relay-request-execution.js');

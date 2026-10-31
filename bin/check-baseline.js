@@ -7,7 +7,7 @@ process.emitWarning = (warning, ...rest) => {
 };
 const [root, rawId, request] = process.argv.slice(2);
 if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? '')) {
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard, nativeBoardPorts } = await import('../src/native-board.js');
   const { withOutboxGuard } = await import('../src/relay-outbox-guard.js');
   const { replay: replayConflictRecord } = await import('../src/relay-conflict-record.js');
   const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import('../src/relay-baseline-settle.js');
@@ -16,6 +16,6 @@ if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? 
   const { relayOrdering } = await import('../src/relay-ordering.js');
   const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import('../src/relay-outbox.js');
   const { runCheckBaselineWorker } = await import('../src/check-baseline-worker.js');
-  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem }); }
+  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem }); }
   catch { process.exitCode = 1; }
 } else process.exitCode = 2;

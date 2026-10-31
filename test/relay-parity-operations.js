@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as rawStore from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { draftSpecRow } from '../src/native-board.js';
 import { recordRowVerification } from '../src/native-board.js';
 import { decideSpecRevisions } from '../src/native-board.js';
@@ -35,7 +35,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
   const reader = await createParityReader({ root, origin, token, boardId, key });
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   const notices = [];
-  const io = { checkpointPublisher, say() {}, err(message) { notices.push(message); } };
+  const io = { checkpointPublisher, nativeBoardPorts, say() {}, err(message) { notices.push(message); } };
   let observing = 'initial baseline';
   /** Publish with the actual production capture/seal/HTTP path, then compare both full readers before covering the move. */
   async function verifyAfterMutation({ operation, after }) {
