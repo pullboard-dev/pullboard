@@ -1,3 +1,7 @@
+import { localDependencyIds } from './item-dependencies.js';
+import { dependencyLabel } from './item-dependencies.js';
+import { itemFileCollisions } from './item-files.js';
+import { withLocalSeatPresence } from './seat-presence.js';
 import { policyAt } from './trusted-policy-read.js';
 import { frozenCheck } from './trusted-policy.js';
 import { itemPolicy } from './trusted-policy.js';
@@ -269,6 +273,7 @@ export function nativeBoardPorts() {
     recordRowDecisions: store.recordRowDecisions, now,
     committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
+    localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence,
     agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
     getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
