@@ -5,7 +5,7 @@ import {
   wrapDeviceBoardKey,
 } from './relay-device-keys.js';
 import { ENGINE_VERSION } from './machine.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   signSshVouch,
   verifySshVouch,

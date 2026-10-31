@@ -1,7 +1,7 @@
 /** Board-only proposed changes to approved requirements [P6,B23,N39]. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   defaultPrincipal,
   hasSignerFile,

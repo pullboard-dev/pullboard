@@ -19,7 +19,7 @@ import { repoInfo } from './git.js';
 import { tryGit } from './git.js';
 import { untracked } from './git.js';
 import { isStampedGreen } from './gate.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { save } from './landing-step-merge.js';
 import { landingRunObserver } from './landing-step-gate.js';
 

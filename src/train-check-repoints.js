@@ -4,7 +4,7 @@ import { listItems } from './board-query.js';
 import { getItem } from './board-query.js';
 import { COORDINATOR } from './config.js';
 import { git } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Split Git's NUL-delimited name-status stream without interpreting paths as shell text. */
 function changedTests(root, base, tip) {

@@ -23,7 +23,7 @@ import {
 } from '../../../../src/git.js';
 import {
   Refused,
-} from '../../../../src/refused.js';
+} from '../../../kernel/index.js';
 
 /** Read raw Git output, retaining NUL-delimited names without exposing Git diagnostics. */
 export function policyGit(root, args, { encoding = 'utf8' } = {}) {

@@ -3,7 +3,7 @@ import { configFromSource } from './config.js';
 import { defaults } from './config.js';
 import { cleanGitEnvironment } from './git.js';
 import { secretsIn } from '../packages/commits/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { MAX_BLOB_BYTES } from './runner-source-scan.js';
 import { objectRecord } from './runner-source-scan.js';
 import { protectedHistoryPath } from './runner-source-scan.js';

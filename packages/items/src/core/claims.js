@@ -1,6 +1,6 @@
 import { takeoverReady } from "../../../../src/line-capacity.js";
 /** Durable first-refusal windows for reopened work [B13,B5]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 
 /** Give the original builder first refusal while preserving every ordinary claim guard. */

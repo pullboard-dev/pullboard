@@ -1,5 +1,5 @@
 /** Decide a first board upload whose outcome was lost, before any move may commit outside relay order (#919). */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { transientRelayFailure } from './relay-move-fallback.js';
 
 /**

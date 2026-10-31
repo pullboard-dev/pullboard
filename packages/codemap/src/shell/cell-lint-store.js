@@ -13,7 +13,7 @@ import { readCellLintCellBaseline } from './cell-lint-cell-shards.js';
 import { writeCellLintCellBaseline } from './cell-lint-cell-shards.js';
 import { CELL_METRICS } from './cell-lints.js';
 import { validateCellLintBaseline } from './cell-lint-ratchet.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 export const CELL_BASELINE_DIRECTORY = 'bin/cell-lint-baselines';
 export const CELL_BASELINE_DESCRIPTOR = CELL_BASELINE_DIRECTORY + '/index.json';

@@ -12,7 +12,7 @@
  * board-link-envelope.js capability. Neither repository enrollment nor a relay bearer token
  * replaces the two board approvals. There is no CLI, UI or automatic key-distribution policy here.
  */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { boardLinkBody } from "../../../kernel/src/core/registry-guards.js";

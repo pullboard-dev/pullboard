@@ -12,7 +12,7 @@ import { recordedRefusal } from '../core/recorded-refusal.js';
 import { PEOPLE_ENGINE } from '../../../../src/people-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { VERIFIER_STANDING_ENGINE } from './machine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { ENGINE_MOVE_STEPS } from './engine-move-steps.js';
 
 /** Require the explicit runtime ports supplied by the board owner, never a receiver-local loader. */

@@ -7,7 +7,7 @@ import {
   listAgents,
 } from "./board-query.js";
 import { logEvent } from "./board-event-log.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { normalizedHealthFindings } from "../core/board-health-receipts.js";
 import { healthFindingIdentity } from "../core/board-health-receipts.js";
 import { healthTargets } from "../core/board-health-receipts.js";

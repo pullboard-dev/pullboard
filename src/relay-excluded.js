@@ -13,7 +13,7 @@ import {
   generateBoardKey,
   seal,
 } from '../packages/kernel/src/core/seal.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Rebuild and seal this machine's current list using only its locally authenticated device roster. */
 export async function publishExcludedBoards(session, io, request) {

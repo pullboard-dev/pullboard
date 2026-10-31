@@ -13,7 +13,7 @@ import { isClean } from './git.js';
 import { tryGit } from './git.js';
 import { untracked } from './git.js';
 import { runLandingCandidateWorker } from './landing-candidates.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { validateLandingBatch } from './submit-invariants.js';
 import { validateLandingRevision } from './submit-invariants.js';
 import { save } from './landing-step-merge.js';

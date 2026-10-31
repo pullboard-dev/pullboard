@@ -1,5 +1,5 @@
 /** One native snapshot with a small current presentation and separately addressed sealed history [H15,H17]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import {
   PAGE_FANOUT,
   pageReference,

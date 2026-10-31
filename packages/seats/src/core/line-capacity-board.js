@@ -1,6 +1,6 @@
 /** Capacity adapters retain the board's canonical review eligibility checks [N2,B13,H16]. */
 import { reviewRoutingEnabled } from './review-routing-enabled.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import { ROUTES } from './route-escalation.js';
 import {
   capacitySettings,

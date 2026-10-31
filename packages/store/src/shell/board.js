@@ -46,7 +46,7 @@ import { MOVES } from "../../../../src/machine.js";
 import { STATES } from "../../../../src/machine.js";
 import { UNKNOWN_MOVE } from "../../../../src/machine.js";
 import { effectiveGuards } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { itemAuthorProblem } from "../../../../src/item-authors.js";
 import { ROUTES } from "../../../../src/route-escalation.js";
 import { canTake } from "../../../../src/route-escalation.js";

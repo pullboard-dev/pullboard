@@ -26,7 +26,7 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 // Node registers this symbol globally; looking it up needs no util facade or dynamic loader.
 const PROMISIFY_CUSTOM = Symbol.for('nodejs.util.promisify.custom');

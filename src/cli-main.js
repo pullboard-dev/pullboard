@@ -13,7 +13,7 @@ import { performance } from 'node:perf_hooks';
 import { parseArgs } from 'node:util';
 import { COMMANDS } from './commands/index.js';
 import { commandOutput } from './json-output.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 export const CHECKOUT_LEASES = new WeakMap();
 export const CHECKOUT_BOARD_ONLY = new WeakMap();

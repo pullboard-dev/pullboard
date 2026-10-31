@@ -18,7 +18,7 @@ import { heartbeatSeat } from '../src/seat-presence.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { repoInfo } from '../src/git.js';
 import { bindLocalSession } from '../src/agent-session.js';
 import { recordItemSession } from '../src/item-sessions.js';

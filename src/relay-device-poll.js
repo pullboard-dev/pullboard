@@ -1,5 +1,5 @@
 /** Bounded cancellation-aware device polling keeps relay orchestration within its module cap [C9,E12]. */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Throw a named refusal when the caller has cancelled the in-progress device sign-in. */
 export function cancellationOutcome(signal) {

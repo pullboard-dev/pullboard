@@ -1,5 +1,5 @@
 /** Board authority is the existing established SSH row-signature authority [E32,S17,H16]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { boardId } from "./board-query.js";
 import { headCommit } from "../../../../src/git.js";
 import { sha256 } from "../../../../src/signature.js";

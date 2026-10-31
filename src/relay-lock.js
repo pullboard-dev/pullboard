@@ -14,7 +14,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Longest wait for a sibling worktree's relay send, and how often the waiting command says so. */
 const LOCK_WAIT_MS = 120000;

@@ -2,7 +2,7 @@ import { releaseReasonProblem } from "./release-reasons.js";
 import { releaseExitClaim } from "./exit-rules-state.js";
 import { staleClaimRelease } from "./board-stale-claim-release.js";
 /** Ordinary claim/review releases, including recorded coordinator gone-seat observations. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import {
   ENGINE_VERSION,
   MOVES,

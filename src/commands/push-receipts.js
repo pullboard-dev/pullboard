@@ -27,7 +27,7 @@ import {
 import { pushedFirstParentCommits } from '../../packages/git/index.js';
 import { nativePushReceiptProblems } from '../../packages/git/index.js';
 import { runPushReceiptSmoke } from '../push-receipt-smoke.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { mainPolicy } from '../trusted-policy-read.js';
 
 /** Check actual pre-push stdin and native evidence, then run only the explicit accepted smoke policy. */

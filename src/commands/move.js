@@ -11,7 +11,7 @@ import { registerProject } from '../projects.js';
 import { relayCommandReceipt } from '../relay.js';
 import { relayCommandReceiptReported } from '../relay.js';
 import { assertRehomeSourceItemOrdered } from '../relay.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { CHECKOUT_BOARD_ONLY } from '../cli-main.js';
 import { CHECKOUT_LEASES } from '../cli-main.js';
 import { actOn } from '../cli.js';

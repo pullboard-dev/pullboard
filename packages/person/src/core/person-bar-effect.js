@@ -1,5 +1,5 @@
 /** Signed bar intent binds normalized author fields, never local paths or generated baseline receipts [E22,V1]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 const FIELDS = {
   add: ['by', 'lane', 'title', 'criterion', 'specIds', 'parentId', 'after', 'brief', 'route', 'check'],

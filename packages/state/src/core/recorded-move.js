@@ -1,5 +1,5 @@
 /** A completed durable move must never be repeated because later command work refused [C6,N26]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Remove only advice to repeat this original command, retaining named pairing, key and recovery actions. */
 function recordedRecovery(text) {

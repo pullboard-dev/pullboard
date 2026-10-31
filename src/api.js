@@ -80,7 +80,7 @@ import {
   projectItemSpecApprovals,
   specApprovalState,
 } from './spec-approval.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { verdictProjector } from './verdict-freshness.js';
 import { trunkRevisionReader } from '../packages/git/index.js';
 import { relayPresentationShout } from './relay-presentation.js';

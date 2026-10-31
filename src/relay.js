@@ -137,7 +137,7 @@ import {
   relayRelink,
   rememberRelink,
 } from './relay-relink.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { landingRelayCallbacks } from './landing-relay.js';
 import { relayOrigin } from './relay-origin.js';
 import { readRelayLink } from './relay-link-read.js';

@@ -10,7 +10,7 @@ import {
   repoInfo,
 } from './git.js';
 import { assertLandingLease } from './board-landing-lease.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 
 /** Recognize only the exact worktrees registered by an active canonical landing batch. */

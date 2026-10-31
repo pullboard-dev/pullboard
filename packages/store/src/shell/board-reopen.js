@@ -19,7 +19,7 @@ import { QUOTED_LANDING_FAILURE_ENGINE } from "../../../../src/machine.js";
 import { REOPEN_FIRST_REFUSAL_ENGINE } from "../../../../src/machine.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { MOVES } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { listAgents } from "./board-query.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
 import { causeProblem } from "../core/board-rigor.js";

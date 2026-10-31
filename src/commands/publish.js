@@ -3,7 +3,7 @@ import { checkAtCommit } from '../runner-private-check.js';
 import { publishTrunk } from '../publish.js';
 import { COORDINATOR } from '../config.js';
 import { mainPolicy } from '../trusted-policy.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   actOn,

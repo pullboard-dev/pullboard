@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../src/api-http.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { PAGE_BYTES, PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../src/sealed-pages.js';
 
 const PAGE_BODY_BYTES = 600_000;

@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../src/sealed-pages.js';
 
 const UPLOAD_MS = 3_600_000;

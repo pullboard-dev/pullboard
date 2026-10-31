@@ -1,5 +1,5 @@
 import { COORDINATOR } from '../../../../src/config.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Replace the coordinator's train request with the prepared landing it seals [H16]. */
 export function prepareBefore(board, values, { ports }) {

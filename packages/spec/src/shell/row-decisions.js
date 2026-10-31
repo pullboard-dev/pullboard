@@ -25,7 +25,7 @@ import {
   verifySignedRecords,
   readRawRecords,
 } from './signature.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { rowDecisionReplacement } from '../core/row-decision-text.js';
 import { rowDecisionContext } from './row-decision-state.js';
 import { staleRowDecision } from './row-decision-state.js';

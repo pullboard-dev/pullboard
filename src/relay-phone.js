@@ -14,7 +14,7 @@ import { readRelayMachine } from './relay-machine.js';
 import { requirePersonChannel } from './person.js';
 import { repoInfo } from './git.js';
 import { listApiProjects } from './projects.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Select only a phone whose public key was MAC-authenticated into this native machine's roster. */
 export function approvalPhone(state, { exclude } = {}) {

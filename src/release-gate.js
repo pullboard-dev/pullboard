@@ -38,7 +38,7 @@ import {
 } from './release-gate-receipt.js';
 import {
   Refused,
-} from './refused.js';
+} from '../packages/kernel/index.js';
 
 /** Bind a release to the accepted coordinator head and accepted command, with no dirty-tree substitute. */
 export function releaseSource(root) {

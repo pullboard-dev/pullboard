@@ -7,7 +7,7 @@
  * A draft counts as applied once SPEC.md has its id, so applying needs no second move. Every other
  * writer reserves its new id here too, so no two proposals share an id.
  */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { spawnSync } from 'node:child_process';
 import {
   loadSpec,

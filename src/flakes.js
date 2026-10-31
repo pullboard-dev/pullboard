@@ -14,7 +14,7 @@ import {
 import { CI_FLAKE_ENGINE } from './flake-engine.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
 import { ENGINE_VERSION } from './machine.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;

@@ -25,7 +25,7 @@ import {
 } from './submit-handoff-origin.js';
 import { submitHandoff } from './submit-handoff-read.js';
 import { submitHere } from './commands/submit.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */
 function jobGit(commonDir, args) {

@@ -23,7 +23,7 @@ import {
 import { projectLinkPorts } from '../cli/project-ports.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   context,
   main,

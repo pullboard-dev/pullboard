@@ -14,7 +14,7 @@ import {
   MILESTONE_RANK_ENGINE,
   WITHDRAW_MILESTONE_ENGINE,
 } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
 
 /** Require real store operations before a roadmap operation can read or mutate its board. */

@@ -2,7 +2,7 @@
 import { AGENT_GRANT_ENGINE } from '../../../../src/agent-grant-engine.js';
 import { REVIEW_GRANT_ENGINE } from '../../../../src/review-grant-engine.js';
 import { BAR_SIGN_GRANT_ENGINE } from '../../../../src/bar-sign-grant-engine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import { recordedGrantActivation } from '../../index.js';
 import { completesAdmittedSubmit } from '../../index.js';
 

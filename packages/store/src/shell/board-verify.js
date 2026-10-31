@@ -18,7 +18,7 @@ import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../../src/machine.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { MOVES } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { recordRejectedItemRoute } from "../../../../src/route-escalation.js";
 import { causeProblem } from "../core/board-rigor.js";
 import { tellVerdictImplications } from "../../../../src/implies.js";

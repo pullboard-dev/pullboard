@@ -1,5 +1,5 @@
 /** Coordinator-only ordered lane policy mutation [B21,H16]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import { laneLeads } from './lane-lead.js';
 
 /** Name an existing same-lane seat through the normal coordinator-only ordered transaction. */

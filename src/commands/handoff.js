@@ -7,7 +7,7 @@ import { whoAmI } from '../cli.js';
 import { withBoard } from '../cli.js';
 import { tryGit } from '../git.js';
 import { itemHandoff } from '../../packages/state/src/core/handoff-state.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 const STILL_TO_WRITE = ['what you own and what is unfinished', 'principles and taste behind decisions',
   'open threads, questions and next steps', 'files outside this repository and where they are',

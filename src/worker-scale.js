@@ -29,7 +29,7 @@ import { readCapacity } from '../packages/stats/index.js';
 import { COORDINATOR } from './config.js';
 import { machineHome } from '../packages/resources/index.js';
 import { readyItems } from './queue-readiness.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { withLocalSeatPresence } from './seat-presence.js';
 
 const HOUR = 3_600_000;

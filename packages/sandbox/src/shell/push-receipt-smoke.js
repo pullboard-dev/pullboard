@@ -4,7 +4,7 @@ import {
 } from './trusted-policy-read.js';
 import {
   Refused,
-} from '../../../../src/refused.js';
+} from '../../../kernel/index.js';
 
 /** Run only the accepted policy's explicit smoke command through ordinary native admission. */
 export async function runPushReceiptSmoke(root, { agent, onWait, executionServices } = {}, { checkNeedsBrowser, checkNeedsGui, runProfiledShellAsync, withGateSlot }) {

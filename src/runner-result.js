@@ -5,7 +5,7 @@ import { RunnerDropped } from './gate-policy-load.js';
 import { gateStages } from './gate-stages.js';
 import { readStages } from './gate-stages.js';
 import { secretsIn } from '../packages/commits/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { recordRunnerGui } from '../packages/resources/index.js';
 import { sourcePreparationFields } from './runner-overhead.js';
 import { remoteFileDenial } from './sandbox-denial.js';

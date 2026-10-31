@@ -6,7 +6,7 @@ import { MOVES } from "../../../../src/machine.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
 import { handledReferences } from "../../../../src/reference-lines.js";
 import { validateReferences } from "../../../../src/reference-authors.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 const REHOME_IMPORT_MOVE = MOVES.find(move => move.verb === 'rehomeImport');
 

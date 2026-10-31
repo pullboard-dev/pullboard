@@ -1,7 +1,7 @@
 /** The pullboard skills command, in its own module so an item adding another command never edits these lines. */
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   updateSkills,
 } from '../skills.js';

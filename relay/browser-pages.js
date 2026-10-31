@@ -1,7 +1,7 @@
 /** Phone reads current state and selected history without restoring the native board's complete tables [H15,H17]. */
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
 import { PAGE_CIPHER_BYTES, pageDigest, pageReference } from '../src/sealed-pages.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Decode canonical bounded ciphertext without including a response value in refusal guidance. */
 function cipher(value) {

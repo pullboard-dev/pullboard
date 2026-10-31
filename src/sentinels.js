@@ -10,7 +10,7 @@ import { logEvent } from './board.js';
 import { PERSON } from './board.js';
 import { shout } from './board.js';
 import { ENGINE_VERSION } from './machine.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Coordinator allocation, 18 Oct: all new board-watch moves begin here [H16]. */
 import { BOARD_SENTINEL_ENGINE } from './sentinel-engine.js';

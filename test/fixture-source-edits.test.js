@@ -16,6 +16,56 @@ test('a read whose path can name a moved source file is still reported [C7]', ()
   assert.match(unknown.problems[0], /unproven input expression or root/);
 });
 
+test('a repo-root file with a moved asset basename is distinct from the moved path [C7]', () => {
+  const move = { file: 'test/blueprint-reads.test.js', moves: [['src/blueprints/pullboard.json', 'packages/blueprints/src/shell/blueprints/pullboard.json']], mentionsOnly: true };
+  const root = fixtureSourceEdits(PREFIX + "readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.deepEqual(root.problems, [], 'a known root file does not make an unrelated read part of this move');
+  const source = fixtureSourceEdits(PREFIX + "readFileSync('src/blueprints/pullboard.json');", move);
+  assert.equal(source.edits.length, 1, 'the actual moved source is still repointed');
+  const ambiguous = fixtureSourceEdits(PREFIX + "readFileSync(join(root, 'pullboard.json'));", move);
+  assert.ok(ambiguous.problems.length, 'an unproven root may still name the moved asset');
+  const cwd = fixtureSourceEdits(PREFIX + "process.chdir(folder); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(cwd.problems.length, 'a mutated cwd keeps the analysis conservative');
+  const alias = fixtureSourceEdits(PREFIX + "import { chdir as change } from 'node:process'; change('src/blueprints'); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(alias.problems.length || alias.edits.length, 'an imported cwd-changing alias cannot claim the root-file exemption');
+  const computed = fixtureSourceEdits(PREFIX + "process['ch' + 'dir']('src/blueprints'); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(computed.problems.length || computed.edits.length, 'a computed process operation keeps the cwd unproven');
+  const processAlias = fixtureSourceEdits(PREFIX + "const proc = process; proc['ch' + 'dir']('src/blueprints'); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(processAlias.problems.length || processAlias.edits.length, 'a process alias cannot hide a cwd change');
+  for (const dependency of ["import './changes-cwd.js';", "import { change } from './changes-cwd.js'; change();", "await import('./changes-cwd.js');", "import { runInThisContext } from 'node:vm'; runInThisContext(code);"]) {
+    const importedCwd = fixtureSourceEdits(PREFIX + dependency + " readFileSync('pullboard.json'); readFileSync(unknown);", move);
+    assert.ok(importedCwd.problems.length || importedCwd.edits.length, 'an unevaluated dependency cannot establish the caller cwd');
+  }
+  const cwdProgram = "process.chdir('src/blueprints')";
+  const encoded = [...cwdProgram].map(character => character.charCodeAt(0)).join(',');
+  for (const program of [
+    `const change = Function(String.fromCharCode(${encoded})); change();`,
+    'unknown();', 'unknown`program`;', 'readFileSync(unknown);',
+  ]) {
+    const indirectCwd = fixtureSourceEdits(PREFIX + program + " readFileSync('pullboard.json'); readFileSync(unknown);", move);
+    assert.ok(indirectCwd.problems.length || indirectCwd.edits.length, 'unproven earlier operations cannot establish the cwd');
+  }
+  const wrapper = fixtureSourceEdits("import * as fs from 'node:fs'; import { join } from 'node:path'; function readFileSync(name) { return fs.readFileSync(join('src/blueprints', name)); } readFileSync('pullboard.json');", move);
+  assert.ok(wrapper.problems.length || wrapper.edits.length, 'a local reader wrapper may resolve the same name to the moved asset');
+  const shadow = fixtureSourceEdits(PREFIX + "function run(readFileSync) { readFileSync('pullboard.json'); } run(unknown);", move);
+  assert.ok(shadow.problems.length, 'a shadowed reader cannot claim the native root-file exemption');
+});
+
+test('a proven realpath of a fresh fixture remains distinct from a repository asset [C7]', () => {
+  const prefix = "import { readFileSync, mkdtempSync, realpathSync } from 'node:fs'; import { join, resolve, dirname } from 'node:path'; import { tmpdir } from 'node:os';\n";
+  const move = { file: 'test/fixture-root.test.js', moves: [['src/blueprints/pullboard.json', 'packages/blueprints/src/shell/blueprints/pullboard.json']], mentionsOnly: true };
+  const safe = fixtureSourceEdits(prefix + "const dir = realpathSync(mkdtempSync(join(tmpdir(), 'demo-'))); const root = join(dir, 'repo'); readFileSync(join(root, 'pullboard.json'));", move);
+  assert.deepEqual(safe.problems, [], 'a native fresh temporary directory stays a fixture after canonicalization');
+  const unknown = fixtureSourceEdits(prefix + "const dir = realpathSync(untrusted); readFileSync(join(dir, 'pullboard.json'));", move);
+  assert.ok(unknown.problems.length, 'realpath of an unknown root is not evidence of fixture identity');
+  const source = fixtureSourceEdits(prefix + "const dir = realpathSync('src/blueprints'); readFileSync(join(dir, 'pullboard.json'));", move);
+  assert.ok(source.problems.length || source.edits.length, 'realpath of a repository source directory remains reported');
+  for (const operand of ["resolve(dir, '/src/blueprints/pullboard.json')", "join(dir, '..', 'src/blueprints/pullboard.json')", "join(dirname(dir), 'src/blueprints/pullboard.json')"]) {
+    const escaped = fixtureSourceEdits(prefix + `const dir = realpathSync(mkdtempSync(join(tmpdir(), 'demo-'))); readFileSync(${operand});`, move);
+    assert.ok(escaped.problems.length || escaped.edits.length, `${operand} can escape the fresh directory`);
+  }
+});
+
 test('board database and fixture data reads are excluded and each is named with its reason [C7]', () => {
   // A `default` keyword in scope defeats the constant-folding leaf proof, as a real test body does, so only the data-root rule can clear these.
   const cases = [
@@ -192,4 +242,29 @@ readFileSync(box.marker, 'utf8');
     assert.match(rewritten, /cpSync\(new URL\(['"]\.\.\/packages\/git\/src\/shell\/git\.js['"], import\.meta\.url\), marker\)/u);
     assert.ok(rewritten.includes("readFileSync(box.marker, 'utf8')"));
   }
+});
+
+/** A generated private config is exact site data; a bundled source with the same basename stays a move obligation. */
+test('blueprint config declarations retain actual-source and exact-site negatives [C7,CD64]', () => {
+  const file = 'test/blueprints-data-read.fixture.js';
+  const moves = [['src/blueprints/pullboard.json', 'packages/blueprints/src/shell/blueprints/pullboard.json']];
+  const expression = "join(box.repo, 'pullboard.json')";
+  const source = PREFIX + `readFileSync(${expression}, 'utf8');\n`;
+  const row = { file, line: 2, expression, kind: 'config', why: 'The private fixture creates its own root configuration.' };
+  const options = { file, moves, dataReads: [row], mentionsOnly: true };
+  const generated = fixtureSourceEdits(source, options);
+  assert.deepEqual(generated.problems, []);
+  assert.deepEqual(generated.edits, []);
+  assert.deepEqual(generated.matchedDataReads, [row]);
+  for (const changed of [source.replace('box.repo', 'other.repo'), '\n' + source]) {
+    const result = fixtureSourceEdits(changed, options);
+    assert.ok(result.problems.length, 'an unlisted expression or shifted line remains unproven');
+    assert.deepEqual(result.matchedDataReads ?? [], []);
+  }
+  const real = "new URL('../src/blueprints/pullboard.json', import.meta.url)";
+  const actual = fixtureSourceEdits(PREFIX + `readFileSync(${real}, 'utf8');\n`, {
+    ...options, dataReads: [{ ...row, expression: real }],
+  });
+  assert.equal(actual.edits.length, 1, 'a declaration cannot hide the real moved repository asset');
+  assert.deepEqual(actual.matchedDataReads ?? [], []);
 });

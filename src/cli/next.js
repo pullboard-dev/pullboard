@@ -19,7 +19,7 @@ import { withBoard } from '../cli-context.js';
 import { COORDINATOR } from '../config.js';
 import { headCommit } from '../git.js';
 import { laneNames } from '../lanes.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { mainRedReworkItems } from '../main-red.js';
 import { nextReview } from '../next-review.js';
 import { ownSessionReviews } from '../next-review.js';

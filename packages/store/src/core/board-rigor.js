@@ -4,7 +4,7 @@
  * because typed reasons almost never repeat word for word while structured causes do.
  */
 import { COORDINATOR } from "../../../../src/config.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { HEALTH_SENTINEL_ENGINE } from "./board-health-receipts.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";

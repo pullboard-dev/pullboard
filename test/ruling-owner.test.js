@@ -1,7 +1,7 @@
 /** Explicit effects select a governing owner without granting execution authority [D1,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { rulingOwner } from '../src/ruling-owner-context.js';
 import { RULING_EFFECT_OPERATIONS } from '../src/ruling-owner-context.js';
 

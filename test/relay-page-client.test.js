@@ -14,7 +14,7 @@ import { relayStorageLine as compatibleStorageLine } from '../src/relay-storage.
 import { relayStorage as publicStorage } from '../packages/pages/index.js';
 import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
 import { writeSealedValue, sealedPageFingerprint } from '../src/sealed-pages.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { createServer } from 'node:http';
 import { relayFixtureChild, cliChildDeadlineMs } from './relay-client-fixture.js';
 

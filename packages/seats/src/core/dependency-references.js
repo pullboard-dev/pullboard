@@ -1,5 +1,5 @@
 /** Typed dependency references, read by seat ordering and the items cell above it [B24,H16,C7]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Refuse an invalid dependency rather than turning it into NaN or a local item number. */
 function invalid() {
