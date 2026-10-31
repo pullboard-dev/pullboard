@@ -25,7 +25,11 @@ import {
   SETUP_COMMIT_LATER,
 } from '../init-finish.js';
 import {
+  RELAY_LATER,
+  RELAY_OFFER_QUESTION,
+  acceptsRelayOffer,
   initRepo,
+  relayOfferAtInit,
 } from '../init.js';
 import { captureSpecApprovalBaseline } from '../spec-approval.js';
 import {
@@ -111,7 +115,7 @@ export async function run(io, { values }) {
   const viewLine = initViewLine(view, { verbose: values.verbose });
   if (viewLine) io.say(viewLine);
   // Sharing remains a separate choice; --yes confirms only the setup commit.
-  const code = await offerRelayAtInit(info.root, io, { details: values.verbose === true });
+  const code = await offerRelayAtInit(info.root, io, { details: values.verbose === true, offerPorts: { relayOfferAtInit, acceptsRelayOffer, RELAY_OFFER_QUESTION, RELAY_LATER } });
   if (setupCommit.skipped.length) io.say(values.verbose
     ? `Your earlier changes remain uncommitted: ${setupCommit.skipped.join(', ')}.`
     : `Kept ${setupCommit.skipped.length} earlier changes uncommitted.`);

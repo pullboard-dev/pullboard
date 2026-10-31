@@ -1313,12 +1313,14 @@ function statusWriters(read) {
   const writers = [];
   const movedFiles = packageFiles(fileURLToPath(new URL('..', import.meta.url)))
     .filter(file => file.startsWith('packages/items/src/') && file.endsWith('.js')).map(file => `../${file}`);
-  for (const file of [...fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js')), ...movedFiles]) {
+  const files = [...fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js')),
+    '../packages/config/src/core/json.js', ...movedFiles];
+  for (const file of files) {
     const source = read(file);
     const allowedNames = file === 'board.js' ? ['moveItem'] : file === '../packages/items/src/core/item-fields.js' ? ['setItem'] : file === 'board-query.js' ? ['current'] : [];
     const allowed = allowedNames.map((name) => functionsIn(source).get(name));
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
-    if (file === 'json.js') {
+    if (file === 'json.js' || file === '../packages/config/src/core/json.js') {
       const catalog = /^export const JSON_SHAPES = \{[\s\S]*?^\};/m.exec(source);
       if (catalog) spans.push([catalog.index, catalog.index + catalog[0].length]);
     }
@@ -1348,8 +1350,10 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   assert.deepEqual(statusWriters(lowercase), ['board-record-attempt.js#reopenByHand']);
   const computed = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
   assert.deepEqual(statusWriters(computed), ['board-record-attempt.js#reopenByKey']);
-  const besideCatalog = editedSource('json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
-  assert.deepEqual(statusWriters(besideCatalog), ['json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
+  const besideCatalog = editedSource('../packages/config/src/core/json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
+  assert.deepEqual(statusWriters(besideCatalog), ['../packages/config/src/core/json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
+  const besideShim = editedSource('json.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
+  assert.deepEqual(statusWriters(besideShim), ['json.js#reopenByKey'], 'the legacy shim remains scanned alongside its moved catalog body');
 });
 
 test('the board refuses a status written outside moveItem at run time, however it is spelled [M1]', t => {

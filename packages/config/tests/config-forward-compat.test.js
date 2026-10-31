@@ -3,11 +3,11 @@
 /** Future coordinator settings do not break old validators or weaken recognized settings [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { configFromSource } from '../src/config.js';
-import { runFixtureChild } from './fixture-child.js';
+import { configFromSource } from '../src/shell/config.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 
 test('an older validator ignores a future boolean setting and warns once per command with its key and path [N26]', () => {
-  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/config.js', import.meta.url).href)};
+  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/shell/config.js', import.meta.url).href)};
 const raw={submit:{futureMainRedSwitch:true},futureRootSwitch:true};
 const first=configFromSource(JSON.stringify(raw));const second=configFromSource(JSON.stringify(raw));
 console.log(JSON.stringify({submit:first.submit,root:Object.hasOwn(first,'futureRootSwitch'),second:second.submit}));`;
@@ -38,7 +38,7 @@ test('known settings still reject wrong types and invalid values beside future s
 });
 
 test('unknown keys never inherit schema authority and warnings contain no setting values [N26]', () => {
-  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/config.js', import.meta.url).href)};
+  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/shell/config.js', import.meta.url).href)};
 const raw=JSON.parse('{"submit":{"constructor":"private-value","__proto__":{"autoFileMainReds":true},"line\\\\nkey":"private-value"}}');
 console.log(JSON.stringify(configFromSource(JSON.stringify(raw)).submit));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { encoding: 'utf8' });

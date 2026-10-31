@@ -1,13 +1,26 @@
 /** Registry metadata, refresh, pruning and forgetting (N33, N35, N36). */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn, reportFixtureChildFailure, runFixtureGit } from './fixture-child.js';
+import { startFixtureChild as spawn } from '../../../test/fixture-child.js';
+import { reportFixtureChildFailure } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 import { performance } from 'node:perf_hooks';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
-import { configProblems, defaults, loadConfig } from '../src/config.js';
-import { forgetProject, listProjects, registerProject, registryFile } from '../src/projects.js';
+import { configProblems } from '../src/shell/config.js';
+import { defaults } from '../src/shell/config.js';
+import { loadConfig } from '../src/shell/config.js';
+import { forgetProject } from '../../../src/projects.js';
+import { listProjects } from '../../../src/projects.js';
+import { registerProject } from '../../../src/projects.js';
+import { registryFile } from '../../../src/projects.js';
 
 /**
  * Create an initialized temporary Git repository with a private Pullboard home.
@@ -131,7 +144,7 @@ function startNode(args, env) {
 async function runRegistryBurst(sandbox, label, roots, forgotten, env) {
   const barrier = join(sandbox, `${label}.start`);
   const worker = `import { existsSync } from 'node:fs';
-import { registerProject, forgetProject, listProjects } from ${JSON.stringify(new URL('../src/projects.js', import.meta.url).href)};
+import { registerProject, forgetProject, listProjects } from ${JSON.stringify(new URL('../../../src/projects.js', import.meta.url).href)};
 const [operation, root, barrier] = process.argv.slice(1);
 console.log('ready');
 while (!existsSync(barrier)) await new Promise((resolve) => setTimeout(resolve, 1));

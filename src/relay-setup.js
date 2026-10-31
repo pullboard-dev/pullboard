@@ -4,7 +4,6 @@ import { computerName } from './computer-name.js';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import {
   phoneProposal,
   publishPhoneApproval,
@@ -40,12 +39,6 @@ import {
   revokeRelayPersonSession,
 } from './relay.js';
 import { terminalQr } from './qr.js';
-import {
-  RELAY_LATER,
-  RELAY_OFFER_QUESTION,
-  acceptsRelayOffer,
-  relayOfferAtInit,
-} from './init.js';
 import { relayOfferEnabled } from './settings.js';
 import { Refused } from './refused.js';
 import { publishExcludedBoards } from './relay-excluded.js';
@@ -70,7 +63,7 @@ export function unlinkedRelayProjects() {
 }
 
 /** Read the registered local board identity without executing any person action. */
-function projectBoard(root) {
+function projectBoard(root, openBoard) {
   const board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try { return plannedRelayBoard(root, store.boardId(board)); } finally { store.closeBoard(board); }
 }
@@ -102,7 +95,8 @@ function publisherState(root) {
 }
 
 /** Link a new project only after the paired phone explicitly approves its one durable proposal. */
-export async function autoLinkProject(root, io) {
+export async function autoLinkProject(root, io, { openBoard } = {}) {
+  if (typeof openBoard !== 'function') throw new TypeError('automatic relay linking requires the caller-supplied openBoard port');
   const machine = readRelayMachine();
   if (!machine.autoLink) return;
   const project = repoInfo(root).root;
@@ -125,7 +119,7 @@ export async function autoLinkProject(root, io) {
       if (!candidate) return;
       source = candidate.state;
       const proposal = await phoneProposal(source, 'link', repository,
-        { board: projectBoard(project), command: 'Link ' + name + '? (pullboard init)', link: true, root: project });
+        { board: projectBoard(project, openBoard), command: 'Link ' + name + '? (pullboard init)', link: true, root: project });
       const value = { root: project, publisherRoot: candidate.root, context: proposal.context, sealed: proposal.sealed, replyKey: proposal.reply.storedKey, published: false };
       pending = updateRelayMachine(state => {
         const existing = state.approvals.find(entry => entry.root === project);
@@ -493,13 +487,17 @@ function askLine(io, question) {
  * End init with the offer to share with the phone [H5,H17,B26]: ask a person at their own
  * terminal once, and on Enter or y run pullboard relay on --all through the same function the
  * command uses. An agent shell, CI or a run without a terminal is never asked and gets the
- * command for later; relayOfferAtInit in init.js decides which. Returns init's exit code.
+ * command for later; the caller-supplied relayOfferAtInit (init.js) decides which. Returns init's exit code.
  *
  * @param {string} root - The repository init just set up.
  * @param {any} io
  * @returns {Promise<number>}
  */
-export async function offerRelayAtInit(root, io, { details = true } = {}) {
+export async function offerRelayAtInit(root, io, { details = true, offerPorts } = {}) {
+  for (const name of ['relayOfferAtInit', 'acceptsRelayOffer']) {
+    if (typeof offerPorts?.[name] !== 'function') throw new TypeError(`relay offer requires the caller-supplied ${name} port`);
+  }
+  const { relayOfferAtInit, acceptsRelayOffer, RELAY_OFFER_QUESTION, RELAY_LATER } = offerPorts;
   const shared = relayLinked(root) || readRelayMachine().autoLink;
   const offer = relayOfferAtInit({ enabled: relayOfferEnabled(), shared, stdin: io.stdin, stdout: io.stdout });
   if (offer === 'none') return 0;

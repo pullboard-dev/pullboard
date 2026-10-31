@@ -1,4 +1,5 @@
 import { nativeBoardOpeners } from './cli-context.js';
+import { nativePersonRequestPorts } from './cli-context.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 import { readFileSync } from 'node:fs';
 import { readBoardKey } from './relay-key.js';
@@ -104,7 +105,7 @@ export async function retrySync(io) {
 
 /** Before a command: link this project when the machine links new ones, sync, then run the person's waiting requests. */
 export async function syncBefore(io, main) {
-  try { if (io.relayCommand?.cliOperation !== 'sync' && !gitSyncLinked(io.cwd)) await autoLinkProject(io.cwd, io); } catch (error) { if (!(error instanceof Refused)) throw error; }
+  try { if (io.relayCommand?.cliOperation !== 'sync' && !gitSyncLinked(io.cwd)) await autoLinkProject(io.cwd, io, nativeBoardOpeners(io)); } catch (error) { if (!(error instanceof Refused)) throw error; }
   const local = localFirstLink(io);
   if (local && senderInBackground()) {
     // The sender runs the person's waiting requests too, so a read never waits on them.
@@ -116,7 +117,7 @@ export async function syncBefore(io, main) {
   // An off that only the relay can vouch for is checked against the relay's own authority before anything reads it (#408).
   try { await (await import('./person-signing-cli.js')).attestBeforeCommand(io.cwd, io, { DEFAULT_RELAY, relayStatus, openBoard: nativeBoardOpeners(io).openBoard }); }
   catch (error) { reportQuietly(io, error); }
-  try { await executePersonRequests(io.cwd, io, main, nativeBoardOpeners(io)); }
+  try { await executePersonRequests(io.cwd, io, main, nativePersonRequestPorts(io)); }
   catch (error) { await reportQuietly(io, error); }
   tellConflicts(io, local);
 }
