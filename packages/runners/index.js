@@ -2,3 +2,5 @@
 export * from "./src/core/runner-stage-model.js";
 export { runtimeUrls } from "./src/core/runner-runtime-urls.js";
 export { sampleRunnerLoad, localRunnerDescriptor } from "./src/shell/runner-load.js";
+export { RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunnerTrunk } from "./src/shell/runner-policy.js";
+export { validateCacheTips, tagObjectBodies, sourcePreparationFields } from "./src/shell/runner-overhead.js";

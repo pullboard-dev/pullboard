@@ -31,6 +31,8 @@ test('the moved runner load shim keeps unrelated front-door modules out of the w
   const files = runnerPackage(root).files;
   assert.ok(Object.hasOwn(files, 'src/runner-load.js'));
   assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-load.js'));
+  assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-policy.js'));
+  assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-overhead.js'));
   assert.equal(Object.hasOwn(files, 'packages/runners/index.js'), false);
   assert.equal(Object.hasOwn(files, 'packages/runners/src/core/runner-stage-model.js'), false);
 });
