@@ -67,8 +67,9 @@ process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   loadNativeBoard: () => import('../src/native-board.js'),
   /** Compose process-only capabilities after a command actually requests them. */
-  loadProcessPorts: () => Promise.all([import('node:url'), import('../src/relay-outbox-guard.js')]).then(([{ fileURLToPath }, { withOutboxGuard }]) => ({
-    withOutboxGuard,
+  loadProcessPorts: () => import('node:url').then(({ fileURLToPath }) => ({
+    /** Load the canonical guard only when a linked operation actually needs it. */
+    withOutboxGuard: (...args) => import('../src/relay-outbox-guard.js').then(({ withOutboxGuard }) => withOutboxGuard(...args)),
     hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
     submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
