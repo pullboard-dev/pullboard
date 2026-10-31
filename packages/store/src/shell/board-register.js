@@ -1,4 +1,4 @@
-import * as reviewRouting from "../../../verify/index.js";
+import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import { heartbeatSeat } from "./seat-presence.js";
 import { now } from "./board-query.js";

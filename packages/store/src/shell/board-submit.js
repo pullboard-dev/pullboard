@@ -5,7 +5,7 @@ import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owne
 import { committedItemAuthors } from "../../../verify/index.js";
 import { sealItemPatchSubmit } from "../../../../src/item-patch-submit.js";
 import { checkItemPatchSubmit } from "../../../../src/item-patch-submit.js";
-import * as reviewRouting from "../../../verify/index.js";
+import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { submissionItemValues } from "./submission-record.js";
 import { submissionChildrenProblem } from "./submission-record.js";

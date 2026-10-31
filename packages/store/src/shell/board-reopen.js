@@ -4,7 +4,7 @@ import { requireBoardWriteSnapshot } from "./board-write-preparation.js";
 import { verdictWithdrawalTarget } from "../../../verify/index.js";
 import { sourceAdvanceReturnProblem } from "../core/source-advance-return.js";
 import { reopenAuthority } from "../../../../src/reopen-authority.js";
-import * as verdictWithdrawal from "../../../verify/index.js";
+import * as verdictWithdrawal from "../../../verify/src/shell/verdict-withdrawal.js";
 import { current } from "./board-query.js";
 import { getItem } from "./board-query.js";
 import { events } from "./board-query.js";

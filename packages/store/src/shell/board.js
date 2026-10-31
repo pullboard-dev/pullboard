@@ -14,14 +14,14 @@ export { recordExitProgress, requireExitActive } from "../core/exit-rules-state.
  */
 import { committedItemAuthors } from "../../../verify/index.js";
 import { strictReviewProblem } from "../../../verify/index.js";
-import * as reviewRouting from "../../../verify/index.js";
+import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { reviewFamilyProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../../src/item-fields.js";
 import { foreignBlockers as readForeignBlockers } from "../../../../src/cross-repo-dependencies.js";
 import { foreignDependencyStates as readForeignDependencyStates } from "../../../../src/cross-repo-dependencies.js";
 import { readReceivedBoardState } from "../core/board-link-state.js";
-import * as reviewFamilies from "../../../verify/index.js";
+import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
 import { laneLeads } from "../../../../src/lane-lead.js";
 import { PERSON } from "./board-query.js";
 import { now } from "./board-query.js";

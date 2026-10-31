@@ -1,4 +1,4 @@
-import * as rejectClause from "../../../verify/index.js";
+import * as rejectClause from "../../../verify/src/shell/reject-clause.js";
 import { requireSourceAdvanceReview } from "../../../verify/index.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../src/source-advance-engine.js";
 import { itemPatchReviewProblem } from "../../../../src/item-patches.js";

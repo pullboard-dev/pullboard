@@ -3,7 +3,7 @@ import { saveItemReviewPolicy } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
 import { validateReferences } from "../../../spec/index.js";
-import * as reviewFamilies from "../../../verify/index.js";
+import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
 import { saveCheckTiming } from "../../../../src/check-timing.js";
 import { validateCheckTiming } from "../../../../src/check-timing.js";
 import { validateItemDependencies } from "./board-item-dependencies.js";
@@ -19,7 +19,7 @@ import { checkRoute } from "../../../../src/item-routing.js";
 import { checkRouted } from "../../../../src/item-routing.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/index.js";
-import * as checkWiden from "../../../verify/index.js";
+import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 
 /**
  * Add an item to a lane, optionally under a parent in the same lane, with a brief for whoever
