@@ -234,3 +234,28 @@ readFileSync(box.marker, 'utf8');
     assert.ok(rewritten.includes("readFileSync(box.marker, 'utf8')"));
   }
 });
+
+/** A generated private config is exact site data; a bundled source with the same basename stays a move obligation. */
+test('blueprint config declarations retain actual-source and exact-site negatives [C7,CD64]', () => {
+  const file = 'test/blueprints-data-read.fixture.js';
+  const moves = [['src/blueprints/pullboard.json', 'packages/blueprints/src/shell/blueprints/pullboard.json']];
+  const expression = "join(box.repo, 'pullboard.json')";
+  const source = PREFIX + `readFileSync(${expression}, 'utf8');\n`;
+  const row = { file, line: 2, expression, kind: 'config', why: 'The private fixture creates its own root configuration.' };
+  const options = { file, moves, dataReads: [row], mentionsOnly: true };
+  const generated = fixtureSourceEdits(source, options);
+  assert.deepEqual(generated.problems, []);
+  assert.deepEqual(generated.edits, []);
+  assert.deepEqual(generated.matchedDataReads, [row]);
+  for (const changed of [source.replace('box.repo', 'other.repo'), '\n' + source]) {
+    const result = fixtureSourceEdits(changed, options);
+    assert.ok(result.problems.length, 'an unlisted expression or shifted line remains unproven');
+    assert.deepEqual(result.matchedDataReads ?? [], []);
+  }
+  const real = "new URL('../src/blueprints/pullboard.json', import.meta.url)";
+  const actual = fixtureSourceEdits(PREFIX + `readFileSync(${real}, 'utf8');\n`, {
+    ...options, dataReads: [{ ...row, expression: real }],
+  });
+  assert.equal(actual.edits.length, 1, 'a declaration cannot hide the real moved repository asset');
+  assert.deepEqual(actual.matchedDataReads ?? [], []);
+});
