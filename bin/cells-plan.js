@@ -37,6 +37,7 @@ import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
+import { moveDeclarationFiles } from './cells-move-closure.js';
 
 export const PLAN_FILE = 'bin/cells-plan.json';
 export const PLAN_DIR = 'bin/cells-plan';
@@ -292,6 +293,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
   let workerFiles;
+  let moveFiles;
   /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
   function inWorkerClosure(from, to) {
     if (workerFiles === undefined) {
@@ -299,6 +301,14 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
       catch { workerFiles = new Set(); /* An unprovable worker closure grants no shim exception. */ }
     }
     return workerFiles.has(from) && workerFiles.has(to);
+  }
+  /** Actual move descriptors can retain only their exact own-body shim, with no opaque closure. */
+  function inMoveClosure(from, to) {
+    if (moveFiles === undefined) {
+      try { moveFiles = moveDeclarationFiles(root); }
+      catch { moveFiles = new Set(); /* An unprovable move closure grants no shim exception. */ }
+    }
+    return moveFiles.has(from) && moveFiles.has(to);
   }
   problems.push(...pureFrontDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
@@ -311,8 +321,9 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
       else for (const match of code.matchAll(/from(['"])([^'"]*)\1;/gu)) {
         const target = match[2].startsWith('.') ? posix.normalize(posix.join(posix.dirname(from), match[2])) : null;
-        const workerLeaf = target === to && /^(?:export\{[^}]+\}from(?:'[^']*'|"[^"]*");)+$/u.test(code) && inWorkerClosure(from, to);
-        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !workerLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+        const exactLeaf = target === to && /^(?:export\{[^}]+\}from(?:'[^']*'|"[^"]*");)+$/u.test(code)
+          && (inWorkerClosure(from, to) || inMoveClosure(from, to));
+        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
