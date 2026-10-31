@@ -43,7 +43,7 @@ function shimmed(t) {
   box.put('src/uses-shell.js', "import { shell } from './stats.js';\nexport { shell };\n");
   box.put('src/uses-extra.js', "import { extra } from './stats.js';\nexport { extra };\n");
   box.put('src/lazy.js', "export const lazy = () => import('./stats.js');\n");
-  box.put('src/reader.js', "import { readFileSync } from 'node:fs';\nexport const text = readFileSync(new URL('./stats.js', import.meta.url), 'utf8');\n");
+  box.put('src/reader.js', "import { readFileSync } from 'node:fs';\nexport const text = readFileSync(new URL('./stats.js', import.meta.url), 'utf8');\nimport { resolve } from 'node:path';\nexport const here = resolve(import.meta.dirname, './stats.js');\n");
   box.put('test/pure.test.js', "import { pure } from '../src/stats.js';\nconsole.log(pure);\n");
   box.put('test/declared.test.js', '/** @pullboard-test-input src/stats.js package.json */\nexport const declared = 1;\n');
   const plan = computePlan(box.root);
@@ -69,6 +69,7 @@ test('removal repoints each importer kind, adds a missing binding, deletes the s
   assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
   assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../packages/stats/core.js';\nconsole.log(pure);\n");
   assert.equal(read(box, 'src/lazy.js'), "export const lazy = () => import('../packages/stats/index.js');\n");
+  assert.match(read(box, 'src/reader.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/index\.js'\)/u);
   assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/index\.js', import\.meta\.url\)/u);
   assert.equal(read(box, 'test/declared.test.js').split('\n')[0], '/** @pullboard-test-input packages/stats/index.js package.json */');
   assert.equal(read(box, 'src/uses-extra.js'), "import { extra } from '../packages/stats/index.js';\nexport { extra };\n");
@@ -78,7 +79,7 @@ test('removal repoints each importer kind, adds a missing binding, deletes the s
   assert.equal(existsSync(join(box.root, 'src/stats-leaf.js')), true, 'repointing mid to the stats door would cut upward into late');
   const [shim, reason] = result.kept.find(([name]) => name === 'src/stats-leaf.js');
   assert.equal(shim, 'src/stats-leaf.js');
-  assert.match(reason, /upward cut: mid still imports later late: packages\/stats\/index\.js/u);
+  assert.match(reason, /src\/mid\.js: removal would expose an upward cut: mid still imports later late: packages\/stats\/index\.js/u);
   assert.equal(read(box, 'src/mid.js'), "import { leaf } from './stats-leaf.js';\nexport const mid = leaf;\n");
   assert.deepEqual(result.plan.cells.find(cell => cell.name === 'stats').reexports, ['src/stats-leaf.js']);
 });
@@ -90,6 +91,7 @@ test('a core file keeps its shim rather than reach past the cell core [C7,D3]', 
   assert.equal(existsSync(join(box.root, 'src/stats.js')), true);
   assert.equal(read(box, 'packages/stats/src/core/impure.js'), "import { shell } from '../../../../src/stats.js';\nexport const impure = shell;\n");
   assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /core file packages\/stats\/src\/core\/impure\.js/u);
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n", 'the other importers still move');
 });
 
 test('a second run changes nothing, and the command prints the importers outside its lane [C7,D3]', t => {
@@ -101,7 +103,7 @@ test('a second run changes nothing, and the command prints the importers outside
   const first = run();
   assert.equal(first.status, 0, first.stderr);
   assert.match(first.stdout, /deleted src\/stats\.js/u);
-  assert.match(first.stdout, /kept src\/stats-leaf\.js: removal would expose an upward cut/u);
+  assert.match(first.stdout, /kept src\/stats-leaf\.js: src\/mid\.js: removal would expose an upward cut/u);
   assert.match(first.stdout, /outside the core lane, attach: src\/view\/panel\.js/u);
   assert.equal(readPlan(box.root).cells.find(cell => cell.name === 'stats').reexports.join(), 'src/stats-leaf.js');
   git(box.root, 'add', '-A');

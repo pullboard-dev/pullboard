@@ -69,6 +69,7 @@ function usage(info, literal) {
   const before = info.code.slice(0, literal.start), after = info.code.slice(literal.end);
   if (/\bimport\s*\(\s*$/u.test(before)) return { kind: 'dynamic', names: ALL };
   if (/\bnew\s+URL\(\s*$/u.test(before) && /^\s*,\s*import\.meta\.url\s*\)/u.test(after)) return { kind: 'url', names: [] };
+  if (/\bimport\.meta\.dirname\s*,\s*$/u.test(before)) return { kind: 'path', names: [] };
   if (/\bimport\s*$/u.test(before)) return { kind: 'static', names: [] };
   const clause = /\b(?:import|export)\s*(\{[^}]*\}|\*(?:\s*as\s+[\w$]+)?|[\w$]+(?:\s*,\s*(?:\{[^}]*\}|\*\s*as\s+[\w$]+))?)\s*from\s*$/u.exec(before)?.[1];
   if (!clause) return null;
@@ -110,24 +111,18 @@ function choose(box, shim, file, use) {
   return { path: door, adds };
 }
 
-/** Plan every edit that repoints an importer of one shim, or the reason the shim must stay. */
+/** Plan the edit that repoints each importer of one shim, and list the importers that must stay on it, with why. */
 function planShim(box, shim, hits) {
-  const edits = [], text = [];
+  const edits = [], held = [];
   for (const { file, source, info, literal, comment } of hits) {
-    if (comment) {
-      const choice = choose(box, shim, file, { kind: 'input', names: [] });
-      if (choice.refuse) return { refuse: choice.refuse };
-      edits.push({ file, ...comment(choice.path), adds: choice.adds });
-      continue;
-    }
-    const use = source[literal.start] === '`' ? null : usage(info, literal);
-    if (!use) return { refuse: `${file}: unrecognized reference "${literal.text}" to ${shim}` };
+    const use = comment ? { kind: 'input', names: [] } : source[literal.start] === '`' ? null : usage(info, literal);
+    if (!use) { held.push(`${file}: unrecognized reference "${literal.text}"`); continue; }
     const choice = choose(box, shim, file, use);
-    if (choice.refuse) return { refuse: choice.refuse };
-    if (choice.path === file) return { refuse: `${file} would import itself` };
-    edits.push({ file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds });
+    if (choice.refuse || choice.path === file) { held.push(choice.refuse ?? `${file} would import itself`); continue; }
+    edits.push(comment ? { file, ...comment(choice.path), adds: choice.adds }
+      : { file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds });
   }
-  return { edits, text };
+  return { edits, held };
 }
 
 /** Find the declared-input tokens in a header comment that name one of the shims. */
@@ -166,7 +161,7 @@ function hitsByShim(box, shims) {
 /** Apply the surviving edits and door additions to the original bytes, returning each changed file's new source. */
 function materialize(box, plans, excluded) {
   const byFile = new Map(), adds = new Map();
-  for (const [shim, plan] of plans) if (!excluded.has(shim)) for (const edit of plan.edits) {
+  for (const plan of plans.values()) for (const edit of plan.edits) if (!excluded.has(edit)) {
     byFile.set(edit.file, [...byFile.get(edit.file) ?? [], edit]);
     for (const add of edit.adds) adds.set(add.file, new Map([...adds.get(add.file) ?? [], [add.name, add.line]]));
   }
@@ -213,11 +208,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
     if (!PURE_SHIM.test(code ?? '')) kept.set(shim, `${shim} still holds code, not only re-exports`);
   }
   const candidates = live.filter(shim => !kept.has(shim)), plans = new Map(), hits = hitsByShim(box, candidates);
-  for (const shim of candidates) {
-    const made = planShim(box, shim, hits.get(shim));
-    if (made.refuse) kept.set(shim, made.refuse);
-    else plans.set(shim, made);
-  }
+  for (const shim of candidates) plans.set(shim, planShim(box, shim, hits.get(shim)));
   const before = strictProblems(box, inventory), touched = new Set(), excluded = new Set(), owner = ownerFor(plan, readPathMap(root));
   let after = inventory;
   try {
@@ -226,15 +217,15 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
       after = cellInventory(root, parsers);
       const fresh = [...strictProblems(box, after)].filter(([key]) => !before.has(key));
       if (!fresh.length) break;
-      const blamed = new Set();
+      const blamed = [];
       for (const [key, problem] of fresh) {
-        for (const [shim, made] of plans) if (!excluded.has(shim) && made.edits.some(edit => owner(edit.file) === key.split('|')[0])) {
-          blamed.add(shim);
-          kept.set(shim, `removal would expose an upward cut: ${problem}`);
+        for (const made of plans.values()) for (const edit of made.edits) if (!excluded.has(edit) && owner(edit.file) === key.split('|')[0]) {
+          blamed.push(edit);
+          made.held.push(`${edit.file}: removal would expose an upward cut: ${problem}`);
         }
       }
-      if (!blamed.size) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing exposed an upward cut no shim edit explains: ${fresh.map(row => row[1]).join('; ')}`);
-      for (const shim of blamed) excluded.add(shim);
+      if (!blamed.length) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing exposed an upward cut no shim edit explains: ${fresh.map(row => row[1]).join('; ')}`);
+      for (const edit of blamed) excluded.add(edit);
     }
   } catch (error) {
     applyToDisk(box, new Map(), touched);
@@ -244,12 +235,17 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
   for (const shim of live) {
     if (kept.has(shim)) continue;
     const users = [...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file);
-    if (users.length) { kept.set(shim, `${shim} is still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`); continue; }
+    const held = plans.get(shim).held;
+    if (held.length || users.length) {
+      const why = held.length ? held : [`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`];
+      kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`);
+      continue;
+    }
     if (tryGit(root, ['rm', '-q', '-f', '--', shim]).status !== 0) rmSync(join(root, shim), { force: true });
     deleted.push(shim);
   }
   const rewritten = [];
-  for (const [shim, made] of plans) if (!excluded.has(shim)) for (const edit of made.edits) rewritten.push({ shim, file: edit.file, from: edit.from, to: edit.text || '(removed duplicate)' });
+  for (const [shim, made] of plans) for (const edit of made.edits) if (!excluded.has(edit)) rewritten.push({ shim, file: edit.file, from: edit.from, to: edit.text || '(removed duplicate)' });
   const settings = loadConfig(root);
   const outside = [...new Set(rewritten.map(row => row.file))].filter(file => laneOf(settings, file) !== lane).sort();
   const reexports = cell.reexports.filter(shim => !deleted.includes(shim) && !absent.includes(shim));
