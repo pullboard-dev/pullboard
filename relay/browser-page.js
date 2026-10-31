@@ -45,7 +45,7 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/icons/pullboard-192.png', ['image/png', readFileSync(new URL('./icons/pullboard-192.png', import.meta.url))]],
     ['/icons/pullboard-512.png', ['image/png', readFileSync(new URL('./icons/pullboard-512.png', import.meta.url))]],
     ['/relay/install.js', ['text/javascript', readFileSync(new URL('./browser-install.js', import.meta.url), 'utf8')]],
-    ['/relay/device-keys.js', ['text/javascript', readFileSync(new URL('../src/relay-device-keys.js', import.meta.url), 'utf8')]],
+    ['/relay/device-keys.js', ['text/javascript', readFileSync(new URL('../packages/keys/index.js', import.meta.url), 'utf8')]],
     ['/relay/relay-approval.js', ['text/javascript', readFileSync(new URL('../src/relay-approval.js', import.meta.url), 'utf8').replace("'./relay-device-keys.js'", "'./device-keys.js'")]],
     ['/relay/browser-devices.js', ['text/javascript', readFileSync(new URL('./browser-devices.js', import.meta.url), 'utf8')]],
     ['/relay/browser-excluded.js', ['text/javascript', readFileSync(new URL('./browser-excluded.js', import.meta.url), 'utf8')]],

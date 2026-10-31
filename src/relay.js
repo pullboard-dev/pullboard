@@ -21,7 +21,7 @@ import {
   recordClientHealth,
   readRelayHealth,
 } from './relay-canary-health.js';
-import { deliverPersonEnrollments } from './relay-person-enrollment.js';
+import { deliverPersonEnrollments } from '../packages/keys/index.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 import {
   publishExcludedBoards,
@@ -106,7 +106,7 @@ import {
   forgetBoardKey,
   readBoardKey,
   storeBoardKey,
-} from './relay-key.js';
+} from '../packages/keys/index.js';
 import {
   encodeBoardKey,
   generateBoardKey,

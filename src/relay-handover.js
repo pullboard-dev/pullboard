@@ -3,7 +3,7 @@ import {
   createDeviceKeys,
   unwrapDeviceBoardKey,
   wrapDeviceBoardKey,
-} from './relay-device-keys.js';
+} from '../packages/keys/index.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from './refused.js';
 import {

@@ -12,7 +12,7 @@ import {
   signDeviceEnrollment,
   unwrapDeviceBoardKey,
   wrapDeviceBoardKey,
-} from '../src/relay-device-keys.js';
+} from '../packages/keys/index.js';
 
 /** Encode test bytes using the protocol's canonical unpadded base64url representation. */
 function b64url(bytes) {

@@ -24,7 +24,7 @@ import { githubKeys } from '../relay-handover.js';
 import {
   relayJoin,
   relayPair,
-} from '../relay-pairing-client.js';
+} from '../../packages/keys/index.js';
 import {
   executePersonRequests,
 } from '../relay-request-execution.js';

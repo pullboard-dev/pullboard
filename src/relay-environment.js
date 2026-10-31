@@ -21,7 +21,7 @@ import {
   restoreCheckpoint,
   saveLink,
 } from './relay.js';
-import { readBoardKey } from './relay-key.js';
+import { readBoardKey } from '../packages/keys/index.js';
 import { appliedSequence } from './engine.js';
 import { importBoard } from './exchange.js';
 

@@ -9,7 +9,7 @@ import {
   sealApproval,
   signApprovalIntent,
 } from './relay-approval.js';
-import { readBoardKey } from './relay-key.js';
+import { readBoardKey } from '../packages/keys/index.js';
 import { readRelayMachine } from './relay-machine.js';
 import { requirePersonChannel } from './person.js';
 import { repoInfo } from './git.js';
