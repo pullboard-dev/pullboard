@@ -31,6 +31,10 @@ const SOURCE_FILES = new Set([
   // Exact sensitive merge bodies retain their original Strict classification (#1566).
   'packages/merge/src/shell/merge-only-verdict.js',
   'packages/merge/src/shell/train-mechanical-merge.js',
+  // Exact moved move bodies retain their existing Strict classification (#1583).
+  'packages/moves/src/core/moves/reserveReview.js', 'packages/moves/src/core/moves/reserveNextReview.js',
+  'packages/moves/src/core/moves/verify.js', 'packages/moves/src/core/moves/submit.js',
+  'packages/moves/src/shell/move-registry.js',
   // Exact moved identities retain their existing Strict classification (#1565).
   'packages/items/src/shell/parent-session.js',
   'packages/items/src/shell/item-patches.js',
