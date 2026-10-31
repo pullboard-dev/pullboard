@@ -8,11 +8,15 @@ import { gateJudgmentPath } from '../src/review-tier.js';
 import { itemReviewPolicy } from '../src/review-policy.js';
 import { reviewEligibility } from '../src/review-eligibility.js';
 import { REVIEW_TIER_ENGINE } from '../src/review-tier-engine.js';
-import { prepareEngineMove } from '../src/engine.js';
-import { applyEngineMove } from '../src/engine.js';
+import {
+  prepareEngineMove,
+  applyEngineMove,
+} from '../src/engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
-import { exportBoard } from '../src/exchange.js';
-import { importBoard } from '../src/exchange.js';
+import {
+  exportBoard,
+  importBoard,
+} from '../src/exchange.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
 
@@ -283,4 +287,21 @@ test('outbox move keeps the format guard strict without broadening test paths [V
   assert.equal(gateJudgmentPath('test/relay-outbox-format.test.js'), true);
   assert.equal(gateJudgmentPath('packages/outbox/tests/relay-outbox-format.test.js'), true);
   assert.equal(gateJudgmentPath('packages/outbox/tests/relay-outbox-format-extra.test.js'), false);
+});
+
+
+test('link move retains Strict for moved guard tests and keeps the Standard command phase Standard [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  for (const path of ['packages/link/tests/relay-device-keys.test.js', 'packages/link/tests/relay-phone-crypto.test.js',
+    'packages/link/src/shell/relay-lock.js']) {
+    assert.equal(gateJudgmentPath(path), true, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'strict', path);
+  }
+  for (const path of ['packages/link/src/shell/command-phase.js', 'packages/link/tests/relay-lock.test.js',
+    'packages/link/tests/relay-device-keys-extra.test.js']) {
+    assert.equal(gateJudgmentPath(path), false, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
 });
