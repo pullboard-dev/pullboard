@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { moveArgs } from '../src/api-moves.js';
+import { moveArgs } from '../packages/person/index.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { ENGINE_VERSION } from '../src/machine.js';

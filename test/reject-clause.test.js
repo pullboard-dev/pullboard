@@ -7,7 +7,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { moveArgs } from '../src/api-moves.js';
+import { moveArgs } from '../packages/person/index.js';
 import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
