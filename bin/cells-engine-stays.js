@@ -47,10 +47,11 @@ export function engineStayTransition({ beforeRoot, afterRoot, before, after, aft
   const seen = new Set();
   for (const entry of next) {
     const row = entry?.row, file = row?.[0];
-    if (!entry || Object.keys(entry).sort().join(',') !== 'cell,row' || entry.cell !== 'state'
+    const owner = typeof entry?.cell === 'string' ? before.cells.find(cell => cell.name === entry.cell) : null;
+    if (!entry || Object.keys(entry).sort().join(',') !== 'cell,row' || !owner || typeof owner.root !== 'string'
       || !Array.isArray(row) || row.length !== 3 || row.some(value => typeof value !== 'string')
-      || !/^packages\/state\//u.test(row[1])) {
-      problems.push('engine stays need the exact original state row'); continue;
+      || !row[1].startsWith(`${owner.root}/`)) {
+      problems.push(`engine stays need the exact original row under its own cell package: ${file}`); continue;
     }
     if (seen.has(file)) { problems.push(`duplicate engine stay: ${file}`); continue; }
     seen.add(file);
@@ -72,16 +73,16 @@ export function engineStayTransition({ beforeRoot, afterRoot, before, after, aft
 
 /** Transfer only explicitly listed accepted engine rows to stays, preserving their exact original provenance. */
 export function retainEnginePaths({ root, plan, cellName, paths, pathMap }) {
-  if (cellName !== 'state' || !Array.isArray(paths) || !paths.length || new Set(paths).size !== paths.length) {
-    throw new Refused('CELLS_ENGINE_STAY', 'List distinct state engine paths with --engine-stays state <path>... .');
+  if (typeof cellName !== 'string' || !cellName || !Array.isArray(paths) || !paths.length || new Set(paths).size !== paths.length) {
+    throw new Refused('CELLS_ENGINE_STAY', 'List distinct engine paths with --engine-stays <cell> <path>... .');
   }
   const next = structuredClone(plan), cell = next.cells.find(value => value.name === cellName);
-  if (!cell) throw new Refused('CELLS_ENGINE_STAY', 'Read the current state plan before retaining its canonical engine paths.');
+  if (!cell) throw new Refused('CELLS_ENGINE_STAY', 'Read the current plan entry for that cell before retaining its canonical engine paths.');
   next.engineStays ??= [];
   for (const file of paths) {
     const row = cell.paths.find(value => value[0] === file);
     if (!row || !engineLeaf(row, rootSource(root, file))) {
-      throw new Refused('CELLS_ENGINE_STAY', `${file} is not a listed canonical state engine leaf or approved engine support path.`);
+      throw new Refused('CELLS_ENGINE_STAY', `${file} is not a listed canonical engine leaf of that cell or approved engine support path.`);
     }
     next.engineStays.push({ cell: cellName, row: [...row] });
     next.stays.push({ path: file, reason: REASON });
