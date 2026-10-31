@@ -13,8 +13,8 @@ import {
   Refused,
 } from '../../packages/kernel/index.js';
 import * as relayOutput from '../relay-output.js';
-import { describeMove } from '../relay-outbox.js';
-import { refusalLine } from '../relay-outbox.js';
+import { describeMove } from '../../packages/outbox/index.js';
+import { refusalLine } from '../../packages/outbox/index.js';
 import { DEFAULT_RELAY } from '../relay.js';
 import { originRepository } from '../relay.js';
 import { relayPersonCoordinator } from '../relay.js';

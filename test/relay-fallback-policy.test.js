@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { relayOutboxSetting } from '../src/cli.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { outboxFile, outboxQueueable } from '../src/relay-outbox.js';
+import { outboxFile, outboxQueueable } from '../packages/outbox/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { legacyRelayClientFixture, relayClientFixture } from './relay-client-fixture.js';
 import { runFixtureGit } from './fixture-child.js';

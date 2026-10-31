@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { SENDER_CLAIM_STALE_MS } from '../src/relay-local-first.js';
 import { SENDER_WORKER } from '../src/relay-sender-main.js';
-import { outboxFile } from '../src/relay-outbox.js';
+import { outboxFile } from '../packages/outbox/index.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
