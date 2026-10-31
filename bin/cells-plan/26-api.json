@@ -28,9 +28,7 @@
   {"cell":"link","imports":5,"before":true},
   {"cell":"app:view","imports":1,"before":false}
  ],
- "cuts": [
-  {"cell":"link","imports":1,"edges":["src/relay-request-execution.js->src/api.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": 0,
   "shims": 4,

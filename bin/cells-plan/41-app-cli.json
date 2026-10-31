@@ -28,7 +28,6 @@
   ["src/cli-sync.js","apps/cli/src/shell/cli-sync.js","seed"],
   ["src/cli.js","apps/cli/src/shell/cli.js","seed"],
   ["src/cockpit.js","apps/cli/src/shell/cockpit.js","seed"],
-  ["src/command-phase.js","apps/cli/src/shell/command-phase.js","seed"],
   ["src/commands/add.js","apps/cli/src/shell/commands/add.js","seed"],
   ["src/commands/agents.js","apps/cli/src/shell/commands/agents.js","seed"],
   ["src/commands/answer.js","apps/cli/src/shell/commands/answer.js","seed"],
@@ -275,7 +274,6 @@
   "src/cli-sync.js",
   "src/cli.js",
   "src/cockpit.js",
-  "src/command-phase.js",
   "src/commands/index.js",
   "src/commands/status.js",
   "src/commands/worktree.js",
@@ -332,18 +330,7 @@
  ],
  "cuts": [
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
-  {
-   "cell": "link",
-   "imports": 6,
-   "edges": [
-    "src/relay-canary-command.js->src/cli.js",
-    "src/relay-lock.js->src/command-phase.js",
-    "src/relay-request-execution.js->src/next-step-words.js",
-    "src/relay-request-execution.js->src/next-step-words.js",
-    "src/relay-setup.js->src/init.js",
-    "src/relay.js->src/command-phase.js"
-   ]
-  },
+  {"cell":"link","imports":1,"edges":["src/relay-setup.js->src/init.js"]},
   {"cell":"app:view","imports":2,"edges":["src/serve.js->src/next-step-words.js","src/view/cockpit-page.js->src/help.js"]}
  ],
  "ratchets": {

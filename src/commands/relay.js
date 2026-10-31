@@ -57,7 +57,7 @@ import {
 
 /** Run `pullboard relay` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  if (first === 'canary') return (await import('../relay-canary-command.js')).run(io, { first: second, second: rest[0], rest: rest.slice(1), values });
+  if (first === 'canary') return (await import('../relay-canary-command.js')).run(io, { first: second, second: rest[0], rest: rest.slice(1), values }, { context, ordered, withBoard, whoAmI });
   if (['on', 'join'].includes(first) && gitSyncLinked(io.cwd)) throw new Refused('GIT_SYNC_LINKED', 'this board already shares moves through Git; it cannot start a second move order', 'keep using pullboard sync for this board');
   if (values['new-browser'] && first !== 'pair') throw new Refused('USAGE', 'pullboard relay pair --new-browser');
   if (first === 'members') {
