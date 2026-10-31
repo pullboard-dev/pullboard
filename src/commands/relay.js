@@ -1,5 +1,5 @@
 /** The pullboard relay command, in its own module so an item adding another command never edits these lines. */
-import { nativeBoardOpeners } from '../cli-context.js';
+import { nativeBoardOpeners, nativePersonRequestPorts } from '../cli-context.js';
 import * as store from '../board.js';
 import { gitSyncLinked } from '../local-state.js';
 import {
@@ -159,5 +159,5 @@ async function relayRead(root, io) {
     io.err(`pullboard: [RELAY_LINKED] ${error.message}`);
     return;
   }
-  await executePersonRequests(root, io, io.runCommand, nativeBoardOpeners(io));
+  await executePersonRequests(root, io, io.runCommand, nativePersonRequestPorts(io));
 }
