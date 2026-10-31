@@ -10,5 +10,6 @@
   "src/runner-capacity-read.js": "packages/runners/src/shell/runner-capacity-read.js",
   "src/runner-utilization.js": "packages/runners/src/shell/runner-utilization.js",
   "src/runner-slots.js": "packages/runners/src/shell/runner-slots.js",
-  "src/runner-package-install.js": "packages/runners/src/shell/runner-package-install.js"
+  "src/runner-package-install.js": "packages/runners/src/shell/runner-package-install.js",
+  "test/runner-slots-measured.test.js": "packages/runners/tests/runner-slots-measured.test.js"
 }

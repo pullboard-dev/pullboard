@@ -10,21 +10,21 @@ import { writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { HOST } from './runner-ssh-fixture.js';
-import { installSshStandIn } from './runner-ssh-fixture.js';
-import { cli } from './runner-tooling-fixture.js';
-import { takeResource } from '../packages/resources/index.js';
-import { runnerResourceStatus } from '../packages/resources/index.js';
-import { recordRunnerGui } from '../packages/resources/index.js';
-import { recordRunnerMeasurement } from '../src/settings.js';
-import { loadMachineSettings } from '../src/settings.js';
-import { probeRunnerTransport } from '../src/runner-transport.js';
-import { refreshRunnerMeasurements } from '../src/runner-slots.js';
-import { RESERVED_MEMORY_MB } from '../src/runner-slots.js';
-import { PLAIN_SLOT_MB } from '../src/runner-slots.js';
-import { BROWSER_SLOT_MB } from '../src/runner-slots.js';
-import { computeRunnerSlots } from '../src/runner-slots.js';
-import { effectiveRunners } from '../src/runner-slots.js';
+import { HOST } from '../../../test/runner-ssh-fixture.js';
+import { installSshStandIn } from '../../../test/runner-ssh-fixture.js';
+import { cli } from '../../../test/runner-tooling-fixture.js';
+import { takeResource } from '../../resources/index.js';
+import { runnerResourceStatus } from '../../resources/index.js';
+import { recordRunnerGui } from '../../resources/index.js';
+import { recordRunnerMeasurement } from '../../../src/settings.js';
+import { loadMachineSettings } from '../../../src/settings.js';
+import { probeRunnerTransport } from '../../../src/runner-transport.js';
+import { refreshRunnerMeasurements } from '../../../src/runner-slots.js';
+import { RESERVED_MEMORY_MB } from '../../../src/runner-slots.js';
+import { PLAIN_SLOT_MB } from '../../../src/runner-slots.js';
+import { BROWSER_SLOT_MB } from '../../../src/runner-slots.js';
+import { computeRunnerSlots } from '../../../src/runner-slots.js';
+import { effectiveRunners } from '../../../src/runner-slots.js';
 
 /** A real CLI and real SSH stand-in; only the remote machine's reported size is faked, by a preload. */
 function box(t) {
