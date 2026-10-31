@@ -1,11 +1,14 @@
 /** Literal item-message text survives ordinary recipient words [B7,A2,N19]. */
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import { join } from 'node:path';
-import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { moveArgs } from '../packages/person/index.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import * as store from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
+import { moveArgs } from '../../person/index.js';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);
