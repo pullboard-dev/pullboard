@@ -295,6 +295,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   "MILESTONE_SHIPPED": "add the item to the next milestone instead: pullboard milestone items <next> --add <id>",
   "MILESTONE_TARGET": "pass a date and time: pullboard milestone edit <name> --target 2026-10-20T18:00Z",
   "MISSING_SIGNATURE": "have the person repeat approval for the named row: pullboard spec approve <id>",
+  "MISSING_PORT": "supply the failureSignatures function when calling runTestFiles",
   "MISSING_SIGNERS": "restore the signer list from git: git checkout HEAD -- .pullboard/signers",
   "MODEL_REQUIRED": "pass --model \"<model name>\", or set PULLBOARD_MODEL in this shell",
   "BAR_COVERAGE": "record whole-file duration evidence, the named-check duration and any install duration in a coverage JSON file, then run pullboard bar sign <id> --coverage-file <path> --note \"...\"",

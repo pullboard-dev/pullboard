@@ -5,7 +5,7 @@ import { readPipes } from './gate-stages.js';
 import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
 import { quarantineRunVerdict } from './quarantine-run-verdict.js';
-import { sourcePreparationFields } from './runner-overhead.js';
+import { sourcePreparationFields } from '../packages/gate/core.js';
 import { gateRunnerAdmission } from './settings.js';
 import { gitChildEnv } from './git.js';
 import { invalidateGitFacts } from './git.js';

@@ -1,5 +1,8 @@
 import { currentProofCounters } from '../packages/verify/index.js';
 import { proofCounter } from '../packages/verify/index.js';
+import { localDependencyIds } from './item-dependencies.js';
+import { dependencyLabel } from './item-dependencies.js';
+import { itemFileCollisions } from './item-files.js';
 import { exitedSession } from './exit-rules-continuation.js';
 /**
  * `pullboard run --scale` (B26,C7): the board runs as many agents as are worth running, within one budget the
@@ -112,7 +115,7 @@ export function observeWorkers(board, { lane, managed, now = Date.now() }) {
     worth: readCapacity(board, now, { currentProofCounters, proofCounter }).agents?.recommended ?? null,
     workers: ids.map(id => ({ id, busy: seatHoldsWork(board, id, items), managed: managed.includes(id) })),
     reviews: items.filter(item => item.item_status === 'submitted' && !store.reviewHolder(board, item)).length,
-    builds: readyItems(board, store.foreignBlockers, store).filter(item => item.item_lane === lane).length,
+    builds: readyItems(board, store.foreignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions }).filter(item => item.item_lane === lane).length,
   };
 }
 

@@ -1,3 +1,4 @@
+import { failureSignatures } from '../main-failure-matches.js';
 /** The pullboard test command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
@@ -28,7 +29,7 @@ export async function run(io, { first, second, rest, values }) {
   const files = [first, second, ...rest].filter((file) => file !== undefined && file !== '');
   const agent = resourceAgent(ctx) ?? `pid-${process.pid}`;
   const item = claimedItem(ctx, agent);
-  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, affected: values.affected === true, agent, item, onWait: gateWaitReporter(io) });
+  const result = await runTestFiles(ctx.info.root, ctx.config, files, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, compareMainFailures, withMainCheckout, failureSignatures, affected: values.affected === true, agent, item, onWait: gateWaitReporter(io) });
   result.mainFailures = mainFailureNotices(ctx.info.root, result.failureCases, result.mainComparison,
     { items: withBoardRead(ctx, board => listItems(board, { all: true })), exclude: item });
   const covered = new Set(result.mainFailures.map(row => row.file));

@@ -17,7 +17,8 @@ import * as maintenanceSettings from './worktree-maintenance-config.js';
 import { knownConfigKeys } from './config-forward-compat.js';
 
 export const CONFIG_FILE = 'pullboard.json';
-export const COORDINATOR = 'coordinator';
+import { COORDINATOR } from '../packages/queue/core.js';
+export { COORDINATOR } from '../packages/queue/core.js';
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
