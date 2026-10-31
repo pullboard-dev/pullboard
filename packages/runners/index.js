@@ -17,3 +17,4 @@ export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protect
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/shell/runner-history-pack.js";
 export { requestFor } from "./src/shell/runner-request.js";
 export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/shell/runner-dispatch.js";
+export { pinRunnerTooling, inRunnerGeneration, shellWord, sshEnvironment, loadedToolingFiles, trustedTooling, remoteWorkerCommand } from "./src/shell/runner-remote-tooling.js";
