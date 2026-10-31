@@ -305,7 +305,8 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   /** Actual move descriptors can retain only their exact own-body shim, with no opaque closure. */
   function inMoveClosure(from, to) {
     if (moveFiles === undefined) {
-      try { moveFiles = moveDeclarationFiles(root); }
+      try { moveFiles = moveDeclarationFiles(root, { importsIn, commonJsIn,
+        files: cellInventory(root, { importsIn, commonJsIn }).files.keys() }); }
       catch { moveFiles = new Set(); /* An unprovable move closure grants no shim exception. */ }
     }
     return moveFiles.has(from) && moveFiles.has(to);
