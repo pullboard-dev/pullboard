@@ -568,7 +568,7 @@ function viewDeviceInstructions(flow) {
 }
 
 /** Start the existing device flow in RAM; the view receives only its public link, code and id. */
-export async function startViewSignIn({ relayUrl, signal } = {}) {
+export async function startViewSignIn({ relayUrl, signal, relayPorts } = {}) {
   if (signal?.aborted) throw new Refused('OAUTH_CANCELLED', 'sign-in was cancelled before it started; no board was linked');
   pruneViewSignIns();
   if ([...viewSignIns.values()].some(operation => !operation.finishedAt)) {
@@ -585,7 +585,7 @@ export async function startViewSignIn({ relayUrl, signal } = {}) {
   const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
   // The established linking path still owns authorization and pairing. Its terminal IO is a
   // sink; progress enters this operation only through typed callbacks, never parsed text.
-  const io = { personChannel: 'view', say() {}, err() {}, stderr: { write() {} } };
+  const io = { ...relayPorts, personChannel: 'view', say() {}, err() {}, stderr: { write() {} } };
   operation.finished = Promise.resolve().then(() => relayOnAll(relayUrl, io, {
     signal: operation.controller.signal,
     onSignIn(flow) {

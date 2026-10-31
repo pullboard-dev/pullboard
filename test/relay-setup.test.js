@@ -24,6 +24,7 @@ import assert from 'node:assert/strict';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import * as setup from ${JSON.stringify(setupModule)};
+import { apiBoardOpeners as relayPorts } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
 import { relayLinkAvailability } from ${JSON.stringify(relayModule)};
 import { main } from ${JSON.stringify(cliModule)};
 import { runFixtureGit } from ${JSON.stringify(fixtureModule)};
@@ -118,7 +119,7 @@ function containsPersonMaterial(directory) {
 try {
   if (corruptInstructions) {
     let settled = false;
-    const pending = setup.startViewSignIn({relayUrl}).then(
+    const pending = setup.startViewSignIn({relayPorts,relayUrl}).then(
       () => { settled = true; assert.fail('foreign provider instructions must be refused'); },
       error => { settled = true; return error; });
     try {
@@ -129,7 +130,7 @@ try {
     const error = await pending;
     assert.equal(error.code,mode === 'cleanup-refused' ? 'OAUTH_CLEANUP' : 'VIEW_SIGN_IN_RESPONSE');
     corruptInstructions = false;
-    const recovery = await setup.startViewSignIn({relayUrl});
+    const recovery = await setup.startViewSignIn({relayPorts,relayUrl});
     intentId = recovery.intentId;
     const cancelled = await setup.cancelViewSignIn(intentId);
     assert.equal(cancelled.state,'cancelled','finished failed startup does not leave a busy view');
@@ -137,18 +138,18 @@ try {
     assert.equal(containsPersonMaterial(dirname(root)),false);
     process.stdout.write(JSON.stringify({state:error.code,linked:0,storedPersonMaterial:false}));
   } else if (mode === 'abort-start') {
-    await assert.rejects(setup.startViewSignIn({relayUrl,signal:starting.signal}), {code:'OAUTH_CANCELLED'});
+    await assert.rejects(setup.startViewSignIn({relayPorts,relayUrl,signal:starting.signal}), {code:'OAUTH_CANCELLED'});
     assert.equal(links.some(existsSync),false,'a cancelled start does not link a board');
     assert.equal(containsPersonMaterial(dirname(root)),false,'no private session or ticket is saved');
     process.stdout.write(JSON.stringify({state:'cancelled',linked:0,storedPersonMaterial:false}));
   } else {
-    const instructions = await setup.startViewSignIn({relayUrl});
+    const instructions = await setup.startViewSignIn({relayPorts,relayUrl});
     intentId = instructions.intentId;
     assert.deepEqual(Object.keys(instructions).sort(),['expiresAt','intentId','userCode','verificationURL']);
     assert.equal(new URL(instructions.verificationURL).pathname,'/login/device');
     assert.equal(instructions.userCode,'TEST-ONLY');
     assert.equal(setup.viewSignInStatus(intentId).state,'waiting');
-    await assert.rejects(setup.startViewSignIn({relayUrl}),{code:'VIEW_SIGN_IN_BUSY'});
+    await assert.rejects(setup.startViewSignIn({relayPorts,relayUrl}),{code:'VIEW_SIGN_IN_BUSY'});
     let final;
     if (mode === 'cancel') {
       final = await setup.cancelViewSignIn(intentId);
