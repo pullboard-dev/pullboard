@@ -1,2 +1,2 @@
-/** Compatibility entry through the pure person front door [C7,CD60]. */
-export * from '../packages/person/core.js';
+/** Compatibility entry preserving this module's public names [C7]. */
+export { barEffectValues, normalizePersonBarEffect, sameBarEffect, browserPersonBarEffect } from '../packages/person/core.js';

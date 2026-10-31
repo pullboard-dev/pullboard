@@ -1,2 +1,2 @@
-/** Compatibility entry through the pure person front door [C7,CD60]. */
-export * from '../packages/person/core.js';
+/** Compatibility entry preserving this module's public names [C7]. */
+export { devicePublicKey, personEnrollmentBody, createPersonRoot, signPersonEnrollment, authenticatePersonEnrollment, sealAccountEnvelope, openAccountEnvelope } from '../packages/person/core.js';
