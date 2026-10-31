@@ -5,7 +5,6 @@ import {
 } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from './board.js';
-import { executeMove } from './api.js';
 import { loadConfig } from './config.js';
 import {
   codeIsFromMain,
@@ -55,6 +54,8 @@ function transportRefusal(error) {
 export async function executePersonRequests(root, io, runCommand, boardOpeners) {
   if (io.skipPersonRequests || !relayLinked(root)) return;
   if (typeof boardOpeners?.openBoard !== 'function' || typeof boardOpeners.openBoardForRead !== 'function') throw new TypeError('person request execution requires actual native board openers');
+  if (typeof boardOpeners.executeMove !== 'function' || typeof boardOpeners.refusalDocument !== 'function') throw new TypeError('person request execution requires the caller-supplied executeMove and refusalDocument ports');
+  const { executeMove, refusalDocument } = boardOpeners;
   const coordinatorRoot = git(root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
   const pending = requests(coordinatorRoot, boardOpeners).filter(record => record.status === 'waiting' && !record.coordinatorRequest);
   if (!pending.length) return;
@@ -67,7 +68,6 @@ export async function executePersonRequests(root, io, runCommand, boardOpeners) 
       const record = requests(coordinatorRoot, boardOpeners).find(entry => entry.id === initial.id);
       if (record.executor !== executor || record.status !== 'waiting') continue;
       if (!Object.hasOwn(record, 'result')) {
-        const { refusalDocument } = await import('./next-step-words.js');
         const response = await executeMove(coordinatorRoot, record.move, (argv, streams) => runCommand(argv, {
           ...streams, skipPersonRequests: true,
           personRequest: { id: record.id, executor, phase: 'execute', digest: requestIntentDigest(record) },
@@ -90,7 +90,6 @@ export async function executePersonRequests(root, io, runCommand, boardOpeners) 
       if (transportRefusal(error)) { io.err('pullboard: ' + error.message); continue; }
       const record = requests(coordinatorRoot, boardOpeners).find(entry => entry.id === initial.id);
       if (record?.executor === executor && record.status === 'waiting') {
-        const { refusalDocument } = await import('./next-step-words.js');
         await receipt(coordinatorRoot, record, executor, 'refuse', io, refusalDocument(error).error);
       }
     }

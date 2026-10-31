@@ -43,9 +43,7 @@
   {"cell":"gate","imports":7,"before":true},
   {"cell":"runners","imports":5,"before":true}
  ],
- "cuts": [
-  {"cell":"runners","imports":1,"edges":["src/runner-transport.js->src/runner-custody.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -1,
   "shims": 7,

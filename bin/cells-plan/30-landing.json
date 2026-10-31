@@ -20,7 +20,6 @@
   ["src/landing-host.js","packages/landing/src/shell/landing-host.js","seed"],
   ["src/landing-main-notices.js","packages/landing/src/core/landing-main-notices.js","rule"],
   ["src/landing-message.js","packages/landing/src/core/landing-message.js","seed"],
-  ["src/landing-relay.js","packages/landing/src/core/landing-relay.js","seed"],
   ["src/landing-resource.js","packages/landing/src/shell/landing-resource.js","seed"],
   ["src/landing-shards.js","packages/landing/src/shell/landing-shards.js","seed"],
   ["src/landing-test-policy.js","packages/landing/src/core/landing-test-policy.js","rule"],
@@ -71,7 +70,6 @@
   "src/landing-local-lease.js",
   "src/landing-main-notices.js",
   "src/landing-message.js",
-  "src/landing-relay.js",
   "src/landing-resource.js",
   "src/landing-shards.js",
   "src/landing-test-defect-history.js",
@@ -107,7 +105,6 @@
   {"cell":"app:runner","imports":2,"before":false}
  ],
  "cuts": [
-  {"cell":"link","imports":1,"edges":["src/relay.js->src/landing-relay.js"]},
   {"cell":"gate","imports":2,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js","src/test-run.js->src/main-failure-matches.js"]}
  ],
  "ratchets": {

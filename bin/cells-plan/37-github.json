@@ -6,7 +6,6 @@
  "frontDoor": "packages/github/index.js",
  "paths": [
   ["src/ci-flakes.js","packages/github/src/shell/ci-flakes.js","seed"],
-  ["src/github-origin.js","packages/github/src/core/github-origin.js","seed"],
   ["src/intake-github.js","packages/github/src/shell/intake-github.js","seed"],
   ["src/pr-findings.js","packages/github/src/shell/pr-findings.js","seed"],
   ["src/pr-github.js","packages/github/src/shell/pr-github.js","seed"],
@@ -19,7 +18,6 @@
  ],
  "reexports": [
   "src/ci-flakes.js",
-  "src/github-origin.js",
   "src/intake-github.js",
   "src/pr-findings.js",
   "src/pr-github.js",
@@ -40,9 +38,7 @@
   {"cell":"gate","imports":2,"before":true},
   {"cell":"landing","imports":1,"before":true}
  ],
- "cuts": [
-  {"cell":"link","imports":2,"edges":["src/relay-excluded.js->src/github-origin.js","src/relay.js->src/github-origin.js"]}
- ],
+ "cuts": [],
  "ratchets": {
   "legacySource": -2,
   "shims": 9,
