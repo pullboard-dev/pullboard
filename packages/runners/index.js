@@ -16,3 +16,4 @@ export { probeRunnerJob as healthProbeRunnerJob, probeRunnerHealth as healthProb
 export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, objectRecord } from "./src/shell/runner-source-scan.js";
 export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/shell/runner-history-pack.js";
 export { requestFor } from "./src/shell/runner-request.js";
+export { ownedTransportCompletion, runOnRunner as dispatchRunOnRunner, runOnRunnerAsync as dispatchRunOnRunnerAsync, serveRunnerController as dispatchServeRunnerController, refuseLegacyControllerEntry } from "./src/shell/runner-dispatch.js";
