@@ -78,7 +78,7 @@ export const MACHINE_CALLBACKS = {
   },
   // The native root supplies these setup guards through the physical store's explicit ports.
   'board-store.js': {
-    readEventLogVersion: 'board-read-open.js#readEventLogVersion',
+    readEventLogVersion: '../packages/store/src/shell/board-read-open.js#readEventLogVersion',
     boardNotWritable: 'board-access.js#boardNotWritable',
     boardBusyError: 'board-access.js#boardBusyError',
   },

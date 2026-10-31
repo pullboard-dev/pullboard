@@ -1,3 +1,4 @@
+import { conditionalHoldFloor } from '../packages/health/index.js';
 import { recordFamilyDeclareActivation } from './family-declaration.js';
 import { withDerivedFamily } from './family-declaration.js';
 import {
@@ -303,6 +304,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    conditionalHoldFloor,
     recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,

@@ -22,7 +22,7 @@ import * as machineRules from '../src/machine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -193,6 +193,36 @@ const ITEM_CALLBACK_SOURCES = {
   '../packages/items/src/shell/item-authors.js': 'item-authors.js',
 };
 
+/** Exact relocated provider identities for the existing caller-specific audit metadata. */
+const STORE_AUDIT_IDENTITIES = {
+  "../packages/store/src/core/exit-rules-continuation.js": "exit-rules-continuation.js",
+  "../packages/store/src/shell/board-access.js": "board-access.js",
+  "../packages/store/src/shell/board-health.js": "board-health.js",
+  "../packages/store/src/core/board-link-state.js": "board-link-state.js",
+  "../packages/store/src/shell/board-query.js": "board-query.js",
+  "../packages/store/src/shell/board-read-open.js": "board-read-open.js",
+  "../packages/store/src/shell/board.js": "board.js",
+  "../packages/store/src/shell/proof-receipts.js": "proof-receipts.js",
+  "../packages/store/src/shell/board-store.js": "board-store.js",
+  "../packages/store/src/core/board-rigor-auto-source.js": "board-rigor-auto-source.js",
+  "../packages/store/src/core/board-rigor-source.js": "board-rigor-source.js",
+  "../packages/store/src/core/board-rigor.js": "board-rigor.js",
+  "../packages/store/src/shell/board-claim.js": "board-claim.js",
+  "../packages/store/src/shell/board-finish-landing-batch.js": "board-finish-landing-batch.js",
+  "../packages/store/src/shell/board-next-for.js": "board-next-for.js",
+  "../packages/store/src/shell/board-record-landing-batch.js": "board-record-landing-batch.js",
+  "../packages/store/src/shell/board-refreeze.js": "board-refreeze.js",
+  "../packages/store/src/shell/board-reopen.js": "board-reopen.js",
+  "../packages/store/src/shell/board-verify.js": "board-verify.js"
+};
+
+/** Compare physical aliases without changing function names or expanding any caught boundary. */
+function auditKey(key) {
+  const [file, name] = key.split('#');
+  const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
+  return `${STORE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
+}
+
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
  * functions it calls, followed across imports and into the functions the CLI hands the board.
@@ -212,7 +242,7 @@ function codeWalk(read, { caught = false } = {}) {
     return files.get(file);
   };
   const refusalsOf = (key, skip = new Set(), seen = new Set()) => {
-    if (seen.has(key) || skip.has(key) || TRANSPORT_BOUNDARIES.has(key)) return new Set();
+    if (seen.has(key) || [...skip].some(entry => auditKey(entry) === auditKey(key)) || TRANSPORT_BOUNDARIES.has(auditKey(key))) return new Set();
     seen.add(key);
     const [file, name] = key.split('#');
     const { bodies, named, spaces, source, stars } = load(file);
@@ -228,7 +258,8 @@ function codeWalk(read, { caught = false } = {}) {
     let facts = localFacts.get(key);
     if (!facts) {
       const body = bodies.get(name) ?? '';
-      const callbacks = CALLBACKS[file] ?? CALLBACKS[ITEM_CALLBACK_SOURCES[file]];
+      const logicalFile = auditKey(`${file}#`).split('#')[0];
+      const callbacks = CALLBACKS[logicalFile] ?? CALLBACKS[ITEM_CALLBACK_SOURCES[file]];
       const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
       const callees = [
         ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? callbacks?.[callee])),
@@ -240,7 +271,7 @@ function codeWalk(read, { caught = false } = {}) {
     }
     const codes = new Set(facts.codes);
     for (const callee of facts.callees.filter(Boolean)) {
-      if (caught && (CAUGHT[key] ?? []).includes(callee)) continue;
+      if (caught && (CAUGHT[auditKey(key)] ?? []).some(entry => auditKey(entry) === auditKey(callee))) continue;
       for (const code of refusalsOf(callee, skip, seen)) codes.add(code);
     }
     return codes;
@@ -294,7 +325,7 @@ function codeProblems(machine, read = fromDisk) {
     }
   }
   const commandFiles = fs.readdirSync(new URL('../src/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
-  const moveFiles = new Set([...read('board.js').matchAll(/^import \{ \w+ \} from '\.\/(board-[\w-]+\.js)';$/gmu)].map((match) => match[1])), raised = new Set(['board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  const moveFiles = new Set([...read('../packages/store/src/shell/board.js').matchAll(/^import \{ \w+ \} from (['"])(\.\/(board-[\w-]+\.js))\1;$/gmu)].map((match) => posix.join('../packages/store/src/shell', match[2]))), raised = new Set(['../packages/store/src/shell/board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
@@ -564,7 +595,7 @@ test('a broken copy of the declaration fails the check against the code, both wa
 test('a broken copy of the code fails the check: a refusal added wherever a move reaches [M1, M4]', () => {
   for (const [file, pattern] of [
     ['../packages/kernel/src/core/registry-guards.js', /^export function boardLinkRecord\(value\) \{$/m],
-    ['board-link-state.js', /^export function readReceivedBoardState\(board, .*$/m],
+    ['../packages/store/src/core/board-link-state.js', /^export function readReceivedBoardState\(board, .*$/m],
   ]) {
     const inForeignReader = editedSource(file, pattern,
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
@@ -576,7 +607,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by reserve but not declared there',
   ], 'the foreign-state caller is still audited outside its exact evidence catches');
-  const inCaughtBaseline = editedSource('board-query.js', /^export function specApprovalBaseline\(board\) \{$/m,
+  const inCaughtBaseline = editedSource('../packages/store/src/shell/board-query.js', /^export function specApprovalBaseline\(board\) \{$/m,
     "$&\n  if (!board) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inCaughtBaseline), [], 'the real caller catches a Refused from the baseline reader');
   const inBaselineCaller = editedSource('../packages/spec/src/shell/spec-approval.js', /^export function specApprovalState\(root, .*$/m,
@@ -588,7 +619,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   ], 'the caller is not exempt: only the exact reader call is inside its catch');
 
   for (const helper of ['automaticDecisionSource', 'rigorDecisionKey']) {
-    const inHistoricalCaller = editedSource('board-rigor-auto-source.js',
+    const inHistoricalCaller = editedSource('../packages/store/src/core/board-rigor-auto-source.js',
       new RegExp(`^export function ${helper}\\(record\\) \\{$`, 'm'),
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inHistoricalCaller).sort(), [
@@ -1312,12 +1343,12 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
 function statusWriters(read) {
   const writers = [];
   const movedFiles = packageFiles(fileURLToPath(new URL('..', import.meta.url)))
-    .filter(file => file.startsWith('packages/items/src/') && file.endsWith('.js')).map(file => `../${file}`);
+    .filter(file => (file.startsWith('packages/items/src/') || file.startsWith('packages/store/src/')) && file.endsWith('.js')).map(file => `../${file}`);
   const files = [...fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js')),
     '../packages/config/src/core/json.js', ...movedFiles];
   for (const file of files) {
     const source = read(file);
-    const allowedNames = file === 'board.js' ? ['moveItem'] : file === '../packages/items/src/core/item-fields.js' ? ['setItem'] : file === 'board-query.js' ? ['current'] : [];
+    const allowedNames = file === '../packages/store/src/shell/board.js' ? ['moveItem'] : file === '../packages/items/src/core/item-fields.js' ? ['setItem'] : file === '../packages/store/src/shell/board-query.js' ? ['current'] : [];
     const allowed = allowedNames.map((name) => functionsIn(source).get(name));
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
     if (file === 'json.js' || file === '../packages/config/src/core/json.js') {
@@ -1340,16 +1371,16 @@ test('only moveItem writes an item\'s status, and a write anywhere else fails th
   const besideSetter = editedSource('../packages/items/src/core/item-fields.js', /^export function setItem/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function setItem");
   assert.deepEqual(statusWriters(besideSetter), ['../packages/items/src/core/item-fields.js#reopenByHand'], 'the generic setter exemption never covers a writer beside it');
-  const besideReader = editedSource('board-query.js', /^export function current/m,
+  const besideReader = editedSource('../packages/store/src/shell/board-query.js', /^export function current/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function current");
-  assert.deepEqual(statusWriters(besideReader), ['board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
-  assert.match(functionsIn(fromDisk('board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
-  const planted = editedSource('board-escalate.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
-  assert.deepEqual(statusWriters(planted), ['board-escalate.js#escalate']);
-  const lowercase = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(lowercase), ['board-record-attempt.js#reopenByHand']);
-  const computed = editedSource('board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
-  assert.deepEqual(statusWriters(computed), ['board-record-attempt.js#reopenByKey']);
+  assert.deepEqual(statusWriters(besideReader), ['../packages/store/src/shell/board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
+  assert.match(functionsIn(fromDisk('../packages/store/src/shell/board.js')).get('moveItem'), /item_status: move\.to/, 'moveItem is the writer');
+  const planted = editedSource('../packages/store/src/core/board-escalate.js', /set: \(found\) => \(\{ item_route: nextRoute\(found\.item_route\), item_owner: null, item_lease_until: null \}\),/, "set: (found) => ({ item_route: nextRoute(found.item_route), item_status: 'open', item_owner: null, item_lease_until: null }),");
+  assert.deepEqual(statusWriters(planted), ['../packages/store/src/core/board-escalate.js#escalate']);
+  const lowercase = editedSource('../packages/store/src/core/board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(lowercase), ['../packages/store/src/core/board-record-attempt.js#reopenByHand']);
+  const computed = editedSource('../packages/store/src/core/board-record-attempt.js', /^export function recordAttempt/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport function recordAttempt");
+  assert.deepEqual(statusWriters(computed), ['../packages/store/src/core/board-record-attempt.js#reopenByKey']);
   const besideCatalog = editedSource('../packages/config/src/core/json.js', /^export const JSON_SHAPES =/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport const JSON_SHAPES =");
   assert.deepEqual(statusWriters(besideCatalog), ['../packages/config/src/core/json.js#reopenByKey'], 'the output catalog exemption never covers a writer beside it');
   const besideShim = editedSource('json.js', /^export \{/m, "export function reopenByKey(board, id) {\n  setItem(board, id, { ['item_status']: 'open' });\n}\n\nexport {");
@@ -1445,4 +1476,18 @@ test('lifecycle source walks follow sync shims and catch a planted body refusal 
 
 test('lifecycle source walks follow Git shims and catch a planted body refusal [M1,M4,H16]', () => {
   assertGitFacadeAudit(codeWalk, fromDisk, editedSource);
+});
+
+/** The bound storage callback must reach its real body through the moved public facade. */
+test('native store setup keeps the exact event-log callback refusal reachable [C7,M1]', () => {
+  const entry = 'native-board.js#openBoard';
+  assert.ok(codeWalk(fromDisk).refusalsOf(entry).has('EVENT_LOG_VERSION'));
+  const planted = editedSource('../packages/store/src/shell/board-read-open.js',
+    /^export function readEventLogVersion\(db\) \{$/m,
+    "$&\n  throw new Refused('STORE_SETUP_PROBE', 'planted event-log guard');");
+  assert.ok(codeWalk(planted).refusalsOf(entry).has('STORE_SETUP_PROBE'));
+  const beside = editedSource('../packages/store/src/shell/board-read-open.js',
+    /^export function readEventLogVersion\(db\) \{$/m,
+    "export function unrelatedStoreProbe() { throw new Refused('STORE_ADJACENT_PROBE', 'unbound function'); }\n$&");
+  assert.ok(!codeWalk(beside).refusalsOf(entry).has('STORE_ADJACENT_PROBE'));
 });

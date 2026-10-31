@@ -197,3 +197,21 @@ test('the transaction implementation is audited after acquisition, keeping prepa
 test('native transaction source contains no unassigned named external I/O [C7,CD39]', () => {
   assert.deepEqual(boardWriteIoProblems(styleSources(fileURLToPath(new URL('..', import.meta.url)))), []);
 });
+
+test('exact moved store writer identities preserve guard coverage and reject adjacent I/O [C7,CD39]', () => {
+  for (const atomicPath of ['src/board-event-log.js', 'packages/store/src/shell/board-event-log.js']) {
+    const atomic = { file: atomicPath, source: 'export function atomic(board, work) { beginImmediateQueued(board.db); return work(); }' };
+    const caller = { file: 'src/fixture-writer.js', source: `import {atomic} from '../${atomicPath}'; import {readFileSync} from 'node:fs'; export function write(board) { return atomic(board, () => readFileSync('bad')); }` };
+    assert.ok(boardWriteIoProblems([atomic, caller], { pending: {} }).some(row => row.call === 'node:fs#readFileSync'), atomicPath);
+  }
+  for (const name of ['finishBoardWrite', 'finishBoardWriteAdjacent']) {
+    const writer = { file: 'packages/store/src/shell/board-write-lock.js', source: `import {writeSync} from 'node:fs'; export function ${name}() { writeSync(2, 'message'); }` };
+    const caller = { file: 'src/fixture-writer.js', source: `import {atomic} from './board-event-log.js'; import {${name}} from '../packages/store/src/shell/board-write-lock.js'; export function write(board) { return atomic(board, () => ${name}()); }` };
+    const problems = boardWriteIoProblems(guardSources('', [writer, caller]), { pending: {} });
+    assert.equal(problems.some(row => row.call === 'node:fs#writeSync'), name !== 'finishBoardWrite', name);
+  }
+  const receipt = { file: 'packages/store/src/shell/proof-receipts.js', source: "import {readFileSync} from 'node:fs'; export function proofRunReceipt() { return readFileSync('receipt'); }" };
+  const caller = { file: 'src/fixture-writer.js', source: "import {atomic} from './board-event-log.js'; import {proofRunReceipt} from '../packages/store/src/shell/proof-receipts.js'; export function write(board) { return atomic(board, () => proofRunReceipt()); }" };
+  assert.deepEqual(boardWriteIoProblems(guardSources('', [receipt, caller])), [], 'the same assigned repair retains its exact identity');
+  assert.ok(boardWriteIoProblems(guardSources('', [receipt, caller]), { pending: {} }).some(row => row.call === 'node:fs#readFileSync'), 'no pending permission means the same mapped I/O is refused');
+});
