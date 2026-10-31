@@ -223,3 +223,20 @@ test('items move retains Strict for each protected destination and excludes unre
     assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
   }
 });
+
+
+test('merge move retains Strict for sensitive bodies and excludes unrelated siblings [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  for (const path of ['packages/merge/src/shell/merge-only-verdict.js',
+    'packages/merge/src/shell/train-mechanical-merge.js']) {
+    assert.equal(gateJudgmentPath(path), true, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'strict', path);
+  }
+  for (const path of ['packages/merge/src/shell/merge-only-verdict-extra.js',
+    'packages/merge/src/shell/train-mechanical-merge-extra.js']) {
+    assert.equal(gateJudgmentPath(path), false, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
+});
