@@ -2,11 +2,11 @@ import {
   sameEnvironment,
   testRuntimeRows,
   testRuntimeEnvironment,
-} from '../../../verify/index.js';
+} from '../../../verify/src/core/proof-provenance.js';
 export { sameEnvironment, testRuntimeRows, testRuntimeEnvironment };
 import {
   environmentProblem,
-} from '../../../config/index.js';
+} from '../../../config/src/shell/config.js';
 import {
   lstatSync,
   mkdtempSync,

@@ -4,4 +4,4 @@ export {
   validRunnerTrunk,
   runnerPolicyRecord,
   carriedRunnerTrunk,
-} from '../packages/sandbox/index.js';
+} from './trusted-policy-read.js';

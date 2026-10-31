@@ -13,7 +13,7 @@ import {
 } from 'node:fs';
 import {
   configFromSource,
-} from '../../../config/index.js';
+} from '../../../config/src/shell/config.js';
 import {
   cleanGitEnvironment,
   mainCheckout,

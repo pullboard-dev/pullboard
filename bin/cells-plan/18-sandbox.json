@@ -22,7 +22,7 @@
   ["test/trusted-policy-ancestry.test.js","packages/sandbox/tests/trusted-policy-ancestry.test.js","seed"],
   ["test/trusted-policy.test.js","packages/sandbox/tests/trusted-policy.test.js","seed"]
  ],
- "reexports": [],
+ "reexports": ["src/release-hosted.js","src/trusted-policy-read.js"],
  "imports": [
   {"cell":"kernel","imports":7,"before":true},
   {"cell":"git","imports":7,"before":true},

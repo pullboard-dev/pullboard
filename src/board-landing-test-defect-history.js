@@ -1,1 +1,1 @@
-export { landingTestDefects } from '../packages/store/index.js';
+export { landingTestDefects } from '../packages/store/src/core/board-landing-test-defect-history.js';

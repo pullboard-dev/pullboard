@@ -21,7 +21,7 @@ import { safeSetupMessage } from './runner-worker-receipt.js';
 import { setupRefusalCode } from './runner-worker-receipt.js';
 import { stopReading } from './runner-worker-receipt.js';
 import { readSpec } from './runner-worker-spec.js';
-import { captureTestRuntimes } from '../packages/sandbox/index.js';
+import { captureTestRuntimes } from '../packages/sandbox/src/shell/execution-environment.js';
 import { guiSession } from './gui-session.js';
 import { Refused } from '../packages/kernel/index.js';
 import { createDescendantTracker } from './runner-custody.js';

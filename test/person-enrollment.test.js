@@ -11,9 +11,9 @@ import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth } from '../relay/auth.js';
 import { createRelayHandler } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
-import { unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../src/relay-device-keys.js';
+import { unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../packages/keys/index.js';
 import { test } from 'node:test';
-import { createDeviceKeys } from '../src/relay-device-keys.js';
+import { createDeviceKeys } from '../packages/keys/index.js';
 import { createDeviceStore } from '../relay/device-store.js';
 import { DatabaseSync } from 'node:sqlite';
 

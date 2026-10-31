@@ -1,5 +1,2 @@
-/** Preserve the existing read-only bar-setting entry point and canonical function identities [C7,H16]. */
-export {
-  readBarState,
-  barReadySetting,
-} from './bar-corrections.js';
+/** Compatibility shim: bar-ready-setting.js now lives in the moves cell [C7]. */
+export { barReadySetting, readBarState } from "../packages/moves/src/core/bar-ready-setting.js";

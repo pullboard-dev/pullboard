@@ -19,8 +19,8 @@ import {
   authenticateDeviceEnrollment,
   devicePublicKey,
   wrapDeviceBoardKey,
-} from './relay-device-keys.js';
-import { scrubLegacyPersonSessions } from './relay-key.js';
+} from '../packages/keys/index.js';
+import { scrubLegacyPersonSessions } from '../packages/keys/index.js';
 import { approvalContext } from './relay-approval.js';
 import { createPairingCode } from './pairing.js';
 import { relayMachineDirectory } from './local-state.js';

@@ -15,7 +15,7 @@ import {
   forgetBoardKey,
   readBoardKey,
   storeBoardKey,
-} from './relay-key.js';
+} from '../packages/keys/index.js';
 import { requestBoardKey } from './relay-handover.js';
 import { namedBoard } from './relay-board-config.js';
 import { relayRelink } from './relay-relink.js';

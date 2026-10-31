@@ -5,7 +5,7 @@ import { quarantineWaivers } from '../quarantine.js';
 import { boardBusyError } from '../board-access.js';
 import { openBoardReadOnly } from '../board-read-open.js';
 import { rowDecisions } from '../../packages/spec/index.js';
-import { checkLoosening } from '../doctrine-checks.js';
+import { checkLoosening } from '../../packages/doctrine/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
 

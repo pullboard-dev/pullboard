@@ -13,7 +13,7 @@ import {
   createPersonRoot,
   sealAccountEnvelope,
 } from "../src/core/person-enrollment.js";
-import { createDeviceKeys } from "../../../src/relay-device-keys.js";
+import { createDeviceKeys } from "../../keys/index.js";
 
 /** Open in an independent isolate that has never held the original private root. */
 async function recoveredEnrollment(serialized, material, method, expected, body) {

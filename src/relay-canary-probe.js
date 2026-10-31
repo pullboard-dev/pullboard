@@ -15,7 +15,7 @@ import {
   relayOperation,
   request,
 } from './relay.js';
-import { readBoardKey } from './relay-key.js';
+import { readBoardKey } from '../packages/keys/index.js';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 import { Refused } from '../packages/kernel/index.js';
 

@@ -9,7 +9,8 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { repoInfo } from '../src/git.js';
-import { loadMachineSettings, machineSettingsFile } from '../packages/config/index.js';
+import { loadMachineSettings } from '../packages/config/index.js';
+import { machineSettingsFile } from '../packages/config/index.js';
 
 /** Load the new surface dynamically so the test-only baseline reports a focused missing-feature failure. */
 async function canaryApi() {

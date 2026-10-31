@@ -11,7 +11,7 @@ import {
 import {
   createDeviceKeys,
   unwrapDeviceBoardKey,
-} from '../src/relay-device-keys.js';
+} from '../packages/keys/index.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 
@@ -67,7 +67,7 @@ test('a native key holder verifies a pinned person root before delivering each g
     await pin(root.publicKey);
     const raced = await box.script(`
       const {readFileSync} = await import('node:fs');
-      const {deliverPersonEnrollments} = await import(${JSON.stringify(new URL('../src/relay-person-enrollment.js', import.meta.url).href)});
+      const {deliverPersonEnrollments} = await import(${JSON.stringify(new URL('../packages/keys/index.js', import.meta.url).href)});
       const {relayDeviceRequest} = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
       const {relayPersonRoot,updateRelayMachine} = await import(${JSON.stringify(new URL('../src/relay-machine.js', import.meta.url).href)});
       const state = JSON.parse(readFileSync(${JSON.stringify(box.linkFile)}, 'utf8'));

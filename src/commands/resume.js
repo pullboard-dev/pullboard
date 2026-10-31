@@ -1,5 +1,5 @@
 import { trunkRef } from '../../packages/sandbox/index.js';
-import { agentDoctrine } from '../doctrine-rulings.js';
+import { agentDoctrine } from '../../packages/doctrine/index.js';
 import { appliedDoctrine } from '../doctrine.js';
 import { doctrineFromSource } from '../doctrine.js';
 import { loadDoctrine } from '../doctrine.js';
@@ -31,7 +31,7 @@ import {
 import {
   resumeDoctrineNotes,
   staleDoctrineRows,
-} from '../doctrine-rulings.js';
+} from '../../packages/doctrine/index.js';
 import {
   repoInfo,
 } from '../git.js';

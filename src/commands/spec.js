@@ -31,7 +31,7 @@ import {
 } from '../../packages/config/index.js';
 import {
   proposeDoctrine,
-} from '../doctrine-rulings.js';
+} from '../../packages/doctrine/index.js';
 import {
   doctrineHistory,
 } from '../doctrine.js';

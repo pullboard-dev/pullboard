@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { Refused } from '../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { readBoardKey } from '../src/relay-key.js';
+import { readBoardKey } from '../packages/keys/index.js';
 import { request } from '../src/relay.js';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 

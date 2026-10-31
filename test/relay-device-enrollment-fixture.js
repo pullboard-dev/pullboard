@@ -6,7 +6,7 @@ export async function enrollProtocolPhone(box) {
   const result = await box.script(`
     const { relayMachineContext, relayMachineSignIn, relayDeviceRequest, revokeRelayPersonSession } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const { beginDeviceEnrollment, acceptDeviceEnrollment } = await import(${JSON.stringify(new URL('../src/relay-machine.js', import.meta.url).href)});
-    const { createDeviceKeys, signDeviceEnrollment } = await import(${JSON.stringify(new URL('../src/relay-device-keys.js', import.meta.url).href)});
+    const { createDeviceKeys, signDeviceEnrollment } = await import(${JSON.stringify(new URL('../packages/keys/index.js', import.meta.url).href)});
     const sink = { isTTY: false, write() {} };
     const io = { cwd: process.cwd(), personChannel: 'terminal', stdout: sink, stderr: sink, say() {}, err() {} };
     const state = relayMachineContext(process.cwd());

@@ -4,7 +4,7 @@
 import { boardBusyError } from '../src/board-access.js';
 import { openBoardReadOnly } from '../src/board-read-open.js';
 import { rowDecisions } from '../packages/spec/index.js';
-import { checkLoosening } from '../src/doctrine-checks.js';
+import { checkLoosening } from '../packages/doctrine/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
