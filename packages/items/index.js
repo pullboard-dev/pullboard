@@ -15,3 +15,6 @@ export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, bloc
 export { ITEM_SIZE_BUDGET, changedLines, oversizeNote } from './src/core/submit-size.js';
 export { requireSubmitComposition, composeAfterProof, trunkMoveFact } from './src/core/submit-composition.js';
 export { conflictNoteFiles, legacyConflictNote, reopenConflictEvidence, conflictCause, reopenCauseCorrection } from './src/core/reopen-cause.js';
+export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/core/decision-origin.js';
+export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/core/item-notes.js';
+export { criticalPathEnabled, remainingPaths, criticalPathOrder } from './src/core/critical-path-order.js';

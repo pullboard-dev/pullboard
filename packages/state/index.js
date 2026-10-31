@@ -28,3 +28,6 @@ export { EXIT_RULES_ENGINE } from '../../src/exit-rules-engine.js';
 export { ENGINE_VERSION } from '../../src/engine-metadata.js';
 export { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
 export { RELEASE_REASONS_ENGINE } from '../../src/release-reasons-engine.js';
+export { DECISION_ORIGIN_ENGINE } from '../../src/decision-origin-engine.js';
+export { ITEM_NOTES_ENGINE } from '../../src/item-notes-engine.js';
+export { CRITICAL_PATH_ENGINE } from '../../src/critical-path-engine.js';
