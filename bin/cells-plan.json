@@ -1078,6 +1078,10 @@
     {
       "path": "src/health-sentinel-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-remove-shims.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
