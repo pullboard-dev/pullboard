@@ -576,3 +576,19 @@ test('private compiler missing duplicate and spurious hints retain atomic reques
   assert.deepEqual(await reply(3),{version:1,id:3,results:[{compiles:true,imports:['./watcher-fallback.js']}]});
   assert.deepEqual(readdirSync(protocol).filter(name=>name.startsWith('reply-')),['reply-3.json']);
 });
+
+test('moved controller step bodies stay bound to the loaded runner generation [C7,P3]', t => {
+  const f = fixture(t);
+  const installed = join(f.directory, 'installed');
+  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  const loaded = captureRunnerTooling(installed);
+  for (const file of ['packages/runners/src/shell/runners.js', 'packages/runners/src/shell/runner-dispatch.js']) {
+    const path = join(installed, file);
+    const original = readFileSync(path);
+    try {
+      writeFileSync(path, Buffer.concat([original, Buffer.from('\n// changed moved controller body\n')]));
+      assert.throws(() => currentRunnerTooling(installed, loaded, { rescan: false }),
+        error => error.code === 'RUNNER_TOOLING_CHANGED', file);
+    } finally { writeFileSync(path, original); }
+  }
+});
