@@ -128,15 +128,17 @@ test('a remote red test keeps main comparisons runner-only under the same captur
       `const {test}=require('node:test');test('remote red case',()=>{require('node:fs').appendFileSync(${JSON.stringify(box.marker)},process.cwd()+'\\n');throw Error('deliberate red');});\n`);
     const runModule = new URL('../src/test-run.js', import.meta.url).href;
     const mainModule = new URL('../src/main-red.js', import.meta.url).href;
+    const signaturesModule = new URL('../src/main-failure-matches.js', import.meta.url).href;
     const resourcesModule = new URL('../packages/resources/index.js', import.meta.url).href;
     const gateModule = new URL('../src/gate.js', import.meta.url).href;
     const driver = `import {readFileSync} from 'node:fs';
 import {runTestFiles} from ${JSON.stringify(runModule)};
 import {compareMainFailures,withMainCheckout} from ${JSON.stringify(mainModule)};
+import {failureSignatures} from ${JSON.stringify(signaturesModule)};
 import {takeResource} from ${JSON.stringify(resourcesModule)};
 ${executionServicesSource(gateModule)}
 const config=JSON.parse(readFileSync('pullboard.json','utf8'));
-const result=await runTestFiles(process.cwd(),config,['test/ordinary.test.js'],{executionServices,withMainCheckout,
+const result=await runTestFiles(process.cwd(),config,['test/ordinary.test.js'],{executionServices,withMainCheckout,failureSignatures,
   compareMainFailures:async (...args)=>{
     const held=await takeResource({name:'gate',scope:'machine',root:process.cwd(),capacity:1,
       browserCapacityProvider:()=>1,browser:true,remote:true,runnerOnly:true,

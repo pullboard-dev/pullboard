@@ -1,6 +1,6 @@
 /** Interpret complete native failures without changing their raw process result [C7,V4,H16]. */
 import { readFileSync } from 'node:fs';
-import { accountedFailures } from './landing-step-failures.js';
+import { accountedFailures } from '../packages/gate/core.js';
 import { gateStages } from './gate-stages.js';
 import { timingAccountingStages } from './run-timing.js';
 import { proofCounts } from './proof-provenance.js';
