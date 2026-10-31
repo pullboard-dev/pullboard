@@ -189,6 +189,22 @@ function withClosures(box, { core = 'export * from "./src/core/pure.js";\n', ext
   return plan;
 }
 
+
+test('a plan file another lane owns that writing the plan would prune holds every deletion, and stays [C7,D3]', t => {
+  const box = shimmed(t);
+  const config = JSON.parse(read(box, 'pullboard.json'));
+  config.lanes.view.owns.push('bin/cells-plan/99-view-retired.json');
+  box.put('pullboard.json', JSON.stringify(config));
+  box.put('bin/cells-plan/99-view-retired.json', '{"retired": true}\n');
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'view owns a retired plan file');
+  const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats', '--lane', 'core'], { cwd: box.root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(read(box, 'bin/cells-plan/99-view-retired.json'), '{"retired": true}\n', 'the view-owned plan file is never pruned');
+  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites bin\/cells-plan\/99-view-retired\.json \(view lane\), outside the core lane/u);
+  assert.equal(existsSync(join(box.root, 'src/stats.js')), true);
+});
+
 test('a runner-closure importer reads core.js while a shell importer of the same shim reads the front door [C7,D3]', t => {
   const box = shimmed(t);
   box.put('src/worker-step.js', "import { pure } from './stats.js';\nexport const step = pure;\n");
