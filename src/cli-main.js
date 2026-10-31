@@ -332,6 +332,9 @@ async function runMain(argv, streams) {
   io.remoteBoardMissing = streams.remoteBoardMissing;
   io.uncertainUploadFailure = streams.uncertainUploadFailure;
   io.decideUncertainBaseline = streams.decideUncertainBaseline;
+  io.checkpointInBackground = streams.checkpointInBackground;
+  io.scheduleCheckpoint = streams.scheduleCheckpoint;
+  io.requestCheckpointCheck = streams.requestCheckpointCheck;
   io.loadProcessPorts = streams.loadProcessPorts;
   /** Materialize only this invocation's explicit process capabilities, at most once. */
   io.prepareProcessPorts = async () => {
@@ -342,7 +345,7 @@ async function runMain(argv, streams) {
   io.hookWorker = streams.hookWorker;
   io.submitHandoffWorker = streams.submitHandoffWorker;
   /** Bind recursive CLI operations to this process root's native provider. */
-  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline });
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
   io.launchRelaySender = streams.launchRelaySender;
   let sync = true;

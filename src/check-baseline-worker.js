@@ -109,6 +109,9 @@ export async function runCheckBaselineWorker(root, id, request, services) {
     remoteBoardMissing: services.remoteBoardMissing,
     uncertainUploadFailure: services.uncertainUploadFailure,
     decideUncertainBaseline: services.decideUncertainBaseline,
+    checkpointInBackground: services.checkpointInBackground,
+    scheduleCheckpoint: services.scheduleCheckpoint,
+    requestCheckpointCheck: services.requestCheckpointCheck,
     /** Discard normal relay prose in the detached worker. */
     say() {},
     /** Retain delivery failures in the receipt rather than an abandoned terminal stream. */

@@ -11,6 +11,7 @@ const RELAY = JSON.stringify(new URL('../src/relay.js', import.meta.url).href);
 const GUARD = JSON.stringify(new URL('../src/relay-outbox-guard.js', import.meta.url).href);
 const CONFLICT = JSON.stringify(new URL('../src/relay-conflict-record.js', import.meta.url).href);
 const BASELINE = JSON.stringify(new URL('../src/relay-baseline-settle.js', import.meta.url).href);
+const CHECKPOINT = JSON.stringify(new URL('../src/relay-checkpoint.js', import.meta.url).href);
 
 /** Read the saved link without including ciphertext or credentials in an assertion diagnostic. */
 function link(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
@@ -22,7 +23,8 @@ function moves(box, texts, options = {}) {
     const { withOutboxGuard } = await import(${GUARD});
     const { replay: replayConflictRecord } = await import(${CONFLICT});
     const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${BASELINE});
-    const lines = [], io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
+    const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${CHECKPOINT});
+    const lines = [], io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
     const outcomes = [];
     for (const text of ${JSON.stringify(texts)}) {
       try { await relayOperation(process.cwd(), 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text }], io); outcomes.push('ok'); }

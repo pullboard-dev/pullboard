@@ -11,7 +11,8 @@ if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? 
   const { withOutboxGuard } = await import('../src/relay-outbox-guard.js');
   const { replay: replayConflictRecord } = await import('../src/relay-conflict-record.js');
   const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import('../src/relay-baseline-settle.js');
+  const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import('../src/relay-checkpoint.js');
   const { runCheckBaselineWorker } = await import('../src/check-baseline-worker.js');
-  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline }); }
+  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck }); }
   catch { process.exitCode = 1; }
 } else process.exitCode = 2;

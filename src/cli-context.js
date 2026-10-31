@@ -42,7 +42,7 @@ export {
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
 export function nativeBoardOpeners(io) {
   const { openBoard, openBoardForRead } = io.nativeBoard;
-  return { openBoard, openBoardForRead, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline };
+  return { openBoard, openBoardForRead, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck };
 }
 
 /** Supply the board openers plus the API move executor and refusal formatter that link's request execution is given as ports (link must not import later cells). */

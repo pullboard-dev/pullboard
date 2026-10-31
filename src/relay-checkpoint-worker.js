@@ -14,6 +14,9 @@ import {
 } from 'node:fs';
 import { locked } from './relay-lock.js';
 import {
+  checkpointInBackground,
+  scheduleCheckpoint,
+  requestCheckpointCheck,
   checkpointFiles,
   checkpointQuietMs,
   publisherHolding,
@@ -81,7 +84,7 @@ async function release() {
 
 /** Keep a short record of failures beside the link; the next command's status reports pending uploads. */
 const io = {
-  withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline,
+  withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck,
   // Progress goes to the same short log as failures, so a stalled publisher shows how far it got.
   say(line) { io.err(line); },
   err(line) { try { appendFileSync(log, `${new Date().toISOString()} ${String(line).trim()}\n`, { mode: 0o600 }); } catch { /* No log is no worse than none. */ } },

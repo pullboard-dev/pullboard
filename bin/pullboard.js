@@ -74,6 +74,9 @@ process.exitCode = await main(process.argv.slice(2), {
     remoteBoardMissing: (...args) => import('../src/relay-baseline-settle.js').then(m => m.remoteBoardMissing(...args)),
     uncertainUploadFailure: (...args) => import('../src/relay-baseline-settle.js').then(m => m.uncertainUploadFailure(...args)),
     decideUncertainBaseline: (...args) => import('../src/relay-baseline-settle.js').then(m => m.decideUncertainBaseline(...args)),
+    checkpointInBackground: (...args) => import('../src/relay-checkpoint.js').then(m => m.checkpointInBackground(...args)),
+    scheduleCheckpoint: (...args) => import('../src/relay-checkpoint.js').then(m => m.scheduleCheckpoint(...args)),
+    requestCheckpointCheck: (...args) => import('../src/relay-checkpoint.js').then(m => m.requestCheckpointCheck(...args)),
     hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
     submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
