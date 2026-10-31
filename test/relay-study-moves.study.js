@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../src/native-board.js';
 import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
@@ -35,7 +36,7 @@ test('relay study compares each exercised move effect through the real API2 read
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const covered = new Set(), setupRefusals = [], nativeParity = [];
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'study', project: '', added: '2026-10-26T00:00:00.000Z' }], stateDetail: 'full' });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'study', project: '', added: '2026-10-26T00:00:00.000Z' }], stateDetail: 'full' });
   t.after(() => api.close());
   const address = new URL(api.url);
   const nativeApi = { origin: address.origin, secret: address.searchParams.get('k') };

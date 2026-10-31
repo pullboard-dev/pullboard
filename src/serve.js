@@ -1,3 +1,7 @@
+import { activeViewAgents } from './view-state-summary.js';
+import { viewProofSummary } from './view-state-summary.js';
+import { compactItemSummaries } from './view-state-summary.js';
+import { viewFlowSummary } from './view-state-summary.js';
 import { modelPresentation } from './view/cost-tab.js';
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
@@ -155,7 +159,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
   const { serveApi } = await import('./api.js');
-  const api = await serveApi({ port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead } });
+  const api = await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead } });
   let listing;
   let state;
   let events;
@@ -486,7 +490,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('./relay-setup.js');
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead }, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead }, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {

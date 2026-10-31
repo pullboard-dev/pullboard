@@ -1,18 +1,13 @@
 import { costAnalytics } from '../packages/stats/index.js';
-import { activeViewAgents } from './view-state-summary.js';
-import { viewProofSummary } from './view-state-summary.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
-import { projectState } from './serve.js';
 import { projectFit } from './blueprint-fit.js';
 import { pendingFit } from './blueprint-fit.js';
 import { fitFile } from './blueprint-fit.js';
-import { compactItemSummaries } from './view-state-summary.js';
 import { lifecycleEvent } from './item-list.js';
 import { withdrawnFrom } from './item-list.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { gitSpawnSync } from './git-adapter.js';
 import { counterProofStats } from './proof-counter-read.js';
-import { viewFlowSummary } from './view-state-summary.js';
 import { proofStats } from './stats.js';
 import { buildLocalBoardState } from './native-board-state.js';
 import { stateFileInputs } from './native-board-state.js';
@@ -528,7 +523,7 @@ function stateDelta(bases, current, state) {
 }
 
 /** Add the request-specific unread count without mutating the reusable snapshot. */
-function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners) {
+function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, observedAt, comparisonHistory, boardOpeners, viewFlowSummary) {
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
     unseen: { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
   }), isMain, boardOpeners);
@@ -870,8 +865,10 @@ function isLiteralIPv4(host) {
 /** Share the local router with the person's view and other local transports; the standalone API explicitly denies person authority.
  * @param {{ secret: string | Buffer, getPort: () => number, runCommand: Function, projects?: () => any[], scope?: { projectRoot: string }, isMain?: boolean, allowedOrigins?: string[], allowedHosts?: string[], onStateBuild?: Function, onItemBuild?: Function, personChannel?: string, stateDetail?: string, now?: () => number, sessionCookie?: {name:string,value:string} }} [options]
  */
-export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation } = {}) {
+export function createLocalApiHandler({ secret, getPort, runCommand, projects = listApiProjects, scope, isMain, allowedOrigins = [], allowedHosts = [], onStateBuild, onItemBuild, personChannel = 'view', stateDetail = 'full', sessionCookie, now = () => Date.now(), settingsProviders, refusalDocument, boardOpeners, costModelPresentation, viewPorts } = {}) {
   const { openBoard } = requireBoardOpeners(boardOpeners);
+  const { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary } = viewPorts ?? {};
+  if ([projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary].some(fn => typeof fn !== 'function')) throw new TypeError('createLocalApiHandler needs view projection ports');
   if (typeof now !== 'function') throw new TypeError('createLocalApiHandler needs an observation clock');
   if (typeof getPort !== 'function') throw new TypeError('createLocalApiHandler needs a bound-port getter');
   if (typeof runCommand !== 'function') throw new TypeError('createLocalApiHandler needs the actual CLI entry point as runCommand');
@@ -992,7 +989,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const full = !compact && (detail ?? stateDetail) === 'full';
     const sent = withSnapshot(board, (entry, cached) => {
       const base = full ? entry.state : compact ? (entry.compact ??= compactItemSummaries(entry.summary)) : entry.summary;
-      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners);
+      const state = stateForRequest(base, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary);
       // Full fragments wait for the first full request, so a server sending summaries never builds them.
       const fields = full ? (entry.stateJsonFields ??= prepareStateJson(entry.state))
         : compact ? (entry.compactFields ??= prepareStateJson(base)) : entry.summaryFields;
@@ -1013,7 +1010,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     const observedAt = now();
     /** One build's answer: its delta from the summary states sent at `since`, or a reset naming why there is none. */
     const answerFor = (entry, cached) => {
-      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners);
+      const state = stateForRequest(entry.summary, board.root, seen, entry.preparedFlow, cached, codeIsMain, observedAt, entry.comparisonHistory, boardOpeners, viewFlowSummary);
       const answer = { since, sequence: entry.sequence, eventLogVersion: store.EVENT_LOG_VERSION };
       const path = '/api/v1/boards/' + board.id + '/state';
       /** Tell the client to load a fresh snapshot, and why. */
@@ -1195,11 +1192,11 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
  * Serve the RFC 0002 API only on loopback, behind the same session-secret boundary as the view. Its
  * state sends item summaries unless asked for detail=full; each item's detail has its own path (A2).
  */
-export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners } = {}) {
+export function serveApi({ port = 0, secret = randomBytes(18).toString('base64url'), runCommand, projects = listApiProjects, isMain, onStateBuild, onItemBuild, stateDetail = 'summary', now = () => Date.now(), scope, settingsProviders, refusalDocument, boardOpeners, viewPorts } = {}) {
   if (typeof runCommand !== 'function') throw new TypeError('serveApi needs the actual CLI entry point as runCommand');
   let bound;
   // A serve key authenticates board access, never a person, even in an ordinary terminal.
-  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners });
+  const handler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, projects, isMain, onStateBuild, onItemBuild, personChannel: 'api', stateDetail, now, scope, settingsProviders, refusalDocument, boardOpeners, viewPorts });
   const server = createServer(handler);
   server.requestTimeout = 15_000;
   return new Promise((ready, fail) => {

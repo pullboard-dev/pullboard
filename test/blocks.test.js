@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** A refusal that stops someone reaches whoever can clear it, is recorded, and repeats are counted [C6,N26]. */
@@ -42,7 +43,7 @@ test('a block clears when its audience completes the same move [C6,N26]', async 
   assert.equal(blocked.code, 1, blocked.err);
   const needs = () => personNeedsState(box.repo).needs.filter(row => row.kind === 'block');
   assert.equal(needs().length, 1, 'the stopped person move appears in Needs you');
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret: 'blocks-test', runCommand: async () => 0, isMain: true,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: 'blocks-test', runCommand: async () => 0, isMain: true,
     projects: () => [{ root: box.repo, name: 'blocks-clear', project: '', added: '2026-10-22T00:00:00.000Z' }] });
   t.after(() => api.close());
   assert.equal((await apiNeeds(api, box.repo)).blocks.length, 1, 'the API caches the initial block');
@@ -154,7 +155,7 @@ test('a Pullboard block reaches whoever can clear it and repeats are counted [C6
   assert.doesNotMatch(`${needs[0].text} ${needs[0].what}`, /\[[A-Z][A-Z0-9_]*\]|B26|relay|--/u);
 
   // The local API and the sealed relay page build Needs you from the same ledger, without local paths.
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret: 'blocks-test', runCommand: async () => 0, isMain: true,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: 'blocks-test', runCommand: async () => 0, isMain: true,
     projects: () => [{ root: box.repo, name: 'blocks', project: '', added: '2026-10-22T00:00:00.000Z' }] });
   t.after(() => api.close());
   assert.deepEqual((await apiNeeds(api, box.repo)).needs.map(row => row.text), [needs[0].text]);

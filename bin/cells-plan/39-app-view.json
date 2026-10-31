@@ -89,7 +89,8 @@
   ["src/view/first-run.js","apps/view/src/shell/view/first-run.js","rule"],
   ["src/view/item-rows.css","apps/view/src/shell/view/item-rows.css","rule"],
   ["src/view/model-presentation.js","apps/view/src/shell/view/model-presentation.js","rule"],
-  ["src/view/stage.css","apps/view/src/shell/view/stage.css","rule"]
+  ["src/view/stage.css","apps/view/src/shell/view/stage.css","rule"],
+  ["src/view-api-ports.js","apps/view/src/shell/view-api-ports.js","rule"]
  ],
  "reexports": [
   "src/background-view.js",
