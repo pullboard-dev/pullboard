@@ -27,7 +27,8 @@ function closure(read, identities, opaque = null) {
     const file = pending.shift();
     if (seen.has(file)) continue;
     seen.add(file);
-    assert.match(file, /\.[cm]?js$/u, 'every executable dependency is a JavaScript module');
+    if (file.endsWith('.json')) { JSON.parse(read(file)); continue; } // Imported data is retained, never executed.
+    assert.match(file, /\.[cm]?js$/u, `every executable dependency is a JavaScript module: ${file}`);
     for (const specifier of importsIn([read(file)])[0]) {
       if (specifier.startsWith('node:')) continue;
       if (opaque && specifier === '(computed)') { opaque.add(file); continue; }
