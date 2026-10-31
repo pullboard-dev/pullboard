@@ -70,6 +70,7 @@ process.exitCode = await main(process.argv.slice(2), {
   loadProcessPorts: () => import('node:url').then(({ fileURLToPath }) => ({
     /** Load the canonical guard only when a linked operation actually needs it. */
     withOutboxGuard: (...args) => import('../src/relay-outbox-guard.js').then(({ withOutboxGuard }) => withOutboxGuard(...args)),
+    replayConflictRecord: (...args) => import('../src/relay-conflict-record.js').then(({ replay }) => replay(...args)),
     hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
     submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */

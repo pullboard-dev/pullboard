@@ -40,11 +40,11 @@ import {
 export function relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, flush, openBoard }) {
   if (typeof openBoard !== 'function') throw new TypeError('relay ordering requires its actual native board opener');
   /** Apply authenticated relay records in order, each in its own board transaction with a durable receipt. */
-  async function applyRecords(root, key, state, records) {
+  async function applyRecords(root, key, state, records, io) {
     const outcomes = [];
     for (const record of records) {
       const board = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain(), gitRoot: root });
-      try { outcomes.push(await replayRelayRecord(board, key, state, record)); } finally { store.closeBoard(board); }
+      try { outcomes.push(await replayRelayRecord(board, key, state, record, io)); } finally { store.closeBoard(board); }
     }
     return outcomes;
   }
@@ -90,7 +90,7 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
     // Another machine's moves land only on a board with nothing queued on top; a move may have queued meanwhile.
     const outcomes = await withOutboxGuard(file, async () => {
       if (outboxWaiting(file) || localRecords(root, appliedSequence) !== after) return null;
-      return applyRecords(root, key, state, remote.events);
+      return applyRecords(root, key, state, remote.events, io);
     });
     if (!outcomes) return catchUp(root, file, state, io, senderPolicy, pass + 1);
     let pendingRefusal;

@@ -328,6 +328,7 @@ async function runMain(argv, streams) {
   });
   io.loadNativeBoard = streams.loadNativeBoard;
   io.withOutboxGuard = streams.withOutboxGuard;
+  io.replayConflictRecord = streams.replayConflictRecord;
   io.loadProcessPorts = streams.loadProcessPorts;
   /** Materialize only this invocation's explicit process capabilities, at most once. */
   io.prepareProcessPorts = async () => {
@@ -338,7 +339,7 @@ async function runMain(argv, streams) {
   io.hookWorker = streams.hookWorker;
   io.submitHandoffWorker = streams.submitHandoffWorker;
   /** Bind recursive CLI operations to this process root's native provider. */
-  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard });
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
   io.launchRelaySender = streams.launchRelaySender;
   let sync = true;

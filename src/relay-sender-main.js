@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { runRelaySender } from './relay-sender-worker.js';
 import { outboxWaiting } from './relay-outbox.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
+import { replay as replayConflictRecord } from './relay-conflict-record.js';
 
 /** The actual CLI composition entry executed by background sender processes. */
 export const SENDER_WORKER = fileURLToPath(import.meta.url);
@@ -23,13 +24,13 @@ async function serve(root, file, io) {
   const loadNativeBoard = () => import('./native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
-  const boardIo = { ...io, withOutboxGuard, hookWorker, submitHandoffWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
+  const boardIo = { ...io, withOutboxGuard, replayConflictRecord, hookWorker, submitHandoffWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('./relay-request-execution.js');
     const { main } = await import('./cli-main.js');
     /** Retain the sender process's explicit native capabilities in person commands. */
-    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, submitHandoffWorker, launchRelaySender, withOutboxGuard });
+    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, submitHandoffWorker, launchRelaySender, withOutboxGuard, replayConflictRecord });
     const { nativePersonRequestPorts } = await import('./cli-context.js');
     await executePersonRequests(root, boardIo, runCommand, nativePersonRequestPorts(boardIo));
   } catch (error) { io.err(`person requests not run: ${error.message}`); }

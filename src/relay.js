@@ -1,6 +1,5 @@
 import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
 import { orderedMoveCommand } from './relay-command-order.js';
-import * as conflictRecords from './relay-conflict-record.js';
 import { withRelayExclusion } from './relay-exclusion-state.js';
 import { relinkReplacement } from './relay-relink.js';
 import { relayExclusion } from './relay-exclusion-state.js';
@@ -848,13 +847,13 @@ async function decoded(key, record, state, kind, sequence) {
 }
 
 /** Replay one authenticated record, auto-refusing only deterministic current-format record failures. */
-async function replayRelayRecord(board, key, state, record) {
+async function replayRelayRecord(board, key, state, record, io) {
   let move;
   try {
     move = await decoded(key, record, state, record.kind, record.event_id);
     requireSupportedEngine(move);
     if (record.kind === 'request') return receivePersonRequest(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender });
-    return conflictRecords.replay(board, move, record, applyRelayMove);
+    return await io.replayConflictRecord(board, move, record, applyRelayMove);
   } catch (error) { // A seal no key opens, from an engine no newer than this one, is junk: set aside, never a stop [E20].
     if (!(error instanceof Refused) || !(['RELAY_MOVE', 'RELAY_RESPONSE', 'SEAL_FORMAT', 'SEAL_AUTH_FAILED'].includes(error.code) || error.code === 'SEAL_VERSION' && record.sender?.engine <= ENGINE_VERSION)) throw error;
     return refuseRelayMove(board, move, { sequence: record.event_id, at: record.event_at, sender: record.sender, kind: record.kind, code: ['SEAL_AUTH_FAILED', 'SEAL_VERSION'].includes(error.code) ? 'RELAY_SEAL' : error.code,
@@ -1014,7 +1013,7 @@ function keepMoveForLaterBaseline(file, state, error, io) {
 /** The relay transport the ordered outbox queues and replays through (#922). */
 function outboxLink(root, file, state, io, senderPolicy) {
   return { root, file, state, io, senderPolicy, request, sealedRecord, localRecords, saveLink, safePauseCode, safePauseMessage,
-    applyRecords, fetchCheckpoint: (key) => fetchCheckpoint(state, io, key, senderPolicy),
+    applyRecords: (root, key, state, records) => applyRecords(root, key, state, records, io), fetchCheckpoint: (key) => fetchCheckpoint(state, io, key, senderPolicy),
     postPending: (checkout, link, current, pending, output) => postPending(checkout, link, current, pending, output, senderPolicy) };
 }
 
@@ -1427,7 +1426,7 @@ export async function relayRecover(root, skip, io) {
         digest: blockerDigest,
         refusal: new Refused(blockerCode, 'person recovery logged this blocked record as refused; run pullboard relay to apply the remaining ordered tail') });
       for (const record of remote.events.slice(1)) {
-        try { await replayRelayRecord(staged, key, state, record); }
+        try { await replayRelayRecord(staged, key, state, record, io); }
         catch (error) {
           // A later unsupported record needs its own explicit choice; it cannot undo this selected skip.
           if (!(error instanceof Refused) || !['ENGINE_VERSION', 'SEAL_VERSION'].includes(error.code)) throw error;
