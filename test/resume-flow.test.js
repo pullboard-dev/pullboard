@@ -314,7 +314,7 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
       store.reserveReview(board, waiting, { agentId: reviewer, leaseMs: (reservation === 'live' ? 151 : 150) * MINUTE, policy: 'any' });
       if (reservation === 'released') {
         at = 450;
-        store.release(board, waiting, reviewer, 'Fixture releases its review.');
+        store.release(board, waiting, reviewer, 'Fixture releases its review.', 'ROUTED_ELSEWHERE');
       } else if (reservation === 'verdict') {
         at = 450;
         store.verify(board, waiting, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejection.', clause: 'Flow fixture', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });

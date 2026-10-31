@@ -24,6 +24,7 @@ const ROWS = [
   ['gate.runnersFirst', 'Runners before local slots', 'Registered runners are tried before this computer\'s own slots.', 'Runners', 'on/off'],
   ['gate.runnersOnly', 'Runners only', 'Submit and review checks wait for a registered runner and never fall back to this computer.', 'Runners', 'on/off'],
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
+  ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
@@ -53,6 +54,8 @@ const ROWS = [
   ['project', 'Project name', 'The name shown for this project.', 'Project', 'text'],
   ['name', 'Repository name', 'The name shown for this repository.', 'Project', 'text'],
   ['worktrees', 'Worktree placement', 'Agent worktrees are made inside this repository or beside it.', 'Project', 'choice'],
+  ['toolBuild.enabled', 'Pinned tool builds', 'Run board commands from a gated tool build instead of the live trunk when enabled.', 'Project', 'on/off'],
+  ['toolBuild.refreshMs', 'Tool build refresh interval', 'How often commands check for a newer gated tool build, in milliseconds.', 'Project', 'milliseconds'],
   ['worktreeMaintenance.enabled', 'Automatic worktree maintenance', 'Opt in to archiving recoverable work before maintenance cleans eligible retired checkouts; off by default.', 'Project', 'on/off'],
   ['worktreeMaintenance.every', 'Maintenance interval', 'How often enabled maintenance checks for retired worktrees; one hour by default.', 'Project', 'duration'],
   ['worktreeMaintenance.grace', 'Retirement grace', 'How long a retired worktree waits before archive-first cleanup; one day by default.', 'Project', 'duration'],

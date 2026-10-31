@@ -12,7 +12,7 @@ export const MOVES = [
     // Exit handoff appends its summary through the ordinary fact guards in this atomic release.
     alsoRefuses: [
       { code: "EXIT_CONTINUATION", rule: "an exit handoff retains a known native original session and honest declared family", next: "read the item summary, then continue from a fresh native session of its reserved model family" },
-      { code: "EXIT_SUMMARY", rule: "an exit handoff carries nonempty Done, Failed and Next parts within the summary limit", next: "release with --note \"Done: <work>; Failed: <case or none>; Next: <next step>\" to record the handoff atomically" },
+      { code: "EXIT_SUMMARY", rule: "an exit handoff carries nonempty Done, Failed and Next parts within the summary limit", next: "release with --reason OTHER --note \"Done: <work>; Failed: <case or none>; Next: <next step>\" to record the handoff atomically" },
       { code: "EMPTY_FACT", rule: "the atomic handoff summary is nonempty fact text", next: "give nonempty fact text: pullboard fact <id> note \"<what you saw>\"" },
       { code: "FACT_JUDGEMENT", rule: "the canonical fact writer restricts judgement and supersession to an authorized live holder or coordinator", next: "use a nonjudgement fact kind such as note, or ask the coordinator to record a judgement: pullboard fact <id> note \"<what you observed>\"" },
       { code: "BAD_FACT_ID", rule: "the canonical handoff fact identity is valid and has not already been published", next: "upgrade to the current Pullboard engine, then retry the original fact operation" },
@@ -28,6 +28,6 @@ export const MOVES = [
       { code: "NO_POLICY", rule: "canonical fact implications read an available committed coordinator policy", next: "restore and commit pullboard.json, then run the command again" },
       { code: "A5_GRAMMAR_VERSION", rule: "canonical fact implications use the supported committed spec grammar", next: "upgrade Pullboard: npm install -g pullboard@latest" },
     ],
-    guards: ['joined', 'itemExists', IN_STATE, 'releaseOwnsWork', 'reviewReleaseExplained'], command: 'pullboard release <id>',
+    guards: ['joined', 'itemExists', IN_STATE, 'releaseOwnsWork', 'reviewReleaseExplained'], command: 'pullboard release <id> --reason <code>',
   },
 ];

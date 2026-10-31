@@ -180,7 +180,7 @@ export const REJECT_REASONS = [
 export { systemClock } from './board-read-open.js';
 
 
-export { openBoardReadOnly } from './board-read-open.js';
+export { openBoardReadOnly, readBoardSnapshot } from './board-read-open.js';
 
 export { readEventLogVersion } from './board-read-open.js';
 

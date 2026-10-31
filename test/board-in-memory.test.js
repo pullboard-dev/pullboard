@@ -38,7 +38,7 @@ function moves(board) {
     freeze: () => ({ text: 'replacement', digest: 'b'.repeat(64) }) }), /HELD/u);
   assert.equal(store.events(board).length, before, 'a refused move has no partial effect');
   assert.throws(() => board.db.prepare("UPDATE item SET item_status='open' WHERE item_id=?").run(id), /STATUS_OUTSIDE_MOVE/u);
-  store.release(board, id, builder);
+  store.release(board, id, builder, '', 'BLOCKED');
   const item = store.getItem(board, id);
   assert.equal(item.item_status, 'open');
   assert.equal(item.item_owner, null);

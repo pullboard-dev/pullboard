@@ -62,7 +62,6 @@
   {"cell":"app:runner","imports":3,"before":false}
  ],
  "cuts": [
-  {"cell":"resources","imports":2,"edges":["src/resources.js->src/runner-recovery.js","src/resources.js->src/runner-wait.js"]},
   {
    "cell": "gate",
    "imports": 3,

@@ -231,6 +231,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `stats moves` | `version:number`, `moves:object` |
 | `stats pipeline` | `version:number`, `pipeline:object` |
+| `tool-build` | `version:number`, `build:object\|null` |
 <!-- api-command-shapes:end -->
 
 `spec draft "<rule>" --doctrine --source "chat, 2026-10-16"` proposes a sourced doctrine row and returns a qualified `id`, such as `doctrine:DR1`, for the existing person approval commands. Resume adds `doctrineNotes`, an array of newly seen approved rules with `id`, `text` and `gate`; each checkout consumes its own notices. Drafts and pending applications are excluded. The shared approved doctrine also supplies frozen citations and stale-item comparisons in older checkouts.
@@ -457,6 +458,7 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards/:board/state?seen=N` | The board state, listing item summaries, including open coordinator requests and the unseen shout count since N |
 | `GET /api/v1/boards/:board/state?detail=full` | The same state with every item in full, which static view exports read |
 | `GET /api/v1/boards/:board/state?since=N` | What changed in the summary state since the snapshot this server sent at event N, and the new latest sequence |
+| `GET /api/v1/boards/:board/cost-analytics?window=today&#124;7d&#124;30d` | Private local Cost analytics for the selected window; unavailable to hosted and relay clients |
 | `GET /api/v1/boards/:board/proofs/:item` | One item’s full flow proof record, authenticated like board state |
 | `GET /api/v1/boards/:board/items/:id` | One item's full detail: the fields its summary leaves out |
 | `GET /api/v1/boards/:board/items?q=text` | The ids of the items whose id, title, lane, spec ids or criterion contain the text, ignoring case |
@@ -470,6 +472,8 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `POST /api/v1/boards/:board/requests` | A person's request for the coordinator (view only) |
 | `GET /api/v1/view-link` | Whether the full-machine view can start device sign-in |
 | `POST /api/v1/view-link` | Start, inspect, cancel or continue device sign-in in that view |
+
+The private local Cost endpoint accepts `window=today`, `window=7d`, or `window=30d` (default `30d`). Its `costAnalytics` object is version 1 and contains ISO `from` and `to`, `totals` and `sentBack` counts, shares and agent time; `days` grouped by board-local calendar date; `builders` and `verifiers` model rows, 95% Wilson bounds and comparison verdict; `unknownBuilderModelShare`; `longest` items and their model-grouped usage; and `allItems`. Durations are integer milliseconds, shares are fractions from zero to one, and unavailable values are null. Native cumulative usage records do not establish session counts; shared usage cannot be split into per-item totals. This endpoint is authenticated and private to the local view; hosted origins and relay adapters do not receive it.
 
 Settings `default` names the shipped fallback before other settings constrain it. For example, `testConcurrency.browser` has a default cap of 2, while its current `value` is capped by the effective file concurrency. Credential presence describes configured storage, not whether a credential currently authenticates. Reads preserve settings, registry, durable board data and schema; SQLite may create its normal `-wal`/`-shm` read-lock sidecars.
 

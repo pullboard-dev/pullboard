@@ -67,7 +67,7 @@ test('a synthetic claim-time ledger lock alone produces recovered missed-claim-a
   assert.match(JSON.stringify(JSON.parse(claim.stdout).diagnostics), /USAGE_PENDING/);
   assert.match(JSON.stringify(JSON.parse(claim.stdout).diagnostics), /stage=private-ledger/);
   usage(37, 6);
-  run('release', String(item), '--no-next');
+  run('release', String(item), '--reason', 'OTHER', '--note', 'Close the usage-anchor fixture claim.', '--no-next');
   const shown = JSON.parse(run('show', String(item), '--json').stdout);
   assert.equal(shown.usage.inputTokens, null);
   assert.equal(shown.usage.outputTokens, null);
@@ -77,7 +77,7 @@ test('a synthetic claim-time ledger lock alone produces recovered missed-claim-a
 test('provider discovery failure with a persisted claim is distinct from a missed claim checkpoint [N2]', () => {
   const { item, claim, run } = fixture({ missing: true });
   assert.doesNotMatch(JSON.stringify(JSON.parse(claim.stdout).diagnostics ?? []), /USAGE_PENDING/);
-  run('release', String(item), '--no-next');
+  run('release', String(item), '--reason', 'OTHER', '--note', 'Close the usage-anchor fixture claim.', '--no-next');
   const shown = JSON.parse(run('show', String(item), '--json').stdout);
   assert.equal(shown.usage.inputTokens, null);
   assert.ok(shown.usage.unknownReasons.includes('native-session-unavailable'));

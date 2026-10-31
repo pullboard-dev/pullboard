@@ -1,10 +1,8 @@
 import { submitGateConfig } from './gate-submit.js';
 import { submitGatePlan } from './gate-submit.js';
-import { policyAt } from './trusted-policy-read.js';
 import { createHash } from 'node:crypto';
 import { boardReceiptStore } from './gate-run-receipt.js';
 import { readGateReceipt } from './gate-run-receipt.js';
-import { frozenCheck } from './trusted-policy.js';
 /** Claimed companions bind their original author source to actual native composed proof [C7,V4,H16]. */
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -18,7 +16,6 @@ import { itemPatches } from './item-patch-state.js';
 import { itemPatchDigest } from './item-patch-state.js';
 import { composeItemPatches } from './item-patch-compose.js';
 import { validateItemPatchInput } from './item-patch-review.js';
-import { itemPolicy } from './trusted-policy.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from './item-patch-submit-engine.js';
 import { Refused } from './refused.js';
 import { nativeProofBlockingGreen } from './quarantine-verdict.js';
@@ -37,6 +34,7 @@ function git(root, args) {
 export function prepareItemPatchSubmit(root, board, item, source) {
   const patches = itemPatches(board, item.item_id);
   if (!patches.length) return null;
+  const { itemPolicy } = board.enginePorts.sandboxPolicyReads;
   const policy = itemPolicy(root, item);
   for (const patch of patches) {
     if (patch.commit !== source || patch.source?.commit !== source) {
@@ -67,6 +65,7 @@ export function sealItemPatchFollow(board, id, options) {
   }
   const patches = itemPatches(board, id);
   if (!patches.length) throw new Refused('NO_ITEM_PATCH', 'list the current item patches and select an existing key');
+  const { itemPolicy } = board.enginePorts.sandboxPolicyReads;
   const policy = itemPolicy(root, item);
   for (const patch of patches) {
     if (patch.source?.commit !== patch.commit) throw new Refused('ITEM_PATCH_CHANGED', 'restore the exact companion source binding before following it');
@@ -137,6 +136,7 @@ export function sealItemPatchSubmit(board, id, options) {
       || receipt.proof.seat !== options.agentId || receipt.proof.item !== id
       || receipt.proof.frozenDigest !== item.item_frozen_digest || !receipt.proof.sourceClean)) throw new Error('unbound native proof');
     for (const receipt of receipts) board.nativePorts.quarantine.sealQuarantineVerdict(board, receipt);
+    const { policyAt, frozenCheck } = board.enginePorts.sandboxPolicyReads;
     const config = submitGateConfig(policyAt(root, binding.commit).config, policyAt(root, options.policyCommit).config);
     const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: options.policyCommit,
       check: frozenCheck(item), commit: binding.commit });
