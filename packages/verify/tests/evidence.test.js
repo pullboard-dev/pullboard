@@ -1,11 +1,11 @@
 /** Row evidence and stage precedence (S15, S16). */
 import assert from 'node:assert/strict';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { citedTestFiles, rowEvidence, rowStage } from '../src/evidence.js';
+import { citedTestFiles, rowEvidence, rowStage } from '../src/shell/evidence.js';
 
 /**
  * Write a file and stage it in the fixture repository.

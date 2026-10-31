@@ -240,3 +240,19 @@ test('merge move retains Strict for sensitive bodies and excludes unrelated sibl
     assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
   }
 });
+
+
+test('verify move retains Strict for each protected destination and excludes unrelated siblings [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  for (const path of ["packages/verify/src/core/required-review-family.js","packages/verify/src/core/review-eligibility.js","packages/verify/src/shell/review-independence.js","packages/verify/src/core/review-policy.js","packages/verify/src/shell/review-routing.js","packages/verify/src/core/source-advance-state.js","packages/verify/src/shell/verdict-admission.js","packages/verify/src/core/verdict-assurance.js","packages/verify/src/shell/verdict-freshness.js","packages/verify/src/core/verdict-reviews.js","packages/verify/src/shell/verdict-trunk.js","packages/verify/src/shell/verdict-withdrawal.js","packages/verify/src/shell/review-tier.js"]) {
+    assert.equal(gateJudgmentPath(path), true, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'strict', path);
+  }
+  for (const path of ['packages/verify/src/core/bar-check.js', 'packages/verify/src/shell/review-tier-extra.js',
+    'packages/verify/src/core/review-policy-extra.js', 'packages/verify/src/shell/verdict-trunk-extra.js']) {
+    assert.equal(gateJudgmentPath(path), false, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
+});
