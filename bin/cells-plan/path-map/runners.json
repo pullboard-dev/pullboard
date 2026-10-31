@@ -3,5 +3,7 @@
   "src/runner-runtime-urls.js": "packages/runners/src/core/runner-runtime-urls.js",
   "src/runner-load.js": "packages/runners/src/shell/runner-load.js",
   "src/runner-policy.js": "packages/runners/src/shell/runner-policy.js",
-  "src/runner-overhead.js": "packages/runners/src/shell/runner-overhead.js"
+  "src/runner-overhead.js": "packages/runners/src/shell/runner-overhead.js",
+  "src/runner-transport.js": "packages/runners/src/shell/runner-transport.js",
+  "src/runner-source-cache.js": "packages/runners/src/shell/runner-source-cache.js"
 }
