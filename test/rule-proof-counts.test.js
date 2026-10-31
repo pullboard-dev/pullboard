@@ -11,7 +11,7 @@ import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
 import { clearProofCounters } from '../src/proof-counters.js';
 import {

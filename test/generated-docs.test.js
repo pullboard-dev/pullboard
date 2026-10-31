@@ -16,6 +16,7 @@ import { resolve } from 'node:path';
 import { copyPackageSubset } from './package-copy-fixture.js';
 import { createHash } from 'node:crypto';
 import { generatedDocDrift } from '../src/generated-docs.js';
+import { openBoard } from '../src/native-board.js';
 import { GENERATED_DOC_PATHS } from '../src/generated-doc-conflicts.js';
 import { resolveMechanicalIndex } from '../src/mechanical-merge.js';
 import { mechanicalConflictFiles } from '../src/mechanical-merge.js';
@@ -31,7 +32,7 @@ import { addDocumentedCommand } from './generated-docs-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 
 test('committed documentation matches all source declarations [C7,A1,A5,M1]', () => {
-  assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '..')), [], 'run node bin/update-docs.js');
+  assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '..'), undefined, { openBoard }), [], 'run node bin/update-docs.js');
 });
 
 test('one command detects and repairs each stale output while retaining authored prose [C7,A1,A5,M1]', t => {

@@ -1,3 +1,4 @@
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
@@ -24,7 +25,8 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
-import { main, resultCommands } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
+import { resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { serveApi } from '../src/api.js';
@@ -1092,7 +1094,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
     let requestStep;
     try {
       registerProject(box.repo);
-      personView = await serveView({ port: 0 });
+      personView = await serveView({ port: 0, runCommand: nativeTestMain });
       const viewUrl = new URL(personView.url);
       requestStep = await observedApiStep('create person request through the actual view', apiFetch({
         origin: viewUrl.origin,

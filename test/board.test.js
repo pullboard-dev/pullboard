@@ -19,7 +19,7 @@ import { displayAgentName } from '../src/agent-names.js';
 import { projectState } from '../src/serve.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../src/brief.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../src/machine.js';

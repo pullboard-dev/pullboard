@@ -1,5 +1,5 @@
 /** The synchronous write-board lifecycle and compatible public CLI context exports [C7]. */
-import { board as store } from './native-board.js';
+import * as store from './board.js';
 import { Refused } from './refused.js';
 import {
   DEFAULT_RELAY,
@@ -38,19 +38,22 @@ export {
 };
 
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
-export function nativeBoardOpeners() {
-  return { openBoard: store.openBoard, openBoardForRead: store.openBoardForRead };
+export function nativeBoardOpeners(io) {
+  const { openBoard, openBoardForRead } = io.nativeBoard;
+  return { openBoard, openBoardForRead };
 }
 
 /** Bind native request execution at this real CLI composition root. */
 async function executeNativePersonRequests(root, io, runCommand) {
-  return executePersonRequests(root, io, runCommand, nativeBoardOpeners());
+  return executePersonRequests(root, io, runCommand, nativeBoardOpeners(io));
 }
 
 /** Build a CLI context with the signed-person capabilities of its application layer. */
 export function personCommandContext(io, { main, ordered } = {}) {
   const ctx = context(io);
-  ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests: executeNativePersonRequests, main, ordered };
+  /** Preserve this invocation's native capabilities for signed recursive commands. */
+  const run = main && ((args, streams) => main(args, { ...streams, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender }));
+  ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests: executeNativePersonRequests, main: run, ordered };
   return ctx;
 }
 
@@ -64,7 +67,7 @@ export function personCommandContext(io, { main, ordered } = {}) {
  * @returns {T}
  */
 export function withBoard(ctx, work, opened) {
-  const board = opened ?? store.openBoard(ctx.file, ctx.clock, { isMain: ctx.allowSchemaUpgrade,
+  const board = opened ?? ctx.nativeBoard.openBoard(ctx.file, ctx.clock, { isMain: ctx.allowSchemaUpgrade,
     gitRoot: ctx.info.root,
     writeContext: { command: ctx.io.relayCommand?.cliOperation, path: ctx.info.root,
       item: /^[1-9]\d*$/u.test(ctx.io.relayCommand?.positionals?.[0] ?? '') ? Number(ctx.io.relayCommand.positionals[0]) : null,
@@ -134,7 +137,7 @@ export function displayedRefusal(io, error) {
  * @returns {T}
  */
 export function withBoardRead(ctx, work) {
-  const board = store.openBoardForRead(ctx.file, ctx.clock);
+  const board = ctx.nativeBoard.openBoardForRead(ctx.file, ctx.clock);
   if (board && !board.current && !ctx.allowSchemaUpgrade) store.closeBoard(board);
   if (!board || (!board.current && !ctx.allowSchemaUpgrade)) return withBoard(ctx, work);
   try { return withBoard(ctx, work, board); }

@@ -18,13 +18,17 @@ export function launchRelaySender(root, env) {
 async function serve(root, file, io) {
   const { syncRelay } = await import('./relay.js');
   const { relayOutboxSetting } = await import('./cli.js');
-  const boardIo = { ...io, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
+  const loadNativeBoard = () => import('./native-board.js');
+  const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
+  const boardIo = { ...io, hookWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('./relay-request-execution.js');
     const { main } = await import('./cli-main.js');
-    const { nativeBoardOpeners } = await import('./cli-context.js');
-    await executePersonRequests(root, boardIo, main, nativeBoardOpeners());
+    /** Retain the sender process's explicit native capabilities in person commands. */
+    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, launchRelaySender });
+    const { openBoard, openBoardForRead } = boardIo.nativeBoard;
+    await executePersonRequests(root, boardIo, runCommand, { openBoard, openBoardForRead });
   } catch (error) { io.err(`person requests not run: ${error.message}`); }
   return !outboxWaiting(file);
 }

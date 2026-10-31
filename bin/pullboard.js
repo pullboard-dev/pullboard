@@ -61,9 +61,15 @@ if (process.argv[2] !== 'tool-build') {
   }
 }
 
+const { HOOK_WORKER } = await import('../src/cli-hook-work.js');
+const { launchRelaySender } = await import('../src/relay-sender-main.js');
+
 // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
+  loadNativeBoard: () => import('../src/native-board.js'),
+  hookWorker: HOOK_WORKER,
+  launchRelaySender,
   stdout: process.stdout,
   stderr: process.stderr,
   stdin: process.stdin,

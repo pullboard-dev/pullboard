@@ -21,7 +21,7 @@ import { board as store } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';

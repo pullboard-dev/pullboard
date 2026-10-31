@@ -10,6 +10,7 @@ import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard, openBoardForRead } from '../src/native-board.js';
+import * as nativeBoard from '../src/native-board.js';
 import { withBoard } from '../src/cli-context.js';
 import { withBoardRead } from '../src/cli-context.js';
 import { pathToFileURL } from 'node:url';
@@ -140,7 +141,7 @@ test('read-only CLI fallback preserves coordinator registration and moved events
   } finally { store.closeBoard(read); }
   assert.equal(cli().status, 0);
   const ctx = { file, info: { root: box.repo, isMain: true }, config: e2e.CONFIG,
-    clock: store.systemClock, allowSchemaUpgrade: true, io: { err() {} } };
+    clock: store.systemClock, allowSchemaUpgrade: true, nativeBoard, io: { err() {} } };
   assert.equal(withBoardRead(ctx, opened => store.events(opened).length), events.length,
     'the existing public read API remains synchronous and an ordinary read appends no event');
   assert.equal(withBoard(ctx, opened => store.agentById(opened, 'coordinator').agent_path), box.repo,

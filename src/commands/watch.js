@@ -13,5 +13,5 @@ import {
 
 /** Run `pullboard watch` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  return await watchCommand({ boardOpeners: nativeBoardOpeners(), io, values, words: [first, second, ...rest], ctx: context(io), primaryCheckoutRoot, runCommand: main, runningView, refusalDocument });
+  return await watchCommand({ boardOpeners: nativeBoardOpeners(io), io, values, words: [first, second, ...rest], ctx: context(io), primaryCheckoutRoot, runCommand: io.runCommand, runningView, refusalDocument });
 }

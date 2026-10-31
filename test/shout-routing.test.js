@@ -61,7 +61,7 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
     Array(5).fill('coordinator'), 'every declared kind reaches the coordinator');
 
   const apiModule = pathToFileURL(resolve(import.meta.dirname, '../src/api.js')).href;
-  const cliModule = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;
+  const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const person = runFixtureChild(process.execPath, ['--input-type=module', '-e', `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});

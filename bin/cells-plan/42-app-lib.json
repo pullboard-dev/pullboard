@@ -6,7 +6,9 @@
  "frontDoor": "apps/lib/index.js",
  "paths": [
   ["src/index.js","apps/lib/src/core/index.js","seed"],
-  ["src/native-board.js","apps/lib/src/core/native-board.js","rule"]
+  ["src/native-board.js","apps/lib/src/core/native-board.js","rule"],
+  ["src/cli-hook-work.js","apps/lib/src/shell/cli-hook-work.js","rule"],
+  ["src/relay-sender-main.js","apps/lib/src/shell/relay-sender-main.js","rule"]
  ],
  "reexports": [],
  "imports": [

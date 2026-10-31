@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { replayFlow } from '../src/flow-replay.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 
 const BASE = Date.parse('2026-10-20T00:00:00Z');
 /** Structural native events with deliberately unreadable private detail. */

@@ -316,10 +316,12 @@ async function runMain(argv, streams) {
     nextActions: streams.nextActions ?? (process.env.PULLBOARD_TEXT_NEXT !== '0'),
     loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
   });
+  io.loadNativeBoard = streams.loadNativeBoard;
+  io.hookWorker = streams.hookWorker;
+  /** Bind recursive CLI operations to this process root's native provider. */
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
-  io.launchRelaySender = (root, env) => {
-    void import('./relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
-  };
+  io.launchRelaySender = streams.launchRelaySender;
   let sync = true;
   let needsRepo = true;
   let parsed;
@@ -345,8 +347,9 @@ async function runMain(argv, streams) {
   // Agent nudges never enter Git-hook identity, synchronization or refusal machinery.
   if (parsed?.positionals[0] === 'hook' && !parsed.values.help && !parsed.values.version
       && !['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'].includes(parsed.positionals[1])) {
-    return (await import('./agent-hook.js')).runAgentHook(io, parsed.positionals[1], (await import('./cli-hook-work.js')).HOOK_WORKER);
+    return (await import('./agent-hook.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
+  if (needsRepo) io.nativeBoard = await io.loadNativeBoard();
   const git = needsRepo ? await import('./git.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
   if (parsed) {
@@ -357,7 +360,7 @@ async function runMain(argv, streams) {
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
           (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('./person-signing-cli.js')).personMovesSigned(io.cwd, io, { ...(await import('./relay.js')),
-            openBoard: (await import('./cli-context.js')).nativeBoardOpeners().openBoard }) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
+            openBoard: (await import('./cli-context.js')).nativeBoardOpeners(io).openBoard }) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
         (await import('./person.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }
@@ -380,7 +383,7 @@ async function runMain(argv, streams) {
     // The relay and baseline work loads only where a relay token, relay state, a link or a pending result exists.
     /** Load the work around the command when any of it could act here, or null. */
     const syncWork = async () => (sync && (await import('./local-state.js')).syncMayAct(io.cwd) ? import('./cli-sync.js') : null);
-    await (await syncWork())?.syncBefore(io, main);
+    await (await syncWork())?.syncBefore(io, io.runCommand);
     traceServeStartup('cli-command-preamble-ready');
     const code = await runCommand(argv, io);
     auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
@@ -415,7 +418,7 @@ async function runMain(argv, streams) {
         try {
           const { landingLeaseState } = await import('./board-landing-lease.js');
           eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
-            openBoardForRead: (await import('./cli-context.js')).nativeBoardOpeners().openBoardForRead });
+            openBoardForRead: (await import('./cli-context.js')).nativeBoardOpeners(io).openBoardForRead });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
         await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, {

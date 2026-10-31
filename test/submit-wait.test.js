@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
+import * as nativeBoard from '../src/native-board.js';
 import { openBoard } from '../src/native-board.js';
 import { loadConfig } from '../src/config.js';
 import { healthReport } from '../packages/health/index.js';
@@ -122,7 +123,7 @@ test('a withdrawn verdict does not finish a submission wait successfully [V2,V6]
   const receipt = onBoard(box, board => store.events(board, { itemId: 1 }).findLast(event => event.event_kind === 'submit'));
   onBoard(box, board => store.reopen(board, 1, { agentId: 'coordinator', withdrawVerdict: true,
     note: 'The reviewer withdrew this acceptance after a concrete gap was found.' }));
-  const io = { cwd: box.repo, say: () => {}, err: () => {} };
+  const io = { cwd: box.repo, nativeBoard, say: () => {}, err: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), id, { id, commit }, receipt, waitPorts),
     error => error.code === 'SUBMISSION_CHANGED');
 });
@@ -149,7 +150,7 @@ test('a wait keeps its original receipt across a same-SHA refrozen resubmission 
   const rejectLaterAttempt = () => onBoard(box, board => store.verify(board, 1, { agentId: 'coordinator', decision: 'REJECT',
     reason: 'BEHAVIOR_MISMATCH', note: 'This verdict belongs only to the later attempt.', policy: 'any', clause: 'The fixture check passes.',
     digest: store.getItem(board, 1).item_frozen_digest, head: submission.commit }));
-  const io = { cwd: box.repo, say: () => {}, err: () => {} };
+  const io = { cwd: box.repo, nativeBoard, say: () => {}, err: () => {} };
   let superseded;
   const originalWait = waitForSubmissionVerdict(context(io), submission.id, submission, receipt, waitPorts)
     .catch(error => { superseded = error; });

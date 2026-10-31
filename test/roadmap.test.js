@@ -10,7 +10,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone, shipMilestone, roadmap } from '../src/board-milestones.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { milestoneRoadmap } from '../src/roadmap.js';
 import { submitFixture } from './board-submit-fixture.js';
 import {
