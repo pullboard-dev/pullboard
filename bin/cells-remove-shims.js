@@ -12,12 +12,17 @@ import { loadConfig } from '../packages/config/index.js';
 import { tryGit } from '../packages/git/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { laneOf } from '../packages/seats/index.js';
+import { outOfLane } from '../packages/seats/index.js';
+import { runnerPackage } from '../src/runner-package.js';
+import { moveDeclarationFiles } from './cells-move-closure.js';
 import { Refused } from '../packages/kernel/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { ownerFor } from './cells-plan-cuts.js';
 
 /** Marks a use that takes the shim's whole namespace, so every name it exports must stay reachable. */
 const ALL = Symbol('all');
+/** Reference kinds that name a file rather than import bindings, so they go to the exact moved file, never a front door. */
+const BYTES = new Set(['url', 'path', 'input', 'doc']);
 /** A shim holds only re-export statements; anything else is code and stays. */
 const PURE_SHIM = /^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u;
 
@@ -90,18 +95,36 @@ function specifier(file, path) {
   return relative.startsWith('.') ? relative : `./${relative}`;
 }
 
-/** Choose what an importer reads instead of the shim: the leaf inside the cell, core.js for pure users, else the front door. */
+/** Where an importer sits that must read the pure core.js: a core file, or a file on the runner-worker or move-registry closure. */
+function pureReason(box, file) {
+  if (/(?:^|\/)core(?:\/|\.js$)/u.test(file)) return 'core file';
+  if (box.runner.files?.has(file)) return 'runner-worker closure file';
+  if (box.move.files?.has(file)) return 'move-registry closure file';
+  return null;
+}
+
+/**
+ * Choose what an importer reads instead of the shim. A file read, resolved path, declared input or doc citation names the
+ * exact moved file; a core or closure file reads core.js and is refused by binding name when core.js lacks one; a file
+ * inside the cell reads its own leaf; a test whose names core.js covers reads core.js; everything else reads the front door.
+ */
 function choose(box, shim, file, use) {
   const have = exportsOf(box, shim), cell = box.cell;
+  const leaf = cell.paths.find(([from]) => from === shim)?.[1];
+  if (BYTES.has(use.kind)) return leaf && box.files.has(leaf) ? { path: leaf, adds: [] } : { refuse: `${file} reads ${shim}, whose moved file ${leaf} is missing` };
   const names = use.names === ALL ? [...have.keys()] : use.names;
   const lost = names.filter(name => !have.has(name));
   if (lost.length) return { refuse: `${file} imports ${lost.join(', ')}, which ${shim} does not export` };
   /** Whether a module already exports every wanted name. */
   const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name)); };
-  const leaf = cell.paths.find(([from]) => from === shim)?.[1];
-  if (use.kind === 'url' || use.kind === 'input') return leaf && box.files.has(leaf) ? { path: leaf, adds: [] } : { refuse: `${file} reads ${shim}, whose moved file ${leaf} is missing` };
   const core = cell.pureFrontDoor && box.files.has(cell.pureFrontDoor) ? cell.pureFrontDoor : null;
-  if (/(?:^|\/)core(?:\/|\.js$)/u.test(file)) return core && covers(core) ? { path: core, adds: [] } : { refuse: `core file ${file} would reach past ${cell.name} core.js: ${names.filter(name => !core || !exportsOf(box, core).has(name)).join(', ')}` };
+  const pure = pureReason(box, file);
+  if (pure) {
+    if (core && covers(core)) return { path: core, adds: [] };
+    const missing = names.filter(name => !core || !exportsOf(box, core).has(name));
+    const named = missing.length > 8 ? `${missing.slice(0, 8).join(', ')} +${missing.length - 8} more` : missing.join(', ');
+    return { refuse: `${pure} ${file} would reach past ${cell.name} core.js, which lacks ${named || 'a pure front door'}` };
+  }
   if (core && testFile(file) && use.kind === 'static' && use.names !== ALL && names.length && covers(core)) return { path: core, adds: [] };
   if (file.startsWith(`${cell.root}/`)) return leaf && covers(leaf) ? { path: leaf, adds: [] } : { refuse: `${file} inside ${cell.name} needs names its own ${shim} leaf lacks` };
   const door = cell.frontDoor, present = exportsOf(box, door), adds = [];
@@ -112,18 +135,30 @@ function choose(box, shim, file, use) {
   return { path: door, adds };
 }
 
-/** Plan the edit that repoints each importer of one shim, and list the importers that must stay on it, with why. */
+/**
+ * Plan the edit that repoints each importer of one shim, and list the importers that must stay on it, with why. A file
+ * outside the lane is never edited: it holds the shim until a removal in its own lane repoints it.
+ */
 function planShim(box, shim, hits) {
-  const edits = [], held = [];
-  for (const { file, source, info, literal, comment } of hits) {
-    const use = comment ? { kind: 'input', names: [] } : source[literal.start] === '`' ? null : usage(info, literal);
+  const edits = [], held = [], cited = [];
+  for (const { file, source, info, literal, comment, doc } of hits) {
+    if (outOfLane(box.settings, box.lane, [file]).length || file === 'SPEC.md') {
+      const where = `${file} (${laneOf(box.settings, file)} lane)`;
+      if (doc) cited.push(where);
+      else if (!held.includes(`imported by ${where}`)) held.push(`imported by ${where}`);
+      continue;
+    }
+    const use = doc ? { kind: 'doc', names: [] } : comment ? { kind: 'input', names: [] } : source[literal.start] === '`' ? null : usage(info, literal);
     if (!use) { held.push(`${file}: unrecognized reference "${literal.text}"`); continue; }
     const choice = choose(box, shim, file, use);
     if (choice.refuse || choice.path === file) { held.push(choice.refuse ?? `${file} would import itself`); continue; }
-    edits.push(comment ? { file, ...comment(choice.path), adds: choice.adds }
-      : { file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds });
+    const foreign = choice.adds.filter(add => outOfLane(box.settings, box.lane, [add.file]).length);
+    if (foreign.length) { held.push(`${file} needs ${foreign.map(add => add.name).join(', ')} added to ${foreign[0].file} (${laneOf(box.settings, foreign[0].file)} lane)`); continue; }
+    edits.push(doc ? { file, start: doc.start, end: doc.end, text: choice.path, from: shim, adds: [] }
+      : comment ? { file, ...comment(choice.path), adds: choice.adds }
+        : { file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds });
   }
-  return { edits, held };
+  return { edits, held, cited: [...new Set(cited)] };
 }
 
 /** Find the declared-input tokens in a header comment that name one of the shims. */
@@ -139,11 +174,23 @@ function inputTokens(source, range, shims) {
   return rows;
 }
 
+/** A whole-path citation of a shim in prose: not part of a longer path on either side. */
+function citation(shim) {
+  const escaped = shim.replace(/[.*+?^$()|[\]\\{}]/gu, '\\$&');
+  return new RegExp(`(?<![\\w./-])${escaped}(?![\\w/-]|\\.\\w)`, 'gu');
+}
+
 /** Group every reference to the shims by shim, from the checkout bytes the inventory read. */
 function hitsByShim(box, shims) {
   const hits = new Map(shims.map(shim => [shim, []])), names = new Set(shims);
   for (const [file, bytes] of box.files) {
-    if (!/\.[cm]?js$/u.test(file) || !shims.some(shim => bytes.includes(posix.basename(shim)))) continue;
+    if (!shims.some(shim => bytes.includes(posix.basename(shim)))) continue;
+    if (file.endsWith('.md')) {
+      const text = bytes.toString('utf8');
+      for (const shim of shims) for (const match of text.matchAll(citation(shim))) hits.get(shim).push({ file, doc: { start: match.index, end: match.index + shim.length } });
+      continue;
+    }
+    if (!/\.[cm]?js$/u.test(file)) continue;
     const source = bytes.toString('utf8'), info = scan(source);
     for (const literal of info.strings) {
       const target = literal.text.startsWith('.') ? resolveSpec(box, file, literal.text) : null;
@@ -161,6 +208,14 @@ function hitsByShim(box, shims) {
 
 /** Apply the surviving edits and door additions to the original bytes, returning each changed file's new source. */
 function materialize(box, plans, excluded) {
+  const out = materializeAll(box, plans, excluded);
+  const foreign = [...out.keys()].filter(file => outOfLane(box.settings, box.lane, [file]).length);
+  if (foreign.length) throw new Refused('CELLS_SHIMS_LANE', `shim removal in the ${box.lane} lane would write ${foreign.join(', ')}, outside it`);
+  return out;
+}
+
+/** Every changed file's new source, before the lane guard. */
+function materializeAll(box, plans, excluded) {
   const byFile = new Map(), adds = new Map();
   for (const plan of plans.values()) for (const edit of plan.edits) if (!excluded.has(edit)) {
     byFile.set(edit.file, [...byFile.get(edit.file) ?? [], edit]);
@@ -182,6 +237,31 @@ function applyToDisk(box, out, touched) {
   for (const file of touched) writeFileSync(join(box.root, file), out.get(file) ?? box.files.get(file));
 }
 
+/** The entries whose closures ship to a runner: the worker and each package provider the controller composes. */
+function runnerEntries(box, parsers) {
+  const controller = box.files.get('bin/runner-controller.js')?.toString('utf8');
+  const providers = controller ? parsers.importsIn([controller])[0].filter(text => text.startsWith('../packages/')).map(text => text.slice(3)) : [];
+  return ['src/runner-worker.js', ...new Set(providers)];
+}
+
+/** Every file the runner closures reach, or the bound or resolution problem that stops them. */
+function runnerClosure(root, entries) {
+  const files = new Set();
+  try { for (const entry of entries) for (const file of Object.keys(runnerPackage(root, entry).files)) files.add(file); }
+  catch (error) { return { files: null, problem: error.message }; }
+  return { files, problem: null };
+}
+
+/** Every file the move declarations reach, or the problem: an unbounded closure or a process launcher inside it. */
+function moveClosure(root, parsers, files) {
+  let reached;
+  try { reached = moveDeclarationFiles(root, { ...parsers, files: files.keys() }); }
+  catch (error) { return { files: null, problem: error.message }; }
+  const list = [...reached].sort(), imports = parsers.importsIn(list.map(file => files.get(file).toString('utf8')));
+  const launchers = list.filter((_file, index) => imports[index].includes('node:child_process'));
+  return { files: reached, problem: launchers.length ? `process launcher ${launchers.join(', ')} in the move-registry closure` : null };
+}
+
 /** Every strict upward-cut problem across all cells, keyed so a repointed path still names the same edge. */
 function strictProblems(box, inventory) {
   const rows = new Map();
@@ -201,7 +281,12 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in the plan; use a name from bin/cells-plan.json`);
   const inventory = cellInventory(root, parsers);
   const config = inventory.files.has('package.json') ? JSON.parse(inventory.files.get('package.json').toString('utf8')) : {};
-  const box = { root, plan, cell, files: inventory.files, imports: config.imports };
+  const settings = loadConfig(root);
+  if (!Object.hasOwn(settings.lanes ?? {}, lane)) throw new Refused('CELLS_PLAN_MODE', `no lane ${lane} in pullboard.json; use one of ${Object.keys(settings.lanes ?? {}).join(', ')}`);
+  const box = { root, plan, cell, files: inventory.files, imports: config.imports, settings, lane };
+  const entries = runnerEntries(box, parsers);
+  box.runner = runnerClosure(root, entries);
+  box.move = moveClosure(root, parsers, inventory.files);
   const kept = new Map(), absent = cell.reexports.filter(shim => !existsSync(join(root, shim)));
   const live = cell.reexports.filter(shim => !absent.includes(shim));
   for (const shim of live) {
@@ -217,15 +302,27 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
       applyToDisk(box, materialize(box, plans, excluded), touched);
       after = cellInventory(root, parsers);
       const fresh = [...strictProblems(box, after)].filter(([key]) => !before.has(key));
-      if (!fresh.length) break;
       const blamed = [];
+      /** Hold every edit in a file of a closure that the repoint broke, naming why. */
+      const closureBlame = (closure, now, what) => {
+        if (closure.problem || !now.problem) return;
+        const count = blamed.length;
+        for (const made of plans.values()) for (const edit of made.edits) if (!excluded.has(edit) && !blamed.includes(edit) && closure.files.has(edit.file)) {
+          blamed.push(edit);
+          made.held.push(`repointing ${edit.file} would break the ${what}: ${now.problem}`);
+        }
+        if (blamed.length === count) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing broke the ${what} and no shim edit explains it: ${now.problem}`);
+      };
+      closureBlame(box.runner, runnerClosure(root, entries), 'runner-worker closure');
+      closureBlame(box.move, moveClosure(root, parsers, after.files), 'move-registry closure');
+      if (!fresh.length && !blamed.length) break;
       for (const [key, problem] of fresh) {
         for (const made of plans.values()) for (const edit of made.edits) if (!excluded.has(edit) && owner(edit.file) === key.split('|')[0]) {
           blamed.push(edit);
           made.held.push(`${edit.file}: removal would expose an upward cut: ${problem}`);
         }
       }
-      if (!blamed.length) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing exposed an upward cut no shim edit explains: ${fresh.map(row => row[1]).join('; ')}`);
+      if (fresh.length && !blamed.length) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing exposed an upward cut no shim edit explains: ${fresh.map(row => row[1]).join('; ')}`);
       for (const edit of blamed) excluded.add(edit);
     }
   } catch (error) {
@@ -238,29 +335,29 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
     const users = [...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file);
     const held = plans.get(shim).held;
     if (held.length || users.length) {
-      const why = held.length ? held : [`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`];
+      const why = held.length ? [...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by '))] : [`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`];
       kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`);
       continue;
     }
+    if (outOfLane(settings, lane, [shim]).length) { kept.set(shim, `${shim} is owned by the ${laneOf(settings, shim)} lane; a removal there deletes it`); continue; }
     if (tryGit(root, ['rm', '-q', '-f', '--', shim]).status !== 0) rmSync(join(root, shim), { force: true });
     deleted.push(shim);
   }
   const rewritten = [];
   for (const [shim, made] of plans) for (const edit of made.edits) if (!excluded.has(edit)) rewritten.push({ shim, file: edit.file, from: edit.from, to: edit.text || '(removed duplicate)' });
-  const settings = loadConfig(root);
-  const outside = [...new Set(rewritten.map(row => row.file))].filter(file => laneOf(settings, file) !== lane).sort();
+  const cited = [...plans].flatMap(([shim, made]) => made.cited.map(file => `${file} cites ${shim}; not rewritten outside the ${lane} lane`));
   const reexports = cell.reexports.filter(shim => !deleted.includes(shim) && !absent.includes(shim));
   const next = { ...plan, cells: plan.cells.map(row => row.name === name ? { ...row, reexports } : row) };
-  return { plan: next, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], outside };
+  return { plan: next, planInLane: !outOfLane(settings, lane, ['bin/cells-plan.json']).length, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], cited };
 }
 
-/** The lines the command prints: each repoint, deletion, kept shim with its reason, and the importers outside the lane. */
-export function shimReport(result, lane = 'core') {
+/** The lines the command prints: each repoint, deletion, kept shim with its reason, and the citations left outside the lane. */
+export function shimReport(result) {
   const lines = result.rewritten.map(row => `repointed ${row.file}: ${row.from} -> ${row.to} (${row.shim})`);
   for (const shim of result.absent) lines.push(`dropped ${shim} from the plan: it no longer exists`);
   for (const shim of result.deleted) lines.push(`deleted ${shim}`);
   for (const [shim, reason] of result.kept) lines.push(`kept ${shim}: ${reason}`);
-  for (const file of result.outside) lines.push(`outside the ${lane} lane, attach: ${file}`);
+  for (const line of result.cited) lines.push(`not rewritten: ${line}`);
   lines.push(`${result.deleted.length} deleted, ${result.kept.length} kept, ${result.rewritten.length} repointed`);
   return lines;
 }

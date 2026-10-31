@@ -496,9 +496,12 @@ function main(argv) {
     return problems.length ? 1 : 0;
   });
   if (mode === '--remove-shims') {
-    if (rest.length !== 1) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell>');
-    const result = removeShims(root, readPlan(root), rest[0], { parsers: { importsIn, commonJsIn } });
-    if (result.changed) writePlan(root, result.plan);
+    const laneAt = rest.indexOf('--lane'), lane = laneAt < 0 ? 'core' : rest[laneAt + 1];
+    const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
+    if (cells.length !== 1 || !lane) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>]');
+    const result = removeShims(root, readPlan(root), cells[0], { parsers: { importsIn, commonJsIn }, lane });
+    if (result.changed && result.planInLane) writePlan(root, result.plan);
+    else if (result.changed) console.log(`plan not written: ${PLAN_FILE} is outside the ${lane} lane; a removal there records it`);
     for (const line of shimReport(result)) console.log(line);
     return 0;
   }
@@ -509,7 +512,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
