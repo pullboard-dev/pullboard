@@ -23,3 +23,4 @@ export { assertRunnerModuleParserCurrent, createRunnerModuleParser } from "./src
 export { runnerPackageReader, runnerPackage } from "./src/shell/runner-package.js";
 export { captureRunnerTooling, currentRunnerTooling } from "./src/shell/runner-tooling-snapshot.js";
 export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/shell/runners.js";
+export { packText, commitWork, runItems } from "./src/shell/run.js";

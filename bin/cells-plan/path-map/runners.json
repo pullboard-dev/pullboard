@@ -24,5 +24,6 @@
   "src/runner-module-parser-worker.js": "packages/runners/src/shell/runner-module-parser-worker.js",
   "src/runner-package.js": "packages/runners/src/shell/runner-package.js",
   "src/runner-tooling-snapshot.js": "packages/runners/src/shell/runner-tooling-snapshot.js",
-  "src/runners.js": "packages/runners/src/shell/runners.js"
+  "src/runners.js": "packages/runners/src/shell/runners.js",
+  "src/run.js": "packages/runners/src/shell/run.js"
 }
