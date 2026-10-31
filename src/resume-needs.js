@@ -1,7 +1,7 @@
 /** Resume's complete person obligations without adding optional projections to the status path [N19,N26]. */
 import * as store from './board.js';
-import { pendingFit } from './blueprint-fit.js';
-import { projectFit } from './blueprint-fit.js';
+import { pendingFit } from '../packages/blueprints/index.js';
+import { projectFit } from '../packages/blueprints/index.js';
 import { repoInfo } from './git.js';
 import { personNeedsSummary } from './needs-summary.js';
 import { personNeeds } from '../packages/spec/index.js';

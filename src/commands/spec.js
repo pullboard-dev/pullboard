@@ -15,11 +15,11 @@ import {
 } from '../../packages/spec/index.js';
 import {
   fitCommand,
-} from '../blueprint-fit-command.js';
+} from '../../packages/blueprints/index.js';
 import {
   fitSummary,
   readFitBatch,
-} from '../blueprint-fit.js';
+} from '../../packages/blueprints/index.js';
 import * as store from '../board.js';
 import {
   hookRead,

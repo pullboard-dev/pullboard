@@ -9,7 +9,7 @@ import { projectSpecRevisions } from '../packages/spec/index.js';
 import {
   pendingFit,
   projectFit,
-} from './blueprint-fit.js';
+} from '../packages/blueprints/index.js';
 import { projectState } from './serve.js';
 import { loadConfig } from '../packages/config/index.js';
 import { loadSpec } from '../packages/spec/index.js';

@@ -19,13 +19,13 @@ import { starterLaneNotes } from '../init.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { loadSpec } from '../../packages/spec/index.js';
 import { readSignoffs } from '../../packages/spec/index.js';
-import { landBlueprint } from '../blueprints.js';
-import { planBlueprint } from '../blueprints.js';
-import { starterCheck } from '../blueprints.js';
-import { readBlueprint } from '../blueprints.js';
-import { repoAnswers } from '../blueprints.js';
-import { blueprintStarterNote } from '../blueprint-set.js';
-import { sharedRowLines } from '../blueprint-set.js';
+import { landBlueprint } from '../../packages/blueprints/index.js';
+import { planBlueprint } from '../../packages/blueprints/index.js';
+import { starterCheck } from '../../packages/blueprints/index.js';
+import { readBlueprint } from '../../packages/blueprints/index.js';
+import { repoAnswers } from '../../packages/blueprints/index.js';
+import { blueprintStarterNote } from '../../packages/blueprints/index.js';
+import { sharedRowLines } from '../../packages/blueprints/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 
@@ -68,7 +68,7 @@ export async function addBlueprintHere(io, reference, { report = true, blueprint
  * @param {any} ctx
  * @param {any} board
  * @param {{ id: string }} me
- * @param {import('../blueprints.js').Blueprint} blueprint
+ * @param {import('../../packages/blueprints/index.js').Blueprint} blueprint
  * @param {{ report?: boolean, result?: boolean, drafted?: Map<string, string> }} [options] - report false prints nothing and sets no
  *   JSON result; result false prints but sets none. drafted: rows earlier blueprints of this command drafted, by text (#720).
  * @returns {Promise<BlueprintAdded>}

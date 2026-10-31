@@ -1,20 +1,20 @@
 /** The pullboard blueprint command, in its own module so an item adding another command never edits these lines. */
 import {
   fitCommand,
-} from '../blueprint-fit-command.js';
+} from '../../packages/blueprints/index.js';
 import {
   startersCommand,
-} from '../blueprint-report.js';
+} from '../../packages/blueprints/index.js';
 import {
   combinedSummary,
   installedBlueprints,
   landEach,
   readBlueprints,
-} from '../blueprint-set.js';
+} from '../../packages/blueprints/index.js';
 import {
   bundledBlueprints,
   saveBlueprint,
-} from '../blueprints.js';
+} from '../../packages/blueprints/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

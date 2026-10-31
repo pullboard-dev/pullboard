@@ -14,11 +14,11 @@ import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { parseSpec } from '../packages/spec/index.js';
-import { readBlueprint } from '../src/blueprints.js';
-import { validateBlueprint } from '../src/blueprints.js';
-import { waitingRows } from '../src/blueprint-report.js';
-import { blueprintRowIds } from '../src/blueprint-report.js';
-import { fitTargets } from '../src/blueprint-fit.js';
+import { readBlueprint } from '../packages/blueprints/index.js';
+import { validateBlueprint } from '../packages/blueprints/index.js';
+import { waitingRows } from '../packages/blueprints/index.js';
+import { blueprintRowIds } from '../packages/blueprints/index.js';
+import { fitTargets } from '../packages/blueprints/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];

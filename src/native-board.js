@@ -78,7 +78,7 @@ import {
   projectFit,
   pendingFit,
   fitFile,
-} from './blueprint-fit.js';
+} from '../packages/blueprints/index.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import {
   advanceItemSource,

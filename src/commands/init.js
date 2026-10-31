@@ -6,7 +6,7 @@ import {
   installedBlueprints,
   landEach,
   readBlueprints,
-} from '../blueprint-set.js';
+} from '../../packages/blueprints/index.js';
 import * as store from '../board.js';
 import {
   COORDINATOR,
