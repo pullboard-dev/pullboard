@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Real CLI and authenticated API review suggestions preserve explicit build and review intent [Q1,V15,A1,A2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -233,7 +234,7 @@ test('[Q1,V15,A2] authenticated API next returns a real unreserved offer and exp
   submitted(box); submitted(box); submitted(box);
   const id = build(box);
   const apiKey = randomUUID();
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret: apiKey, projects: () => [{ root: box.root }],
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: apiKey, projects: () => [{ root: box.root }],
     runCommand: (args, io) => main(args, { ...io, clock: box.clock }) });
   t.after(() => api.close());
   const boardId = store.boardId(box.board);
