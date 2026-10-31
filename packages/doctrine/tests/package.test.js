@@ -221,7 +221,7 @@ test('the import scan finds a package however it is imported, and nothing that i
  */
 function packageSource(file, source) {
   const loaders = {
-    [join(ROOT, 'src', 'move-registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
+    [join(ROOT, 'packages', 'moves', 'src', 'shell', 'move-registry.js')]: ["import(new URL(file, directory).href)", "import('./moves/')"],
     [join(ROOT, 'src', 'commands', 'index.js')]: ["import(new URL(file, FOLDER).href)", "import('./')"],
   };
   const loader = loaders[file];
@@ -247,7 +247,7 @@ test('every import is a node: built-in or a relative file [P3]', () => {
 });
 
 test('discovery import normalization still exposes package imports and arbitrary computed targets [P3]', () => {
-  const file = join(ROOT, 'src', 'move-registry.js');
+  const file = join(ROOT, 'packages', 'moves', 'src', 'shell', 'move-registry.js');
   const source = readFileSync(file, 'utf8');
   const site = 'import(new URL(file, directory).href)';
   assert.ok(source.includes(site), 'the constrained discovery site is present');

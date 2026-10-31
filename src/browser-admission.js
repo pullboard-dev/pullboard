@@ -327,7 +327,7 @@ async function regularCheckSource(root, file, committed) {
 /** Read the exact executable doctrine rules without running them; only the fixed readers qualify. */
 async function sourceOnlyDoctrine(root, committed, commit, env) {
   const [{ configFromSource, loadConfig }, { parseSpec }, { checkRule }] = await Promise.all([
-    import('./config.js'), import('./spec.js'), import('./doctrine-checks.js'),
+    import('./config.js'), import('./spec.js'), import('../packages/doctrine/index.js'),
   ]);
   const config = commit ? configFromSource(committedSource(root, committed, 'pullboard.json')) : loadConfig(root);
   let file = config.practice;

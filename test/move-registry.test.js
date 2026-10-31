@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input test/move-registry-baseline.json src/move-history/** */
-/** @pullboard-test-loads src/move-registry.js src/moves/*.js */
+/** @pullboard-test-loads src/move-registry.js src/moves/*.js packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
 /** Move-only registry discovery preserves a pinned historical resolution and real replay [C7,V4,H3,H16]. */
 import { installStaleStateRegistryCases } from './stale-state-registry-cases.js';
 import './typed-request-registry.test.js';
@@ -159,9 +159,9 @@ test('two new board moves declared in two files need no edit to engine.js, board
   run(root, 'git', ['add', '.']);
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: exact installed source map']);
   const before = consumerHashes(root);
-  mkdirSync(join(root, 'src/moves'), { recursive: true });
-  writeFileSync(join(root, 'src/moves/seedAlpha.js'), seedDeclaration('seedAlpha', 9, true, 'repair the first seeded move'));
-  writeFileSync(join(root, 'src/moves/seedBeta.js'), seedDeclaration('seedBeta', 11, false, 'repair the second seeded move'));
+  mkdirSync(join(root, 'packages/moves/src/core/moves'), { recursive: true });
+  writeFileSync(join(root, 'packages/moves/src/core/moves/seedAlpha.js'), seedDeclaration('seedAlpha', 9, true, 'repair the first seeded move'));
+  writeFileSync(join(root, 'packages/moves/src/core/moves/seedBeta.js'), seedDeclaration('seedBeta', 11, false, 'repair the second seeded move'));
   run(root, 'git', ['add', '.']);
   run(root, 'git', ['-c', 'user.name=Registry Fixture', '-c', 'user.email=registry@example.test', 'commit', '-m', 'fixture: two independent declarations']);
   const child = `
@@ -189,7 +189,7 @@ if(ENGINE_OPERATIONS.includes('seedAlpha')&&ENGINE_OPERATIONS.includes('seedBeta
   try {
     const forbidden=new Set(['src/board.js','src/engine.js','src/board-engine-ports.js','src/next-step-words.js','src/move-registry.js','src/git.js']);
     const seen=new Set();
-    let pending=readdirSync('./src/moves').filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,'src/moves',file)).href);
+    let pending=['src/moves','packages/moves/src/core/moves','packages/moves/src/shell/moves'].flatMap(folder=>readdirSync('./'+folder).filter(file=>file.endsWith('.js')).map(file=>pathToFileURL(join(root,folder,file)).href));
     while(pending.length) {
       const level=[...new Set(pending)].filter(file=>!seen.has(file));pending=[];
       for(const file of level) {
