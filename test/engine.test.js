@@ -26,13 +26,13 @@ import { refuseRelayMove } from '../src/engine.js';
 import { startRelayEpoch } from '../src/engine.js';
 import { checkpointSequence } from '../src/engine.js';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
-import { COMMAND_CANDIDATE } from '../src/discovery.js';
-import { COMMAND_FILE } from '../src/discovery.js';
-import { discovered } from '../src/discovery.js';
+import { COMMAND_CANDIDATE } from '../packages/kernel/index.js';
+import { COMMAND_FILE } from '../packages/kernel/index.js';
+import { discovered } from '../packages/kernel/index.js';
 import { ENGINE_REGISTRY } from '../src/machine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/machine.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { unpackRelease } from './release-archive.js';
 
 const HOUR = 3_600_000;

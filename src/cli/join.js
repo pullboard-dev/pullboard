@@ -15,7 +15,7 @@ import { bindLocalSession } from '../agent-session.js';
 import { HOOK_CHECKOUT_WAIT_MS } from '../agent-session.js';
 import { localSessionMatches } from '../agent-session.js';
 import { repoInfo } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { relayLinked } from '../relay.js';
 
 /**

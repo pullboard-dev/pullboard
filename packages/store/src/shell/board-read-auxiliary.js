@@ -1,7 +1,7 @@
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 /** Read-only auxiliary projections keep the write store bounded without changing its public API [C7]. */
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import {
   events,
   itemThread,

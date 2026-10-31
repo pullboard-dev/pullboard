@@ -7,7 +7,7 @@ import { FOCUS_MILESTONE_ENGINE } from '../../../../src/focus-milestone-engine.j
 import { LINE_ORDER_ENGINE } from '../../../../src/line-order-engine.js';
 import { LINE_SETTINGS_ENGINE } from '../../../../src/line-settings-engine.js';
 import { LAND_COLLISION_ENGINE } from '../../../../src/landing-collision-engine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
 import { LIVE_ROUTE_ENGINE } from '../../../../src/live-route-engine.js';
 import { REWORK_SAME_FAMILY_ENGINE } from '../../../../src/rework-same-family-engine.js';

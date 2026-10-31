@@ -1,6 +1,6 @@
 /** Account-scoped opaque excluded-board lists; only machine labels and counts are public [H5,H17]. */
 import { createHash } from 'node:crypto';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Bind one machine's encrypted inventory to a stable, non-path transport identifier. */
 export function excludedInventoryId(machine, account) {

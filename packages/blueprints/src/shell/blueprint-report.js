@@ -9,7 +9,7 @@ import {
 } from './blueprints.js';
 import { loadConfig } from '../../../../src/config.js';
 import { loadDoctrine } from '../../../../src/doctrine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { loadSpec } from '../../../../src/spec.js';
 
 /**

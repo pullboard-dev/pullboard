@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { closeSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { SEALED_SNAPSHOT_BYTES } from '../src/relay-limits.js';
 import { createRelayJournal } from './journal.js';
 

@@ -4,7 +4,7 @@ import { defaults } from './config.js';
 import { cleanGitEnvironment } from './git.js';
 import { blockedPaths } from '../packages/commits/index.js';
 import { secretsIn } from '../packages/commits/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { spawnSync } from 'node:child_process';
 import { closeSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';

@@ -1,6 +1,6 @@
 /** pullboard loop: declare a recurring job's cadence, record each run, and list the jobs [D1,C7]. */
 import { COORDINATOR } from './config.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { recurringJobs } from './board-recurring-jobs.js';
 
 /**

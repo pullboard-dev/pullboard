@@ -8,7 +8,7 @@ import { git } from './git.js';
 import { mainCheckout } from './git.js';
 import { patchId } from './git.js';
 import { tryGit } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { readTrainLandingReceipt } from './train-landing-receipt.js';
 import { prepareTrainCheckRepointPlan } from './train-check-repoints.js';
 

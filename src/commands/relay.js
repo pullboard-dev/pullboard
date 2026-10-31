@@ -11,7 +11,7 @@ import {
 } from '../projects.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import * as relayOutput from '../relay-output.js';
 import { describeMove } from '../relay-outbox.js';
 import { refusalLine } from '../relay-outbox.js';

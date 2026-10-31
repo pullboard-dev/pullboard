@@ -29,7 +29,7 @@ import {
   repoInfo,
 } from "../../../../src/git.js";
 import { withGitSyncLock } from './git-sync-lock.js';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import {
   gitSyncFiles,
   gitSyncMarkerLinked,

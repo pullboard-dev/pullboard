@@ -1,6 +1,6 @@
 /** Match accepted candidates by their reviewed Git merge changes, never declared brief paths [B3,R3]. */
 import { tryGit } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Preview one reviewed commit against the immutable trunk, including both sides of a rename. */
 export function landingChangedFiles(root, base, commit) {

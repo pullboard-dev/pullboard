@@ -23,12 +23,12 @@ import {
 import {
   lex,
   lineAt,
-} from '../../../../src/js-lex.js';
+} from '../../../kernel/index.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
 } from '../../../../src/git.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** The line cap a changed file is held to, as Doctrine C9 holds it. */
 export const LINE_CAP = 1500;

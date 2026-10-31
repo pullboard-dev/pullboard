@@ -1,5 +1,5 @@
 /** Optimistic preparation is bound to one connection's actual SQLite contents [B2,C7]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /**
  * Capture other connections' commits and this connection's own intervening writes without a lock.

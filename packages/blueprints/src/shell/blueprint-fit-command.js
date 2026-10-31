@@ -18,7 +18,7 @@ import {
   agentSessionDigest,
   requirePersonChannel,
 } from '../../../../src/person.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { prepareRowDecisions } from '../../../../src/row-decisions.js';
 import { loadSpec } from '../../../../src/spec.js';
 

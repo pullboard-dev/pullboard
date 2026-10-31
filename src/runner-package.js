@@ -13,7 +13,7 @@ import {
   commonJsIn,
   importsIn,
 } from './module-imports.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Name the exact path that cannot safely enter the trusted runtime; never expand transfer limits. */
 function unavailable(file, reason) {

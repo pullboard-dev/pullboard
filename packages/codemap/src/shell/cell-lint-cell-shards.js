@@ -13,7 +13,7 @@ import { cellLintGrowth } from './cell-lint-ratchet.js';
 import { validateCellLintBaseline } from './cell-lint-ratchet.js';
 import { tryGit } from '../../../../src/git.js';
 import { readPathMap } from '../core/path-map.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 const MAP_DIRECTORY = 'bin/cells-plan/path-map';
 const SHARD_DIRECTORY = 'bin/cell-lint-baselines/cells';

@@ -10,7 +10,7 @@ import { COORDINATOR } from './config.js';
 import { laneOf } from './lanes.js';
 import { flakeLedger } from './flakes.js';
 import { flakeQuarantines } from './quarantine.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Import CI results into the ledger (#918): each observation is an ordinary ordered board move, filed in the lane

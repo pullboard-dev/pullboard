@@ -24,7 +24,7 @@ import {
 } from './trusted-policy.js';
 import {
   Refused,
-} from '../../../../src/refused.js';
+} from '../../../kernel/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
 function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest }) {

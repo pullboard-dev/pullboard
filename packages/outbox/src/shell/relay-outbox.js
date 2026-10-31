@@ -46,7 +46,7 @@ import {
 import { captureBoardChanges } from '../../../../src/board-capture.js';
 import { undoQueued } from '../core/relay-outbox-undo.js';
 import { stampCoordinatorHolder } from '../../../../src/coordinator-hold.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   outboxFile,
   outboxSummaryFile,

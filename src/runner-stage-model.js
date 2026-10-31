@@ -1,5 +1,5 @@
 /** Windowed runner capacity observations and an advisory placement plan [C7,O5]. */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const KINDS = new Set(['local', 'ssh', 'ci', 'elastic']);
 const INVALID_NEXT = 'return runner rows with unique IDs, nonnegative current slots within limit, and reported capabilities';

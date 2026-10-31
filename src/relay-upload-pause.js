@@ -5,7 +5,7 @@ import {
 } from './relay-page-cache.js';
 import { relayStorage } from './relay-storage.js';
 import { agentSessionDigest } from './person.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { legacyPageRoute } from './relay-page-support.js';
 
 /** Classify a durable transport limit without trusting arbitrary relay text as executable advice. */

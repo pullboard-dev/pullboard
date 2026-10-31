@@ -9,7 +9,7 @@ import { trunkMerge } from './trunk-merge.js';
 import { refuseRecordedHistoryOverrides } from './trunk-merge.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const ID = /^[a-f0-9-]{36}$/u;

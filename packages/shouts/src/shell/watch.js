@@ -18,7 +18,7 @@ import {
 } from '../../../../src/git.js';
 import { isLane } from '../../../../src/lanes.js';
 import { fetchLocal } from '../../../../src/local-fetch.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** The kinds that carry a shout, so --to can match their addressee. */
 const SHOUT_KINDS = new Set(['shout', 'shout_news', 'answer', 'pass']);

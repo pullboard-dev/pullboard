@@ -399,7 +399,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   const collectionId = process.env[COLLECTION_ID_ENV];
   const release = process.env[RELEASE_EXECUTORS_ENV] ? releasePlacement(process.env[RELEASE_EXECUTORS_ENV]) : null;
   if (release && !collectAll) throw new Error('a release requires complete native collection');
-  const { Refused } = await import('./refused.js');
+  const { Refused } = await import('../packages/kernel/index.js');
   if (runnerOnly && release?.executors.some(executor => executor.kind === 'local')) {
     throw new Refused('RUNNER_SOURCE', 'runner-only landing refuses the required local release executor; run this captured release on a machine allowing local tests');
   }

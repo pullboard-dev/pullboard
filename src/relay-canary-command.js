@@ -3,7 +3,7 @@ import { realpathSync } from 'node:fs';
 import { COORDINATOR } from './config.js';
 import { PERSON } from './board.js';
 import { laneNames } from './lanes.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   relayMachineContext,
   relayStatus,

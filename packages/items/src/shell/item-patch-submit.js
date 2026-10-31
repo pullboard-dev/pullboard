@@ -13,7 +13,7 @@ import { itemPatchDigest } from "./item-patch-state.js";
 import { composeItemPatches } from "./item-patch-compose.js";
 import { validateItemPatchInput } from "./item-patch-review.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../src/item-patch-submit-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 

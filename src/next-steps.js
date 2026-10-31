@@ -15,7 +15,7 @@ export {
  * step that leads straight back to the same refusal. test/refusal-next-steps.test.js checks that
  * every code raised in src/ has a row here.
  */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   blockMoveKey,
   blockMoveKeys,

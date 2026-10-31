@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
-import { lex } from '../../../../src/js-lex.js';
+import { lex } from '../../../kernel/index.js';
 
 import { engineBindings } from "../core/engine-declarations.js";
 

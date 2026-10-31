@@ -32,7 +32,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { HELP } from '../src/cli.js';
 import { loadConfig } from '../src/config.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { assertRehomeTriggerDeclaration } from './rehome-machine-fixture.js';
 import { runnerControllerCallees, assertRunnerControllerReachability } from './runner-controller-machine-fixture.js';
 import {

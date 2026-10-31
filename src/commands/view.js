@@ -19,7 +19,7 @@ import { projectLinkPorts } from '../cli/project-ports.js';
 import { assertPublicExportSupported } from '../public-export-guard.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   startServeSentinel,
 } from '../serve-sentinel.js';

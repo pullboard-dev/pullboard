@@ -47,7 +47,7 @@ import {
   ruleText,
 } from './blueprints.js';
 import { requirePersonChannel } from '../../../../src/person.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** What a fit proposal can say about one target. */
 export const FIT_DECISIONS = Object.freeze(['keep', 'adapt', 'drop', 'answer']);

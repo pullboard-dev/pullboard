@@ -15,7 +15,7 @@ import {
 } from './gate-stages.js';
 import {
   literalShellWords,
-} from './literal-shell-words.js';
+} from '../packages/kernel/index.js';
 
 /** A derived subset must never read or write the full-gate green stamp. */
 export const VALUE_GATE = Symbol('value-selected-gate');

@@ -3,7 +3,7 @@ import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
-import { lex } from '../src/js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 

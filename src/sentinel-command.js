@@ -10,7 +10,7 @@ import {
   signsPersonMoves,
 } from './person-signing-cli.js';
 import { requirePersonChannel } from './person.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { dueSentinels } from './sentinels.js';
 import { sentinels } from './sentinels.js';
 import { runDueSentinels } from './sentinel-runner.js';

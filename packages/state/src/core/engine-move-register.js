@@ -1,6 +1,6 @@
 import { COORDINATOR } from '../../../../src/config.js';
 import { VERIFIER_STANDING_ENGINE } from '../shell/machine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /**
  * Bind an engine-48 registration to the relay's receipt (#579). A seat made by another seat names

@@ -8,7 +8,7 @@ import { ordered } from '../cli.js';
 import { whoAmI } from '../cli.js';
 import { withBoard } from '../cli.js';
 import { withBoardRead } from '../cli.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Read the feed, or explicitly mark only this recipient's delivered interrupt ids acted on. */
 export async function run(io, { values = {} } = {}) {

@@ -4,7 +4,7 @@
  * Why its own module: replicas that hold only board data validate the same binding, and
  * src/board.js keeps under its next 100-line block.
  */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /**
  * Validate a portable code binding without reading source on replicas that hold only board data [B32,H7].

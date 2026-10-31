@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { parseSpec } from './spec.js';
 import { rowDecisions } from '../core/row-decisions-query.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Parse the exact source and replacement captured in one approved person decision. */
 function approvedRowChange(record) {

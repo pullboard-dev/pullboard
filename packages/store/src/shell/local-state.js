@@ -10,7 +10,7 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { repoInfo } from "../../../../src/git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { gitSyncMarkerLinked } from "../../../../src/git-sync-files.js";
 
 /** A pending baseline result's file name: one per request id. */

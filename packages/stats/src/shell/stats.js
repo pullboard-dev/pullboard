@@ -1,6 +1,6 @@
 import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 /** Public proof numbers derived from the append-only event log [R1,R2]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { flowStats } from '../core/stats-flow.js';
 import { barStats } from '../core/bar-stats.js';
 import { caughtFrom } from '../../../../src/caught.js';

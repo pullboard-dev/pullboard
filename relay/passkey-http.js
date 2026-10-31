@@ -6,7 +6,7 @@ import {
   readApiBody,
 } from '../src/api-http.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Route the fixed passkey endpoints. Every one but the public key needs the person's own session: a machine or agent

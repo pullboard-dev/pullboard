@@ -2,7 +2,7 @@
 import { COST_ENGINE } from '../../../../src/cost-engine.js';
 import { ENGINE_VERSION } from '../../../../src/machine.js';
 import { publicSharedSessions } from './cost-shared.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { COUNTS } from './cost-read.js';
 import { UNKNOWN_USAGE_REASONS } from './cost-read.js';
 import { sumUsage } from './cost-read.js';

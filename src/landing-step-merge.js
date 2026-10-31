@@ -12,7 +12,7 @@ import { headCommit } from './git.js';
 import { isClean } from './git.js';
 import { tryGit } from './git.js';
 import { untracked } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { checkLandingMessages } from './landing-message.js';
 import { landingContext } from './landing-message.js';
 import { tightenLandingDoctrine } from './landing-doctrine.js';

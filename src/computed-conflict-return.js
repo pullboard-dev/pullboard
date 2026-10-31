@@ -6,7 +6,7 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
 import { trunkMerge } from './trunk-merge.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Compute evidence only for this exact native board and current submitted head. */
 export function computeConflictReturn(board, id, actor) {

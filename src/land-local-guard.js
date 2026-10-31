@@ -8,7 +8,7 @@ import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from './settings.js';
 
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Retain native admission, complete stage output and failure observation under the actual run's lease. */
 export async function runLocalLandingGuard(root, config, { files, directory, label, onWait, waivers, onFailure, quarantines = [], proofContext }) {
