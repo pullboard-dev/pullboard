@@ -8,7 +8,7 @@ import {
 } from '../cli.js';
 import { githubSource } from '../intake-github.js';
 import { requirePersonChannel } from '../person.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Run intake or the explicit owner approval; there is deliberately no autonomous posting path. */
 export async function run(io, { first, second, values }) {

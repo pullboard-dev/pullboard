@@ -3,7 +3,7 @@ import {
   git,
   gitChildEnv,
 } from '../../../../src/git.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 export const GIT_BOARD_REF = 'refs/pullboard/board';
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;

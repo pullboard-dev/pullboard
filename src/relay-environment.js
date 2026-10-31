@@ -12,7 +12,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   DEFAULT_RELAY,
   localRecords,

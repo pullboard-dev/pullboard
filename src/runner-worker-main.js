@@ -23,7 +23,7 @@ import { stopReading } from './runner-worker-receipt.js';
 import { readSpec } from './runner-worker-spec.js';
 import { captureTestRuntimes } from './execution-environment.js';
 import { guiSession } from './gui-session.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { createDescendantTracker } from './runner-custody.js';
 import { sampleRunnerLoad } from './runner-load.js';
 import { pinSourceCacheJob } from './runner-source-cache.js';

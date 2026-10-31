@@ -3,7 +3,7 @@ import { closeSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { join } from 'node:path';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { apiJson } from '../src/api-http.js';
 import { readApiBody } from '../src/api-http.js';
 import { openBoard } from '../src/native-board.js';

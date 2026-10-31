@@ -15,10 +15,10 @@ import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repositoryImport } from '../packages/codemap/src/core/import-map.js';
-import { lex } from '../src/js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Attribute original paths, moved identities and front doors to their committed plan cell. */
 export function ownerFor(plan, map) {

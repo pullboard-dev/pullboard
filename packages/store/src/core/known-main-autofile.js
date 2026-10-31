@@ -1,6 +1,6 @@
 import { blockingFailures } from "../../../../src/quarantine-verdict.js";
 /** Native exact-main evidence derives repair items only inside the submitting holder's atomic move [V4,B3,H16]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../src/known-main-autofile-engine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { laneOf } from "../../../../src/lanes.js";

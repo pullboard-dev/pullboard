@@ -1,6 +1,6 @@
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
 /** Durable work-health observations, separate from the person's decisions [A6,H16]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { CPU_SENTINEL_ENGINE } from "../../../../src/cpu-sentinel-engine.js";
 
 /** The allocated engine for ordered sentinel observations; earlier moves keep their meaning. */

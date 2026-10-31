@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { resolve } from 'node:path';
 import { runnerPackage } from './runner-package.js';
 import { runnerPackageReader } from './runner-package.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { assertRunnerModuleParserCurrent } from './runner-module-parser.js';
 import { createHash } from 'node:crypto';
 import { importsIn } from './module-imports.js';

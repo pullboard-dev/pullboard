@@ -11,7 +11,7 @@ import { untracked } from './git.js';
 import { runGate } from './gate.js';
 import { createLandingEnvelope } from './landing-envelope.js';
 import { readTrainLandingReceipt } from './train-landing-receipt.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Gate the final envelope using the unmodified accepted command, never an augmented floor or a tree-only cache.

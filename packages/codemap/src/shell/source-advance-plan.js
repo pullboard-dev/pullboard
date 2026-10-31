@@ -1,6 +1,6 @@
 /** A source advance executes the real raw affected closure, never placement deferral [C7,V4]. */
 import { createHash } from 'node:crypto';
-import { selectRegistryGuards } from '../../../../src/registry-guards.js';
+import { selectRegistryGuards } from '../../../kernel/index.js';
 import { mappedCheck } from '../core/path-map.js';
 import { git } from '../../../../src/git.js';
 

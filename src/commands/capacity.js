@@ -4,7 +4,7 @@ import { eventCauses } from '../board-rigor.js';
 /** Observed test-work cost and explicit boundary inventory, without changing admission [C7]. */
 import { context } from '../cli.js';
 import { withBoardRead } from '../cli.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { testCapacityReport } from '../test-capacity.js';
 
 /** Keep missing evidence visible in text just as null remains visible in JSON. */

@@ -1,7 +1,7 @@
 /** Evidence-only proposals are deliberately distinct from executed rigor: proofs [D1,S1]. */
 import { causeProblem } from "./board-rigor.js";
 import { parseSpec } from "../../../../src/spec.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { readRigorSource } from "./board-rigor-source.js";
 import {
   rowDecisionContext,

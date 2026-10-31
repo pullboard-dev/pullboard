@@ -26,7 +26,7 @@ import { acceptedVerdict } from "../../../../src/verdict-reviews.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { MOVES } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { retainedVerifierIdentityProblem } from "../../../../src/item-authors.js";
 import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../src/known-main-reworks-engine.js";
 import { requireKnownMainReworks } from "../core/known-main-reworks.js";

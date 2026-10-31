@@ -9,7 +9,7 @@ import {
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import {
   PAGE_CIPHER_BYTES,
   PAGE_FANOUT,

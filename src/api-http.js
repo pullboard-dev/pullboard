@@ -1,6 +1,6 @@
 /** API v1's shared HTTP boundary; local and relay adapters supply the same board operations (A2). */
 import { createHash } from 'node:crypto';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { relayStorage } from './relay-storage.js';
 import { withGitFacts } from './git.js';
 import { PAIR_PACKAGE_BODY_BYTES } from './relay-limits.js';

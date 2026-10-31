@@ -12,7 +12,7 @@
  */
 import { COORDINATOR } from '../../../../src/config.js';
 import { COORDINATOR_HOLD_ENGINE } from '../../../../src/coordinator-hold-engine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { computerName } from '../core/computer-name.js';
 import { COMPUTER_NAME_ENGINE } from '../../../../src/computer-name-engine.js';
 import { ENGINE_VERSION } from '../../../../src/machine.js';

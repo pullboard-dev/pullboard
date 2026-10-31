@@ -1,5 +1,5 @@
 /** Read a GitHub owner/repository from an origin remote lookup, shared by seats and the github cell above it [C7,H16]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /**
  * Resolve the actual GitHub origin from a `git remote get-url origin` result; optional discovery leaves

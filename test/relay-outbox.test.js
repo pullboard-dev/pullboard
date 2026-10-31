@@ -16,7 +16,7 @@ import {
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { relayFixtureChild } from './relay-client-fixture.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { outboxQueueable } from '../src/relay-outbox.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));

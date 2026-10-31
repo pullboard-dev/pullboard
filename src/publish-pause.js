@@ -7,7 +7,7 @@ import {
   receiptBinds,
   receiptStore,
 } from './gate-run-receipt.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Shared publish state belongs to the repository, including its private landing worktrees. */
 export function publishStateFile(root) {

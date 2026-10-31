@@ -1,4 +1,4 @@
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** A replayed fact takes its id from the sealed move, so every replica writes the same one. */
 export function replayArgs(board, args, { move }) {

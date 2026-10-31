@@ -14,7 +14,7 @@ import {
 } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { computerName } from '../src/computer-name.js';
 import { repositoryName } from './github.js';
 import { approvalContext } from '../src/relay-approval.js';

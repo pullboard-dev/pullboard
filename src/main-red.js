@@ -47,7 +47,7 @@ import {
   requiredExecutorOf,
 } from '../packages/resources/index.js';
 import { sameEnvironment } from './execution-environment.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   matchingMainFailures,
   failureSignatures,

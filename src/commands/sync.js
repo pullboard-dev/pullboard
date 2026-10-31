@@ -8,7 +8,7 @@ import {
   relayRecovered,
 } from '../relay.js';
 import { syncGitBoard } from '../sync.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Publish or receive the board's acknowledged Git prefix without signing into a relay account. */
 export async function run(io, { first }) {

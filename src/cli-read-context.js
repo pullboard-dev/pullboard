@@ -35,7 +35,7 @@ import {
   resolveCommit,
   tryGit,
 } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   mainPolicy,
   policyAt,

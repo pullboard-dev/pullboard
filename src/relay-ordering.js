@@ -16,7 +16,7 @@ import {
   repoInfo,
 } from './git.js';
 import { refusalFromReceipt } from './recorded-refusal.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { readBoardKey } from './relay-key.js';
 import {
   outboxAhead,

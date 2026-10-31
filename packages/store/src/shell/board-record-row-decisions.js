@@ -5,7 +5,7 @@ import { logEvent } from "./board-event-log.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { SPEC_REVISION_ENGINE } from "../../../../src/spec-revision-engine.js";
 import { validRevisionApproval } from "../../../../src/spec-revisions.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { parseSpec } from "../../../../src/spec.js";
 
 /** Persist the current decision index inside its caller's board transaction. */

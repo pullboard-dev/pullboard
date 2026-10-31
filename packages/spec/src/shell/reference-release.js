@@ -7,7 +7,7 @@ import {
   handledReferences,
   referenceAcknowledged,
 } from './reference-lines.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Select exactly one named release section, excluding every neighbouring release. */
 function releaseLines(text, name) {

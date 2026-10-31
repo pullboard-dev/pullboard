@@ -17,7 +17,7 @@ import {
   holdsLease,
   takeResource,
 } from '../../../resources/index.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /**
  * A command that holds this checkout passes its lease to the processes it starts, its Git hooks among them, so they act

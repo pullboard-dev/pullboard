@@ -14,7 +14,7 @@ import {
   SIGNED_EVENT_LOG_VERSION,
 } from "../../../../src/board.js";
 import { createHash } from 'node:crypto';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { validatePersonRequest } from "../core/person-request.js";
 import { personRequestRecords } from "../core/person-request.js";
 import { requestIntentDigest } from "./person-request-digest.js";

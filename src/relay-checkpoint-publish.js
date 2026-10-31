@@ -19,7 +19,7 @@ import {
   outboxWaiting,
 } from './relay-outbox.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Build the checkpoint publisher over relay.js's own link and transport helpers, which it cannot import without a cycle.

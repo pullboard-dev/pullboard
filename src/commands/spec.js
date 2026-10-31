@@ -64,7 +64,7 @@ import {
 } from '../person-signing-cli.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   rowDecisionContext,
 } from '../row-decision-state.js';

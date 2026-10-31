@@ -10,7 +10,7 @@ import {
   mainCheckout,
   repoInfo,
 } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 
 /** Preserve one typed refusal prefix while passing it through more than one process. */

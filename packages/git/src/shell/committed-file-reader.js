@@ -1,7 +1,7 @@
 /** Read pinned committed text files through one fresh Git batch, never a candidate's working bytes [N19,D1]. */
 import { spawn } from 'node:child_process';
 import { cleanGitEnvironment } from "./git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Keep one child for sequential dependent file requests, and drain it on success or the original read failure. */
 export async function withCommittedFiles(root, action) {

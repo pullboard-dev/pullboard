@@ -1,5 +1,5 @@
 /** Explicit computer display names; never derive them from a host or filesystem path [E19]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Validate a person's optional label before linking or consuming a pairing code. */
 export function computerName(value) {

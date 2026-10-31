@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { openBoardForRead } from '../src/native-board.js';
 import { closeBoard } from '../src/native-board.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../src/relay-outbox.js';
 const checkpointWorker = fileURLToPath(new URL('../src/relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });

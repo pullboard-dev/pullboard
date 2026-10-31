@@ -1,5 +1,5 @@
 import { recordedRefusal } from './recorded-refusal.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /**
  * Turn a caller's freeze callback into the frozen criterion or its recorded refusal before sealing,

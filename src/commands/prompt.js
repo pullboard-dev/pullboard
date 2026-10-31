@@ -4,7 +4,7 @@ import {
 } from '../git.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   promptFor,
 } from '../skills.js';

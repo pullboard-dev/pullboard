@@ -1,6 +1,6 @@
 /** The synchronous write-board lifecycle and compatible public CLI context exports [C7]. */
 import * as store from './board.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   DEFAULT_RELAY,
   relayStatus,

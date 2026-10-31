@@ -18,7 +18,7 @@ import {
   CONFIG_FILE,
   configFromSource,
 } from '../../../../src/config.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /**
  * The kinds a board takes one of, by the slot each fills. Why infrastructure is here: #719 renamed

@@ -2,7 +2,7 @@
 import { isBuiltin } from 'node:module';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, posix } from 'node:path';
-import { discovered, MOVE_CANDIDATE, MOVE_FILE } from '../src/discovery.js';
+import { discovered, MOVE_CANDIDATE, MOVE_FILE } from '../packages/kernel/index.js';
 
 /** Refuse symlinks, absent modules and paths outside the finite repository source capability. */
 function sourceAt(root, file, allowed) {

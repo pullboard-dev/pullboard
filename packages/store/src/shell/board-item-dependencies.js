@@ -1,6 +1,6 @@
 /** Validate retained item dependencies independently of board write orchestration. */
 import { itemById } from "./board-query.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import * as itemDependencies from "../../../../src/item-dependencies.js";
 
 /** Validate that dependencies exist, remain usable, and cannot lead back to the edited item. */

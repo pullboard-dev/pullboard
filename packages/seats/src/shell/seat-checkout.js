@@ -10,7 +10,7 @@ import { bindLocalSession } from './agent-session.js';
  * by this session's seat elsewhere is named with that seat and its path.
  */
 import { localSessionSeats } from './agent-session.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Quote a path the way the CLI's other cd lines do. */
 function cdTo(path) {

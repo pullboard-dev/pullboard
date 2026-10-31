@@ -2,7 +2,7 @@
 import { closeSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 export const ACCOUNT_STORAGE_BYTES = 256_000_000;
 

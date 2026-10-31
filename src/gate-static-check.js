@@ -7,7 +7,7 @@ import {
 } from './gui-admission.js';
 import {
   Refused,
-} from './refused.js';
+} from '../packages/kernel/index.js';
 import {
   browserFreeChecksEnabled,
 } from './settings.js';

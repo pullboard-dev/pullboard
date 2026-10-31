@@ -13,7 +13,7 @@ import {
   ENGINE_VERSION,
   VERIFIER_STANDING_ENGINE,
 } from './machine.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   localRecords,
   request,

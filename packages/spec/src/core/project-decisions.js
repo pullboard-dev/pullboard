@@ -11,7 +11,7 @@ import {
 import { loadConfig } from '../../../../src/config.js';
 import { repoInfo } from '../../../../src/git.js';
 import { listApiProjects } from '../../../../src/projects.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /**
  * The other registered repos of this config's project, in registry order.

@@ -38,7 +38,7 @@ import { signedMoveProblem } from '../person-signing.js';
 import { bindLocalSession } from '../agent-session.js';
 import { localSessionMatches } from '../agent-session.js';
 import { headCommit } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { frozenCriterion } from '../spec.js';
 import { mainCriterionFacts } from '../main-criterion-facts.js';
 import { liveCriterionSpec } from '../main-criterion-facts.js';

@@ -16,7 +16,7 @@ import {
   gitSyncFiles,
   readGitSyncMarker,
 } from './git-sync-files.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Retain one exact conflicting marker under its own immutable recovery summary. */
 function quarantineMarker(root, observed, owner, lease) {

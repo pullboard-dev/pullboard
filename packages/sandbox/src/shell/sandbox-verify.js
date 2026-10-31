@@ -23,7 +23,7 @@ import {
 } from '../../../../src/git.js';
 import {
   Refused,
-} from '../../../../src/refused.js';
+} from '../../../kernel/index.js';
 import {
   mainPolicy,
 } from './trusted-policy.js';

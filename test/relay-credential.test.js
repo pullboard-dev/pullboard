@@ -146,7 +146,7 @@ test('every current operation selects its native actor credential without a seco
     const result = await box.script(`
     import { relayOperation } from ${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
-    import { Refused } from ${JSON.stringify(new URL('../src/refused.js', import.meta.url).href)};
+    import { Refused } from ${JSON.stringify(new URL('../packages/kernel/src/core/refused.js', import.meta.url).href)};
     const cases = ${JSON.stringify(batch)};
     const results = [];
     for (const entry of cases) {

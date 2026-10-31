@@ -3,7 +3,7 @@ import {
   existsSync,
   readFileSync,
 } from 'node:fs';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** A waiting run moves up one class after this many minutes, unless the machine sets agingMinutes. */
 export const DEFAULT_QUEUE_AGING_MINUTES = 30;
