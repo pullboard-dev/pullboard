@@ -2,15 +2,20 @@
 import { events as readStatsEvents } from '../../../src/board.js';
 import { counterProofStats as readStatsCounter } from '../../../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
-import { exportBoard, importBoard } from '../../../src/exchange.js';
+import { exportBoard } from '../../../src/exchange.js';
+import { importBoard } from '../../../src/exchange.js';
 import { proofStats } from '../src/shell/stats.js';
-import { flowLines, flowStats, prepareFlowHistory, projectFlowStats } from '../src/core/stats-flow.js';
+import { flowLines } from '../src/core/stats-flow.js';
+import { flowStats } from '../src/core/stats-flow.js';
+import { prepareFlowHistory } from '../src/core/stats-flow.js';
+import { projectFlowStats } from '../src/core/stats-flow.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */

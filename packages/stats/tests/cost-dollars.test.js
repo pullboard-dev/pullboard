@@ -1,12 +1,18 @@
 /** Synthetic numeric usage through supported native operations proves local pricing, not provider execution [N2]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
-import { publicUsage, sumUsage } from '../src/shell/cost-read.js';
-import { localUsage, usageDollars, validateCostPrices } from '../../../src/cost-prices.js';
+import { publicUsage } from '../src/shell/cost-read.js';
+import { sumUsage } from '../src/shell/cost-read.js';
+import { localUsage } from '../../../src/cost-prices.js';
+import { usageDollars } from '../../../src/cost-prices.js';
+import { validateCostPrices } from '../../../src/cost-prices.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 
 const prices = {
