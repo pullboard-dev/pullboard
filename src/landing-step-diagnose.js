@@ -9,7 +9,7 @@ import { isClean } from './git.js';
 import { runProfiledShell } from './gate.js';
 import { withLandingGateSlot } from './gate.js';
 import { laneOf } from './lanes.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';
 import { mergeGroup } from './landing-step-merge.js';

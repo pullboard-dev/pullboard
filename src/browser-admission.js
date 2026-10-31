@@ -22,7 +22,7 @@ import {
   cleanGitEnvironment,
   git,
 } from './git.js';
-import { literalShellWords } from './literal-shell-words.js';
+import { literalShellWords } from '../packages/kernel/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
 import { sourceLaunchesBrowser } from './browser-launch-source.js';
 import { browserSourceFiles } from './browser-source-files.js';
@@ -84,7 +84,7 @@ const REVIEWED_EXECUTORS = new Map([
     reason: 'the private fixture binds this exact plumbing call to its realGit executable' }]],
 ]);
 
-export { literalShellWords } from './literal-shell-words.js';
+export { literalShellWords } from '../packages/kernel/index.js';
 
 /** Parse only explicit Node test-runner files and the small, literal option set used by frozen checks. */
 function explicitRunnerFiles(args) {

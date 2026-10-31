@@ -45,7 +45,7 @@ import {
   refreshInitPermissions,
   relayOfferAtInit,
 } from './init.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { HOSTED_ORIGIN } from './serve.js';
 
 export const SETUP_COMMIT_QUESTION = 'Commit Pullboard setup now? [Y/n] ';

@@ -13,7 +13,7 @@ import {
 } from "../../../../src/bar-readiness.js";
 import { mainPolicy } from "../../../../src/trusted-policy.js";
 import { previewBarCoverage } from "../../../../src/bar-coverage.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 /** Read the exact rows and pending proposals the registered signing device can present. */
 export function personSigningPresentation(root, board, config) {

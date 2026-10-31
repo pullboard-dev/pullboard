@@ -9,7 +9,7 @@ import { repositoryImport } from '../packages/codemap/index.js';
 import {
   COMMAND_CANDIDATE,
   ENGINE_CANDIDATE,
-} from './discovery.js';
+} from '../packages/kernel/index.js';
 import {
   commonJsIn,
   importsIn,

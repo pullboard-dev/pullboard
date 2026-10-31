@@ -40,7 +40,7 @@ import {
 } from '../../../../src/verdict-reviews.js';
 import {
   Refused,
-} from '../../../../src/refused.js';
+} from '../../../kernel/index.js';
 import {
   frozenCheck,
 } from './trusted-policy.js';

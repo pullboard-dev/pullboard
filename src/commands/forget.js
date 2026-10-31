@@ -4,7 +4,7 @@ import {
 } from '../projects.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   resolve,
 } from 'node:path';

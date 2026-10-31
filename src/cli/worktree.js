@@ -17,7 +17,7 @@ import { differFromHead } from '../git.js';
 import { headCommit } from '../git.js';
 import { mainCheckout } from '../git.js';
 import { tryGit } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { registeredProjectRootsSnapshot } from '../projects.js';
 
 /** Describe the active configured location for new agent worktrees. */

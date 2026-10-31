@@ -1,7 +1,7 @@
 /** Board-scoped line controls use ordered moves; the existing settings command still owns machine controls. */
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 import { LINE_SETTING_DEFINITIONS } from '../../../queue/index.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Decode explicit triggering observations without confusing stats --window durations with this command's JSON. */
 function parseWindow(value) {

@@ -1,6 +1,6 @@
 import { receiptBlockingGreen } from "../../../../src/quarantine-verdict.js";
 /** A late worker cannot reopen a new submission, bar, patch set or review episode [C7,V4,H16]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 /** Preserve ordinary reopen authority while additionally binding its autonomous measured cause. */
 export function sourceAdvanceReturnProblem(board, item, request) {

@@ -1,5 +1,5 @@
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";

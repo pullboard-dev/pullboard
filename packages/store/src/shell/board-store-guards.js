@@ -4,7 +4,7 @@ import { logEvent } from "./board-event-log.js";
 import { boardStanding } from "./board-migrate.js";
 import { legacySigningMatchesStamp } from "./board-signing-recovery.js";
 import { guardsMatchStoredStamp } from "./board-migrate.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { recordSchemaStamp } from "./board-migrate.js";
 import { SCHEMA_DIGEST } from "./board-schema-source.js";
 import { SCHEMA_VERSION } from "./board-schema-source.js";

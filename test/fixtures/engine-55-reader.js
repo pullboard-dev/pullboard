@@ -3,7 +3,7 @@
  * Keep the released guard unchanged: importing today's engine would not test an older reader.
  * This fixture retains its version gate only; it never replays or changes board state.
  */
-import { Refused } from '../../src/refused.js';
+import { Refused } from '../../packages/kernel/core.js';
 
 const ENGINE_VERSION = 55;
 

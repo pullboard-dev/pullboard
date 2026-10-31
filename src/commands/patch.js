@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as store from '../board.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { refuseLiveAttach } from '../item-patches.js';
 import { validateItemPatchInput } from '../item-patch-review.js';
 import { relayCommandReceipt } from '../relay.js';

@@ -8,7 +8,7 @@ import { withBoard } from '../cli-context.js';
 import { git } from '../git.js';
 import { gitChildEnv } from '../git.js';
 import { mainCheckout } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { gitOut } from '../history.js';
 import { ID_RE } from '../spec.js';
 import { parseCommitMessage } from '../../packages/commits/index.js';

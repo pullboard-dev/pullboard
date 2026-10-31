@@ -4,7 +4,7 @@ import {
   lstatSync,
   readFileSync,
 } from 'node:fs';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { relayOrigin } from './relay-origin.js';
 
 /** Preserve the transport's private-file and metadata checks for lightweight local readers. */

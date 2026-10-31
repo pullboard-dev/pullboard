@@ -1,5 +1,5 @@
 /** Bound browser I/O independently of the first-paint promise [H5,H16,H17]. */
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 // Budget: the existing snapshot catch-up window also bounds one browser I/O operation; first paint remains independent.
 export const BROWSER_IO_TIMEOUT_MS = 15_000;

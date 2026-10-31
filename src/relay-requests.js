@@ -3,7 +3,7 @@ import { itemCheckBaseline } from './board-query.js';
 import { answerQuestion } from './spec.js';
 import * as store from './board.js';
 import { recordedRefusal } from './recorded-refusal.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 import { personSigning } from './person-signing.js';
 import { signedRowDecisionsMatch } from './person-row-proof.js';

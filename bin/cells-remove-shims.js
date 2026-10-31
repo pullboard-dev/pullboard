@@ -12,7 +12,7 @@ import { loadConfig } from '../packages/config/index.js';
 import { tryGit } from '../packages/git/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { laneOf } from '../packages/seats/index.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { ownerFor } from './cells-plan-cuts.js';
 

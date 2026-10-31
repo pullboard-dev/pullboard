@@ -18,7 +18,7 @@ import {
   readToolBuild,
   toolBuildPolicy,
 } from './pinned-tool-build.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Require origin-bound green full-suite evidence for an exact accepted ancestor, not a Submit/check receipt. */
 export function gatedToolBuild(location, commit, receiptId, { now = Date.now() } = {}) {

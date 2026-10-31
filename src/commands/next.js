@@ -19,7 +19,7 @@ import {
 import { reviewQueueLine } from '../review-queue-line.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import * as seatCheckout from '../seat-checkout.js';
 import {
   agentDisplayName,

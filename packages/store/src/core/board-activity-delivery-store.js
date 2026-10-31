@@ -1,5 +1,5 @@
 /** Canonical interrupt acknowledgements are recipient-owned ordered records, never local cursors [R2,N26,H16]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 /** Address one recipient's indexed derived state without sharing another seat's acknowledgement. */
 function prefix(agentId, state) { return `activity:${agentId}:${state}:`; }

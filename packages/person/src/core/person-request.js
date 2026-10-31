@@ -1,6 +1,6 @@
 /** Browser-sealed person intent is CLI input, never an executable engine move [H12,H16]. */
 import { normalizePersonBarEffect } from "./person-bar-effect.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 export const PERSON_REQUEST_VERSION = 1;
 const VERBS = Object.freeze(['add', 'shout', 'answer', 'hold', 'spec-approve', 'spec-decline', 'sentinel-approve', 'sentinel-decline', 'land-waive', 'signing', 'fact', 'spec-answer', 'edit', 'bar-sign']);

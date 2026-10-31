@@ -1,7 +1,7 @@
 /** The CLI's async boundary: ordinary reads load queries, genuine write fallbacks load the full store [C7]. */
 import * as store from './board-query.js';
 import { withOpenedBoard } from './cli-read-context.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Keep the old full-store fallback and pass its synchronous backend to the same work callback. */
 async function writeFallback(ctx, work) {

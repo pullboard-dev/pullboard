@@ -1,6 +1,6 @@
 import { getItem } from "./board-query.js";
 import { COORDINATOR } from "../../../../src/config.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { setItem } from "./board.js";
 
 /** Link a fresh neutral CI repair to its merged original without changing either status [B2,R3]. */

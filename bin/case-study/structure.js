@@ -6,9 +6,9 @@ import { join } from 'node:path';
 import { cellInventory, testFile } from '../../packages/codemap/index.js';
 import { cellLintReport } from '../../packages/codemap/index.js';
 import { readPathMap, mappedPath } from '../../packages/codemap/index.js';
-import { Refused } from '../../src/refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { tryGit } from '../../src/git.js';
-import { lex } from '../../src/js-lex.js';
+import { lex } from '../../packages/kernel/index.js';
 import { createHash } from 'node:crypto';
 import { readPlan } from '../cells-plan.js';
 

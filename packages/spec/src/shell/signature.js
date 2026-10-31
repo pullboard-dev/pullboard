@@ -22,7 +22,7 @@ import {
 } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { gitConfig } from '../../../../src/git.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 export const SIGNERS_FILE = '.pullboard/signers';
 export const FIRST_COMMIT_FILE = '.pullboard/first-commit';

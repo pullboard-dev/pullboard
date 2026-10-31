@@ -16,7 +16,7 @@ import { askedLaneNotes } from '../init.js';
 import { proposeLanes } from '../init.js';
 import { starterLane } from '../init.js';
 import { starterLaneNotes } from '../init.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { loadSpec } from '../spec.js';
 import { readSignoffs } from '../spec.js';
 import { landBlueprint } from '../blueprints.js';

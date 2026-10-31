@@ -2,7 +2,7 @@
 import { chmodSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { approvalContext } from '../src/relay-approval.js';
 import { createPersonEnrollmentStore } from './person-enrollment-store.js';
 import {

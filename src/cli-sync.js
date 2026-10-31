@@ -10,7 +10,7 @@ import { readBoardKey } from '../packages/keys/index.js';
 import { retryCheckBaselines } from './check-baseline-worker.js';
 import { relayOutboxSetting } from './cli.js';
 import { displayedRefusal } from './cli-context.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   DEFAULT_RELAY,
   relayStatus,

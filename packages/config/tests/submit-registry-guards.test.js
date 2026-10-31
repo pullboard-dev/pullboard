@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
-import { selectRegistryGuards } from '../../../src/registry-guards.js';
+import { selectRegistryGuards } from '../../kernel/index.js';
 import { configFromSource } from '../src/shell/config.js';
 import { git } from '../../../src/git.js';
 

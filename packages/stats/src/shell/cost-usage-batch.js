@@ -4,7 +4,7 @@ import { recordUsage } from './cost.js';
 import { recordSharedUsage } from './cost-shared.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { USAGE_BATCH_ENGINE } from '../../../../src/usage-batch-engine.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Publish only the authenticated seat's revisions; any invalid record rolls back the entire batch. */
 export function recordUsageBatch(board, payload) {

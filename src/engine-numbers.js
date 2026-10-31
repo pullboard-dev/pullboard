@@ -20,7 +20,7 @@ import {
   ENGINE_CANDIDATE,
   ENGINE_FILE,
   discovered,
-} from './discovery.js';
+} from '../packages/kernel/index.js';
 
 /** The one declaration a leaf holds: a landed number, or the placeholder a branch carries until it lands. */
 export const ENGINE_LINE = /^export const ([A-Z][A-Z0-9_]*_ENGINE) = (?:(\d+)|unassignedEngine\(\));$/u;

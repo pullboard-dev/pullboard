@@ -1,5 +1,5 @@
 /** Embeddable web/device sign-in routes for the opt-in relay [H8, H1]. */
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Read one named cookie; duplicate bindings are refused instead of choosing an ambiguous value. */
 function cookie(req, name) {

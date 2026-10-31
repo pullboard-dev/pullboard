@@ -1,5 +1,5 @@
 /** CLI readability heuristic measured against native shouts 27877–28876 [B7,A2]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Refuse glued prose without treating hashes, URLs or discussed literals as prose.
  * @param {string} text

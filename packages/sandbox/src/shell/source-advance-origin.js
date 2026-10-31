@@ -76,7 +76,7 @@ import {
 } from '../../../../src/git.js';
 import {
   Refused,
-} from '../../../../src/refused.js';
+} from '../../../kernel/index.js';
 import {
   outsideSource,
 } from '../../../../src/outside-source.js';

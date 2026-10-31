@@ -6,7 +6,7 @@ import { guardLandingWrite } from "../core/board-landing-lease.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../../src/machine.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../src/land-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { invariantEvidence } from "../../../../src/submit-invariants.js";
 import { preserveInvariantEvidence } from "../../../../src/submit-invariants.js";
 import { validateLandingBatch } from "../../../../src/submit-invariants.js";

@@ -16,7 +16,7 @@ import {
   createRelayAuth,
 } from '../relay/auth.js';
 import { createRelayHandler } from '../relay/service.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import {
   authenticateDeviceEnrollment,

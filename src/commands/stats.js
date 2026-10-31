@@ -35,7 +35,7 @@ import {
 } from '../stats-flow-window.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   proofStats,
 } from '../stats.js';

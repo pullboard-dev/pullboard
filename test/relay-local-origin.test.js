@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createRelayBrowserHandler } from '../relay/browser-page.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { machine, project, startView } from './cockpit/fixture.js';
 import { findWebkitExecutable, startWebkit } from './webkit-fixture.js';
 import { BOARD_ITEM, BOARD_MS, visit } from './hosted-shapes-fixture.js';

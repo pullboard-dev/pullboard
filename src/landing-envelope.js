@@ -1,7 +1,7 @@
 /** Build a normal hooked first-parent publication envelope around an already-corrected side tree [B3,C7]. */
 import { git } from './git.js';
 import { isClean } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Refuse source mutation without rewriting or cleaning up another operation's Git state. */
 function changedEnvelope() {

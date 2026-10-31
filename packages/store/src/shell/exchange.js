@@ -15,7 +15,7 @@ import {
  * continue producing the same ids after its rows are restored.
  */
 import { createHash } from 'node:crypto';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import {
   EVENT_LOG_VERSION,

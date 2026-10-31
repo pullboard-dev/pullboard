@@ -5,7 +5,7 @@ import {
   lintSpec,
   parseSpec,
 } from './spec.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   rowVerificationSource,
   verifiedRowSource,

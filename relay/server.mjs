@@ -6,7 +6,7 @@ import { createAuthHandler } from './auth-http.js';
 import { createRelayAuth } from './auth.js';
 import { createGitHubClient } from './github.js';
 import { createRelayHandler } from './service.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const NODE_UID = 1000;
 const NODE_GID = 1000;

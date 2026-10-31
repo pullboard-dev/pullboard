@@ -5,7 +5,7 @@ import {
   ENGINE_VERSION,
   VERIFIER_STANDING_ENGINE,
 } from '../../../../src/engine-metadata.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /**
  * The seat that created this one, as its engine-48 registration recorded it: an agent id,

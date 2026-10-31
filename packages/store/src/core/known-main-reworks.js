@@ -1,6 +1,6 @@
 /** Exact failure-to-repair links, checked before submission and again by the ordered board move [V4,B3]. */
-import { literalShellWords } from "../../../../src/literal-shell-words.js";
-import { Refused } from "../../../../src/refused.js";
+import { literalShellWords } from "../../../kernel/core.js";
+import { Refused } from "../../../kernel/core.js";
 
 /** A repair is still open until its accepted source lands; a broad spec-row match grants nothing. */
 function covers(item, file, exclude) {

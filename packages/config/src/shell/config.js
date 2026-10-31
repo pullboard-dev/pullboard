@@ -6,8 +6,8 @@ import {
   readFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { Refused } from '../../../../src/refused.js';
-import { registryGuardsProblem } from '../../../../src/registry-guards.js';
+import { Refused } from '../../../kernel/index.js';
+import { registryGuardsProblem } from '../../../kernel/index.js';
 import {
   exitRulesDefaults,
   exitRulesConfigProblems,

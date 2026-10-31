@@ -1,6 +1,6 @@
 import { boardWriteHolderText } from "./board-write-lock.js";
 /** Translate SQLite lock contention without coupling error reporting to the full board store [C7]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { writeSync } from 'node:fs';
 import { BOARD_BUSY_TIMEOUT_MS } from "./board-schema-source.js";
 

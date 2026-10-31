@@ -7,7 +7,7 @@ import { secretsIn } from '../packages/commits/index.js';
 import { machineSettingsFile } from '../packages/resources/index.js';
 import { carriedBrowserByLaunch } from '../packages/queue/index.js';
 import { readMachineSettingsFile } from '../packages/queue/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { anonymousOrigin } from './runner-history-pack.js';
 import { candidateTags } from './runner-history-pack.js';
 import { originAncestor } from './runner-history-pack.js';

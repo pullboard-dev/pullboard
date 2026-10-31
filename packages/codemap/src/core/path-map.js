@@ -3,9 +3,9 @@ import {
   mainCheckout,
   tryGit,
 } from '../../../../src/git.js';
-import { literalShellWords } from '../../../../src/literal-shell-words.js';
+import { literalShellWords } from '../../../kernel/core.js';
 import { pathMapFileWords } from './path-map-operands.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Explain an unreadable rename map without accepting a partial or guessed identity. */
 function invalidMap() {

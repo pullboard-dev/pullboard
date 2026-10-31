@@ -10,7 +10,7 @@ import {
   loadConfig,
 } from './config.js';
 import { repoInfo } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const NPM_DEFAULT_TEST = 'echo "Error: no test specified" && exit 1';
 

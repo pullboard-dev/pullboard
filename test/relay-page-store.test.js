@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { createRelayPages } from '../relay/page-store.js';
 import { createRelayJournal } from '../relay/journal.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
 import { PAGE_BYTES, readSealedValue, writeSealedValue } from '../src/sealed-pages.js';
 

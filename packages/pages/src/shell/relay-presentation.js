@@ -8,7 +8,7 @@ import {
   repoInfo,
   withGitReadFacts,
 } from "../../../../src/git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { loadConfig } from "../../../../src/config.js";
 import { buildLocalBoardState } from "../../../../src/native-board-state.js";
 import { stateFileInputs } from "../../../../src/native-board-state.js";

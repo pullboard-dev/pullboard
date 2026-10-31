@@ -5,7 +5,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { exactStart } from './gate.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Read one exact native job without retaining a board lock across a sleep or process observation. */
 function observeJob(ctx, id, acknowledgment, jobId, ports) {

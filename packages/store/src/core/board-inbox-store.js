@@ -3,7 +3,7 @@ import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { atomic } from "../shell/board.js";
 import { openRequests } from "../shell/board-read-auxiliary.js";
 import { COORDINATOR } from "../../../../src/config.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { workerInboxQuery } from "./board-worker-inbox.js";
 
 /**

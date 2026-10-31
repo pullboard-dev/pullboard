@@ -12,7 +12,7 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { createPairingStore } from '../relay/pairing-store.js';
 import { createPairingHandler } from '../relay/pairing-http.js';
 import { createRelayHandler } from '../relay/service.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { PAIR_PACKAGE_BYTES } from '../src/relay-limits.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 

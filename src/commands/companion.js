@@ -1,7 +1,7 @@
 /** Ask another lane for one durable child rather than starting duplicate companion work [B2,B12]. */
 import * as store from '../board.js';
 import { isLane } from '../lanes.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { idProblems } from '../spec.js';
 import { loadSpec } from '../spec.js';
 import { checkBaseline } from '../check-baseline.js';
