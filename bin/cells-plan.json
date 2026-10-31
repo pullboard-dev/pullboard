@@ -1452,6 +1452,10 @@
       "cell": "app:lib"
     },
     {
+      "path": "bin/run-tests.js",
+      "cell": "app:lib"
+    },
+    {
       "path": "bin/update-docs.js",
       "cell": "app:lib"
     },

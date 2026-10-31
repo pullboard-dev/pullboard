@@ -6,12 +6,6 @@
       "target": "src/trusted-policy-read.js",
       "contractItem": 1699,
       "expires": "2026-11-02"
-    },
-    {
-      "importer": "bin/run-tests.js",
-      "target": "src/native-board.js",
-      "contractItem": 2153,
-      "expires": "2026-11-07"
     }
   ]
 }
