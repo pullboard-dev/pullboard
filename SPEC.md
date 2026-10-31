@@ -108,11 +108,11 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - S14 [approved, must] A sign-off can say what the signer checked, with --note, and the note stays with it. | gate: test/spec.test.js | serves: S5
 - S15 [approved, must] Signing a row shows the tests and verified items that cite it; a row nothing proves cannot be signed. | gate: test/spec.test.js | serves: S5
 - S16 [approved, aim] Each approved row not yet signed shows where it stands on its way to a sign-off. | gate: test/spec.test.js | serves: S5
-- S17 [approved, must] Once a repo lists signers, each sign-off carries the signer's SSH signature over the row's exact text. | gate: test/signoff.test.js | serves: S5
-- S18 [approved, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: test/signoff.test.js | serves: S17
-- S19 [approved, must] spec check refuses a sign-off whose signature fails or whose key isn't listed; a changed row makes it stale. | gate: test/signoff.test.js | serves: S17
-- S20 [approved, must] A change to the signer list counts only when a key already on it signs that change. | gate: test/signoff.test.js | serves: S17
-- S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: test/signoff.test.js | serves: S17
+- S17 [approved, must] Once a repo lists signers, each sign-off carries the signer's SSH signature over the row's exact text. | gate: packages/spec/tests/signoff.test.js | serves: S5
+- S18 [approved, must] A row can name who must sign it; it is met only when each has a current signed sign-off. | gate: packages/spec/tests/signoff.test.js | serves: S17
+- S19 [approved, must] spec check refuses a sign-off whose signature fails or whose key isn't listed; a changed row makes it stale. | gate: packages/spec/tests/signoff.test.js | serves: S17
+- S20 [approved, must] A change to the signer list counts only when a key already on it signs that change. | gate: packages/spec/tests/signoff.test.js | serves: S17
+- S21 [approved, must] `pullboard spec signers add` sets a repo up with the SSH key the person already uses; no GPG. | gate: packages/spec/tests/signoff.test.js | serves: S17
 
 ## D · Doctrine
 - D1 [approved, must] Pullboard ships a standard doctrine, versioned, with PB ids; every repo inherits it, Pullboard's own included. | gate: test/practice.test.js
