@@ -1,9 +1,15 @@
 /** @pullboard-test-input source-tree */
 /** Typed item conversations use the real CLI, Git, SQLite and runner pack [B29,B30,B31,B32,N14,N26]. */
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import * as store from "../src/shell/board.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 import { onBoard } from "../../../test/land-board-fixture.js";

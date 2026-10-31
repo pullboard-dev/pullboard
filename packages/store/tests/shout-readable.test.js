@@ -1,6 +1,9 @@
 /** Measured message readability at the real CLI boundary [B7,A2]. */
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import { join } from 'node:path';
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../src/native-board.js";

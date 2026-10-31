@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../src/native-board.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";

@@ -1,6 +1,11 @@
 /** Historical item authors cannot judge their own work after another seat takes over [V1,B3,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";

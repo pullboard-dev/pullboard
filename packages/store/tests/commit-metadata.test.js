@@ -1,8 +1,14 @@
 /** Real hook metadata is generated from the board and conflicting author assertions are refused [C7]. */
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../src/native-board.js";

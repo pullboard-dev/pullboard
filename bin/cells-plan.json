@@ -1070,6 +1070,10 @@
     {
       "path": "bin/cells-move-closure.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/health-sentinel-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

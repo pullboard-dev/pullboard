@@ -2,7 +2,10 @@ import { requireFixtureReviewFamilies } from "../../../test/review-family-fixtur
 /** @pullboard-test-loads src/board.js src/claims.js */
 /** Advancing clocks preserve the entire opt-in builder window [B13,B5]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';

@@ -4,6 +4,20 @@ import { scanSource } from '../../packages/codemap/index.js';
 import { lex } from '../../packages/kernel/index.js';
 
 const EXTERNAL_IO = /^(?:node:)?(?:fs(?:\/promises)?|child_process)$/u;
+// Exact store relocation identities; permission names and I/O sets remain unchanged.
+const STORE_WRITE_IDENTITIES = new Map([
+  ['packages/store/src/shell/board-write-lock.js', 'src/board-write-lock.js'],
+  ['packages/store/src/shell/board-event-log.js', 'src/board-event-log.js'],
+  ['packages/store/src/shell/proof-receipts.js', 'src/proof-receipts.js'],
+  ['packages/store/src/shell/seat-presence.js', 'src/seat-presence.js'],
+]);
+
+/** Retain only the four exact store paths' established function identities after relocation. */
+function writeIdentity(key) {
+  const at = key.lastIndexOf('#');
+  return at < 0 ? key : (STORE_WRITE_IDENTITIES.get(key.slice(0, at)) ?? key.slice(0, at)) + key.slice(at);
+}
+
 const WRITE_PUBLICATION = new Map([
   ['src/board-write-lock.js#beginBoardWrite', new Set(['node:fs#mkdirSync', 'node:fs#lstatSync', 'node:fs#writeFileSync'])],
   ['src/board-write-lock.js#boardFile', new Set(['node:fs#realpathSync'])],
@@ -122,8 +136,8 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
   const problems = new Map();
   /** Temporary repairs are exact function names, optionally restricted to one actual writer. */
   function pendingRepair(key, chain) {
-    const repair = pending[key];
-    return typeof repair === 'number' || Boolean(repair && chain.includes(repair.via));
+    const repair = pending[key] ?? pending[writeIdentity(key)];
+    return typeof repair === 'number' || Boolean(repair && chain.some(identity => writeIdentity(identity) === repair.via));
   }
   /** Resolve only repository-relative modules and actual declarations/reexports, without module evaluation. */
   function exported(file, name, seen = new Set()) {
@@ -170,9 +184,9 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
     for (const call of calls(body, model.source.slice(start, end))) for (const target of targets(file, call.name)) {
       const key = target.file + '#' + target.name;
       if (target.builtin && EXTERNAL_IO.test(target.builtin)) {
-        if (WRITE_PUBLICATION.get(chain.at(-1))?.has(target.builtin + '#' + target.name)) continue;
+        if (WRITE_PUBLICATION.get(writeIdentity(chain.at(-1)))?.has(target.builtin + '#' + target.name)) continue;
         const firstArgument = argumentsAt(model.code, start + call.open)?.[0];
-        if (chain.at(-1) === 'src/board-event-log.js#atomic' && target.builtin === 'node:fs'
+        if (writeIdentity(chain.at(-1)) === 'src/board-event-log.js#atomic' && target.builtin === 'node:fs'
             && target.name === 'writeSync' && firstArgument
             && model.code.slice(...firstArgument).trim() === '2') continue; // Existing stderr-only cleanup diagnostic.
 
@@ -180,7 +194,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
           call: target.builtin + '#' + target.name, chain };
         problems.set(chain[0] + ':' + detail.file + ':' + detail.line + ':' + detail.call, detail);
       } else if (target.file && !visited.has(key) && !pendingRepair(key, chain)
-          && key !== 'src/board-event-log.js#atomic') {
+          && writeIdentity(key) !== 'src/board-event-log.js#atomic') {
         const next = modules.get(target.file), fn = next?.functions.get(target.name);
         if (fn) inspect(target.file, fn.bodyStart, fn.end, [...chain, key], new Set([...visited, key]));
       }
@@ -189,7 +203,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
   for (const model of modules.values()) {
     const atomicNames = new Set([...model.imports].filter(([, value]) => value.imported === 'atomic').map(([name]) => name));
     for (const call of calls(model.code, model.source).filter(call => atomicNames.has(call.name) || call.name.endsWith('.atomic')
-      || targets(model.file, call.name).some(target => target.file === 'src/board-event-log.js' && target.name === 'atomic'))) {
+      || targets(model.file, call.name).some(target => writeIdentity(target.file + '#' + target.name) === 'src/board-event-log.js#atomic'))) {
       const owner = [...model.functions.values()].filter(fn => fn.start <= call.at && fn.end > call.at).sort((a, b) => b.start - a.start)[0];
       if (owner && pendingRepair(model.file + '#' + owner.name, [model.file + '#' + owner.name])) continue;
       const args = argumentsAt(model.code, call.open);
@@ -212,15 +226,16 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
   }
   // Call-site callbacks do not include the transaction implementation's own post-acquisition work.
   // Its process identity preparation intentionally stays before BEGIN, outside this held-lock range.
-  const transaction = modules.get('src/board-event-log.js');
-  const implementation = transaction?.functions.get('atomic');
-  if (implementation) {
-    const body = transaction.code.slice(implementation.bodyStart, implementation.end);
-    const acquisition = calls(body).find(call => call.name === 'beginImmediateQueued');
-    if (acquisition) {
-      const end = closing(body, acquisition.open);
-      if (end >= 0) inspect(transaction.file, implementation.bodyStart + end + 1, implementation.end,
-        [transaction.file + '#' + implementation.name], new Set([transaction.file + '#' + implementation.name]));
+  for (const transaction of [modules.get('src/board-event-log.js'), modules.get('packages/store/src/shell/board-event-log.js')]) {
+    const implementation = transaction?.functions.get('atomic');
+    if (implementation) {
+      const body = transaction.code.slice(implementation.bodyStart, implementation.end);
+      const acquisition = calls(body).find(call => call.name === 'beginImmediateQueued');
+      if (acquisition) {
+        const end = closing(body, acquisition.open);
+        if (end >= 0) inspect(transaction.file, implementation.bodyStart + end + 1, implementation.end,
+          [transaction.file + '#' + implementation.name], new Set([transaction.file + '#' + implementation.name]));
+      }
     }
   }
   return [...problems.values()].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.call.localeCompare(b.call));

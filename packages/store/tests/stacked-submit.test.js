@@ -1,9 +1,15 @@
 /** A candidate cannot carry another item's unverified submission through submit or accept [V17]. */
 import { submitFixture } from "../../../test/board-submit-fixture.js";
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import {
+  after,
+  test,
+} from 'node:test';
 import * as store from "../src/shell/board.js";
 import { openBoard } from "../../../src/native-board.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";

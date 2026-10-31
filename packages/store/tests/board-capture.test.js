@@ -1,12 +1,22 @@
 /** Real SQLite transaction capture stays with the asynchronous operation that requested it [H21]. */
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import { createHash } from 'node:crypto';
-import { hostname, tmpdir } from 'node:os';
+import {
+  hostname,
+  tmpdir,
+} from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { atomic, closeBoard } from "../src/shell/board.js";
+import {
+  atomic,
+  closeBoard,
+} from "../src/shell/board.js";
 import { openBoard } from "../../../src/native-board.js";
 import { captureBoardChanges } from "../src/shell/board-capture.js";
 import { boardWriteHolderText } from "../src/shell/board-write-lock.js";

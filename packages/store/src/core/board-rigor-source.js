@@ -2,7 +2,7 @@
 import { causeProblem } from "./board-rigor.js";
 
 import { RIGOR_NOTICE_ENGINE } from "../../../../src/rigor-notice-engine.js";
-export { RIGOR_NOTICE_ENGINE };
+export { RIGOR_NOTICE_ENGINE } from "../../../../src/rigor-notice-engine.js";
 
 /** Keep the cause, evidence and executed proof in one row-safe, portable source field. */
 export function rigorSource(cause, proof) {

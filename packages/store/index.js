@@ -58,15 +58,15 @@ export { LANDING_LOCAL_PREFIX, localLandingEntry, rememberLocalLanding, forgetLo
 export { COORDINATION_SHOUT, itemShoutTarget, itemShoutReader, shoutMatchesAudience, UNREAD_SHOUT_SQL, unreadShoutBindings, checkEvidence } from './src/core/board-shout-audience.js';
 export { workerInboxSeats, workerInboxQuery } from './src/core/board-worker-inbox.js';
 export { holdUntilKind, rememberHoldCondition, forgetHoldMaintenance, liftConditionalHold } from './src/core/board-conditional-holds.js';
-export { HEALTH_SENTINEL_ENGINE, HEALTH_SHOUT_CAP, hasPendingCpuNotices, hasPendingDispatchNotices, normalizedHealthFindings, healthFindingIdentity, healthFindingNotice, healthTargets, deliverHealthNotices, HEALTH_CAP_ENGINE } from './src/core/board-health-receipts.js';
-export { MISSED_AFTER, cadenceMs, recurringJobs, missedJobFindings, RECURRING_JOB_ENGINE } from './src/core/board-recurring-jobs.js';
+export { HEALTH_SHOUT_CAP, hasPendingCpuNotices, hasPendingDispatchNotices, normalizedHealthFindings, healthFindingIdentity, healthFindingNotice, healthTargets, deliverHealthNotices } from './src/core/board-health-receipts.js';
+export { MISSED_AFTER, cadenceMs, recurringJobs, missedJobFindings } from './src/core/board-recurring-jobs.js';
 export { releaseClaim } from './src/core/board-release-claim.js';
 export { staleClaimRelease } from './src/core/board-stale-claim-release.js';
 export { planStaleState } from './src/core/board-stale-state-maintenance.js';
 export { staleStateLimits, staleInstant, latestStaleActivity, staleStateAge, staleReleaseNote, staleStateLine } from './src/core/board-stale-state-policy.js';
 export { applyStaleState } from './src/core/board-stale-state-store.js';
 export { automaticRigorSource, readAutomaticRigorSource, automaticSourceFromText, automaticDecisionSource, rigorDecisionKey, sameAutomaticRow, automaticRigorNeeds } from './src/core/board-rigor-auto-source.js';
-export { rigorSource, readRigorSource, RIGOR_NOTICE_ENGINE } from './src/core/board-rigor-source.js';
+export { rigorSource, readRigorSource } from './src/core/board-rigor-source.js';
 export { CAUSE_FORMS, causeProblem, requireNeverAgain, testCause, isMergeConflict, causeReading, eventCauses, rigorReport, rigorLines } from './src/core/board-rigor.js';
 export { prepareClaim as board_claim_prepareClaim, claim as board_claim_claim } from './src/shell/board-claim.js';
 export { writeBoardCommand } from './src/shell/board-command-write.js';
@@ -80,3 +80,7 @@ export { RELEASE_REASONS, releaseReasonProblem } from './src/core/release-reason
 export { checkedSubmitOutcome } from './src/shell/submit-outcome.js';
 export { requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, submitHandoffFailure } from './src/shell/submit-handoff-state.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
+export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";
+export { HEALTH_CAP_ENGINE } from "../../src/health-cap-engine.js";
+export { RECURRING_JOB_ENGINE } from "../../src/job-engine.js";
+export { RIGOR_NOTICE_ENGINE } from "../../src/rigor-notice-engine.js";

@@ -4,10 +4,11 @@ import { Refused } from "../../../../src/refused.js";
 import { CPU_SENTINEL_ENGINE } from "../../../../src/cpu-sentinel-engine.js";
 
 /** The allocated engine for ordered sentinel observations; earlier moves keep their meaning. */
-export const HEALTH_SENTINEL_ENGINE = 42;
+import { HEALTH_SENTINEL_ENGINE } from "../../../../src/health-sentinel-engine.js";
+export { HEALTH_SENTINEL_ENGINE } from "../../../../src/health-sentinel-engine.js";
 
 import { HEALTH_CAP_ENGINE } from "../../../../src/health-cap-engine.js";
-export { HEALTH_CAP_ENGINE };
+export { HEALTH_CAP_ENGINE } from "../../../../src/health-cap-engine.js";
 
 /** The most stuck or resolved notices one health run shouts one by one (#940). */
 export const HEALTH_SHOUT_CAP = 10;

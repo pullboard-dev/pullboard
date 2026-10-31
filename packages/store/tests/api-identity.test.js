@@ -1,6 +1,10 @@
 /** Board identity is random, durable across moves and added to older boards in place (A2). */
 import assert from 'node:assert/strict';
-import { mkdtempSync, renameSync, rmSync } from 'node:fs';
+import {
+  mkdtempSync,
+  renameSync,
+  rmSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
