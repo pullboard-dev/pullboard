@@ -148,7 +148,7 @@ export async function resumeHere(io, view, diagnostics = false, { json = false }
   const initialBaseline = withBoardRead(ctx, board => {
     whoAmI(ctx, board);
     requireBoardWriteAccess(ctx.file);
-    return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
+    return initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
   });
   if (initialBaseline) {
     const baselineIo = ctx.io.personRequest || ctx.io.personRequestMoveId

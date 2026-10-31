@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** A relay timeout, a busy link lock or an uncertain baseline never fails a local board move [B26,H16,H17]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -8,6 +9,12 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const RELAY = JSON.stringify(new URL('../src/relay.js', import.meta.url).href);
+const GUARD = JSON.stringify(new URL('../src/relay-outbox-guard.js', import.meta.url).href);
+const CONFLICT = JSON.stringify(new URL('../src/relay-conflict-record.js', import.meta.url).href);
+const BASELINE = JSON.stringify(new URL('../src/relay-baseline-settle.js', import.meta.url).href);
+const CHECKPOINT = JSON.stringify(new URL('../src/relay-checkpoint.js', import.meta.url).href);
+const PUBLISH = JSON.stringify(new URL('../src/relay-checkpoint-publish.js', import.meta.url).href);
+const ORDERING = JSON.stringify(new URL('../src/relay-ordering.js', import.meta.url).href);
 
 /** Read the saved link without including ciphertext or credentials in an assertion diagnostic. */
 function link(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
@@ -16,13 +23,21 @@ function link(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
 function moves(box, texts, options = {}) {
   return box.script(`
     const { relayOperation, localRecords } = await import(${RELAY});
-    const lines = [], io = { err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
+    const { withOutboxGuard } = await import(${GUARD});
+    const { replay: replayConflictRecord } = await import(${CONFLICT});
+    const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${BASELINE});
+    const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${CHECKPOINT});
+    const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import(${JSON.stringify(new URL('../src/relay-outbox.js', import.meta.url).href)});
+    const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const { checkpointPublisher } = await import(${PUBLISH});
+    const { relayOrdering } = await import(${ORDERING});
+    const lines = [], io = { checkpointWorker: ${JSON.stringify(new URL('../src/relay-checkpoint-worker.js', import.meta.url).pathname)}, openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
     const outcomes = [];
     for (const text of ${JSON.stringify(texts)}) {
       try { await relayOperation(process.cwd(), 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text }], io); outcomes.push('ok'); }
       catch (error) { outcomes.push({ code: error.code, message: error.message }); }
     }
-    const local = localRecords(process.cwd(), board => board.db.prepare('SELECT shout_text AS text FROM shout').all().map(row => row.text));
+    const local = localRecords(openBoard, process.cwd(), board => board.db.prepare('SELECT shout_text AS text FROM shout').all().map(row => row.text));
     process.stdout.write(JSON.stringify({ outcomes, lines, local }));
   `);
 }

@@ -145,11 +145,12 @@ test('every current operation selects its native actor credential without a seco
     const batch = cases.slice(offset, offset + 8);
     const result = await box.script(`
     import { relayOperation } from ${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)};
+    import { apiBoardOpeners } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
     import { Refused } from ${JSON.stringify(new URL('../src/refused.js', import.meta.url).href)};
     const cases = ${JSON.stringify(batch)};
     const results = [];
     for (const entry of cases) {
-      const io = { err() {}, onEvent() {}, ...(entry.personRequest ? { personRequest: entry.personRequest } : {}) };
+      const io = { ...apiBoardOpeners, err() {}, onEvent() {}, ...(entry.personRequest ? { personRequest: entry.personRequest } : {}) };
       try { await relayOperation(process.cwd(), entry.operation, entry.args, io); results.push(null); }
       catch (error) { if (!(error instanceof Refused)) { results.push({ fatal: error.name, operation: entry.operation, stack: error.stack?.split('\\n').slice(1, 3).join('\\n') }); break; } results.push(error.code); }
     }
@@ -195,7 +196,9 @@ test('a person-only move is refused before the relay is asked [H2,H9,H16]', asyn
   async function orderedMove(operation, args, io = {}) {
     return box.script(`
       import { relayOperation } from ${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)};
+    import { apiBoardOpeners } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
       const io = ${JSON.stringify(io)};
+      Object.assign(io, apiBoardOpeners);
       io.err = () => {};
       try { await relayOperation(process.cwd(), ${JSON.stringify(operation)}, ${JSON.stringify(args)}, io); console.log(JSON.stringify({ code: null })); }
       catch (error) { console.log(JSON.stringify({ code: error.code ?? error.name })); }
@@ -255,10 +258,11 @@ test('a person-only move is refused before the relay is asked [H2,H9,H16]', asyn
   ];
   const personResult = await box.script(`
     import { relayOperation } from ${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)};
+    import { apiBoardOpeners } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
     const cases = ${JSON.stringify(personCases)};
     const results = [];
     for (const [operation, args] of cases) {
-      try { await relayOperation(process.cwd(), operation, args, { err() {} }); results.push(null); }
+      try { await relayOperation(process.cwd(), operation, args, { ...apiBoardOpeners, err() {} }); results.push(null); }
       catch (error) { results.push(error.code ?? error.name); }
     }
     console.log(JSON.stringify({ results }));

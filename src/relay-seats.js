@@ -25,20 +25,20 @@ import {
  * sealed, so the id travels in the move. A join no seat made, a returning worktree and the
  * coordinator lane keep the board's own numbering.
  */
-export function withSeatName(root, operation, args) {
+export function withSeatName(root, operation, args, io) {
   // A registration that names no creator is a join no seat made.
   if (operation === 'register' && args?.[0] && args[0].createdBy === undefined) args = [{ ...args[0], createdBy: 'machine' }, ...args.slice(1)];
   const options = args?.[0];
   if (operation !== 'register' || ENGINE_VERSION < VERIFIER_STANDING_ENGINE || !options || typeof options.createdBy !== 'string' ||
       options.createdBy === 'machine' || options.lane === 'coordinator' || options.id !== undefined) return args;
-  const id = localRecords(root, (board) => store.agentAt(board, options.path) ? null : store.nextSeatId(board, options.lane));
+  const id = localRecords(io.openBoard, root, (board) => store.agentAt(board, options.path) ? null : store.nextSeatId(board, options.lane));
   return id ? [{ ...options, id }, ...args.slice(1)] : args;
 }
 
 /** Move a pending registration to the first name from `from` that this replica has not registered. */
-export function nameNextSeat(root, move, from) {
+export function nameNextSeat(root, move, from, io) {
   const options = move.args[0];
-  localRecords(root, (board) => {
+  localRecords(io.openBoard, root, (board) => {
     let n = Math.max(from, Number(store.nextSeatId(board, options.lane).slice(options.lane.length + 1)));
     while (store.listAgents(board).some((agent) => agent.agent_id === `${options.lane}-${n}`)) n += 1;
     options.id = `${options.lane}-${n}`;
@@ -91,7 +91,7 @@ async function seatToken(root, file, state, actor, io, depth = 0) {
     const renewed = await request({ ...state, token: cached.token, agent: actor }, '/auth/tokens', { method: 'POST', body: { board: state.board, agent: actor } }, io);
     return cacheSeatToken(file, state, actor, renewed);
   }
-  const seat = localRecords(root, (board) => {
+  const seat = localRecords(io.openBoard, root, (board) => {
     const agent = store.listAgents(board).find((row) => row.agent_id === actor);
     return agent ? { creator: store.agentCreator(board, actor), enrolled: store.seatEnrolled(board, actor) } : null;
   });

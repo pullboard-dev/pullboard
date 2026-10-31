@@ -47,7 +47,7 @@ async function refreshMap(ctx, io, board, trunk) {
 export async function run(io, { first, second, values }) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
-  const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+  const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand, io);
   if (recovered) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
@@ -57,7 +57,7 @@ export async function run(io, { first, second, values }) {
     io.result?.({ id: idArg(first), commit, ...(train ? { ids, batch: train.batch.id, receiptId: train.receipt.id } : {}) });
     io.say(`${ids.map(id => `#${id}`).join(', ')} merged as ${commit.slice(0, 12)}`);
     await refreshMap(ctx, io, board, commit);
-    await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+    await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
     return 0;
   }
   const commit = resolveCommit(ctx.info.root, second ?? '');

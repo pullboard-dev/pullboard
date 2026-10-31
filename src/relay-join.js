@@ -2,7 +2,6 @@
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import {
   importBoard,
   isInitialBoard,
@@ -37,7 +36,7 @@ import {
 const TOKEN = /^pm_[A-Za-z0-9_-]{43}$/u;
 
 /** Refuse a clone whose board already holds work before asking anyone for a key: joining would hide it. */
-function requireFreshBoard(root, board) {
+function requireFreshBoard(root, board, openBoard) {
   const local = openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try {
     if (!isInitialBoard(local)) {
@@ -58,8 +57,8 @@ async function boardKey(link, login, io) {
  * Join the named board: the person signs in, a member device hands over the key, the relay issues this machine its own
  * credential, and the relay's checkpoint becomes this clone's board, as a pairing would bring it.
  */
-export async function joinNamedBoard(root, file, { board, url, repository, signIn }, io) {
-  requireFreshBoard(root, board);
+export async function joinNamedBoard(root, file, { board, url, repository, signIn, openBoard }, io) {
+  requireFreshBoard(root, board, openBoard);
   const signed = await signIn();
   const login = signed.login ?? signed.user?.login;
   const account = signed.account ?? signed.user?.id;
@@ -71,8 +70,8 @@ export async function joinNamedBoard(root, file, { board, url, repository, signI
     const state = { version: 1, mode: 'ordered', board, url, repository, token: issued.token, tokenId: issued.id, machine, account,
       ...(typeof login === 'string' && login ? { login } : {}), keyStorage: stored || 'file', sequence: 0, cursor: 0, baselineAccepted: true };
     await restoreCheckpoint(root, state, io, key, (local, native) => importBoard(local, native));
-    state.sequence = localRecords(root, appliedSequence);
-    state.cursor = localRecords(root, (local) => local.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
+    state.sequence = localRecords(openBoard, root, appliedSequence);
+    state.cursor = localRecords(openBoard, root, (local) => local.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
     saveLink(file, state);
   } catch (error) {
     if (stored) { try { forgetBoardKey(board, stored); } catch { /* The original refusal is the useful next step. */ } }
@@ -85,7 +84,7 @@ export async function joinNamedBoard(root, file, { board, url, repository, signI
   }
   await syncRelay(root, io);
   const name = listApiProjects().find(project => project.root === repoInfo(root).root)?.name ?? repository;
-  const result = { ...relayStatus(root), notice: `Joined ${name}: this clone works on board ${board.slice(0, 8)}, the one pullboard.json names.` };
+  const result = { ...relayStatus(root, io), notice: `Joined ${name}: this clone works on board ${board.slice(0, 8)}, the one pullboard.json names.` };
   io.err(result.notice);
   return result;
 }
@@ -94,9 +93,9 @@ export async function joinNamedBoard(root, file, { board, url, repository, signI
  * Join the board this clone's pullboard.json names when the clone has no link and its own board is another one, or
  * return null so relay on links as before. A relink after relay off names its own previous board and is not a join.
  */
-export async function joinNamedBoardIfAny(root, file, { linked, url, repository, signIn }, io) {
+export async function joinNamedBoardIfAny(root, file, { linked, url, repository, signIn, openBoard }, io) {
   const named = linked ? null : namedBoard(repoInfo(root).root);
   const relinking = relayRelink(root);
-  if (!named || named === localRecords(root, store.boardId) || relinking?.previous === named || relinking?.next === named) return null;
-  return joinNamedBoard(root, file, { board: named, url, repository, signIn: () => signIn(url) }, io);
+  if (!named || named === localRecords(openBoard, root, store.boardId) || relinking?.previous === named || relinking?.next === named) return null;
+  return joinNamedBoard(root, file, { board: named, url, repository, signIn: () => signIn(url), openBoard }, io);
 }

@@ -22,6 +22,7 @@ const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
 const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
+const PORTS_MODULE = pathToFileURL(resolve(import.meta.dirname, './board-fixture.js')).href;
 after(cleanupFixtureChildren);
 
 /** Run an isolated fixture child without copying its private output into assertion diagnostics. */
@@ -46,8 +47,9 @@ function claimOnly(root, env, requestId) {
     const { openBoard } = await import(${JSON.stringify(NATIVE_MODULE)});
     const { loadConfig } = await import(${JSON.stringify(CONFIG_MODULE)});
     const { laneNames } = await import(${JSON.stringify(LANES_MODULE)});
+    const { apiBoardOpeners } = await import(${JSON.stringify(PORTS_MODULE)});
     const sink = { isTTY: false, write() {} };
-    const io = { cwd: root, stdout: sink, stderr: sink, say() {}, err() {}, onEvent() {} };
+    const io = { ...apiBoardOpeners, cwd: root, stdout: sink, stderr: sink, say() {}, err() {}, onEvent() {} };
     await syncRelay(root, io);
     const executor = await relayRequestDevice(root);
     const board = openBoard(${JSON.stringify(join(root, '.git', 'pullboard', 'board.sqlite'))});

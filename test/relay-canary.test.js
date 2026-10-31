@@ -6,6 +6,7 @@ import { delimiter } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { apiBoardOpeners } from './board-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { repoInfo } from '../src/git.js';
 
@@ -90,7 +91,7 @@ test('a failed round trip alerts within two minutes and names the failed step [H
     // The fixture lets this authenticated write finish, then refuses only the probe's fresh event pull.
     if (refusePull) box.beforeNextMove(() => box.refuseReads(true));
     let result;
-    try { result = await withFixtureEnvironment(box.env, () => probeRelayCanary(root, { agentId, io: {}, clock: () => now })); }
+    try { result = await withFixtureEnvironment(box.env, () => probeRelayCanary(root, { agentId, io: { ...apiBoardOpeners }, clock: () => now })); }
     finally { if (refusePull) box.refuseReads(false); }
     if (refusePull) {
       assert.equal(result.ok, false, 'the canary reports the deliberately failed fresh pull');
@@ -178,7 +179,7 @@ test('the client shows queued moves while the relay is degraded [H16,H17,C7]', {
     assert.equal(queued.code, 0, queued.failure);
   }
   for (let index = 0; index < 2; index += 1) {
-    const failure = await withFixtureEnvironment(box.env, () => probeRelayCanary(root, { agentId: joined.document.agent, io: {} }));
+    const failure = await withFixtureEnvironment(box.env, () => probeRelayCanary(root, { agentId: joined.document.agent, io: { ...apiBoardOpeners } }));
     assert.equal(failure.ok, false, 'the real canary observes the stopped relay');
     observeRelayHealth(box.root, failure);
   }
@@ -260,7 +261,7 @@ test('two paired host configurations independently alert and recover through rea
         result = await withFixtureEnvironment(host.env, async () => {
           const config = loadMachineSettings().relay?.canary;
           assert.deepEqual(config, host.config, 'the actual saved machine configuration remains selected');
-          return runRelayCanary(config, { now: () => now });
+          return runRelayCanary(config, { io: { ...apiBoardOpeners }, now: () => now });
         });
       } finally { if (fail) box.refuseReads(false); }
       assert.equal(result.observation.ok, !fail, JSON.stringify(result.observation));

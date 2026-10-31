@@ -31,7 +31,7 @@ export async function run(io, args) {
     const problem = releaseReasonProblem(reasonCode, args[2]);
     if (problem) throw problem;
     staleReleaseNote(args[2]);
-    const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
+    const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
     const row = snapshot.claims.find(entry => entry.id === args[0]);
     if (!row) throw new Refused('NOT_YOURS', 'this item has no current claim to release as stale');
     args.push({ leaseLapse: true, staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: ctx.config.health ?? {} }, reasonCode);

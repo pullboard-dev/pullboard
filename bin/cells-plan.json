@@ -1444,6 +1444,10 @@
   ],
   "entries": [
     {
+      "path": "src/relay-checkpoint-worker.js",
+      "cell": "app:lib"
+    },
+    {
       "path": "bin/check-baseline.js",
       "cell": "app:lib"
     },

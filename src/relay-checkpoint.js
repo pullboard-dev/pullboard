@@ -17,7 +17,6 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 /** Set to 0 to publish the checkpoint inside the command, as before #1014; the test runner sets it, like the view. */
 export const CHECKPOINT_BACKGROUND_ENV = 'PULLBOARD_RELAY_CHECKPOINT_BACKGROUND';
@@ -25,7 +24,6 @@ export const CHECKPOINT_BACKGROUND_ENV = 'PULLBOARD_RELAY_CHECKPOINT_BACKGROUND'
 export const CHECKPOINT_QUIET_ENV = 'PULLBOARD_RELAY_CHECKPOINT_QUIET_MS';
 // Budget: a burst of moves a second apart or closer shares one checkpoint; a phone sees a move within about two seconds.
 export const CHECKPOINT_QUIET_MS = 1_000;
-const WORKER = fileURLToPath(new URL('./relay-checkpoint-worker.js', import.meta.url));
 
 /**
  * Whether this process leaves the checkpoint to the background publisher.
@@ -96,8 +94,8 @@ export function alive(pid) {
  * @param {string} root
  * @param {string} file - The relay link file.
  */
-export function scheduleCheckpoint(root, file) {
-  notePublisher(root, file, 'due');
+export function scheduleCheckpoint(root, file, checkpointWorker) {
+  notePublisher(root, file, 'due', checkpointWorker);
 }
 
 /**
@@ -108,16 +106,17 @@ export function scheduleCheckpoint(root, file) {
  * @param {string} root
  * @param {string} file - The relay link file.
  */
-export function requestCheckpointCheck(root, file) {
-  notePublisher(root, file, 'asked');
+export function requestCheckpointCheck(root, file, checkpointWorker) {
+  notePublisher(root, file, 'asked', checkpointWorker);
 }
 
 /** Note the time in one of the publisher's files and start a publisher unless a live one holds the board. */
-function notePublisher(root, file, marker) {
+function notePublisher(root, file, marker, checkpointWorker) {
+  if (typeof checkpointWorker !== 'string' || !checkpointWorker) throw new TypeError('checkpoint scheduling requires its process worker path');
   const files = checkpointFiles(file);
   const { pid } = files;
   writeFileSync(files[marker], `${Date.now()}\n`, { mode: 0o600 });
   if (publisherHolding(pid)) return;
-  const child = spawn(process.execPath, [WORKER, root, file], { cwd: root, detached: true, stdio: 'ignore', env: process.env });
+  const child = spawn(process.execPath, [checkpointWorker, root, file], { cwd: root, detached: true, stdio: 'ignore', env: process.env });
   child.unref();
 }

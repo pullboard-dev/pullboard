@@ -67,7 +67,24 @@ process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   loadNativeBoard: () => import('../src/native-board.js'),
   /** Compose process-only capabilities after a command actually requests them. */
-  loadProcessPorts: () => import('node:url').then(({ fileURLToPath }) => ({
+  loadProcessPorts: () => Promise.all([import('node:url'), import('../src/relay-outbox.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
+    outboxFields,
+    /** Load the canonical guard only when a linked operation actually needs it. */
+    withOutboxGuard: (...args) => import('../src/relay-outbox-guard.js').then(({ withOutboxGuard }) => withOutboxGuard(...args)),
+    replayConflictRecord: (...args) => import('../src/relay-conflict-record.js').then(({ replay }) => replay(...args)),
+    remoteBoardMissing: (...args) => import('../src/relay-baseline-settle.js').then(m => m.remoteBoardMissing(...args)),
+    uncertainUploadFailure: (...args) => import('../src/relay-baseline-settle.js').then(m => m.uncertainUploadFailure(...args)),
+    decideUncertainBaseline: (...args) => import('../src/relay-baseline-settle.js').then(m => m.decideUncertainBaseline(...args)),
+    checkpointPublisher: (...args) => import('../src/relay-checkpoint-publish.js').then(m => m.checkpointPublisher(...args)),
+    relayOrdering: (...args) => import('../src/relay-ordering.js').then(m => m.relayOrdering(...args)),
+    checkpointInBackground: (...args) => import('../src/relay-checkpoint.js').then(m => m.checkpointInBackground(...args)),
+    scheduleCheckpoint: (...args) => import('../src/relay-checkpoint.js').then(m => m.scheduleCheckpoint(...args)),
+    requestCheckpointCheck: (...args) => import('../src/relay-checkpoint.js').then(m => m.requestCheckpointCheck(...args)),
+    outboxPolicy: () => import('../src/relay-outbox.js').then(m => ({ acknowledgedOperations: m.ACKNOWLEDGED_OPERATIONS, outboxQueueable: m.outboxQueueable })),
+    flushOutbox: (...args) => import('../src/relay-outbox.js').then(m => m.flushOutbox(...args)),
+    queueMove: (...args) => import('../src/relay-outbox.js').then(m => m.queueMove(...args)),
+    outboxHasPendingCreatedItem: (...args) => import('../src/relay-outbox.js').then(m => m.outboxHasPendingCreatedItem(...args)),
+    checkpointWorker: fileURLToPath(new URL('../src/relay-checkpoint-worker.js', import.meta.url)),
     hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
     submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */

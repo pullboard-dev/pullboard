@@ -60,11 +60,11 @@ export async function requestBoardKey(link, login, send, io) {
 }
 
 /** Read membership from this device's native board rather than a transport-supplied snapshot. */
-function currentMembers(root, state) {
+function currentMembers(root, state, io) {
   if (typeof root !== 'string' || !root) {
     throw new Refused('RELAY_NOT_MEMBER', 'open the linked repository before handing over its board key');
   }
-  return localRecords(root, board => {
+  return localRecords(io.openBoard, root, board => {
     if (boardId(board) !== state.board) {
       throw new Refused('RELAY_NOT_MEMBER', 'the local board does not match this key request; reopen the linked repository');
     }
@@ -90,12 +90,12 @@ export async function handOverBoardKeys(state, key, { send, githubKeys, root, id
       if (!await verifySshVouch(statementBytes(statement), entry.signature, entry.login, githubKeys, NAMESPACE)) {
         throw new Refused('RELAY_KEY_VOUCH', `no SSH key on ${entry.login}'s GitHub account signed this device key; add the key that signed it to GitHub with gh ssh-key add, then run pullboard relay on again`);
       }
-      const document = currentMembers(root, state);
+      const document = currentMembers(root, state, io);
       const authority = memberAuthorityStamp(root, document);
       await authorizeMember(root, state, document, entry.login, { githubKeys, identity });
       const wrapped = await wrapDeviceBoardKey(key, statement.publicKey, { board: state.board, device: statement.device, engine: statement.engine });
       // GitHub and WebCrypto yield: a local revocation or accepted-policy change must win before publication.
-      if (authority !== memberAuthorityStamp(root, currentMembers(root, state))) {
+      if (authority !== memberAuthorityStamp(root, currentMembers(root, state, io))) {
         throw new Refused('RELAY_NOT_MEMBER', 'board membership changed during verification; retry with the current signed member list');
       }
       body = { wrapped: Buffer.from(JSON.stringify(wrapped)).toString('base64url') };

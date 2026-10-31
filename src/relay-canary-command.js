@@ -20,9 +20,9 @@ import {
 } from './relay-canary-watch.js';
 
 /** Read telemetry without contacting the relay or creating a health observation. */
-function status(root, config) {
+function status(root, config, io) {
   let queued = 0;
-  try { queued = relayStatus(root).outbox?.length ?? 0; }
+  try { queued = relayStatus(root, io).outbox?.length ?? 0; }
   catch { /* An absent local link cannot establish current relay health. */ }
   return { config, health: readRelayHealth(root, { queued }) };
 }
@@ -109,7 +109,7 @@ export async function run(io, { first = 'status', second, rest = [], values = {}
     if (result.health.pendingNotifications) io.say('DELAYED: canary notifications remain pending; no phone acknowledgement has been observed.');
     return interrupted || (result.observation.ok ? 0 : 1);
   }
-  const result = status(ctx.info.root, config);
+  const result = status(ctx.info.root, config, io);
   io.result?.(result);
   io.say(`Relay canary ${config?.enabled ? 'on' : 'off'}. ${result.health.text}`);
   if (result.health.pendingNotifications) io.say('DELAYED: canary notifications remain pending; no phone acknowledgement has been observed.');

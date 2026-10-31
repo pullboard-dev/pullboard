@@ -78,8 +78,8 @@ export async function environmentLink(root, file, io) {
     sequence: 0, cursor: 0, baselineAccepted: true };
   // The clone has no board of its own yet: the relay's snapshot becomes it, as a pairing would bring it.
   await restoreCheckpoint(root, state, io, readBoardKey(state.board), (board, native) => importBoard(board, native));
-  state.sequence = localRecords(root, appliedSequence);
-  state.cursor = localRecords(root, (board) => board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
+  state.sequence = localRecords(io.openBoard, root, appliedSequence);
+  state.cursor = localRecords(io.openBoard, root, (board) => board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
   saveLink(file, state);
   io.err?.(`pullboard: this session works on board ${state.board.slice(0, 8)} as ${session.agent}, from its environment; no key file or token is stored`);
   return true;

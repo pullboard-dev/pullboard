@@ -4,7 +4,7 @@ import * as store from './board.js';
 import { withPrivateBoard } from './projects.js';
 import { originRepository } from './github-origin.js';
 import { relayMachineOwner } from './relay-machine.js';
-import { relayStatus } from './relay.js';
+import { relayMachineContext } from './relay.js';
 import { Refused } from './refused.js';
 
 /** Run one add with the caller's native opener while keeping the repo checkout's own seat binding. */
@@ -16,7 +16,8 @@ export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, 
     let signedOwner = null;
     try {
       const machineOwner = relayMachineOwner();
-      signedOwner = machineOwner ? machineOwner.login : relayStatus(ctx.info.root)?.login;
+      const link = machineOwner ? null : relayMachineContext(ctx.info.root);
+      signedOwner = machineOwner ? machineOwner.login : link?.unlinking ? undefined : link?.login;
     } catch { /* Missing readable sign-in metadata is refused below. */ }
     if (!signedOwner) throw new Refused('AUTH_REQUIRED', 'sign in to GitHub with pullboard relay on before creating a private-board reference');
     return withPrivateBoard(store.boardId(repoBoard), async (board, file) => {
