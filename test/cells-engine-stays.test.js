@@ -20,7 +20,7 @@ import { withImportParseCache } from '../src/module-import-cache.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
 
 /** Pin actual accepted source and complete lint authority before a candidate requests engine stays. */
-function accepted(t) {
+function accepted(t, cellName = 'state') {
   const box = fixture(t);
   const paths = ['src/sample-engine.js', 'src/engine-next.js', 'src/engine-numbers.js', 'src/ordinary.js',
     'src/misleading-engine.js', 'src/forwarded-engine.js', 'src/move-history/152.json'];
@@ -32,8 +32,13 @@ function accepted(t) {
   box.put(paths[5], "export { SAMPLE_ENGINE } from './sample-engine.js';\n");
   box.put(paths[6], '{"version":1,"engine":152,"name":"sample","declarations":{}}\n');
   const seed = JSON.parse(readFileSync(join(box.root, 'bin/cells-plan/seed.json'), 'utf8'));
-  seed.order.splice(1, 0, 'state');
-  seed.cells.state = paths;
+  seed.order.splice(1, 0, cellName);
+  seed.cells[cellName] = paths;
+  if (cellName !== 'state') {
+    box.put('src/state-sample-engine.js', 'export const STATE_SAMPLE_ENGINE = 19;\n');
+    seed.order.splice(1, 0, 'state');
+    seed.cells.state = ['src/state-sample-engine.js'];
+  }
   box.put('bin/cells-plan/seed.json', JSON.stringify(seed));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'accepted engine source');
@@ -111,4 +116,31 @@ test('an engine-looking filename or imported engine export cannot manufacture de
   }
   await assert.rejects(inspect(box), error => box.paths.slice(4, 6)
     .every(file => error.message.includes(`unproven canonical engine stay: ${file}`)));
+});
+
+test('a non-state cell retains its own engine leaf and survives the immutable submit controller [C7,CD64]', async t => {
+  const box = accepted(t, 'stats'), paths = [box.paths[0], box.paths[6]];
+  const original = paths.map(file => readFileSync(join(box.root, file), 'utf8'));
+  box.plan = retainEnginePaths({ root: box.root, plan: box.plan, cellName: 'stats', paths, pathMap: new Map() });
+  assert.deepEqual(box.plan.engineStays.map(entry => [entry.cell, entry.row[0]]), paths.map(file => ['stats', file]));
+  assert.deepEqual(paths.map(file => readFileSync(join(box.root, file), 'utf8')), original);
+  assert.deepEqual((await inspect(box)).problems, []);
+});
+
+test('negative controls: a non-engine stats file, a row under another cell package and a changed source are refused [C7,CD64]', async t => {
+  const box = accepted(t, 'stats');
+  assert.throws(() => retainEnginePaths({ root: box.root, plan: box.plan, cellName: 'stats', paths: [box.paths[3]], pathMap: new Map() }),
+    error => error.code === 'CELLS_ENGINE_STAY');
+  assert.throws(() => retainEnginePaths({ root: box.root, plan: box.plan, cellName: 'missing', paths: [box.paths[0]], pathMap: new Map() }),
+    error => error.code === 'CELLS_ENGINE_STAY');
+  const file = box.paths[0], stats = box.plan.cells.find(value => value.name === 'stats');
+  const row = stats.paths.find(value => value[0] === file);
+  stats.paths = stats.paths.filter(value => value[0] !== file);
+  stats.reexports = stats.reexports.filter(value => value !== file);
+  box.plan.stays.push({ path: file, reason: 'canonical engine identity retained in src during package moves' });
+  box.plan.engineStays = [{ cell: 'state', row }];
+  await assert.rejects(inspect(box), /engine stays need the exact original row under its own cell package: src\/sample-engine.js/u);
+  box.plan.engineStays = [{ cell: 'stats', row }];
+  box.put(file, 'export const SAMPLE_ENGINE = 99;\n');
+  await assert.rejects(inspect(box), /unproven canonical engine stay: src\/sample-engine.js/u);
 });

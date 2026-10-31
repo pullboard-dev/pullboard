@@ -1,8 +1,4 @@
-/** GitHub origin discovery without loading relay transport [C7,H16]. */
-import { tryGit } from '../packages/git/index.js';
-import { remoteRepository } from './github-remote.js';
-
-/** Resolve the actual GitHub origin; optional discovery leaves ineligible local projects alone. */
-export function originRepository(root, { optional = false } = {}) {
-  return remoteRepository(tryGit(root, ['remote', 'get-url', 'origin']), { optional });
-}
+/** Compatibility entry for the seats cell; the public bindings retain their owners [C7,CD60]. */
+export {
+  originRepository,
+} from '../packages/seats/index.js';

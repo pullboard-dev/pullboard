@@ -1,13 +1,36 @@
 /** Branch-name-independent check baselines and lane merge ownership [B34,P2,L3]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { after, test } from 'node:test';
-import { mainPolicy, requireTrunkMerge } from '../src/trusted-policy.js';
+import {
+  runFixtureExecFile as execFileSync,
+  runFixtureChild as spawnSync,
+  runFixtureChild,
+  runFixtureGit,
+} from '../../../test/fixture-child.js';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  tmpdir,
+} from 'node:os';
+import {
+  join,
+  resolve,
+} from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
+import {
+  mainPolicy,
+  requireTrunkMerge,
+} from '../src/shell/trusted-policy.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const TEMP_DIRS = [];
 const SPEC = '# Trunk fixture\n\n## G · Goals\n- G1 [approved, must] The fixture works. | gate: true\n';
 

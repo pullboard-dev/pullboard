@@ -96,7 +96,7 @@ export const MACHINE_CALLBACKS = {
     'board.nativePorts.landingEnvironment.requireTrunk': 'landing-environment-guards.js#requireTrunk',
     'board.nativePorts.landingEnvironment.requireStoredBatch': 'landing-environment-guards.js#requireStoredBatch',
   },
-  'line-capacity-board.js': {
+  '../packages/seats/src/core/line-capacity-board.js': {
     nextFor: 'board.js#nextFor',
     reviewerChecks: 'board.js#reviewerChecks',
     reviewReleaseCooldown: 'board.js#reviewReleaseCooldown',

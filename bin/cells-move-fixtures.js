@@ -135,7 +135,9 @@ function sourceExportPorts(readSource) {
         if (!literal || !(destination = target(file, literal.text))) return null;
       }
       if (clause[1] === '*') { if (!destination) return null; stars.push(destination); continue; }
-      for (const part of clause[1].slice(1, -1).split(',')) {
+      const parts = clause[1].slice(1, -1).split(',');
+      if (!parts.at(-1).trim()) parts.pop(); // Only a final grammar-permitted comma; interior empty entries still refuse.
+      for (const part of parts) {
         const names = new RegExp(`^\\s*(${ID})(?:\\s+as\\s+(${ID}))?\\s*$`, 'u').exec(part);
         if (!names) return null;
         const local = names[1], name = names[2] ?? local, binding = identities.get(local);
