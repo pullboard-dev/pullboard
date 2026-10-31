@@ -13,7 +13,7 @@ import { gatedToolBuild } from '../src/pinned-tool-publish.js';
 import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../src/tool-build-scheduler.js';
 import { configFromSource } from '../src/config.js';
 import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../src/pinned-tool-build.js';
-import { copyPackageFiles, toolSourcePath } from '../src/package-files.js';
+import { copyPackageFiles } from '../src/package-files.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -45,7 +45,7 @@ export async function run(io){
 }
 `);
   const hookFile = join(box.repo, 'src', 'commands', 'hook.js');
-  const originalHook = readFileSync(toolSourcePath(resolve(import.meta.dirname, '..'), 'src/commands/hook.js'), 'utf8');
+  const originalHook = box.originalHook;
   writeFileSync(hookFile, `import {writeFileSync as writePinHookMarker} from 'node:fs';\nif(process.env.PULLBOARD_PIN_HOOK_MARKER)writePinHookMarker(process.env.PULLBOARD_PIN_HOOK_MARKER,'${label}');\n${originalHook}`);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', `chore: synthetic tool generation ${label}`);
@@ -68,6 +68,7 @@ function project(source) {
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
+  const originalHook = readFileSync(join(repo, 'src', 'commands', 'hook.js'), 'utf8');
   // This private project has one committed test; copied package fixtures are not this project's tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });
   box.git(repo, 'add', '-A');
@@ -77,7 +78,7 @@ function project(source) {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'node bin/run-tests.js',
     verify: 'any', lease: '2h', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: ['docs/'] }));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo spec\n\n## G · Goals\n- G1 [approved, must] The page renders. | gate: web test\n');
-  return { ...box, repo };
+  return { ...box, repo, originalHook };
 }
 
 test('pinned CLI, hooks and loaded generation survive trunk advancement; native promotion affects new commands only [C7]', async () => {
