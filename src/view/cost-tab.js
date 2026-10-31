@@ -1,5 +1,6 @@
 /** Private Cost-tab selection and rendering for the local board view [N26]. */
-import { costOverviewHtml, bindCostOverview } from './cost-overview.js';
+import { costOverviewHtml } from './cost-overview.js';
+import { bindCostOverview } from './cost-overview.js';
 
 import { modelPresentation } from './model-presentation.js';
 export { modelPresentation } from './model-presentation.js';
