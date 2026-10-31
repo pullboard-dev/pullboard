@@ -166,7 +166,7 @@ import { linkKnownMainReworks } from '../known-main-reworks.js';
 import { unownedMainReds } from '../known-main-reworks.js';
 import { ambiguousMainReds } from '../known-main-reworks.js';
 import { submitReferenceReminders } from '../reference-lines.js';
-import { waitForSubmissionVerdict } from '../submit-wait.js';
+import { waitForSubmitGate } from '../submit-gate-wait.js';
 
 /** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
 function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
@@ -626,7 +626,8 @@ export async function run(io, { first, values }) {
     throw error;
   }
   finally { io.onOrderedMove = previous; }
-  if (code !== 0 || !values.wait || submissionResult.queued) return code;
-  return waitForSubmissionVerdict(ctx, id, submissionResult.value, submissionResult.event, { withBoardRead: waitBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem });
+  if (code !== 0 || !values.wait || !submissionResult.queued) return code;
+  return waitForSubmitGate(ctx, id, submissionResult.value, submissionResult.job,
+    { withBoardRead: waitBoardRead, submitHandoff, getItem: store.getItem });
 }
 import { SUBMISSION_SIZE_METHOD } from '../../packages/state/src/core/submission-size.js';

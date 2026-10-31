@@ -17,6 +17,11 @@ import { cleanGitEnvironment } from '../git.js';
 import { Refused } from '../refused.js';
 import { run as claim } from './claim.js';
 import { run as submit } from './submit.js';
+import { withBoardRead } from '../cli-context.js';
+import { retrySync } from '../cli-sync.js';
+import { events } from '../board.js';
+import { verdictsFor } from '../board.js';
+import { waitForSubmissionVerdict } from '../submit-wait.js';
 
 /** Resolve only this seat's claim or its explicit returned-work reservation before any Git mutation. */
 function shippingItem(ctx, requested) {
@@ -78,6 +83,14 @@ export async function run(io, { first, second, rest, values }) {
     gitStep(root, ['merge', '--no-edit', main.commit], 'merge', 'resolve the preserved merge conflict and commit normally, then run pullboard ship again');
     const code = await submit(io, { first: String(item.item_id), values: { ...values, wait: true, 'no-next': true }, rest: [] });
     if (code !== 0) { originalResult?.(result); return code; }
+    const gateResult = result;
+    const waitContext = context(io);
+    const receipt = withBoardRead(waitContext, board => events(board, { itemId: item.item_id })
+      .findLast(event => event.event_kind === 'submit'
+        && JSON.parse(event.event_detail).commit === gateResult.commit));
+    const reviewCode = await waitForSubmissionVerdict(waitContext, item.item_id, gateResult, receipt,
+      { withBoardRead, retrySync, events, verdictsFor, getItem });
+    if (reviewCode !== 0) { originalResult?.(result); return reviewCode; }
     const submission = result;
     if (values.note !== undefined) {
       await withBoard(context(io), async board => {
