@@ -19,12 +19,15 @@ test('parallel candidate landing is opt-in and accepts only boolean settings [B3
 });
 
 /** Exercise the real worker's source closure rather than a stand-in manifest [C7,O5]. */
-test('the moved config command declarations retain their root and enter the real runner capsule [C7,O5]', () => {
+test('the moved config command declarations retain their root and stay out of the real runner capsule [C7,O5]', () => {
   const root = dirname(fileURLToPath(new URL('../../../package.json', import.meta.url)));
   const capsule = runnerPackage(root);
   assert.equal(capsule.entry, 'src/runner-worker.js');
-  assert.ok(Object.hasOwn(capsule.files, 'packages/config/src/shell/command-declaration-read.js'),
-    'the actual worker closure traverses the moved config declaration reader');
+  // The declaration reader reads src/command-docs at import, and that directory is not a shipped runner file.
+  for (const reader of ['packages/config/src/shell/command-declaration-read.js', 'packages/config/src/core/json.js', 'packages/config/index.js']) {
+    assert.ok(!Object.hasOwn(capsule.files, reader), `the worker closure must not import ${reader}; it would die reading src/command-docs`);
+  }
+  assert.ok(Object.hasOwn(capsule.files, 'packages/config/src/shell/config.js'), 'the worker still reaches config through its shell module');
   assert.ok(Object.hasOwn(capsule.files, 'package.json'), 'the root anchor is a real shipped file');
   const explicit = commandDocs(root);
   assert.ok(explicit.length > 0, 'the actual independent command declarations are read');
