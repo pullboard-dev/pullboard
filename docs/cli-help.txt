@@ -179,8 +179,8 @@ Work
   pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER [--note "why"] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
-  pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait for the verdict; hooks and gates remain mandatory
-  pullboard submit <id> [--wait] [--no-next]        needs a clean tree, item check and affected tests green at HEAD (alias: done)
+  pullboard ship [id] [--note text]       commit staged work, merge main, submit and wait up to 30 minutes for the verdict; hooks and gates remain mandatory
+  pullboard submit <id> [--wait] [--no-next]        needs a clean tree; --wait ends at the final gate result, never a review verdict (alias: done)
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
