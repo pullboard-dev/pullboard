@@ -22,6 +22,11 @@ function closure(read, identities) {
     const file = pending.shift();
     if (seen.has(file)) continue;
     seen.add(file);
+    if (file.endsWith('.json')) {
+      JSON.parse(read(file)); // Imported data is retained in the closure, never parsed as executable JavaScript.
+      continue;
+    }
+    assert.match(file, /\.[cm]?js$/u, 'every executable dependency is a JavaScript module');
     for (const specifier of importsIn([read(file)])[0]) {
       if (specifier.startsWith('node:')) native.add(specifier);
       else {
