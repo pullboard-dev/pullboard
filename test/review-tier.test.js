@@ -209,6 +209,7 @@ test('items move retains Strict for each protected destination and excludes unre
     'packages/items/src/shell/item-patch-state.js',
     'packages/items/src/shell/item-patch-compose.js',
     'packages/items/src/core/item-patch-paths.js',
+    'packages/items/src/shell/item-authors.js',
   ];
   for (const path of paths) {
     assert.equal(gateJudgmentPath(path), true, path);

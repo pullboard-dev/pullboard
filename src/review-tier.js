@@ -17,6 +17,7 @@ const SOURCE_FILES = new Set([
   'packages/items/src/shell/item-patch-state.js',
   'packages/items/src/shell/item-patch-compose.js',
   'packages/items/src/core/item-patch-paths.js',
+  'packages/items/src/shell/item-authors.js',
   'package.json', 'pullboard.json', 'bin/run-tests.js',
   // Check admission, selection and the evidence that decides whether a failure blocks.
   'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',
