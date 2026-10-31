@@ -1,5 +1,5 @@
-import { asSubmitted } from './review-reachability.js';
-import { refuseUnreviewable } from './review-reachability.js';
+import { asSubmitted } from '../packages/verify/index.js';
+import { refuseUnreviewable } from '../packages/verify/index.js';
 import { invalidateItemPatch as applyItemPatchInvalidation } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { getItem } from './board-query.js';

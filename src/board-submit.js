@@ -1,4 +1,4 @@
-import { reviewPatchAuthors } from './review-composition.js';
+import { reviewPatchAuthors } from '../packages/verify/index.js';
 import { fileKnownMainAutofile } from './known-main-autofile.js';
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './known-main-owner-pattern-engine.js';
 

@@ -1,4 +1,4 @@
-import { reviewPatchAuthors } from './review-composition.js';
+import { reviewPatchAuthors } from '../packages/verify/index.js';
 export { recordExitProgress, requireExitActive } from './exit-rules-state.js';
 /**
  * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
