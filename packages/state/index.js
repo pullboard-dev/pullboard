@@ -158,4 +158,5 @@ export { registrationProblem } from "./src/core/engine-move-register.js";
 export { validate } from "./src/core/engine-move-apply-row-decisions.js";
 export { prepareBefore as engine_move_queue_submit_handoff_prepareBefore } from "./src/shell/engine-move-queue-submit-handoff.js";
 export { engineBindings } from "./core.js";
+export { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
 export { RELEASE_REASONS_ENGINE } from '../../src/release-reasons-engine.js';

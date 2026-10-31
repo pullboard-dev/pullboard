@@ -1,3 +1,5 @@
+import { asSubmitted } from '../review-reachability.js';
+import { refuseUnreviewable } from '../review-reachability.js';
 import { normalizeItemPatch } from '../item-patch-paths.js';
 import { itemPolicy } from '../trusted-policy.js';
 import { headCommit } from '../git.js';
@@ -88,7 +90,7 @@ export async function run(io, { first, second, rest, values }) {
       if (item.item_status === 'claimed' && (!source || builderHead && builderHead !== source)) {
         throw new Refused('ITEM_PATCH_SOURCE', 'attach against the current builder head; name --source when its checkout is unavailable');
       }
-      refuseLiveAttach(board, item, { key: values.key, author: values.author, commit: source, patch }, { atomic: store.atomic, listAgents: store.listAgents, review: { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family } });
+      refuseLiveAttach(board, item, { key: values.key, author: values.author, commit: source, patch }, { asSubmitted, refuseUnreviewable, atomic: store.atomic, listAgents: store.listAgents, review: { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family } });
       result = await ordered(ctx, board, 'attachItemPatch', [id, {
         agentId: me.id,
         key: values.key,

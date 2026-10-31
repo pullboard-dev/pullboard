@@ -9,7 +9,7 @@ import { after, test } from 'node:test';
 import { closeBoard, register } from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
-import { projectState } from '../../src/serve.js';
+import { projectState } from '../../src/cli/view-state.js';
 import { exportView } from '../../src/commands/view.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../../packages/kernel/src/core/discovery.js';

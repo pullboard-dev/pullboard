@@ -9,7 +9,7 @@ import { delimiter, join, relative, resolve, sep } from 'node:path';
 import { after, test } from 'node:test';
 import { performance } from 'node:perf_hooks';
 import { stableChrome } from './stable.js';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from '../relay-browser-fixture.js';
 import { BIN, machine, project, fetchLive, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';

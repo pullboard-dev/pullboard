@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** The Pullboard repository's source-only preflight; no browser fixtures run [C7]. */
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { styleSources } from '../packages/codemap/index.js';
@@ -10,10 +11,12 @@ import { declaredProseCommands } from '../src/static-prose-commands.js';
 import { doctrineReport } from '../src/doctrine-checks.js';
 import { loadConfig } from '../src/config.js';
 import { HELP } from '../src/cli.js';
-import { PULLBOARD_COMMANDS } from '../src/cockpit.js';
+import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
 import { viewPureGate } from './checks/view-pure.js';
 import { boardWriteIoProblems } from './checks/board-write-io.js';
 
+// Only the executable composes higher CLI services; importing this module does not run the preflight.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
 const root = process.cwd();
 let failed = false;
 const sources = styleSources(root);
@@ -52,3 +55,4 @@ for (const row of doctrineReport(root, loadConfig(root))) {
 }
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');
 process.exitCode = failed ? 1 : 0;
+}

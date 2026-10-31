@@ -15,7 +15,7 @@ import { waitForStableBoxes } from './stable.js';
 import { addItem, closeBoard } from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
-import { projectState } from '../../src/serve.js';
+import { projectState } from '../../src/cli/view-state.js';
 import { testsNeedBrowser } from '../../src/browser-admission.js';
 import { copyPackageFiles } from '../../src/package-files.js';
 import { scratch, machine, project, build, fetchView, fetchLive, startView, styleOf, openPage, boardId, boardOf, assertObservationsEqual, chromeExecutable, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome } from './fixture.js';
@@ -199,7 +199,7 @@ test('the view reads its release notes once, not on every state [N26]', () => {
   box.run(p.repo, 'add', 'web', 'A real board row', '--specs', 'G1');
   const changelog = readFileSync(resolve(import.meta.dirname, '../../CHANGELOG.md'));
   const expectedHash = createHash('sha256').update(changelog).digest('hex');
-  const serveUrl = new URL('../../src/serve.js', import.meta.url).href;
+  const serveUrl = new URL('../../src/cli/view-state.js', import.meta.url).href;
   const script = `
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { modelPresentation, costTabModel } from '../../src/view/cost-tab.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 import { join } from 'node:path';
-import { cockpitPage } from '../../src/view/cockpit-page.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 
 test('private model names follow the approved known, family and fallback rules [N26]', () => {
   const fixtures = [

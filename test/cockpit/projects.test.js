@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-loads src/serve.js src/api.js src/cli.js src/next-step-words.js */
+/** @pullboard-test-loads src/cli/view-state.js src/api.js src/cli.js src/next-step-words.js */
 import { viewApiPorts } from '../../src/view-api-ports.js';
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -838,7 +838,7 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
     finally { db.close(); }
     assert.equal(createHash('sha256').update(readFileSync(file)).digest('hex'), before, 'refused board file is byte-identical');
   };
-  const projection = await import(pathToFileURL(join(linked, 'src/serve.js')).href);
+  const projection = await import(pathToFileURL(join(linked, 'src/cli/view-state.js')).href);
   assert.throws(() => projection.projectState(refused.repo), error => error.code === 'UNMERGED_SCHEMA',
     'the view projector uses the running linked-source guard');
   unchanged();

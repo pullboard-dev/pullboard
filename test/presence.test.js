@@ -246,7 +246,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { readFileSync } = await import('node:fs');
   const { DatabaseSync } = await import('node:sqlite');
-  const { projectState } = await import('../src/serve.js');
+  const { projectState } = await import('../src/cli/view-state.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');

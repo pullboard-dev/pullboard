@@ -1,4 +1,3 @@
-import { flakeLedger } from './flakes.js';
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
@@ -34,7 +33,7 @@ export function requireLocalGuardClassification(state, gate) {
     throw new Refused('LAND_DIAGNOSTIC', 'the local-trunk red has no complete classified diagnostic; inspect its recorded gate');
   }
   const ids = new Set(recorded.map(row => row.id));
-  const observations = flakeLedger(state.board).flatMap(row => row.observations).filter(row => ids.has(row.id));
+  const observations = state.landingPorts.flakeLedger(state.board).flatMap(row => row.observations).filter(row => ids.has(row.id));
   const classified = gate.failures.length > 0 && gate.failures.every(failure => observations.some(row =>
     row.file === failure.file && row.name === failure.name && row.main === state.batch.base
     && (row.classification === 'flake' || row.classification === 'possible-regression' && row.mainReceipt?.green === true)));
