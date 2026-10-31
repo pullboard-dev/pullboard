@@ -8,6 +8,7 @@ import {
 } from './relay.js';
 import { executePersonRequests } from './relay-request-execution.js';
 import { executeMove } from './api.js';
+import { moveArgs } from '../packages/person/index.js';
 import { refusalDocument } from './next-step-words.js';
 import {
   agentDisplayName,
@@ -42,7 +43,7 @@ export {
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
 export function nativeBoardOpeners(io) {
   const { openBoard, openBoardForRead } = io.nativeBoard;
-  return { openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
+  return { moveArgs, openBoard, openBoardForRead, nativeBoardPorts: io.nativeBoard.nativeBoardPorts, withOutboxGuard: io.withOutboxGuard, replayConflictRecord: io.replayConflictRecord, remoteBoardMissing: io.remoteBoardMissing, uncertainUploadFailure: io.uncertainUploadFailure, decideUncertainBaseline: io.decideUncertainBaseline, checkpointPublisher: io.checkpointPublisher, relayOrdering: io.relayOrdering, checkpointInBackground: io.checkpointInBackground, scheduleCheckpoint: io.scheduleCheckpoint, requestCheckpointCheck: io.requestCheckpointCheck, checkpointWorker: io.checkpointWorker, outboxFields: io.outboxFields, outboxPolicy: io.outboxPolicy, flushOutbox: io.flushOutbox, queueMove: io.queueMove, outboxHasPendingCreatedItem: io.outboxHasPendingCreatedItem };
 }
 
 /** Supply the board openers plus the API move executor and refusal formatter that link's request execution is given as ports (link must not import later cells). */

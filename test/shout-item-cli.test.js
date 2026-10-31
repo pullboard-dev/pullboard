@@ -4,7 +4,7 @@ import { after, test } from 'node:test';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { moveArgs } from '../src/api-moves.js';
+import { moveArgs } from '../packages/person/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const fixtures = createE2eHelpers();
