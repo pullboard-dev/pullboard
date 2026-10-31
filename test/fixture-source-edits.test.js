@@ -26,6 +26,10 @@ test('a repo-root file with a moved asset basename is distinct from the moved pa
   assert.ok(ambiguous.problems.length, 'an unproven root may still name the moved asset');
   const cwd = fixtureSourceEdits(PREFIX + "process.chdir(folder); readFileSync('pullboard.json'); readFileSync(unknown);", move);
   assert.ok(cwd.problems.length, 'a mutated cwd keeps the analysis conservative');
+  const wrapper = fixtureSourceEdits("import * as fs from 'node:fs'; import { join } from 'node:path'; function readFileSync(name) { return fs.readFileSync(join('src/blueprints', name)); } readFileSync('pullboard.json');", move);
+  assert.ok(wrapper.problems.length || wrapper.edits.length, 'a local reader wrapper may resolve the same name to the moved asset');
+  const shadow = fixtureSourceEdits(PREFIX + "function run(readFileSync) { readFileSync('pullboard.json'); } run(unknown);", move);
+  assert.ok(shadow.problems.length, 'a shadowed reader cannot claim the native root-file exemption');
 });
 
 test('a proven realpath of a fresh fixture remains distinct from a repository asset [C7]', () => {

@@ -69,9 +69,10 @@ function enclosingCalls(code, at) {
  * @param {string[]} paths - Repository-relative paths of the moved sources.
  * @param {Set<string>} copierNames - Local names of real import declarations that resolve to the canonical copier.
  * @param {(name: string, at: number) => boolean} provenCopier - True only when the callee at an offset is the imported, unshadowed binding.
+ * @param {(name: string, at: number) => boolean} provenReader - True only for an imported, unshadowed native filesystem reader.
  * @returns {Array<{start: number, end: number, text: string}>} The operational mentions.
  */
-export function operationalMentions(source, scanned, paths, copierNames = new Set(), provenCopier = () => false) {
+export function operationalMentions(source, scanned, paths, copierNames = new Set(), provenCopier = () => false, provenReader = () => false) {
   const { code, strings } = scanned;
   const ending = new RegExp(`(?:^|[/\\\\])(?:${paths.map(path => escaped(posix.basename(path))).join('|')})$`, 'u');
   const templates = strings.filter(row => source[row.start] === '`');
@@ -81,7 +82,7 @@ export function operationalMentions(source, scanned, paths, copierNames = new Se
     // An unambiguous direct relative filename names the repository root, not another directory's same-named asset.
     // Keep indirect roots, path expressions and cwd mutation conservative: they may still resolve to the moved file.
     const direct = calls[0];
-    if (direct && ['readFileSync', 'copyFileSync', 'cpSync'].includes(direct.name)
+    if (direct && !direct.member && provenReader(direct.name, direct.at)
       && !code.slice(direct.open + 1, row.start).trim() && !/\bprocess\s*\.\s*chdir\s*\(/u.test(code)
       && /^(?:\.\/)?[\w.-]+$/u.test(row.text) && !row.text.includes('..')
       && !paths.some(path => posix.normalize(path) === posix.normalize(row.text))) return false;
