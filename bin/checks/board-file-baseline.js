@@ -96,7 +96,7 @@ export const BOARD_FILE_BASELINE = {
   "test/relay-machine-receipts.test.js": 1,
   "test/relay-membership.test.js": 2,
   "test/relay-mint.test.js": 1,
-  "test/relay-outbox-undo.test.js": 1,
+  "packages/outbox/tests/relay-outbox-undo.test.js": 1,
   "test/relay-parity-clock.test.js": 1,
   "test/relay-person-actions.test.js": 1,
   "test/relay-person-recovery.test.js": 3,
