@@ -1,6 +1,1 @@
-/** A patch attached to or removed from a claimed item is marked presubmit for every replica. */
-export function prepareBefore(board, values, { store }) {
-  if (store.getItem(board, values[0]).item_status === 'claimed') {
-    values[1] = { ...values[1], presubmit: true };
-  }
-}
+export { engine_move_item_patch_prepareBefore as prepareBefore } from "../packages/state/index.js";

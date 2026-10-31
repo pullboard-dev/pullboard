@@ -2,7 +2,7 @@
 import { Refused } from '../../../../src/refused.js';
 
 /** Find still-open rejected episodes eligible for the coordinator's canonical queue return. */
-export function rejectedWorkReturns(board, findings, withSeatPresence, withDerivedFamily) {
+export function rejectedWorkReturns(board, findings, { withSeatPresence, withDerivedFamily }) {
   if (!Array.isArray(findings)) throw new Refused('HEALTH_FINDINGS', 'a health scan needs its finding list');
   const returned = new Set(board.db.prepare("SELECT event_detail FROM event WHERE event_kind='reject_returned'").all()
     .map(row => JSON.parse(row.event_detail).rejection));

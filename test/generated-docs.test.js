@@ -109,7 +109,7 @@ test('authored narrative conflicts stay real while v1/v2 receipts retain their e
     actor: 'fixture', head: left, trunk: right, files: ['docs/api.md'], at: '2026-10-28T00:00:00.000Z', submission: 1 };
   const receipt = { ...fields, digest: createHash('sha256').update(JSON.stringify(fields)).digest('hex') };
   assert.deepEqual(computedConflictFields(receipt), receipt);
-  assert.equal(computedConflictFields({ ...receipt, version: 4 }), null);
+  assert.equal(computedConflictFields({ ...receipt, version: 5 }), null);
   assert.equal(reopenMove.minimumEngine([1, { computedConflict: receipt }]), GENERATED_DOCS_ENGINE);
   assert.equal(reopenMove.minimumEngine([1, { sourceAdvanceReturn: {} }]), SOURCE_ADVANCE_ENGINE);
   assert.equal(reopenMove.minimumEngine([1, { sourceAdvanceReturn: {}, computedConflict: receipt }]),

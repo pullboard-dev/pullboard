@@ -50,12 +50,12 @@ function seatUsage(box, cwd, identity) {
   Object.assign(env, identity);
   const cli = pathToFileURL(join(helpers.BIN, '../../src/cli.js')).href;
   const checkpoint = pathToFileURL(join(helpers.BIN, '../../src/cost-checkpoint.js')).href;
-  const code = `import {context,withBoard,whoAmI} from ${JSON.stringify(cli)};
+  const code = `import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
     const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
     const ctx=context(io);
-    await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'}));`;
+    await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'},{ordered}));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', code], { cwd, env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
 }

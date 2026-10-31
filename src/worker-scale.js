@@ -1,3 +1,5 @@
+import { currentProofCounters } from '../packages/verify/index.js';
+import { proofCounter } from '../packages/verify/index.js';
 import { localDependencyIds } from './item-dependencies.js';
 import { dependencyLabel } from './item-dependencies.js';
 import { itemFileCollisions } from './item-files.js';
@@ -110,7 +112,7 @@ export function observeWorkers(board, { lane, managed, now = Date.now() }) {
   const items = store.listItems(board);
   const ids = [...new Set([...liveLocalSeats(board), ...managed])];
   return {
-    worth: readCapacity(board, now).agents?.recommended ?? null,
+    worth: readCapacity(board, now, { currentProofCounters, proofCounter }).agents?.recommended ?? null,
     workers: ids.map(id => ({ id, busy: seatHoldsWork(board, id, items), managed: managed.includes(id) })),
     reviews: items.filter(item => item.item_status === 'submitted' && !store.reviewHolder(board, item)).length,
     builds: readyItems(board, store.foreignBlockers, { ...store, localDependencyIds, dependencyLabel, itemFileCollisions }).filter(item => item.item_lane === lane).length,

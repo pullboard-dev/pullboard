@@ -1,3 +1,5 @@
+import { recordFamilyDeclareActivation } from './family-declaration.js';
+import { withDerivedFamily } from './family-declaration.js';
 import {
   submitGateConfig,
   submitGatePlan,
@@ -175,6 +177,8 @@ import {
 } from './board-event-log.js';
 import {
   ensureProofCounters,
+  currentProofCounters,
+  proofCounter,
 } from './proof-counters.js';
 import {
   ensureHotIndexes,
@@ -287,6 +291,7 @@ export function nativeBoardPorts() {
     recordRowDecisions: store.recordRowDecisions, now,
     reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
+    currentProofCounters, proofCounter,
     localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence,
     agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
@@ -298,6 +303,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,

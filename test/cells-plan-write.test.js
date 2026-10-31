@@ -233,3 +233,30 @@ test('--check refuses cut rows that cannot produce valid integer import counts [
     assert.match(run.stderr, /CELLS_PLAN_COUNTS/u);
   }
 });
+
+for (const kind of ['dynamic', 'computed']) test(`--moved retains exact ${kind} refusal sites without excusing new or moved-source sites [C7,D3,CD64]`, t => {
+  const { root, put } = fixture(t);
+  writePlan(root, computePlan(root));
+  put('src/opaque.js', 'export const value = {};\n');
+  put('src/pure-port.js', 'export function make() { return {}; }\n');
+  const reader = 'test/diagnostic-reader.test.js';
+  const header = "const moved = 'stats.js';\n" + (kind === 'computed'
+    ? "const { make } = await import('../src/pure-port.js');\nconst api = make();\n" : '');
+  const known = kind === 'dynamic' ? "await import('../src/opaque.js');\n" : "api['run']();\n";
+  const moved = kind === 'dynamic' ? "await import('../src/stats.js');\n" : "api['stats.js']();\n";
+  put(reader, header + known + moved);
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'main with exact unsupported diagnostic sites');
+  git(root, 'checkout', '-q', '-b', 'move');
+  put(reader, header + '\n' + known + moved + known);
+  git(root, 'add', '-A');
+  git(root, 'commit', '-q', '-m', 'move shifts sites and adds another occurrence');
+  const cell = readPlan(root).cells.find(entry => entry.paths.some(([from]) => from === 'src/stats.js'));
+  const notes = [], problems = checkMoved(root, readPlan(root), cell.name, { notes }).filter(problem => problem.startsWith(reader));
+  const originalLine = header.split('\n').length + 1;
+  assert.equal(notes.length, 1, 'exact main custody permits only the single unchanged ordinary site');
+  assert.ok(notes[0].startsWith(`${reader}:${originalLine}: unsupported fixture source:`));
+  assert.match(notes[0], /also at main [a-f0-9]{12}/u);
+  assert.deepEqual(problems.map(problem => Number(problem.split(':')[1])).sort((a, b) => a - b),
+    [originalLine + 1, originalLine + 2], 'a basename-bearing site and an extra ordinary occurrence both still refuse');
+});

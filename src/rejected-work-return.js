@@ -5,5 +5,5 @@ import { rejectedWorkReturns as deriveRejectedWorkReturns } from '../packages/st
 
 /** Derive episodes using this native board connection and its ordinary presence reader. */
 export function rejectedWorkReturns(board, findings) {
-  return deriveRejectedWorkReturns(board, findings, withSeatPresence, withDerivedFamily);
+  return deriveRejectedWorkReturns(board, findings, { withSeatPresence, withDerivedFamily });
 }

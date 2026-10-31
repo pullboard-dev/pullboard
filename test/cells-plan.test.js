@@ -7,6 +7,7 @@ import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { cellInventory } from '../packages/codemap/index.js';
@@ -24,6 +25,8 @@ import { writePlan } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installCutCases } from './cells-plan-cut-cases.js';
 import { fixture } from './cells-plan-fixture.js';
+import { mechanicalConflictFiles, resolveMechanicalIndex } from '../src/mechanical-merge.js';
+import { formatJson } from '../bin/cells-plan.js';
 import { git } from './cells-plan-fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
@@ -307,4 +310,98 @@ test('cut refresh refuses a newly tracked unplanned endpoint without changing an
   assert.match(run.stderr, /CELLS_PLAN_UNPLANNED.*src\/unplanned-provider\.js/su);
   assert.deepEqual(readPlan(root), plan, 'refusal preserves the exact prior plan');
   assert.equal(git(root, 'diff', '--', 'bin/cells-plan.json', 'bin/cells-plan'), '', 'no partial generated writes survive refusal');
+});
+
+/** Two branches off one commit that each change the same file, merged in the given order into a real conflict. */
+function divergent(t, file, base, left, right) {
+  const { root, put } = fixture(t);
+  put(file, base); git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'base');
+  const main = git(root, 'rev-parse', 'HEAD').trim();
+  const branch = (name, source) => {
+    git(root, 'checkout', '-q', '-b', name, main); put(file, source); git(root, 'commit', '-qam', name);
+    return git(root, 'rev-parse', 'HEAD').trim();
+  };
+  const heads = [branch('left', left), branch('right', right)];
+  git(root, 'checkout', '-q', 'left');
+  return { root, heads };
+}
+
+const SHARD = (paths) => formatJson({ order: 8, name: 'state', paths }) + '\n';
+const ROW = (n) => [`src/m-${n}.js`, `packages/state/src/m-${n}.js`, 'rule'];
+const SHARD_FILE = 'bin/cells-plan/08-state.json';
+
+test('two disjoint plan-row appends merge clean in both orders and keep the one-row-per-line layout [C7,D3]', t => {
+  const base = [ROW(1), ROW(2)];
+  const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD([...base, ROW(3)]), SHARD([...base, ROW(4)]));
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    assert.deepEqual(mechanicalConflictFiles(root, ours, theirs), [], 'git alone conflicts on the shared tail; the mechanical merge does not');
+    git(root, 'checkout', '-q', '--detach', ours);
+    try { git(root, 'merge', '--no-commit', '--no-ff', theirs); } catch { /* git alone reports the conflict */ }
+    assert.deepEqual(resolveMechanicalIndex(root, [SHARD_FILE]).files, []);
+    const rows = JSON.parse(readFileSync(join(root, SHARD_FILE), 'utf8')).paths;
+    assert.deepEqual(rows.map(row => row[0]).sort(), ['src/m-1.js', 'src/m-2.js', 'src/m-3.js', 'src/m-4.js']);
+    assert.equal(readFileSync(join(root, SHARD_FILE), 'utf8'), formatJson(JSON.parse(readFileSync(join(root, SHARD_FILE), 'utf8'))) + '\n', 'one row per line, as the plan writer lays it out');
+    git(root, 'merge', '--abort');
+  }
+});
+
+test('the same plan row edited two ways still conflicts [C7,D3]', t => {
+  const base = [ROW(1), ROW(2)];
+  const edit = (to) => base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', to, 'rule'] : row));
+  const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD(edit('packages/a/m-2.js')), SHARD(edit('packages/b/m-2.js')));
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1]), [SHARD_FILE]);
+  const added = divergent(t, SHARD_FILE, SHARD(base), SHARD([...base, ['src/m-9.js', 'packages/a/m-9.js', 'rule']]), SHARD([...base, ['src/m-9.js', 'packages/b/m-9.js', 'rule']]));
+  assert.deepEqual(mechanicalConflictFiles(added.root, added.heads[0], added.heads[1]), [SHARD_FILE], 'one new path placed in two cells is a real conflict');
+});
+
+const DEFAULTS = (extra = '') => `export function defaults() {
+  return {
+    spec: 'SPEC.md',
+    // Explains the next setting.
+    map: { slice: false },${extra}
+    lanes: {},
+    commits: {
+      maxHeader: 72,
+    },
+  };
+}
+`;
+
+test('different keys added to the config defaults merge clean in both orders; one key edited twice conflicts [C7]', t => {
+  const mapped = DEFAULTS().replace('    lanes: {},', '    alpha: { on: false },\n    lanes: {},');
+  const beta = DEFAULTS().replace('    spec: ', "    // Beta's comment.\n    beta: {\n      on: true,\n    },\n    spec: ");
+  const { root, heads } = divergent(t, 'src/config.js', DEFAULTS(), mapped, beta);
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) assert.deepEqual(mechanicalConflictFiles(root, ours, theirs), []);
+  const edited = divergent(t, 'src/config.js', DEFAULTS(), DEFAULTS().replace('slice: false', 'slice: true'), DEFAULTS().replace('slice: false', 'slice: 1'));
+  assert.deepEqual(mechanicalConflictFiles(edited.root, edited.heads[0], edited.heads[1]), ['src/config.js']);
+  const twice = divergent(t, 'src/config.js', DEFAULTS(), mapped, mapped.replace('false },\n    lanes', 'true },\n    lanes'));
+  assert.deepEqual(mechanicalConflictFiles(twice.root, twice.heads[0], twice.heads[1]), ['src/config.js'], 'the same new key with two values is a real conflict');
+});
+
+test('a plan row one branch deletes and the other changes still conflicts in both orders [C7,D3]', t => {
+  const base = [ROW(1), ROW(2)];
+  const gone = base.filter(row => row[0] !== 'src/m-2.js');
+  const moved = base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', 'packages/b/m-2.js', 'rule'] : row));
+  const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD(gone), SHARD(moved));
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1]), [SHARD_FILE]);
+  assert.deepEqual(mechanicalConflictFiles(root, heads[1], heads[0]), [SHARD_FILE]);
+  const apart = divergent(t, SHARD_FILE, SHARD(base), SHARD(gone), SHARD([...base, ROW(3)]));
+  assert.deepEqual(mechanicalConflictFiles(apart.root, apart.heads[0], apart.heads[1]), [], 'a delete beside a disjoint append still merges');
+});
+
+test('a config default one branch deletes and the other changes still conflicts in both orders [C7]', t => {
+  const gone = DEFAULTS().replace('    // Explains the next setting.\n    map: { slice: false },\n', '');
+  const changed = DEFAULTS().replace('slice: false', 'slice: true');
+  assert.notEqual(gone, DEFAULTS());
+  const { root, heads } = divergent(t, 'src/config.js', DEFAULTS(), gone, changed);
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1]), ['src/config.js']);
+  assert.deepEqual(mechanicalConflictFiles(root, heads[1], heads[0]), ['src/config.js']);
+});
+
+test('replay of a version-three receipt keeps the older policy for plan rows [H16,C7]', t => {
+  const base = [ROW(1), ROW(2)];
+  const edit = (to) => base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', to, 'rule'] : row));
+  const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD(edit('packages/a/m-2.js')), SHARD(edit('packages/b/m-2.js')));
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 3 }), [], 'the recorded version-three answer is unchanged');
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 4 }), [SHARD_FILE]);
 });

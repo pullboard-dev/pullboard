@@ -1,3 +1,5 @@
+import { currentProofCounters } from '../packages/verify/index.js';
+import { proofCounter } from '../packages/verify/index.js';
 import { workQueue } from '../packages/items/index.js';
 import { pipelineStats } from './stats-pipeline.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
@@ -106,7 +108,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
     // The forecast reads this machine's derived proof-counter index, which sealed exports omit, so only the local host adds it.
-    if (localCapacity) state.capacityForecast = readCapacity(board, observedAt);
+    if (localCapacity) state.capacityForecast = readCapacity(board, observedAt, { currentProofCounters, proofCounter });
     const decorated = projectSpecApprovals(projectFit(pendingFit(repoInfo(root).commonDir), projectRowDecisions(projectData.rowDecisions, state)), specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }));
     decorated.ruleCounts = ruleProofCounts(root, board, decorated.spec);
     const bases = new Map(decorated.items.map((item) => [item.id, item]));
