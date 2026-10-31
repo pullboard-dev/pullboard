@@ -162,3 +162,6 @@ export {
 export {
   remoteRepository,
 } from './src/core/github-remote.js';
+export {
+  originRepository,
+} from './src/core/github-origin.js';

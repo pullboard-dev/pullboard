@@ -29,5 +29,6 @@
   "src/review-routing-enabled.js": "packages/seats/src/core/review-routing-enabled.js",
   "src/verdict-rows.js": "packages/seats/src/core/verdict-rows.js",
   "src/seat-parent.js": "packages/seats/src/core/seat-parent.js",
-  "src/github-remote.js": "packages/seats/src/core/github-remote.js"
+  "src/github-remote.js": "packages/seats/src/core/github-remote.js",
+  "src/github-origin.js": "packages/seats/src/core/github-origin.js"
 }
