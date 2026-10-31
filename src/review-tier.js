@@ -11,6 +11,9 @@ const SOURCE_DIRECTORIES = ['relay/', 'src/gate/', 'src/auth/', 'src/relay/', 's
   'bin/checks/', '.githooks/', '.husky/', '.github/workflows/'];
 const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
+  // Exact sensitive merge bodies retain their original Strict classification (#1566).
+  'packages/merge/src/shell/merge-only-verdict.js',
+  'packages/merge/src/shell/train-mechanical-merge.js',
   // Exact moved identities retain their existing Strict classification (#1565).
   'packages/items/src/shell/parent-session.js',
   'packages/items/src/shell/item-patches.js',
