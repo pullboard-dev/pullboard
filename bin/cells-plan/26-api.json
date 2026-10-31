@@ -7,11 +7,10 @@
  "paths": [
   ["src/api-delta-fields.js","packages/api/src/core/api-delta-fields.js","rule"],
   ["src/api-http.js","packages/api/src/shell/api-http.js","seed"],
-  ["src/api-moves.js","packages/api/src/core/api-moves.js","seed"],
   ["src/api.js","packages/api/src/shell/api.js","seed"],
   ["test/shout-item-cli.test.js","packages/api/tests/shout-item-cli.test.js","seed"]
  ],
- "reexports": ["src/api-delta-fields.js","src/api-http.js","src/api-moves.js","src/api.js"],
+ "reexports": ["src/api-delta-fields.js","src/api-http.js","src/api.js"],
  "imports": [
   {"cell":"kernel","imports":3,"before":true},
   {"cell":"git","imports":3,"before":true},

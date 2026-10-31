@@ -1,7 +1,7 @@
 /** Keep sealed person intent inside the CLI request boundary [H12,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { moveArgs } from '../src/api-moves.js';
+import { moveArgs } from '../packages/person/index.js';
 import { personRequestMove, preparePersonRequest, validatePersonRequest } from '../src/person-request.js';
 import { Refused } from '../packages/kernel/core.js';
 
