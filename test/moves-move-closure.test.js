@@ -42,7 +42,9 @@ function closure(read, identities, opaque = null) {
 test('exact moves shims add no registry loader to the move declaration closure; the front door fails the control [C7,CD60,H16]', () => {
   const sources = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT)))
     .map(({ file, body }) => [file, body.toString('utf8')]));
+  const manifest = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
   const read = file => {
+    if (file === 'package.json') return manifest;
     assert.ok(sources.has(file), `closure source belongs to the bounded inventory: ${file}`);
     return sources.get(file);
   };
