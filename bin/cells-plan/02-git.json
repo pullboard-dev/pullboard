@@ -25,22 +25,7 @@
   ["test/flakes-fixture.js","packages/git/tests/flakes-fixture.js","rule"],
   ["test/flakes-fixture.test.js","packages/git/tests/flakes-fixture.test.js","rule"]
  ],
- "reexports": [
-  "src/committed-file-reader.js",
-  "src/git-adapter.js",
-  "src/git-launch-ratchet.js",
-  "src/git-memory.js",
-  "src/git.js",
-  "src/pre-push-receipts.js",
-  "src/push-native-evidence.js",
-  "src/queued-item-lease.js",
-  "src/source-advance-nudge.js",
-  "src/trunk-revision.js",
-  "src/worktree.js",
-  "src/git-child-selectors.js",
-  "src/git-landing-batches.js",
-  "src/git-trunk-ref.js"
- ],
+ "reexports": ["src/committed-file-reader.js","src/git-adapter.js","src/git.js"],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},
   {"cell":"config","imports":1,"before":false},

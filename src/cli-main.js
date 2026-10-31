@@ -470,7 +470,7 @@ async function runMain(argv, streams) {
             openBoardForRead: (await import('./cli-context.js')).nativeBoardOpeners(io).openBoardForRead });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }
-        await (await import('./source-advance-nudge.js')).nudgeSourceAdvances(io.cwd, {
+        await (await import('../packages/git/index.js')).nudgeSourceAdvances(io.cwd, {
           workerUrl: new URL('../bin/source-advance.js', import.meta.url), eligible,
         });
       }

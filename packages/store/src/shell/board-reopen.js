@@ -27,7 +27,7 @@ import { conflictDetail } from "../../../../src/trunk-conflict.js";
 import { conflictProblem } from "../../../../src/trunk-conflict.js";
 import { returnedHeadNotice } from "../../../../src/trunk-conflict.js";
 import { conflictNote } from "../../../kernel/src/core/registry-guards.js";
-import { landingBatches } from "../../../../src/git-landing-batches.js";
+import { landingBatches } from "../../../git/index.js";
 import { moveItem } from "./board.js";
 import { postRigorNotices } from "./board.js";
 import { persistShout } from "./board-shout.js";

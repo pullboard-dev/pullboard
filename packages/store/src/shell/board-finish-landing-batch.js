@@ -9,7 +9,7 @@ import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../../src/machine.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../src/land-engine.js";
 import { Refused } from "../../../../src/refused.js";
-import { landingBatches } from "../../../../src/git-landing-batches.js";
+import { landingBatches } from "../../../git/index.js";
 import { coordinatorOnly } from "./board.js";
 import { merged } from "./board-merged.js";
 import { recordLandingBatch } from "./board-record-landing-batch.js";

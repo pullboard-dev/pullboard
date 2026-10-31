@@ -82,7 +82,7 @@ import {
 } from './spec-approval.js';
 import { Refused } from './refused.js';
 import { verdictProjector } from './verdict-freshness.js';
-import { trunkRevisionReader } from './trunk-revision.js';
+import { trunkRevisionReader } from '../packages/git/index.js';
 import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
 import { settingsInventory } from './settings-inventory.js';
