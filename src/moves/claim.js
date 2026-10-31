@@ -3,7 +3,7 @@ import { EXIT_RULES_ENGINE } from '../exit-rules-engine.js';
 import { checkTimingEngine } from '../../packages/items/core.js';
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../cross-repo-dependency-engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../submit-admission-engine.js';
-import { hasForeignDependencies } from '../item-dependencies.js';
+import { hasForeignDependencies } from '../../packages/items/core.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../automatic-dispatch-engine.js';
 import { LINE_CAPACITY_ENGINE } from '../line-capacity-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
@@ -14,7 +14,7 @@ import { firstRefusal } from '../board-item-read.js';
 import { REOPEN_FIRST_REFUSAL_ENGINE } from '../engine-metadata.js';
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { OUTSIDE_INTAKE_ENGINE } from '../outside-intake-engine.js';
-import { outsideSource } from '../outside-source.js';
+import { outsideSource } from '../../packages/items/core.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { REWORK_SAME_FAMILY_ENGINE } from '../rework-same-family-engine.js';
 

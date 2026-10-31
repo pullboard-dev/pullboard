@@ -17,7 +17,7 @@ import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { IMPLIES_ENGINE } from '../move-engine-constants.js';
 import { carriesImplies } from '../../packages/state/src/core/move-implies.js';
 import { OUTSIDE_INTAKE_ENGINE } from '../outside-intake-engine.js';
-import { outsideSource } from '../outside-source.js';
+import { outsideSource } from '../../packages/items/core.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */

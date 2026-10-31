@@ -4,7 +4,7 @@ import { CHECK_TIMING_ENGINE } from '../check-timing-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { REFERENCE_ENGINE } from '../reference-engine.js';
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../cross-repo-dependency-engine.js';
-import { hasForeignDependencies } from '../item-dependencies.js';
+import { hasForeignDependencies } from '../../packages/items/core.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../automatic-dispatch-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by editItem, discovered without a shared registry edit [C7,V4,H16]. */
