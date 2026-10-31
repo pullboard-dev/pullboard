@@ -35,6 +35,8 @@ import { refreshPlanCuts } from '../packages/codemap/index.js';
 import { retiredProblems } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
+import { removeShims } from './cells-remove-shims.js';
+import { shimReport } from './cells-remove-shims.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
@@ -493,6 +495,13 @@ function main(argv) {
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
   });
+  if (mode === '--remove-shims') {
+    if (rest.length !== 1) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell>');
+    const result = removeShims(root, readPlan(root), rest[0], { parsers: { importsIn, commonJsIn } });
+    if (result.changed) writePlan(root, result.plan);
+    for (const line of shimReport(result)) console.log(line);
+    return 0;
+  }
   if (mode === '--file-cuts') { fileCuts(root, readPlan(root), rest.includes('--yes')); return 0; }
   if (mode === '--cuts') return cachedCellsRun(root, [mode, ...rest], () => {
     const problems = checkCuts(root, readPlan(root), rest[0]);
@@ -500,7 +509,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
