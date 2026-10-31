@@ -104,6 +104,7 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   const receipt = { id, expected, baseline };
   const file = saveReceipt(root, receipt);
   const io = {
+    withOutboxGuard: services.withOutboxGuard,
     /** Discard normal relay prose in the detached worker. */
     say() {},
     /** Retain delivery failures in the receipt rather than an abandoned terminal stream. */

@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runRelaySender } from './relay-sender-worker.js';
 import { outboxWaiting } from './relay-outbox.js';
+import { withOutboxGuard } from './relay-outbox-guard.js';
 
 /** The actual CLI composition entry executed by background sender processes. */
 export const SENDER_WORKER = fileURLToPath(import.meta.url);
@@ -22,7 +23,7 @@ async function serve(root, file, io) {
   const loadNativeBoard = () => import('./native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
-  const boardIo = { ...io, hookWorker, submitHandoffWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
+  const boardIo = { ...io, withOutboxGuard, hookWorker, submitHandoffWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('./relay-request-execution.js');
