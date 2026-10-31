@@ -1,5 +1,5 @@
-import { agentSessionDigest } from '../src/person.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js */
+import { agentSessionDigest } from '../src/person.js';
 /** A review offer accounts for backlog, live reservations and reviewer eligibility [Q1,V15]. */
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
