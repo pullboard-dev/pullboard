@@ -1,3 +1,4 @@
+import { mappedWorkingSource } from '../bin/checks/scan.js';
 /** @pullboard-test-input source-tree */
 /** Documentation input selection remains conservative across committed trees [V4,C7]. */
 import assert from 'node:assert/strict';
@@ -385,7 +386,8 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   box.put('test/runner-reader.test.js', "import '../bin/run-tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
-  writeFileSync(join(box.root, 'src/person.js'), readFileSync(join(box.root, 'src/person.js'), 'utf8') + '\n// ordinary source change\n');
+  const mapped = mappedWorkingSource(sourceRoot, 'src/person.js');
+  writeFileSync(join(box.root, 'src/person.js'), readFileSync(join(box.root, mapped.shimPath), 'utf8') + '\n// ordinary source change\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/person.js'] });
   assert.equal(selected.full, false, selected.reason);
