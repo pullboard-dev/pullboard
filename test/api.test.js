@@ -518,8 +518,9 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const relayProbe = join(linked, '.schema-relay-probe.mjs');
   writeFileSync(relayProbe, `
     import { localRecords } from './src/relay.js';
+    import { openBoard } from './src/native-board.js';
     try {
-      localRecords(process.env.PULLBOARD_FIXTURE_REPO, (board) => board.db.prepare('PRAGMA user_version').get());
+      localRecords(openBoard, process.env.PULLBOARD_FIXTURE_REPO, (board) => board.db.prepare('PRAGMA user_version').get());
       console.log(JSON.stringify({ code: 'UNEXPECTED_OPEN' }));
     } catch (error) {
       console.log(JSON.stringify({ code: error.code, message: error.message }));

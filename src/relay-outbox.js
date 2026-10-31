@@ -413,7 +413,7 @@ export async function queueMove(link, { operation, args, command, move, error, a
   const outbox = await readOutbox(where, key, state.board)
     ?? { version: 3, baseSequence: localRecords(root, appliedSequence), restored: false, moves: [] };
   if (!move) {
-    const sent = withSeatName(root, operation, args);
+    const sent = withSeatName(root, operation, args, io);
     move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent)), state.machine, state.computerName, senderPolicy);
     move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
   }

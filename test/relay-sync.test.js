@@ -36,7 +36,7 @@ function moves(box, texts, options = {}) {
       try { await relayOperation(process.cwd(), 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text }], io); outcomes.push('ok'); }
       catch (error) { outcomes.push({ code: error.code, message: error.message }); }
     }
-    const local = localRecords(process.cwd(), board => board.db.prepare('SELECT shout_text AS text FROM shout').all().map(row => row.text));
+    const local = localRecords(openBoard, process.cwd(), board => board.db.prepare('SELECT shout_text AS text FROM shout').all().map(row => row.text));
     process.stdout.write(JSON.stringify({ outcomes, lines, local }));
   `);
 }

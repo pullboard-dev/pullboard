@@ -70,8 +70,8 @@ export async function joinNamedBoard(root, file, { board, url, repository, signI
     const state = { version: 1, mode: 'ordered', board, url, repository, token: issued.token, tokenId: issued.id, machine, account,
       ...(typeof login === 'string' && login ? { login } : {}), keyStorage: stored || 'file', sequence: 0, cursor: 0, baselineAccepted: true };
     await restoreCheckpoint(root, state, io, key, (local, native) => importBoard(local, native));
-    state.sequence = localRecords(root, appliedSequence);
-    state.cursor = localRecords(root, (local) => local.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
+    state.sequence = localRecords(openBoard, root, appliedSequence);
+    state.cursor = localRecords(openBoard, root, (local) => local.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
     saveLink(file, state);
   } catch (error) {
     if (stored) { try { forgetBoardKey(board, stored); } catch { /* The original refusal is the useful next step. */ } }
@@ -96,6 +96,6 @@ export async function joinNamedBoard(root, file, { board, url, repository, signI
 export async function joinNamedBoardIfAny(root, file, { linked, url, repository, signIn, openBoard }, io) {
   const named = linked ? null : namedBoard(repoInfo(root).root);
   const relinking = relayRelink(root);
-  if (!named || named === localRecords(root, store.boardId) || relinking?.previous === named || relinking?.next === named) return null;
+  if (!named || named === localRecords(openBoard, root, store.boardId) || relinking?.previous === named || relinking?.next === named) return null;
   return joinNamedBoard(root, file, { board: named, url, repository, signIn: () => signIn(url), openBoard }, io);
 }

@@ -92,7 +92,7 @@ async function moveFromContext(io, teamCtx, currentCtx, teamBoard, teamAgent, cu
         return { previous, sourceCtx, sourceAgent };
       });
     const commandReceipt = sourceBoardRef.kind === 'team'
-      ? await relayCommandReceipt(teamCtx.info.root, teamCtx.io.relayCommand) : null;
+      ? await relayCommandReceipt(teamCtx.info.root, teamCtx.io.relayCommand, teamCtx.io) : null;
     let moveId = commandReceipt?.move.id ?? resumed.previous?.moveId ?? randomUUID();
     let destinationItemId = resumed.previous?.destinationItemId;
     const destinationHandle = referenceName(destinationRef);
@@ -145,7 +145,7 @@ async function moveFromContext(io, teamCtx, currentCtx, teamBoard, teamAgent, cu
         return id;
       });
     if (sourceBoardRef.kind === 'team' && teamCtx.io.relayCommand && (commandReceipt || io.recordedMove)) {
-      await relayCommandReceiptReported(teamCtx.info.root, moveId);
+      await relayCommandReceiptReported(teamCtx.info.root, moveId, teamCtx.io);
     }
     io.result?.({ source: `${referenceName(sourceBoardRef)}#${sourceRef.itemId}`,
       destination: `${destinationHandle}#${destinationId}`, moveId, item: record });

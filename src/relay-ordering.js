@@ -158,7 +158,7 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
         }
         if (error.code === 'SEAT_TAKEN' && pending.registration) {
           // The relay already gave this name a token (a machine first mint): take the next free name.
-          nameNextSeat(root, pending.move, Number(pending.move.args[0].id.slice(pending.move.args[0].lane.length + 1)) + 1);
+          nameNextSeat(root, pending.move, Number(pending.move.args[0].id.slice(pending.move.args[0].lane.length + 1)) + 1, io);
           pending.sealed = await sealedRecord(readBoardKey(state.board), pending.move, state, 'move', pending.sequence);
           pending.registration = seatReceipt(pending.move, pending.sequence, pending.sealed);
           saveLink(file, state);
@@ -179,7 +179,7 @@ export function relayOrdering({ request, localRecords, decoded, replayRelayRecor
         await catchUp(root, file, state, io, senderPolicy);
         if (state.pending) {
           state.pending.sequence = state.sequence + 1;
-          if (state.pending.registration) nameNextSeat(root, state.pending.move, 0);
+          if (state.pending.registration) nameNextSeat(root, state.pending.move, 0, io);
           state.pending.sealed = await sealedRecord(readBoardKey(state.board), state.pending.move, state, 'move', state.pending.sequence);
           state.pending.registration = seatReceipt(state.pending.move, state.pending.sequence, state.pending.sealed);
           saveLink(file, state);

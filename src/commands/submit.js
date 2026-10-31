@@ -246,7 +246,7 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
 export async function submitHere(ctx, id, infra) {
   const { root } = ctx.info;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
-  const recovered = relayRecovered(root);
+  const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
       const me = whoAmI(ctx, board);

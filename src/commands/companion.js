@@ -23,7 +23,7 @@ import { buildInFilelessLane } from '../cli.js';
 /** Execute the normal authenticated request; only the coordinator may supply a check command. */
 export async function run(io, { first, second, rest, values }) {
   return actOn(io, async (ctx, board, me) => {
-    const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+    const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand, io);
     let result;
     if (recovered) {
       io.recordedMove = true;
@@ -52,7 +52,7 @@ export async function run(io, { first, second, rest, values }) {
     io.result?.({ item, created: result.created });
     io.say(`${result.created ? 'created' : 'existing'} companion #${item.item_id} in ${item.item_lane}; claim that item before building it`);
     sayCheckBaseline(io, item);
-    if (recovered) await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+    if (recovered) await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
     return 0;
   });
 }

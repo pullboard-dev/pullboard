@@ -67,7 +67,6 @@ import {
   gzipSync,
 } from 'node:zlib';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
 import {
   exportBoard,
   importBoard,
@@ -241,7 +240,7 @@ function saveDeletedLink(root, value) {
 function intentDigest(intent) { return createHash('sha256').update(intent).digest('hex'); }
 
 /** Commit the sender's pending native obligation before any link metadata or key can be removed. */
-function retainDeletedMove(root, state) {
+function retainDeletedMove(root, state, io) {
   const recovered = state.pending ?? state.recovered;
   if (!recovered) return null;
   const move = recovered.move;
@@ -251,7 +250,7 @@ function retainDeletedMove(root, state) {
       && recovered.commandIntent !== operationIntent('cli:' + recovered.command?.cliOperation, recovered.command)) {
     throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
   }
-  localRecords(root, board => {
+  localRecords(io.openBoard, root, board => {
     const receipt = engineReceipt(board, move.id);
     if (receipt) {
       if (receipt.move !== JSON.stringify(move)) throw new Refused('RELAY_MOVE', 'restore the interrupted move that matches its durable receipt before retrying');
@@ -264,10 +263,10 @@ function retainDeletedMove(root, state) {
 }
 
 /** Resolve the private pointer only through the exact durable native receipt, never a remote key. */
-function deletedRecovery(root) {
+function deletedRecovery(root, io) {
   const marker = deletedLink(root);
   if (!marker?.recovered) return null;
-  const receipt = localRecords(root, board => engineReceipt(board, marker.recovered.id));
+  const receipt = localRecords(io.openBoard, root, board => engineReceipt(board, marker.recovered.id));
   let move;
   try { move = receipt && JSON.parse(receipt.move); } catch { /* Refuse a corrupt receipt below. */ }
   if (!move || move.id !== marker.recovered.id || !receipt.outcome) {
@@ -284,7 +283,7 @@ function clearDeletedRecovery(root, marker) {
 
 /** Return an exact interrupted result once; a different command can continue beside the saved move. */
 function deletedMoveResult(root, operation, args, command, io, applyLocally) {
-  const recovered = deletedRecovery(root);
+  const recovered = deletedRecovery(root, io);
   const pointer = recovered?.marker.recovered;
   const matches = pointer && (pointer.commandIntent === undefined
     ? pointer.intent === intentDigest(operationIntent(operation, args))
@@ -298,7 +297,7 @@ function deletedMoveResult(root, operation, args, command, io, applyLocally) {
 
 /** Preserve the pending native move and a truthful notice before removing the inert link. */
 function forgetDeletedCopy(root, file, state, io) {
-  const recovered = retainDeletedMove(root, state);
+  const recovered = retainDeletedMove(root, state, io);
   saveDeletedLink(root, { version: 1, board: state.board, url: state.url, ...(recovered ? { recovered } : {}) });
   rememberRelink(root, state.board);
   archiveRelinkOutbox(root, state);
@@ -415,7 +414,7 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
 }
 
 /** Read durable local event rows; their ids are the crash-safe outbox after the saved cursor. */
-export function localRecords(root, work) {
+export function localRecords(openBoard, root, work) {
   const info = repoInfo(root);
   const board = openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain(), gitRoot: root });
   try { return work(board); } finally { store.closeBoard(board); }
@@ -427,12 +426,12 @@ function nativeBoardDigest(board) {
 }
 
 /** Count unapplied uploads using durable event ids, without counting relay transport metadata. */
-function behind(root, state) {
-  return localRecords(root, (board) => board.db.prepare('SELECT COUNT(*) AS count FROM event WHERE event_id > ?').get(state.cursor).count);
+function behind(root, state, openBoard) {
+  return localRecords(openBoard, root, (board) => board.db.prepare('SELECT COUNT(*) AS count FROM event WHERE event_id > ?').get(state.cursor).count);
 }
 
 /** Expose key-free link status; only an explicit link operation includes its pairing carrier. */
-function summary(root, state, { pairing = false, outboxFields } = {}) {
+function summary(root, state, { pairing = false, outboxFields, openBoard } = {}) {
   if (!state) {
     const deleted = deletedLink(root);
     const exclusion = relayExclusion(root);
@@ -443,7 +442,7 @@ function summary(root, state, { pairing = false, outboxFields } = {}) {
   const oversizedSnapshot = snapshotSize(state);
   return { linked: true, board: state.board, url: state.url, account: state.account ?? '', login: state.login ?? '',
     link: 'https://app.pullboard.dev/#board=' + state.board + fragment,
-    sequence: state.sequence, behind: (state.baselinePause ? behind(root, state) : state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint))
+    sequence: state.sequence, behind: (state.baselinePause ? behind(root, state, openBoard) : state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, openBoard)) + Number(Boolean(state.snapshot || state.checkpoint))
       + (state.outbox?.moves?.length ?? 0),
     recovery: recoverySummary(state),
     health: readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }),
@@ -610,9 +609,9 @@ async function requireAbsentBaseline(file, state, io) {
 }
 
 /** Record that the relay holds the pending sequence-zero snapshot, from its ACK or an authenticated read of it. */
-function acceptBaseline(root, file, state) {
+function acceptBaseline(root, file, state, io) {
   state.baselineAccepted = true;
-  state.cursor = Number.isSafeInteger(state.baselineCursor) ? state.baselineCursor : localRecords(root, (board) => board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
+  state.cursor = Number.isSafeInteger(state.baselineCursor) ? state.baselineCursor : localRecords(io.openBoard, root, (board) => board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id);
   delete state.baselineCursor;
   const resumed = Boolean(state.baselinePause);
   delete state.baselinePause;
@@ -629,7 +628,7 @@ function acceptBaseline(root, file, state) {
 /** Decide a first upload whose reply was lost, through this link's transport and saved state (#919). */
 function decideBaseline(root, file, state, io) {
   return io.decideUncertainBaseline(state, io, { read: () => request(state, '/api/v1/boards/' + state.board + '/state', {}, io),
-    accept: () => acceptBaseline(root, file, state), fence: () => fenceBaseline(file, state),
+    accept: () => acceptBaseline(root, file, state, io), fence: () => fenceBaseline(file, state),
     save: () => saveLink(file, state), remember: (error) => rememberBaselineFailure(io, file, error) });
 }
 
@@ -645,7 +644,7 @@ async function uploadInitialBaseline(root, file, state, io) {
     saveLink(file, state);
     const reply = await request(state, '/api/v1/boards/' + state.board + '/state', { method: 'PUT', body: pending, initialBaseline: true }, io);
     if (reply.state?.sequence !== pending.sequence || reply.state.sealed !== pending.sealed) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge the initial snapshot; retry the configured relay');
-    acceptBaseline(root, file, state);
+    acceptBaseline(root, file, state, io);
     return true;
   } catch (error) {
     if (sent && state.baselineUncertain && await io.uncertainUploadFailure(error)) {
@@ -755,7 +754,7 @@ async function flushMirror(root, file, state, io) {
   if (received.length) state.sequence = Math.max(state.sequence, ...received.map((event) => event.event_id));
   if (state.pending && state.pending.sequence <= state.sequence) delete state.pending;
   saveLink(file, state);
-  const rows = localRecords(root, (board) => store.events(board).filter((event) => event.event_id > state.cursor));
+  const rows = localRecords(io.openBoard, root, (board) => store.events(board).filter((event) => event.event_id > state.cursor));
   for (const event of rows) {
     if (!state.pending) {
       const sequence = state.sequence + 1;
@@ -793,7 +792,7 @@ async function flushMirror(root, file, state, io) {
     delete state.snapshot;
     saveLink(file, state);
   }
-  return summary(root, state, { outboxFields: io.outboxFields });
+  return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard });
 }
 
 /** A saved link is the opt-in boundary; unlinked callers neither read keys nor contact the relay. */
@@ -903,7 +902,7 @@ async function ensureOrdered(root, file, state, io) {
       }
     }
     await flushMirror(root, file, state, io);
-    localRecords(root, (board) => checkpointSequence(board, state.sequence));
+    localRecords(io.openBoard, root, (board) => checkpointSequence(board, state.sequence));
   }
   await publishCheckpoint(root, file, state, io);
   state.mode = 'ordered';
@@ -921,7 +920,7 @@ export async function restoreCheckpoint(root, state, io, key, restore = restoreR
   const senderProblem = senderPolicy.relaySenderProblem(null, snapshot.sender, 'snapshot');
   if (senderProblem) throw senderProblem;
   const native = await decoded(key, snapshot, state, 'snapshot', snapshot.sequence);
-  localRecords(root, (board) => restore(board, native, snapshot.sequence));
+  localRecords(io.openBoard, root, (board) => restore(board, native, snapshot.sequence));
 }
 
 /**
@@ -951,7 +950,7 @@ function reportRecoveredReply(record, io) {
 
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
 async function orderingServices(io) {
-  return io.relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard: io.openBoard,
+  return io.relayOrdering({ request, localRecords: (root, work) => localRecords(io.openBoard, root, work), decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard: io.openBoard,
     flush: (root, file, state, output, senderPolicy) => io.flushOutbox(outboxLink(root, file, state, output, senderPolicy)) });
 }
 async function applyRecords(root, key, state, records, io) { return (await orderingServices(io)).applyRecords(root, key, state, records, io); }
@@ -970,7 +969,7 @@ export async function relayPersonCoordinator(root, session, io) {
 }
 
 /** Keep a recovered outcome until its caller repeats the interrupted operation to receive it. */
-function recoveredMove(root, state, operation, args, command) {
+function recoveredMove(root, state, operation, args, command, io) {
   if (!state.recovered) return null;
   const recovered = state.recovered;
   const intent = recovered.intent ?? operationIntent(recovered.move.operation, recovered.move.args);
@@ -980,7 +979,7 @@ function recoveredMove(root, state, operation, args, command) {
   if (!matches) {
     throw new Refused('RELAY_RETRY_PENDING', 'the previous move reached the relay; repeat that interrupted command to receive its original outcome before sending a different move');
   }
-  const receipt = localRecords(root, (board) => engineReceipt(board, recovered.move.id));
+  const receipt = localRecords(io.openBoard, root, (board) => engineReceipt(board, recovered.move.id));
   if (!receipt) throw new Refused('RELAY_RESPONSE', 'the recovered operation has no replay receipt; fetch a consistent relay snapshot before retrying');
   if (receipt.move !== JSON.stringify(recovered.move)) {
     throw new Refused('RELAY_MOVE', 'the recovered operation differs from its durable receipt; restore consistent relay metadata before retrying');
@@ -1002,7 +1001,7 @@ function keepMoveForLaterBaseline(file, state, error, io) {
 
 /** The relay transport the ordered outbox queues and replays through (#922). */
 function outboxLink(root, file, state, io, senderPolicy) {
-  return { root, file, state, io, senderPolicy, request, sealedRecord, localRecords, saveLink, safePauseCode, safePauseMessage,
+  return { root, file, state, io, senderPolicy, request, sealedRecord, localRecords: (root, work) => localRecords(io.openBoard, root, work), saveLink, safePauseCode, safePauseMessage,
     applyRecords: (root, key, state, records) => applyRecords(root, key, state, records, io), fetchCheckpoint: (key) => fetchCheckpoint(state, io, key, senderPolicy),
     postPending: (checkout, link, current, pending, output) => postPending(checkout, link, current, pending, output, senderPolicy) };
 }
@@ -1013,7 +1012,7 @@ function outboxLink(root, file, state, io, senderPolicy) {
  */
 async function queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded, senderPolicy) {
   const guarded = landingRelayCallbacks(operation, args, {
-    apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
+    apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(io.openBoard, root, (board) => board.enginePorts.store[operation](board, ...args)),
     queue: () => { throw new Refused('RELAY_OUTBOX', 'a local-first move queues itself; it is never queued twice'); },
   });
   // An unlink that finished while this move waited for the guard leaves an ordinary local board.
@@ -1040,11 +1039,11 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     const state = loadLink(file);
     if (operation === 'rehomeItem') await requireAuthoritativeRehomeItem(file, state, args?.[0], io);
     const guarded = landingRelayCallbacks(operation, args, {
-      apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
+      apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(io.openBoard, root, (board) => board.enginePorts.store[operation](board, ...args)),
       queue: (error, move, apply) => io.queueMove(outboxLink(root, file, state, io, senderPolicy), { operation, args, command, move, error, applyLocally: apply }),
     });
     const applyPausedMoveLocally = guarded.apply;
-    if (!state && deletedRecovery(root)) return deletedMoveResult(root, operation, args, command, io, applyPausedMoveLocally);
+    if (!state && deletedRecovery(root, io)) return deletedMoveResult(root, operation, args, command, io, applyPausedMoveLocally);
     if (!state || state.unlinking) throw new Refused('RELAY_UNLINK_PENDING', 'finish unlinking this device with pullboard relay off before sending a move');
     if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `finish the saved recovery for sequence ${state.recovery.skip} before sending a linked move`);
     if (senderPolicy.credentialActor({ operation, args, personRequest: io?.personRequest }) === 'person') {
@@ -1084,7 +1083,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
         delete state.pending;
         saveLink(file, state);
       }
-      const previousReceipt = io.personRequestMoveId && localRecords(root, board => engineReceipt(board, io.personRequestMoveId));
+      const previousReceipt = io.personRequestMoveId && localRecords(io.openBoard, root, board => engineReceipt(board, io.personRequestMoveId));
       if (previousReceipt) {
         if (!previousReceipt.outcome.error) onRecorded?.();
         if (state.recovered?.move?.id === io.personRequestMoveId) {
@@ -1095,16 +1094,16 @@ export async function relayOperation(root, operation, args, io, command, applyLo
         for (const event of previousReceipt.outcome.events ?? []) io.onEvent?.(event);
         return previousReceipt.outcome.result;
       }
-      let move = recoveredMove(root, state, operation, args, command);
+      let move = recoveredMove(root, state, operation, args, command, io);
       requestedMove = move;
       try {
         if (!move) {
-          const sent = withSeatName(root, operation, args);
-          move = stampCoordinatorHolder(localRecords(root, (board) => prepareEngineMove(board, operation, sent,
+          const sent = withSeatName(root, operation, args, io);
+          move = stampCoordinatorHolder(localRecords(io.openBoard, root, (board) => prepareEngineMove(board, operation, sent,
             io.personRequestMoveId ? { id: io.personRequestMoveId } : operation === 'rehomeItem' && io.rehomeMoveId ? { id: io.rehomeMoveId } : {})), state.machine, state.computerName, senderPolicy);
           requestedMove = move;
           if (io.personRequest) move.personRequest = structuredClone(io.personRequest);
-          const problem = move.personRequest && localRecords(root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
+          const problem = move.personRequest && localRecords(io.openBoard, root, board => requestMoveProblem(board, move, { checkExecutorLease: false }));
           if (problem) throw problem;
           move.actor = senderPolicy.relayMoveActor(move) ?? senderPolicy.credentialActor(move);
           await actorTransport(root, file, state, senderPolicy.credentialActor(move), io);
@@ -1120,15 +1119,15 @@ export async function relayOperation(root, operation, args, io, command, applyLo
             if (!['RELAY_UNAVAILABLE', 'RELAY_RESPONSE'].includes(error.code)) throw error;
             // A lost acknowledgement can be recovered now without asking the caller to retry side effects.
             try { await catchUp(root, file, state, io, senderPolicy); } catch { throw rememberLostReply(file, state, move.id, error); }
-            if (!localRecords(root, (board) => engineReceipt(board, move.id))) throw rememberLostReply(file, state, move.id, error);
+            if (!localRecords(io.openBoard, root, (board) => engineReceipt(board, move.id))) throw rememberLostReply(file, state, move.id, error);
           }
         }
       } catch (error) {
         // #922: on an accepted link, a relay that stays down queues the move; a lost reply's copy is matched at replay.
-        if (move && !localRecords(root, (board) => engineReceipt(board, move.id)) && outboxQueueable(state, error, operation, io, args)) return await queue(error, move);
+        if (move && !localRecords(io.openBoard, root, (board) => engineReceipt(board, move.id)) && outboxQueueable(state, error, operation, io, args)) return await queue(error, move);
         throw error;
       }
-      const receipt = localRecords(root, (board) => engineReceipt(board, move.id));
+      const receipt = localRecords(io.openBoard, root, (board) => engineReceipt(board, move.id));
       if (!receipt) throw new Refused('RELAY_RESPONSE', 'the acknowledged operation has no replay receipt; fetch a consistent relay snapshot');
       if (!receipt.outcome.error) {
         onRecorded?.();
@@ -1161,7 +1160,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
       if (!io.relayCanary) recordClientHealth(root, false, error, Date.now() - roundTripStarted);
       if (requestedMove && onRecorded) {
         try {
-          const committed = localRecords(root, board => engineReceipt(board, requestedMove.id));
+          const committed = localRecords(io.openBoard, root, board => engineReceipt(board, requestedMove.id));
           if (committed && !committed.outcome.error) onRecorded();
         } catch { /* No readable durable receipt means no recorded-outcome claim. */ }
       }
@@ -1189,10 +1188,10 @@ export async function syncRelay(root, io) {
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state) return null;
-    if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state, { outboxFields: io.outboxFields }); }
+    if (state.unlinking) { io.err('pullboard: [RELAY_UNLINK_PENDING] the remote board is deleted; run pullboard relay off to finish forgetting this device key'); return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard }); }
     try {
       if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
-      if (!await ensureOrdered(root, file, state, io)) return summary(root, state, { outboxFields: io.outboxFields });
+      if (!await ensureOrdered(root, file, state, io)) return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard });
       await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy));
       await catchUp(root, file, state, io, senderPolicy);
       if (state.pending) {
@@ -1208,7 +1207,7 @@ export async function syncRelay(root, io) {
       else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root, {}, presentationPorts))) await publishCheckpoint(root, file, state, io);
       await deliverDeviceWraps(root, io);
       if (io.keyRequestsWaiting && !state.environment) await (await import('./relay-handover.js')).handOverKeys(root, state, readBoardKey(state.board), request, io); // an agent token never hands over a key
-      return summary(root, state, { outboxFields: io.outboxFields });
+      return summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard });
     }
     catch (error) {
       if (!(error instanceof Refused)) throw error;
@@ -1223,7 +1222,7 @@ export async function syncRelay(root, io) {
         if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
       } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
-        behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
+        behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state, io.openBoard)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
         recovery: recoverySummary(state), ...io.outboxFields(state),
         health: readRelayHealth(root, { queued: state.outbox?.moves?.length ?? 0 }) };
     }
@@ -1292,7 +1291,7 @@ export async function relayRevoke(root, id, io) {
 }
 
 /** Read an acknowledged exact CLI result before changed spec, brief or Git refs can block it. */
-export async function relayCommandReceipt(root, command) {
+export async function relayCommandReceipt(root, command, io) {
   if (!command) return null;
   const file = linkFile(root);
   // Most commands have no interrupted result to recover: they read that without the relay lock, so an add never
@@ -1302,7 +1301,7 @@ export async function relayCommandReceipt(root, command) {
   return locked(file, async () => {
     const state = loadLink(file);
     if (!state) {
-      const recovered = deletedRecovery(root);
+      const recovered = deletedRecovery(root, io);
       if (!recovered || recovered.marker.recovered.commandIntent !== intentDigest(operationIntent('cli:' + command.cliOperation, command))) return null;
       const expected = { add: 'addItem', companion: 'requestCompanion', patch: command.positionals?.[0] === 'attach' ? 'attachItemPatch' : 'removeItemPatch', edit: 'editItem', merged: 'merged', move: 'rehomeItem' }[command.cliOperation];
       if (recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command receipt before retrying');
@@ -1320,8 +1319,8 @@ export async function relayCommandReceipt(root, command) {
     }
     const expected = { add: 'addItem', companion: 'requestCompanion', patch: command.positionals?.[0] === 'attach' ? 'attachItemPatch' : 'removeItemPatch', edit: 'editItem', merged: 'merged', move: 'rehomeItem' }[command.cliOperation];
     if (!recovered.move || recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
-    const move = recoveredMove(root, state, recovered.move.operation, recovered.move.args, command);
-    const receipt = localRecords(root, board => engineReceipt(board, move.id));
+    const move = recoveredMove(root, state, recovered.move.operation, recovered.move.args, command, io);
+    const receipt = localRecords(io.openBoard, root, board => engineReceipt(board, move.id));
     if (receipt.outcome.error) {
       delete state.recovered;
       saveLink(file, state);
@@ -1332,7 +1331,7 @@ export async function relayCommandReceipt(root, command) {
 }
 
 /** Consume the exact cached result after its original CLI outcome has been formatted. */
-export async function relayCommandReceiptReported(root, moveId) {
+export async function relayCommandReceiptReported(root, moveId, io) {
   const file = linkFile(root);
   const peek = loadLink(file);
   if (peek && peek.recovered?.move?.id !== moveId) return;
@@ -1342,16 +1341,16 @@ export async function relayCommandReceiptReported(root, moveId) {
       delete state.recovered;
       saveLink(file, state);
     } else if (!state) {
-      const recovered = deletedRecovery(root);
+      const recovered = deletedRecovery(root, io);
       if (recovered?.move.id === moveId) clearDeletedRecovery(root, recovered.marker);
     }
   });
 }
 
 /** Expose only an unreported operation descriptor so CLI preconditions cannot strand its outcome. */
-export function relayRecovered(root, { includePending = false } = {}) {
+export function relayRecovered(root, { includePending = false } = {}, io) {
   const state = loadLink(linkFile(root));
-  return state ? state.recovered?.move ?? (includePending ? state.pending?.move : null) ?? null : deletedRecovery(root)?.move ?? null;
+  return state ? state.recovered?.move ?? (includePending ? state.pending?.move : null) ?? null : deletedRecovery(root, io)?.move ?? null;
 }
 
 /** Explicitly refuse one blocked position, replay its valid tail on a private copy, then publish it. */
@@ -1393,7 +1392,7 @@ export async function relayRecover(root, skip, io) {
           state.cursor = saved.state.sequence;
           delete state.recovery;
           saveLink(file, state);
-          return { ...summary(root, state, { outboxFields: io.outboxFields }), skipped: skip, ...(!ownAcknowledgement ? { adopted: true } : {}) };
+          return { ...summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard }), skipped: skip, ...(!ownAcknowledgement ? { adopted: true } : {}) };
         }
       }
       const remote = await request(state, '/api/v1/boards/' + state.board + '/events?after=' + cursor, {}, io);
@@ -1440,13 +1439,13 @@ export async function relayRecover(root, skip, io) {
       state.cursor = sequence;
       delete state.recovery;
       saveLink(file, state);
-      return { ...summary(root, state, { outboxFields: io.outboxFields }), skipped: skip };
+      return { ...summary(root, state, { outboxFields: io.outboxFields, openBoard: io.openBoard }), skipped: skip };
     } finally { store.closeBoard(staged); store.closeBoard(source); }
   });
 }
 
 /** Read the local link and lag without opening a network connection or revealing its relay token. */
-export function relayStatus(root, io) { return withRelayExclusion(root, summary(root, loadLink(linkFile(root)), { outboxFields: io?.outboxFields })); }
+export function relayStatus(root, io) { return withRelayExclusion(root, summary(root, loadLink(linkFile(root)), { outboxFields: io?.outboxFields, openBoard: io?.openBoard })); }
 
 /** Cancel one device ticket without the already-aborted caller signal. */
 async function cancelDeviceFlow(url, ticket, io) {
@@ -1535,7 +1534,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     const url = relayOrigin(address || state?.url || DEFAULT_RELAY);
     if (state && (state.url !== url || state.repository !== repository)) throw new Refused('RELAY_LINKED', 'this board is linked to another relay or repository; run relay off before changing its link');
     const key = state ? readBoardKey(state.board) : await generateBoardKey();
-    const nextBoard = state?.board ?? plannedRelayBoard(root, localRecords(root, store.boardId));
+    const nextBoard = state?.board ?? plannedRelayBoard(root, localRecords(io.openBoard, root, store.boardId));
     const relink = state ? null : relayRelink(root);
     const replacement = relinkReplacement(state, relink, deletedLink(root)?.board);
     const intent = remoteShell ? { board: nextBoard, repository,
@@ -1545,7 +1544,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
     // Every clone finds its board in pullboard.json [E12], written before the snapshot so its presentation carries it.
     const restoreConfig = nameBoardInConfig(repoInfo(root).root, nextBoard, io);
     if (!state) {
-      const snapshot = localRecords(root, (board) => {
+      const snapshot = localRecords(io.openBoard, root, (board) => {
         startRelayEpoch(board, nextBoard);
         return { board: store.boardId(board) };
       });
@@ -1611,9 +1610,9 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
         clearedExclusion = clearRelayExclusion(root);
         if (reusableSession === undefined) await publishExcludedBoards({ ...signed, account, url }, io, request);
       }
-      result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields });
+      result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields, openBoard: io.openBoard });
     }
-    catch (error) { if (strict || !(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields }); }
+    catch (error) { if (strict || !(error instanceof Refused)) throw error; io.err(`pullboard: ${error.message}; pending records are queued for the next command`); result = summary(root, state, { pairing: !quiet, outboxFields: io.outboxFields, openBoard: io.openBoard }); }
     if (!quiet) io.say(terminalQr(result.link));
     if (state.previousBoardNotice) {
       result.notice = 'Linked a fresh relay board. The old remote copy stays until you delete it from your phone.';
@@ -1630,7 +1629,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
 export async function relayOff(root, io) {
   const file = linkFile(root);
   return locked(file, async () => {
-    excludeRelayByPerson(root, io, { localRecords });
+    excludeRelayByPerson(root, io, { localRecords: (root, work) => localRecords(io.openBoard, root, work) });
     const state = loadLink(file);
     if (!state) { await publishOffExclusions(null, io, { loadLink, linkFile, request: relayDeviceRequest }); return summary(root, null); }
     let joined = [];
