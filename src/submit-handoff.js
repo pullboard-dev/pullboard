@@ -1,4 +1,6 @@
 import { git } from './git.js';
+import { once } from 'node:events';
+import { exactStart } from './gate.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -19,7 +21,6 @@ import { submitHandoffRoot } from './submit-handoff-origin.js';
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
 export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
-  const { submitHandoffWorkerEntrypoint } = await import('./submit-handoff-worker.js');
   const result = await withBoard(ctx, board => ordered(ctx, board, 'queueSubmitHandoff', [item.item_id, {
     agentId: me.id, job: randomUUID(), main: candidate.main, executionCommit: candidate.companion?.commit ?? candidate.commit, executionTree: candidate.companion?.tree ?? candidate.tree, commit: candidate.commit, tree: candidate.tree,
     digest: item.item_frozen_digest, leaseMs: ctx.config.leaseMs, companionDigest: itemPatchDigest(board, item.item_id, candidate.commit),
@@ -33,14 +34,21 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
       companion: candidate.companion }) + '\n', { flag: 'wx', mode: 0o600 });
     const log = openSync(join(directory, 'worker.log'), 'a', 0o600);
     try {
-      const worker = spawn(process.execPath, [submitHandoffWorkerEntrypoint(), join(directory, 'request.json')],
+      const worker = spawn(process.execPath, [ctx.io.submitHandoffWorker, join(directory, 'request.json')],
         { cwd: ctx.info.commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
+      // Capture one actual incarnation before acknowledging; this file grants no board or proof authority.
+      await once(worker, 'spawn');
+      const started = exactStart(worker.pid);
+      writeFileSync(join(directory, 'worker.json'), JSON.stringify({ version: 1, job: result.job.id,
+        pid: worker.pid, started }) + '\n', { flag: 'wx', mode: 0o600 });
       worker.unref();
     } finally { closeSync(log); }
   }
-  if (ctx.submissionResult) ctx.submissionResult.queued = true;
-  ctx.io.result?.({ queued: true, id: item.item_id, item: item.item_id, pin: `refs/pullboard/submit-handoffs/${result.job.id}`, gate: { queued: true, green: null }, commit: result.job.commit, tree: result.job.tree,
-    companionDigest: result.job.companionDigest, state: result.job.state });
+  const acknowledgment = { queued: true, id: item.item_id, item: item.item_id, pin: `refs/pullboard/submit-handoffs/${result.job.id}`, gate: { queued: true, green: null }, commit: result.job.commit, tree: result.job.tree,
+    companionDigest: result.job.companionDigest, state: result.job.state };
+  if (ctx.submissionResult) Object.assign(ctx.submissionResult,
+    { queued: true, job: result.job.id, value: acknowledgment });
+  ctx.io.result?.(acknowledgment);
   ctx.io.say(`queued gate for #${item.item_id} at ${result.job.commit}; the board will wake the next actor when it finishes`);
   return 0;
 }

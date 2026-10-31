@@ -1,5 +1,6 @@
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -133,14 +134,14 @@ export async function openPrivateScopedView(box) {
   process.env.PULLBOARD_MACHINE_HOME = box.home;
   try {
     registerProject(box.first);
-    const view = await serveView({ port: 0, projectRoot: box.first });
+    const view = await serveView({ port: 0, projectRoot: box.first, runCommand: nativeTestMain });
     return { ...view, close: async () => { try { await view.close(); } finally { restore(); } } };
   } catch (error) { restore(); throw error; }
 }
 
 const CLOCKED_CLI = `
 import { readFileSync } from 'node:fs';
-import { main } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href)};
+import { main } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href)};
 /** The private test alone controls the board clock; resource liveness still uses real OS time. */
 const clock = { now: () => new Date(Number(readFileSync(process.env.PULLBOARD_FIXTURE_CLOCK, 'utf8'))) };
 process.exitCode = await main(process.argv.slice(1), {

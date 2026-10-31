@@ -20,13 +20,14 @@ import { DatabaseSync } from 'node:sqlite';
 import { createServer } from 'node:http';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
-import { main, resultCommands } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
+import { resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../src/api.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
-import { projectState } from '../src/serve.js';
+import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../src/projects.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
@@ -375,7 +376,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'next');
   await json(box, repo, 'claim', ['1']);
   await json(box, repo, 'check', ['1']);
-  await json(box, repo, 'release', ['1', '--no-next']);
+  await json(box, repo, 'release', ['1', '--reason', 'BLOCKED', '--no-next']);
   await json(box, repo, 'claim', ['1']);
   const submitted = await json(box, repo, 'submit', ['1', '--no-next']);
   await exercisePatchCommands({ box, json, submitted });
@@ -394,7 +395,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   // #1870 requires governing rows: exercise actual person-approved spec apply and changed frozen bars.
   assertSpecCorrectionRefreezesCitations(t);
   assert.equal((await json(box, repo, 'refreeze', ['4'])).unchanged, true);
-  await json(box, repo, 'release', ['4', '--no-next']);
+  await json(box, repo, 'release', ['4', '--reason', 'BLOCKED', '--no-next']);
 
   await json(box, repo, 'add', ['coordinator', 'Escalate item', '--route', 'light', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   await json(box, repo, 'claim', ['5']);

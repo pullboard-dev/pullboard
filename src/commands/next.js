@@ -1,3 +1,4 @@
+import { agentSessionDigest } from '../person.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
@@ -77,7 +78,7 @@ async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
@@ -110,7 +111,7 @@ async function nextWithProgress(io, values, progress) {
         io.result?.({ item: found.item, review: false, held: false,
           ...(found.buildOffer ? { buildOffer: found.buildOffer } : { releaseRequest: found.releaseRequest }) });
         if (found.buildOffer) io.say(`main-red build #${found.item.item_id} offered to free seat ${found.buildOffer.seat}: ${cdTo(found.buildOffer.path)} pullboard next --take`);
-        else io.say(`main-red build #${found.item.item_id} needs ${found.releaseRequest.seat} to release newest build #${found.releaseRequest.item}: ${cdTo(found.releaseRequest.path)} pullboard release ${found.releaseRequest.item}, then pullboard next --take`);
+        else io.say(`main-red build #${found.item.item_id} needs ${found.releaseRequest.seat} to release newest build #${found.releaseRequest.item}: ${cdTo(found.releaseRequest.path)} pullboard release ${found.releaseRequest.item} --reason ROUTED_ELSEWHERE, then pullboard next --take`);
         return 0;
       }
       if (found.offer) {

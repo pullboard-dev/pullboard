@@ -28,33 +28,7 @@
   {"cell":"github","imports":1,"before":true}
  ],
  "cuts": [
-  {"cell":"items","imports":1,"edges":["src/item-patch-submit.js->src/quarantine.js"]},
-  {
-   "cell": "store",
-   "imports": 3,
-   "edges": [
-    "src/board-record-landing-batch.js->src/quarantine.js",
-    "src/proof-receipts.js->src/quarantine.js",
-    "src/source-advance-return.js->src/quarantine.js"
-   ]
-  },
-  {"cell":"sandbox","imports":2,"edges":["src/source-advance-worker.js->src/quarantine.js","src/source-advance.js->src/quarantine.js"]},
-  {
-   "cell": "landing",
-   "imports": 10,
-   "edges": [
-    "src/land-envelope.js->src/quarantine.js",
-    "src/land-local-guard.js->src/flakes.js",
-    "src/landing-deferred-run.js->src/quarantine.js",
-    "src/landing-step-gate.js->src/quarantine.js",
-    "src/landing-step-parallel.js->src/flakes.js",
-    "src/landing-step-parallel.js->src/quarantine.js",
-    "src/landing-step-publish.js->src/quarantine.js",
-    "src/publish-pause.js->src/quarantine.js",
-    "src/record-train-landing.js->src/quarantine.js",
-    "src/train-landing-receipt.js->src/quarantine.js"
-   ]
-  }
+  {"cell":"landing","imports":2,"edges":["src/land-local-guard.js->src/flakes.js","src/landing-step-parallel.js->src/flakes.js"]}
  ],
  "ratchets": {
   "legacySource": -1,

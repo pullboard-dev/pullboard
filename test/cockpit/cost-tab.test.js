@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import { costTabHtml } from '../../src/view/cost-tab.js';
 import { costTabModel } from '../../src/view/cost-tab.js';
 import { counterDelta } from '../../src/view/cost-tab.js';
-import { cockpitPage } from '../../src/view/cockpit-page.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import * as store from '../../src/board.js';
 import { SPEC } from './fixture.js';
 import { machine } from './fixture.js';

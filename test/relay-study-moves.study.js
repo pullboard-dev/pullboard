@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../src/native-board.js';
 import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
@@ -20,7 +21,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { presentationState } from '../relay/browser-model.js';
 import { apiFetch } from './api-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -35,7 +36,7 @@ test('relay study compares each exercised move effect through the real API2 read
   const board = openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   t.after(() => store.closeBoard(board));
   const covered = new Set(), setupRefusals = [], nativeParity = [];
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'study', project: '', added: '2026-10-26T00:00:00.000Z' }], stateDetail: 'full' });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'study', project: '', added: '2026-10-26T00:00:00.000Z' }], stateDetail: 'full' });
   t.after(() => api.close());
   const address = new URL(api.url);
   const nativeApi = { origin: address.origin, secret: address.searchParams.get('k') };
@@ -116,7 +117,7 @@ test('relay study compares each exercised move effect through the real API2 read
     freeze: () => ({ text: '{"rows":[]}', digest: 'study-frozen' }) };
   await exercise('claim', () => store.claim(board, item, claim));
   await exercise('recordAttempt', () => store.recordAttempt(board, item, { agentId: agent, n: 1, seconds: 1, result: 'red' }));
-  await exercise('release', () => store.release(board, item, agent, 'Study release.'));
+  await exercise('release', () => store.release(board, item, agent, 'Study release.', 'OTHER'));
   await exercise('refreeze', () => store.refreeze(board, item, { agentId: 'coordinator', freeze: claim.freeze }));
   store.claim(board, item, claim);
   await exercise('submit', () => submitFixture(board, item, { agentId: agent, commit: 'a'.repeat(40), tree: 'b'.repeat(40) }));

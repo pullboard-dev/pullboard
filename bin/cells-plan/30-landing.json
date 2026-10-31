@@ -52,7 +52,8 @@
   ["src/landing-step-parallel.js","packages/landing/src/shell/landing-step-parallel.js","rule"],
   ["src/landing-step-batch.js","packages/landing/src/shell/landing-step-batch.js","rule"],
   ["src/landing-history-plan.js","packages/landing/src/shell/landing-history-plan.js","rule"],
-  ["src/train-check-repoints.js","packages/landing/src/shell/train-check-repoints.js","rule"]
+  ["src/train-check-repoints.js","packages/landing/src/shell/train-check-repoints.js","rule"],
+  ["src/post-land-suite.js","packages/landing/src/shell/post-land-suite.js","rule"]
  ],
  "reexports": [
   "src/computed-conflict-receipt.js",
@@ -107,7 +108,7 @@
  ],
  "cuts": [
   {"cell":"link","imports":1,"edges":["src/relay.js->src/landing-relay.js"]},
-  {"cell":"gate","imports":1,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js"]}
+  {"cell":"gate","imports":2,"edges":["src/quarantine-run-verdict.js->src/landing-step-failures.js","src/test-run.js->src/main-failure-matches.js"]}
  ],
  "ratchets": {
   "legacySource": -4,

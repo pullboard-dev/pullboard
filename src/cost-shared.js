@@ -1,6 +1,4 @@
 /** Ordered shared-session counters without raw native identifiers or invented item splits [N2]. */
-import { atomic } from './board-event-log.js';
-import { logEvent } from './board-event-log.js';
 import { COST_ENGINE } from './cost-engine.js';
 import { sanitizedUsage } from './cost.js';
 import { sumUsage } from './cost-read.js';
@@ -23,7 +21,7 @@ export function recordSharedUsage(board, { agentId, id, seats, allocations, revi
     if (!board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' LIMIT 1").get(allocation.item, allocation.seat)) throw new Refused('USAGE_RECORD', 'shared allocations name only items their seats claimed');
   }
   const value = { id, allocations: allocations.map((row) => ({ seat: row.seat, item: row.item })), seats: [...seats], revision, observedAt, records: sanitizedUsage(records, board.executionEngineVersion ?? ENGINE_VERSION) };
-  return atomic(board, () => {
+  return board.nativePorts.atomic(board, () => {
     const key = `shared-cost:${id}`;
     const old = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);
     const previous = old && JSON.parse(old.meta_value);
@@ -40,7 +38,7 @@ export function recordSharedUsage(board, { agentId, id, seats, allocations, revi
       if (!groups.includes(id)) groups.push(id);
       board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(markerKey, JSON.stringify({ groups, latest: { id, revision } }));
     }
-    logEvent(board, agentId, 'shared-usage', null, { ...value, estimate: true });
+    board.nativePorts.logEvent(board, agentId, 'shared-usage', null, { ...value, estimate: true });
     return { recorded: true };
   });
 }

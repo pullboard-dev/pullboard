@@ -17,7 +17,8 @@ import * as maintenanceSettings from './worktree-maintenance-config.js';
 import { knownConfigKeys } from './config-forward-compat.js';
 
 export const CONFIG_FILE = 'pullboard.json';
-export const COORDINATOR = 'coordinator';
+import { COORDINATOR } from '../packages/queue/core.js';
+export { COORDINATOR } from '../packages/queue/core.js';
 export const DOCTRINE_FILE = 'DOCTRINE.md';
 export const LEGACY_DOCTRINE_FILE = 'PRACTICE.md';
 
@@ -48,7 +49,7 @@ export function defaults() {
     practice: DOCTRINE_FILE,
     gate: '',
     submit: { requireInfraNote: false, autoFileMainReds: false },
-    toolBuild: { enabled: false, refreshMs: 3_600_000 },
+    toolBuild: { enabled: false, autoGate: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
     submitInvariants: [],
@@ -120,6 +121,9 @@ function merge(base, raw) {
   return {
     ...base,
     ...raw, exitRules: mergeExitRules(base.exitRules, raw.exitRules),
+    toolBuild: raw.toolBuild === undefined ? base.toolBuild
+      : raw.toolBuild && typeof raw.toolBuild === 'object' && !Array.isArray(raw.toolBuild)
+        ? { ...base.toolBuild, ...raw.toolBuild } : raw.toolBuild,
     worktreeMaintenance: raw.worktreeMaintenance === undefined ? base.worktreeMaintenance
       : raw.worktreeMaintenance && typeof raw.worktreeMaintenance === 'object' && !Array.isArray(raw.worktreeMaintenance)
         ? { ...base.worktreeMaintenance, ...raw.worktreeMaintenance } : raw.worktreeMaintenance,
@@ -202,9 +206,10 @@ function laneProblems(name, lane) {
 export function configProblems(config) {
   const problems = [...exitRulesConfigProblems(config.exitRules), ...maintenanceSettings.maintenanceConfigProblems(config.worktreeMaintenance)];
   if (!config.toolBuild || typeof config.toolBuild.enabled !== 'boolean'
+    || typeof config.toolBuild.autoGate !== 'boolean'
     || !Number.isSafeInteger(config.toolBuild.refreshMs) || config.toolBuild.refreshMs < 1
-    || Object.keys(config.toolBuild).some(key => !['enabled', 'refreshMs'].includes(key))) {
-    problems.push('"toolBuild" has enabled true|false and positive integer refreshMs (default hourly)');
+    || Object.keys(config.toolBuild).some(key => !['enabled', 'autoGate', 'refreshMs'].includes(key))) {
+    problems.push('"toolBuild" has enabled and autoGate true|false and positive integer refreshMs (default hourly)');
   }
   const costs = config.testEconomics;
   if (!costs || typeof costs !== 'object' || Array.isArray(costs)

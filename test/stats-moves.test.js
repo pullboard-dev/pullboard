@@ -7,7 +7,7 @@ import { join, dirname } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { movesStats, movesLines, moveTranscripts } from '../src/stats-moves.js';
 import { importOnlyChange } from '../src/import-only-change.js';
 import { infraNote } from '../packages/commits/src/core/infra-note.js';

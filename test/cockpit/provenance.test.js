@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/serve.js */
+/** @pullboard-test-loads src/cli/view-state.js */
 /** View projection refuses migrations from linked source and borrows staged boards without owning them [A5,A6,A2]. */
 import { copyPackageFiles } from '../../src/package-files.js';
 import assert from 'node:assert/strict';
@@ -101,7 +101,7 @@ function fixture(t) {
 
 /** Ask actual linked serve.js to project the primary root while falsely supplying isMain=true. */
 async function linkedProjectState(box, options = {}) {
-  const source = await import(pathToFileURL(join(box.lane, 'src', 'serve.js')).href);
+  const source = await import(pathToFileURL(join(box.lane, 'src', 'cli', 'view-state.js')).href);
   return source.projectState(box.root, { isMain: true, ...options });
 }
 
@@ -133,7 +133,7 @@ async function assertLinkedRefusalAndPrimaryRecovery(box) {
   assertSharedBoardUnchanged(box, before);
   const primary = box.cli(box.root, box.root, 'status', '--json');
   assert.equal(primary.status, 0, `${primary.stderr}${primary.stdout}`);
-  const primaryView = await import(pathToFileURL(join(box.root, 'src', 'serve.js')).href);
+  const primaryView = await import(pathToFileURL(join(box.root, 'src', 'cli', 'view-state.js')).href);
   assert.equal(primaryView.projectState(box.root).root, box.root, 'primary view source still opens the same board');
   assertSharedBoardUnchanged(box, before);
 }

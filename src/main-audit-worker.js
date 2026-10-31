@@ -87,8 +87,8 @@ function readBoard(info, action, openBoardForRead) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 /** Bound ordinary native/relay writes retain exact session and origin receipt validation. */
-function writer(root, { context, ordered, withBoard }) {
-  const io = { cwd: root, say() {}, err() {}, stderr: { write() {} } };
+function writer(root, { context, ordered, withBoard, nativeBoard }) {
+  const io = { cwd: root, nativeBoard, say() {}, err() {}, stderr: { write() {} } };
   const ctx = context(io);
   return (operation, args) => withBoard(ctx, board => ordered(ctx, board, operation, args));
 }

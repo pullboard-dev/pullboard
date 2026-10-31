@@ -7,7 +7,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { fetchLive, machine, project, startView } from './fixture.js';
 import { press } from './stable.js';
 export { STAR_TEXT, starRepository } from '../../src/view/star.js';

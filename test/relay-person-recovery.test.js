@@ -177,7 +177,7 @@ test('[H12,H16] an expired native executor lease transfers once and the old devi
   try { originalDigest = requestIntentDigest(personRequestRecords(board).find(record => record.id === requestId)); }
   finally { store.closeBoard(board); }
   const late = await box.script(`
-    const { main } = await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href)});
+    const { main } = await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href)});
     const code = await main(['shout', 'coordinator', 'RECOVERY_SHOUT_ONCE', '--json'], {
       cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, personChannel: 'view', skipPersonRequests: true,
       personRequest: { id: ${JSON.stringify(requestId)}, executor: ${JSON.stringify(originalExecutor)}, phase: 'execute', digest: ${JSON.stringify(originalDigest)} },

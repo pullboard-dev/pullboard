@@ -1,3 +1,4 @@
+import { processCensus } from './runner-custody.js';
 import { scheduledChromeCloneSweep } from './chrome-clone-cleanup.js';
 /** Execute one remote job end to end; stdout is reserved for raw command bytes and stderr for one receipt [C7]. */
 import { checkoutHistory } from './runner-worker-checkout.js';
@@ -88,7 +89,7 @@ export async function main(S) {
     chmodSync(base, 0o700);
     runDirectory = mkdtempSync(join(base, `${spec.id}-`));
     S.cleanupDirectory = runDirectory;
-    recordRunnerOwner(runDirectory);
+    recordRunnerOwner(runDirectory, processCensus);
     const root = join(runDirectory, 'checkout');
     const privateHome = join(runDirectory, 'home');
     const temporary = join(runDirectory, 'tmp');

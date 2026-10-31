@@ -210,7 +210,7 @@ function imports(source, scanned, problems, file, { producer = false, dynamicPor
     if (!match) {
       if (/\b(?:require|import)\s*\(\s*$/u.test(before)
         && !(target && /\bimport\s*\(\s*$/u.test(before) && (producer || dynamicPort?.(target)))) {
-        problems.push(`${file}: unsupported dynamic/CommonJS fixture filesystem binding`);
+        problems.push(`${file}:${source.slice(0, literal.start).split('\n').length}: unsupported fixture source: dynamic/CommonJS fixture filesystem binding`);
       }
       continue;
     }
@@ -266,10 +266,8 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
   /** Callable origin does not authorize a returned filesystem namespace or an extracted reader. */
   function returnedFilesystemCapabilities() {
     if (!sourcePortsUsed) return;
-    if (/\]\s*(?:\?\.)?\s*\(/u.test(code)
-      || /\b(?:Reflect\s*\.\s*get|Object\s*\.\s*getOwnPropertyDescriptors?)\s*\(/u.test(code)
-      || /\b(?:const|let|var)\s*\{[^}]*\[/u.test(code)) {
-      problems.push(`${file}: computed or reflected returned capability is not a proven fixture input port`);
+    for (const site of code.matchAll(/\]\s*(?:\?\.)?\s*\(|\b(?:Reflect\s*\.\s*get|Object\s*\.\s*getOwnPropertyDescriptors?)\s*\(|\b(?:const|let|var)\s*\{[^}]*\[/gu)) {
+      problems.push(`${file}:${source.slice(0, site.index).split('\n').length}: unsupported fixture source: computed or reflected returned capability is not a proven fixture input port`);
     }
     for (const match of imported.body.matchAll(/\b(readFileSync|copyFileSync|cpSync)\b/gu)) {
       const before = code.slice(0, match.index), after = code.slice(match.index + match[0].length);

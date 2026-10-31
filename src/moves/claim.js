@@ -16,6 +16,7 @@ import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { OUTSIDE_INTAKE_ENGINE } from '../outside-intake-engine.js';
 import { outsideSource } from '../outside-source.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
+import { REWORK_SAME_FAMILY_ENGINE } from '../rework-same-family-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
@@ -34,7 +35,7 @@ function minimumEngine(args, board, at) {
   const validId = ['number', 'string'].includes(typeof id) && Number.isSafeInteger(Number(id)) && Number(id) > 0;
   const item = board && validId ? board.db.prepare('SELECT item_after FROM item WHERE item_id=?').get(id) : null;
   const foreign = item && hasForeignDependencies(item);
-  return Math.max(args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
+  return Math.max(args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
     foreign ? CROSS_REPO_DEPENDENCY_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 
@@ -44,7 +45,6 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
-  "MAIN_FACTS_BUSY": "wait for the immutable main facts derivation to finish, then retry",
   "LINE_WIP_LIMIT": "review the oldest eligible waiting submission: pullboard next --verify; if none is eligible, ask the coordinator to arrange a reviewer",
   "A5_GRAMMAR_VERSION": "upgrade Pullboard: npm install -g pullboard@latest",
   "AGENT_APPROVAL_REQUIRED": "ask the person to confirm or decline the named row through pullboard view or their own terminal",
@@ -61,9 +61,9 @@ export default Object.freeze({ operation: "claim", order: 13, engine: 1,
   "NOT_JOINED": "join a lane from this worktree: pullboard join <lane> --model \"<model name>\" (see: pullboard lanes)",
   "NO_ITEM": "find the item id: pullboard list --all",
   "NO_POLICY": "restore and commit pullboard.json, then run the command again",
-  "ONE_CLAIM": "submit or release the item you hold: pullboard release <id> --note \"why\"",
+  "ONE_CLAIM": "submit or release the item you hold: pullboard release <id> --reason <code> --note \"why\"",
   "PENDING_REFREEZE": "the coordinator runs pullboard refreeze <id>",
-  "REOPEN_HELD_FOR_BUILDER": "wait until the named deadline, or ask the builder to run pullboard release <id>",
+  "REOPEN_HELD_FOR_BUILDER": "wait until the named deadline, or ask the builder to run pullboard release <id> --reason ROUTED_ELSEWHERE",
   "ROUTE": "take an item your route covers: pullboard next",
   "SESSION_LEDGER": "make the agent-session ledger named in the message writable by this user, then run the command again",
   "UNKNOWN_SPEC": "ask the coordinator to restore the named spec rows or withdraw the item: pullboard shout coordinator --kind question \"please fix the rows cited by #<id>\"",

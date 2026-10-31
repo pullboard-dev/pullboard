@@ -52,6 +52,11 @@ export function gateRunnersFirstEnabled() {
   return loadMachineSettings().gate?.runnersFirst === true;
 }
 
+/** Run the full suite after each landed train batch only when this machine opted in. */
+export function postLandSuiteEnabled() {
+  return loadMachineSettings().gate?.postLandSuite === true;
+}
+
 /** Capture one test operation's opt-in and cutoff; retries and later phases share this exact policy. */
 export function gateRunnerAdmission() {
   const settings = loadMachineSettings();

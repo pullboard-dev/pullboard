@@ -50,11 +50,12 @@ function seatUsage(box, cwd, identity) {
   Object.assign(env, identity);
   const cli = pathToFileURL(join(helpers.BIN, '../../src/cli.js')).href;
   const checkpoint = pathToFileURL(join(helpers.BIN, '../../src/cost-checkpoint.js')).href;
-  const code = `import {context,withBoard,whoAmI} from ${JSON.stringify(cli)};
+  const code = `import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    const io={cwd:process.cwd(),say(){},err(message){process.stderr.write(message+'\\n');}};
+    import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
     const ctx=context(io);
-    await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'}));`;
+    await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'},{ordered}));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', code], { cwd, env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
 }
@@ -101,7 +102,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   seatUsage(box, box.web, claude);
   seatUsage(box, box.web, claude);
   record(claudeFile, { type: 'system', subtype: 'tool-metadata', text: 'No provider usage changed' });
-  seatRun(box, box.web, claude, ['release', String(id), '--no-next']);
+  seatRun(box, box.web, claude, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   record(codexFile, { type: 'turn_context', payload: { model: 'fixture-codex' } });
   record(codexFile, { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 500, output_tokens: 50 } } } });
   seatRun(box, second, codex, ['claim', String(id)]);
@@ -109,7 +110,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   record(codexFile, report);
   record(codexFile, report);
   seatUsage(box, second, codex);
-  seatRun(box, second, codex, ['release', String(id), '--no-next']);
+  seatRun(box, second, codex, ['release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   const shown = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out);
   assert.equal(shown.usage.inputTokens, 300);
   assert.equal(shown.usage.outputTokens, 30);
@@ -134,7 +135,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
   assert.equal(Object.hasOwn(costs.models.find((entry) => entry.model === 'fixture-claude'), 'knownCostUSD'), false);
   unlinkSync(claudeFile);
   seatRun(box, box.web, claude, ['claim', String(unknownId)]);
-  seatRun(box, box.web, claude, ['release', String(unknownId), '--no-next']);
+  seatRun(box, box.web, claude, ['release', String(unknownId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   const unknown = JSON.parse(box.run(box.repo, 'show', String(unknownId), '--json').out).usage;
   assert.equal(unknown.inputTokens, null);
   assert.equal(unknown.outputTokens, null);
@@ -210,7 +211,7 @@ test('an item records the tokens and cost its seats spent when a checkpoint fail
   const fail = openBoard(boardFile);
   try { fail.db.exec("CREATE TRIGGER fixture_usage_unavailable BEFORE INSERT ON event WHEN NEW.event_kind='usage' BEGIN SELECT RAISE(ABORT, 'fixture usage unavailable'); END"); }
   finally { store.closeBoard(fail); }
-  const released = runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--no-next'], { cwd: box.web, env, encoding: 'utf8' });
+  const released = runFixtureChild(process.execPath, [helpers.BIN, 'release', String(id), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next'], { cwd: box.web, env, encoding: 'utf8' });
   // @pullboard-board-file journey: the real CLI seats share this repository board file.
   const inspectRelease = openBoard(boardFile);
   try {
@@ -272,10 +273,10 @@ test('an item records the tokens and cost its seats spent with a shared native s
   usage(250, 25);
   seatUsage(box, box.web, identity);
   usage(300, 30);
-  seatRun(box, second, identity, ['release', String(last), '--no-next']);
+  seatRun(box, second, identity, ['release', String(last), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   usage(320, 32);
   seatUsage(box, box.web, identity);
-  seatRun(box, box.web, identity, ['release', String(first), '--no-next']);
+  seatRun(box, box.web, identity, ['release', String(first), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   const totals = JSON.parse(box.run(box.repo, 'stats', '--json').out).usage;
   assert.equal(totals.sharedSessions.length, 1);
   const shared = totals.sharedSessions[0];
@@ -325,14 +326,14 @@ test('an item records the tokens and cost its seats spent across an actual claim
   seatUsage(box, box.web, identity);
   seatRun(box, box.web, identity, ['claim', String(ids[0])]);
   record(file, { type: 'assistant', message: { id: 'spent-without-hook', model: 'fixture-claude', usage: { input_tokens: 100, output_tokens: 10 } } });
-  seatRun(box, box.web, identity, ['release', String(ids[0]), '--no-next']);
+  seatRun(box, box.web, identity, ['release', String(ids[0]), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   const first = JSON.parse(box.run(box.repo, 'show', String(ids[0]), '--json').out).usage;
   assert.equal(first.inputTokens, 100);
   assert.equal(Object.hasOwn(first, 'costUSD'), false, 'public usage has no dollar output');
   seatRun(box, box.web, identity, ['claim', String(ids[1])]);
   record(file, { type: 'assistant', message: { id: 'new-item-spend', model: 'fixture-claude', usage: { input_tokens: 5, output_tokens: 1 } } });
   seatUsage(box, box.web, identity);
-  seatRun(box, box.web, identity, ['release', String(ids[1]), '--no-next']);
+  seatRun(box, box.web, identity, ['release', String(ids[1]), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
   const second = JSON.parse(box.run(box.repo, 'show', String(ids[1]), '--json').out).usage;
   assert.equal(second.inputTokens, 5);
   const splitTotals = JSON.parse(box.run(box.repo, 'stats', '--json').out).usage;
@@ -419,7 +420,7 @@ test('an item records the tokens and cost its seats spent with an empty native u
     const identity = provider === 'claude' ? { CLAUDE_CODE_SESSION_ID: session } : { CODEX_THREAD_ID: session };
     seatRun(box, box.web, identity, ['claim', String(unknownId)]);
     seatUsage(box, box.web, identity);
-    seatRun(box, box.web, identity, ['release', String(unknownId), '--no-next']);
+    seatRun(box, box.web, identity, ['release', String(unknownId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
     const unknown = JSON.parse(box.run(box.repo, 'show', String(unknownId), '--json').out).usage;
     assert.equal(unknown.inputTokens, null, `${provider}: readable empty input usage is unknown`);
     assert.equal(unknown.outputTokens, null, `${provider}: readable empty output usage is unknown`);
@@ -433,7 +434,7 @@ test('an item records the tokens and cost its seats spent with an empty native u
       record(file, { type: 'event_msg', payload: { type: 'token_count', info: { total_token_usage: { input_tokens: 0, output_tokens: 0 } } } });
     }
     seatRun(box, box.web, identity, ['claim', String(zeroId)]);
-    seatRun(box, box.web, identity, ['release', String(zeroId), '--no-next']);
+    seatRun(box, box.web, identity, ['release', String(zeroId), '--reason', 'OTHER', '--note', 'Close the private usage fixture claim.', '--no-next']);
     const zero = JSON.parse(box.run(box.repo, 'show', String(zeroId), '--json').out).usage;
     assert.equal(zero.inputTokens, 0, `${provider}: actual native zero remains known`);
     assert.equal(zero.outputTokens, 0, `${provider}: actual native zero remains known`);

@@ -90,7 +90,7 @@ export async function seedLifecycle(context) {
     freeze: () => ({ text: '{"rows":[]}', digest: 'study-frozen' }) };
   await exercise('claim', () => store.claim(board, item, claim));
   await exercise('recordAttempt', () => store.recordAttempt(board, item, { agentId: agent, n: 1, seconds: 1, result: 'red' }));
-  await exercise('release', () => store.release(board, item, agent, 'Study release.'));
+  await exercise('release', () => store.release(board, item, agent, 'Study release.', undefined, 'OTHER'));
   await exercise('refreeze', () => store.refreeze(board, item, { agentId: 'coordinator', freeze: claim.freeze }));
   store.claim(board, item, claim);
   await exercise('submit', () => submitFixture(board, item, { agentId: agent, commit: 'a'.repeat(40), tree: 'b'.repeat(40) }));

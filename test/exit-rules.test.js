@@ -66,10 +66,13 @@ test('budget exit atomically records summary and release then offers only a fres
   const f = setup(t);
   store.recordExitProgress(f.board, { agentId: 'core-1', item: f.id, claim: f.claim.key, tokens: 100, calls: 1 });
   assert.throws(() => writeBoardCommand(f.board, 'shout', [{ from: 'core-1', to: 'all', text: 'Private post-budget write.' }], 'core-1'), error => error.code === 'EXIT_BUDGET');
-  assert.throws(() => store.release(f.board, f.id, 'core-1', 'not a complete summary'), error => error.code === 'EXIT_SUMMARY');
+  assert.throws(() => store.release(f.board, f.id, 'core-1', 'not a complete summary', 'BUDGET'), error => error.code === 'EXIT_SUMMARY');
   assert.equal(itemById(f.board, f.id).item_status, 'claimed', 'failed summary rolls back the release');
   assert.equal(exitedSession(f.board, 'core-1'), null);
-  store.release(f.board, f.id, 'core-1', summary);
+  store.release(f.board, f.id, 'core-1', summary, 'BUDGET');
+  const released = store.events(f.board).filter(row => row.event_kind === 'release' && row.item_id === f.id).at(-1);
+  assert.equal(JSON.parse(released.event_detail).reasonCode, 'BUDGET');
+  assert.equal(JSON.parse(released.event_detail).exitHandoff.summary, summary);
   assert.equal(itemById(f.board, f.id).item_status, 'open');
   assert.equal(exitContinuationSummary(f.board, f.id), summary);
   assert.equal(store.itemThread(f.board, f.id).filter(row => row.type === 'fact' && row.text === summary).length, 1);
@@ -93,7 +96,7 @@ test('two consecutive exact native case failures stop, with a green or changed c
   assert.equal(exitClaimDecision(f.board, f.id, 'core-1'), null);
   proof(f.board, f.id, 'repeated', { file: 'test/other.test.js', name: 'fixture case' });
   assert.throws(() => requireExitActive(f.board, 'core-1', 'submit'), error => error.code === 'EXIT_REPEAT_FAILURE');
-  store.release(f.board, f.id, 'core-1', summary);
+  store.release(f.board, f.id, 'core-1', summary, 'OTHER');
   assert.equal(itemById(f.board, f.id).item_status, 'open');
   assert.equal(exitContinuationSummary(f.board, f.id), summary);
 });
@@ -143,7 +146,7 @@ test('an external native CLI captures the claim prefix, refuses its next command
   const stopped = box.run(box.web, 'status', '--json');
   assert.equal(stopped.code, 1, stopped.out + stopped.err);
   assert.equal(JSON.parse(stopped.out).error.code, 'EXIT_BUDGET');
-  const released = box.run(box.web, 'release', String(id), '--note', summary, '--no-next', '--json');
+  const released = box.run(box.web, 'release', String(id), '--reason', 'BUDGET', '--note', summary, '--no-next', '--json');
   assert.equal(released.code, 0, released.out + released.err);
   const fenced = box.run(box.web, 'status', '--json');
   assert.equal(fenced.code, 1, fenced.out + fenced.err);

@@ -140,7 +140,6 @@
   ["src/next-step-words.js","apps/cli/src/core/next-step-words.js","seed"],
   ["src/next-steps.js","apps/cli/src/shell/next-steps.js","seed"],
   ["src/public-export-guard.js","apps/cli/src/core/public-export-guard.js","imports"],
-  ["src/relay-sender-main.js","apps/cli/src/shell/relay-sender-main.js","seed"],
   ["src/skills.js","apps/cli/src/shell/skills.js","seed"],
   ["src/static-prose-commands.js","apps/cli/src/core/static-prose-commands.js","seed"],
   ["src/sweep.js","apps/cli/src/core/sweep.js","seed"],
@@ -243,7 +242,6 @@
   ["src/command-docs/stats-pipeline.json","apps/cli/src/shell/command-docs/stats-pipeline.json","rule"],
   ["src/documentation/events/review-default.json","apps/cli/src/shell/documentation/events/review-default.json","rule"],
   ["src/command-docs/stats-moves.json","apps/cli/src/shell/command-docs/stats-moves.json","rule"],
-  ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"],
   ["src/cli/seat-ports.js","apps/cli/src/shell/cli/seat-ports.js","rule"],
   ["src/cli/project-ports.js","apps/cli/src/shell/cli/project-ports.js","rule"],
   ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"],
@@ -252,19 +250,22 @@
   ["src/commands/tool-build.js","apps/cli/src/shell/commands/tool-build.js","rule"],
   ["src/command-docs/tool-build.json","apps/cli/src/shell/command-docs/tool-build.json","rule"],
   ["src/submit-handoff.js","apps/cli/src/shell/submit-handoff.js","rule"],
-  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"],
   ["src/documentation/events/submit-handoff.json","apps/cli/src/shell/documentation/events/submit-handoff.json","rule"],
   ["src/documentation/events/submit_handoff_returned.json","apps/cli/src/shell/documentation/events/submit_handoff_returned.json","rule"],
   ["src/submit-handoff-origin.js","apps/cli/src/shell/submit-handoff-origin.js","rule"],
   ["src/submit-handoff-seal.js","apps/cli/src/shell/submit-handoff-seal.js","rule"],
-
   ["src/worktree-maintenance.js","apps/cli/src/shell/worktree-maintenance.js","rule"],
   ["src/worktree-maintenance-observation.js","apps/cli/src/shell/worktree-maintenance-observation.js","rule"],
   ["src/worktree-maintenance-command.js","apps/cli/src/shell/worktree-maintenance-command.js","rule"],
   ["src/worktree-maintenance-classify.js","apps/cli/src/shell/worktree-maintenance-classify.js","rule"],
   ["src/commands/maintenance.js","apps/cli/src/shell/commands/maintenance.js","rule"],
   ["src/command-docs/maintenance.json","apps/cli/src/shell/command-docs/maintenance.json","rule"],
-  ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"]
+  ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"],
+  ["src/post-land-suite-ports.js","apps/cli/src/shell/post-land-suite-ports.js","rule"],
+  ["src/submit-gate-wait.js","apps/cli/src/shell/submit-gate-wait.js","rule"],
+  ["src/tool-build-scheduler.js","apps/cli/src/shell/tool-build-scheduler.js","rule"],
+  ["src/cli/cockpit-renderer.js","apps/cli/src/shell/cli/cockpit-renderer.js","rule"],
+  ["src/cli/view-state.js","apps/cli/src/shell/cli/view-state.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
@@ -330,28 +331,7 @@
   {"cell":"app:runner","imports":1,"before":true}
  ],
  "cuts": [
-  {
-   "cell": "seats",
-   "imports": 5,
-   "edges": [
-    "src/agent-hook-work.js->src/cli-presence.js",
-    "src/agent-hook-work.js->src/cli.js",
-    "src/agent-hook-work.js->src/cli.js",
-    "src/line-settings-cli.js->src/cli.js",
-    "src/seat-checkout.js->src/commands/worktree.js"
-   ]
-  },
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
-  {"cell":"store","imports":1,"edges":["src/exchange.js->src/command-phase.js"]},
-  {
-   "cell": "person",
-   "imports": 3,
-   "edges": [
-    "src/person-bar-cli.js->src/cli.js",
-    "src/person-confirmation.js->src/cli-main.js",
-    "src/person-signing-cli.js->src/cli.js"
-   ]
-  },
   {
    "cell": "link",
    "imports": 6,

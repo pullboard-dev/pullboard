@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
@@ -85,7 +85,7 @@ test('companion rebinding preserves the live reviewer and refuses the previous c
   assert.equal(item.item_review_until, reserved.item_review_until, 'companion changes do not renew or shorten the lease');
   const before = exportBoard(box.board);
   assert.throws(() => box.reserve(box.other), error => error.code === 'REVIEW_HELD' && error.message.includes(box.reviewer));
-  assert.throws(() => store.release(box.board, box.id, box.other, 'Not my reservation'), { code: 'NOT_YOURS' });
+  assert.throws(() => store.release(box.board, box.id, box.other, 'Not my reservation', 'OTHER'), { code: 'NOT_YOURS' });
   assert.throws(() => box.verdict(previousProof), { code: 'ITEM_PATCH_CHANGED' });
   assert.deepEqual(exportBoard(box.board), before, 'refused reservation, release and stale verdict have no effects');
   const offered = await nextVerify(box);
@@ -105,7 +105,7 @@ test('a reservation can be renewed by its holder and expires without blocking th
   assert.equal(store.getItem(box.board, box.id).item_review_until, renewed.item_review_until);
   box.clock.advance(HALF_HOUR);
   assert.equal(box.reserve(box.other).item_review_by, box.other, 'a lease is free at its exact expiry');
-  assert.throws(() => store.release(box.board, box.id, box.reviewer, 'My earlier lease expired'), { code: 'NOT_YOURS' });
+  assert.throws(() => store.release(box.board, box.id, box.reviewer, 'My earlier lease expired', 'OTHER'), { code: 'NOT_YOURS' });
   assert.equal(store.getItem(box.board, box.id).item_review_by, box.other);
 });
 

@@ -59,6 +59,45 @@ function doctrineCheck(row, detail = false) {
   return '<span class="doctrine-check">' + esc(label) + '</span>';
 }
 
+/** Derive one presentation for both the ordinary stage and the held-seat chip. */
+function stageOfItem(item, project = {}, gated = false, gateDetail = '') {
+  const landing = (project.landingBatches || []).find(batch => (batch.items || []).some(entry => entry.id === item.id));
+  const namedItem = { ...item, owner: item.owner ? agentName(item.owner, project) : item.owner,
+    reviewer: item.reviewer ? agentName(item.reviewer, project) : item.reviewer,
+    claim: item.claim?.by ? { ...item.claim, by: agentName(item.claim.by, project) } : item.claim };
+  const stage = itemStagePresentation(namedItem, { gated, landingBatchAt: landing ? when(landing.startedAt) : null,
+    withdrawnFrom: item.withdrawnFrom || withdrawnFromStatus(item), gateDetail: item.withdrawnReason || gateDetail });
+  return stage;
+}
+
+/** Render the approved item stage, its plain detail and any explanatory marks. */
+function stageMarkup(item, project = {}, gated = false, gateDetail = '', marks = [], compact = false) {
+  const stage = stageOfItem(item, project, gated, gateDetail);
+  return '<span class="item-stage" data-stage="' + esc(itemStageKey(stage.stage)) + '" role="group" title="' + esc(stage.detail) + '" aria-label="' + esc(stage.stage + ': ' + stage.detail) + '"><span class="stage-line">' + (compact ? '<span class="chip item-status ' + esc(stateOf(item)) + '">' : '') + '<b class="stage-word">' + esc(stage.stage) + '</b>' + (compact ? '</span>' : '')
+    + (marks.length ? '<span class="stage-marks">' + marks.join('') + '</span>' : '') + '</span><small class="stage-detail" title="' + esc(stage.detail) + '">' + esc(stage.detail) + '</small></span>';
+}
+
+/** Make a mark's reason available on hover and to assistive readers while the row remains tappable. */
+function stageMark(label, reason, tone = '') {
+  const title = label + (reason ? ': ' + reason : '');
+  return '<span class="stage-mark' + (tone ? ' ' + esc(tone) : '') + '" role="img" title="' + esc(title) + '" aria-label="' + esc(title) + '">' + esc(label) + '</span>';
+}
+
+/** Keep every state mark beside the stage; the row detail and tooltip retain its full reason. */
+function itemStageMarks(item, project) {
+  const marks = [];
+  const held = heldNote(item, project, undefined, Date.now());
+  if (held) marks.push(stageMark(held.startsWith('lane ') ? 'Lane held' : 'Held', held.replace(/^(?:held|lane [^ ]+ held):?\\s*/u, ''), 'gate'));
+  if (item.verdict?.decision === 'REJECT' && item.status !== 'verified') {
+    const reason = [activityWords({ cause: item.verdict.reason }).label, visibleVerdictNote(item.verdict.reason, item.verdict.note)].filter(Boolean).join(': ');
+    marks.push(stageMark('Sent back', reason, 'no'));
+  }
+  const stale = staleChip(item);
+  if (stale) marks.push(stale);
+  if (item.status === 'withdrawn') marks.push(stageMark('Withdrawn', item.withdrawnReason || 'reason unavailable', 'no'));
+  return marks;
+}
+
 function render() {
   renderIndexes = new WeakMap();
   // A refresh that moved the page to another board closes a confirmation opened on the last one.
@@ -114,7 +153,7 @@ function render() {
   const titles = renderIndex(p).titles;
   const lanes = p.lanes, working = lanes.filter((lane) => lane !== 'coordinator');
   const heldLanes = new Map(p.holds.map((hold) => [hold.hold_lane, hold]));
-  const gatedOf = (item) => stateOf(item) === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane));
+  const gatedOf = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
   if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p);
     $('cost').innerHTML = costTabHtml(history.model, view.costOpen, history);
@@ -248,8 +287,6 @@ function render() {
   // With nothing picked, the detail shows the first row, and keeps it when a refresh reorders the list.
   // While another project loads, the item picked there waits for its own board.
 
-  // An open item's chip, the same in its row and its detail: gated, its lane held, or unclaimed.
-  const openChip = (i) => (p.itemHolds || []).some((h) => h.item === i.id) ? heldChip(heldNote(i, p, undefined, Date.now())) : i.blockedBy.length ? '<span class="chip waiting">Waiting on ' + i.blockedBy.map(id => '<a class="ref" href="' + esc(itemAddress(id)) + '" data-go="item:' + id + '">#' + id + '</a>').join(', ') + '</span>' : heldLanes.has(i.lane) ? '<span class="chip gate">lane held</span>' : chip('open');
   $('chain').innerHTML = shown.length ? shown.map((i) => {
     const s = stateOf(i);
     // What an open item waits on, if anything: items not yet verified, or a hold on its lane.
@@ -259,12 +296,15 @@ function render() {
     const seat = holder || reviewer || (s === 'back' ? i.verdict?.by : null);
     const agent = p.agents.find(entry => entry.agent_id === seat);
     const model = [agent?.model, agent?.agent_model].find(value => typeof value === 'string' && value.trim() && value.trim().toLowerCase() !== 'unknown');
-    const tag = s === 'open' && gatedOf(i) ? openChip(i) : '<span class="chip item-status ' + s + '">' + (s === 'verified' ? 'Verified' : s === 'verify' ? 'In review' : s === 'back' ? 'Sent back' : s === 'withdrawn' ? 'Withdrawn' : 'Ready') + '</span>';
+    const gate = i.blockedBy.length ? '' : heldNote(i, p, undefined, Date.now()) || '';
+    const marks = itemStageMarks(i, p);
+    const stage = stageOfItem(i, p, gatedOf(i), gate);
+    const tag = stageMarkup(i, p, gatedOf(i), gate, marks, true);
     return sharedRowHtml({ className: (view.item === i.id ? 'on ' : '') + (gatedOf(i) ? 'gated ' : ''), attributes: { 'data-item': i.id }, title: i.title, state: s,
-      primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag, seat, chipTitle: model,
+      primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag, seat, chipTitle: model, seatStage: { ...stage, key: itemStageKey(stage.stage), marksHtml: marks.join('') },
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
       metaHtml: (rejected(i) ? '<b class="item-reason">' + reasonHtml(i.verdict.reason) + '</b> <span class="why">' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
-        : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills + staleChip(i) });
+        : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills });
   }).join('') : '<li class="empty">' + (finishedUnderAll
     ? 'Finished work is under All. <button class="link" data-filter-choice="state:all" data-filter-kind="state" data-filter-value="all" type="button">Show all</button>'
     : items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
@@ -278,7 +318,7 @@ function render() {
   if (!selected) $('detail').innerHTML = '<div class="empty">' + (view.tab === 'items' && view.addressDetail !== null && view.addressDetail !== 'pipeline' ? 'No item #' + esc(view.addressDetail) + ' exists here.' : 'Pick an item to see its criterion, verdicts and history.') + '</div>';
   const opened = selected && !view.adding ? detailOf(p, selected, view.tab === 'items' && data.root === view.root) : null;
   /** An item's heading: its id, title, state, lane and route, all of which its summary holds. */
-  const head = (item, s = stateOf(item)) => '<div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + (s === 'open' ? openChip(item) : chip(s)) + staleChip(item) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>';
+  const head = (item, s = stateOf(item)) => '<div><h2><span>#' + item.id + '</span>' + rich(item.title, titles) + '</h2><div class="meta spaced">' + stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p)) + '<span class="chip">' + esc(item.lane) + '</span><span class="chip">' + esc(item.route) + '</span></div></div>';
   if (opened?.error) $('detail').innerHTML = '<div class="stack"><p class="detail-wait muted" role="status">Could not load #' + selected.id + ': ' + esc(opened.error) + '</p></div>';
   // Until its omitted fields arrive, an opened item paints its heading from its summary and fills the rest in place (#1039).
   else if (opened?.loading) $('detail').innerHTML = '<div class="stack" aria-busy="true">' + head(selected) + '</div>';
@@ -290,8 +330,6 @@ function render() {
     const baselineClass = baseline?.result === 'green' ? 'ok' : baseline?.result === 'red' ? 'no' : baseline?.result === 'pending' ? 'warn' : '';
     /** Render the item's lane, route and current milestone in the approved plain header. */
     const where = [item.lane, item.route, (p.milestones || []).find(milestone => milestone.items?.some(entry => entry.id === item.id))?.name].filter(Boolean);
-    /** Give the existing lifecycle states their person-facing status wording. */
-    const statusLabel = ({ open: 'Unclaimed', building: 'Building', verify: 'Waiting for a reviewer', back: 'Sent back', verified: 'Passed', withdrawn: 'Withdrawn' })[s] || s;
     /** Parse a single named test case only from the recorded check or its baseline evidence. */
     const namedCase = (() => {
       const pattern = /--test-name-pattern(?:=|\\s+)(?:"([^"]+)"|'([^']+)'|([^\\s;]+))/u.exec(item.check || '');
@@ -333,7 +371,7 @@ function render() {
     const passedCount = verdicts.filter(verdict => verdict.decision === 'ACCEPT').length;
     const backCount = verdicts.length - passedCount;
     const panelChoice = view.itemPanel?.root === view.root && view.itemPanel.item === item.id ? view.itemPanel.tab : 'overview';
-    const statusChips = '<span class="chip ' + (s === 'verify' ? 'warn' : s === 'back' ? 'no' : s === 'verified' ? 'ok' : '') + '">' + esc(statusLabel) + '</span>'
+    const statusChips = stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p))
       + (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
       + (item.builtBy ? '<span class="chip">Built by ' + esc(agentName(item.builtBy)) + '</span>' : '')
       + (item.commit ? '<span class="item-head-hash">at ' + hashButton(item.commit) + '</span>' : '');
@@ -526,7 +564,8 @@ function render() {
     const state = stateOf(item);
     return { id: item.id, status: item.status, holder: holderOf(item), reviewer: reviewerOf(item), builtBy: item.builtBy,
       state, since: item.since, ageHtml: item.since ? '<time data-ago="' + esc(item.since) + '">' + ago(item.since) + '</time>' : '', stale: Boolean(stale), titleTextHtml: esc(item.title), titleHtml: rich(item.title, titles),
-      stateHtml: chip(state) + stale, briefStateHtml: stale || chip(state) };
+      stateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)),
+      briefStateHtml: stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, panelNow) || '', itemStageMarks(item, p)) };
   });
   const agentRows = p.agents.map((agent) => {
     const isLead = lead(agent.agent_id);

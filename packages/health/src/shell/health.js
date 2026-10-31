@@ -8,6 +8,8 @@ import { unreviewableStrict } from '../../../../src/review-reachability.js';
 import { withLocalSeatPresence } from '../../../../src/seat-presence.js';
 import { mechanicalConflictFiles } from '../../../../src/mechanical-merge.js';
 import { localDependencyIds } from '../../../../src/item-dependencies.js';
+import { dependencyLabel } from '../../../items/index.js';
+import { itemFileCollisions } from '../../../items/index.js';
 /**
  * `pullboard health`: every stuck item on the board, why it is stuck, since when, the one next step
  * and who takes it [A6]. Doctor checks a board's integrity; health checks its flow, so nobody has
@@ -44,6 +46,7 @@ import { laneHold } from '../../../../src/board.js';
 import { reviewHolder } from '../../../../src/board.js';
 import { listAgents } from '../../../../src/board.js';
 import { openBoardReadOnly } from '../../../../src/board.js';
+import { readBoardSnapshot } from '../../../../src/board.js';
 import { PERSON } from '../../../../src/board.js';
 import { ROUTES } from '../../../../src/board.js';
 import { rowDecisions } from '../../../../src/board.js';
@@ -147,7 +150,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   if (typeof dispatchHealth !== 'function') throw new TypeError('healthReport requires its dispatchHealth observation port');
   const at = now.getTime();
   const age = (iso) => at - Date.parse(iso);
-  const board = { db, clock: { now: () => now }, familyAliases: familyIndex(config?.families) };
+  const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
   for (const stale of staleRowDecisions(rowDecisions(board), root, config)) {
     report.stuck.push(finding('STALE_ROW_DECISION', null, {
@@ -407,7 +410,7 @@ const QUEUE_ACTIVE_MS = 30 * 60_000;
  * @returns {Finding[]}
  */
 function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
-  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold });
+  const queue = workQueue(board, { buildOrder, canTake, listItems, milestonePriorities, milestones, roadmap, ROUTES, foreignBlockers, eligibilityProblem }, null, {}, { itemById, laneHold, localDependencyIds, dependencyLabel, itemFileCollisions });
   const current = (queue.releases.find((release) => release.landed < release.total)?.items ?? queue.unreleased)
     .filter((entry) => entry.status === 'open' && !entry.waits.length);
   const waiting = [...queue.releases.flatMap((release) => release.items), ...queue.unreleased]
@@ -536,8 +539,8 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
       subject: `#${claim.item_id}`, key: `RANK_INVERSION:item:${claim.item_id}`, since: since(claim.item_id), now,
       title: 'a free item ranks ahead',
       why: `${holder.id} claimed #${claim.item_id} while #${first.item_id} ranks ahead in the ${holder.lane} lane and sits free`,
-      next: `release #${claim.item_id} with pullboard release ${claim.item_id}, then claim #${first.item_id}`,
-      command: `pullboard release ${claim.item_id}`,
+      next: `release #${claim.item_id} with pullboard release ${claim.item_id} --reason ROUTED_ELSEWHERE, then claim #${first.item_id}`,
+      command: `pullboard release ${claim.item_id} --reason ROUTED_ELSEWHERE`,
       owner: { role: 'builder', who: holder.id }, detail: { holder: holder.id, ahead: first.item_id },
     }));
   }

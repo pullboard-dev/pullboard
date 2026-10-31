@@ -147,9 +147,11 @@
   ["src/board-record-attempt.js","packages/store/src/core/board-record-attempt.js","rule"],
   ["src/board-line-settings.js","packages/store/src/shell/board-line-settings.js","rule"],
   ["src/board-coordinator-hold.js","packages/store/src/shell/board-coordinator-hold.js","rule"],
+  ["src/release-reasons.js","packages/store/src/core/release-reasons.js","rule"],
   ["src/submit-outcome.js","packages/store/src/shell/submit-outcome.js","rule"],
   ["src/submit-handoff-state.js","packages/store/src/shell/submit-handoff-state.js","rule"],
-  ["src/submit-handoff-read.js","packages/store/src/shell/submit-handoff-read.js","rule"]
+  ["src/submit-handoff-read.js","packages/store/src/shell/submit-handoff-read.js","rule"],
+  ["src/rework-family-routing.js","packages/store/src/core/rework-family-routing.js","rule"]
  ],
  "reexports": [
   "src/board-access.js",
@@ -219,48 +221,18 @@
   {"cell":"app:cli","imports":3,"before":false}
  ],
  "cuts": [
-  {"cell":"queue","imports":2,"edges":["src/queue-readiness.js->src/board-query.js","src/routing-capacity.js->src/seat-presence.js"]},
-  {
-   "cell": "seats",
-   "imports": 12,
-   "edges": [
-    "src/agent-hook-work.js->src/board.js",
-    "src/agent-tree.js->src/board.js",
-    "src/coordinator-hold.js->src/board.js",
-    "src/line-capacity-board.js->src/board-query.js",
-    "src/line-settings.js->src/board-event-log.js",
-    "src/line-settings.js->src/board.js",
-    "src/projects.js->src/board.js",
-    "src/route-capacity.js->src/board-item-read.js",
-    "src/routing-presence.js->src/seat-presence.js",
-    "src/seat-checkout.js->src/board.js",
-    "src/seat-review-read.js->src/board-query.js",
-    "src/seats.js->src/board-query.js"
-   ]
-  },
-  {"cell":"items","imports":2,"edges":["src/item-patch-submit.js->src/board-query.js","src/item-patches.js->src/board-query.js"]},
+  {"cell":"queue","imports":1,"edges":["src/routing-capacity.js->src/seat-presence.js"]},
   {
    "cell": "stats",
-   "imports": 7,
+   "imports": 4,
    "edges": [
-    "src/cost-checkpoint.js->src/board-query.js",
     "src/cost-shared.js->src/board-event-log.js",
-    "src/cost-shared.js->src/board-query.js",
     "src/cost-usage-batch.js->src/board-event-log.js",
     "src/cost.js->src/board-event-log.js",
-    "src/cost.js->src/board-query.js",
     "src/cost.js->src/board-read-auxiliary.js"
    ]
   },
-  {
-   "cell": "verify",
-   "imports": 3,
-   "edges": [
-    "src/check-widen.js->src/item-check-baseline.js",
-    "src/review-reachability.js->src/board-query.js",
-    "src/review-routing.js->src/board-query.js"
-   ]
-  }
+  {"cell":"verify","imports":2,"edges":["src/check-widen.js->src/item-check-baseline.js","src/review-default.js->src/board-event-log.js"]}
  ],
  "ratchets": {
   "legacySource": -14,

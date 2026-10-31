@@ -1,8 +1,6 @@
 /** Read the same derived snapshot for the CLI, briefing and view, without warming it [R1,R2]. */
 import { CAPACITY_VERSION } from './capacity-counter.js';
 import { planCapacity } from './capacity-model.js';
-import { currentProofCounters } from './proof-counters.js';
-import { proofCounter } from './proof-counters.js';
 
 const STALE_MS = 30 * 60_000;
 
@@ -12,10 +10,10 @@ export function capacityAtRead(snapshot, now = Date.now()) {
 }
 
 /** Distinguish an unavailable migration from a measured empty board; never scan raw history here. */
-export function readCapacity(board, now = Date.now()) {
-  const ordinary = currentProofCounters(board);
-  const summary = proofCounter(board, 'capacity-summary');
-  const cached = proofCounter(board, 'capacity-snapshot');
+export function readCapacity(board, now = Date.now(), reads = board.nativePorts) {
+  const ordinary = reads.currentProofCounters(board);
+  const summary = reads.proofCounter(board, 'capacity-summary');
+  const cached = reads.proofCounter(board, 'capacity-snapshot');
   if (ordinary && summary?.version === CAPACITY_VERSION && !summary.invalid && summary.last === ordinary.last && cached) {
     return capacityAtRead(cached, now);
   }

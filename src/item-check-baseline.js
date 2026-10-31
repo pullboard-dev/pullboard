@@ -9,15 +9,8 @@ import {
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
 
-/** Normalize an explicitly supplied check only when its author is the coordinator [V2]. */
-export function coordinatorCheck(agentId, command) {
-  if (command === undefined) return undefined;
-  if (agentId !== COORDINATOR) {
-    throw new Refused('COORDINATOR_CHECK', 'only the coordinator sets or edits an item check; ask your coordinator to supply --check');
-  }
-  if (typeof command !== 'string') throw new Refused('BAD_CHECK', 'an item check is a command string; ask your coordinator to supply --check "<command>"');
-  return command.trim();
-}
+import { coordinatorCheck } from '../packages/verify/core.js';
+export { coordinatorCheck } from '../packages/verify/core.js';
 
 /** Validate captured baseline data without asking a replica to run Git or a shell [V2,H16]. */
 export function normalizeCheckBaseline(agentId, command, baseline, { authorized = false } = {}) {

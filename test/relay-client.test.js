@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
 import { withApiCommandEnvironment } from './api-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
@@ -21,7 +22,7 @@ import { board as store } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { storeBoardKey } from '../src/relay-key.js';
 import { ENGINE_VERSION } from '../src/machine.js';
@@ -859,7 +860,7 @@ async function competingReplicaClaims(fixture, timing) {
     }
 
     const winner = actors.get(id).indexOf(winningActor);
-    const released = await timing.wait(`release item #${id} from its replayed winner`, () => cliResult(worktrees[winner], envs[winner], 'release', String(id)));
+    const released = await timing.wait(`release item #${id} from its replayed winner`, () => cliResult(worktrees[winner], envs[winner], 'release', String(id), '--reason', 'BLOCKED'));
     userDiagnosticsByClone[winner].push(...(released.document.diagnostics ?? []));
     assert.equal(released.status, 0, `the ordered winner releases #${id}`);
     const winnerRelease = await timing.wait(`replay clone ${winner + 1}'s release for #${id}`, () => syncReplica(worktrees[winner], envs[winner]));
@@ -965,7 +966,7 @@ async function competingReplicaClaims(fixture, timing) {
   }
   let localApi;
   try {
-    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
+    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
     const address = new URL(localApi.url);
     const response = await timing.wait('send the first API move through clone A', () => fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' },
@@ -1084,7 +1085,7 @@ async function recoverReplicaReplies(fixture, timing) {
     cli(worktrees[0], envs[0], 'status'));
   assert.equal(ackSetup.relay.linked, true);
   assert.deepEqual(ackSetup.relay.outbox ?? [], [], 'legacy ACK probes start with no queued setup moves');
-  await timing.wait('release item 1 after its durable refusal is checked', () => cli(worktrees[0], envs[0], 'release', '1'));
+  await timing.wait('release item 1 after its durable refusal is checked', () => cli(worktrees[0], envs[0], 'release', '1', '--reason', 'BLOCKED'));
   await timing.wait('claim item 2 before its lost submission reply', () => cli(worktrees[0], envs[0], 'claim', '2'));
   const beforeLostSubmit = await timing.wait('confirm release and claim were acknowledged before the submit fault', () =>
     cli(worktrees[0], envs[0], 'status'));

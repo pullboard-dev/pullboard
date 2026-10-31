@@ -2,7 +2,6 @@
 import { contains } from './git.js';
 import { git } from './git.js';
 import { Refused } from './refused.js';
-import { judgeTrunkMove } from './verdict-trunk.js';
 
 /** Refuse before execution, and again after it, if the exact main snapshot was not proved. */
 export function requireSubmitComposition(root, candidate, trunk, expectedMain) {
@@ -37,7 +36,7 @@ export async function composeAfterProof(root, { id, proofCommit, proved, item, c
     if (!contains(root, from, trunk.commit)) {
       throw new Refused('MAIN_NOT_COMPOSED', `main moved from ${from.slice(0, 12)} to ${trunk.commit.slice(0, 12)}, which does not contain the proved main; merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
     }
-    const judged = await judgeTrunkMove(root, { from, to: trunk.commit, item, checkedCommit: proofCommit, check }, services, { all: true });
+    const judged = await services.judgeTrunkMove(root, { from, to: trunk.commit, item, checkedCommit: proofCommit, check }, services, { all: true });
     if (judged.overlaps.length) {
       throw new Refused('MAIN_NOT_COMPOSED', `main moved from ${proved.slice(0, 12)} to ${trunk.commit.slice(0, 12)} during the submission proof and changed what the proof depends on: ${judged.overlaps.join('; ')}; merge main into this worktree, commit the composition, then run pullboard submit <id> again`);
     }

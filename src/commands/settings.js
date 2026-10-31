@@ -87,7 +87,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     sayDescribed(io, `gate.loadAwareDispatch: ${loadAwareDispatch}`, values.detail === true);
     sayDescribed(io, `gate.runnerBusyCeiling: ${runnerBusyCeiling}`, values.detail === true);
     sayDescribed(io, `gate.measuredSlots: ${measuredSlots} (${measuredSlots ? 'each measured runner offers slots from its own cores and memory unless declared fixed' : 'runners offer the slot counts they were registered with'})`, values.detail === true);
-    sayDescribed(io, `gate.runnersOnly: ${runnersOnly} (submit and verify wait for registered runners, with no local fallback when on)`, values.detail === true);
+    sayDescribed(io, `gate.runnersOnly: ${runnersOnly} (submit and verify wait for runners, with no local fallback when on)`, values.detail === true);
     sayDescribed(io, `gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`, values.detail === true);
     const budget = workerBudget();
     sayDescribed(io, `workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);

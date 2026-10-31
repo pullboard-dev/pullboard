@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { loadConfig } from '../src/config.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -155,7 +155,7 @@ test('[V1,B3] next never offers a review to a seat sharing a parent with an auth
   const second = store.register(box.board, { lane: 'web', path: join(box.root, 'second-builder'), family: 'Fixture Builder Vendor', parent: 'fixture-parent-P' });
   const outsider = store.register(box.board, { lane: 'review', path: join(box.root, 'outside-reviewer'), family: 'Fixture Reviewer Vendor', parent: 'fixture-parent-Q' });
   const id = claimed(box);
-  store.release(box.board, id, box.builderId);
+  store.release(box.board, id, box.builderId, 'Return the build claim before another reviewer takes it.', 'OTHER');
   store.claim(box.board, id, { agentId: second, lane: 'web', leaseMs: HOUR,
     freeze: () => ({ text: 'fixture criterion', digest: createHash('sha256').update('fixture criterion').digest('hex') }) });
   submitFixture(box.board, id, { agentId: second, commit: String(id).padStart(40, 'a'), tree: String(id).padStart(40, 'b') });

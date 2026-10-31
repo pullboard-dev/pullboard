@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
@@ -8,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { relayPresentation, relaySnapshot } from '../src/relay-presentation.js';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
@@ -130,7 +131,7 @@ test('[B29,B31,B32] itemThread merges moves and facts in append order with exact
   clock.advance(1_000);
   const fact = store.appendFact(board, id, { agentId: 'web-2', kind: 'capture', text: 'first line\nsecond line stays', factId: 'ordered-fact' });
   clock.advance(1_000);
-  store.release(board, id, 'web-1');
+  store.release(board, id, 'web-1', 'Return the claim before reading its thread.', 'OTHER');
   const releaseEvent = store.events(board, { itemId: id }).at(-1);
   const thread = store.itemThread(board, id);
   assert.deepEqual(thread.map((entry) => entry.type === 'fact' ? `fact:${entry.id}` : `move:${entry.kind}`), [
@@ -255,7 +256,7 @@ function threadHttpFixture(t) {
 /** Start a real authenticated API for only this test's fixture board. */
 async function threadHttpBox(t) {
   const box = threadHttpFixture(t);
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Thread HTTP fixture' }] });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Thread HTTP fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');

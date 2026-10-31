@@ -75,7 +75,6 @@
   {"cell":"app:cli","imports":3,"before":false}
  ],
  "cuts": [
-  {"cell":"seats","imports":1,"edges":["src/seat-checkout.js->src/person.js"]},
   {"cell":"stats","imports":1,"edges":["src/cost-ledger.js->src/person.js"]},
   {"cell":"verify","imports":1,"edges":["src/next-review.js->src/person.js"]}
  ],
@@ -95,5 +94,6 @@
   "specs": ["C7","doctrine:CD60","doctrine:CD64"],
   "check": "node bin/cells-plan.js --moved person",
   "after": ["kernel","git","config","state","spec","verify","store","sandbox","doctrine"]
- }
+ },
+ "pureFrontDoor": "packages/person/core.js"
 }

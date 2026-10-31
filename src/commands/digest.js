@@ -1,6 +1,9 @@
+import { currentProofCounters } from '../../packages/verify/index.js';
+import { proofCounter } from '../../packages/verify/index.js';
 import { foreignBlockers } from '../board.js';
 import { counterCaught } from '../proof-counter-read.js';
-import { readCapacity } from '../capacity-read.js';
+import { readCapacity as readCapacityWithPorts } from '../capacity-read.js';
+const readCapacity = (board, now) => readCapacityWithPorts(board, now, { currentProofCounters, proofCounter });
 import { capacityLines } from '../capacity-model.js';
 import { milestones } from '../board.js';
 import { openBoardReadOnly } from '../board.js';

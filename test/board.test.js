@@ -16,10 +16,10 @@ import { openBoard } from '../src/native-board.js';
 import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../src/board-milestones.js';
 import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../src/agent-names.js';
-import { projectState } from '../src/serve.js';
+import { projectState } from '../src/cli/view-state.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../src/brief.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../src/machine.js';
@@ -275,7 +275,7 @@ test('one live top-level claim per agent; child items are free; lanes hold, the 
 test('the first claim freezes the criterion; later claims keep it [V2]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   assert.equal(claimAs(id, 'web-1', 'web').digest, 'digest:Page');
-  store.release(board, id, 'web-1');
+  store.release(board, id, 'web-1', 'Hand the frozen criterion to another builder.', 'OTHER');
   const other = (item) => ({ text: 'changed', digest: `other:${item.item_id}` });
   store.claim(board, id, { agentId: 'web-2', lane: 'web', leaseMs: HOUR, freeze: other });
   assert.equal(store.getItem(board, id).item_frozen_digest, 'digest:Page');
@@ -342,18 +342,18 @@ test('a verifier releases its reserved review; another verifier can take it, and
     submitFixture(durable, id, { agentId: builder, commit: SHA_A, tree: 'tree-a' });
     store.reserveReview(durable, id, { agentId: reviewer, leaseMs: HOUR, policy: 'any' });
 
-    assert.equal(store.release(durable, id, reviewer, 'wrong tree'), true);
+    assert.equal(store.release(durable, id, reviewer, 'wrong tree', 'OTHER'), true);
     assert.deepEqual(
       [store.getItem(durable, id).item_review_by, store.getItem(durable, id).item_review_until],
       [null, null],
     );
     assert.equal(store.events(durable, { itemId: id }).at(-1).event_kind, 'release');
     assert.equal(store.reserveReview(durable, id, { agentId: second, leaseMs: HOUR, policy: 'any' }).item_review_by, second);
-    assert.throws(() => store.release(durable, id, third), /NOT_YOURS/);
+    assert.throws(() => store.release(durable, id, third, 'Another verifier holds this reservation.', 'OTHER'), /NOT_YOURS/);
 
     const claimed = store.addItem(durable, { by: 'coordinator', lane: 'web', title: 'Another page' });
     store.claim(durable, claimed, { agentId: reviewer, lane: 'web', leaseMs: HOUR, freeze });
-    assert.equal(store.release(durable, claimed, reviewer), false);
+    assert.equal(store.release(durable, claimed, reviewer, 'Return the fixture claim to the queue.', 'OTHER'), false);
     assert.equal(store.getItem(durable, claimed).item_status, 'open');
   } finally {
     store.closeBoard(durable);
@@ -810,7 +810,7 @@ test('below strong, an item is buildable cold: files, a test, a criterion and a 
 test('changing a criterion or a check drops the frozen bar, in the open; the next claim freezes anew [B14]', () => {
   const id = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Page' });
   claimAs(id, 'web-1', 'web');
-  store.release(board, id, 'web-1');
+  store.release(board, id, 'web-1', 'Release the claim before correcting its criterion.', 'OTHER');
   store.editItem(board, id, { agentId: 'coordinator', check: 'npm test', criterion: 'renders', reason: 'the fixture corrects its bar' });
   assert.equal(store.getItem(board, id).item_frozen_digest, null);
   const edit = store.events(board, { itemId: id }).find((event) => event.event_kind === 'edit');
@@ -880,7 +880,7 @@ test('escalate frees an item one tier up, with what was tried attached [B15]', (
 test('two failed attempts at a route escalate the item one route up [B15,B13]', () => {
   const id = routed('Automatic escalation', 'light');
   claimAs(id, 'web-1', 'web');
-  store.release(board, id, 'web-1');
+  store.release(board, id, 'web-1', 'Return the claim without recording a failed attempt.', 'OTHER');
   rejectRevision(id, SHA_A, 'first reject: missing parser output');
   assert.equal(store.getItem(board, id).item_route, 'light', 'a release is not a failed attempt');
   assert.equal(store.events(board, { itemId: id }).filter((event) => event.event_kind === 'escalate').length, 0);

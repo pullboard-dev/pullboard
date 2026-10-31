@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 import {
@@ -55,7 +55,7 @@ function accepted(box, builderParent, reviewerParent, { historicalUnknown = fals
     const prior = store.register(box.board, { lane: 'web', path: join(box.root, `prior-${number}`) });
     store.claim(box.board, id, { agentId: prior, lane: 'web', leaseMs: 3600000,
       freeze: () => ({ text, digest }) });
-    store.release(box.board, id, prior);
+    store.release(box.board, id, prior, 'Return the prior fixture claim before the verdict check.', 'OTHER');
   }
   store.claim(box.board, id, { agentId: builder, lane: 'web', leaseMs: 3600000,
     freeze: () => ({ text, digest }) });

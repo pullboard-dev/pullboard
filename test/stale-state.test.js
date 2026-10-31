@@ -7,23 +7,18 @@ import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { conditionalHoldFloor } from '../packages/health/index.js';
-import { runFixtureChildAsync } from './fixture-child.js';
+import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
-let staleStateSnapshot;
-let planStaleState;
-try {
-  ({ staleStateSnapshot } = await import('../packages/health/src/core/stale-state-query.js'));
-  ({ planStaleState } = await import('../src/board-stale-state-maintenance.js'));
-} catch (error) {
-  if (error.code !== 'ERR_MODULE_NOT_FOUND' || !['stale-state-query.js', 'stale-state-maintenance.js'].some(file => error.url?.endsWith('/src/' + file))) throw error;
-}
+import { staleStateSnapshot } from '../packages/health/src/core/stale-state-query.js';
+import { planStaleState } from '../src/board-stale-state-maintenance.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { run as statusRun } from '../src/commands/status.js';
 import { fixtureBoard } from './board-fixture.js';
+import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
 
 const MINUTE = 60_000;
 
@@ -75,8 +70,8 @@ function fixture(t) {
   };
   /** Run the real private CLI with its public injected clock; all identity/settings files use private HOME. */
   const cli = async (...args) => {
-    const source = `import {main} from ${JSON.stringify(new URL('../src/cli-main.js', import.meta.url).href)};
-process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${JSON.stringify(clock.now().toISOString())})},stdout:process.stdout,stderr:process.stderr});`;
+    const source = `import {main} from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
+process.exitCode=await main(${JSON.stringify(args)}, {cwd:${JSON.stringify(box.repo)},clock:{now:()=>new Date(${JSON.stringify(clock.now().toISOString())})},stdout:process.stdout,stderr:process.stderr,loadNativeBoard:()=>import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)})});`;
     return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   };
   return { box, board, builder, reviewer, clock, freeze, add, review, advance, snapshot, cli, worktree };
@@ -190,6 +185,7 @@ test('an idle review reservation returns to the queue [B4,V1,H16]', async t => {
   assert.equal(release.event_by, 'coordinator');
   const detail = JSON.parse(release.event_detail);
   assert.equal(detail.review, true);
+  assert.equal(detail.reasonCode, 'OTHER', 'current automatic idle release retains its coded reason');
   assert.equal(detail.stale.reviewer, f.reviewer);
   assert.equal(detail.stale.lastActivity, new Date(lastActivity).toISOString());
   const notice = events.find(event => event.event_kind === 'shout');
@@ -213,7 +209,7 @@ test('coordinator expiry refuses stale revisions and a replaced reviewer without
   assert.throws(() => store.maintainStaleState(f.board, { agentId: 'coordinator', snapshot }), error => error.code === 'STALE_STATE_CHANGED');
   assert.equal(store.getItem(f.board, id).item_review_by, f.reviewer);
   const other = store.register(f.board, { lane: 'web', path: join(f.box.dir, 'replacement-reviewer') });
-  store.release(f.board, id, f.reviewer, 'Another independent reviewer will continue');
+  store.release(f.board, id, f.reviewer, 'Another independent reviewer will continue', 'OTHER');
   store.reserveReview(f.board, id, { agentId: other, leaseMs: 120 * MINUTE, policy: 'any' });
   const currentRevision = f.snapshot().observedRevision;
   // A caller cannot make stale holder evidence valid by merely replacing its revision number.
@@ -443,12 +439,16 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   addMilestone(f.board, { agentId: 'coordinator', name: 'Private release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
   f.advance(15 * MINUTE - 1);
-  const early = await f.cli('release', String(id), '--stale', '--note', 'The release waits on this silent claim', '--json');
+  const early = await f.cli('release', String(id), '--stale', '--reason', 'BLOCKED', '--note', 'The release waits on this silent claim', '--json');
   assert.equal(early.status, 1);
+  assert.equal(JSON.parse(early.stdout).error.code, 'NOT_YOURS', 'a valid code retains the original measured-inactivity refusal');
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   f.advance(1);
+  const invalid = await f.cli('release', String(id), '--stale', '--reason', 'NOPE', '--note', 'The release waits on this silent claim', '--json');
+  assert.equal(JSON.parse(invalid.stdout).error.code, 'RELEASE_REASON');
+  assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   const before = store.events(f.board).length;
-  const result = await f.cli('release', String(id), '--stale', '--note', 'The release waits on this silent claim', '--json');
+  const result = await f.cli('release', String(id), '--stale', '--reason', 'BLOCKED', '--note', 'The release waits on this silent claim', '--json');
   assert.equal(result.status, 0, result.stderr);
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.equal(store.getItem(f.board, id).item_owner, null);
@@ -457,6 +457,7 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   assert.equal(release.event_by, 'coordinator');
   const detail = JSON.parse(release.event_detail);
   assert.equal(detail.staleClaim.holder, f.builder);
+  assert.equal(detail.reasonCode, 'BLOCKED', 'the actual stale CLI records its explicitly supplied code');
   assert.equal(detail.staleClaim.limitMs, 15 * MINUTE);
   assert.equal(detail.reason, 'The release waits on this silent claim');
   const notice = events.find(event => event.event_kind === 'shout');
@@ -486,9 +487,102 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
   assert.equal(row.evidence.complete, true);
   assert.equal(row.ageMs, 2 * MINUTE);
   assert.throws(() => store.release(f.board, id, 'coordinator', 'Still working', {
-    staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: {} }), error => error.code === 'NOT_YOURS');
+    staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: {} }, 'BLOCKED'), error => error.code === 'NOT_YOURS');
   assert.equal(store.getItem(f.board, id).item_owner, f.builder);
   heartbeatSeat(f.board, f.builder);
   const revived = await captureStaleState(ctx, f.board);
   assert.equal(revived.claims[0].ageMs, 0);
+});
+
+
+test('stale releases carry observation plus code through native and ordered APIs without rewriting history [B4,C7,H16]', async t => {
+  const { applyEngineMove } = await import('../src/engine.js');
+  const { STALE_STATE_ENGINE } = await import('../src/stale-state-engine.js');
+  const { RELEASE_REASONS_ENGINE } = await import('../src/release-reasons-engine.js');
+  for (const mode of ['native', 'ordered', 'historical']) {
+    const f = fixture(t);
+    store.register(f.board, { lane: 'coordinator', path: f.box.repo, model: 'Coded maintenance fixture' });
+    const id = f.add('Silent native maintenance target');
+    store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+    f.advance(60 * MINUTE);
+    const snapshot = f.snapshot(), row = snapshot.claims.find(entry => entry.id === id);
+    assert.equal(row.evidence.complete, true, 'the real snapshot observes the private unchanged Git worktree and native activity');
+    const observation = { staleClaim: row, observedAt: snapshot.observedAt, observedRevision: snapshot.observedRevision, health: {} };
+    const note = 'The silent claim blocks the next handoff';
+    const before = store.getItem(f.board, id), events = store.events(f.board);
+    assert.throws(() => store.release(f.board, id, 'coordinator', note, observation), { code: 'RELEASE_REASON' });
+    assert.throws(() => store.release(f.board, id, f.builder, note, observation, 'BLOCKED'), { code: 'NOT_YOURS' });
+    assert.deepEqual(store.getItem(f.board, id), before);
+    assert.deepEqual(store.events(f.board), events);
+    const args = [id, 'coordinator', note, observation, 'BLOCKED'];
+    const move = prepareEngineMove(f.board, 'release', args);
+    assert.ok(move.engine >= RELEASE_REASONS_ENGINE);
+    const options = { sequence: 1, at: f.clock.now().toISOString() };
+    assert.throws(() => applyEngineMove(f.board, { ...move, engine: STALE_STATE_ENGINE }, options), { code: 'RELAY_MOVE' });
+    assert.deepEqual(store.getItem(f.board, id), before);
+    if (mode === 'native') store.release(f.board, id, 'coordinator', note, observation, 'BLOCKED');
+    else {
+      const selected = mode === 'historical'
+        ? { ...prepareEngineMove(f.board, 'release', args.slice(0, 4)), engine: STALE_STATE_ENGINE }
+        : move;
+      const outcome = applyEngineMove(f.board, selected, options);
+      assert.equal(outcome.error, undefined);
+      assert.deepEqual(applyEngineMove(f.board, selected, options), outcome);
+    }
+    assert.equal(store.getItem(f.board, id).item_status, 'open');
+    const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
+    assert.equal(detail.staleClaim.holder, f.builder);
+    assert.equal(detail.reason, note);
+    assert.equal(detail.model, 'Coded maintenance fixture');
+    assert.deepEqual(Object.keys(detail).sort(), mode === 'historical' ? ['model', 'reason', 'staleClaim'] : ['model', 'reason', 'reasonCode', 'staleClaim']);
+    if (mode !== 'historical') assert.equal(detail.reasonCode, 'BLOCKED');
+  }
+});
+
+test('the stale CLI validates and retains an explicit maintenance reason override [B4,C7]', async t => {
+  const { captureStaleState } = await import('../packages/health/src/shell/stale-state-capture.js');
+  const f = fixture(t), id = f.add('Silent coded override');
+  const path = store.agentById(f.board, f.builder).agent_path;
+  f.worktree(path, 'private-coded-stale-override');
+  store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
+  f.advance(60 * MINUTE);
+  const captured = await captureStaleState({ info: { root: f.box.repo }, config: { health: { sentinel: false } }, clock: f.clock }, f.board);
+  const observed = captured.claims.find(entry => entry.id === id);
+  assert.ok(observed, 'the production capture observes the actual native claim');
+  assert.equal(observed.actor, f.builder);
+  assert.equal(observed.evidence.complete, true, 'the registered private Git worktree supplies real CLI work evidence');
+  assert.equal(observed.limitMs, 60 * MINUTE);
+  assert.ok(observed.ageMs >= observed.limitMs, 'the real observation establishes the unchanged one-hour threshold');
+  const result = await f.cli('release', String(id), '--stale', '--reason', 'OTHER', '--note', 'An outside prerequisite blocks this claim', '--json');
+  assert.equal(result.status, 0, safeFixtureDiagnostic(`stdout: ${result.stdout}\nstderr: ${result.stderr}`, f.box.env));
+  const detail = JSON.parse(store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release').event_detail);
+  assert.equal(detail.reasonCode, 'OTHER');
+  assert.equal(detail.reason, 'An outside prerequisite blocks this claim');
+});
+
+/** Preserve historical release detail bytes while current automatic expiry uses a genuine coded reason. */
+test('automatic idle review release codes current maintenance without rewriting historical detail [B4,C7,H16]', t => {
+  for (const historical of [false, true]) {
+    const f = fixture(t), id = f.review();
+    f.advance(30 * MINUTE);
+    const snapshot = f.snapshot();
+    const previous = f.board.executionEngineVersion;
+    if (historical) f.board.executionEngineVersion = STALE_STATE_ENGINE;
+    try {
+      const result = store.maintainStaleState(f.board, { agentId: 'coordinator', snapshot });
+      assert.deepEqual(result.reviews, [id]);
+    } finally {
+      if (previous === undefined) delete f.board.executionEngineVersion;
+      else f.board.executionEngineVersion = previous;
+    }
+    const release = store.events(f.board, { itemId: id }).findLast(event => event.event_kind === 'release');
+    const detail = JSON.parse(release.event_detail);
+    const reason = `Review idle for 30 minutes; last observed activity ${snapshot.reviews[0].lastActivity}.`;
+    const expected = { review: true, reason, ...(historical ? {} : { reasonCode: 'OTHER' }),
+      stale: { reviewer: snapshot.reviews[0].reviewer, reservedAt: snapshot.reviews[0].reservedAt,
+        lastActivity: snapshot.reviews[0].lastActivity } };
+    const { model, ...payload } = detail;
+    assert.deepEqual(payload, expected);
+    assert.equal(Object.hasOwn(detail, 'reasonCode'), !historical);
+  }
 });

@@ -41,7 +41,7 @@ export function requireRuntimePorts(ports) {
   for (const name of ['agentAt', 'itemById', 'itemCheckBaseline', 'events', 'acceptedVerdict', 'verdictReviewProblem', 'boardId', 'appendRigorCounter', 'ensureRigorCounters']) {
     if (typeof ports.verification[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply verification.${name}.`);
   }
-  for (const name of ['agentModel', 'proofReceipts', 'itemById', 'laneHold', 'laneHolds', 'getItem', 'listAgents', 'reviewHolder', 'listItems',
+  for (const name of ['agentModel', 'proofReceipts', 'itemById', 'laneHold', 'laneHolds', 'getItem', 'listAgents', 'reviewHolder', 'listItems', 'seatFamily', 'canonicalFamily',
     'atomic', 'logEvent', 'rowDrafts', 'rowDecisions', 'recordRowDecisions', 'now', 'sourceAdvanceCASProblem', 'beginCommandPhase', 'exportedMeta', 'guardRestore', 'sealSourceAdvanceReturn', 'conflictValue', 'deriveRigorCause', 'recordAutomaticRigorDrafts', 'normalizedDispatch', 'rejectedWorkReturns', 'newRigorNotices', 'rigorNoticeText']) {
     if (typeof ports.nativePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply nativePorts.${name}.`);
   }
@@ -56,7 +56,7 @@ export function requireRuntimePorts(ports) {
   if (typeof ports.nativePorts.PERSON !== 'string' || !ports.nativePorts.PERSON.trim()) throw new Refused('NO_POLICY', 'The native board root must supply nativePorts.PERSON.');
   if (!ports.enginePorts.store || typeof ports.enginePorts.store.openBoard !== 'function') throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.store.');
   if (!ports.enginePorts.registry || typeof ports.enginePorts.registry !== 'object' || Array.isArray(ports.enginePorts.registry)) throw new Refused('NO_POLICY', 'The native board root must supply enginePorts.registry.');
-  for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'withSeatPresence', 'minimumOperationEngine', 'sealSourceAdvanceReturn', 'sealSourceAdvance', 'sealItemPatchFollow',
+  for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily', 'withSeatPresence', 'minimumOperationEngine', 'sealSourceAdvanceReturn', 'sealSourceAdvance', 'sealItemPatchFollow',
     'prepareTrainLanding', 'prepareNativeTrainLanding', 'computedReturnArgs', 'requirePreparedComputedConflict', 'preflightComputedConflict', 'boundProofReceipt',
     'requireOutsideReceipt', 'signedMoveProblem', 'requireCoordinatorHold', 'requireBound',
     'requestMoveProblem', 'recordRequestMove', 'relayPerson', 'requestPerson',

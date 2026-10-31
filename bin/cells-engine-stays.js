@@ -1,0 +1,94 @@
+/** Retain canonical engine identities without allowing arbitrary accepted plan rows to disappear [C7,CD64]. */
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { engineBindings } from '../packages/state/core.js';
+import { lex } from '../src/js-lex.js';
+import { Refused } from '../src/refused.js';
+
+const SUPPORT = new Set(['src/engine-next.js', 'src/engine-numbers.js']);
+const HISTORY = /^src\/move-history\/(?:legacy|[1-9][0-9]*)\.json$/u;
+const REASON = 'canonical engine identity retained in src during package moves';
+
+/** Read only a regular canonical root leaf; symlinks cannot supply accepted source authority. */
+function rootSource(root, file) {
+  if (!/^src\/[A-Za-z0-9._-]+\.[cm]?js$/u.test(file) && !HISTORY.test(file)) return null;
+  try {
+    for (const parent of HISTORY.test(file) ? ['src', 'src/move-history'] : ['src']) {
+      const directory = lstatSync(join(root, parent));
+      if (!directory.isDirectory() || directory.isSymbolicLink()) return null;
+    }
+    const stat = lstatSync(join(root, file));
+    if (!stat.isFile() || stat.isSymbolicLink()) return null;
+    return readFileSync(join(root, file), 'utf8');
+  } catch { return null; }
+}
+
+/** Include dangling targets: a missing destination is not permission to overwrite an alias. */
+function present(root, file) {
+  try { lstatSync(join(root, file)); return true; }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+}
+
+/** Classify the accepted bytes, never a candidate-added declaration that would manufacture an exemption. */
+function engineLeaf(row, source) {
+  return source !== null && (SUPPORT.has(row[0]) || HISTORY.test(row[0])
+    || engineBindings(lex(source).code).length > 0);
+}
+
+/** Validate exact row custody and unchanged new stays before the submit guard excuses a missing placement. */
+export function engineStayTransition({ beforeRoot, afterRoot, before, after, afterMap }) {
+  const problems = [], rows = new Set(), old = before.engineStays ?? [], next = after.engineStays ?? [];
+  if (!Array.isArray(old) || !Array.isArray(next) || !Array.isArray(after.stays)) return { rows, problems: ['engine stays must be explicit row lists'] };
+  const signature = entry => JSON.stringify(entry);
+  for (const entry of old) if (!next.some(value => signature(value) === signature(entry))) {
+    problems.push(`accepted engine-stay provenance changed: ${entry?.row?.[0]}`);
+  }
+  const seen = new Set();
+  for (const entry of next) {
+    const row = entry?.row, file = row?.[0];
+    if (!entry || Object.keys(entry).sort().join(',') !== 'cell,row' || entry.cell !== 'state'
+      || !Array.isArray(row) || row.length !== 3 || row.some(value => typeof value !== 'string')
+      || !/^packages\/state\//u.test(row[1])) {
+      problems.push('engine stays need the exact original state row'); continue;
+    }
+    if (seen.has(file)) { problems.push(`duplicate engine stay: ${file}`); continue; }
+    seen.add(file);
+    const retained = old.some(value => signature(value) === signature(entry));
+    const accepted = before.cells.find(cell => cell.name === entry.cell)?.paths.some(value => JSON.stringify(value) === JSON.stringify(row));
+    const source = rootSource(beforeRoot, file), candidate = rootSource(afterRoot, file);
+    const listed = after.stays.filter(value => value.path === file);
+    const destinationPresent = present(afterRoot, row[1]);
+    if ((!retained && (!accepted || !engineLeaf(row, source) || source !== candidate))
+      || candidate === null || listed.length !== 1 || listed[0].reason !== REASON
+      || after.cells.some(cell => cell.paths.some(value => value[0] === file))
+      || afterMap.has(file) || destinationPresent) {
+      problems.push(`unproven canonical engine stay: ${file}`); continue;
+    }
+    rows.add(file);
+  }
+  return { rows, problems };
+}
+
+/** Transfer only explicitly listed accepted engine rows to stays, preserving their exact original provenance. */
+export function retainEnginePaths({ root, plan, cellName, paths, pathMap }) {
+  if (cellName !== 'state' || !Array.isArray(paths) || !paths.length || new Set(paths).size !== paths.length) {
+    throw new Refused('CELLS_ENGINE_STAY', 'List distinct state engine paths with --engine-stays state <path>... .');
+  }
+  const next = structuredClone(plan), cell = next.cells.find(value => value.name === cellName);
+  if (!cell) throw new Refused('CELLS_ENGINE_STAY', 'Read the current state plan before retaining its canonical engine paths.');
+  next.engineStays ??= [];
+  for (const file of paths) {
+    const row = cell.paths.find(value => value[0] === file);
+    if (!row || !engineLeaf(row, rootSource(root, file))) {
+      throw new Refused('CELLS_ENGINE_STAY', `${file} is not a listed canonical state engine leaf or approved engine support path.`);
+    }
+    next.engineStays.push({ cell: cellName, row: [...row] });
+    next.stays.push({ path: file, reason: REASON });
+    cell.paths = cell.paths.filter(value => value[0] !== file);
+    cell.reexports = cell.reexports.filter(value => value !== file);
+  }
+  const checked = engineStayTransition({ beforeRoot: root, afterRoot: root, before: plan, after: next, afterMap: pathMap });
+  if (checked.problems.length) throw new Refused('CELLS_ENGINE_STAY', checked.problems.join('; '));
+  return next;
+}

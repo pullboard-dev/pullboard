@@ -1,3 +1,5 @@
+import { asSubmitted } from '../src/review-reachability.js';
+import { refuseUnreviewable } from '../src/review-reachability.js';
 /** Real native attachment previews and submit moves share strict ownership authority [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -6,7 +8,6 @@ import { fixtureBoard } from './board-fixture.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { reviewEligibility } from '../src/review-eligibility.js';
-import { refuseUnreviewable } from '../src/review-reachability.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard } from '../src/exchange.js';
@@ -35,7 +36,7 @@ function fixture(t, { independentOpenAI = true } = {}) {
 test('Claude builder and OpenAI companion use one eligibility rule for live attach, submit and independent verify [V4,H16]', t => {
   const { board, id, claimed, attachment } = fixture(t);
   const before = exportBoard(board);
-  assert.doesNotThrow(() => refuseLiveAttach(board, store.getItem(board, id), attachment, { atomic: store.atomic, review: REVIEW }));
+  assert.doesNotThrow(() => refuseLiveAttach(board, store.getItem(board, id), attachment, { asSubmitted, refuseUnreviewable, atomic: store.atomic, review: REVIEW }));
   assert.deepEqual(exportBoard(board), before, 'live attachment preview records no authority');
   store.attachItemPatch(board, id, { agentId: 'coordinator', ...attachment, presubmit: true });
   assert.doesNotThrow(() => submitPreflight(board, id, { agentId: 'core-1', commit: COMMIT, tree: TREE },
@@ -53,6 +54,6 @@ test('Claude builder and OpenAI companion use one eligibility rule for live atta
 test('claimed attachment cannot infer future companion ownership from absent submit counts [V4,H16]', t => {
   const { board, id, attachment } = fixture(t, { independentOpenAI: false });
   const before = exportBoard(board);
-  assert.throws(() => refuseLiveAttach(board, store.getItem(board, id), attachment, { atomic: store.atomic, review: REVIEW }), { code: 'NO_ELIGIBLE_REVIEWER' });
+  assert.throws(() => refuseLiveAttach(board, store.getItem(board, id), attachment, { asSubmitted, refuseUnreviewable, atomic: store.atomic, review: REVIEW }), { code: 'NO_ELIGIBLE_REVIEWER' });
   assert.deepEqual(exportBoard(board), before, 'refused preview preserves exact board bytes');
 });

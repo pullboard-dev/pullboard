@@ -7,10 +7,48 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { IN_STATE, MACHINE, effectiveGuards } from '../../src/machine.js';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { openBoard } from '../../src/native-board.js';
+import { closeBoard, logEvent } from '../../src/board.js';
 import { machine, project, build, sendBack, fetchLive, startView, styleOf, element, storage, openPage, timelineRows, agentEntries, drawing, textBoxes, meet, accept, itemRow, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 
 const verifiedIsFinal = Boolean(MACHINE.states.find((state) => state.id === 'verified').final);
+
+test('activity shows each submit note and verdict with landing evidence [N26]', { timeout: 120_000 }, async () => {
+  const box = machine(), alpha = project(box, 'activity-evidence');
+  box.run(alpha.repo, 'add', 'web', 'Readable evidence', '--specs', 'G1', '--criterion', 'Evidence is readable.');
+  // @pullboard-board-file journey: native event records are served to the real Activity browser view.
+  const board = openBoard(join(alpha.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    logEvent(board, 'web-1', 'submit', 1, { note: 'Builder note <safe>', gateGreen: true, submissionProof: { files: ['test/example.test.js'], reason: 'Focused evidence' } });
+    logEvent(board, 'reviewer', 'reject', 1, { reason: 'RIGOR', note: 'Rejection note <safe>' });
+    logEvent(board, 'reviewer', 'accept', 1, { note: 'Reviewer note <safe>' });
+    logEvent(board, 'coordinator', 'merged', 1, { commit: 'a'.repeat(40) });
+    logEvent(board, 'coordinator', 'main-moved', null, { sha: 'b'.repeat(40), items: [1] });
+  } finally { closeBoard(board); }
+  const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-activity-evidence-'));
+  let chrome;
+  try {
+    const executable = chromeExecutable();
+    assert.ok(executable, 'real Chrome is required');
+    chrome = await openSnapshotChrome(executable, view.link.href, profile);
+    await chrome.waitFor('!!data?.project');
+    await press(chrome, "document.querySelector('[data-tab=activity]')");
+    await chrome.waitFor("document.querySelector('#activity [data-activity-kind=main-moved]')");
+    for (const width of [1440, 375]) {
+      await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
+      const result = JSON.parse(await chrome.stable(`JSON.stringify({ text: document.querySelector('#activity').innerText, html: document.querySelector('#activity').innerHTML, overflow: document.documentElement.scrollWidth > innerWidth })`));
+      assert.match(result.text, /Builder note <safe>[\s\S]*Checks: test\/example\.test\.js[\s\S]*Focused evidence[\s\S]*Check passed/u);
+      assert.match(result.text, /Reviewer note <safe>/u);
+      assert.match(result.text, /Reason: rigor[\s\S]*Rejection note <safe>/u);
+      assert.match(result.text, /Landed at a{12}/u);
+      assert.match(result.text, /Items: #1[\s\S]*Main at b{12}/u);
+      assert.doesNotMatch(result.html, /<safe>/u, 'event prose is escaped');
+      assert.equal(result.overflow, false, `${width}px stays within the viewport`);
+    }
+    assert.deepEqual(chrome.exceptions, []);
+  } finally { if (chrome) await closeSnapshotChrome(chrome); await view.stop(); rmSync(profile, { recursive: true, force: true }); }
+});
 
 
 /** Verify a verified stay ends at its next state move, while a quiet merge remains untimed. */
@@ -131,28 +169,30 @@ test("the history is a timeline of the item's states [N26]", async () => {
   try {
     const page = await openPage(view);
     await page.click({ go: 'item:1' });
-    const done = timelineRows(page.show('detail'));
+    const done = timelineRows(page.show('detail')).reverse();
     assert.deepEqual(done.map((row) => [row.dot, row.event]), [
       ['tl-open', 'coordinator added this work'],
       ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-open tl-back', 'coordinator sent it back'],
       ['tl-claimed', 'web-1 claimed it'],
+      ['tl-claimed', 'web-1 continued building'],
       ['tl-claimed tl-quiet', 'web-1 ran the proof'],
       ['tl-submitted', 'web-1 submitted it for review'],
       ['tl-verified', 'coordinator passed it'],
       ['tl-verified tl-quiet', 'coordinator landed it'],
     ], 'a dot per event in the colour of the state it led to; a merge moves nothing');
-    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
+    assert.deepEqual(done.map((row) => row.stay.replace(/ for .*/, ' for')), ['open for', 'claimed for', 'claimed for', '', 'submitted for', 'sent back for', 'claimed for', 'claimed for', '', 'submitted for', verifiedIsFinal ? '' : 'verified for', ''], 'each stay until the next move; a final state has none and quiet proof receipts and merge stay untimed');
     assert.ok(done.filter(row => !row.dot.includes('tl-quiet')).slice(0, 6).every((row) => / for (under a minute|\d+m)$/.test(row.stay)), done.map((row) => row.stay).join(', '));
     assert.ok(done.every((row) => /^\d{1,2}:\d\d [AP]M$/.test(row.time)), 'every event keeps its time');
 
     await page.click({ go: 'item:2' });
-    assert.deepEqual(timelineRows(page.show('detail')).map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
+    assert.deepEqual(timelineRows(page.show('detail')).reverse().map((row) => [row.dot, row.stay]).slice(1), [['tl-claimed', 'claimed for now so far']]);
     const later = await openPage(view, { later: 1 });
     await later.click({ go: 'item:2' });
-    assert.deepEqual(timelineRows(later.show('detail')).map((row) => row.stay).slice(1), ['claimed for 24h so far'], 'the stay so far counts on');
+    assert.deepEqual(timelineRows(later.show('detail')).reverse().map((row) => row.stay).slice(1), ['claimed for 24h so far'], 'the stay so far counts on');
 
     // A claim logged on an item the replay holds claimed: the clock lapsed the first claim between.
     const at = (minute) => new Date(Date.UTC(2026, 9, 6, 12, minute)).toISOString();
@@ -223,7 +263,7 @@ test('the activity tab draws the lifecycle from the declaration, as the README d
     const keeping = MACHINE.states.filter((state) => MACHINE.moves.some((move) => move.to === state.id && move.from.includes(state.id))).map((state) => state.id);
     assert.deepEqual(Object.fromEntries(boxes.filter((entry) => entry.keeps).map((entry) => [entry.state, entry.keeps])), {
       open: '↻ release · escalate · refreeze (none yet)',
-      claimed: '↻ claim 1',
+      claimed: '↻ claim 4',
       submitted: '↻ patch · reserve (none yet)',
       verified: '↻ accept (none yet)',
     });
@@ -434,7 +474,7 @@ test('times say which day they were [N26]', async () => {
     assert.ok(times(later.show('activity')).length > 0 && times(later.show('activity')).every(time => /^\d{1,2}:\d\d [AP]M$/.test(time)), 'Activity uses the approved person-clock format');
     assert.deepEqual(ages(later.show('feed')).map(([age, clock]) => [age, new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(clock)]), [['2d ago', true]], 'a shout says how long ago, with its date and time on hover');
     const history = times(later.show('detail'));
-    assert.ok(history.length === 4 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
+    assert.ok(history.length === 5 && history.every((time) => new RegExp(`^${date} \\d{1,2}:\\d\\d [AP]M$`).test(time)), `the history dates every move including its proof receipt: ${history}`);
 
     // A heading wherever the day changes, and only there.
     const at = (day, hour) => new Date(2026, 9, day, hour).toISOString();
@@ -627,6 +667,7 @@ export async function createTransport({ onUpdate }) {
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await chrome.click(`document.querySelector('[data-tab="items"]')`);
     await chrome.click(`document.querySelector('#chain [data-item]')`);
+    await chrome.click(`document.querySelector('[data-item-panel-tab=history]')`);
     await chrome.waitFor(`${note('item')} === 'Older entries are still loading (75%).'`);
 
     // Complete: every line goes, and a redraw brings none back.

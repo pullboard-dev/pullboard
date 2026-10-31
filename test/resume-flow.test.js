@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { spawn } from 'node:child_process';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { RESUME_HOOK } from '../src/init.js';
@@ -314,7 +314,7 @@ function fixture(t, { wait = null, age = null, reservation = null, otherAge = nu
       store.reserveReview(board, waiting, { agentId: reviewer, leaseMs: (reservation === 'live' ? 151 : 150) * MINUTE, policy: 'any' });
       if (reservation === 'released') {
         at = 450;
-        store.release(board, waiting, reviewer, 'Fixture releases its review.');
+        store.release(board, waiting, reviewer, 'Fixture releases its review.', 'ROUTED_ELSEWHERE');
       } else if (reservation === 'verdict') {
         at = 450;
         store.verify(board, waiting, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', note: 'Fixture rejection.', clause: 'Flow fixture', head: 'a'.repeat(40), digest: 'frozen', policy: 'any' });

@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { boardHealth, healthReport } from '../packages/health/index.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
 import { readDigest } from '../src/digest.js';
@@ -475,16 +475,16 @@ test('health models only its named release when a child claim keeps the preferre
     assert.ok(!before.stuck.some(entry => entry.key === `RANK_INVERSION:item:${held}`),
       'releasing only the parent would leave the child overlap; the older free item does not rank ahead');
 
-    store.release(board, child, builder);
+    store.release(board, child, builder, 'Free the child claim for the health control.', 'OTHER');
     assert.equal(store.getItem(board, held).item_status, 'claimed', 'the control releases exactly one claim');
     const after = boardHealth(box.file, { dispatchHealth, root: box.root, now: new Date(NOW) });
     const advice = after.stuck.find(entry => entry.key === `RANK_INVERSION:item:${held}`);
     assert.ok(advice, 'once the child occupancy is actually removed, older free work ranks ahead');
     assert.equal(advice.detail.ahead, earlier);
-    assert.equal(advice.command, `pullboard release ${held}`);
+    assert.equal(advice.command, `pullboard release ${held} --reason ROUTED_ELSEWHERE`);
     const [, verb, id] = advice.command.split(' ');
     assert.equal(verb, 'release');
-    store.release(board, Number(id), builder);
+    store.release(board, Number(id), builder, 'Apply the health advice to the fixture claim.', 'OTHER');
     assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, earlier,
       'the single release advice now agrees with the normal next selector');
   } finally { store.closeBoard(board); }

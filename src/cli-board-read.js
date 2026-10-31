@@ -5,6 +5,8 @@ import { Refused } from './refused.js';
 
 /** Keep the old full-store fallback and pass its synchronous backend to the same work callback. */
 async function writeFallback(ctx, work) {
+  await ctx.io.prepareProcessPorts?.();
+  ctx.nativeBoard = ctx.io.nativeBoard ??= await ctx.io.loadNativeBoard();
   const full = await import('./board.js');
   const { withBoard } = await import('./cli-context.js');
   return withBoard(ctx, board => work(board, full));

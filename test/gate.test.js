@@ -19,7 +19,7 @@ import { after, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main as cli } from '../src/cli.js';
+import { main as cli } from './native-cli-fixture.js';
 import { digestOf, testConcurrency } from '../src/gate.js';
 import { runGate } from '../src/gate.js';
 import { liveWaiverProjection } from '../src/land.js';
