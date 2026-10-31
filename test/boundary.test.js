@@ -139,7 +139,7 @@ assert.deepEqual(globalThis.__localFetchRequests, [
   const viewSession = readFileSync(join(ROOT, 'src', 'view-session.js'), 'utf8');
   assert.match(viewSession, /import\s*\{\s*LOOPBACK\s*,\s*lastPort\s*,?\s*\}\s*from '\.\/serve\.js';/);
   assert.match(viewSession, /redirect: 'manual'/, 'the local reuse probe cannot follow a remote redirect');
-  const api = readFileSync(join(ROOT, 'src', 'api.js'), 'utf8');
+  const api = readFileSync(join(ROOT, "packages/api/src/shell/api.js"), 'utf8');
   assert.match(api, /const ADDRESS = '127\.0\.0\.1';/);
   assert.match(api, /server\.listen\(port, ADDRESS, /);
   assert.match(serve, /connect-src 'self'/, "the page may call nothing but its own server");
