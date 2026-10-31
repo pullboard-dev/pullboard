@@ -148,7 +148,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   const decide = async (board) => {
     checkMainVerifier(ctx, board, values);
     const me = whoAmI(ctx, board);
-    const recovered = relayRecovered(root);
+    const recovered = relayRecovered(root, {}, ctx.io);
     const previous = recovered?.args[1];
     if (recovered?.operation === 'verify' && recovered.args[0] === id && previous?.agentId === me.id &&
         previous.decision === decision && previous.reason === values.reason &&

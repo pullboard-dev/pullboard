@@ -26,7 +26,7 @@ function safeCode(error) {
 }
 
 /** Verify the exact returned sealed move, not a local write or a successful health response. */
-async function verifyReturnedMove(root, state, remote, expected) {
+async function verifyReturnedMove(root, state, remote, expected, io) {
   if (!Array.isArray(remote.events)) throw new Refused('RELAY_RESPONSE', 'the canary pull returned no event list');
   const matches = remote.events.filter(record => record.event_id === expected.sequence);
   if (matches.length !== 1 || matches[0].kind !== 'move') {
@@ -55,7 +55,7 @@ async function verifyReturnedMove(root, state, remote, expected) {
     || move.engine > ENGINE_VERSION) {
     throw new Refused('RELAY_RESPONSE', 'the canary returned a different move or nonce');
   }
-  const receipt = localRecords(root, board => engineReceipt(board, move.id));
+  const receipt = localRecords(io.openBoard, root, board => engineReceipt(board, move.id));
   if (!receipt || receipt.sequence !== expected.sequence || receipt.outcome?.error) {
     throw new Refused('RELAY_RESPONSE', 'the canary has no successful native receipt for its returned move');
   }
@@ -95,7 +95,7 @@ export async function probeRelayCanary(root, { agentId, deadlineMs = 5000, io = 
     if (!state || state.unlinking || state.environment) {
       throw new Refused('RELAY_OFF', 'link this dedicated canary board through the person before probing it');
     }
-    const actor = localRecords(root, board => store.listAgents(board).find(agent => agent.agent_id === agentId));
+    const actor = localRecords(io.openBoard, root, board => store.listAgents(board).find(agent => agent.agent_id === agentId));
     if (!actor || actor.agent_lane === 'coordinator') {
       throw new Refused('NOT_JOINED', 'join an ordinary noncoordinator seat on the dedicated canary board');
     }
@@ -149,7 +149,7 @@ export async function probeRelayCanary(root, { agentId, deadlineMs = 5000, io = 
           { signal: controller.signal }, probeIo);
         relayVersion = pulled.version;
         await verifyReturnedMove(root, state, pulled, { moveId, sequence, agentId, text,
-          stage(value) { remaining(); step = value; } });
+          stage(value) { remaining(); step = value; } }, probeIo);
         remaining();
       })();
       return verified;

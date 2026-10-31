@@ -52,7 +52,7 @@ export async function run(io, args) {
   const { first, second, rest, values } = args;
   const act = (work) => actOn(io, work, { privateBoard: values.private === true });
   return act(async (ctx, board, me) => {
-  const recovered = values.private ? null : await relayCommandReceipt(ctx.info.root, io.relayCommand);
+  const recovered = values.private ? null : await relayCommandReceipt(ctx.info.root, io.relayCommand, io);
   if (recovered) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
@@ -60,7 +60,7 @@ export async function run(io, args) {
     io.result?.({ item: store.getItem(board, id) });
     io.say(`#${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
-    await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+    await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
     return 0;
   }
   if (!first || !isLane(ctx.config, first)) throw new Refused('NO_LANE', `no lane "${first ?? ''}"; see: pullboard lanes`);

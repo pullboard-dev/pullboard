@@ -593,7 +593,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       if (projectRoot !== undefined) throw new Refused('VIEW_SIGN_IN_SCOPE', 'open the full machine view to link every registered board');
       const body = await sharingBody(req);
       if (body.action === 'start' && Object.keys(body).length === 1) {
-        const instructions = await startViewSignIn({ signal: signInLifetime.signal });
+        const instructions = await startViewSignIn({ signal: signInLifetime.signal, relayPorts: boardOpeners });
         signIns.add(instructions.intentId);
         return json(res, 200, { version: 1, ...instructions });
       }

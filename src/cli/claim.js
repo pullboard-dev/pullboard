@@ -107,7 +107,7 @@ export async function ordered(ctx, board, operation, args) {
   // With signed person moves on, a person-only move counts only as a passkey-confirmed request [E22].
   const unsigned = signedMoveProblem(board, board.enginePorts.personAuthority({ operation, args }), ctx.io.personRequest, { strict: true });
   if (unsigned) throw unsigned;
-  const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation, { relayRecovered, specApprovalBaselineExists: store.specApprovalBaselineExists });
+  const initialBaseline = initialSpecApprovalBaseline(ctx, board, operation, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists: store.specApprovalBaselineExists });
   // Only a reject or a reopen can open a builder's first-refusal window (#954), so an accept never reads the coordinator's policy.
   if (operation === 'reopen' || operation === 'verify' && args[1]?.decision === 'REJECT') args = firstRefusalArgs(operation, args, configFromSource(coordinatorFile(ctx.info.root, CONFIG_FILE).stdout));
   ctx.io.relayOutbox ??= () => relayOutboxSetting(ctx.info.root);
@@ -129,7 +129,7 @@ export async function ordered(ctx, board, operation, args) {
         ? store.recordSpecApprovalBaseline(board, ...values)
         : gitSyncLinked(ctx.info.root)
         ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, 'recordSpecApprovalBaseline', values, baselineIo)
-        : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root)
+        : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
         ? relayOperation(ctx.info.root, 'recordSpecApprovalBaseline', values, baselineIo, undefined,
           () => store.recordSpecApprovalBaseline(board, ...values))
         : store.recordSpecApprovalBaseline(board, ...values);
@@ -139,7 +139,7 @@ export async function ordered(ctx, board, operation, args) {
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
       await (await import('../git-sync-repair.js')).repairGitSync(ctx.info.root, board, ctx.io);
     }
-    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered, gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
+    ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);
     if (initialBaseline && actor) await recordBaseline(actor);
     await maintainLapsedBeforeWrite(ctx, board, operation, args, actor);
@@ -164,7 +164,7 @@ export async function ordered(ctx, board, operation, args) {
       ? applyRequested()
       : gitSyncLinked(ctx.info.root)
         ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
-        : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root)
+        : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());
     if (!ctx.privateBoard && requested && gitSyncLinked(ctx.info.root)) ctx.io.recordedMove = true;

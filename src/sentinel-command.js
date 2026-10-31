@@ -45,7 +45,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
     const me = whoAmI(ctx, board);
     await releaseGoneClaims(ctx, board, me, ordered);
     if (me.id === 'coordinator') {
-      const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered, specApprovalBaselineExists });
+      const snapshot = await prepareStaleObservation(ctx, board, ordered, { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists });
       const plan = planStaleState(snapshot);
       if (plan.holdWarnings.length || plan.holdExpiries.length || plan.reviewReleases.length) {
         await ordered(ctx, board, 'maintainStaleState', [{ agentId: me.id, snapshot, health: ctx.config.health ?? {} }]);
@@ -54,7 +54,7 @@ async function runSentinels({ ctx, withBoard, whoAmI, ordered, parseProcessCensu
     const enabled = healthSentinelEnabled(ctx.config);
     if (enabled) {
       // Preserve bootstrap-before-observation ordering so the compatibility move cannot stale the scan.
-      const baseline = initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered, specApprovalBaselineExists });
+      const baseline = initialSpecApprovalBaseline(ctx, board, 'recordHealthFindings', { relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), specApprovalBaselineExists });
       if (baseline) {
         const io = ctx.io.personRequest || ctx.io.personRequestMoveId
           ? { ...ctx.io, personRequest: undefined, personRequestMoveId: undefined } : ctx.io;

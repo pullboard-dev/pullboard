@@ -104,6 +104,18 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   const receipt = { id, expected, baseline };
   const file = saveReceipt(root, receipt);
   const io = {
+    openBoard: services.openBoard, nativeBoardPorts: services.nativeBoardPorts,
+    withOutboxGuard: services.withOutboxGuard,
+    replayConflictRecord: services.replayConflictRecord,
+    remoteBoardMissing: services.remoteBoardMissing,
+    uncertainUploadFailure: services.uncertainUploadFailure,
+    decideUncertainBaseline: services.decideUncertainBaseline,
+    checkpointPublisher: services.checkpointPublisher,
+    relayOrdering: services.relayOrdering,
+    checkpointInBackground: services.checkpointInBackground,
+    scheduleCheckpoint: services.scheduleCheckpoint,
+    requestCheckpointCheck: services.requestCheckpointCheck, checkpointWorker: services.checkpointWorker,
+    outboxPolicy: services.outboxPolicy, outboxFields: services.outboxFields, flushOutbox: services.flushOutbox, queueMove: services.queueMove, outboxHasPendingCreatedItem: services.outboxHasPendingCreatedItem,
     /** Discard normal relay prose in the detached worker. */
     say() {},
     /** Retain delivery failures in the receipt rather than an abandoned terminal stream. */

@@ -43,14 +43,14 @@ export async function run(io, args) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   const id = idArg(first);
-  const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+  const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand, io);
   if (recovered) {
     io.recordedMove = true;
     for (const event of recovered.events) io.onEvent?.(event);
     io.result?.({ item: store.getItem(board, id) });
     io.say(`edited #${id}`);
     sayCheckBaseline(io, store.getItem(board, id));
-    await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+    await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
     return 0;
   }
   const sealed = executingBarEffect(ctx, board, 'edit', id);

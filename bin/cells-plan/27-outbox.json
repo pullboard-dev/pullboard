@@ -8,7 +8,6 @@
  "paths": [
   ["src/relay-baseline-settle.js","packages/outbox/src/shell/relay-baseline-settle.js","seed"],
   ["src/relay-checkpoint-publish.js","packages/outbox/src/shell/relay-checkpoint-publish.js","seed"],
-  ["src/relay-checkpoint-worker.js","packages/outbox/src/shell/relay-checkpoint-worker.js","seed"],
   ["src/relay-checkpoint.js","packages/outbox/src/shell/relay-checkpoint.js","seed"],
   ["src/relay-conflict-record.js","packages/outbox/src/shell/relay-conflict-record.js","seed"],
   ["src/relay-conflicts.js","packages/outbox/src/shell/relay-conflicts.js","seed"],

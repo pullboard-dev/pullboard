@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as rawStore from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { draftSpecRow } from '../src/native-board.js';
 import { recordRowVerification } from '../src/native-board.js';
 import { decideSpecRevisions } from '../src/native-board.js';
 import * as milestones from '../src/board-milestones.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { publishLatestCheckpoint } from '../src/relay.js';
+import { checkpointPublisher } from '../src/relay-checkpoint-publish.js';
 import { captureSpecApprovalBaseline } from '../src/spec-approval.js';
 import { loadConfig } from '../src/config.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
@@ -34,7 +35,7 @@ export async function exerciseOperationParity({ root, origin, token, boardId, la
   const reader = await createParityReader({ root, origin, token, boardId, key });
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
   const notices = [];
-  const io = { say() {}, err(message) { notices.push(message); } };
+  const io = { checkpointPublisher, nativeBoardPorts, say() {}, err(message) { notices.push(message); } };
   let observing = 'initial baseline';
   /** Publish with the actual production capture/seal/HTTP path, then compare both full readers before covering the move. */
   async function verifyAfterMutation({ operation, after }) {

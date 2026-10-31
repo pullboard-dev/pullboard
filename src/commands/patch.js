@@ -64,13 +64,13 @@ export async function run(io, { first, second, rest, values }) {
   }
 
   return actOn(io, async (ctx, board, me) => {
-    const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand);
+    const recovered = await relayCommandReceipt(ctx.info.root, io.relayCommand, io);
     if (recovered) {
       const result = replay(io, recovered);
       io.result?.(result);
       if (subcommand === 'attach') io.say(`${result.changed ? 'attached' : 'unchanged'} patch ${result.key} on #${id} (${result.digest})`);
       else io.say(`${result.changed ? 'removed' : 'unchanged'} patch ${result.key} from #${id} (${result.digest})`);
-      await relayCommandReceiptReported(ctx.info.root, recovered.move.id);
+      await relayCommandReceiptReported(ctx.info.root, recovered.move.id, io);
       return 0;
     }
 
