@@ -1,4 +1,6 @@
 import { git } from './git.js';
+import { once } from 'node:events';
+import { exactStart } from './gate.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -35,12 +37,19 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     try {
       const worker = spawn(process.execPath, [submitHandoffWorkerEntrypoint(), join(directory, 'request.json')],
         { cwd: ctx.info.commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
+      // Capture one actual incarnation before acknowledging; this file grants no board or proof authority.
+      await once(worker, 'spawn');
+      const started = exactStart(worker.pid);
+      writeFileSync(join(directory, 'worker.json'), JSON.stringify({ version: 1, job: result.job.id,
+        pid: worker.pid, started }) + '\n', { flag: 'wx', mode: 0o600 });
       worker.unref();
     } finally { closeSync(log); }
   }
-  if (ctx.submissionResult) ctx.submissionResult.queued = true;
-  ctx.io.result?.({ queued: true, id: item.item_id, item: item.item_id, pin: `refs/pullboard/submit-handoffs/${result.job.id}`, gate: { queued: true, green: null }, commit: result.job.commit, tree: result.job.tree,
-    companionDigest: result.job.companionDigest, state: result.job.state });
+  const acknowledgment = { queued: true, id: item.item_id, item: item.item_id, pin: `refs/pullboard/submit-handoffs/${result.job.id}`, gate: { queued: true, green: null }, commit: result.job.commit, tree: result.job.tree,
+    companionDigest: result.job.companionDigest, state: result.job.state };
+  if (ctx.submissionResult) Object.assign(ctx.submissionResult,
+    { queued: true, job: result.job.id, value: acknowledgment });
+  ctx.io.result?.(acknowledgment);
   ctx.io.say(`queued gate for #${item.item_id} at ${result.job.commit}; the board will wake the next actor when it finishes`);
   return 0;
 }
