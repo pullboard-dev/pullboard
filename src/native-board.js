@@ -1,14 +1,26 @@
 import { recordFamilyDeclareActivation } from './family-declaration.js';
 import { withDerivedFamily } from './family-declaration.js';
-import { submitGateConfig } from './gate-submit.js';
-import { submitGatePlan } from './gate-submit.js';
-import { nativeProofBlockingGreen } from './quarantine-verdict.js';
-import { receiptBlockingGreen } from './quarantine-verdict.js';
+import {
+  submitGateConfig,
+  submitGatePlan,
+} from './gate-submit.js';
+import {
+  nativeProofBlockingGreen,
+  receiptBlockingGreen,
+} from './quarantine-verdict.js';
 import { reviewPatchAuthors } from './review-composition.js';
+import {
+  localDependencyIds,
+  dependencyLabel,
+} from './item-dependencies.js';
+import { itemFileCollisions } from './item-files.js';
+import { withLocalSeatPresence } from './seat-presence.js';
 import { policyAt } from './trusted-policy-read.js';
-import { frozenCheck } from './trusted-policy.js';
-import { itemPolicy } from './trusted-policy.js';
-import { requireTrunkMerge } from './trusted-policy.js';
+import {
+  frozenCheck,
+  itemPolicy,
+  requireTrunkMerge,
+} from './trusted-policy.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
@@ -277,6 +289,7 @@ export function nativeBoardPorts() {
     recordRowDecisions: store.recordRowDecisions, now,
     reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
+    localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence,
     agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
     getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
