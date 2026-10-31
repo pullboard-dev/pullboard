@@ -1,11 +1,13 @@
 /** @pullboard-test-input source-tree */
 /** Additional browser options retain CLI types, enrollment idempotence and cancellation [H15,H17]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { relayClientFixture } from '../../../test/relay-client-fixture.js';
-import { createDeviceKeys, signDeviceEnrollment } from '../src/core/relay-device-keys.js';
+import { createDeviceKeys } from '../src/core/relay-device-keys.js';
+import { signDeviceEnrollment } from '../src/core/relay-device-keys.js';
 
 /** Observe real enrollment state and optional foreground output before acting on the owned child. */
 async function enrollment(file, command, ready = '') {
