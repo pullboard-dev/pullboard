@@ -16,6 +16,7 @@ import { resolve } from 'node:path';
 import { copyPackageSubset } from './package-copy-fixture.js';
 import { createHash } from 'node:crypto';
 import { generatedDocDrift } from '../src/generated-docs.js';
+import { openBoard } from '../src/native-board.js';
 import { GENERATED_DOC_PATHS } from '../src/generated-doc-conflicts.js';
 import { resolveMechanicalIndex } from '../src/mechanical-merge.js';
 import { mechanicalConflictFiles } from '../src/mechanical-merge.js';
@@ -31,7 +32,7 @@ import { addDocumentedCommand } from './generated-docs-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 
 test('committed documentation matches all source declarations [C7,A1,A5,M1]', () => {
-  assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '..')), [], 'run node bin/update-docs.js');
+  assert.deepEqual(generatedDocDrift(join(import.meta.dirname, '..'), undefined, { openBoard }), [], 'run node bin/update-docs.js');
 });
 
 test('one command detects and repairs each stale output while retaining authored prose [C7,A1,A5,M1]', t => {
@@ -108,7 +109,7 @@ test('authored narrative conflicts stay real while v1/v2 receipts retain their e
     actor: 'fixture', head: left, trunk: right, files: ['docs/api.md'], at: '2026-10-28T00:00:00.000Z', submission: 1 };
   const receipt = { ...fields, digest: createHash('sha256').update(JSON.stringify(fields)).digest('hex') };
   assert.deepEqual(computedConflictFields(receipt), receipt);
-  assert.equal(computedConflictFields({ ...receipt, version: 4 }), null);
+  assert.equal(computedConflictFields({ ...receipt, version: 5 }), null);
   assert.equal(reopenMove.minimumEngine([1, { computedConflict: receipt }]), GENERATED_DOCS_ENGINE);
   assert.equal(reopenMove.minimumEngine([1, { sourceAdvanceReturn: {} }]), SOURCE_ADVANCE_ENGINE);
   assert.equal(reopenMove.minimumEngine([1, { sourceAdvanceReturn: {}, computedConflict: receipt }]),

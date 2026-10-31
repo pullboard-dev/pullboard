@@ -1,7 +1,4 @@
 /** Shared numeric usage summaries: raw native sessions never enter the board [N2]. */
-import { atomic } from './board-event-log.js';
-import { logEvent } from './board-event-log.js';
-import { milestones } from './board-read-auxiliary.js';
 import { COST_ENGINE } from './cost-engine.js';
 import { ENGINE_VERSION } from './machine.js';
 import { publicSharedSessions } from './cost-shared.js';
@@ -50,7 +47,7 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
   if (typeof shared !== 'boolean' || !Number.isSafeInteger(observedAt) || observedAt < 0 || !Number.isSafeInteger(revision) || revision < 1 || !board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' LIMIT 1").get(item, agentId)) throw new Refused('USAGE_RECORD', 'record usage only for an item this seat claimed, with a positive revision');
   const rows = sanitizedUsage(records, board.executionEngineVersion ?? ENGINE_VERSION);
   const key = `cost:${item}:${agentId}`;
-  return atomic(board, () => {
+  return board.nativePorts.atomic(board, () => {
     const old = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key);
     const previous = old && JSON.parse(old.meta_value);
     if (previous?.revision >= revision) {
@@ -60,7 +57,7 @@ export function recordUsage(board, { agentId, item, revision, records, observedA
     const value = { agent: agentId, item, revision, observedAt, shared, records: rows };
     board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(key, JSON.stringify(value));
     // A checkpoint is not a lifecycle move: it names its item in detail and stays out of item histories.
-    logEvent(board, agentId, 'usage', null, { item, revision, observedAt, shared, records: rows, estimate: true });
+    board.nativePorts.logEvent(board, agentId, 'usage', null, { item, revision, observedAt, shared, records: rows, estimate: true });
     return { recorded: true };
   });
 }
@@ -78,7 +75,7 @@ export function costTotals(board, prices) {
   /** Group numeric records without multiplying totals across models. */
   const grouped = (name, values) => [...new Set(values.map((row) => row[name]))].map((value) => ({ [name]: value, ...sumUsage(values.filter((row) => row[name] === value), prices) }));
   return { items: grouped('item', records), lanes: grouped('lane', records), models: grouped('model', [...records, ...sharedModels]),
-    milestones: milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item)), prices) })),
+    milestones: board.nativePorts.milestones(board).map((milestone) => ({ milestone: milestone.name, ...sumUsage(records.filter((row) => milestone.items.includes(row.item)), prices) })),
     seats: grouped('agent', records), sharedSessions };
 }
 

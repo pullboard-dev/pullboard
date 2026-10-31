@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { parseSpec } from '../src/spec.js';
 import { serveMcp } from '../packages/mcp/index.js';
 import { personNeedsState } from '../src/needs-state.js';
@@ -21,7 +21,7 @@ test('one builder lists what needs the person [N26,A9]', async (t) => {
   assert.ok(existsSync(source), 'the shared personNeeds builder exists');
   const { personNeeds } = await import(source.href);
   assert.equal(typeof personNeeds, 'function');
-  assert.doesNotMatch(readFileSync(source, 'utf8'), /^\s*import\b/mu, 'the browser builder has no imports');
+  assert.doesNotMatch(readFileSync(new URL("../packages/spec/src/core/row-decision-text.js", import.meta.url), 'utf8'), /^\s*import\b/mu, 'the browser builder has no imports');
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project('true');

@@ -19,9 +19,9 @@ import { DatabaseSync } from 'node:sqlite';
 
 /** Load the independent verifier only after proving that the production capability exists. */
 async function personAPI() {
-  assert.equal(existsSync(new URL('../src/person-enrollment.js', import.meta.url)), true,
+  assert.equal(existsSync(new URL('../packages/person/src/core/person-enrollment.js', import.meta.url)), true,
     'an independent person-root verifier is required before relay enrollment can release a wrap');
-  return await import('../src/person-enrollment.js');
+  return await import('../packages/person/src/core/person-enrollment.js');
 }
 
 /** Bind the exact device key and board grants to a single person-authorized challenge. */

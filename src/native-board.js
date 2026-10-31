@@ -1,7 +1,26 @@
+import { recordFamilyDeclareActivation } from './family-declaration.js';
+import { withDerivedFamily } from './family-declaration.js';
+import {
+  submitGateConfig,
+  submitGatePlan,
+} from './gate-submit.js';
+import {
+  nativeProofBlockingGreen,
+  receiptBlockingGreen,
+} from './quarantine-verdict.js';
+import { reviewPatchAuthors } from './review-composition.js';
+import {
+  localDependencyIds,
+  dependencyLabel,
+} from './item-dependencies.js';
+import { itemFileCollisions } from './item-files.js';
+import { withLocalSeatPresence } from './seat-presence.js';
 import { policyAt } from './trusted-policy-read.js';
-import { frozenCheck } from './trusted-policy.js';
-import { itemPolicy } from './trusted-policy.js';
-import { requireTrunkMerge } from './trusted-policy.js';
+import {
+  frozenCheck,
+  itemPolicy,
+  requireTrunkMerge,
+} from './trusted-policy.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
@@ -158,6 +177,8 @@ import {
 } from './board-event-log.js';
 import {
   ensureProofCounters,
+  currentProofCounters,
+  proofCounter,
 } from './proof-counters.js';
 import {
   ensureHotIndexes,
@@ -262,22 +283,27 @@ export { closeBoard } from './board-read-open.js';
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {
   const nativePorts = Object.freeze({
+    patchProof: Object.freeze({ boardReceiptStore, readGateReceipt, submitGateConfig, submitGatePlan, nativeProofBlockingGreen, receiptBlockingGreen }),
     quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds }),
     sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
     newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
     atomic, logEvent, rowDrafts: store.rowDrafts, rowDecisions: store.rowDecisions, PERSON: store.PERSON,
     recordRowDecisions: store.recordRowDecisions, now,
-    committedItemAuthors, twoTierReviews, strictReviewProblem,
+    reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
+    currentProofCounters, proofCounter,
+    localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence,
     agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
     getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
     listAgents: store.listAgents, verdictWithdrawalTarget, computedConflictProblem, firstRefusal,
+    seatFamily: store.seatFamily, canonicalFamily: store.canonicalFamily,
     itemReviewPolicy, reviewPolicyChange, saveItemReviewPolicy,
     milestones: store.milestones, listItems: store.listItems, buildOrder: store.buildOrder,
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
@@ -300,7 +326,7 @@ export function nativeBoardPorts() {
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults, ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
+    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, ensureHotIndexes, missingAdditiveIndexes,
       ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
       boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),

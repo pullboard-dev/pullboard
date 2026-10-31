@@ -1,5 +1,6 @@
 /** Explicit coordinator promotion is separate from the hourly command-boundary refresh. */
 import { actOn } from '../cli.js';
+import { context } from '../cli.js';
 import { Refused } from '../refused.js';
 import { gatedToolBuild } from '../pinned-tool-publish.js';
 import {
@@ -9,7 +10,15 @@ import {
 } from '../pinned-tool-build.js';
 
 /** Read the board's pin, or promote a real gated commit from the primary coordinator checkout. */
-export function run(io, { first, second, values }) {
+export async function run(io, { first, second, values }) {
+  if (values.watch) {
+    if (first || second || !values.key) throw new Refused('USAGE', 'the tool build timer needs its registered key');
+    const ctx = context(io);
+    if (!ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'the tool build timer runs on the primary checkout');
+    const result = await (await import('../tool-build-scheduler.js')).runScheduledToolBuildGate(ctx, values.key);
+    return result.code ?? 0;
+  }
+  if (values.key !== undefined) throw new Refused('USAGE', '--key belongs to the registered tool build timer');
   return actOn(io, (ctx, _board, me) => {
     const location = toolBuildLocation(ctx.info.root);
     if (!first) { const build = readToolBuild(location); io.result?.({ build }); io.say(build ? `tool build ${build.commit} since ${build.promotedAt}` : 'tool build: not published'); return 0; }

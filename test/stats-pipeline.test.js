@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Exact pipeline accounting over an imported native SQLite fixture [R1,R2,A1,A2,C7]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -9,7 +10,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { pipelineStats, pipelineLimit, pipelineLines } from '../src/stats-pipeline.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
@@ -106,7 +107,7 @@ test('pipeline real CLI and authenticated API expose identical read-only native 
   const cli = await command(root, ['stats', 'pipeline', '--limit', '20', '--json']);
   assert.equal(cli.code, 0, cli.stderr);
   assert.deepEqual(JSON.parse(cli.stdout), { version: 1, pipeline: pipelineStats(history) });
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root, name: 'Pipeline fixture' }] });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root, name: 'Pipeline fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url), headers = { 'x-pullboard-key': url.searchParams.get('k') };
   const response = await fetchFresh(`${url.origin}/api/v1/boards/${store.boardId(board)}/state`, { headers });

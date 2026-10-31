@@ -36,6 +36,17 @@ function board(t) {
 
 /** Register bounded real-board and graph controls in the existing frozen cells-plan test file. */
 export function installCutCases({ PLAN, BIN, fixture, git }) {
+  test('testkit is test support and production imports are refused by name [C7,D3,CD64]', t => {
+    const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
+    put(edge.from, 'export const detached = true;\n');
+    put('package.json', JSON.stringify({ type: 'module', imports: { '#testkit/*': './packages/testkit/src/*' } }));
+    put('packages/testkit/src/helper.js', `import ${JSON.stringify('../../../' + edge.to)}; export const helper = true;\n`);
+    put('test/consumer.test.js', "import '#testkit/helper.js';\n");
+    assert.deepEqual(checkCuts(root, plan, group.cell), [], 'test support can import later cells without entering the production cut');
+    put('src/cli.js', "import '#testkit/helper.js';\n");
+    assert.match(checkCuts(root, plan, group.cell).join('\n'), /production imports testkit: src\/cli\.js -> packages\/testkit\/src\/helper\.js/u);
+  });
+
   test('retired anchors preserve provenance only while both endpoints and their live imports are absent [C7,D3,CD64]', t => {
     const { root, put } = fixture(t), plan = computePlan(root), group = importCuts(plan)[0], edge = group.edges[0];
     const provider = plan.cells.find(cell => cell.name === edge.target);

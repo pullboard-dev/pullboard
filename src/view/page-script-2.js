@@ -12,6 +12,9 @@ import { replayItem } from './pipeline-model.js';
 import { pipelineStage } from './pipeline-model.js';
 import { pipelineSince } from './pipeline-model.js';
 import { itemListFields } from './pipeline-model.js';
+import { itemStagePresentation } from './pipeline-model.js';
+import { withdrawnFromStatus } from './pipeline-model.js';
+import { itemStageKey } from './pipeline-model.js';
 import { pipelineHtml } from './pipeline-render.js';
 import { lifecycleDiagramHtml } from './lifecycle-diagram.js';
 import { timelineHtml as renderTimelineHtml } from './timeline-render.js';
@@ -37,7 +40,9 @@ const revealSegmentedChoices = (${revealSegmentedChoices.toString()});
 const activityHtml = (${activityHtml.toString()});
 const lifecycleChart = (${lifecycleChart.toString()});
 const dashboardModel = (${dashboardModel.toString()});
-const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})(), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
+/** Defer the shared clock lookup until the page has initialized its formatter. */
+const dashboardWhen = iso => when(iso);
+const dashboardView = (${dashboardRuntime.toString()})({ model: dashboardModel, html: (${dashboardHtml.toString()}), stagePresentation: (${itemStagePresentation.toString()}), when: dashboardWhen, api, boardPath, current: () => view.root, redraw: () => { if (view.tab === 'dashboard' && data?.project) render(); }, summary: (entry, context) => roadmapSummary(entry, context), firstRun: { kit: (${firstRunKit.toString()})(), hidden: root => keep('pb.firstrun.' + root) === 'hidden', href: (tab, detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref(tab); } finally { view.addressDetail = kept; } } }, floor: { open: () => view.tab === 'dashboard' && view.addressDetail === 'floor', model: (${agentFloorModel.toString()}), html: (${agentFloorHtml.toString()}), href: (detail) => { const kept = view.addressDetail; view.addressDetail = detail; try { return tabHref('dashboard'); } finally { view.addressDetail = kept; } } } });
 // The update note from src/view/hosted-release.js (#632): only a confirmed read of this machine's view says how far behind it is.
 // Only the hosted page builds it; every other page draws nothing and never touches the DOM for it.
 const renderHostedReleaseNote = ${releaseHosted ? `(${hostedReleaseNote.toString()})(${releaseInfo}, { $, keep, distance: (${hostedReleaseDistance.toString()}),
@@ -522,6 +527,9 @@ const timelineBodyHtml = (${timelineBodyHtml.toString()});
  */
 const replayItem = (${replayItem.toString()});
 const pipelineStage = (${pipelineStage.toString()});
+const itemStagePresentation = (${itemStagePresentation.toString()});
+const withdrawnFromStatus = (${withdrawnFromStatus.toString()});
+const itemStageKey = (${itemStageKey.toString()});
 const pipelineSince = (${pipelineSince.toString()});
 const itemListFields = (${itemListFields.toString()});
 /** Bind the current lifecycle declaration at the page adapter boundary. */
@@ -539,7 +547,11 @@ const pipelineHtml = (${pipelineHtml.toString()});
 function pipelineCard(items) {
   return pipelineHtml(items.map(item => {
     const fields = listFields(item);
-    return { ...fields, href: itemAddress(item.id), ageHtml: age(fields.since) };
+    const landing = (data.project?.landingBatches || []).find(batch => (batch.items || []).some(entry => entry.id === item.id));
+    const gated = Boolean(item.blockedBy?.length || heldNote(item, data.project, undefined, Date.now()));
+    const stage = itemStagePresentation(fields, { gated, landingBatchAt: landing ? when(landing.startedAt) : null,
+      withdrawnFrom: item.withdrawnFrom || withdrawnFromStatus(fields), gateDetail: item.withdrawnReason || '' });
+    return { ...fields, ...stage, stageKey: itemStageKey(stage.stage), stageHtml: stageMarkup(item, data.project, gated, item.withdrawnReason || '', itemStageMarks(item, data.project)), href: itemAddress(item.id), ageHtml: age(fields.since) };
   }), { selectedId: view.item });
 }
 

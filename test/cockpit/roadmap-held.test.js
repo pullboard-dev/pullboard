@@ -26,8 +26,10 @@ test('a held item shows held with its reason in the roadmap list, matching the h
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const next = document.querySelector('#roadmap-list > [data-key="m:Next"]');
     const rows = [...next.querySelectorAll(':scope > .milestone-body > ul > li')].filter((li) => !li.hidden).map((li) => {
-      const chip = li.querySelector('.roadmap-status .chip');
-      return { id: li.querySelector('.id').textContent, chip: chip.textContent.trim(), why: chip.getAttribute('title') || '' };
+      const stage = li.querySelector('.roadmap-status .item-stage');
+      const mark = stage.querySelector('.stage-mark');
+      return { id: li.querySelector('.id').textContent, chip: stage.querySelector('.stage-word').textContent.trim(), tone: stage.dataset.stage,
+        why: mark?.getAttribute('title') || '' };
     });
     const count = next.querySelector('[data-summary-state=held]');
     return { rows, held: Number(count.querySelector('b').textContent), link: Boolean(count.closest('button, a')) };
@@ -42,12 +44,12 @@ test('a held item shows held with its reason in the roadmap list, matching the h
       await chrome.waitFor(`innerWidth === ${width}`);
       const seen = await read();
       const byId = Object.fromEntries(seen.rows.map((row) => [row.id, row]));
-      assert.equal(byId['#1'].chip, 'held', `${width}: an item held on its own reads held, not unclaimed`);
-      assert.match(byId['#1'].why, /waits on the vendor reply/u, `${width}: hovering the held chip names the item's hold reason`);
-      assert.equal(byId['#3'].chip, 'held', `${width}: an item in a held lane reads held`);
-      assert.match(byId['#3'].why, /docs frozen for the release/u, `${width}: hovering names the lane's hold reason`);
-      assert.equal(byId['#2'].chip, 'Ready', `${width}: an item nobody held stays ready`);
-      assert.equal(seen.rows.filter((row) => row.chip === 'held').length, seen.held, `${width}: the list's held rows match the header's held count`);
+      assert.deepEqual([byId['#1'].chip, byId['#1'].tone], ['Gated', 'gated'], `${width}: an item held on its own keeps its lifecycle stage`);
+      assert.match(byId['#1'].why, /Held: waits on the vendor reply/u, `${width}: the hold mark names the item's reason on hover`);
+      assert.deepEqual([byId['#3'].chip, byId['#3'].tone], ['Gated', 'gated'], `${width}: an item in a held lane keeps its lifecycle stage`);
+      assert.match(byId['#3'].why, /Lane held: docs frozen for the release/u, `${width}: the lane mark names its reason on hover`);
+      assert.deepEqual([byId['#2'].chip, byId['#2'].tone], ['Ready', 'ready'], `${width}: an item nobody held stays unclaimed`);
+      assert.equal(seen.rows.filter((row) => row.why.startsWith('Held:') || row.why.startsWith('Lane held:')).length, seen.held, `${width}: the list's held rows match the header's held count`);
       assert.equal(seen.held, 2, `${width}: the header counts both holds`);
       assert.ok(seen.link, `${width}: the header's held count is a link`);
       // The count opens the held items alone, and shows them all again on a second press.
@@ -68,12 +70,13 @@ test('a held item shows held with its reason in the roadmap list, matching the h
     await press(chrome, "document.querySelector('[data-tab=items]')");
     await chrome.waitFor("document.querySelector('#chain [data-item=\"1\"]')");
     const items = JSON.parse(await chrome.stable(`JSON.stringify([1, 2].map((id) => {
-      const chip = [...document.querySelectorAll('#chain [data-item="' + id + '"] .chip')].at(-1);
-      return { chip: chip.textContent.trim(), why: chip.getAttribute('title') || '' };
+      const stage = document.querySelector('#chain [data-item="' + id + '"] .item-stage');
+      const mark = stage.querySelector('.stage-mark');
+      return { chip: stage.querySelector('.stage-word').textContent.trim(), why: mark?.getAttribute('title') || '' };
     }))`));
-    assert.equal(items[0].chip, 'held', 'the Items row of a held item reads held');
-    assert.match(items[0].why, /waits on the vendor reply/u, 'the Items row names the hold reason on hover');
-    assert.equal(items[1].chip, 'unclaimed', 'the Items row of a free item stays unclaimed');
+    assert.equal(items[0].chip, 'Gated', 'the Items row preserves the held item lifecycle stage');
+    assert.match(items[0].why, /Held: waits on the vendor reply/u, 'the Items row names the hold reason on hover');
+    assert.equal(items[1].chip, 'Ready', 'the Items row of a free item stays unclaimed');
     assert.deepEqual(chrome.exceptions, [], 'the held rows raise no uncaught page exception');
   } finally {
     if (chrome) await closeSnapshotChrome(chrome);

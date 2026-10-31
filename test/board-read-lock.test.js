@@ -10,6 +10,7 @@ import { cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard, openBoardForRead } from '../src/native-board.js';
+import * as nativeBoard from '../src/native-board.js';
 import { withBoard } from '../src/cli-context.js';
 import { withBoardRead } from '../src/cli-context.js';
 import { pathToFileURL } from 'node:url';
@@ -66,7 +67,10 @@ async function timed(box, cwd, ...argv) {
   let err = '';
   const startedAt = performance.now();
   try {
-    const code = await main(argv, { cwd, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
+    const code = await main(argv, { cwd, loadNativeBoard: () => import(pathToFileURL(join(box.release, 'src', 'native-board.js')).href),
+      hookWorker: join(box.release, 'src', 'cli-hook-work.js'), submitHandoffWorker: join(box.release, 'src', 'submit-handoff-worker.js'),
+      /** Launch only the released sender actually requested by this command. */
+      launchRelaySender: (root, env) => { void import(pathToFileURL(join(box.release, 'src', 'relay-sender-main.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); }, stdout: { isTTY: false, write: (text) => { out += text; } }, stderr: { write: (text) => { err += text; } } });
     return { code, out, err, ms: performance.now() - startedAt };
   } finally {
     HOMES.forEach((name, index) => { if (saved[index] === undefined) delete process.env[name]; else process.env[name] = saved[index]; });
@@ -140,7 +144,7 @@ test('read-only CLI fallback preserves coordinator registration and moved events
   } finally { store.closeBoard(read); }
   assert.equal(cli().status, 0);
   const ctx = { file, info: { root: box.repo, isMain: true }, config: e2e.CONFIG,
-    clock: store.systemClock, allowSchemaUpgrade: true, io: { err() {} } };
+    clock: store.systemClock, allowSchemaUpgrade: true, nativeBoard, io: { err() {} } };
   assert.equal(withBoardRead(ctx, opened => store.events(opened).length), events.length,
     'the existing public read API remains synchronous and an ordinary read appends no event');
   assert.equal(withBoard(ctx, opened => store.agentById(opened, 'coordinator').agent_path), box.repo,

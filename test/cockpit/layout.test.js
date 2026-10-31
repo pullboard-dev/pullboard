@@ -1,4 +1,4 @@
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
+/** @pullboard-test-input src/view.css src/view/stage.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
 /** @pullboard-test-gui */
 /** Cockpit layout checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
@@ -157,7 +157,7 @@ test("the authenticated local view assembles its shared and private styles [N26]
     assert.equal(css.status, 200);
     assert.equal(css.headers.get('content-type'), 'text/css; charset=utf-8');
     const dashboardCss = readFileSync(new URL('../../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd();
-    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd());
+    const sharedCss = readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', dashboardCss).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('../../src/view/stage.css', import.meta.url), 'utf8').trimEnd());
     const privateCss = readFileSync(new URL('../../src/view/cost.css', import.meta.url), 'utf8');
     const doctrineCss = readFileSync(new URL('../../src/view/doctrine.css', import.meta.url), 'utf8');
     const itemPanelCss = readFileSync(new URL('../../src/view/item-panel.css', import.meta.url), 'utf8');
@@ -181,12 +181,12 @@ test("the authenticated local view assembles its shared and private styles [N26]
     await page.click({ rows: 'spec:all' });
     await page.click({ row: 'spec:G1' });
     assert.match(page.show('prod-list'), /<svg class="bar" viewBox="0 0 100 1" preserveAspectRatio="none" aria-hidden="true"><rect width="50" height="1"\/><\/svg>/, 'a product bar is drawn, half full');
-    // Each layout keeps its own spacing: an item's meta line sits 6px under its title, a spec row's 2px.
+    // The approved item-panel header spaces its status row with a grid gap; spec metadata keeps its own spacing.
     const style = await styleOf(view);
-    assert.match(page.show('detail'), /<\/h2><div class="meta spaced">/);
+    assert.match(page.show('detail'), /<\/h2><div class="item-panel-status">/);
     assert.match(page.show('spec-detail'), /<\/h2><div class="meta">/);
     assert.match(style, /\n\.meta \{ [^}]*margin-top: var\(--space-0\); \}\n/);
-    assert.match(style, /\n\.meta\.spaced \{ margin-top: var\(--space-2\); \}\n/);
+    assert.match(style, /\n\.item-panel-head \{ [^}]*gap: var\(--space-2\); \}\n/);
     assert.doesNotMatch(style, /h2 \+ \.meta/, 'no rule reaches past the item into a spec row');
     for (const id of [...page.html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1])) {
       assert.doesNotMatch(page.show(id), /style=/, `#${id} holds no style`);

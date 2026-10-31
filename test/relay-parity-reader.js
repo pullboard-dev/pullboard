@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Complete authenticated HTTP and pinned API2 reader oracle [H5,H16,A2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -5,7 +6,7 @@ import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
 import { snapshotState } from '../relay/browser-model.js';
@@ -45,7 +46,7 @@ export function assertReaderParity(native, relay, localFields = LOCAL_PARITY_FIE
 export async function createParityReader({ root, origin, token, boardId, key, projects = () => [{ root, name: 'parity' }] }) {
   let observedAt = Date.now();
   const secret = randomBytes(24).toString('base64url');
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects, isMain: true, stateDetail: 'full', scope: { projectRoot: root }, now: () => observedAt });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects, isMain: true, stateDetail: 'full', scope: { projectRoot: root }, now: () => observedAt });
   /** Read the current exact sealed clock, then ask the complete native HTTP API at that clock. */
   async function read() {
     /** Request through a distinct authenticated person session, never a direct journal read. */

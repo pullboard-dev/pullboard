@@ -239,6 +239,21 @@ export const READ_SCREEN = `(() => {
     words: parts.join(' | ').slice(0, 1500), commands: [...new Set(commands)], signIn };
 })()`;
 
+/**
+ * Open the genuine Items tab before witnessing the seeded board. Fresh pages now land on Dashboard;
+ * a hidden item list is not a positive witness. Callers retain their original polling clocks. Once Items
+ * is selected this never clicks again, so the forced missing-chain control cannot repair its own fault.
+ */
+export const OPEN_BOARD = `(() => {
+  const tab = document.querySelector('.tab[data-tab="items"]');
+  if (tab && !tab.classList.contains('on')) {
+    const rect = tab.getBoundingClientRect();
+    const style = getComputedStyle(tab);
+    if (rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none') tab.click();
+  }
+  return (${READ_SCREEN}).board;
+})()`;
+
 /** Read diagnostic-only state beside the final screen, without changing any ordinary poll or settle key. */
 const READ_CAPTURE = `(() => {
   const screen = ${READ_SCREEN};
@@ -306,12 +321,12 @@ export async function visit(context, { route, phone, bootstrap, localView = null
   try {
     await page.navigate(HOSTED + '/');
     if (wantsBoard) {
-      let shown = await page.poll(`(${READ_SCREEN}).board || ${localView ? `((document.querySelector('#local-note')?.dataset.state === 'local-open' || document.querySelector('[data-part="local-command"]')?.hidden === false) && (${READ_SCREEN}).commands.includes('pullboard view'))` : 'false'}`, BOARD_MS + 2_000);
+      let shown = await page.poll(`(${OPEN_BOARD}) || ${localView ? `((document.querySelector('#local-note')?.dataset.state === 'local-open' || document.querySelector('[data-part="local-command"]')?.hidden === false) && (${READ_SCREEN}).commands.includes('pullboard view'))` : 'false'}`, BOARD_MS + 2_000);
       if (shown && localView && !(await page.evaluate(READ_SCREEN)).board) {
         // The person follows the displayed pullboard view step. This fixture already owns that running view and its
         // printed address: open its authenticated document route, never inject a key or relax the board assertion.
         await page.navigate(localView);
-        shown = await page.poll(`(${READ_SCREEN}).board`, BOARD_MS + 2_000);
+        shown = await page.poll(OPEN_BOARD, BOARD_MS + 2_000);
       }
       const seen = await page.evaluate(READ_CAPTURE);
       return { ...seen, ms: shown ? Date.now() - started : null, exceptions: page.exceptions.length,
@@ -437,6 +452,6 @@ export async function relayPairClears(box, engine, front, session) {
   try {
     const page = await context.newPage({ route: front.route(session, null) });
     await page.navigate(HOSTED + '/' + printed.hash);
-    return Boolean(await page.poll(`(${READ_SCREEN}).board`, 8_000));
+    return Boolean(await page.poll(OPEN_BOARD, 8_000));
   } finally { await context.close(); }
 }

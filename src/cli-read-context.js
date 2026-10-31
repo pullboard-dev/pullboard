@@ -112,9 +112,10 @@ export function context(io) {
   // Where the running code came from costs Git processes, and only a board behind this code's schema needs it.
   let allowSchemaUpgrade;
   let doctrine;
-  const ctx = { info, config, file, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
+  const ctx = { info, config, file, nativeBoard: io.nativeBoard, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
     get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
   if (config.worktreeMaintenance?.enabled === true) io.worktreeMaintenanceContext = ctx;
+  if (config.toolBuild?.autoGate === true) io.toolBuildGateContext = ctx;
   return ctx;
 }
 

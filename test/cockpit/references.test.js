@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** Cockpit references checks, using the shared real-board fixtures [N26]. */
+import { main as nativeTestMain } from '../native-cli-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../../src/native-board.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -251,7 +252,7 @@ test('committed shout and fact references stay local, expand safely at phone and
   }
 
   const snapshotDir = mkdtempSync(join(box.dir, 'relay-snapshot-'));
-  const exported = await exportView(alpha.repo, snapshotDir);
+  const exported = await exportView(alpha.repo, snapshotDir, { runCommand: nativeTestMain });
   const exportedFiles = [];
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {

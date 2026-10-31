@@ -1,14 +1,14 @@
 /** The relay serves the existing cockpit over a device-only decrypting transport [H5,H15]. */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { cockpitPage } from '../src/cockpit.js';
+import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { MACHINE } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 import { APPROVAL_CARD_STYLES } from './browser-approval-card.js';
 import { relayScreenMarkup } from './browser-notice.js';
 
-const STYLES = readFileSync(new URL('../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd()) + APPROVAL_CARD_STYLES;
+const STYLES = readFileSync(new URL('../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('../src/view/stage.css', import.meta.url), 'utf8').trimEnd()) + APPROVAL_CARD_STYLES;
 
 /** Refuse relay startup locally while the public shell has no relay session; keep its sign-in link and never reload. */
 const SIGN_IN_TRANSPORT = '/** Preserve device-only pairing before sign-in without starting relay reads. */\nimport { rememberPairing } from "./client.js";\nimport { registerApp } from "./install.js";\nexport function createTransport() {\n  void registerApp();\n  rememberPairing();\n  throw new Error("Sign in with GitHub to open your linked boards.");\n}\n';
@@ -53,8 +53,8 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/relay/browser-approval-card.js', ['text/javascript', readFileSync(new URL('./browser-approval-card.js', import.meta.url), 'utf8')]],
     ['/relay/browser-passkeys.js', ['text/javascript', readFileSync(new URL('./browser-passkeys.js', import.meta.url), 'utf8')]],
     ['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]],
-    ['/relay/person-pairing-limit.js', ['text/javascript', readFileSync(new URL('../src/person-pairing-limit.js', import.meta.url), 'utf8')]],
-    ['/relay/person-enrollment.js', ['text/javascript', readFileSync(new URL('../src/person-enrollment.js', import.meta.url), 'utf8')]],
+    ['/relay/person-pairing-limit.js', ['text/javascript', readFileSync(new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url), 'utf8')]],
+    ['/relay/person-enrollment.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-enrollment.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
     ['/relay/relay-limits.js', ['text/javascript', readFileSync(new URL('../src/relay-limits.js', import.meta.url), 'utf8')]],
     ['/relay/sign-in.js', ['text/javascript', SIGN_IN_TRANSPORT]],
     ['/relay/browser-notice.js', ['text/javascript', readFileSync(new URL('./browser-notice.js', import.meta.url), 'utf8')]],
@@ -70,8 +70,8 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/relay/lifecycle-move.js', ['text/javascript', readFileSync(new URL('../src/lifecycle-move.js', import.meta.url), 'utf8')]],
     ['/relay/seal.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/seal.js', import.meta.url), 'utf8')]],
     ['/relay/api-moves.js', ['text/javascript', readFileSync(new URL('../src/api-moves.js', import.meta.url), 'utf8')]],
-    ['/relay/person-bar-effect.js', ['text/javascript', readFileSync(new URL('../src/person-bar-effect.js', import.meta.url), 'utf8')]],
-    ['/relay/person-request.js', ['text/javascript', readFileSync(new URL('../src/person-request.js', import.meta.url), 'utf8')]],
+    ['/relay/person-bar-effect.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-bar-effect.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
+    ['/relay/person-request.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-request.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
     ['/relay/refused.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/refused.js', import.meta.url), 'utf8')]],
   ]);
   return async function handleBrowser(req, res) {

@@ -1,4 +1,7 @@
-import { COORDINATOR } from '../src/config.js';
+import { localDependencyIds } from '../src/item-dependencies.js';
+import { dependencyLabel } from '../src/item-dependencies.js';
+import { itemFileCollisions } from '../src/item-files.js';
+import { withLocalSeatPresence } from '../src/seat-presence.js';
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** Native query capabilities preserve actual cell boundaries and fail closed before storage [C7,CD64]. */
 import assert from 'node:assert/strict';
@@ -75,11 +78,11 @@ test('real read-only status scale and roadmap readers preserve ready order witho
   reader = queries.openBoardForRead(file, writer.clock);
   assert.equal(reader.readOnly, true);
   assert.equal(reader.nativePorts, undefined);
-  assert.deepEqual(readyItems(reader, store.foreignBlockers, queries).map(item => item.item_id), [first]);
-  const ports = { ...store, roadmap, eligibilityProblem };
+  assert.deepEqual(readyItems(reader, store.foreignBlockers, { ...queries, localDependencyIds, dependencyLabel, itemFileCollisions }).map(item => item.item_id), [first]);
+  const ports = { ...store, roadmap, eligibilityProblem, localDependencyIds, dependencyLabel, itemFileCollisions };
   const queue = workQueue(reader, ports);
   assert.deepEqual(queue, workQueue(writer, ports), 'the same persisted snapshot retains all queue ordering and blockers');
   assert.ok(queue.unreleased.find(item => item.id === blocked).waits.some(reason => reason.includes(`#${first}`)));
-  assert.equal(routingCapacity(reader, queries.listAgents(reader), store.foreignBlockers, queries, COORDINATOR).readyItems, 1);
+  assert.equal(routingCapacity(reader, queries.listAgents(reader), store.foreignBlockers, { ...queries, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence }).readyItems, 1);
   assert.equal(observeWorkers(reader, { lane: 'core', managed: [] }).builds, 1);
 });

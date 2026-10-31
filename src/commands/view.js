@@ -46,10 +46,11 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { cockpitPage } from '../cockpit.js';
+import { cockpitPage } from '../cli/cockpit-renderer.js';
+import { nativeBoardOpeners } from '../cli-context.js';
+import { refusalDocument } from '../next-step-words.js';
 import {
   context,
-  main,
   recordViewBind,
   recordViewReuse,
   withBoard,
@@ -57,12 +58,12 @@ import {
 
 /** Serve the local page with the CLI authority supplied by its higher-level caller [N26]. */
 export function serveView(options = {}) {
-  return serveProvidedView({ ...options, runCommand: main, renderPage: cockpitPage });
+  return serveProvidedView({ ...options, renderPage: cockpitPage });
 }
 
 /** Export the page with the same command authority and renderer used by the live view [N26]. */
 export function exportView(root, directory, options = {}) {
-  return exportProvidedView(root, directory, { ...options, runCommand: main, renderPage: cockpitPage });
+  return exportProvidedView(root, directory, { ...options, renderPage: cockpitPage });
 }
 
 // The checked exporter owns this capability; the composition preserves its public-export guard.
@@ -86,8 +87,8 @@ export async function viewHere(io, values) {
     const exporter = io.exportView ?? exportView;
     if (values.public) assertPublicExportSupported(exporter);
     const exported = values.public
-      ? await exporter(io.cwd, resolve(io.cwd, values.export), { public: true })
-      : await exporter(io.cwd, resolve(io.cwd, values.export));
+      ? await exporter(io.cwd, resolve(io.cwd, values.export), { public: true, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument })
+      : await exporter(io.cwd, resolve(io.cwd, values.export), { runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument });
     io.result?.(exported);
     io.say(`wrote snapshot ${exported.path}`);
     return 0;
@@ -111,7 +112,7 @@ export async function viewHere(io, values) {
       projectRoot = matches[0].root;
       scopeCommonDir = info.commonDir;
     } else if (info.isMain && existsSync(join(info.root, CONFIG_FILE))) {
-      await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, undefined, projectLinkPorts());
+      await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, undefined, projectLinkPorts(io));
     }
   } catch (error) {
     if (projectRequested && error instanceof Refused && error.code !== 'PROJECT_NOT_REGISTERED') {
@@ -137,7 +138,7 @@ export async function viewHere(io, values) {
   let view;
   try {
     // The adapter override is carried only by the in-process command streams, for private CLI fixtures.
-    view = await (io.serveView ?? serveView)({ port, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
+    view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
     const sentinel = startServeSentinel({ projectRoot });
     const boundAt = new Date().toISOString();
     const closeServer = view.close;

@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -12,7 +13,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { serveApi } from '../src/api.js';
 import { fetchFresh } from './http-fixture.js';
 import { exportBoard } from '../src/exchange.js';
@@ -195,7 +196,7 @@ test('Dashboard API projects the same read-time windows from cached event histor
   const box = fixture(t);
   let now = Date.parse(at(120)), builds = 0;
   const before = box.history();
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Comparison fixture' }],
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Comparison fixture' }],
     now: () => now, onStateBuild: () => { builds++; } });
   t.after(() => api.close());
   const url = new URL(api.url), headers = { 'x-pullboard-key': url.searchParams.get('k') };

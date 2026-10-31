@@ -107,7 +107,7 @@ export async function mcpHere(io, { first, values }) {
   if (first) throw new Refused('USAGE', 'pullboard mcp takes no arguments; run pullboard mcp from the agent\'s worktree');
   if (values.json) throw new Refused('USAGE', 'pullboard mcp speaks MCP on stdout; run pullboard mcp without --json');
   context(io);
-  return serveMcp({ cwd: io.cwd, input: io.stdin, output: io.stdout, log: io.stderr, runCommand: main, readCodeMap, readPersonNeeds, formatRefusal: refusalDocument });
+  return serveMcp({ cwd: io.cwd, input: io.stdin, output: io.stdout, log: io.stderr, runCommand: io.runCommand, readCodeMap, readPersonNeeds, formatRefusal: refusalDocument });
 }
 
 /** Run `pullboard mcp` and return its exit code. */

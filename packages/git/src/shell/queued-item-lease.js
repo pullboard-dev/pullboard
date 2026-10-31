@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { headCommit } from "./git.js";
-import { gateWaitReporter } from "../../../../src/git-wait-reporter.js";
 import { Refused } from "../../../../src/refused.js";
 
 /** Keep only this queued command's live item lease, using ordinary ordered board moves. */
-export function createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem, withBoard, ordered, claimFreezer }) {
+export function createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem, withBoard, ordered, claimFreezer, gateWaitReporter }) {
   const report = gateWaitReporter(ctx.io);
   // Naming somebody else's check remains read-only; it never extends their build claim.
   if (kind === 'build' && (initial.item_status !== 'claimed' || initial.item_owner !== agentId)) return report;

@@ -1,5 +1,4 @@
 /** pullboard test: named test files on the runner pool, with the focused runner's per-file timeout [C7]. */
-import { failureSignatures } from './main-failure-matches.js';
 import { spawnSync } from 'node:child_process';
 import {
   existsSync,
@@ -133,7 +132,7 @@ function localReason() {
  *
  * @returns {Promise<{ green: boolean, output: string, runner: string, seconds: number, files: string[], known: Array<{file: string, result: string}>, main: string|null }>}
  */
-export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout } = {}) {
+export async function runTestFiles(root, config, files, { agent, item, onWait, affected = false, executionServices, compareMainFailures, withMainCheckout, failureSignatures } = {}) {
   if (affected && files.length) throw new Refused('USAGE', 'use pullboard test --affected without file arguments, or name the files without --affected');
   const policy = affected ? mainPolicy(root) : null;
   if (policy) config = policy.config;
@@ -169,6 +168,7 @@ export async function runTestFiles(root, config, files, { agent, item, onWait, a
       execution: { executor: run.executionRunner ? { kind: 'ssh', host: run.executionRunner } : { kind: 'local' }, environment: run.environment } });
     result.main = compared.main;
     result.mainComparison = compared;
+    if (typeof failureSignatures !== 'function') throw new Refused('MISSING_PORT', 'supply failureSignatures to compare test failures');
     result.failureCases = failureSignatures(run, run.executionRoot ?? root);
     // A file main does not have yet cannot fail there: its failure is new, whatever main's run of it said.
     result.known = (compared.files.length ? compared.files : compared.coarseFiles ?? []).map((entry) => compared.main && spawnSync('git', ['cat-file', '-e', `${compared.main}:${entry.file}`], { cwd: root, env: cleanGitEnvironment(), stdio: 'ignore' }).status !== 0

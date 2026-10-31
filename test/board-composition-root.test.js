@@ -1,3 +1,5 @@
+import { recordFamilyDeclareActivation } from '../src/family-declaration.js';
+import { withDerivedFamily } from '../src/family-declaration.js';
 import { policyAt } from '../src/trusted-policy-read.js';
 import { frozenCheck } from '../src/trusted-policy.js';
 import { itemPolicy } from '../src/trusted-policy.js';
@@ -195,7 +197,7 @@ test('incomplete engine capabilities refuse before storage exists [C7,B1]', t =>
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
   const ports = native.nativeBoardPorts();
-  for (const key of ['store', 'registry', 'sealSourceAdvance', 'submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest']) {
+  for (const key of ['store', 'registry', 'sealSourceAdvance', 'submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily']) {
     const enginePorts = { ...ports.enginePorts };
     delete enginePorts[key];
     assert.throws(() => {
@@ -339,6 +341,8 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.ok(Object.isFrozen(original.sandboxPolicyReads));
   assert.equal(original.firstRefusalDetail, firstRefusalDetail);
   assert.equal(original.itemPatchDigest, itemPatchDigest);
+  assert.equal(original.recordFamilyDeclareActivation, recordFamilyDeclareActivation);
+  assert.equal(original.withDerivedFamily, withDerivedFamily);
   assert.deepEqual(original.submitHandoffEngines(), { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE });
   assert.deepEqual(original.pipelineCauseEngines(), { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE });
   assert.equal(original.store.recordTrainLanding, recordTrainLanding);
@@ -368,7 +372,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.equal(calls, 1);
   assert.deepEqual(legacy.events(board), before);
   assert.equal(original.store.recordTrainLanding, recordTrainLanding, 'another connection keeps the native provider');
-  for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor']) {
+  for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily', 'recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor']) {
     const missing = { ...providers };
     delete missing[name];
     assert.throws(() => boardEnginePorts(missing), error => error.code === 'NO_POLICY' && error.message.includes(name));

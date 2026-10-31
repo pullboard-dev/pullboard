@@ -50,9 +50,10 @@ test('a real claim publishes all 48 pending revisions in one transaction and ret
   t.after(() => store.closeBoard(board));
   const cli = pathToFileURL(join(helpers.BIN, '../../src/cli.js')).href;
   const checkpoint = pathToFileURL(join(helpers.BIN, '../../src/cost-checkpoint.js')).href;
-  const code = `import {context,withBoard,whoAmI,claimOrdered,freezer} from ${JSON.stringify(cli)};
+  const code = `import {context,withBoard,whoAmI,claimOrdered,freezer,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    const io={cwd:process.cwd(),say(){},err(message){process.stderr.write(message+'\\n');}};
+    import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
     const ctx=context(io),holds=[],operations=[];io.onOrderedMove=event=>operations.push(event.operation);
     await withBoard(ctx,async board=>{
       const exec=board.db.exec.bind(board.db);let acquired=null;
@@ -60,7 +61,7 @@ test('a real claim publishes all 48 pending revisions in one transaction and ret
         if(sql==='COMMIT'&&acquired!==null){holds.push(performance.now()-acquired);acquired=null;}return result;};
       const agent=whoAmI(ctx,board).id;
       await claimOrdered(ctx,board,[${ids.at(-1)},{agentId:agent,lane:'web',leaseMs:60000,freeze:freezer(ctx,{board})}]);
-      await publishUsage(ctx,board,{agent,item:${ids.at(-1)},operation:'claim'});
+      await publishUsage(ctx,board,{agent,item:${ids.at(-1)},operation:'claim'},{ordered});
     });console.log(JSON.stringify({holds,operations}));`;
   const env = { ...box.env, CODEX_HOME: join(box.dir, 'codex'), CLAUDE_CONFIG_DIR: join(box.dir, 'claude') };
   for (const key of ['CODEX_THREAD_ID','CODEX_SESSION_ID','CLAUDE_CODE_SESSION_ID','CLAUDECODE','CLAUDE_CODE_ENTRYPOINT','AI_AGENT','CODEX_CI','CODEX_SHELL']) delete env[key];
@@ -107,10 +108,11 @@ test('1001 pending revisions progress across bounded commands and never duplicat
   t.after(()=>store.closeBoard(board));
   const cli=pathToFileURL(join(helpers.BIN,'../../src/cli.js')).href;
   const checkpoint=pathToFileURL(join(helpers.BIN,'../../src/cost-checkpoint.js')).href;
-  const code=`import {context,withBoard,whoAmI} from ${JSON.stringify(cli)};
+  const code=`import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    const operations=[],io={cwd:process.cwd(),say(){},err(message){process.stderr.write(message+'\\n');},onOrderedMove(event){operations.push(event.operation);}};
-    const ctx=context(io);await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'}));
+    import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    const operations=[],io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');},onOrderedMove(event){operations.push(event.operation);}};
+    const ctx=context(io);await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'},{ordered}));
     console.log(JSON.stringify({operations}));`;
   const env={...box.env,CODEX_HOME:join(box.dir,'codex'),CLAUDE_CONFIG_DIR:join(box.dir,'claude')};
   for(const key of ['CODEX_THREAD_ID','CODEX_SESSION_ID','CLAUDE_CODE_SESSION_ID','CLAUDECODE','CLAUDE_CODE_ENTRYPOINT','AI_AGENT','CODEX_CI','CODEX_SHELL'])delete env[key];

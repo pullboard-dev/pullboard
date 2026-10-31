@@ -8,8 +8,6 @@ import { PATCH_FOLLOW_ENGINE } from './patch-follow-engine.js';
 import { itemPatchSetDigest } from './item-patch-state.js';
 import { Refused } from './refused.js';
 import { NO_ELIGIBLE_REVIEWER_ENGINE } from './no-eligible-reviewer-engine.js';
-import { asSubmitted } from './review-reachability.js';
-import { refuseUnreviewable } from './review-reachability.js';
 import { outsideSource } from './outside-source.js';
 import { itemPatchRecords as records } from './item-patch-state.js';
 import { itemPatchDigest } from './item-patch-state.js';
@@ -107,7 +105,7 @@ const PREVIEWED = Symbol('item patch author preview');
  * The author is written inside a transaction that always rolls back, so nothing is recorded; the ordered move
  * keeps its own deterministic check against every registered seat so replay never reads local heartbeats [C7,V4].
  */
-export function refuseLiveAttach(board, item, { key, author, commit, patch = '' }, { atomic, review, listAgents = board.nativePorts?.listAgents }) {
+export function refuseLiveAttach(board, item, { key, author, commit, patch = '' }, { atomic, review, asSubmitted, refuseUnreviewable, listAgents = board.nativePorts?.listAgents }) {
   try {
     atomic(board, () => {
       const patches = records(board, item.item_id);
@@ -149,7 +147,7 @@ export function applyItemPatchAttachment(board, id, options, ports) {
       ...(item.item_status === 'claimed' ? { presubmit: true } : {}) };
     patches.push(record); save(board, id, patches);
     // The new author may leave no seat able to review a strict item; the throw rolls this whole move back.
-    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= NO_ELIGIBLE_REVIEWER_ENGINE) refuseUnreviewable(board, asSubmitted(board, item), { registered: true }, ports);
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= NO_ELIGIBLE_REVIEWER_ENGINE) ports.refuseUnreviewable(board, ports.asSubmitted(board, item), { registered: true }, ports);
     ports.invalidate(id);
     ports.logEvent(board, options.agentId, 'item_patch_attach', id, { key: record.key, commit: record.commit, digest, author });
     return { item: id, key: options.key, digest: itemPatchDigest(board, id), changed: true };

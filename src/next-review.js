@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from './review-composition.js';
 import { compositionSessionOptions } from './review-composition.js';
 import { reviewCompanionOffer } from './item-patch-review.js';
 import { retryReviewCommit } from './verdict-retry.js';
@@ -5,7 +6,6 @@ import { git } from './git.js';
 import { isClean } from './git.js';
 import { untracked } from './git.js';
 import { committedItemAuthors } from './review-independence.js';
-import { agentSessionDigest } from './person.js';
 import { effectiveItemHead } from './source-advance-state.js';
 import { itemReviewPolicy } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
@@ -60,9 +60,9 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, 
  * @param {{listItems: Function}} services
  * @returns {number[]}
  */
-export function ownSessionReviews(info, board, digest = agentSessionDigest(), { listItems }) {
+export function ownSessionReviews(info, board, digest, { listItems }) {
   return listItems(board).filter((item) => item.item_status === 'submitted').flatMap((item) => {
-    try { refuseSelfSession(info, item, digest, itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) }); return []; }
+    try { refuseSelfSession(info, item, digest, itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) }); return []; }
     catch (error) { if (error instanceof Refused && error.code === 'SELF_SESSION_VERIFY') return [item.item_id]; throw error; }
   });
 }
@@ -91,7 +91,7 @@ function composedReservation(ctx, board, found, getItem) {
  * @param {any} values
  * @param {{ ordered: (operation: string, args: any[]) => Promise<any>, idArg: (value: any, what: string) => number, trunkMerge: Function, listItems: Function, itemById: Function, getItem: Function, mainRedReviewItems: Function }} deps
  */
-export async function nextReview(ctx, board, me, values, { ordered, idArg, trunkMerge, listItems, itemById, getItem, mainRedReviewItems }) {
+export async function nextReview(ctx, board, me, values, { ordered, idArg, trunkMerge, listItems, itemById, getItem, mainRedReviewItems, agentSessionDigest }) {
   for (const { id, files } of await returnUnmergeable(ctx.info.root, board, me, { ordered, trunkMerge, listItems, itemById, phase: ctx.io.nextPhase })) {
     // Stderr in every mode, so a --json caller still sees why the queue shrank.
     const line = `returned #${id} to its builder unreviewed: it no longer merges onto the trunk (${files.map(shownPath).join(', ')})`;
@@ -101,11 +101,11 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
   if (values.verifyId !== undefined) {
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = getItem(board, id);
-    refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
+    refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
     ctx.io.nextPhase?.('review reservation', id);
     return composedReservation(ctx, board, { item: await ordered('reserveReview', [id, reservation]), reasons: [] }, getItem);
   }
   const found = await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems }), priority: mainRedReviewItems(ctx.info.root, board) }]);
+    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems }), priority: mainRedReviewItems(ctx.info.root, board) }]);
   return composedReservation(ctx, board, found, getItem);
 }

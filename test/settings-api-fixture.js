@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Real Git, SQLite and HTTP settings inventory proof [O5,O6]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -87,7 +88,7 @@ export async function proveSettingsApi() {
       unknown: { token: canary },
     }));
     let port;
-    handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument, secret: 'api-fixture', getPort: () => port, runCommand: async () => 0, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT } });
+    handler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: 'api-fixture', getPort: () => port, runCommand: async () => 0, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT } });
     server = createServer(handler);
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     port = server.address().port;

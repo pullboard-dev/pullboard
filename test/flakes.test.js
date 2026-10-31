@@ -1,4 +1,5 @@
 import { flakyProject, writeTarget, TITLE } from '../packages/git/tests/flakes-fixture.js';
+import * as nativeBoard from '../src/native-board.js';
 import { repoInfo } from '../src/git.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { selectTestTreeGuards } from '../src/affected-tests.js';
@@ -39,7 +40,7 @@ import { executionServices } from './gate-execution-fixture.js';
 import { flakeLedger } from '../src/flakes.js';
 import { eventCauses } from '../src/board-rigor.js';
 
-const workerServices = Object.freeze({ openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },
+const workerServices = Object.freeze({ nativeBoard, openBoardForRead, selectors: { selectAffectedTests, selectTestTreeGuards },
   executionServices, context, ordered, withBoard, runSubmitGate, withFileLock,
   readMainAudit, saveMainAudit, landingLeaseState, testValue: { flakeLedger, eventCauses } });
 

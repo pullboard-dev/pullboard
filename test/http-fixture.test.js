@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Fixture requests reach a live server even after the test blocked its own event loop past keep-alive [C7]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -12,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
@@ -113,7 +114,7 @@ test('[C7] each fixture request opens its own connection, and a failed one names
 test('[C7] a fixture request after a blocked event loop reaches the view child and the in-process API', async (t) => {
   const box = privateBoard(t);
   const view = await startView(t, box);
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'HTTP fixture' }] });
   t.after(() => api.close());
   const apiUrl = new URL(api.url);
   const servers = [['the view child', view.origin, view.key], ['the in-process API', apiUrl.origin, apiUrl.searchParams.get('k')]];

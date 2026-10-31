@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { createRelayBrowserHandler } from '../../relay/browser-page.js';
 import { RELAY_SCREEN_WORDS } from '../../relay/browser-notice.js';

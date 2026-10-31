@@ -1,3 +1,5 @@
+import { exactStart } from './child-journal-preload.js';
+export { exactStart };
 /** Public gate API; imported bindings preserve source-walk reachability across stage modules. */
 import {
   withGateSlot,

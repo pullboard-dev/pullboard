@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from '../src/review-composition.js';
 import { committedItemAuthors } from '../src/review-independence.js';
 import { twoTierReviews } from '../src/review-independence.js';
 /** Source-bound patches retain author independence and exact replay without manufacturing proof [V4,H16]. */
@@ -196,7 +197,7 @@ test('a companion author without session metadata cannot review active or remove
     assert.throws(() => store.verify(board, id, { agentId: author, decision: 'ACCEPT', head: COMMIT,
       digest: 'patch-frozen', policy: 'any', companionDigest: itemPatchDigest(board, id),
       note: 'Synthetic native author control; no runtime proof claimed.' }), { code: 'SELF_VERIFY' });
-    assert.equal(retainedVerifierIdentityProblem(board, store.getItem(board, id), author, { committedItemAuthors, twoTierReviews }).code, 'SELF_VERIFY');
+    assert.equal(retainedVerifierIdentityProblem(board, store.getItem(board, id), author, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }).code, 'SELF_VERIFY');
     assert.deepEqual(exportBoard(board), before, 'direct-author refusals preserve the item and history');
   }
   store.reserveReview(board, id, { agentId: reviewer, leaseMs: 60_000, policy: 'any' });

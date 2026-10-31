@@ -74,7 +74,7 @@ function printedPhrases(usage) {
 
 test('help has no import path back to the CLI [N26]', () => {
   const files = helpGraph();
-  assert.ok(files.has(resolve(ROOT, 'src/machine.js')), 'lifecycle help stays generated from the leaf declaration');
+  assert.ok(files.has(resolve(ROOT, 'packages/state/src/shell/machine.js')), 'lifecycle help stays generated from the leaf declaration');
   assert.ok(files.has(resolve(ROOT, 'package.json')), 'the version stays sourced from package metadata');
 });
 

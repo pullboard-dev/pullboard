@@ -11,7 +11,7 @@ import { grantChallenge, softwarePasskey } from './person-passkey-fixture.js';
 import { refuseNamedSigners } from '../src/person-signing-cli.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { executeMove } from '../src/api.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 
 /** Reuse the original test's paths, process helpers and request/credential assertions. */
 export async function personSigningCase(t, { CLI, TRUSTED_CLI, helpers, passkeyRequest, holdsNoPersonCredential, relayCall, receivedRequests }) {

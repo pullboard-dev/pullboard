@@ -51,6 +51,7 @@ import {
 export async function run(io, { first, second, rest, values }) {
   if (first === 'set') return gateConfig.setHere(io, second, rest, values);
   if (values.receipt && !values.landing) throw new Refused('USAGE', 'use gate --landing --receipt to produce an exact native landing receipt');
+  if (values['runner-only'] && !(values.landing && values.receipt)) throw new Refused('USAGE', 'use gate --landing --receipt --runner-only for a full runner gate');
   if (first !== undefined || second !== undefined || rest.length > 0) {
     const words = [first, second, ...rest].filter((word) => word !== undefined);
     const next = 'use pullboard resources for status, or pullboard gate with no extra words to run the gate';
@@ -81,7 +82,7 @@ export async function run(io, { first, second, rest, values }) {
   const waivers = values.landing ? withBoard(ctx, (board) => liveWaiverProjection(board, { quarantineWaivers })) : [];
   const needsReceipt = values.landing && (values.receipt || config.landing?.requireReceipts === true);
   const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
-  const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: !needsReceipt, landing: values.landing, agent: resourceAgent(ctx), onWait: gateWaitReporter(io), stages: Boolean(values.landing), waivers, quarantines,
+  const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: !needsReceipt, landing: values.landing, runnerOnly: values['runner-only'] === true, agent: resourceAgent(ctx), onWait: gateWaitReporter(io), stages: Boolean(values.landing), waivers, quarantines,
     onFailure: nativeFlakes.observer(ctx, { kind: values.landing ? 'land' : 'gate', config }, { ordered, withBoard, resourceAgent, checkAtCommit }) });
   // Recording diagnostics is best effort; granting an exception always rechecks current authority.
   if (gate.blockingVerdict) withBoard(ctx, board => {

@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** Cockpit snapshot checks, using the shared real-board fixtures [N26]. */
+import { main as nativeTestMain } from '../native-cli-fixture.js';
 import { events as readStatsEvents } from '../../src/board.js';
 import { counterProofStats as readStatsCounter } from '../../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
@@ -702,9 +703,9 @@ test('an exported roadmap has its own address under a folder, and Back and Forwa
     await openRoadmapParts(chrome);
     const seen = await readRoadmap(chrome);
     assert.deepEqual(seen.cards[0].rows.map(({ id, label, tone, button }) => ({ id, label, tone, button })), [
-      { id: '#2', label: 'unclaimed', tone: 'free', button: true },
-      { id: '#1', label: 'accepted', tone: 'ok', button: true },
-      { id: 'beacon#1', label: 'unclaimed', tone: 'free', button: true },
+      { id: '#2', label: 'Ready', tone: 'unclaimed', button: true },
+      { id: '#1', label: 'Verified', tone: 'verified', button: true },
+      { id: 'beacon#1', label: 'Ready', tone: 'unclaimed', button: true },
     ], "the snapshot's rows expand in place; another repo's unavailable item has no Items link");
     assert.equal(seen.cards[0].rows.find((row) => row.id === 'beacon#1').tip, 'Billing webhook retries (not in this snapshot)', 'and says why');
     assert.deepEqual([seen.cards[1].name, seen.cards[1].empty], ['Later', 'No items yet.']);
@@ -802,7 +803,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
       return fetchLocal(url, init);
     };
     const folder = join(box.dir, 'full-board-export');
-    await exportView(alpha.repo, folder, { fetchApi });
+    await exportView(alpha.repo, folder, { fetchApi, runCommand: nativeTestMain });
     const stateReads = asked.filter((url) => url.pathname.endsWith('/state'));
     assert.deepEqual(stateReads.map((url) => url.searchParams.get('detail')), ['full'],
       `the export reads the state once, asking for detail=full; it asked for ${asked.map((url) => url.pathname + url.search).join(', ')}`);

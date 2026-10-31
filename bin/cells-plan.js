@@ -2,6 +2,7 @@
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
+import { formatJson } from '../src/mechanical-merge.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -25,6 +26,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
+import { runnerPackage } from '../src/runner-package.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';
@@ -48,24 +50,7 @@ export function readSeed(root) {
   return { ...stored, files: flat(stored.cells), tests: flat(stored.tests) };
 }
 
-/**
- * Serialize plan data so each path, import and cut is one line: diffs stay per path and every committed shard
- * stays under the 500-line file aim the fileSize ratchet counts [CD33].
- */
-export function formatJson(value, indent = '') {
-  const inner = indent + ' ';
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    if (!value.length) return '[]';
-    const compact = JSON.stringify(value);
-    if (value.every(entry => entry === null || typeof entry !== 'object') ? compact.length <= 120 : value.every(entry => Array.isArray(entry)) && compact.length <= 120) return compact;
-    const rows = value.map(entry => (entry !== null && typeof entry === 'object' && (Array.isArray(entry) || JSON.stringify(entry).length <= 160) ? JSON.stringify(entry) : formatJson(entry, inner)));
-    return `[\n${rows.map(row => inner + row).join(',\n')}\n${indent}]`;
-  }
-  const keys = Object.keys(value);
-  if (!keys.length) return '{}';
-  return `{\n${keys.map(key => `${inner}${JSON.stringify(key)}: ${formatJson(value[key], inner)}`).join(',\n')}\n${indent}}`;
-}
+export { formatJson } from '../src/mechanical-merge.js';
 
 /** Name one cell's shard file, ordered so a directory listing reads leaf-first. */
 export function shardFile(cell) {
@@ -306,6 +291,15 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
+  let workerFiles;
+  /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
+  function inWorkerClosure(from, to) {
+    if (workerFiles === undefined) {
+      try { workerFiles = new Set(Object.keys(runnerPackage(root).files)); }
+      catch { workerFiles = new Set(); /* An unprovable worker closure grants no shim exception. */ }
+    }
+    return workerFiles.has(from) && workerFiles.has(to);
+  }
   problems.push(...pureFrontDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
   const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
@@ -317,7 +311,8 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
       else for (const match of code.matchAll(/from(['"])([^'"]*)\1;/gu)) {
         const target = match[2].startsWith('.') ? posix.normalize(posix.join(posix.dirname(from), match[2])) : null;
-        if (target !== cell.frontDoor && target !== cell.pureFrontDoor) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+        const workerLeaf = target === to && /^(?:export\{[^}]+\}from(?:'[^']*'|"[^"]*");)+$/u.test(code) && inWorkerClosure(from, to);
+        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !workerLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }

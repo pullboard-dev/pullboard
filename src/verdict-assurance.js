@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
 import { committedItemAuthors } from './review-independence.js';
 import { twoTierReviews } from './review-independence.js';
@@ -10,7 +11,7 @@ import { agentParent } from './seats.js';
 /** Unknown parentage for any historical author limits assurance, even when review is procedurally allowed. */
 export function reviewAssurance(board, item, reviewer) {
   const parent = agentParent(board, reviewer);
-  const authors = itemAuthors(board, item, { committedItemAuthors, twoTierReviews });
+  const authors = itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews });
   return parent && authors.length && authors.every(author => {
     const built = agentParent(board, author);
     return built && built !== parent;
