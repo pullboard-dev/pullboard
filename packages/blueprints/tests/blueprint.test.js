@@ -5,17 +5,17 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { hostname, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { bundledBlueprints, readBlueprint, validateBlueprint } from '../src/blueprints.js';
-import { blueprintRowIds, starterStates } from '../src/blueprint-report.js';
-import { parseSpec } from '../src/spec.js';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { assertStarterChecks } from './blueprint-starter-fixture.js';
-import { writeLegacyWebQuestions } from './blueprint-question.fixture.js';
-import { assertArchitectureBlueprintCoverage } from './blueprint-architecture-coverage.js';
+import { runFixtureChild, runFixtureGit } from '../../../test/fixture-child.js';
+import { bundledBlueprints, readBlueprint, validateBlueprint } from '../index.js';
+import { blueprintRowIds, starterStates } from '../index.js';
+import { parseSpec } from '../../../src/spec.js';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { assertStarterChecks } from '../../../test/blueprint-starter-fixture.js';
+import { writeLegacyWebQuestions } from '../../../test/blueprint-question.fixture.js';
+import { assertArchitectureBlueprintCoverage } from '../../../test/blueprint-architecture-coverage.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const PUBLISHED = JSON.parse(readFileSync(resolve(import.meta.dirname, '../src/blueprints/web-app.json'), 'utf8'));
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
+const PUBLISHED = JSON.parse(readFileSync(resolve(import.meta.dirname, '../src/shell/blueprints/web-app.json'), 'utf8'));
 const LEGACY_FRAMEWORK = { key: 'Q1', ask: 'The app is built with', choices: ['Next.js', 'SvelteKit', 'Rails', 'Something else'], detect: 'framework' };
 const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'CLAUDE_CODE_SESSION_ID', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
 const DIRS = [];
@@ -433,7 +433,7 @@ test('an architecture rule without a source is refused [S1,I1]', () => {
 });
 
 test('infrastructure loads as architecture [S1]', async () => {
-  const { BLUEPRINT_KINDS } = await import('../src/blueprints.js');
+  const { BLUEPRINT_KINDS } = await import('../index.js');
   // The kind is architecture now; the old name is no kind a blueprint is filed under.
   assert.ok(BLUEPRINT_KINDS.includes('architecture'));
   assert.equal(BLUEPRINT_KINDS.includes('infrastructure'), false);
@@ -449,7 +449,7 @@ test('infrastructure loads as architecture [S1]', async () => {
 
   // The bundled files that said infrastructure now say architecture, and none says the old name.
   for (const name of bundledBlueprints()) {
-    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/blueprints/${name}.json`), 'utf8'));
+    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/shell/blueprints/${name}.json`), 'utf8'));
     assert.notEqual(raw.kind, 'infrastructure', `${name} uses the new name`);
   }
   assert.deepEqual(['serverless', 'data-pipeline'].map((name) => readBlueprint(name, process.cwd()).kind), ['architecture', 'architecture']);
@@ -496,7 +496,7 @@ test('blueprint add files a blueprint as drafts beside approved rows in its own 
 
 test('bundled blueprint rows carry their checks [S1,I1]', async () => {
   // Imported here so the file's import lines stay as they are for the items editing them now.
-  const { questionText, ruleText, saveBlueprint } = await import('../src/blueprints.js');
+  const { questionText, ruleText, saveBlueprint } = await import('../index.js');
   const rule = (blueprint, key) => blueprint.rules.find((entry) => entry.key === key);
   const library = readBlueprint('library', process.cwd());
   const reliability = readBlueprint('test-reliability', process.cwd());
@@ -534,7 +534,7 @@ test('bundled blueprint rows carry their checks [S1,I1]', async () => {
 
   // Every row marked must names a gate, in every bundled file, so an approved row passes spec check.
   for (const name of bundledBlueprints()) {
-    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/blueprints/${name}.json`), 'utf8'));
+    const raw = JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/shell/blueprints/${name}.json`), 'utf8'));
     for (const entry of raw.rules ?? []) {
       if (entry.tier !== 'must') continue;
       assert.ok(typeof entry.gate === 'string' && entry.gate.trim(), `${name} ${entry.key} is marked must and names a gate`);
@@ -944,7 +944,7 @@ test('starter items land in a build lane, never the coordinator lane [S1,I1]', (
 
 /** The bundled blueprint of this name, as its file says. */
 function bundled(name) {
-  return JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/blueprints/${name}.json`), 'utf8'));
+  return JSON.parse(readFileSync(resolve(import.meta.dirname, `../src/shell/blueprints/${name}.json`), 'utf8'));
 }
 
 /** Every row text a blueprint drafts, rules then questions, as SPEC.md carries them. */
