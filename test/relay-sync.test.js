@@ -8,6 +8,8 @@ import { ENGINE_VERSION } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const RELAY = JSON.stringify(new URL('../src/relay.js', import.meta.url).href);
+const GUARD = JSON.stringify(new URL('../src/relay-outbox-guard.js', import.meta.url).href);
+const CONFLICT = JSON.stringify(new URL('../src/relay-conflict-record.js', import.meta.url).href);
 
 /** Read the saved link without including ciphertext or credentials in an assertion diagnostic. */
 function link(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
@@ -16,7 +18,9 @@ function link(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
 function moves(box, texts, options = {}) {
   return box.script(`
     const { relayOperation, localRecords } = await import(${RELAY});
-    const lines = [], io = { err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
+    const { withOutboxGuard } = await import(${GUARD});
+    const { replay: replayConflictRecord } = await import(${CONFLICT});
+    const lines = [], io = { withOutboxGuard, replayConflictRecord, err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
     const outcomes = [];
     for (const text of ${JSON.stringify(texts)}) {
       try { await relayOperation(process.cwd(), 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text }], io); outcomes.push('ok'); }
