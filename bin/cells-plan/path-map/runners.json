@@ -18,5 +18,6 @@
   "src/runner-history-pack.js": "packages/runners/src/shell/runner-history-pack.js",
   "src/runner-request.js": "packages/runners/src/shell/runner-request.js",
   "src/runner-dispatch.js": "packages/runners/src/shell/runner-dispatch.js",
-  "src/runner-remote-tooling.js": "packages/runners/src/shell/runner-remote-tooling.js"
+  "src/runner-remote-tooling.js": "packages/runners/src/shell/runner-remote-tooling.js",
+  "src/package-files.js": "packages/runners/src/shell/package-files.js"
 }
