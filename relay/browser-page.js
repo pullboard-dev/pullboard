@@ -80,7 +80,8 @@ function refuseModule(path, text, why) {
 
 /**
  * Build every served browser module from repository bytes. Each import specifier is rewritten to the relative URL of
- * what the browser is served for its target: a public name, a stand-in, a cell's pure core.js for its front door, or the
+ * what the browser is served for its target: the repository file it names when one exists (served at its public name if
+ * it has one), else a public name written as a virtual alias, a stand-in, a cell's pure core.js for its front door, or the
  * module itself at its repository path below MODULE_PREFIX. A Node builtin, a bare package or a missing file refuses.
  */
 export function browserModules(root, { named, standins = {}, generated = {} }) {
@@ -103,13 +104,12 @@ export function browserModules(root, { named, standins = {}, generated = {} }) {
     for (const row of info.strings.filter(literal => /\b(?:from|import)\s*\(?\s*$/u.test(info.code.slice(0, literal.start))).reverse()) {
       const text = row.text, where = path ?? url;
       if (!text.startsWith('./') && !text.startsWith('../')) refuseModule(where, text, 'a browser cannot load a Node builtin or a bare package');
+      // The real repository file wins: a public name is only a virtual alias for a specifier with no file behind it.
+      const repository = path === null ? null : posix.normalize(posix.join(posix.dirname(path), text));
+      const real = repository !== null && (Object.hasOwn(stand, repository) || existsSync(join(root, repository)));
       const asServed = posix.normalize(posix.join(posix.dirname(url), text));
-      let target = asServed;
-      if (!publicUrls.has(asServed)) {
-        const repository = path === null ? null : posix.normalize(posix.join(posix.dirname(path), text));
-        if (repository === null || (!Object.hasOwn(stand, repository) && !existsSync(join(root, repository)))) refuseModule(where, text, 'it is neither a public relay module nor a repository file');
-        target = serve(repository);
-      }
+      if (!real && !publicUrls.has(asServed)) refuseModule(where, text, 'it is neither a repository file nor a public relay module');
+      const target = real ? serve(repository) : asServed;
       const relative = posix.relative(posix.dirname(url), target);
       out = out.slice(0, row.start + 1) + (relative.startsWith('.') ? relative : `./${relative}`) + out.slice(row.end - 1);
     }

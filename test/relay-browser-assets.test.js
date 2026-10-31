@@ -77,6 +77,29 @@ function moduleTree(t, files) {
   return root;
 }
 
+test('a public URL collision cannot replace a real relative package dependency [H5,H16,C7]', t => {
+  const root = moduleTree(t, {
+    'packages/demo/src/entry.js': "import { value } from './collision.js'; export { value };\n",
+    'packages/demo/src/collision.js': "export const value = 'correct';\n",
+    'relay/other.js': "export const value = 'wrong';\n",
+  });
+  const served = browserModules(root, { named: {
+    '/relay/entry.js': 'packages/demo/src/entry.js', '/relay/collision.js': 'relay/other.js',
+  } });
+  assert.ok(served.has('/relay/m/packages/demo/src/collision.js'), 'the real relative dependency is served');
+  assert.match(served.get('/relay/entry.js'), /\.\/m\/packages\/demo\/src\/collision\.js/u);
+});
+
+test('a relay file may name a public module that has no file of that name, as a virtual alias [H5,H16,C7]', t => {
+  const root = moduleTree(t, {
+    'relay/browser-entry.js': "import { keys } from './device-keys.js';\nexport const loaded = keys;\n",
+    'packages/keys/src/core/keys.js': "export const keys = 'keys';\n",
+  });
+  const served = browserModules(root, { named: { '/relay/entry.js': 'relay/browser-entry.js', '/relay/device-keys.js': 'packages/keys/src/core/keys.js' } });
+  assert.match(served.get('/relay/entry.js'), /from '\.\/device-keys\.js'/u, 'the alias stays on its public name');
+  assert.deepEqual([...served.keys()].sort(), ['/relay/device-keys.js', '/relay/entry.js']);
+});
+
 test('the served relay graph keeps each moved package module at its repository path, and it loads [H5,H16,C7]', async t => {
   const root = moduleTree(t, {
     'relay/entry.js': "import { keys } from '../packages/keys/src/core/keys.js';\nimport { flat } from './flat.js';\nexport const loaded = keys + flat;\n",
