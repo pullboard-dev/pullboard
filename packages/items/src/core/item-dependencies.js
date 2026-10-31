@@ -1,11 +1,11 @@
 /** Typed prerequisites keep another repository's item out of local Git dependency paths [B24,H16]. */
-import { dependencyReferences } from "../../../../src/dependency-references.js";
+import { dependencyReferences } from "../../../seats/core.js";
 export {
   dependencyReferences,
   localDependencyIds,
   parseDependency,
   validateNativeDependencies,
-} from "../../../../src/dependency-references.js";
+} from "../../../seats/core.js";
 
 /** Preserve the historical numeric local representation and the exact qualified repository name. */
 export function dependencyValues(value) {
