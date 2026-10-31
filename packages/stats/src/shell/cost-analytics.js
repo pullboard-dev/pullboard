@@ -21,6 +21,11 @@ function comparison(rows) {
 function sum(values) {
   return values.every(Number.isSafeInteger) ? values.reduce((a, b) => a + b, 0) : null;
 }
+/** Total the observed durations; items with no recorded session time are left out, never counted as zero. */
+function knownSum(values) {
+  const known = values.filter(Number.isSafeInteger);
+  return known.length ? known.reduce((a, b) => a + b, 0) : values.length ? null : 0;
+}
 function median(values) {
   const sorted = values.filter(Number.isSafeInteger).sort((a, b) => a - b);
   const n = sorted.length;
@@ -90,18 +95,18 @@ export function costAnalytics({ items, agents, events, window = '30d', now = new
     const grouped = new Map();
     for (const allocation of allocations) for (const row of allocation.records ?? []) {
       const label = modelPresentation(row.model), entry = grouped.get(label.key) ?? { model: label.key, label: label.name, count: null, agentMs: 0, tokensIn: 0 };
-      entry.agentMs = sum([entry.agentMs, row.wallMs]); entry.tokensIn = sum([entry.tokensIn, row.inputTokens]); grouped.set(label.key, entry);
+      entry.count = (entry.count ?? 0) + 1; entry.agentMs = sum([entry.agentMs, row.wallMs]); entry.tokensIn = sum([entry.tokensIn, row.inputTokens]); grouped.set(label.key, entry);
     }
     const sessions = [...grouped.values()];
     const agentMs = shared.has(id) || !sessions.length ? null : sum(sessions.map(row => row.agentMs));
     projected.push({ id, title: item.item_title ?? item.title, landedAt: landing.event_at, date: dateInZone(new Date(at), timeZone), agentMs,
       sentBack: returns.length, builder, verifier, accepts, history, sessions: shared.has(id) ? [] : sessions });
   }
-  const totalMs = projected.length ? sum(projected.map(row => row.agentMs)) : 0;
-  const sent = projected.filter(row => row.sentBack), sentMs = sent.length ? sum(sent.map(row => row.agentMs)) : 0;
+  const totalMs = projected.length ? knownSum(projected.map(row => row.agentMs)) : 0;
+  const sent = projected.filter(row => row.sentBack), sentMs = sent.length ? knownSum(sent.map(row => row.agentMs)) : 0;
   const days = [...new Set(projected.map(row => row.date))].sort().map(day => {
     const rows = projected.filter(row => row.date === day), first = rows.filter(row => !row.sentBack), returned = rows.filter(row => row.sentBack);
-    return { date: day, firstTimeMs: first.length ? sum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? sum(returned.map(row => row.agentMs)) : 0, items: rows.length };
+    return { date: day, firstTimeMs: first.length ? knownSum(first.map(row => row.agentMs)) : 0, sentBackMs: returned.length ? knownSum(returned.map(row => row.agentMs)) : 0, items: rows.length };
   });
   const builders = new Map(), verifiers = new Map();
   for (const row of projected) {

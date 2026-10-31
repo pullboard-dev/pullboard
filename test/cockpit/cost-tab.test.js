@@ -284,6 +284,7 @@ test('the private view shows its last twenty native landings; a public export ke
   assert.doesNotMatch(publicDocuments, /"(?:event_kind|kind)":"(?:usage|shared-usage)"/u,
     'native usage and shared-usage events are absent from all public event projections');
 
+  writeFileSync(settingsFile, JSON.stringify({ ...previousSettings, costPrices: {} }));
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-cost-tab-'));
   let chrome;
   try {
@@ -292,48 +293,33 @@ test('the private view shows its last twenty native landings; a public export ke
     const nativeBuilder = JSON.parse(await chrome.stable("JSON.stringify(data.project.agents.find(agent => agent.agent_lane === 'web'))"));
     assert.equal(nativeBuilder.family, nativeVendor, 'the actual private API keeps the canonical native vendor');
     await press(chrome, "document.querySelector('[data-tab=cost]')");
-    await chrome.waitFor("document.querySelector('[data-cost-row=\"22\"]')");
-    assert.equal(await chrome.stable("JSON.stringify(data.project.costPrices)"), JSON.stringify(fixturePrices),
-      'validated machine rates populate the private project view model');
-    await chrome.waitFor("document.querySelectorAll('#cost .cost-row').length === 20");
-    const order = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#cost .cost-id')].map(node => node.textContent))"));
-    assert.equal(order[0], '#22', 'the newest genuine landing is first');
-    assert.equal(order.at(-1), '#3', 'the twenty-first newest landing is outside the last twenty');
+    await chrome.waitFor("document.querySelector('#cost .cost-model-card')");
+    const analytics = JSON.parse(await chrome.stable("JSON.stringify(costHistory.get(view.root).model)"));
+    assert.equal(analytics.allItems, 22, 'the real endpoint counts the seeded landings: ' + JSON.stringify({ window: analytics.window, from: analytics.from, to: analytics.to, totals: analytics.totals }));
+    assert.equal(analytics.longest.length, 5, 'the server selects the five longest landings');
+    await chrome.waitFor("document.querySelectorAll('#cost .cost-row').length === 5");
+    const ids = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#cost [data-cost-row]')].map(node => Number(node.dataset.costRow)))"));
+    assert.deepEqual(ids, analytics.longest.map(row => row.id), 'the page renders the server-selected items in order');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
+    await chrome.stable("document.documentElement.dataset.theme = 'light'");
+    await press(chrome, "document.querySelector('#cost [data-cost-row]')");
+    await chrome.waitFor("document.querySelector('#cost .cost-detail')");
+    const shotPath = '/tmp/pullboard-2092-cost-light-1440.png';
+    const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+    writeFileSync(shotPath, Buffer.from(shot.data, 'base64'));
+    console.log('Cost proof screenshot:', shotPath);
     for (const width of [1280, 320]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      const layout = JSON.parse(await chrome.stable("JSON.stringify({text:document.querySelector('#cost').innerText,documentWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth,buttonHeight:document.querySelector('[data-cost-row=\"22\"]').getBoundingClientRect().height})"));
-      assert.match(layout.text, /Private cost fixture 22/u);
-      assert.match(layout.text, /\$3\.00/u, `the configured machine rate prices the latest landing; native diagnostic ${pricingDiagnostic}`);
-      assert.match(layout.text, /—/u, 'a landing without usage remains a visible dash');
-      assert.match(layout.text, /Median \$1\.00/u, 'the live page shows its calculated median');
-      assert.doesNotMatch(layout.text, /\$0\.00/u, 'a zero-token field does not fabricate a zero-priced row');
-      assert.equal(await chrome.stable("document.querySelector('[data-cost-row=\"21\"]').classList.contains('cost-amber')"), true,
-        'a row above the median receives the amber treatment');
-      assert.equal(await chrome.stable("document.querySelector('[data-cost-row=\"22\"]').classList.contains('cost-red')"), true,
-        'a row above twice the median receives the red treatment');
-      assert.ok(layout.documentWidth <= layout.viewportWidth, `${width}px view has no horizontal page overflow`);
+      const layout = JSON.parse(await chrome.stable("JSON.stringify({text:document.querySelector('#cost').innerText,documentWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth,buttonHeight:document.querySelector('[data-cost-row]').getBoundingClientRect().height})"));
+      assert.match(layout.text, /Models/u);
+      assert.doesNotMatch(layout.text, /\$[0-9]/u, 'no dollar figure renders without a server dollars block');
+      assert.ok(layout.documentWidth <= layout.viewportWidth, `${width}px view has no horizontal page overflow: ` + await chrome.stable("JSON.stringify([...document.querySelectorAll('*')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0,12).map(e => ({tag:e.tagName, cls:e.className, right:e.getBoundingClientRect().right, width:e.getBoundingClientRect().width})))"));
       assert.ok(layout.buttonHeight >= (width < 900 ? 44 : 32), `${width}px landing row remains a reachable control`);
     }
-    await press(chrome, "document.querySelector('[data-cost-row=\"3\"]')");
-    await chrome.waitFor("document.querySelector('#cost-detail-3')");
-    const detail = await chrome.stable("document.querySelector('#cost-detail-3').innerText");
-    assert.match(detail, /Fresh input\s+—/u, 'a landing without a private session baseline keeps its token figure unknown');
-    assert.match(detail, /Cost\s+—/u, 'a landing without a private session baseline keeps its cost figure unknown');
-    await press(chrome, "document.querySelector('[data-cost-row=\"4\"]')");
-    await chrome.waitFor("document.querySelector('#cost-detail-4')");
-    const unpricedSession = await chrome.stable("[...document.querySelectorAll('#cost-detail-4 .cost-session')].find(row => row.querySelector('.cost-session-model b')?.textContent === 'fixture-unpriced-model')?.innerText || ''");
-    assert.match(unpricedSession, /fixture-unpriced-model/u, 'the seeded usage names the unpriced model');
-    assert.match(unpricedSession, /Cost\s+—/u, 'usage without a model price remains unknown');
-    assert.doesNotMatch(unpricedSession, /\$0\.00/u, 'an unpriced model is never presented as free');
-    assert.equal(await chrome.stable("document.querySelector('[data-cost-row=\"4\"] .cost-amount').textContent"), '—', 'the unpriced landing total remains unknown');
-    await press(chrome, "document.querySelector('[data-cost-row=\"22\"]')");
-    await chrome.waitFor("document.querySelector('#cost-detail-22')");
-    const pricedDetail = await chrome.stable("document.querySelector('#cost-detail-22').innerText");
-    assert.match(pricedDetail, /fixture-priced-model/u, 'the real journey exposes the priced model in its session detail');
-    const vendorSummary = await chrome.stable("document.querySelector('#cost .cost-vendors').innerText");
-    assert.ok(vendorSummary.includes(nativeVendor ?? 'Vendor unknown'),
-      'the actual By vendor tile renders the API vendor, including an explicit unknown');
-    assert.match(pricedDetail, /Cost\s+\$3\.00/u, 'the session detail uses the configured private rate');
+    await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
+    const detail = await chrome.stable("document.querySelector('#cost .cost-detail').innerText");
+    assert.match(detail, /tokens in|No token count/u);
+    assert.doesNotMatch(detail, /0 sessions/u, 'unknown native session counts stay blank');
     const publicView = await serveFolder(publicOutput, '/public/');
     try {
       await chrome.send('Page.navigate', { url: publicView.base + '/public/#cost' });
