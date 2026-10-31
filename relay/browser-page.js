@@ -53,8 +53,8 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/relay/browser-approval-card.js', ['text/javascript', readFileSync(new URL('./browser-approval-card.js', import.meta.url), 'utf8')]],
     ['/relay/browser-passkeys.js', ['text/javascript', readFileSync(new URL('./browser-passkeys.js', import.meta.url), 'utf8')]],
     ['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]],
-    ['/relay/person-pairing-limit.js', ['text/javascript', readFileSync(new URL('../src/person-pairing-limit.js', import.meta.url), 'utf8')]],
-    ['/relay/person-enrollment.js', ['text/javascript', readFileSync(new URL('../src/person-enrollment.js', import.meta.url), 'utf8')]],
+    ['/relay/person-pairing-limit.js', ['text/javascript', readFileSync(new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url), 'utf8')]],
+    ['/relay/person-enrollment.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-enrollment.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
     ['/relay/relay-limits.js', ['text/javascript', readFileSync(new URL('../src/relay-limits.js', import.meta.url), 'utf8')]],
     ['/relay/sign-in.js', ['text/javascript', SIGN_IN_TRANSPORT]],
     ['/relay/browser-notice.js', ['text/javascript', readFileSync(new URL('./browser-notice.js', import.meta.url), 'utf8')]],
@@ -70,8 +70,8 @@ export function createRelayBrowserHandler({ authenticate }) {
     ['/relay/lifecycle-move.js', ['text/javascript', readFileSync(new URL('../packages/items/src/core/lifecycle-move.js', import.meta.url), 'utf8')]],
     ['/relay/seal.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/seal.js', import.meta.url), 'utf8')]],
     ['/relay/api-moves.js', ['text/javascript', readFileSync(new URL('../src/api-moves.js', import.meta.url), 'utf8')]],
-    ['/relay/person-bar-effect.js', ['text/javascript', readFileSync(new URL('../src/person-bar-effect.js', import.meta.url), 'utf8')]],
-    ['/relay/person-request.js', ['text/javascript', readFileSync(new URL('../src/person-request.js', import.meta.url), 'utf8')]],
+    ['/relay/person-bar-effect.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-bar-effect.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
+    ['/relay/person-request.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-request.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
     ['/relay/refused.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/refused.js', import.meta.url), 'utf8')]],
   ]);
   return async function handleBrowser(req, res) {

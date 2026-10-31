@@ -12,7 +12,7 @@ import {
   configureFixtureSandbox,
   fixtureJSON,
   intakeFixture,
-} from './intake-fixture.js';
+} from "../../../test/intake-fixture.js";
 
 /** Parse a private native refusal without treating transport stand-ins as execution evidence. */
 function refusal(result, expected) {
