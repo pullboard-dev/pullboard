@@ -26,6 +26,12 @@ test('a repo-root file with a moved asset basename is distinct from the moved pa
   assert.ok(ambiguous.problems.length, 'an unproven root may still name the moved asset');
   const cwd = fixtureSourceEdits(PREFIX + "process.chdir(folder); readFileSync('pullboard.json'); readFileSync(unknown);", move);
   assert.ok(cwd.problems.length, 'a mutated cwd keeps the analysis conservative');
+  const alias = fixtureSourceEdits(PREFIX + "import { chdir as change } from 'node:process'; change('src/blueprints'); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(alias.problems.length || alias.edits.length, 'an imported cwd-changing alias cannot claim the root-file exemption');
+  const computed = fixtureSourceEdits(PREFIX + "process['ch' + 'dir']('src/blueprints'); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(computed.problems.length || computed.edits.length, 'a computed process operation keeps the cwd unproven');
+  const processAlias = fixtureSourceEdits(PREFIX + "const proc = process; proc['ch' + 'dir']('src/blueprints'); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(processAlias.problems.length || processAlias.edits.length, 'a process alias cannot hide a cwd change');
   const wrapper = fixtureSourceEdits("import * as fs from 'node:fs'; import { join } from 'node:path'; function readFileSync(name) { return fs.readFileSync(join('src/blueprints', name)); } readFileSync('pullboard.json');", move);
   assert.ok(wrapper.problems.length || wrapper.edits.length, 'a local reader wrapper may resolve the same name to the moved asset');
   const shadow = fixtureSourceEdits(PREFIX + "function run(readFileSync) { readFileSync('pullboard.json'); } run(unknown);", move);

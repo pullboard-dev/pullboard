@@ -83,7 +83,7 @@ export function operationalMentions(source, scanned, paths, copierNames = new Se
     // Keep indirect roots, path expressions and cwd mutation conservative: they may still resolve to the moved file.
     const direct = calls[0];
     if (direct && !direct.member && provenReader(direct.name, direct.at)
-      && !code.slice(direct.open + 1, row.start).trim() && !/\bprocess\s*\.\s*chdir\s*\(/u.test(code)
+      && !code.slice(direct.open + 1, row.start).trim() && !/\b(?:chdir|process|globalThis)\b/u.test(source)
       && /^(?:\.\/)?[\w.-]+$/u.test(row.text) && !row.text.includes('..')
       && !paths.some(path => posix.normalize(path) === posix.normalize(row.text))) return false;
     if (calls.some(call => !call.member && copierNames.has(call.name) && provenCopier(call.name, call.at))) return false;
