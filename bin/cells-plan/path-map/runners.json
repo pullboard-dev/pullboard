@@ -1,4 +1,5 @@
 {
   "src/runner-stage-model.js": "packages/runners/src/core/runner-stage-model.js",
-  "src/runner-runtime-urls.js": "packages/runners/src/core/runner-runtime-urls.js"
+  "src/runner-runtime-urls.js": "packages/runners/src/core/runner-runtime-urls.js",
+  "src/runner-load.js": "packages/runners/src/shell/runner-load.js"
 }
