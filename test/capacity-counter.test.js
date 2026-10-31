@@ -1,10 +1,10 @@
 /** AFTER-only pure observer controls use synthetic native-shaped events, not authenticated moves or gate receipts [R1,R2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { appendCapacityCounter } from '../src/capacity-counter.js';
-import { emptyCapacityCounter } from '../src/capacity-counter.js';
-import { fitCapacity } from '../src/capacity-model.js';
-import { planCapacity } from '../src/capacity-model.js';
+import { appendCapacityCounter } from '../packages/stats/index.js';
+import { emptyCapacityCounter } from '../packages/stats/index.js';
+import { fitCapacity } from '../packages/stats/index.js';
+import { planCapacity } from '../packages/stats/index.js';
 
 const BASE = Date.parse('2026-10-24T00:00:00.000Z');
 const A = 'a'.repeat(40);

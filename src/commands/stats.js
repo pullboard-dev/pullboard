@@ -1,19 +1,19 @@
-import { pipelineLimit } from '../stats-pipeline.js';
-import { pipelineStats } from '../stats-pipeline.js';
-import { pipelineLines } from '../stats-pipeline.js';
-import { movesStats } from '../stats-moves.js';
-import { movesLines } from '../stats-moves.js';
+import { pipelineLimit } from '../../packages/stats/index.js';
+import { pipelineStats } from '../../packages/stats/index.js';
+import { pipelineLines } from '../../packages/stats/index.js';
+import { movesStats } from '../../packages/stats/index.js';
+import { movesLines } from '../../packages/stats/index.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadMachineSettings } from '../settings-read.js';
 import { localUsage } from '../cost-prices.js';
 import { dollarText } from '../cost-prices.js';
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
-import { costTotals } from '../cost.js';
+import { costTotals } from '../../packages/stats/index.js';
 import { boardHoldLines } from '../board-hold-log.js';
 import { boardHoldStats } from '../board-hold-log.js';
 import { readBoardHoldBaseline } from '../board-hold-ratchet.js';
-import { publicUsage } from '../cost-read.js';
+import { publicUsage } from '../../packages/stats/index.js';
 import { counterProofStats } from '../proof-counter-read.js';
 import {
   barStatsLines,

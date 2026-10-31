@@ -154,9 +154,9 @@ export { ROUTES, canTake };
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
 export { acceptCheck } from './check-accept.js';
 export { declareJob, recordJobRun } from './board-recurring-jobs.js';
-export { recordUsage } from './cost.js';
-export { recordUsageBatch } from './cost-usage-batch.js';
-export { recordSharedUsage } from './cost-shared.js';
+export { recordUsage } from '../packages/stats/index.js';
+export { recordUsageBatch } from '../packages/stats/index.js';
+export { recordSharedUsage } from '../packages/stats/index.js';
 export { proofReceipts, recordProofRun } from './proof-receipts.js';
 /** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
 export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from './seats.js';

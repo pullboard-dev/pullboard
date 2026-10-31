@@ -1,7 +1,7 @@
-import { CAPACITY_VERSION } from './capacity-counter.js';
-import { emptyCapacityCounter } from './capacity-counter.js';
-import { appendCapacityCounter } from './capacity-counter.js';
-import { refreshCapacity } from './capacity-store.js';
+import { CAPACITY_VERSION } from '../packages/stats/index.js';
+import { emptyCapacityCounter } from '../packages/stats/index.js';
+import { appendCapacityCounter } from '../packages/stats/index.js';
+import { refreshCapacity } from '../packages/stats/index.js';
 import { appendReportCounter } from './flow-report-counter.js';
 import { emptyReportCounter } from './flow-report-counter.js';
 import { reportEvent } from './stats-flow-report.js';
