@@ -46,6 +46,9 @@ function statusForeignBlockers(board, item) {
   return foreignBlockers(board, item, { readReceivedBoardState });
 }
 
+/** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
+export const nativeBoardRequired = false;
+
 /** Run `pullboard status` and return its exit code. */
 export async function run(io, { values }) {
   const ctx = context(io);

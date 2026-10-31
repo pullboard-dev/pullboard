@@ -842,6 +842,10 @@
     {
       "path": "src/relay-sender-main.js",
       "cell": "app:lib"
+    },
+    {
+      "path": "src/submit-handoff-worker.js",
+      "cell": "app:lib"
     }
   ]
 }

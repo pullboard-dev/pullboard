@@ -1,3 +1,4 @@
+/** @pullboard-module-loads src/submit-handoff-worker.js */
 /** CLI-owned composition and process launch for the machine relay sender [H21,H16,C7]. */
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -20,13 +21,14 @@ async function serve(root, file, io) {
   const { relayOutboxSetting } = await import('./cli.js');
   const loadNativeBoard = () => import('./native-board.js');
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
-  const boardIo = { ...io, hookWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
+  const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
+  const boardIo = { ...io, hookWorker, submitHandoffWorker, nativeBoard: await loadNativeBoard(), loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('./relay-request-execution.js');
     const { main } = await import('./cli-main.js');
     /** Retain the sender process's explicit native capabilities in person commands. */
-    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, launchRelaySender });
+    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, submitHandoffWorker, launchRelaySender });
     const { openBoard, openBoardForRead } = boardIo.nativeBoard;
     await executePersonRequests(root, boardIo, runCommand, { openBoard, openBoardForRead });
   } catch (error) { io.err(`person requests not run: ${error.message}`); }

@@ -250,7 +250,6 @@
   ["src/commands/tool-build.js","apps/cli/src/shell/commands/tool-build.js","rule"],
   ["src/command-docs/tool-build.json","apps/cli/src/shell/command-docs/tool-build.json","rule"],
   ["src/submit-handoff.js","apps/cli/src/shell/submit-handoff.js","rule"],
-  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"],
   ["src/documentation/events/submit-handoff.json","apps/cli/src/shell/documentation/events/submit-handoff.json","rule"],
   ["src/documentation/events/submit_handoff_returned.json","apps/cli/src/shell/documentation/events/submit_handoff_returned.json","rule"],
   ["src/submit-handoff-origin.js","apps/cli/src/shell/submit-handoff-origin.js","rule"],

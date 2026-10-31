@@ -52,7 +52,7 @@ async function executeNativePersonRequests(root, io, runCommand) {
 export function personCommandContext(io, { main, ordered } = {}) {
   const ctx = context(io);
   /** Preserve this invocation's native capabilities for signed recursive commands. */
-  const run = main && ((args, streams) => main(args, { ...streams, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, launchRelaySender: io.launchRelaySender }));
+  const run = main && ((args, streams) => main(args, { ...streams, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender }));
   ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests: executeNativePersonRequests, main: run, ordered };
   return ctx;
 }
@@ -112,11 +112,16 @@ function agentRefusalText(message, code, name) {
   return patterns[code] ? message.replace(patterns[code], (_, before, id, after) => `${before}${name(id)}${after}`) : message;
 }
 
+/** Only refusals with actor positions need the invocation's native board for display names. */
+export function refusalNeedsBoard(error) {
+  return ['ALREADY_JOINED', 'HELD', 'ITEM_HELD', 'LANE_HELD', 'REVIEW_HELD', 'NOT_YOURS', 'NOT_YOUR_DECISION', 'NO_AGENT', 'NOT_YOUR_CHECKOUT', 'FACT_JUDGEMENT', 'RELAY_PERSON_ONLY', 'RELAY_SENDER_MISMATCH', 'SELF_SHOUT', 'NO_READER'].includes(error.code);
+}
+
 /** Render the refusal body without its existing final footer; structured errors retain the message. */
 export function displayedRefusal(io, error) {
   const message = io.guidance(error.message.replace(/\r?\nnext:[ \t]*[^\r\n]*\S[ \t]*(?:\r?\n)*$/u, ''));
   if (error.code === 'MODEL_REQUIRED') return message.replace(/; run pullboard .+$/u, '');
-  if (!['ALREADY_JOINED', 'HELD', 'ITEM_HELD', 'LANE_HELD', 'REVIEW_HELD', 'NOT_YOURS', 'NOT_YOUR_DECISION', 'NO_AGENT', 'NOT_YOUR_CHECKOUT', 'FACT_JUDGEMENT', 'RELAY_PERSON_ONLY', 'RELAY_SENDER_MISMATCH', 'SELF_SHOUT', 'NO_READER'].includes(error.code)) return message;
+  if (!refusalNeedsBoard(error)) return message;
   try {
     const ctx = context(io);
     const agents = withBoard(ctx, (board) => store.listAgents(board));

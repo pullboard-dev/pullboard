@@ -92,6 +92,7 @@ export async function enforceExitBoundary(io, command) {
   try { ctx = context(io); }
   catch (error) { if (['NO_REPO', 'NOT_A_REPO', 'NO_CONFIG'].includes(error.code)) return; throw error; }
   if (ctx.info.isMain || mainPolicy(ctx.info.root).config.exitRules?.enabled !== true) return;
+  ctx.nativeBoard = io.nativeBoard ??= await io.loadNativeBoard();
   const { agentAt } = await import('./board.js');
   const { ordered } = await import('./cli/claim.js');
   await withBoard(ctx, async board => {

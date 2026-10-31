@@ -1236,7 +1236,8 @@ async function main(args) {
       ]);
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
-        if (direct.receiptId) await (await import('../src/native-flake-cli.js')).recordSuiteRun(process.cwd(), direct.receiptId, await import('../src/cli.js'));
+        if (direct.receiptId) await (await import('../src/native-flake-cli.js')).recordSuiteRun(process.cwd(), direct.receiptId,
+          { ...(await import('../src/cli.js')), nativeBoard: await import('../src/native-board.js') });
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
       }
     }
