@@ -6,3 +6,7 @@ export { RUNNER_POLICY_FILE, validRunnerTrunk, runnerPolicyRecord, carriedRunner
 export { validateCacheTips, tagObjectBodies, sourcePreparationFields } from "./src/shell/runner-overhead.js";
 export { probeRunnerTransport, claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker, recordRunnerCompletion, runnerJobReply, runnerHealthReply, recordRunnerOwner, runnerWorkerMatcher, runnerProcessesIdle, runnerIdleReply } from "./src/shell/runner-transport.js";
 export { SOURCE_CACHE_CANDIDATES, pinSourceCacheJob, pruneSourceCache, restoreSourceTree, rememberSourceTree, checkSourceTagNames } from "./src/shell/runner-source-cache.js";
+export { runnerDeadlineRuns } from "./src/shell/runner-wait.js";
+export { readRunnerCapacities } from "./src/shell/runner-capacity-read.js";
+export { runnerUtilization, readRunnerUtilization } from "./src/shell/runner-utilization.js";
+export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, computeRunnerSlots, runnerIsComputed, effectiveRunner, effectiveRunners, RUNNER_MEASUREMENT_MS, refreshRunnerMeasurements } from "./src/shell/runner-slots.js";
