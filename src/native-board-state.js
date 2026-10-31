@@ -16,7 +16,7 @@ import { loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { listApiProjects } from './projects.js';
 import { nativeStateClockWindow } from './native-state-clock.js';
-import { milestoneRoadmap } from './roadmap.js';
+import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { proofStats } from './stats.js';
 import { readCapacity } from './capacity-read.js';
 import { ruleProofCounts } from './rule-proof-counts.js';

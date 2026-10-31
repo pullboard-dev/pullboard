@@ -1,5 +1,5 @@
 /** Canonical store composition for roadmap operations; the public board facade retains historical signatures [N26,H16]. */
-import * as roadmapMoves from './milestones.js';
+import * as roadmapMoves from '../packages/roadmap/index.js';
 import { atomic } from './board-event-log.js';
 import { logEvent } from './board-event-log.js';
 import { itemById } from './board-query.js';

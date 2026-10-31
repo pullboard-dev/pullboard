@@ -62,7 +62,7 @@ import {
   registryFile,
   registeredProjectRootsSnapshot,
 } from './projects.js';
-import { milestoneRoadmap } from './roadmap.js';
+import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import {
   ruleProofWindow,
 } from './rule-proof-counts.js';
