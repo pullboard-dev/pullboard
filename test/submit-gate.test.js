@@ -1508,7 +1508,7 @@ test('a real submit follows a registered guard through a rename and refuses a de
     box.env.INVARIANT_MARKER = marker;
     put(box.root, 'test/guard.test.js', ['/** @pullboard-test-input test-tree */',
       "import { appendFileSync } from 'node:fs';",
-      "appendFileSync(process.env.INVARIANT_MARKER, 'guard ' + import.meta.filename.split('/').slice(-4).join('/') + '\\n');",
+      "appendFileSync(process.env.INVARIANT_MARKER, 'guard ' + (import.meta.dirname.endsWith('/test/area') ? 'at the new path' : 'at the old path') + '\\n');",
     ].join('\n') + '\n');
     put(box.root, 'test/c.test.js', "throw new Error('unrelated test must stay deferred');\n");
     put(box.root, 'bin/run-tests.js', 'export const version = 1;\n');
@@ -1520,14 +1520,14 @@ test('a real submit follows a registered guard through a rename and refuses a de
   }
 
   const renamed = project();
-  mkdirSync(join(renamed.box.root, 'packages/area/tests'), { recursive: true });
-  renamed.box.git('mv', 'test/guard.test.js', 'packages/area/tests/guard.test.js');
+  mkdirSync(join(renamed.box.root, 'test/area'), { recursive: true });
+  renamed.box.git('mv', 'test/guard.test.js', 'test/area/guard.test.js');
   put(renamed.box.root, 'src/a.js', 'export const value = 2;\n');
   commitAll(renamed.box, 'feat(core): rename the guard [G1]');
   const accepted = renamed.box.run('submit', '1', '--json', '--infra', 'the guard fixture renames a registered guard');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   assert.equal(existsSync(renamed.marker), true, 'the renamed guard executed during the submit');
-  assert.equal(readFileSync(renamed.marker, 'utf8'), 'guard packages/area/tests/guard.test.js\n',
+  assert.equal(readFileSync(renamed.marker, 'utf8'), 'guard at the new path\n',
     'it ran once, as a guard, at its new path and not at the old one');
 
   const deleted = project();
