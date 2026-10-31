@@ -28,7 +28,7 @@ import {
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   mainPolicy,
 } from '../trusted-policy.js';

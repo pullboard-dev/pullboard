@@ -11,7 +11,7 @@ import {
 } from "../shell/board.js";
 import { RECURRING_JOB_ENGINE } from "../../../../src/job-engine.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 export { RECURRING_JOB_ENGINE } from "../../../../src/job-engine.js";
 const NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/u;

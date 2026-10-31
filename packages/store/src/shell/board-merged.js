@@ -2,7 +2,7 @@ import { requireOutsideOwner } from "../../../../src/outside-source.js";
 import { itemById } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { coordinatorOnly } from "./board.js";
 import { setItem } from "./board.js";
 

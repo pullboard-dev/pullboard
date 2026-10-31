@@ -2,7 +2,7 @@ import { getItem } from "../../../../src/board.js";
 /** Wait for one passkey-confirmed terminal request to finish through the ordinary native executor [E22,H16]. */
 import { setTimeout as delay } from 'node:timers/promises';
 import { personRequestRecords } from "../core/person-request.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { loadMachineSettings } from "../../../../src/settings.js";
 
 /** Preserve the ordinary command's required JSON fields while adding its confirmed request receipt. */

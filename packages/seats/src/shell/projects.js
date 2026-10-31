@@ -29,7 +29,7 @@ import { withMachineHomeWrite } from '../../../resources/index.js';
 import { boardReferenceId } from '../../../kernel/src/core/registry-guards.js';
 import { repoInfo } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /**
  * The registry file.

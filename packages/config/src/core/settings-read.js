@@ -1,7 +1,7 @@
 import { isAbsolute } from 'node:path';
 /** Read-only machine settings retain the same validation as admission, without loading writers [C7]. */
 import { validateCostPrices } from './cost-prices.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import { machineSettingsFile } from '../../../resources/index.js';
 import { readMachineSettingsFile } from '../../../queue/index.js';
 import { validateGateQueue } from '../../../queue/index.js';

@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { factIdentityExists } from "../../../../src/fact-identity.js";
 import { requireFactIdentityIndexes } from "../../../../src/fact-identity.js";
 import { COORDINATOR } from "../../../../src/config.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { requireNeverAgain } from "../core/board-rigor.js";
 import { factReference } from "../../../../src/fact-reference.js";
 import { factFromEvent } from "../../../state/src/core/fact-projection.js";

@@ -8,7 +8,7 @@ import {
   unknownCommand,
   worktreeLocation,
 } from '../cli.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Print the help the dispatcher selected for this command line, or name an unknown command, and return its exit code. */
 export function run(io, args, help) {

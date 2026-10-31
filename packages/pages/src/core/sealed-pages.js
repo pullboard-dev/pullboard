@@ -1,5 +1,5 @@
 /** Bounded, device-sealed snapshot objects; plaintext and private cache fingerprints never reach the relay [H15,H17]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import {
   seal,
   unseal,

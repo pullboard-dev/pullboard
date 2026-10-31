@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { git } from '../src/git.js';
 import { tryGit } from '../src/git.js';
 import { cleanGitEnvironment } from '../src/git.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';

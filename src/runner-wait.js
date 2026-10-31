@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../packages/resources/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Read current overdue runs without creating or migrating the resource pool. */
 export function runnerDeadlineRuns() {

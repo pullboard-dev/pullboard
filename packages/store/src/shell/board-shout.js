@@ -13,7 +13,7 @@ import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { COORDINATOR } from "../../../../src/config.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
 import { refuseLongShout } from "./proof-receipts.js";
 

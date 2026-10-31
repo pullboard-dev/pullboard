@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { MACHINE } from '../src/machine.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { APPROVAL_CARD_STYLES } from './browser-approval-card.js';
 import { relayScreenMarkup } from './browser-notice.js';
 

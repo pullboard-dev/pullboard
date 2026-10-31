@@ -4,7 +4,7 @@ import { briefFiles } from "./brief.js";
 import { briefSections } from "../../../../src/reference-lines.js";
 import { refuseMaskedExit } from "../../../kernel/src/core/literal-shell-words.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 const BRIEF_LIMIT = 8000;
 

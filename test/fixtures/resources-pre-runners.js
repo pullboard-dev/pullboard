@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from '../../src/git.js';
 import { machineHome } from '../../packages/resources/index.js';
-import { Refused } from '../../src/refused.js';
+import { Refused } from '../../packages/kernel/core.js';
 
 const LEASE_MS = 20_000;
 const HEARTBEAT_MS = 3_000;

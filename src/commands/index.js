@@ -8,7 +8,7 @@ import {
   COMMAND_CANDIDATE,
   COMMAND_FILE,
   discovered,
-} from '../discovery.js';
+} from '../../packages/kernel/index.js';
 import { readdirSync } from 'node:fs';
 
 const FOLDER = new URL('./', import.meta.url);

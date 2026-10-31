@@ -1,7 +1,7 @@
 /** Use GitHub CLI's credential store without copying credentials into config or receipts [B3,R3]. */
 import { spawnSync } from 'node:child_process';
 import { tryGit } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Resolve only a GitHub repository, reading the raw URL before private Git URL rewrites. */
 export function githubRepository(root, remote) {

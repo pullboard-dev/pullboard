@@ -40,7 +40,7 @@ import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
 } from "../../../../src/config.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../core/commit-message.js";
 import { outOfLane } from "../../../../src/lanes.js";
 import { importOnlyChange } from "../../../../src/import-only-change.js";

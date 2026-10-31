@@ -1,7 +1,7 @@
 import { getItem } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Validate a newly constructed review release while keeping old sealed replay executable [V1,R1,H16].
  * @param {any} board

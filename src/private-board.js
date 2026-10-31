@@ -5,7 +5,7 @@ import { withPrivateBoard } from './projects.js';
 import { originRepository } from './github-origin.js';
 import { relayMachineOwner } from './relay-machine.js';
 import { relayMachineContext } from './relay.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Run one add with the caller's native opener while keeping the repo checkout's own seat binding. */
 export function runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases, checkoutBoardOnly, openBoard }) {

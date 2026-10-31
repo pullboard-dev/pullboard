@@ -14,7 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const SKILL_VERSIONS = [
   '0.5.0', '0.6.0', '0.6.1', '0.7.0', '0.8.0', '0.8.1', '0.8.2', '0.8.3', '0.8.4',

@@ -1,5 +1,5 @@
 /** Read the exact native E32 receiving projection without loading the network sender [E32,B24,H16]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { boardLinkName } from "../../../kernel/src/core/registry-guards.js";
 import { boardReferenceId } from "../../../kernel/src/core/registry-guards.js";
 

@@ -19,7 +19,7 @@ import { takeLandingResource } from './landing-resource.js';
 import { requireConfirmedLanding } from './board-landing-lease.js';
 import { runLandingWorker } from './landing-worker.js';
 import { inheritedGateSlot } from '../packages/resources/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { checkLandingMessages } from './landing-message.js';
 import { landingContext } from './landing-message.js';
 import { requireLandingHost } from './landing-host.js';

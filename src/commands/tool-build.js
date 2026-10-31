@@ -1,7 +1,7 @@
 /** Explicit coordinator promotion is separate from the hourly command-boundary refresh. */
 import { actOn } from '../cli.js';
 import { context } from '../cli.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { gatedToolBuild } from '../pinned-tool-publish.js';
 import {
   toolBuildLocation,

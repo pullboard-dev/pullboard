@@ -4,7 +4,7 @@ import {
 } from '../exchange.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   existsSync,
   readFileSync,

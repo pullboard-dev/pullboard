@@ -1,5 +1,5 @@
 /** Keep recorded refusal bytes independent of improvements to current recovery guidance [H16]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 export const RECORDED_GENERIC_NEXT = 'Run pullboard help, correct the reported problem, and retry the command.';
 

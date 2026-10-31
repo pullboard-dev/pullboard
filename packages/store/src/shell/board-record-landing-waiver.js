@@ -1,7 +1,7 @@
 import { PERSON } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Record the person's expiring exception for one named failing test [B3,R3]. */
 export function recordLandingWaiver(board, { agentId, channel, id, test, until, reason }) {

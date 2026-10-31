@@ -6,7 +6,7 @@ import {
   withBoard,
 } from '../cli.js';
 import { replayFlow } from '../flow-replay.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Read explicit JSON data, never a script, with an actionable refusal for a malformed input. */
 function readJson(root, file, label) {

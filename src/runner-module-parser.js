@@ -9,7 +9,7 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const MAX_BYTES = 2 ** 26;
 const TIMEOUT_MS = 10_000;

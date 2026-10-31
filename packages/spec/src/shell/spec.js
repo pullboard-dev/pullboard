@@ -25,7 +25,7 @@ import {
   LEGACY_DOCTRINE_FILE,
 } from '../../../../src/config.js';
 import { cleanGitEnvironment } from '../../../../src/git.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   parseRowVerification,
   rowVerificationFormatProblems,

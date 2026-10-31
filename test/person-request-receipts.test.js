@@ -11,7 +11,7 @@ import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } fr
 import { refusalDocument } from '../src/next-step-words.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { preparePersonRequest } from '../src/person-request.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { personRequestRecords, personRequestStatuses, receivePersonRequest, requestIntentDigest, requestStageText } from '../src/relay-requests.js';
 
 const at = '2026-10-08T12:34:56.000Z';

@@ -11,7 +11,7 @@ import {
   historyPathMap,
   mappedCause,
 } from '../../../../packages/codemap/index.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   causeProblem,
   rigorReport,

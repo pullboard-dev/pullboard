@@ -14,7 +14,7 @@ import { tryGit } from '../git.js';
 import { untracked } from '../git.js';
 import { mainCheckout } from '../git.js';
 import { cleanGitEnvironment } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { run as claim } from './claim.js';
 import { run as submit } from './submit.js';
 import { withBoardRead } from '../cli-context.js';

@@ -10,7 +10,7 @@ export function proofCoverageFingerprint() {
   const hash = createHash('sha256').update('rule-coverage-source-v2');
   // The hashed names keep their historical spelling; each literal URL names the file where it now lives.
   hash.update('./rule-proof-coverage.js').update(readFileSync(new URL('./rule-proof-coverage.js', import.meta.url)));
-  hash.update('./literal-shell-words.js').update(readFileSync(new URL('../../../../src/literal-shell-words.js', import.meta.url)));
+  hash.update('./literal-shell-words.js').update(readFileSync(new URL('../../../kernel/src/core/literal-shell-words.js', import.meta.url)));
   hash.update('../bin/run-tests.js').update(readFileSync(new URL('../../../../bin/run-tests.js', import.meta.url)));
   return hash.digest('hex');
 }

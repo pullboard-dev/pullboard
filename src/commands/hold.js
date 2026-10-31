@@ -7,7 +7,7 @@ import {
 } from '../lanes.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   actOn,
   idArg,

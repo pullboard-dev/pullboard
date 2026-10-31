@@ -177,7 +177,7 @@ export function report(problems) {
 export {
   lex,
   lineAt,
-} from '../../src/js-lex.js';
+} from '../../packages/kernel/index.js';
 
 /** A test file, as the affected-test selection names one: `*.test.js` or `*.spec.js`, also .mjs and .cjs. */
 export const TEST_FILE = /\.(?:test|spec)\.[cm]?js$/u;

@@ -1,5 +1,5 @@
 /** Recognize Chrome-bearing process arguments in executable code, not generated fixture programs [C7,O5]. */
-import { lex } from './js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 import { makeCallableCommandChecker } from './browser-call-values.js';
 
 const PROCESS_CALLS = new Set(['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork',

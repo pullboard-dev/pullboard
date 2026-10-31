@@ -8,7 +8,7 @@
  */
 import { COORDINATOR } from "../../../../src/config.js";
 import { VERSION } from "../../../../src/release-version.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 /** MCP revisions this server speaks; the first is offered when a client asks for one it does not know. */
  const MCP_PROTOCOL_VERSIONS = Object.freeze(['2025-06-18', '2025-03-26', '2024-11-05']);

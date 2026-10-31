@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 import { main } from '../cli-main.js';
 import { COORDINATOR } from '../config.js';
 import { outOfLane } from '../lanes.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { briefFiles } from '../brief.js';
 import { startCheckBaseline } from '../check-baseline-worker.js';
 import { ordered } from './claim.js';
