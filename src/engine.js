@@ -47,7 +47,11 @@ import {
 } from './submit-invariants.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from './merge-only-verdict-engine.js';
 import { requireCoordinatorHold } from './coordinator-hold.js';
-import { compactReviewMove, expandReviewArgs, requireCompactReviewEngine } from './compact-verdict-review.js';
+import {
+  compactReviewMove,
+  expandReviewArgs,
+  requireCompactReviewEngine,
+} from './compact-verdict-review.js';
 
 import {
   MOVE_REGISTRY,

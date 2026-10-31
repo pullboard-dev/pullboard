@@ -133,7 +133,9 @@ test('malformed sealed reviews cannot append proof or bind a different submissio
     { ...valid, paths: ['web/../feature.js'] }, { ...valid, paths: ['web//feature.js'] },
     { ...valid, unexpected: true }];
   for (const [index, review] of invalid.entries()) {
-    const move = prepareEngineMove(one, 'verify', [1, verdict(review)], { id: `invalid-review-${index}` });
+    const move = prepareEngineMove(one, 'verify', [1, verdict(valid)], { id: `invalid-review-${index}` });
+    // Inject malformed wire input after the sender's path encoder so the receiver is tested.
+    move.args[1].review = review;
     const order = { sequence: index + 1, at: AT };
     const first = applyEngineMove(one, move, order);
     assert.equal(first.error?.code, 'BAD_VERDICT_REVIEW', JSON.stringify(first));

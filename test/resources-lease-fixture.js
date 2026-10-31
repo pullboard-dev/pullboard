@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
 import { registerProject } from '../src/projects.js';
 import { serveView } from '../src/serve.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -237,7 +238,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
         commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
         tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
         submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private replay of actual native proof' } }]);
-      if (scenario === 'historical engine') move.engine = proof.engine - 1;
+      if (scenario === 'historical engine') move.engine = SUBMIT_ADMISSION_ENGINE - 1;
       const result = applyEngineMove(peer, move, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() });
       assert.equal(result.error?.code, scenario === 'same admission' ? undefined : 'AGENT_GRANT_EXPIRED', scenario);
     } finally { store.closeBoard(peer); }
