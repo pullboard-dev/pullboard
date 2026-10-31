@@ -495,7 +495,7 @@ function refusal(result, label) {
 /** Send one move through the local API handler on a chosen channel, as the view and agent API do. */
 function apiMove(box, move, channel, env) {
   const apiModule = new URL('../src/api.js', import.meta.url).href;
-  const cliModule = new URL('../src/cli.js', import.meta.url).href;
+  const cliModule = new URL('./native-cli-fixture.js', import.meta.url).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});

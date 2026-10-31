@@ -6,6 +6,9 @@
  "frontDoor": "packages/link/index.js",
  "dryRunName": "relay-client",
  "paths": [
+  ["src/relay-outbox-summary.js","packages/link/src/shell/relay-outbox-summary.js","rule"],
+  ["src/landing-relay.js","packages/link/src/core/landing-relay.js","rule"],
+  ["src/command-phase.js","packages/link/src/shell/command-phase.js","rule"],
   ["src/relay-approval.js","packages/link/src/core/relay-approval.js","seed"],
   ["src/relay-approvers.js","packages/link/src/shell/relay-approvers.js","seed"],
   ["src/relay-board-config.js","packages/link/src/shell/relay-board-config.js","seed"],

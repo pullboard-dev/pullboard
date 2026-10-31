@@ -1,3 +1,4 @@
+/** @pullboard-module-loads src/submit-handoff-worker.js */
 /** The native hook worker process: the seats cell's hook order composed with CLI and board steps [I6,C7]. */
 import { fileURLToPath } from 'node:url';
 import { work } from './agent-hook-work.js';
@@ -11,7 +12,10 @@ async function heartbeat() {
 /** Dispatch one native CLI command under the worker's own process streams. */
 async function dispatch(args) {
   const { main } = await import('./cli.js');
+  const { launchRelaySender } = await import('./relay-sender-main.js');
   return main(args, { cwd: process.cwd(), nextActions: false,
+    loadNativeBoard: () => import('./native-board.js'), hookWorker: HOOK_WORKER,
+    submitHandoffWorker: fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url)), launchRelaySender,
     // Heartbeat is an internal observation, not part of the hook's context payload.
     stdout: args[0] === 'heartbeat' ? { write() {} } : process.stdout,
     stderr: process.stderr, stdin: process.stdin });
@@ -22,9 +26,9 @@ async function inspect() {
   const { repoInfo, headCommit, tryGit } = await import('./git.js');
   const { join } = await import('node:path');
   const store = await import('./board.js');
-  const { nativeBoardOpeners } = await import('./cli-context.js');
+  const { openBoardForRead } = await import('./native-board.js');
   const info = repoInfo(process.cwd());
-  const board = nativeBoardOpeners().openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
+  const board = openBoardForRead(join(info.commonDir, 'pullboard', 'board.sqlite'));
   if (!board) return;
   try {
     const agent = store.agentAt(board, info.root), head = headCommit(info.root);

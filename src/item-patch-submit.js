@@ -1,8 +1,4 @@
-import { submitGateConfig } from './gate-submit.js';
-import { submitGatePlan } from './gate-submit.js';
 import { createHash } from 'node:crypto';
-import { boardReceiptStore } from './gate-run-receipt.js';
-import { readGateReceipt } from './gate-run-receipt.js';
 /** Claimed companions bind their original author source to actual native composed proof [C7,V4,H16]. */
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -18,8 +14,6 @@ import { composeItemPatches } from './item-patch-compose.js';
 import { validateItemPatchInput } from './item-patch-review.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from './item-patch-submit-engine.js';
 import { Refused } from './refused.js';
-import { nativeProofBlockingGreen } from './quarantine-verdict.js';
-import { receiptBlockingGreen } from './quarantine-verdict.js';
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 
@@ -100,6 +94,7 @@ export function checkItemPatchSubmit(board, id, options) {
     || new Set(binding.phases.map(phase => phase.role)).size !== binding.phases.length) {
     throw new Refused('ITEM_PATCH_CHANGED', 'the source or companion set changed; compose and prove the current exact inputs before submitting');
   }
+  const { nativeProofBlockingGreen } = board.nativePorts.patchProof;
   const receipts = board.nativePorts.proofReceipts(board, id);
   for (const [index, receiptId] of binding.receiptIds.entries()) {
     const receipt = receipts.find(row => row.id === receiptId);
@@ -120,6 +115,7 @@ export function checkItemPatchSubmit(board, id, options) {
 export function sealItemPatchSubmit(board, id, options) {
   const patches = itemPatches(board, id);
   if (!patches.length && !options.companion) return options;
+  const { boardReceiptStore, readGateReceipt, receiptBlockingGreen, submitGateConfig, submitGatePlan } = board.nativePorts.patchProof;
   const binding = checkItemPatchSubmit(board, id, options);
   if (!binding) throw new Refused('ITEM_PATCH_CHANGED', 'submit must prove the attached companions on their exact composed source');
   const item = board.nativePorts.getItem(board, id);

@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 
-const CLI = new URL('../src/cli.js', import.meta.url).href;
+const CLI = new URL('./native-cli-fixture.js', import.meta.url).href;
 
 /** Prepare an ordinary private joined seat and record the actual parent and Worker argument vectors. */
 function evalProject(t, { failWorker = false } = {}) {

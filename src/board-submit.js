@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from '../packages/verify/index.js';
 import { fileKnownMainAutofile } from './known-main-autofile.js';
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from './known-main-owner-pattern-engine.js';
 
@@ -68,7 +69,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
     const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= MERGE_ONLY_VERDICT_ENGINE;
     const basis = modern && gateGreen === true ? mergeOnlyBasis(board, getItem(board, id), {}, { acceptedVerdict }) : null;
     const mergeOnly = modern ? board.executionEngineVersion === undefined
-      ? prepareMergeOnlySubmit(board, id, { commit, tree, policyCommit, gateGreen }, { getItem, acceptedVerdict, identity: { committedItemAuthors, twoTierReviews } })
+      ? prepareMergeOnlySubmit(board, id, { commit, tree, policyCommit, gateGreen }, { getItem, acceptedVerdict, identity: { reviewPatchAuthors, committedItemAuthors, twoTierReviews } })
       : recordedCarry ?? null : null;
     const carry = Boolean(mergeOnly);
     const carriedProblem = found => mergeOnlyProblem(board, found, mergeOnly, { commit, tree, policyCommit }, { acceptedVerdict });
@@ -99,7 +100,7 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         ...(carry ? {
           mergeOnlyRecorded: carriedProblem,
           atSubmittedCommit: null, // The same post-gate HEAD check binds both submission paths.
-          notBuilder: found => retainedVerifierIdentityProblem(board, found, basis.by, { committedItemAuthors, twoTierReviews }),
+          notBuilder: found => retainedVerifierIdentityProblem(board, found, basis.by, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }),
           proofNoted: () => typeof mergeOnly?.resolutionDiff === 'string' ? null : new Refused('PROOF_REQUIRED', 'record the actual merge resolution diff'),
         } : {}),
         submissionProofValid: () => {

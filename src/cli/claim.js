@@ -56,6 +56,22 @@ import { relayLinked } from '../relay.js';
 import { relayOperation } from '../relay.js';
 import { relayRecovered } from '../relay.js';
 import { coordinatorFile } from './spec.js';
+import { isReturnedRework } from '../rework-family-routing.js';
+import { sealReworkRoutingPolicy } from '../rework-family-routing.js';
+import { SEAT_LIVE_WINDOW_MS } from '../seat-presence.js';
+import { maintenanceDurations } from '../worktree-maintenance-config.js';
+
+/** Capture accepted coordinator retirement grace beside the native line takeover window. */
+export function currentReworkRoutingPolicy(ctx, board) {
+  if (store.lineSettings(board).reworkSameFamily !== true) return null;
+  const takeoverMinutes = store.lineSettings(board).takeoverMinutes;
+  const takeoverMs = typeof takeoverMinutes === 'number' ? takeoverMinutes * 60_000 : SEAT_LIVE_WINDOW_MS;
+  let graceMs;
+  try { graceMs = maintenanceDurations(mainPolicy(ctx.info.root).config?.worktreeMaintenance).graceMs; }
+  catch { return null; }
+  if (!Number.isSafeInteger(takeoverMs) || takeoverMs < 0 || !Number.isSafeInteger(graceMs) || graceMs <= 0) return null;
+  return { takeoverMs, graceMs };
+}
 
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
 async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, personIdentity.agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, personIdentity.agentSessionDigest()); return result; }
@@ -152,7 +168,7 @@ export async function ordered(ctx, board, operation, args) {
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());
     if (!ctx.privateBoard && requested && gitSyncLinked(ctx.info.root)) ctx.io.recordedMove = true;
-    await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor });
+    await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
   };
   const digest = personIdentity.agentSessionDigest();
@@ -171,9 +187,14 @@ export async function ordered(ctx, board, operation, args) {
 export async function claimOrdered(ctx, board, args) {
   refuseClaimProvesNothing(ctx.info.root, board, args[0], { mainPolicy });
   const adoptCorrection = store.pendingRefreeze(board, args[0]).length > 0;
+  const returnedRework = store.lineSettings(board).reworkSameFamily === true && isReturnedRework(board, args[0]);
+  const routingWindows = returnedRework ? currentReworkRoutingPolicy(ctx, board) : null;
+  if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
+  const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const exitRules = mainPolicy(ctx.info.root).config.exitRules;
   const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
+    ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
   if (!result.renewed && exitRules?.enabled) (await import('../exit-rules-runtime.js')).captureExitAnchor(ctx, board, args[0], args[1].agentId);
   return result;

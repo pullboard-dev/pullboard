@@ -27,7 +27,7 @@ import {
 } from '../../../../src/refused.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
-function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems }) {
+function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest }) {
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes });
@@ -37,7 +37,7 @@ function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedRework
   }
   return dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
-    skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
+    skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
   });
 }
 
@@ -52,7 +52,7 @@ export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mai
 /** Take one eligible review or build through existing ordered guards, without routing to another seat. */
 export async function nextTake(ctx, values = {}, services) {
   const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
-    computedReturnArgs, mainRedReviewItems } = services;
+    computedReturnArgs, mainRedReviewItems, agentSessionDigest } = services;
   const looked = withBoardRead(ctx, board => selected(ctx, board, values, services));
   if (!looked.item || looked.buildOffer || looked.releaseRequest || looked.held && !looked.review) return looked;
   return await withBoard(ctx, async board => {
@@ -64,7 +64,7 @@ export async function nextTake(ctx, values = {}, services) {
       const reviewed = await nextReview(ctx, board, me, values, {
         ordered: (operation, args) => ordered(ctx, board, operation,
           operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge,
-        listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems,
+        listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
       });
       // Conflict preflight may have returned the selected review; re-read eligibility before building.
       return reviewed.item ? { ...reviewed, review: true } : { ...reviewed, retry: true, retryDetail: { phase: 'review reservation', item: picked.item.item_id, code: 'NO_REVIEW_RESERVED' } };

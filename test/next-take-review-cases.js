@@ -12,7 +12,7 @@ import {
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { exportBoard } from '../src/exchange.js';
 

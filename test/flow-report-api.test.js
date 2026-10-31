@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Stable API validation retains recorded flow facts and native clock boundaries [A2,R1,R2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -12,7 +13,7 @@ import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { logEvent } from '../src/board-event-log.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { apiFetch } from './api-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -24,7 +25,7 @@ async function apiFixture(t, { now } = {}) {
   const box = fixtures.project('true');
   const secret = randomUUID();
   let port = 0;
-  const handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument, secret, getPort: () => port, runCommand: main,
+  const handler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret, getPort: () => port, runCommand: main,
     projects: () => [{ root: box.repo, name: 'Flow validator', project: '', added: '2026-01-01T00:00:00Z' }], stateDetail: 'summary', ...(now ? { now } : {}) });
   const server = createServer(handler);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

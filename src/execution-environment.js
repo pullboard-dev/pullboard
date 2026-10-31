@@ -11,4 +11,4 @@ export {
   sameEnvironment,
   testRuntimeRows,
   testRuntimeEnvironment,
-} from '../packages/sandbox/index.js';
+} from '../packages/sandbox/src/shell/execution-environment.js';

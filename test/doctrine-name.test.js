@@ -5,7 +5,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { projectState } from '../src/serve.js';
+import { projectState } from '../src/cli/view-state.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { doctrineHistory } from '../src/doctrine.js';
 

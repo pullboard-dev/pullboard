@@ -3,7 +3,6 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openBoard } from './native-board.js';
 import { closeBoard } from './board.js';
 import { JSON_SHAPES } from './json.js';
 import { lifecycleMarkdown } from './machine.js';
@@ -17,7 +16,7 @@ import { schemaDocBlocks } from './generated-doc-schema.js';
 import { declarationDocBlocks } from './generated-doc-declarations.js';
 
 /** Render every generated copy without touching a repository board or rewriting authored prose. */
-export function generatedDocs(root = fileURLToPath(new URL('../', import.meta.url))) {
+export function generatedDocs(root = fileURLToPath(new URL('../', import.meta.url)), { openBoard } = {}) {
   const board = openBoard(':memory:');
   let blocks;
   try { blocks = { ...schemaDocBlocks(board.db), ...declarationDocBlocks(root), 'format-versions': formatTable(root) }; }
@@ -42,7 +41,8 @@ export function generatedDocs(root = fileURLToPath(new URL('../', import.meta.ur
 }
 
 /** Report stale committed copies; a missing generated output is also drift. */
-export function generatedDocDrift(root, outputs = generatedDocs(root)) {
+export function generatedDocDrift(root, outputs, ports) {
+  if (outputs === undefined) outputs = generatedDocs(root, ports);
   return [...outputs].filter(([file, content]) => {
     try { return readFileSync(join(root, file), 'utf8') !== content; }
     catch (error) { if (error.code === 'ENOENT') return true; throw error; }
@@ -50,7 +50,8 @@ export function generatedDocDrift(root, outputs = generatedDocs(root)) {
 }
 
 /** Refresh every changed copy and return exactly the paths landing must stage. */
-export function writeGeneratedDocs(root, outputs = generatedDocs(root)) {
+export function writeGeneratedDocs(root, outputs, ports) {
+  if (outputs === undefined) outputs = generatedDocs(root, ports);
   const changed = generatedDocDrift(root, outputs);
   for (const file of changed) writeFileSync(join(root, file), outputs.get(file));
   return changed;

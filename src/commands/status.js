@@ -1,3 +1,9 @@
+import { currentProofCounters } from '../../packages/verify/index.js';
+import { proofCounter } from '../../packages/verify/index.js';
+import { localDependencyIds } from '../item-dependencies.js';
+import { dependencyLabel } from '../item-dependencies.js';
+import { itemFileCollisions } from '../item-files.js';
+import { withLocalSeatPresence } from '../seat-presence.js';
 import { readCapacity } from '../capacity-read.js';
 import { capacityLines } from '../capacity-model.js';
 import { releaseBlockingItems } from '../../packages/health/index.js';
@@ -46,6 +52,9 @@ function statusForeignBlockers(board, item) {
   return foreignBlockers(board, item, { readReceivedBoardState });
 }
 
+/** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
+export const nativeBoardRequired = false;
+
 /** Run `pullboard status` and return its exit code. */
 export async function run(io, { values }) {
   const ctx = context(io);
@@ -69,7 +78,7 @@ export async function run(io, { values }) {
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../person-signing.js')).personSigning(board).signed } : { signed: false };
-    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, readers), capacityForecast: readCapacity(board), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
+    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...readers, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
@@ -83,7 +92,7 @@ export async function run(io, { values }) {
     io.result(summary);
     return 0;
   }
-  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay)) io.say(line);
+  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../relay-outbox.js')))) io.say(line);
   const { items, accepted, rejected } = summary.stats;
   io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
   io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);

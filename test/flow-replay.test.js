@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 
 const BASE = Date.parse('2026-10-20T00:00:00Z');

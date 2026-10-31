@@ -1,4 +1,1 @@
-/** Seal the native immutable job source before any replica receives its queue request [V4,H16]. */
-export function prepareBefore(board, values, { ports }) {
-  values[1] = ports.sealSubmitHandoffQueue(board, values[0], values[1]);
-}
+export { engine_move_queue_submit_handoff_prepareBefore as prepareBefore } from "../packages/state/index.js";

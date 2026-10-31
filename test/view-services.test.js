@@ -10,10 +10,13 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
-import { main } from '../src/cli-main.js';
-import { cockpitPage } from '../src/cockpit.js';
+import { main } from './native-cli-fixture.js';
+import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { exportView } from '../src/serve.js';
-import { serveView } from '../src/serve.js';
+import { serveView, projectState as unprovidedProjectState } from '../src/serve.js';
+import { cockpitPage as unprovidedPage } from '../src/cockpit.js';
+import { refusalDocument } from '../src/next-step-words.js';
+import { nativeBoardOpeners } from '../src/cli-context.js';
 
 /** Match a required service refusal without accepting unrelated setup or transport failures. */
 function missingService(name) {
@@ -47,6 +50,10 @@ test('a live view refuses missing command or renderer services before listening 
   await assert.rejects(serveView(), missingService('runCommand'));
   await assert.rejects(serveView({ runCommand: main }), missingService('renderPage'));
   await assert.rejects(serveView({ renderPage: cockpitPage }), missingService('runCommand'));
+  await assert.rejects(serveView({ runCommand: main, renderPage: cockpitPage }), missingService('refusalDocument'));
+  await assert.rejects(serveView({ runCommand: main, renderPage: cockpitPage, refusalDocument }), missingService('openBoard'));
+  await assert.rejects(serveView({ runCommand: main, renderPage: cockpitPage, refusalDocument,
+    boardOpeners: { openBoard: nativeBoardOpeners().openBoard } }), missingService('openBoardForRead'));
 });
 
 test('an export refuses missing services before reading a board or writing output [N26,C7]', async t => {
@@ -56,6 +63,8 @@ test('an export refuses missing services before reading a board or writing outpu
   await assert.rejects(exportView(directory, output), missingService('runCommand'));
   await assert.rejects(exportView(directory, output, { runCommand: main }), missingService('renderPage'));
   await assert.rejects(exportView(directory, output, { renderPage: cockpitPage }), missingService('runCommand'));
+  await assert.rejects(exportView(directory, output, { runCommand: main, renderPage: cockpitPage }), missingService('refusalDocument'));
+  await assert.rejects(exportView(directory, output, { runCommand: main, renderPage: cockpitPage, refusalDocument }), missingService('openBoard'));
   assert.equal(existsSync(output), false, 'a refused export writes no snapshot');
 });
 
@@ -68,8 +77,9 @@ test('the actual CLI composition serves and exports a private real board [N26,C7
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { serveView, exportView } from ${JSON.stringify(module)};
+import { main } from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
 const root = ${JSON.stringify(box.repo)};
-const view = await serveView({ port: 0, projectRoot: root });
+const view = await serveView({ port: 0, projectRoot: root, runCommand: main });
 try {
   const link = new URL(view.url);
   const headers = { 'x-pullboard-key': link.searchParams.get('k') };
@@ -82,7 +92,7 @@ try {
 } finally { await view.close(); }
 assert.equal(exportView.supportsPublicExport, true);
 const destination = ${JSON.stringify(output)};
-const result = await exportView(root, destination, { public: true });
+const result = await exportView(root, destination, { public: true, runCommand: main });
 assert.equal(result.path, destination);
 assert.match(readFileSync(destination + '/index.html', 'utf8'), /<html/);
 const listing = JSON.parse(readFileSync(destination + '/api/v1/boards.json', 'utf8'));
@@ -92,4 +102,11 @@ console.log('served and publicly exported the private fixture board');
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', program], { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /served and publicly exported the private fixture board/);
+});
+
+/** Missing ports must refuse before a filesystem read, database open or page assembly. */
+test('raw view projection and page require their actual higher services [N26,A5,C7]', () => {
+  assert.throws(() => unprovidedProjectState('/a/view/path/that/does/not/exist'), missingService('openBoard'));
+  assert.throws(() => unprovidedPage(''), /higher renderer.*commandPhrases/u);
+  assert.match(cockpitPage(''), /<html/u, 'the composed renderer still provides the real CLI catalog');
 });

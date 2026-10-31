@@ -1,4 +1,5 @@
 /** @pullboard-test-gui */
+import { viewApiPorts } from '../../src/view-api-ports.js';
 /** A real cached native HTTP board refreshes Dashboard pace even when it has no milestone [N26,A2]. */
 import { apiBoardOpeners } from '../board-fixture.js';
 
@@ -10,7 +11,7 @@ import * as store from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
 import { serveApi } from '../../src/api.js';
 import { refusalDocument } from '../../src/next-step-words.js';
-import { main } from '../../src/cli.js';
+import { main } from '../native-cli-fixture.js';
 import { exportBoard } from '../../src/exchange.js';
 import { submitFixture } from '../board-submit-fixture.js';
 import { machine, project } from './fixture.js';
@@ -37,7 +38,7 @@ test('Dashboard pace crosses every cached window without a milestone or a native
   store.merged(board, 1, { agentId: 'coordinator', commit: head });
   const id = store.boardId(board), secret = randomBytes(24).toString('base64url');
   let builds = 0;
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects: () => [{ root: alpha.repo, name: 'dashboard-clock' }],
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret, runCommand: main, projects: () => [{ root: alpha.repo, name: 'dashboard-clock' }],
     scope: { projectRoot: alpha.repo }, isMain: true, now: () => clock.at, onStateBuild: () => { builds++; } });
   t.after(api.close);
   const original = exportBoard(board);

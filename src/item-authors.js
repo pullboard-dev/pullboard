@@ -1,4 +1,3 @@
-import { reviewPatchAuthors } from './review-composition.js';
 /** Review independence follows every claim and submit author, never just the latest owner [V1,B3]. */
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { HISTORICAL_AUTHORS_ENGINE } from './historical-authors-engine.js';
@@ -9,7 +8,7 @@ import { effectiveAgentParent } from './seat-review-read.js';
 import { standingProblem } from './seat-review-read.js';
 
 /** Read one item's indexed author history; older ordered moves retain their original current-builder rule. */
-export function itemAuthors(board, item, { twoTierReviews, committedItemAuthors }) {
+export function itemAuthors(board, item, { twoTierReviews, committedItemAuthors, reviewPatchAuthors }) {
   if (twoTierReviews(board)) return committedItemAuthors(board, item);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < HISTORICAL_AUTHORS_ENGINE) return [item.item_built_by].filter(Boolean);
   const authors = new Set([item.item_built_by, item.item_owner].filter(Boolean));
@@ -21,7 +20,7 @@ export function itemAuthors(board, item, { twoTierReviews, committedItemAuthors 
 }
 
 /** Compare immutable author and parent identities without borrowing the current sender’s verifier credential. */
-function authorIdentityProblem(board, item, reviewer, authors) {
+function authorIdentityProblem(board, item, reviewer, authors, reviewPatchAuthors) {
   if (authors.includes(reviewer)) return new Refused('SELF_VERIFY', 'the builder never verifies its own work; another agent must');
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   const direct = engine >= PATCH_AUTHOR_IDENTITY_ENGINE ? reviewPatchAuthors(board, item) : null;
@@ -40,13 +39,13 @@ function authorIdentityProblem(board, item, reviewer, authors) {
 
 /** A retained native verdict keeps its original authority but may not cover work by a newly related author. */
 export function retainedVerifierIdentityProblem(board, item, reviewer, ports) {
-  return authorIdentityProblem(board, item, reviewer, itemAuthors(board, item, ports));
+  return authorIdentityProblem(board, item, reviewer, itemAuthors(board, item, ports), ports.reviewPatchAuthors);
 }
 
 /** Apply full author identity and current linked standing to every fresh review and queue selection. */
 export function itemAuthorProblem(board, item, reviewer, ports) {
   const authors = itemAuthors(board, item, ports);
-  const identity = authorIdentityProblem(board, item, reviewer, authors);
+  const identity = authorIdentityProblem(board, item, reviewer, authors, ports.reviewPatchAuthors);
   if (identity) return identity;
   const { strictReviewProblem } = ports;
   const strict = strictReviewProblem(board, item, reviewer);

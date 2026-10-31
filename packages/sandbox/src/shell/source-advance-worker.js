@@ -75,8 +75,8 @@ function readBoard(info, work, openBoardForRead) {
 }
 
 /** Native writes always use the accepted coordinator context and normal ordered sender binding. */
-function writer(root, { context, ordered, withBoard }) {
-  const ctx = context({ cwd: root, say() {}, err() {}, stderr: { write() {} } });
+function writer(root, { context, ordered, withBoard, nativeBoard }) {
+  const ctx = context({ cwd: root, nativeBoard, say() {}, err() {}, stderr: { write() {} } });
   return work => withBoard(ctx, board => work(board, (operation, args) => ordered(ctx, board, operation, args)));
 }
 

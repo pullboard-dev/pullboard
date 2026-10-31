@@ -17,7 +17,7 @@ import { pathToFileURL } from 'node:url';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { boardHealth, healthReport } from '../packages/health/index.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
 import { readDigest } from '../src/digest.js';

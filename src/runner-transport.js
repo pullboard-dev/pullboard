@@ -27,7 +27,6 @@ import {
 } from 'node:path';
 import { join } from 'node:path';
 import { guiSession } from './gui-session.js';
-import { processCensus } from './runner-custody.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */
@@ -118,7 +117,7 @@ function claimStartup(root, identity, payload) {
 }
 
 /** Claim the same startup boundary that idle cancellation uses, recording custody before work can spawn. */
-export function claimRunnerWorker(root, identity) {
+export function claimRunnerWorker(root, identity, processCensus) {
   if (!runnerLaunchAllowed(root, identity)) return false;
   const owner = processCensus()?.get(process.pid);
   if (!owner) return false;
@@ -129,7 +128,7 @@ export function claimRunnerWorker(root, identity) {
 }
 
 /** Fence only matching started custody; a live startup owner keeps the hold even before it creates a job. */
-function cancelRunnerLaunch(root, identity) {
+function cancelRunnerLaunch(root, identity, processCensus) {
   try {
     if (claimRunnerLaunch(root, identity, true)) return { cancelled: true };
     const directory = join(root, 'recovery-launches', identity.request), file = join(directory, 'identity.json');
@@ -248,7 +247,7 @@ export function runnerHealthReply(root, request) {
 }
 
 /** Bind a running worker to its own job directory before it can wait for a resource lease. */
-export function recordRunnerOwner(directory) {
+export function recordRunnerOwner(directory, processCensus) {
   const owner = processCensus()?.get(process.pid);
   if (!owner) throw new Error('runner worker process identity could not be observed');
   writeFileSync(join(directory, 'worker-owner.json'), JSON.stringify({ pid: owner.pid, started: owner.started }) + '\n',
@@ -346,7 +345,7 @@ export function runnerProcessesIdle(root, diagnostic, { ignoredWorkers = [] } = 
 }
 
 /** Attest an idle pinned worker and writable root without guessing a missing job's identity. */
-export function runnerIdleReply(root, request) {
+export function runnerIdleReply(root, request, processCensus) {
   const base = { version: 1, nonce: request?.nonce, worker: true, idle: false, writable: false };
   try {
     if (!/^[a-f0-9-]{36}$/u.test(request?.nonce ?? '') || !statSync(root).isDirectory())
@@ -356,7 +355,7 @@ export function runnerIdleReply(root, request) {
       if (!identities.length || identities.length > 128 || !identities.every(identity => recoveryIdentity(identity) && identity.launchFence === 1))
         return { ...base, reason: 'exact launch identities are required before idle fallback' };
       for (const identity of identities) {
-        const result = cancelRunnerLaunch(root, identity);
+        const result = cancelRunnerLaunch(root, identity, processCensus);
         if (!result.cancelled) return { ...base, reason: result.reason };
       }
     }

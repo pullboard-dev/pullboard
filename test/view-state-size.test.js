@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { compactItemSummaries } from '../src/view-state-summary.js';
 import { expandItemSummaries } from '../src/view-state-summary.js';
@@ -13,7 +14,7 @@ import { addMilestone } from '../src/board-milestones.js';
 import { atomic } from '../src/board-event-log.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { proofStats } from '../src/stats.js';
 import { ensureProofCounters } from '../src/proof-counters.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -107,7 +108,7 @@ async function fixture(t, { items = 1, seats = 1, shouts = 0, recentAge = 0, var
   function rebuildReport() { ensureProofCounters(board); }
 
   let builds = 0;
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'State scale fixture' }],
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.repo, name: 'State scale fixture' }],
     now: () => now, onStateBuild: () => { builds += 1; } });
   t.after(() => api.close());
   const url = new URL(api.url);

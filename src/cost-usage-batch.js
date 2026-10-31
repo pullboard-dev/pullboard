@@ -1,6 +1,5 @@
 /** One ordered transaction retains each usage record's existing validation and idempotency [N2,H16]. */
 import { USAGE_BATCH_LIMIT } from './cost-read.js';
-import { atomic } from './board-event-log.js';
 import { recordUsage } from './cost.js';
 import { recordSharedUsage } from './cost-shared.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
@@ -23,7 +22,7 @@ export function recordUsageBatch(board, payload) {
         || Object.keys(value).some(key => !['agentId', 'id', 'seats', 'allocations', 'revision', 'observedAt', 'records'].includes(key)))) {
     throw new Refused('USAGE_RECORD', 'a usage batch carries at most 1000 revisions belonging to its authenticated seat');
   }
-  return atomic(board, () => ({
+  return board.nativePorts.atomic(board, () => ({
     items: items.map(value => recordUsage(board, value)),
     sharedSessions: sharedSessions.map(value => recordSharedUsage(board, { ...value, agentId })),
   }));

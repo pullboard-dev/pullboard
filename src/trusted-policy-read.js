@@ -8,4 +8,4 @@ export {
   runnerPolicyRecord,
   carriedRunnerTrunk,
   trunkRef,
-} from '../packages/sandbox/index.js';
+} from '../packages/sandbox/src/shell/trusted-policy-read.js';

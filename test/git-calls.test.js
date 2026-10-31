@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
 /** Count real Git child processes and prove command-scoped facts refresh after a commit [C7]. */
@@ -14,7 +15,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { delimiter, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { headCommit, withGitFacts } from '../src/git.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
@@ -328,7 +329,7 @@ test('a live serve request sees a commit made while the server stays open [C7]',
   const original = box.git(box.repo, 'rev-parse', 'HEAD');
   await withGitFacts(async () => {
     assert.equal(headCommit(box.repo), original, 'the long-lived command has an initial cached HEAD');
-    const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret: 'git-facts-test-key', runCommand: main, projects: () => [{ root: box.repo, name: 'Git facts fixture' }] });
+    const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: 'git-facts-test-key', runCommand: main, projects: () => [{ root: box.repo, name: 'Git facts fixture' }] });
     try {
       assert.equal(await readServedBranchCode(api, branch), original);
       const advanced = advanceHead(box, 'advance the served branch', branch);

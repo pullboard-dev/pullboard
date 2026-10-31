@@ -1,5 +1,7 @@
+#!/usr/bin/env node
 /** Regenerate committed declaration-derived documentation, or check it without writing [C7]. */
 import { fileURLToPath } from 'node:url';
+const { openBoard } = await import('../src/native-board.js');
 import { generatedDocDrift } from '../src/generated-docs.js';
 import { generatedDocs } from '../src/generated-docs.js';
 import { writeGeneratedDocs } from '../src/generated-docs.js';
@@ -10,7 +12,7 @@ if (!(args.length === 0 || args.length === 1 && ['--check', '--json'].includes(a
     || args.length === 2 && args[0] === '--print')) {
   throw new Error('usage: node bin/update-docs.js [--check | --json | --print <generated-path>]');
 }
-const outputs = generatedDocs(root);
+const outputs = generatedDocs(root, { openBoard });
 if (args[0] === '--print') {
   if (!outputs.has(args[1])) throw new Error('print needs an exact generated documentation path');
   process.stdout.write(outputs.get(args[1]));

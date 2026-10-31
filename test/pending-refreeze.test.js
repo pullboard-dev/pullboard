@@ -16,10 +16,8 @@ import {
   STRONG_REJECTION_NOTICE_ENGINE,
   VERIFIER_STANDING_ENGINE,
 } from '../src/machine.js';
-import {
-  MILESTONE_SHIP_ENGINE,
-  WITHDRAW_MILESTONE_ENGINE,
-} from '../src/milestones.js';
+import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../src/sentinels.js';
 import { RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
 import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';

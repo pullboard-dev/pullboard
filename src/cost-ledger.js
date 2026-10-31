@@ -8,7 +8,7 @@ import { renameSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { agentSessionDigest } from './person.js';
+import { agentSessionDigest } from '../packages/stats/core.js';
 import { sessionSnapshot } from './cost-session.js';
 import { sessionSource } from './cost-session.js';
 import { usageDifference } from './cost-session.js';

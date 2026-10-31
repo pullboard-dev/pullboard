@@ -3,6 +3,7 @@
  * The view's secret leaves the address bar (N39, N26): the printed link's key is traded for a
  * session cookie, and every later request is authorized by that cookie, over real HTTP.
  */
+import { main as nativeTestMain } from '../native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
@@ -78,7 +79,7 @@ test('[N39,N26] the view key becomes a cookie', async (t) => {
   const open = new Set();
   /** Start a view session and close it after the test unless the test closes it first. */
   const start = async (port) => {
-    const served = await serveView({ port });
+    const served = await serveView({ port, runCommand: nativeTestMain });
     open.add(served);
     return { ...served, close: async () => { if (open.delete(served)) await served.close(); } };
   };
@@ -196,7 +197,7 @@ test('[N39,N26] a direct browser visit can use its view cookie', { timeout: 60_0
     }
   });
 
-  view = await serveView();
+  view = await serveView({ runCommand: nativeTestMain });
   chrome = await openSnapshotChrome(executable, 'about:blank', profile);
   const base = new URL(view.url);
   const navigation = [];

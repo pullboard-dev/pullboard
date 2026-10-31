@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Native view state against the sealed relay presentation, field by field [H5,H17]. Run it explicitly: the default gate skips *.study.js. */
@@ -6,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { presentationState } from '../relay/browser-model.js';
 import { relayClientFixture } from './relay-client-fixture.js';
@@ -27,7 +28,7 @@ test('relay study diffs the native view state and the relay reader state [H5,H17
   store.shout(board, { from: 'coordinator', to: 'all', text: 'Seeded answer.', lanes: [box.lane], answers: decision });
   store.shout(board, { from: 'coordinator', to: 'all', text: 'Open coordinator question?', lanes: [box.lane], decision: true });
   const project = { root: box.root, name: 'study', project: '', added: '2026-10-25T00:00:00.000Z' };
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [project], stateDetail: 'full' });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [project], stateDetail: 'full' });
   t.after(() => api.close());
   const address = new URL(api.url);
   const fixture = { origin: address.origin, secret: address.searchParams.get('k') };

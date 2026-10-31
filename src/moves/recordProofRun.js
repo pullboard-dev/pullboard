@@ -1,4 +1,4 @@
-import { EXIT_RULES_ENGINE } from '../../packages/state/index.js';
+import { EXIT_RULES_ENGINE } from '../../packages/state/core.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
 /** Native proof receipt routing is pure; origin binding belongs to the engine adapter [C7,H16]. */
 import { PROOF_RUN_ENGINE } from '../proof-run-engine.js';

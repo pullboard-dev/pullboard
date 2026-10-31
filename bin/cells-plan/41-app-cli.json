@@ -28,7 +28,6 @@
   ["src/cli-sync.js","apps/cli/src/shell/cli-sync.js","seed"],
   ["src/cli.js","apps/cli/src/shell/cli.js","seed"],
   ["src/cockpit.js","apps/cli/src/shell/cockpit.js","seed"],
-  ["src/command-phase.js","apps/cli/src/shell/command-phase.js","seed"],
   ["src/commands/add.js","apps/cli/src/shell/commands/add.js","seed"],
   ["src/commands/agents.js","apps/cli/src/shell/commands/agents.js","seed"],
   ["src/commands/answer.js","apps/cli/src/shell/commands/answer.js","seed"],
@@ -140,7 +139,6 @@
   ["src/next-step-words.js","apps/cli/src/core/next-step-words.js","seed"],
   ["src/next-steps.js","apps/cli/src/shell/next-steps.js","seed"],
   ["src/public-export-guard.js","apps/cli/src/core/public-export-guard.js","imports"],
-  ["src/relay-sender-main.js","apps/cli/src/shell/relay-sender-main.js","seed"],
   ["src/skills.js","apps/cli/src/shell/skills.js","seed"],
   ["src/static-prose-commands.js","apps/cli/src/core/static-prose-commands.js","seed"],
   ["src/sweep.js","apps/cli/src/core/sweep.js","seed"],
@@ -243,7 +241,6 @@
   ["src/command-docs/stats-pipeline.json","apps/cli/src/shell/command-docs/stats-pipeline.json","rule"],
   ["src/documentation/events/review-default.json","apps/cli/src/shell/documentation/events/review-default.json","rule"],
   ["src/command-docs/stats-moves.json","apps/cli/src/shell/command-docs/stats-moves.json","rule"],
-  ["src/cli-hook-work.js","apps/cli/src/shell/cli-hook-work.js","rule"],
   ["src/cli/seat-ports.js","apps/cli/src/shell/cli/seat-ports.js","rule"],
   ["src/cli/project-ports.js","apps/cli/src/shell/cli/project-ports.js","rule"],
   ["src/commands/ship.js","apps/cli/src/shell/commands/ship.js","rule"],
@@ -252,7 +249,6 @@
   ["src/commands/tool-build.js","apps/cli/src/shell/commands/tool-build.js","rule"],
   ["src/command-docs/tool-build.json","apps/cli/src/shell/command-docs/tool-build.json","rule"],
   ["src/submit-handoff.js","apps/cli/src/shell/submit-handoff.js","rule"],
-  ["src/submit-handoff-worker.js","apps/cli/src/shell/submit-handoff-worker.js","rule"],
   ["src/documentation/events/submit-handoff.json","apps/cli/src/shell/documentation/events/submit-handoff.json","rule"],
   ["src/documentation/events/submit_handoff_returned.json","apps/cli/src/shell/documentation/events/submit_handoff_returned.json","rule"],
   ["src/submit-handoff-origin.js","apps/cli/src/shell/submit-handoff-origin.js","rule"],
@@ -264,7 +260,11 @@
   ["src/commands/maintenance.js","apps/cli/src/shell/commands/maintenance.js","rule"],
   ["src/command-docs/maintenance.json","apps/cli/src/shell/command-docs/maintenance.json","rule"],
   ["src/worktree-maintenance-protection.js","apps/cli/src/shell/worktree-maintenance-protection.js","rule"],
-  ["src/post-land-suite-ports.js","apps/cli/src/shell/post-land-suite-ports.js","rule"]
+  ["src/post-land-suite-ports.js","apps/cli/src/shell/post-land-suite-ports.js","rule"],
+  ["src/submit-gate-wait.js","apps/cli/src/shell/submit-gate-wait.js","rule"],
+  ["src/tool-build-scheduler.js","apps/cli/src/shell/tool-build-scheduler.js","rule"],
+  ["src/cli/cockpit-renderer.js","apps/cli/src/shell/cli/cockpit-renderer.js","rule"],
+  ["src/cli/view-state.js","apps/cli/src/shell/cli/view-state.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
@@ -274,7 +274,6 @@
   "src/cli-sync.js",
   "src/cli.js",
   "src/cockpit.js",
-  "src/command-phase.js",
   "src/commands/index.js",
   "src/commands/status.js",
   "src/commands/worktree.js",
@@ -331,18 +330,7 @@
  ],
  "cuts": [
   {"cell":"stats","imports":1,"edges":["src/cost-checkpoint.js->src/cli.js"]},
-  {
-   "cell": "link",
-   "imports": 6,
-   "edges": [
-    "src/relay-canary-command.js->src/cli.js",
-    "src/relay-lock.js->src/command-phase.js",
-    "src/relay-request-execution.js->src/next-step-words.js",
-    "src/relay-request-execution.js->src/next-step-words.js",
-    "src/relay-setup.js->src/init.js",
-    "src/relay.js->src/command-phase.js"
-   ]
-  },
+  {"cell":"link","imports":1,"edges":["src/relay-setup.js->src/init.js"]},
   {"cell":"app:view","imports":2,"edges":["src/serve.js->src/next-step-words.js","src/view/cockpit-page.js->src/help.js"]}
  ],
  "ratchets": {

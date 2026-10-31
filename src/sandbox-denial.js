@@ -4,4 +4,4 @@ export {
   sandboxBlockedOperation,
   fileDenialWatcher,
   remoteFileDenial,
-} from '../packages/sandbox/index.js';
+} from '../packages/sandbox/src/shell/sandbox-denial.js';

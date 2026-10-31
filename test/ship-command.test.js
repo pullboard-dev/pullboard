@@ -8,11 +8,16 @@ import { readFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { openBoard } from '../src/native-board.js';
+import * as nativeBoard from '../src/native-board.js';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { cleanupFixtureChildren } from './fixture-child.js';
 import { runFixtureChild } from './fixture-child.js';
+import { context } from '../src/cli-read-context.js';
+import { withBoardRead } from '../src/cli-context.js';
+import { retrySync } from '../src/cli-sync.js';
+import { waitForSubmissionVerdict } from '../src/submit-wait.js';
 
 /** Read or mutate only this private fixture's actual CLI board, closing before a child runs. */
 function onBoard(box, work) {
@@ -56,13 +61,41 @@ function stage(box, file, body) {
   box.git(box.web, 'add', file);
 }
 
+test('ship review wait names its deadline without undoing the completed gate [V4,B3]', async t => {
+  const { box, id } = fixture(t);
+  const changed = createE2eHelpers().commitFile(box, box.web, 'web/deadline.txt', 'Completed gate.\n',
+    'feat(web): deadline fixture [G1]');
+  assert.equal(changed.status, 0, changed.stderr);
+  const submitted = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  assert.equal(submitted.code, 0, submitted.out + submitted.err);
+  const value = JSON.parse(submitted.out);
+  const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
+  const lines = [];
+  const io = { cwd: box.web, nativeBoard, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
+  await assert.rejects(waitForSubmissionVerdict(context(io), id, value, receipt,
+    { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem },
+    { deadlineMs: 0 }), { code: 'SUBMISSION_WAIT_TIMEOUT' });
+  assert.ok(lines.some(line => line.includes(`waiting for the verdict on #${id}`) && line.includes(' until ')));
+  assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'submitted');
+  assert.equal(onBoard(box, board => store.verdictsFor(board, id).length), 0, 'expiry creates no review verdict');
+});
+
 /** A fixture reviewer releases the actual --wait only after observing its durable submit. */
 async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
   const { box, helpers, id } = f;
   const pending = runFixtureChildAsync(process.execPath, [helpers.BIN, 'ship', '--note', note, '--json'], { cwd: box.web, env: box.env });
   const child = pending.child;
   f.children.push(pending);
-  await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal');
+  let observedOut = '', observedErr = '';
+  child.stdout?.on('data', chunk => { observedOut += chunk; });
+  child.stderr?.on('data', chunk => { observedErr += chunk; });
+  try {
+    await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal');
+  } catch (error) {
+    t.diagnostic(JSON.stringify({ phase: 'await-submit', exitCode: child.exitCode,
+      status: onBoard(box, board => store.getItem(board, id).item_status), stdout: observedOut, stderr: observedErr }));
+    throw error;
+  }
   assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'submitted', 'ship must reach its actual submit event before verdict delivery');
   assert.equal(child.exitCode, null, 'ship waits for the actual verdict');
   onBoard(box, board => {

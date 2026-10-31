@@ -1,3 +1,6 @@
+import { currentProofCounters } from '../packages/verify/index.js';
+import { proofCounter } from '../packages/verify/index.js';
+import { workQueue } from '../packages/items/index.js';
 import { pipelineStats } from './stats-pipeline.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
@@ -16,7 +19,7 @@ import { loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { listApiProjects } from './projects.js';
 import { nativeStateClockWindow } from './native-state-clock.js';
-import { milestoneRoadmap } from './roadmap.js';
+import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { proofStats } from './stats.js';
 import { readCapacity } from './capacity-read.js';
 import { ruleProofCounts } from './rule-proof-counts.js';
@@ -91,8 +94,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
       milestones: scopeCommonDir === null
-        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard } })
-        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard } }),
+        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard, workQueue } })
+        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } }),
       rowDecisions: store.rowDecisions(board),
       proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
     };
@@ -105,7 +108,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
     // Only the local HTTP host supplies its private telemetry; sealed projections omit it entirely.
     if (localRelayHealth !== null) state.relayHealthAlerts = localRelayHealth;
     // The forecast reads this machine's derived proof-counter index, which sealed exports omit, so only the local host adds it.
-    if (localCapacity) state.capacityForecast = readCapacity(board, observedAt);
+    if (localCapacity) state.capacityForecast = readCapacity(board, observedAt, { currentProofCounters, proofCounter });
     const decorated = projectSpecApprovals(projectFit(pendingFit(repoInfo(root).commonDir), projectRowDecisions(projectData.rowDecisions, state)), specApprovalState(root, { board, config }, { store, verifiedPasskeyRowDecision }));
     decorated.ruleCounts = ruleProofCounts(root, board, decorated.spec);
     const bases = new Map(decorated.items.map((item) => [item.id, item]));

@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
 /** Local API projection for private relay-canary alerts; never part of the sealed relay view. */
@@ -11,7 +12,7 @@ import { createLocalApiHandler } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { observeRelayHealth } from '../src/relay-canary-health.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { apiFetch } from './api-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
@@ -50,7 +51,7 @@ test('local API refreshes private relay health without adding it to a sealed pre
   await withFixtureEnvironment(box.env, async () => {
     const secret = randomBytes(24).toString('base64url');
     let port = 0;
-    const handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
+    const handler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument,
       secret,
       getPort: () => port,
       runCommand: main,

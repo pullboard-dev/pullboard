@@ -3,7 +3,7 @@
  * `floor`, when given, draws the agent floor in the Dashboard's place at #dashboard/floor from the same model and
  * history, so both pages read one board read and refresh on the same live redraw [N26,N38].
  */
-export function dashboardRuntime({ model, html, api, boardPath, current, redraw, summary, floor = null, firstRun = null }) {
+export function dashboardRuntime({ model, html, stagePresentation = null, when = null, api, boardPath, current, redraw, summary, floor = null, firstRun = null }) {
   const histories = new Map();
   // The first-run tour keeps its stop across live redraws, so a refresh never sends it back to the start.
   const tour = { index: 0, auto: true, timer: null };
@@ -64,7 +64,7 @@ export function dashboardRuntime({ model, html, api, boardPath, current, redraw,
     // Until the person hides it (finished or not), the first-run page is the Dashboard; the usual cards follow once work has landed.
     const started = firstRun && !onFloor ? firstRun.kit.model(project, held.events.filter(event=>event.event_id<=prefix)) : null;
     const showFirstRun = firstRun?.kit.visible(started, firstRun.hidden(project.root));
-    const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
+    const usual = () => html(state, { needs, needsHeader, progress, rules, capacity, locale, timeZone, stagePresentation, when, deferQuiet: quietOpen ? undefined : rows => { quietRows = rows; }, floorHref: floor?.href('floor') });
     region.innerHTML = (onFloor ? floor.html(floor.model(state, held.events.filter(event=>event.event_id<=prefix)), { back: floor.href(null), locale, timeZone })
       : showFirstRun ? firstRun.kit.html(started, { href: firstRun.href, tour: tour.index }) + (started.landed ? usual() : '') : usual())+note;
     if (showFirstRun) startTour();

@@ -1,5 +1,6 @@
 /** The pullboard relay command, in its own module so an item adding another command never edits these lines. */
 import { nativeBoardOpeners } from '../cli-context.js';
+import { nativePersonRequestPorts } from '../cli-context.js';
 import * as store from '../board.js';
 import { gitSyncLinked } from '../local-state.js';
 import {
@@ -12,6 +13,8 @@ import {
   Refused,
 } from '../refused.js';
 import * as relayOutput from '../relay-output.js';
+import { describeMove } from '../relay-outbox.js';
+import { refusalLine } from '../relay-outbox.js';
 import { DEFAULT_RELAY } from '../relay.js';
 import { originRepository } from '../relay.js';
 import { relayPersonCoordinator } from '../relay.js';
@@ -57,7 +60,7 @@ import {
 
 /** Run `pullboard relay` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  if (first === 'canary') return (await import('../relay-canary-command.js')).run(io, { first: second, second: rest[0], rest: rest.slice(1), values });
+  if (first === 'canary') return (await import('../relay-canary-command.js')).run(io, { first: second, second: rest[0], rest: rest.slice(1), values }, { context, ordered, withBoard, whoAmI });
   if (['on', 'join'].includes(first) && gitSyncLinked(io.cwd)) throw new Refused('GIT_SYNC_LINKED', 'this board already shares moves through Git; it cannot start a second move order', 'keep using pullboard sync for this board');
   if (values['new-browser'] && first !== 'pair') throw new Refused('USAGE', 'pullboard relay pair --new-browser');
   if (first === 'members') {
@@ -123,13 +126,13 @@ export async function run(io, { first, second, rest, values }) {
     if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
     const ctx = context(io);
     if (values['new-browser']) return await relayOnAllCommand(undefined, io, { pairAdditional: true });
-    return await relayPair(ctx.info.root, io, { DEFAULT_RELAY, originRepository, syncRelay, openBoard: nativeBoardOpeners().openBoard });
+    return await relayPair(ctx.info.root, io, { DEFAULT_RELAY, originRepository, syncRelay, openBoard: nativeBoardOpeners(io).openBoard });
   }
   if (first === 'join') {
     if (!second || rest.length) throw new Refused('USAGE', 'pullboard relay join <code> [--url <address>]');
     const ctx = context(io);
     return await relayJoin(ctx.info.root, second, values.url, io, { name: values.name },
-      { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine, openBoard: nativeBoardOpeners().openBoard });
+      { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine, openBoard: nativeBoardOpeners(io).openBoard });
   }
   if (second || rest.length || (first && !['on', 'off', 'status'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [status|on|off] [--url <address>]');
   const ctx = context(io);
@@ -139,7 +142,7 @@ export async function run(io, { first, second, rest, values }) {
     : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
   io.result?.(result);
   const boardName = listApiProjects().find((project) => project.root === ctx.info.root)?.name ?? basename(ctx.info.root);
-  for (const line of relayOutput.detailLines(result, boardName)) io.say(line);
+  for (const line of relayOutput.detailLines(result, boardName, { describeMove, refusalLine })) io.say(line);
   return 0;
 }
 
@@ -158,5 +161,5 @@ async function relayRead(root, io) {
     io.err(`pullboard: [RELAY_LINKED] ${error.message}`);
     return;
   }
-  await executePersonRequests(root, io, main, nativeBoardOpeners());
+  await executePersonRequests(root, io, io.runCommand, nativePersonRequestPorts(io));
 }

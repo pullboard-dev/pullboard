@@ -8,7 +8,6 @@ import {
   readBlueprints,
 } from '../blueprint-set.js';
 import * as store from '../board.js';
-import { openBoard } from '../native-board.js';
 import {
   COORDINATOR,
   loadConfig,
@@ -26,7 +25,11 @@ import {
   SETUP_COMMIT_LATER,
 } from '../init-finish.js';
 import {
+  RELAY_LATER,
+  RELAY_OFFER_QUESTION,
+  acceptsRelayOffer,
   initRepo,
+  relayOfferAtInit,
 } from '../init.js';
 import { captureSpecApprovalBaseline } from '../spec-approval.js';
 import {
@@ -77,7 +80,7 @@ export async function run(io, { values }) {
     model,
     permissions: !values['no-permissions'],
     agentHooks: !values['no-hooks'],
-    openBoardHere: () => openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), io.clock, { isMain: codeIsFromMain() }),
+    openBoardHere: () => io.nativeBoard.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), io.clock, { isMain: codeIsFromMain() }),
     /** Keep a linked coordinator's canonical identity without writing a clone-local path. */
     register: (board, options) => {
       if (!linked) {
@@ -105,14 +108,14 @@ export async function run(io, { values }) {
   const setupCommit = await finishInitCommit(setupPlan, { io, yes: values.yes, landed, permissions: !values['no-permissions'] });
   result.setupCommit = setupCommit;
   const handleIdentity = await withBoard(context(io), board => projectBoardIdentity(info.root, store.boardId(board)));
-  if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, handleIdentity, projectLinkPorts())) io.say('registered this project on this machine, so pullboard view lists it');
+  if (await registerProjectAndLink(info.root, new Date(), loadConfig(info.root), io, handleIdentity, projectLinkPorts(io))) io.say('registered this project on this machine, so pullboard view lists it');
   // Once registered, a background view lists this board for pullboard.dev [H5,N26].
   const view = await keepViewRunning();
   io.result?.({ ...result, view });
   const viewLine = initViewLine(view, { verbose: values.verbose });
   if (viewLine) io.say(viewLine);
   // Sharing remains a separate choice; --yes confirms only the setup commit.
-  const code = await offerRelayAtInit(info.root, io, { details: values.verbose === true });
+  const code = await offerRelayAtInit(info.root, io, { details: values.verbose === true, offerPorts: { relayOfferAtInit, acceptsRelayOffer, RELAY_OFFER_QUESTION, RELAY_LATER } });
   if (setupCommit.skipped.length) io.say(values.verbose
     ? `Your earlier changes remain uncommitted: ${setupCommit.skipped.join(', ')}.`
     : `Kept ${setupCommit.skipped.length} earlier changes uncommitted.`);

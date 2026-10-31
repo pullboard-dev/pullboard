@@ -8,7 +8,7 @@
  * @param {string} options.capacity - Capacity-card markup retained from the retired Home pane.
  * @returns {string} Dashboard markup.
  */
-export function dashboardHtml(model, { needs = '', needsHeader = '', progress = '', rules = '', capacity = '', deferQuiet, floorHref = null, locale = 'en-US', timeZone = 'UTC' } = {}) {
+export function dashboardHtml(model, { needs = '', needsHeader = '', progress = '', rules = '', capacity = '', stagePresentation = null, when = null, deferQuiet, floorHref = null, locale = 'en-US', timeZone = 'UTC' } = {}) {
   const m = model;
   /** Escape both text and attribute values supplied by a board. */
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
@@ -28,8 +28,23 @@ export function dashboardHtml(model, { needs = '', needsHeader = '', progress = 
   };
   /** Format actual elapsed minutes without a made-up lower bound. */
   const age = at => { const minutes = Math.max(0, Math.floor((m.now-at)/60_000)); return minutes < 60 ? minutes+'m' : (minutes/60).toFixed(1)+'h'; };
+  /** Use the shared browser clock, or explicit locale and zone for standalone rendering. */
+  const stamp = when ?? (at => new Date(at).toLocaleString(locale, { timeZone, month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }));
   /** A native item navigation target shares the existing cockpit dispatcher. */
-  const item = entry => '<button class="dash-item" type="button" data-go="item:'+entry.id+'"><span>#'+entry.id+'</span><b>'+esc(entry.title)+'</b></button>';
+  /** Render each Dashboard destination with its shared stage, detail and marks. */
+  const item = entry => {
+    const stage = stagePresentation?.(entry, { gated: Boolean(entry.blockedBy?.length || entry.heldReason || entry.laneHoldReason), landingBatchAt: entry.landingBatchAt ? stamp(entry.landingBatchAt) : null,
+      withdrawnFrom: entry.withdrawnFrom, gateDetail: entry.withdrawnReason || '' });
+    const marks = [
+      entry.heldReason ? '<span class="stage-mark gate" title="Held: '+esc(entry.heldReason)+'" aria-label="Held: '+esc(entry.heldReason)+'">Held</span>' : '',
+      entry.laneHoldReason ? '<span class="stage-mark gate" title="Lane held: '+esc(entry.laneHoldReason)+'" aria-label="Lane held: '+esc(entry.laneHoldReason)+'">Lane held</span>' : '',
+      entry.verdict?.decision === 'REJECT' && entry.status !== 'verified' ? '<span class="stage-mark no" title="Sent back: '+esc([entry.verdict.reason, entry.verdict.note].filter(Boolean).join(': '))+'" aria-label="Sent back: '+esc([entry.verdict.reason, entry.verdict.note].filter(Boolean).join(': '))+'">Sent back</span>' : '',
+      entry.verdictState?.code === 'STALE_VERDICT' ? '<span class="stage-mark" title="Stale: '+esc(entry.verdictState.reason || 'main changed '+(entry.verdictState.file || 'a reviewed file'))+'" aria-label="Stale: '+esc(entry.verdictState.reason || 'main changed '+(entry.verdictState.file || 'a reviewed file'))+'">Stale</span>' : '',
+      entry.status === 'withdrawn' ? '<span class="stage-mark no" title="Withdrawn: '+esc(entry.withdrawnReason || 'reason unavailable')+'" aria-label="Withdrawn: '+esc(entry.withdrawnReason || 'reason unavailable')+'">Withdrawn</span>' : '',
+    ].filter(Boolean).join('');
+    const status = stage ? '<span class="item-stage" data-stage="'+esc(stage.stage.toLowerCase().replace(/\s+/gu, '-'))+'"><span class="stage-line"><b class="stage-word">'+esc(stage.stage)+'</b>'+marks+'</span><small class="stage-detail">'+esc(stage.detail)+'</small></span>' : '';
+    return '<button class="dash-item" type="button" data-go="item:'+entry.id+'"><span>#'+entry.id+'</span><span class="dash-item-copy"><b>'+esc(entry.title)+'</b>'+status+'</span></button>';
+  };
   /** Keep section labels accessible even when the section has no work. */
   const card = (title, html, classes = '') => '<section class="dash-card '+classes+'" aria-label="'+esc(title)+'"><h2>'+esc(title)+'</h2>'+html+'</section>';
   /** Unknown history is explicitly loading/unavailable rather than a zero. */

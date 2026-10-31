@@ -983,7 +983,7 @@ globalThis.fetch = function tracedFetch(input, init) {
     refuseBoardLinks(value) { refuseBoardLinks = value; },
     /** Return HTTP 403 only after the real relay has stored one sealed approval completion. */
     refuseNextAcceptedApprovalCompletionResponse() { refuseNextAcceptedApprovalCompletionResponse = true; },
-    mainURL: new URL('../src/cli.js', import.meta.url).href,
+    mainURL: new URL('./native-cli-fixture.js', import.meta.url).href,
     keyInRequest() { return keyLeaked; },
     /** Revoke the actual synthetic person session, including its current live streams. */
     async revokeSession() { const session = await phoneSession(); return auth.revoke(session.token, session.id); },

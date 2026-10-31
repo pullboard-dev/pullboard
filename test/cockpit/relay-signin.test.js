@@ -86,7 +86,7 @@ test('the view links every board on this machine in one sign-in [H5,N26]', {
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { main } from ${JSON.stringify(module('cli.js'))};
+import { main } from ${JSON.stringify(new URL('../native-cli-fixture.js', import.meta.url).href)};
 import { updateRelayMachine } from ${JSON.stringify(module('relay-machine.js'))};
 import { runFixtureGit } from ${JSON.stringify(fixtureModule)};
 const other = join(dirname(${JSON.stringify(box.root)}), 'second-view-board');
@@ -189,6 +189,7 @@ test('view sign-in keeps its key and intents inside the authenticated machine vi
   const result = await box.script(`
 import { request } from 'node:http';
 import { serveView } from ${JSON.stringify(serveModule)};
+import { main as nativeTestMain } from ${JSON.stringify(new URL('../native-cli-fixture.js', import.meta.url).href)};
 import { HOSTED_ORIGIN } from ${JSON.stringify(viewModule)};
 import { updateRelayMachine } from ${JSON.stringify(machineModule)};
 updateRelayMachine(state => { state.owner = {account:'7',url:${JSON.stringify(box.origin)}}; });
@@ -196,9 +197,9 @@ const observations = [];
 /** Return only safe HTTP observations; the outer native test makes every assertion itself. */
 function observe(actual, expected, why) { observations.push({actual,expected,why}); }
 const key = 'private-view-sign-in-fixture';
-const view = await serveView({secret:key});
-const other = await serveView({secret:key});
-const scoped = await serveView({secret:key,projectRoot:${JSON.stringify(box.root)}});
+const view = await serveView({secret:key,runCommand:nativeTestMain});
+const other = await serveView({secret:key,runCommand:nativeTestMain});
+const scoped = await serveView({secret:key,runCommand:nativeTestMain,projectRoot:${JSON.stringify(box.root)}});
 /** Send one real HTTP request with explicit Host, origin and header fields. */
 function call(server, {method='GET', headers={}, body, query=''}={}) {
   const address = new URL('/api/v1/view-link'+query, server.url);

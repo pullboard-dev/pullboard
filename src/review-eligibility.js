@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from './family-declaration.js';
 import { committedItemAuthors } from './review-independence.js';
@@ -15,7 +16,7 @@ import { Refused } from './refused.js';
 
 /** Return the first rule failing in the same order as the native review guards. */
 export function eligibilityProblem(board, item, agent, { policy = 'any', familyPolicy = 'off' } = {}) {
-  const identity = itemAuthorProblem(board, item, agent.agent_id, { committedItemAuthors, twoTierReviews, strictReviewProblem: strictAuthorProblem });
+  const identity = itemAuthorProblem(board, item, agent.agent_id, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem: strictAuthorProblem });
   if (identity) return identity;
   if (!canTake(agent.agent_route ?? 'strong', item.item_route)) return new Refused('ROUTE', 'this seat route does not cover the item');
   if (policy === 'coordinator' && item.item_lane !== 'coordinator' && agent.agent_id !== 'coordinator') return new Refused('COORDINATOR_VERIFIES', 'this board has the coordinator verify lane work');
