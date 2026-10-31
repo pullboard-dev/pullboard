@@ -43,6 +43,60 @@ function hold({ root, main }, commit) {
   return holdDoctrine(root, { mainCommit: main, commit, timeoutMs: 60000 });
 }
 
+/** Move the body while retaining a shim, which Git reports as a copy rather than a rename. */
+function shimMove(box, shim, body = OLD) {
+  mkdirSync(join(box.root, 'web', 'moved'));
+  writeFileSync(join(box.root, 'web', 'moved', 'old.html'), body);
+  writeFileSync(join(box.root, 'web', 'old.html'), shim);
+  return commitAll(box.root, 'refactor: move the page behind a shim');
+}
+
+/** A shim must not grant a moved file a larger per-file allowance. */
+function refusesMovedGrowth(box, commit, gained, before) {
+  assert.throws(() => hold(box, commit), (error) => error.code === 'RATCHET_ROSE'
+    && error.message.includes(`web/moved/old.html gains ${gained} problem${gained === 1 ? '' : 's'}, had ${before}`));
+}
+
+test('a body moved behind a re-export shim keeps its original problems [D1,D3]', () => {
+  for (const shim of [
+    "export * from './moved/old.html';\n",
+    "/* compatibility */ export { one, two as alias, } from './moved/old.html'; // no body\n",
+    "export * as page from './moved/old.html';\nexport { default } from './moved/old.html';\n",
+  ]) {
+    const box = repo();
+    const commit = shimMove(box, shim);
+    assert.match(git(box.root, 'diff', '--name-status', '--find-copies', box.main, commit), /C\d+\s+web\/old.html\s+web\/moved\/old.html/u);
+    const [result] = hold(box, commit);
+    assert.equal(result.count, 4);
+    assert.equal(result.holds, true);
+  }
+});
+
+test('a shim move that gains a problem still refuses below the total ceiling [D1,D3]', () => {
+  const box = repo();
+  writeFileSync(join(box.root, 'web', 'other.html'), 'done\n');
+  const commit = shimMove(box, "export * from './moved/old.html';\n", `${OLD}TODO e\n`);
+  refusesMovedGrowth(box, commit, 1, 3);
+});
+
+test('a copied body whose origin remains executable gets no inherited allowance [D1,D3]', () => {
+  for (const origin of [
+    OLD,
+    `${OLD}one more harmless line\n`,
+    "export * from './moved/old.html';\nexport const executable = 1;\n",
+    "export * from './moved/old.html';\nimport './side-effect.js';\n",
+    "export * from './moved/old.html';\nconst hidden = '/*'; console.log(hidden); // */\n",
+    '',
+  ]) {
+    const box = repo();
+    // Keep the aggregate count below its ceiling even for an actual duplicate.
+    const short = OLD.replace('TODO b\nTODO c\n', 'done\ndone\n');
+    writeFileSync(join(box.root, 'web', 'other.html'), 'done\n');
+    const commit = shimMove(box, origin, short);
+    refusesMovedGrowth(box, commit, 1, 0);
+  }
+});
+
 test('a renamed file with the same problems passes against its origin [D1,D3]', () => {
   const box = repo();
   mkdirSync(join(box.root, 'web', 'moved'));
