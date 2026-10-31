@@ -3,8 +3,8 @@ import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { engineBindings } from '../packages/state/core.js';
-import { lex } from '../src/js-lex.js';
-import { Refused } from '../src/refused.js';
+import { lex } from '../packages/kernel/index.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const SUPPORT = new Set(['src/engine-next.js', 'src/engine-numbers.js']);
 const HISTORY = /^src\/move-history\/(?:legacy|[1-9][0-9]*)\.json$/u;

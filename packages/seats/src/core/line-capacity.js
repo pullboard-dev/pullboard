@@ -3,7 +3,7 @@ import { ENGINE_VERSION } from '../../../../src/machine.js';
 import { LINE_CAPACITY_ENGINE } from '../../../../src/line-capacity-engine.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 import { flowWindowBounds } from './flow-window-bounds.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import {
   ACTIVE_REVIEWER_WINDOW_MINUTES,
   lineWipLimit,

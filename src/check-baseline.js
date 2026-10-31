@@ -19,7 +19,7 @@ import {
 } from './git.js';
 import { runShell } from './shell-run.js';
 import { mappedCheck } from '../packages/codemap/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Capture the command and coordinator commit once on the sender; replay only receives this observation.

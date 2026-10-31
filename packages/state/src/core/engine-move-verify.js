@@ -1,4 +1,4 @@
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** An outside sandbox verdict carries its bound outside receipt [H16]. */
 export function prepareAfter(board, values, { ports }) {

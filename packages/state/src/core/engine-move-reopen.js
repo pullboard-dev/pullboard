@@ -1,5 +1,5 @@
 import { manualLandingFailureQuoted } from './manual-landing-failure-quoted.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Compute an automatic conflict return's arguments before anything is copied or sealed. */
 export function prepareArgs(board, args, { ports }) { return ports.computedReturnArgs(board, args); }

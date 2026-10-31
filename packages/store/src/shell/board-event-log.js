@@ -5,7 +5,7 @@ import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
 /** Append native events and their rebuildable proof projection in the same transaction [R2]. */
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { writeSync } from 'node:fs';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { agentModel } from "./board-query.js";
 import { appendProofCounter } from "../../../../src/proof-counters.js";
 import { ensureProofCounters } from "../../../../src/proof-counters.js";

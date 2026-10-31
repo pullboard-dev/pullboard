@@ -3,7 +3,7 @@ import * as store from '../../../../src/board.js';
 import { budgetInbox } from '../core/inbox-budget.js';
 import { readActivityDelivery } from '../core/activity-delivery-read.js';
 import { handoffMoveProblem } from '../../../state/src/core/handoff-state.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   activityMainFiles,
   activityWorkingFiles,

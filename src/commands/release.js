@@ -2,7 +2,7 @@ import { relayRecovered } from '../relay.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { prepareStaleObservation } from '../../packages/health/index.js';
 import { staleReleaseNote } from '../board-stale-state-policy.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../release-reasons.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';

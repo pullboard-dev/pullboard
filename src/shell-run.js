@@ -26,7 +26,7 @@ import {
   readStages,
   stagedScript,
 } from './gate-stages.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { sandboxBlockedOperation } from './sandbox-denial.js';
 
 /**

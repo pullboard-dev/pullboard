@@ -1,5 +1,5 @@
 import { rejectedWorkReturns } from '../../index.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Freeze local liveness only at the authenticated sender; receivers replay this observation. */
 export function prepareAfter(board, values, { ports }) {

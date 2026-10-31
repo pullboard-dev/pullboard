@@ -30,7 +30,7 @@ import { COORDINATOR } from "../../../../src/config.js";
 import { itemFiles } from "../../../../src/item-files.js";
 import { parseSpec } from "../../../../src/spec.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 export { closeBoard, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
 export { stats } from "../core/board-stats.js";

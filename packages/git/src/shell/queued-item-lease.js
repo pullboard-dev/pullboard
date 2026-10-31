@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { headCommit } from "./git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Keep only this queued command's live item lease, using ordinary ordered board moves. */
 export function createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem, withBoard, ordered, claimFreezer, gateWaitReporter }) {

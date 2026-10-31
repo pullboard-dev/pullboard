@@ -7,7 +7,7 @@ import {
   isClean,
   untracked,
 } from "../../../../src/git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Accept only a bound sandbox result; rejection does not execute contributed programs. */
 export async function outsideVerdict(ctx, board, item, me, decision, values, ports) {

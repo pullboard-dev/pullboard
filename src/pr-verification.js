@@ -1,6 +1,6 @@
 /** Publish only exact native independent review coverage, never a PR author's proof claims [B3,R3]. */
 import { refuseGrafts } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { readProofGraph } from './pr-proof-graph.js';
 import { capturePrProof } from './pr-proof-snapshot.js';
 

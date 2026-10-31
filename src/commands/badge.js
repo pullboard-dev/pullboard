@@ -3,7 +3,7 @@ import { badgeCounts } from '../badge.js';
 import { writeBadges } from '../badge.js';
 import { context } from '../cli.js';
 import { withBoardRead } from '../cli.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Run `pullboard badge` without modifying the board or contacting a badge service. */
 export function run(io, { first }) {

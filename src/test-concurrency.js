@@ -6,7 +6,7 @@ import {
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { availableParallelism } from 'node:os';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Detect the performance-core budget on Apple Silicon, or the runtime's usable CPU budget elsewhere. */
 export function performanceCores() {

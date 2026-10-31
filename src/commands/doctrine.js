@@ -14,7 +14,7 @@ import {
 } from '../gate.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   context,
   resourceAgent,

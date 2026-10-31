@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/core.js';
 import { recordedRefusal, refusalFromReceipt, RECORDED_GENERIC_NEXT } from '../src/recorded-refusal.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { commandOutput as lightCommandOutput } from '../src/json-output.js';

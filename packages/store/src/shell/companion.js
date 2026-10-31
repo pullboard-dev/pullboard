@@ -6,7 +6,7 @@ import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { COMPANION_ENGINE } from "../../../../src/companion-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Plan a request without writes; the same validation runs again inside its creation transaction. */
 export function companionPlan(board, options, validateAddition) {

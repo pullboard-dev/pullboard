@@ -12,7 +12,7 @@ import { selectAffectedTests } from '../src/affected-tests.js';
 import { browserBoundFiles } from '../src/browser-admission.js';
 import { testsNeedGui } from '../src/gui-admission.js';
 import { importsIn } from '../src/module-imports.js';
-import { lex } from '../src/js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { packageFiles } from '../src/package-files.js';
 import { copyPackageSubset } from './package-copy-fixture.js';

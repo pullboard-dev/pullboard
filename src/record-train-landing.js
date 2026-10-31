@@ -7,7 +7,7 @@ import { landingBatches } from './board.js';
 import { recordLandingBatch } from './board.js';
 import { COORDINATOR } from './config.js';
 import { ENGINE_VERSION } from './machine.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { receiptBody } from './gate-run-receipt.js';
 import { checkTrainLandingReceipt } from './train-landing-receipt.js';
 import { TRAIN_LANDING_ENGINE } from './train-landing-engine.js';

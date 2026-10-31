@@ -1,5 +1,5 @@
 /** Find executable source-relative runtime files without treating generated programs as dependencies [C7,P3]. */
-import { lex } from './js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 import { importsIn } from './module-imports.js';
 
 /** Return literal runtime edges, or null when a two-argument URL cannot be resolved safely. */

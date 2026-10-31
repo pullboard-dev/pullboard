@@ -7,7 +7,7 @@ import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Hash exact bytes, without newline or text normalization. */
 function sha(bytes) { return createHash('sha256').update(bytes).digest('hex'); }

@@ -1,4 +1,4 @@
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
 import * as rawStore from "./board.js";

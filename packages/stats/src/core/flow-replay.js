@@ -1,5 +1,5 @@
 /** Deterministic scheduling of observed intervals; predictions are not measurements of an alternate live queue. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import {
   ACTIVE_REVIEWER_WINDOW_MINUTES,
   lineWipLimit,

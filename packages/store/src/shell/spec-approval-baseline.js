@@ -10,7 +10,7 @@ import {
   atomic,
   logEvent,
 } from "./board.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { parseSpec } from "../../../../src/spec.js";
 import { COORDINATOR } from "../../../../src/config.js";
 

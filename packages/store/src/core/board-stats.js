@@ -1,6 +1,6 @@
 /** Item status and verdict totals for board summaries. */
 import { NEXT_IDLE_ENGINE } from "../../../../src/next-idle-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 /**
  * Counts for the status line and the ledger's summary: items by status, verdicts by decision.

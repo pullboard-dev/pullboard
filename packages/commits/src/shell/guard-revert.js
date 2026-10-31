@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 const GUARD = /\bguard:\s+(?:patch\s+(\S+)|(\S+?):(\d+)-(\d+))/u;
 

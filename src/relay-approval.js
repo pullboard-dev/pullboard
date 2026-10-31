@@ -1,6 +1,6 @@
 /** Client-only encrypted phone approval and RAM-only native replies [H5,H16,H17,B26]. */
 import { devicePublicKey } from './relay-device-keys.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const encoder = new TextEncoder();
 const FIELDS = ['id', 'account', 'publisher', 'board', 'device', 'action', 'target', 'machine', 'command', 'expires'];

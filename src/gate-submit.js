@@ -29,7 +29,7 @@ import {
 } from './git.js';
 import {
   Refused,
-} from './refused.js';
+} from '../packages/kernel/index.js';
 import {
   missingGate,
 } from './gate-config.js';
@@ -44,7 +44,7 @@ import {
 } from './affected-tests.js';
 import {
   selectRegistryGuards,
-} from './registry-guards.js';
+} from '../packages/kernel/index.js';
 import {
   checkNeedsBrowser,
   testsNeedBrowser,

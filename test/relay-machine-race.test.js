@@ -131,7 +131,7 @@ test('a raced native request receipt returns its sender refusal and clears pendi
     import { readFileSync } from 'node:fs';
     import { join } from 'node:path';
     import { relayOperation, syncRelay } from ${JSON.stringify(RELAY_MODULE)};
-    import { Refused } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/refused.js')).href)};
+    import { Refused } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/kernel/index.js')).href)};
     const root = process.cwd();
     const sink = { write() {} };
     const io = { cwd: root, stdout: sink, stderr: sink, say() {}, err() {}, onEvent() {} };

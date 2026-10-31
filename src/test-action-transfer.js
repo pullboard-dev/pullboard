@@ -5,7 +5,7 @@ import {
   resolve,
 } from 'node:path';
 import { gateStages } from './gate-stages.js';
-import { literalShellWords } from './literal-shell-words.js';
+import { literalShellWords } from '../packages/kernel/index.js';
 import {
   testActionKeys,
   testResultStore,

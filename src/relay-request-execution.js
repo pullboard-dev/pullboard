@@ -12,7 +12,7 @@ import {
   repoInfo,
 } from './git.js';
 import { laneNames } from './lanes.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   relayLinked,
   relayOperation,

@@ -4,7 +4,7 @@
  * the relay enrolled it, and its machine lineage. Verifier standing on a linked board (#579) is
  * decided here from that line of creators. board.js registers seats; the store's board queries own the agent readers.
  */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { agentParent } from '../core/seat-parent.js';
 
 /** The board's coordinator hold travels with its seats: one main checkout coordinates a linked board (#347). */

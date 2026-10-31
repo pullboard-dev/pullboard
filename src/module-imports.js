@@ -8,7 +8,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { lex } from './js-lex.js';
+import { lex } from '../packages/kernel/index.js';
 
 /**
  * A child Node that compiles each source in its private input file as an ES module and reports, for each, whether

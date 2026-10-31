@@ -17,7 +17,7 @@ import {
   hasSignerFile,
   verifySignedRecords,
 } from './signature.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   CONFIG_FILE,
   configFromSource,

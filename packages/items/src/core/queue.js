@@ -8,7 +8,7 @@ import { itemWaits } from "../../../../src/queue-readiness.js";
  * next cannot disagree. Each item also shows its unblock count, effort and why it sits where it does (#1017).
  * It is for agents and coordinators; the person reads the Roadmap instead.
  */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import {
   milestoneRanks,
   queueReasons,

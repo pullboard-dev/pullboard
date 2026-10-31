@@ -14,7 +14,7 @@ import { sessionSource } from './cost-session.js';
 import { usageDifference } from './cost-session.js';
 import { sharedBefore } from './cost-shared-ledger.js';
 import { sharedAfter } from './cost-shared-ledger.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { SPLIT_COUNTS } from './cost-read.js';
 import { unknownInputSplit } from './cost-read.js';
 

@@ -11,7 +11,7 @@ import { sep } from 'node:path';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { performance } from 'node:perf_hooks';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { sentinels } from './sentinels.js';
 import { gitChildEnv } from './git.js';
 import { mainCheckout } from './git.js';

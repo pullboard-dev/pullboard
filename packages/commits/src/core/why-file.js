@@ -6,7 +6,7 @@
  */
 import { tryGit } from "../../../../src/git.js";
 import { mainCheckout } from "../../../../src/git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { originOf } from "./decision-origin.js";
 import {
   historicalPaths,

@@ -1,5 +1,5 @@
 /** When a relay failure may let a local board move commit without the relay (#919, #341). */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Whether the relay has definitely not accepted this board's first snapshot, so no ordered history exists to protect.

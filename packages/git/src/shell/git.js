@@ -26,7 +26,7 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { removeGitRepositorySelectors } from '../core/git-child-selectors.js';
 
 const GIT_FLAGS = ['--no-replace-objects', '-c', 'core.quotepath=false'];

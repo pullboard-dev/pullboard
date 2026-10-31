@@ -24,7 +24,7 @@ import { scrubLegacyPersonSessions } from './relay-key.js';
 import { approvalContext } from './relay-approval.js';
 import { createPairingCode } from './pairing.js';
 import { relayMachineDirectory } from './local-state.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const DEVICE = /^device-[0-9a-f]{32}$/u;
 

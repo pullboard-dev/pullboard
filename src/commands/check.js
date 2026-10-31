@@ -29,7 +29,7 @@ import {
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import * as seatCheckout from '../seat-checkout.js';
 import {
   browserFreeChecksEnabled,

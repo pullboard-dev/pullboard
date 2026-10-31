@@ -14,7 +14,7 @@ import {
 import { validateRunner } from '../core/settings-read.js';
 import { loadMachineSettings } from '../core/settings-read.js';
 export { loadMachineSettings };
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { relayCanaryConfig } from '../core/settings-read.js';
 import {
   DEFAULT_RUNNER_WAIT_MS,

@@ -7,7 +7,7 @@ import { COORDINATOR } from '../config.js';
 import { displayAgentName } from '../agent-names.js';
 import { mainCheckout } from '../git.js';
 import { tryGit } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 import { landingRemote } from '../land.js';
 import { handMergeCommand } from '../landing-message.js';
 import { primaryCheckoutRoot } from './worktree.js';

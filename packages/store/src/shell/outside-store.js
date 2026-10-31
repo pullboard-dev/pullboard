@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { logEvent } from "./board-event-log.js";
 import { itemById } from "./board-query.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import {
   outsideSource,
   saveOutsideSource,

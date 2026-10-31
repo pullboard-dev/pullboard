@@ -15,7 +15,7 @@ import {
 } from 'node:path';
 import { testsNeedBrowser } from './browser-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
-import { selectRegistryGuards } from './registry-guards.js';
+import { selectRegistryGuards } from '../packages/kernel/index.js';
 import { mainPolicy } from './trusted-policy-read.js';
 import {
   runProfiledShellAsync,
@@ -30,7 +30,7 @@ import {
   projectNeedsGui,
   testsNeedGui,
 } from './gui-admission.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { runnerSource } from './gate-policy-load.js';
 import {
   retainTestOutput,

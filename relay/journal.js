@@ -10,7 +10,7 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { SEALED_SNAPSHOT_BYTES } from '../src/relay-limits.js';
 import { createRelayPages } from './page-store.js';
 

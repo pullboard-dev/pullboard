@@ -8,7 +8,7 @@ import { outOfLane } from "../../../../src/lanes.js";
 import { contains } from "../../../../src/git.js";
 import { git } from "../../../../src/git.js";
 import { differFromHead } from "../../../../src/git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /** Enforce the native source author's lane for every actual patch path. */
 function authorPaths(board, config, author, paths, policyCommit) {

@@ -1,5 +1,5 @@
 /** Fixed version-6/L byte-mode QR symbols for device pairing links [H1,H17]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 /** Multiply in QR's GF(256), with the primitive polynomial x^8+x^4+x^3+x^2+1. */
 function multiply(a, b) {

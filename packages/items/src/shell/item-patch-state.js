@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { ITEM_PATCH_ENGINE } from "../../../../src/item-patch-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 const PREFIX = 'item_patches:';
 /** Hash canonical native metadata identically on every replica. */
 function hash(value) { return createHash('sha256').update(value, 'utf8').digest('hex'); }
