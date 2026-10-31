@@ -1,4 +1,5 @@
-/** @pullboard-test-input source-tree package.json */
+/** @pullboard-test-input source-tree */
+/** @pullboard-test-input package.json */
 /** The exact conflict shim exception preserves accepted move discovery dependencies [C7,CD60,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
