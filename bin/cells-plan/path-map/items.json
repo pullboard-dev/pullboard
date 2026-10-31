@@ -1,4 +1,9 @@
 {
+  "src/item-fields.js": "packages/items/src/core/item-fields.js",
+  "src/item-sessions.js": "packages/items/src/shell/item-sessions.js",
+  "src/outside-proof.js": "packages/items/src/shell/outside-proof.js",
   "src/outside-sensitive.js": "packages/items/src/core/outside-sensitive.js",
-  "src/outside-source.js": "packages/items/src/core/outside-source.js"
+  "src/outside-source.js": "packages/items/src/core/outside-source.js",
+  "src/reopen-history.js": "packages/items/src/core/reopen-history.js",
+  "src/submit-wait.js": "packages/items/src/shell/submit-wait.js"
 }
