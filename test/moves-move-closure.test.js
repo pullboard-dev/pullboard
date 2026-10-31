@@ -20,7 +20,7 @@ const SHIMS = {
 };
 
 /** Read the real literal relative closure of every board-move declaration, keyed by canonical old identity. */
-function closure(read, identities) {
+function closure(read, identities, opaque = null) {
   const pending = readdirSync(join(ROOT, 'src/moves')).filter(file => file.endsWith('.js')).map(file => `src/moves/${file}`);
   const seen = new Set();
   while (pending.length) {
@@ -30,6 +30,7 @@ function closure(read, identities) {
     assert.match(file, /\.[cm]?js$/u, 'every executable dependency is a JavaScript module');
     for (const specifier of importsIn([read(file)])[0]) {
       if (specifier.startsWith('node:')) continue;
+      if (opaque && specifier === '(computed)') { opaque.add(file); continue; }
       assert.ok(specifier.startsWith('.'), `literal relative move dependency: ${specifier}`);
       pending.push(posix.normalize(posix.join(posix.dirname(file), specifier)));
     }
@@ -52,8 +53,10 @@ test('exact moves shims add no registry loader to the move declaration closure; 
   assert.ok(after.includes('src/bar-ready-setting.js') && after.includes('src/moves/reopen.js'), 'the shimmed leaves stay in the closure');
   assert.ok(!after.includes('src/move-registry.js'), 'the registry loader is not reached by any move declaration');
   assert.ok(!after.includes('packages/moves/index.js'), 'the front door is not reached by any move declaration');
+  const opaque = new Set();
   const broad = closure(file => file === 'src/bar-ready-setting.js'
-    ? "export * from '../packages/moves/index.js';\n" : read(file), identities);
+    ? "export * from '../packages/moves/index.js';\n" : read(file), identities, opaque);
   assert.notDeepEqual(broad, after, 'the front door cannot substitute for the approved exact shim');
   assert.ok(broad.includes('src/move-registry.js'), 'the negative control reaches the registry loader');
+  assert.deepEqual([...opaque], ['packages/moves/src/shell/move-registry.js'], 'the control reaches the registry computed loader');
 });
