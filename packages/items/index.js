@@ -23,3 +23,4 @@ export { readResumeSources } from './src/shell/resume-sources.js';
 export { landingFileTimes, invariantEvidence, submitInvariantProposals, submitInvariantLine, validateLandingBatch, preserveInvariantEvidence, validateLandingRevision } from './src/core/submit-invariants.js';
 export { requirePlannedSource, submitPreflight } from './src/core/submit-preflight.js';
 export { applyItemHold, applyItemHoldRelease } from './src/core/item-holds.js';
+export { reopenAuthority } from './src/core/reopen-authority.js';

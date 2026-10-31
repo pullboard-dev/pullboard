@@ -33,3 +33,5 @@ export { ITEM_NOTES_ENGINE } from '../../src/item-notes-engine.js';
 export { CRITICAL_PATH_ENGINE } from '../../src/critical-path-engine.js';
 export { SUBMISSION_PROOF_ENGINE } from '../../src/move-engine-constants.js';
 export { RIGOR_AUTO_ENGINE } from '../../src/rigor-auto-engine.js';
+export { AGENT_GRANT_ENGINE } from '../../src/agent-grant-engine.js';
+export { SUBMITTED_CONFLICT_ENGINE } from '../../src/submitted-conflict-engine.js';

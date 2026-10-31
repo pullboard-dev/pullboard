@@ -11,6 +11,7 @@
   "src/outside-proof.js": "packages/items/src/shell/outside-proof.js",
   "src/outside-sensitive.js": "packages/items/src/core/outside-sensitive.js",
   "src/outside-source.js": "packages/items/src/core/outside-source.js",
+  "src/reopen-authority.js": "packages/items/src/core/reopen-authority.js",
   "src/reopen-cause.js": "packages/items/src/core/reopen-cause.js",
   "src/reopen-history.js": "packages/items/src/core/reopen-history.js",
   "src/resume-sources.js": "packages/items/src/shell/resume-sources.js",
