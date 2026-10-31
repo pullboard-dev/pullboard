@@ -4,3 +4,6 @@ export { MECHANICAL_VERSION, formatJson, mechanicalConflictFiles, resolveMechani
 export { mergeMechanicalSources, resolveMechanicalMerge } from './src/shell/train-mechanical-merge.js';
 export { trunkMerge, recordedTrunkMerge, refuseRecordedHistoryOverrides } from './src/shell/trunk-merge.js';
 export { preparedSourceComposition, sourceConflictFiles, withSourceComposition } from './src/shell/source-advance-compose.js';
+export { captureMergeOnly, deriveMergeOnly } from './src/shell/merge-only-source.js';
+export { prepareMergeOnlySubmit } from './src/shell/merge-only-submit.js';
+export { mergeOnlyBasis, mergeOnlyProblem, mergeOnlySourceValid, mergeOnlyLandingProblem } from './src/shell/merge-only-verdict.js';
