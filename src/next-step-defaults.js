@@ -31,6 +31,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   PUBLIC_EXPORT_BLOCKED: 'remove the blocked public text the refusal names, or run pullboard view --export <dir> without --public for a private snapshot; never publish the refused snapshot',
   PUBLIC_EXPORT_UNAVAILABLE: 'upgrade Pullboard to a build whose view export declares the checked public filter, or run pullboard view --export <dir> without --public for a private snapshot',
   SUBMISSION_CHANGED: 'run pullboard show <id> to inspect its current submission attempt and verdict; do not resubmit an acknowledged attempt',
+  SUBMISSION_WAIT_TIMEOUT: 'run pullboard show <id> to read its pending review; the completed gate remains submitted, so do not resubmit it',
   ITEM_PATCH: 'inspect the native patches with pullboard patch list <item>; ask the coordinator to replace unsafe or conflicting input',
   "NO_PUSH_SMOKE": "record an explicit short pushReceiptCheck.smoke command in accepted pullboard.json, then retry the additive receipt check",
   "PUSH_SOURCE_CHANGED": "commit or restore the intended push source and accepted policy, then check the push again",
