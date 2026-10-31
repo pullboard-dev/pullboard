@@ -1,11 +1,27 @@
 /** Real Git ancestry and explicitly synthetic frozen-policy records preserve lane authority [L3,V4]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { test } from 'node:test';
-import { submissionPaths } from '../src/trusted-policy.js';
-import { runFixtureGit } from './fixture-child.js';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  tmpdir,
+} from 'node:os';
+import {
+  dirname,
+  join,
+} from 'node:path';
+import {
+  test,
+} from 'node:test';
+import {
+  submissionPaths,
+} from '../src/shell/trusted-policy.js';
+import {
+  runFixtureGit,
+} from '../../../test/fixture-child.js';
 
 /** Build only private Git objects: no board, agent, claim, gate receipt or verifier identity is fabricated. */
 function ancestry(t) {

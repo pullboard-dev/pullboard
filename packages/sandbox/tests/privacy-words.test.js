@@ -5,25 +5,55 @@
  * history is not rewritten; the commit check reads only the range a push would send.
  */
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { dirname } from 'node:path';
-import { mkdirSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
-import { realpathSync } from 'node:fs';
-import { rmSync } from 'node:fs';
-import { writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { hostname } from 'node:os';
-import { networkInterfaces } from 'node:os';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { resolve } from 'node:path';
-import { test } from 'node:test';
+import {
+  execFileSync,
+} from 'node:child_process';
+import {
+  dirname,
+} from 'node:path';
+import {
+  mkdirSync,
+} from 'node:fs';
+import {
+  mkdtempSync,
+} from 'node:fs';
+import {
+  readFileSync,
+} from 'node:fs';
+import {
+  realpathSync,
+} from 'node:fs';
+import {
+  rmSync,
+} from 'node:fs';
+import {
+  writeFileSync,
+} from 'node:fs';
+import {
+  homedir,
+} from 'node:os';
+import {
+  hostname,
+} from 'node:os';
+import {
+  networkInterfaces,
+} from 'node:os';
+import {
+  tmpdir,
+} from 'node:os';
+import {
+  join,
+} from 'node:path';
+import {
+  resolve,
+} from 'node:path';
+import {
+  test,
+} from 'node:test';
 
-const ROOT = resolve(import.meta.dirname, '..');
+const ROOT = resolve(import.meta.dirname, '../../..');
 /** The files that hold these patterns to test them; every other tracked file is scanned. */
-const PATTERN_HOLDERS = new Set(['test/privacy-words.test.js', 'docs/privacy.test.js', 'test/privacy-scan-guard.test.js']);
+const PATTERN_HOLDERS = new Set(['packages/sandbox/tests/privacy-words.test.js', 'docs/privacy.test.js', 'test/privacy-scan-guard.test.js']);
 /** Placeholder home folders that tests plant on purpose to prove redaction. */
 const PLACEHOLDER_HOMES = new Set(['private', 'example', 'person', 'user', 'me', 'you', 'name']);
 /** The one exact container-home declaration that is not a host user's home path. */
@@ -65,7 +95,7 @@ function problemsIn(text, where, active) {
 
 /** Recognize only the declared sandbox container-home constant, never other uses of that path. */
 function isContainerHomeDeclaration(path, line) {
-  return path === 'src/sandbox-verify.js' && line === CONTAINER_HOME_DECLARATION;
+  return path === 'packages/sandbox/src/shell/sandbox-verify.js' && line === CONTAINER_HOME_DECLARATION;
 }
 
 /**
@@ -150,8 +180,8 @@ test('each privacy rule refuses a planted case in a tracked file and in a commit
 });
 
 test('only the declared sandbox container home is exempted while a real source home is still caught [C7]', (t) => {
-  const source = readFileSync(join(ROOT, 'src/sandbox-verify.js'), 'utf8');
-  const declarations = source.split('\n').filter(line => isContainerHomeDeclaration('src/sandbox-verify.js', line));
+  const source = readFileSync(join(ROOT, 'packages/sandbox/src/shell/sandbox-verify.js'), 'utf8');
+  const declarations = source.split('\n').filter(line => isContainerHomeDeclaration('packages/sandbox/src/shell/sandbox-verify.js', line));
   assert.equal(declarations.length, 1, 'the container home is declared exactly once');
   const realHome = planted(t, { file: "const privatePath = '/Users/fixture-owner/project';\n", filePath: 'src/privacy-probe.js' });
   assert.deepEqual(privacyProblems(realHome.root, { range: realHome.range, machine: STAND_IN }),
