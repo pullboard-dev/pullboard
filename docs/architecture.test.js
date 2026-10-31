@@ -126,10 +126,10 @@ test('the architecture page names every relay table and credential prefix the co
 });
 
 test('every file and function the architecture page cites exists in the code [H7]', () => {
-  const paths = [...PAGE.matchAll(/`((?:src|relay|test|docs)\/[A-Za-z0-9_./-]+\.(?:js|mjs|md))`/gu)].map(match => match[1]);
+  const paths = [...PAGE.matchAll(/`((?:src|relay|test|docs|packages)\/[A-Za-z0-9_./-]+\.(?:js|mjs|md))`/gu)].map(match => match[1]);
   assert.ok(paths.length > 10, 'the page cites the code it describes');
   for (const path of new Set(paths)) assert.ok(existsSync(join(ROOT, path)), `the page cites ${path}, which exists`);
-  const citations = [...PAGE.matchAll(/`([A-Za-z_][A-Za-z0-9_]*)`(?: and `([A-Za-z_][A-Za-z0-9_]*)`)? in `((?:src|relay)\/[A-Za-z0-9_./-]+\.m?js)`/gu)];
+  const citations = [...PAGE.matchAll(/`([A-Za-z_][A-Za-z0-9_]*)`(?: and `([A-Za-z_][A-Za-z0-9_]*)`)? in `((?:src|relay|packages)\/[A-Za-z0-9_./-]+\.m?js)`/gu)];
   assert.ok(citations.length > 10, 'the page names the functions behind its claims');
   for (const [, first, second, path] of citations) {
     const source = readFileSync(join(ROOT, path), 'utf8');

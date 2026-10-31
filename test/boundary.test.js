@@ -37,12 +37,12 @@ test('the core names no model, engine or vendor; secret patterns may name the ke
 });
 
 test('only explicit relay commands open outbound connections; the view defaults to loopback and API stays loopback [P5, H15, H17, H19, N26, A2]', () => {
-  const allowed = (file, line) => file === 'src/relay.js' ||
+  const allowed = (file, line) => file === 'packages/link/src/shell/relay.js' ||
     (file === 'packages/keys/src/shell/relay-pairing-client.js' && line.trim() === 'response = await fetch(new URL(path, url), {') ||
     // A board that signs person moves reads its linked relay's person authority, the relay link it already holds (#408).
     (file === 'src/person-signing-cli.js' && line.trim() === "const response = await fetch(new URL(AUTHORITY_PATH, origin), { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });") ||
     // relay on's key hand-over reads a person's public SSH keys from GitHub itself, so the relay cannot add one [E17].
-    (file === 'src/relay-handover.js' && line.trim() === "const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),") ||
+    (file === 'packages/link/src/shell/relay-handover.js' && line.trim() === "const response = await fetch(new URL('users/' + encodeURIComponent(login) + '/keys', base.href.endsWith('/') ? base : base.href + '/'),") ||
     (['src/serve.js', 'src/api.js'].includes(file) && line.trim() === "import { createServer } from 'node:http';") ||
     (file === 'packages/sync/src/shell/local-fetch.js' && line.trim() === "import { request as httpRequest } from 'node:http';") ||
     (file === 'src/serve.js' && line.trim() === "const reply = await fetch(address.origin + path, { headers: { 'x-pullboard-key': address.searchParams.get('k') } });") ||
@@ -139,7 +139,7 @@ assert.deepEqual(globalThis.__localFetchRequests, [
   const viewSession = readFileSync(join(ROOT, 'src', 'view-session.js'), 'utf8');
   assert.match(viewSession, /import\s*\{\s*LOOPBACK\s*,\s*lastPort\s*,?\s*\}\s*from '\.\/serve\.js';/);
   assert.match(viewSession, /redirect: 'manual'/, 'the local reuse probe cannot follow a remote redirect');
-  const api = readFileSync(join(ROOT, 'src', 'api.js'), 'utf8');
+  const api = readFileSync(join(ROOT, "packages/api/src/shell/api.js"), 'utf8');
   assert.match(api, /const ADDRESS = '127\.0\.0\.1';/);
   assert.match(api, /server\.listen\(port, ADDRESS, /);
   assert.match(serve, /connect-src 'self'/, "the page may call nothing but its own server");

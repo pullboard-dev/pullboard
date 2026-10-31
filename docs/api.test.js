@@ -72,7 +72,7 @@ function expandRouteAlternatives(path) {
 function routedV1Paths() {
   const sources = [
     readFileSync(new URL('../src/serve.js', import.meta.url), 'utf8'),
-    readFileSync(new URL('../src/api-http.js', import.meta.url), 'utf8'),
+    readFileSync(new URL("../packages/api/src/shell/api-http.js", import.meta.url), 'utf8'),
   ];
   const paths = new Set();
   for (const source of sources) {
