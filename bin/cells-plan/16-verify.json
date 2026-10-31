@@ -8,7 +8,6 @@
   ["src/review-default.js","packages/verify/src/shell/review-default.js","rule"],
   ["src/bar-actor.js","packages/verify/src/shell/bar-actor.js","seed"],
   ["src/bar-check.js","packages/verify/src/core/bar-check.js","seed"],
-  ["src/bar-corrections.js","packages/verify/src/shell/bar-corrections.js","seed"],
   ["src/bar-coverage.js","packages/verify/src/shell/bar-coverage.js","seed"],
   ["src/bar-readiness.js","packages/verify/src/shell/bar-readiness.js","seed"],
   ["src/check-accept.js","packages/verify/src/shell/check-accept.js","seed"],
@@ -47,7 +46,6 @@
  "reexports": [
   "src/bar-actor.js",
   "src/bar-check.js",
-  "src/bar-corrections.js",
   "src/bar-coverage.js",
   "src/bar-readiness.js",
   "src/check-accept.js",
