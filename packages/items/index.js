@@ -24,3 +24,4 @@ export { landingFileTimes, invariantEvidence, submitInvariantProposals, submitIn
 export { requirePlannedSource, submitPreflight } from './src/core/submit-preflight.js';
 export { applyItemHold, applyItemHoldRelease } from './src/core/item-holds.js';
 export { reopenAuthority } from './src/core/reopen-authority.js';
+export { openHandoff, takeHandoff } from './src/core/handoff.js';
