@@ -1,6 +1,6 @@
 /** Read the same derived snapshot for the CLI, briefing and view, without warming it [R1,R2]. */
-import { CAPACITY_VERSION } from './capacity-counter.js';
-import { planCapacity } from './capacity-model.js';
+import { CAPACITY_VERSION } from '../core/capacity-counter.js';
+import { planCapacity } from '../core/capacity-model.js';
 
 const STALE_MS = 30 * 60_000;
 

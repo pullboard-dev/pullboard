@@ -1,9 +1,9 @@
 /** Ordered shared-session counters without raw native identifiers or invented item splits [N2]. */
-import { COST_ENGINE } from './cost-engine.js';
+import { COST_ENGINE } from '../../../../src/cost-engine.js';
 import { sanitizedUsage } from './cost.js';
 import { sumUsage } from './cost-read.js';
-import { ENGINE_VERSION } from './machine.js';
-import { Refused } from './refused.js';
+import { ENGINE_VERSION } from '../../../../src/machine.js';
+import { Refused } from '../../../../src/refused.js';
 
 /** Read only sanitized public aliases and numeric counters, never private native session data. */
 export function sharedSessionTotals(board) {

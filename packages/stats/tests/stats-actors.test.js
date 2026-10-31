@@ -1,12 +1,19 @@
 /** Event statistics attribute only recorded actor-family evidence, never current declarations [R1,R2]. */
-import { events as readStatsEvents } from '../src/board.js';
-import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
+import { events as readStatsEvents } from '../../../src/board.js';
+import { counterProofStats as readStatsCounter } from '../../../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addItem, claim, closeBoard, events, register, release } from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
-import { eventCounts, proofStats } from '../src/stats.js';
+import { addItem } from '../../../src/board.js';
+import { claim } from '../../../src/board.js';
+import { closeBoard } from '../../../src/board.js';
+import { events } from '../../../src/board.js';
+import { register } from '../../../src/board.js';
+import { release } from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
+import { exportBoard } from '../../../src/exchange.js';
+import { importBoard } from '../../../src/exchange.js';
+import { eventCounts } from '../src/shell/stats.js';
+import { proofStats } from '../src/shell/stats.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };

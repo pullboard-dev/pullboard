@@ -1056,6 +1056,18 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/cost-engine.js",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "src/cost-input-split-engine.js",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "src/usage-batch-engine.js",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
       "path": "bin/cells-move-closure.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }
@@ -2706,6 +2718,30 @@
       "row": [
         "src/rework-same-family-engine.js",
         "packages/state/src/core/rework-same-family-engine.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "src/cost-engine.js",
+        "packages/stats/src/shell/cost-engine.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "src/cost-input-split-engine.js",
+        "packages/stats/src/shell/cost-input-split-engine.js",
+        "rule"
+      ]
+    },
+    {
+      "cell": "stats",
+      "row": [
+        "src/usage-batch-engine.js",
+        "packages/stats/src/shell/usage-batch-engine.js",
         "rule"
       ]
     }

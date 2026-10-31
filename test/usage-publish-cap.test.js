@@ -6,7 +6,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { itemCost } from '../src/cost-read.js';
+import { itemCost } from '../packages/stats/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();

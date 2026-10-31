@@ -14,7 +14,7 @@ import { buildLocalBoardState } from './native-board-state.js';
 import { stateFileInputs } from './native-board-state.js';
 import { fileRevision } from './native-board-state.js';
 import { WHOLE_STATE_DELTA_FIELDS } from './api-delta-fields.js';
-import { capacityAtRead } from './capacity-read.js';
+import { capacityAtRead } from '../packages/stats/index.js';
 import { nativeStateClockMatches } from './native-state-clock.js';
 import {
   dependencyValues,

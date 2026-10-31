@@ -1,17 +1,22 @@
 /** Hand-computed synthetic histories exercise real Git/SQLite statistics and each recommendation [R1,R2]. */
-import { events as readStatsEvents } from '../src/board.js';
-import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
+import { events as readStatsEvents } from '../../../src/board.js';
+import { counterProofStats as readStatsCounter } from '../../../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
-import { proofStats } from '../src/stats.js';
-import { flowLines, flowStats, prepareFlowHistory, projectFlowStats } from '../src/stats-flow.js';
-import { runFixtureGit } from './fixture-child.js';
+import * as store from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
+import { exportBoard } from '../../../src/exchange.js';
+import { importBoard } from '../../../src/exchange.js';
+import { proofStats } from '../src/shell/stats.js';
+import { flowLines } from '../src/core/stats-flow.js';
+import { flowStats } from '../src/core/stats-flow.js';
+import { prepareFlowHistory } from '../src/core/stats-flow.js';
+import { projectFlowStats } from '../src/core/stats-flow.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
