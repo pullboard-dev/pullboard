@@ -2,12 +2,31 @@
  * Private device key persistence and refusals [H1,H15,H17].
  */
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from "../../kernel/src/core/seal.js";
-import { forgetBoardKey, readBoardKey, storeBoardKey } from "../../../src/relay-key.js";
+import {
+  decodeBoardKey,
+  encodeBoardKey,
+  generateBoardKey,
+  seal,
+  unseal,
+} from "../../kernel/src/core/seal.js";
+import {
+  forgetBoardKey,
+  readBoardKey,
+  storeBoardKey,
+} from "../../../src/relay-key.js";
 
 /**
  * Give one test a private home and a PATH with no keychain executable, forcing the documented file fallback.

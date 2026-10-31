@@ -1,11 +1,28 @@
 /** Which lanes take which items: a lane that owns no files takes review items only [I1]. */
 import assert from 'node:assert/strict';
-import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from "../../../test/fixture-child.js";
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
+import {
+  runFixtureChild,
+  runFixtureGit,
+} from "../../../test/fixture-child.js";
+import {
+  AGENT_SHELL_MARKERS,
+  SSH_SHELL_MARKERS,
+} from "../../kernel/src/core/discovery.js";
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 

@@ -6,7 +6,10 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { relayClientFixture } from "../../../test/relay-client-fixture.js";
 import { preparePersonRequest } from "../src/core/person-request.js";
-import { decodeBoardKey, seal } from "../../kernel/src/core/seal.js";
+import {
+  decodeBoardKey,
+  seal,
+} from "../../kernel/src/core/seal.js";
 import { ENGINE_VERSION } from "../../../src/machine.js";
 
 const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../../../src/' + name + '.js')).href;

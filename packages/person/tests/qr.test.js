@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { qrModules, terminalQr } from "../src/core/qr.js";
+import {
+  qrModules,
+  terminalQr,
+} from "../src/core/qr.js";
 
 // Reference: Project Nayuki byte-mode, version 6, LOW, mask 0, no ECC boost.
 // https://github.com/nayuki/QR-Code-generator/blob/master/python/qrcodegen.py

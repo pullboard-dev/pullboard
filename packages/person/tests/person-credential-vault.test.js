@@ -2,10 +2,17 @@
 /** Real root-key recovery; the PRF input is synthetic, not a WebAuthn ceremony [H15]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+} from 'node:fs';
 import { test } from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { authenticatePersonEnrollment, createPersonRoot, sealAccountEnvelope } from "../src/core/person-enrollment.js";
+import {
+  authenticatePersonEnrollment,
+  createPersonRoot,
+  sealAccountEnvelope,
+} from "../src/core/person-enrollment.js";
 import { createDeviceKeys } from "../../../src/relay-device-keys.js";
 
 /** Open in an independent isolate that has never held the original private root. */

@@ -1,12 +1,33 @@
 /** Checkout-session ownership and takeover behavior [B3,B7]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn, fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from "../../../test/fixture-child.js";
+import {
+  startFixtureChild as spawn,
+  fixtureChildMessage,
+  reportFixtureChildFailure,
+  runFixtureChild,
+  runFixtureGit,
+} from "../../../test/fixture-child.js";
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { join, resolve } from 'node:path';
-import { after, test } from 'node:test';
+import {
+  join,
+  resolve,
+} from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { listResources } from "../../resources/index.js";
 import { SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
