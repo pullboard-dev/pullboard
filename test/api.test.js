@@ -1,6 +1,5 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { main as nativeTestMain } from './native-cli-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import { copyPackageFiles } from '../src/package-files.js';
@@ -26,7 +25,7 @@ import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { join, dirname, resolve, basename, delimiter } from 'node:path';
 import { after, test } from 'node:test';
-import { main } from './native-cli-fixture.js';
+import { main, main as nativeTestMain } from './native-cli-fixture.js';
 import { resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
