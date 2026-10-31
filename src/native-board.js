@@ -1,3 +1,5 @@
+import { recordFamilyDeclareActivation } from './family-declaration.js';
+import { withDerivedFamily } from './family-declaration.js';
 import {
   submitGateConfig,
   submitGatePlan,
@@ -298,6 +300,7 @@ export function nativeBoardPorts() {
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,
   });
   const enginePorts = boardEnginePorts({
+    recordFamilyDeclareActivation, withDerivedFamily,
     sandboxPolicyReads: Object.freeze({ policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,

@@ -113,6 +113,50 @@ test('named engine reexports come only from the canonical engine folder [C7]', t
   }
 });
 
+/** Create actual public pure forwarding modules while preserving the original root engine bytes. */
+function stateExitFixture(t) {
+  const root = fixture(t);
+  const canonical = join(root, 'src', 'exit-rules-engine.js');
+  const directory = join(root, 'packages', 'state', 'src', 'core');
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(canonical, 'export const EXIT_RULES_ENGINE = 183;\n');
+  const metadata = join(directory, 'engine-metadata.js');
+  writeFileSync(metadata, 'export { EXIT_RULES_ENGINE } from "../../../../src/exit-rules-engine.js";\n');
+  writeFileSync(join(root, 'packages', 'state', 'core.js'), 'export { EXIT_RULES_ENGINE } from "./src/core/engine-metadata.js";\n');
+  writeFileSync(join(root, 'packages', 'state', 'index.js'), 'export { EXIT_RULES_ENGINE } from "./core.js";\n');
+  const consumer = join(root, 'packages', 'sample', 'src', 'exit-rules.js');
+  writeFileSync(consumer, 'export { EXIT_RULES_ENGINE } from "../../state/core.js";\n');
+  return { root, canonical, metadata, consumer, original: readFileSync(canonical) };
+}
+
+test('pure state forwarding preserves the actual root exit engine declaration and public binding [C7,H16]', t => {
+  const box = stateExitFixture(t);
+  assert.deepEqual(engineFolderProblems(box.root), []);
+  const source = `import { EXIT_RULES_ENGINE } from ${JSON.stringify(pathToFileURL(box.consumer).href)}; console.log(EXIT_RULES_ENGINE);`;
+  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), '183');
+  assert.deepEqual(readFileSync(box.canonical), box.original, 'no canonical engine declaration is copied, moved or renumbered');
+});
+
+for (const fault of ['alias', 'copy', 'cycle', 'cross-cell', 'missing-root']) {
+  test(`pure state engine forwarding refuses ${fault} provenance [C7,H16]`, t => {
+    const box = stateExitFixture(t);
+    if (fault === 'alias') writeFileSync(box.metadata, 'export { SAMPLE_ENGINE as EXIT_RULES_ENGINE } from "../../../../src/sample-engine.js";\n');
+    if (fault === 'copy') writeFileSync(box.metadata, 'export const EXIT_RULES_ENGINE = 183;\n');
+    if (fault === 'cycle') writeFileSync(box.metadata, 'export { EXIT_RULES_ENGINE } from "../../core.js";\n');
+    if (fault === 'cross-cell') {
+      mkdirSync(join(box.root, 'packages', 'other'), { recursive: true });
+      writeFileSync(join(box.root, 'packages', 'other', 'core.js'), 'export { EXIT_RULES_ENGINE } from "../../src/exit-rules-engine.js";\n');
+      writeFileSync(box.metadata, 'export { EXIT_RULES_ENGINE } from "../../../other/core.js";\n');
+    }
+    if (fault === 'missing-root') rmSync(box.canonical);
+    assert.ok(engineFolderProblems(box.root).some(problem => problem.file === 'packages/state/core.js'
+      && problem.text.includes('EXIT_RULES_ENGINE must stay in src/')), 'the public entry cannot borrow an unproven engine binding');
+    if (fault !== 'missing-root') assert.deepEqual(readFileSync(box.canonical), box.original);
+  });
+}
+
 test('an unassigned engine keeps its placeholder outside a moved package until landing [C7]', t => {
   const root = fixture(t);
   const path = join(root, 'src', 'pending-engine.js');

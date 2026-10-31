@@ -1,5 +1,5 @@
-import { ENGINE_VERSION } from '../state/index.js';
-import { FAMILY_ALIAS_ENGINE } from '../state/index.js';
+import { ENGINE_VERSION } from '../../src/engine-metadata.js';
+import { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
 
 /** Index the explicit alias list once: each declared spelling, lowercased, names its canonical family [#1762]. */
 export function familyIndex(families) {

@@ -10,7 +10,7 @@ import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { BAR_CHECK_ENGINE } from '../bar-check-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../review-independence-engine.js';
 import { LIVE_ROUTE_ENGINE } from '../live-route-engine.js';
-import { REWORK_SAME_FAMILY_ENGINE } from '../../packages/state/index.js';
+import { REWORK_SAME_FAMILY_ENGINE } from '../rework-same-family-engine.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function historicalMinimumEngine(args, board, at) {

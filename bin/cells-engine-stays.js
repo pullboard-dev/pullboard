@@ -2,7 +2,7 @@
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { engineBindings } from '../src/engine-folder.js';
+import { engineBindings } from '../packages/state/core.js';
 import { lex } from '../src/js-lex.js';
 import { Refused } from '../src/refused.js';
 
