@@ -89,7 +89,7 @@ test('Items selection applies explicit search, state, lane and rank observations
   assert.deepEqual(ready.stateOptions.map(option => [option.value, option.count]), [['active', 3], ['verified', 1], ['all', 4], ['ready', 2]]);
   const review = selectItemsView({ items, stateById, state: 'verify', lane: 'web', dashboardList: 'review' });
   assert.deepEqual(review.shown.map(item => item.id), [3], 'review uses supplied stage observation and lane');
-  assert.equal(review.filterLabel, 'Filter: To verify · web');
+  assert.equal(review.filterLabel, 'Filter: In review · web');
   const search = selectItemsView({ items, stateById, query: 'retired', matchedIds: [5], state: 'all', lane: 'missing' });
   assert.deepEqual(search.matching.map(item => item.id), [5], 'search can include withdrawn items');
   assert.deepEqual(items.map(item => item.id), [4, 2, 3, 1, 5], 'selection does not mutate the item list');
@@ -180,14 +180,14 @@ test('timeline HTML preserves supplied move and fact order, lapse rows, stays, r
 
 test('pipeline HTML keeps stage order, oldest arrival, selected item and escaped titles from seeded data [N26,N38,C7]', () => {
   const input = Object.freeze([
-    Object.freeze({ id: 9, title: 'Later <ready>', stage: 'open', since: '2026-10-28T12:00:00Z', href: '#item/9', ageHtml: '<time>1m</time>' }),
-    Object.freeze({ id: 3, title: 'Earlier & ready', stage: 'open', since: '2026-10-28T11:00:00Z', href: '#item/3', ageHtml: '<time>1h</time>' }),
-    ...['claimed', 'submitted', 'accepted', 'merged'].map((stage, index) => Object.freeze({ id: 20 + index, title: stage,
-      stage, since: '2026-10-28T12:00:00Z', href: '#item/' + (20 + index), ageHtml: '<time>1m</time>' })),
+    Object.freeze({ id: 9, title: 'Later <ready>', stage: 'open', stageKey: 'ready', stageHtml: '<b>Ready</b>', since: '2026-10-28T12:00:00Z', href: '#item/9', ageHtml: '<time>1m</time>' }),
+    Object.freeze({ id: 3, title: 'Earlier & ready', stage: 'open', stageKey: 'gated', stageHtml: '<b>Gated</b>', since: '2026-10-28T11:00:00Z', href: '#item/3', ageHtml: '<time>1h</time>' }),
+    ...[['claimed', 'building'], ['submitted', 'in-review'], ['accepted', 'verified'], ['merged', 'merged']].map(([stage, stageKey], index) => Object.freeze({ id: 20 + index, title: stage,
+      stage, stageKey, stageHtml: '<b>' + stageKey + '</b>', since: '2026-10-28T12:00:00Z', href: '#item/' + (20 + index), ageHtml: '<time>1m</time>' })),
   ]);
   const html = pipelineHtml(input, { selectedId: 9 });
-  assert.deepEqual([...html.matchAll(/data-pipeline-stage="([^"]+)"/gu)].map(match => match[1]), ['open', 'claimed', 'submitted', 'accepted', 'merged']);
-  assert.deepEqual([...html.matchAll(/data-stage-count="[^"]+">(\d+)/gu)].map(match => Number(match[1])), [2, 1, 1, 1, 1]);
+  assert.deepEqual([...html.matchAll(/data-pipeline-stage="([^"]+)"/gu)].map(match => match[1]), ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
+  assert.deepEqual([...html.matchAll(/data-stage-count="[^"]+">(\d+)/gu)].map(match => Number(match[1])), [1, 1, 1, 1, 1, 0, 1]);
   assert.match(html, /Oldest <a class="ref" href="#item\/3" data-go="item:3">#3<\/a> · <time>1h<\/time>/u);
   assert.ok(html.indexOf('data-item="3"') < html.indexOf('data-item="9"'), 'arrival order determines the stage list');
   assert.match(html, /class="pipeline-item on" type="button" data-item="9"/u);
@@ -195,8 +195,8 @@ test('pipeline HTML keeps stage order, oldest arrival, selected item and escaped
   assert.match(html, /Earlier &amp; ready/u);
   assert.equal(pipelineHtml(input, { selectedId: 9 }), html, 'rendering neither sorts the input nor consumes its state');
   const empty = pipelineHtml([]);
-  assert.equal((empty.match(/No items/gu) || []).length, 5);
-  assert.equal((empty.match(/data-stage-count="[^"]+">0/gu) || []).length, 5);
+  assert.equal((empty.match(/No items/gu) || []).length, 7);
+  assert.equal((empty.match(/data-stage-count="[^"]+">0/gu) || []).length, 7);
   assert.ok(!empty.includes('data-item='));
 });
 

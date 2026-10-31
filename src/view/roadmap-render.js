@@ -18,10 +18,10 @@ export function milestoneRowHtml(row, presentation = {}) {
   const label = '<span class="id">' + esc(row.label) + '</span>' + title;
   const text = '<span class="milestone-title">' + label + '</span>' + (presentation.afterHtml || '') + (row.block?.dot && !row.after?.length ? row.block.dot : '');
   const key = 'i:' + row.label;
-  const labels = { building: 'Building', ready: 'Ready', review: 'In review', back: 'Sent back', accepted: 'Accepted', landed: 'Landed' };
+  const labels = { building: 'Building', ready: 'Ready', review: 'In review', back: 'Sent back', accepted: 'Verified', landed: 'Merged' };
   const tones = { building: 'busy', ready: 'free', review: 'warn', back: 'no', accepted: 'ok', landed: 'ok' };
-  const status = row.held ? heldChip(row.held) : '<span class="chip ' + tones[stage] + ' roadmap-stage-chip">' + labels[stage] + '</span>';
-  const inner = place + icon + '<span class="t">' + text + (row.stale || '') + '</span><span class="roadmap-status">' + status + '</span>';
+  const status = presentation.stateChipHtml ?? (row.held ? heldChip(row.held) : '<span class="chip ' + tones[stage] + ' roadmap-stage-chip">' + labels[stage] + '</span>');
+  const inner = place + icon + '<span class="t">' + text + (row.stageHtml ? '' : row.stale || '') + '</span><span class="roadmap-status">' + status + '</span>';
   const board = row.open && row.open.root !== root ? ' data-board="' + esc(row.open.root) + '"' : '';
   const toggle = 'class="milestone-item' + (row.block?.dot ? ' blocked' : '') + '" data-roadmap-key="' + esc(key) + '" aria-expanded="' + open + '"' + board + ' title="' + esc(row.title ? row.title + (!row.open && row.why ? ' (' + row.why + ')' : '') : row.why) + '"';
   const detail = row.block ? row.block.detail : '<p>' + esc(row.why || row.word) + '</p>';

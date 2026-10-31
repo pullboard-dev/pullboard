@@ -1,7 +1,8 @@
+import { modelPresentation } from './view/cost-tab.js';
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
+/** @pullboard-test-input src/view.css src/view/stage.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -84,7 +85,7 @@ import { openBoardForRead } from './board-read-open.js';
 import { loadMachineSettings } from './settings-read.js';
 
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
-const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('./view/item-rows.css', import.meta.url), 'utf8').trimEnd());
+const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('./view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('./view/stage.css', import.meta.url), 'utf8').trimEnd());
 const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
 const SHARED_DOCTRINE_CSS = readFileSync(new URL('./view/doctrine.css', import.meta.url), 'utf8');
 const SHARED_ITEM_PANEL_CSS = readFileSync(new URL('./view/item-panel.css', import.meta.url), 'utf8');
@@ -379,6 +380,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), board.clock.now().getTime(), store),
       dashboardLanded: all.filter(item => item.item_status === 'verified' && item.item_merged_commit)
         .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
+      landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
+        .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
       // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
@@ -483,7 +486,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('./relay-setup.js');
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead }, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead }, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {

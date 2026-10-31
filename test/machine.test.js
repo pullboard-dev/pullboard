@@ -144,6 +144,9 @@ const NON_MOVE_ENTRY_POINTS = [
  * reads committed doctrine rules leniently: a doctrine it cannot parse carries no check [D1].
  */
 const CAUGHT = {
+  // nextFor converts an exited-session refusal into a skip reason; reserveNextReview returns that
+  // reason as data rather than raising the refusal from the reserve move.
+  'board-next-for.js#nextFor': ['exit-rules-continuation.js#exitContinuationProblem'],
   'review-reachability.js#unreviewableStrict': ['review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
@@ -153,10 +156,10 @@ const CAUGHT = {
   // observeNativeFailure catches its optional pair/recording errors; they cannot become lifecycle refusals.
   'commands/verify.js#verifyHere': ['cli.js#freezer', 'cli/claim.js#freezer', 'native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
-  'spec-approval.js#approvalEvidence': ['spec.js#readSignoffs'],
-  'spec-approval.js#confirmedDecision': ['signature.js#verifyRowDecision'],
+  '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
+  '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
   // specApprovalState turns a Refused from the canonical baseline reader into invalid evidence.
-  'spec-approval.js#specApprovalState': ['board-query.js#specApprovalBaseline'],
+  '../packages/spec/src/shell/spec-approval.js#specApprovalState': ['board-query.js#specApprovalBaseline'],
   // Historical decline metadata is parsed inside a non-throwing boundary, covered by the Rigor history control.
   'board.js#reopen': ['../packages/rigor/src/core/rigor-notices.js#declinedRigorSource'],
   // Rigor projection folds inspect invalid cause results as data, never lifecycle refusals.
@@ -282,7 +285,7 @@ function codeProblems(machine, read = fromDisk) {
     }
   }
   const commandFiles = fs.readdirSync(new URL('../src/commands/', import.meta.url)).filter((name) => name.endsWith('.js') && name !== 'index.js').map((name) => `commands/${name}`);
-  const moveFiles = new Set([...read('board.js').matchAll(/^import \{ \w+ \} from '\.\/(board-[\w-]+\.js)';$/gmu)].map((match) => match[1])), raised = new Set(['board.js', ...moveFiles, 'cli.js', 'spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
+  const moveFiles = new Set([...read('board.js').matchAll(/^import \{ \w+ \} from '\.\/(board-[\w-]+\.js)';$/gmu)].map((match) => match[1])), raised = new Set(['board.js', ...moveFiles, 'cli.js', '../packages/spec/src/shell/spec.js', ...commandFiles].flatMap((file) => walk.functions(file).flatMap((name) => [...walk.refusalsOf(`${file}#${name}`)])));
   for (const code of declaredCodes(machine)) if (!raised.has(code)) problems.add(`${code} is declared but the board, CLI and spec parser never raise it`);
   return [...problems];
 }
@@ -530,8 +533,6 @@ test('a broken copy of the declaration fails the check against the code, both wa
     'AGENT_APPROVAL_REQUIRED is raised by refreeze but not declared there',
     'BAD_CONFIG is raised by claim but not declared there',
     'BAD_CONFIG is raised by refreeze but not declared there',
-    'MAIN_FACTS_BUSY is raised by claim but not declared there',
-    'MAIN_FACTS_BUSY is raised by refreeze but not declared there',
     'NO_POLICY is raised by claim but not declared there',
     'NO_POLICY is raised by refreeze but not declared there',
     'UNKNOWN_SPEC is raised by claim but not declared there',
@@ -569,7 +570,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
   const inCaughtBaseline = editedSource('board-query.js', /^export function specApprovalBaseline\(board\) \{$/m,
     "$&\n  if (!board) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inCaughtBaseline), [], 'the real caller catches a Refused from the baseline reader');
-  const inBaselineCaller = editedSource('spec-approval.js', /^export function specApprovalState\(root, .*$/m,
+  const inBaselineCaller = editedSource('../packages/spec/src/shell/spec-approval.js', /^export function specApprovalState\(root, .*$/m,
     "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inBaselineCaller).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
@@ -588,13 +589,13 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
     ], 'the native summary fact keeps release in the rigor-source refusal audit alongside existing lifecycle moves');
   }
 
-  const inFreeze = editedSource('spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  const inFreeze = editedSource('../packages/spec/src/shell/spec.js', /^export function frozenCriterion\(spec, item, doctrine = null\) \{$/m, "$&\n  if (item.item_title === 'moon') throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inFreeze).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
     'MOON_PHASE is raised by refreeze but not declared there',
   ], 'claim and refreeze let a freeze refusal through; submit and verify catch it');
 
-  const inProof = editedSource('spec-approval.js', /^function approvalEvidence\(root, evidenceErrors\) \{$/m, "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  const inProof = editedSource('../packages/spec/src/shell/spec-approval.js', /^function approvalEvidence\(root, evidenceErrors\) \{$/m, "$&\n  if (!root) throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inProof).sort(), [
     'MOON_PHASE is raised by accept and reject but not declared there',
     'MOON_PHASE is raised by claim but not declared there',

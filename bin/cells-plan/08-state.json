@@ -237,9 +237,11 @@
   ["src/move-history/181.json","packages/state/src/shell/move-history/181.json","rule"],
   ["src/pipeline-cause-engine.js","packages/state/src/core/pipeline-cause-engine.js","rule"],
   ["src/move-history/182.json","packages/state/src/shell/move-history/182.json","rule"],
+  ["src/rework-same-family-engine.js","packages/state/src/core/rework-same-family-engine.js","rule"],
   ["src/move-history/183.json","packages/state/src/shell/move-history/183.json","rule"],
   ["src/move-history/184.json","packages/state/src/shell/move-history/184.json","rule"],
-  ["src/move-history/185.json","packages/state/src/shell/move-history/185.json","rule"]
+  ["src/move-history/185.json","packages/state/src/shell/move-history/185.json","rule"],
+  ["src/move-history/186.json","packages/state/src/shell/move-history/186.json","rule"]
  ],
  "reexports": [
   "src/activity-delivery-engine.js",

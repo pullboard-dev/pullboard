@@ -75,7 +75,6 @@
   {"cell":"app:cli","imports":3,"before":false}
  ],
  "cuts": [
-  {"cell":"seats","imports":1,"edges":["src/seat-checkout.js->src/person.js"]},
   {"cell":"stats","imports":1,"edges":["src/cost-ledger.js->src/person.js"]},
   {"cell":"verify","imports":1,"edges":["src/next-review.js->src/person.js"]}
  ],
