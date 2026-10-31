@@ -7,4 +7,3 @@ export { preparedSourceComposition, sourceConflictFiles, withSourceComposition }
 export { captureMergeOnly, deriveMergeOnly } from './src/shell/merge-only-source.js';
 export { prepareMergeOnlySubmit } from './src/shell/merge-only-submit.js';
 export { mergeOnlyBasis, mergeOnlyProblem, mergeOnlySourceValid, mergeOnlyLandingProblem } from './src/shell/merge-only-verdict.js';
-export { CONFLICT_ENGINE, MAIN_MERGE_LABEL, carriesConflict, conflictFiles, requireTrunkConflict, reopenConflict, conflictProblem, TRUNK_CONFLICT_CAUSE, conflictDetail, mainMergeFor, mainMergeLines, mainMergesFor, reopenedLine, returnedHeadNotice } from './src/shell/trunk-conflict.js';
