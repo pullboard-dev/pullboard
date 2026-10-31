@@ -126,9 +126,7 @@ import {
   transportFailure,
 } from './relay-move-fallback.js';
 import {
-  ACKNOWLEDGED_OPERATIONS,
   outboxFields,
-  outboxQueueable,
 } from './relay-outbox.js';
 import { outboxFile, readOutboxSummary } from '../packages/link/index.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
@@ -1037,9 +1035,10 @@ async function queueLocally(root, file, operation, args, io, command, applyLocal
 /** Send one board operation before executing it locally, and report its canonical engine result. */
 export async function relayOperation(root, operation, args, io, command, applyLocally, onRecorded) {
   const senderPolicy = nativeBoardPorts().enginePorts;
+  const { acknowledgedOperations, outboxQueueable } = await io.outboxPolicy();
   const roundTripStarted = Date.now();
   const file = linkFile(root);
-  const local = localFirstLink(file, operation, args, io, { loadLink, acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, senderPolicy });
+  const local = localFirstLink(file, operation, args, io, { loadLink, acknowledgedOperations, senderPolicy });
   if (local) return queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded, senderPolicy);
   return locked(file, async () => {
     const state = loadLink(file);
@@ -1226,7 +1225,7 @@ export async function syncRelay(root, io) {
         }
       } else if (error.code === 'AUTH_REQUIRED') {
         if (!orderedMoveCommand(io)) reportExpiredSignIn(state, io);
-      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
+      } else if (!(orderedMoveCommand(io) && (baselineNotAccepted(state) || (await io.outboxPolicy()).outboxQueueable(state, error, null, io)) && transientRelayFailure(error))) io.err(`pullboard: ${error.message}; run pullboard status to see pending uploads`);
       return { linked: true, board: state.board, url: state.url, sequence: state.sequence,
         behind: (state.mode === 'ordered' ? Number(Boolean(state.pending)) : behind(root, state)) + Number(Boolean(state.snapshot || state.checkpoint)) + (state.outbox?.moves?.length ?? 0),
         recovery: recoverySummary(state), ...outboxFields(state),

@@ -79,6 +79,7 @@ process.exitCode = await main(process.argv.slice(2), {
     checkpointInBackground: (...args) => import('../src/relay-checkpoint.js').then(m => m.checkpointInBackground(...args)),
     scheduleCheckpoint: (...args) => import('../src/relay-checkpoint.js').then(m => m.scheduleCheckpoint(...args)),
     requestCheckpointCheck: (...args) => import('../src/relay-checkpoint.js').then(m => m.requestCheckpointCheck(...args)),
+    outboxPolicy: () => import('../src/relay-outbox.js').then(m => ({ acknowledgedOperations: m.ACKNOWLEDGED_OPERATIONS, outboxQueueable: m.outboxQueueable })),
     flushOutbox: (...args) => import('../src/relay-outbox.js').then(m => m.flushOutbox(...args)),
     queueMove: (...args) => import('../src/relay-outbox.js').then(m => m.queueMove(...args)),
     outboxHasPendingCreatedItem: (...args) => import('../src/relay-outbox.js').then(m => m.outboxHasPendingCreatedItem(...args)),
