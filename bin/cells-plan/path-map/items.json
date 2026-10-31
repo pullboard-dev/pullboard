@@ -12,6 +12,7 @@
   "src/outside-source.js": "packages/items/src/core/outside-source.js",
   "src/reopen-cause.js": "packages/items/src/core/reopen-cause.js",
   "src/reopen-history.js": "packages/items/src/core/reopen-history.js",
+  "src/resume-sources.js": "packages/items/src/shell/resume-sources.js",
   "src/resume.js": "packages/items/src/core/resume.js",
   "src/submit-composition.js": "packages/items/src/core/submit-composition.js",
   "src/submit-size.js": "packages/items/src/core/submit-size.js",

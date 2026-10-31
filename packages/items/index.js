@@ -19,3 +19,4 @@ export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/core/de
 export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/core/item-notes.js';
 export { criticalPathEnabled, remainingPaths, criticalPathOrder } from './src/core/critical-path-order.js';
 export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst } from './src/core/resume.js';
+export { readResumeSources } from './src/shell/resume-sources.js';
