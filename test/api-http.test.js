@@ -1,6 +1,6 @@
-import { main as nativeTestMain } from './native-cli-fixture.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';

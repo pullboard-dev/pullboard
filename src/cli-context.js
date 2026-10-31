@@ -52,7 +52,7 @@ async function executeNativePersonRequests(root, io, runCommand) {
 export function personCommandContext(io, { main, ordered } = {}) {
   const ctx = context(io);
   /** Preserve this invocation's native capabilities for signed recursive commands. */
-  const run = main && ((args, streams) => main(args, { ...streams, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender }));
+  const run = main && ((args, streams) => main(args, { ...streams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender }));
   ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests: executeNativePersonRequests, main: run, ordered };
   return ctx;
 }

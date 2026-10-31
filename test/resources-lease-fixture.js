@@ -1,6 +1,6 @@
-import { main as nativeTestMain } from './native-cli-fixture.js';
 /** Real CLI scenario for a review, submit or check that keeps its item lease while queued [C7,V4]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';

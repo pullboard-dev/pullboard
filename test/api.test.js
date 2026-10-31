@@ -1,5 +1,5 @@
-import { main as nativeTestMain } from './native-cli-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import { copyPackageFiles } from '../src/package-files.js';

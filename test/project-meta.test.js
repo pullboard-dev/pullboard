@@ -1,6 +1,6 @@
-import { main as nativeTestMain } from './native-cli-fixture.js';
 /** Project metadata and registry lifecycle (N33, N35, N36). */
 import assert from 'node:assert/strict';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

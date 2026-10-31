@@ -1,6 +1,6 @@
-import { main as nativeTestMain } from './native-cli-fixture.js';
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import { submitFixture } from './board-submit-fixture.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChild, runFixtureGit, runFixtureChildAsync } from './fixture-child.js';

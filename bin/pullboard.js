@@ -62,18 +62,19 @@ if (process.argv[2] !== 'tool-build') {
   }
 }
 
-const { fileURLToPath } = await import('node:url');
-
 // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   loadNativeBoard: () => import('../src/native-board.js'),
-  hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
-  submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
-  /** Start only an actually requested sender; ordinary reads never load its modules. */
-  launchRelaySender: (root, env) => {
-    void import('../src/relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
-  },
+  /** Compose process-only capabilities after a command actually requests them. */
+  loadProcessPorts: () => import('node:url').then(({ fileURLToPath }) => ({
+    hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
+    submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
+    /** Start only an actually requested sender; ordinary reads never load its modules. */
+    launchRelaySender: (root, env) => {
+      void import('../src/relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+    },
+  })),
   stdout: process.stdout,
   stderr: process.stderr,
   stdin: process.stdin,

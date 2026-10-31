@@ -1,6 +1,6 @@
-import { main as nativeTestMain } from './native-cli-fixture.js';
 /** Relay identity, expiry, permission freshness and scoped credential isolation [H8, H1]. */
 import assert from 'node:assert/strict';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';

@@ -242,7 +242,10 @@ async function runCommand(argv, io) {
     if (!load) return (await import('./cli-help.js')).unknownCommand(io, command);
     await (await import('./exit-rules-runtime.js')).enforceExitBoundary(io, command);
     const commandModule = await load();
-    if (commandModule.nativeBoardRequired !== false) io.nativeBoard ??= await io.loadNativeBoard();
+    if (commandModule.nativeBoardRequired !== false) {
+      await io.prepareProcessPorts();
+      io.nativeBoard ??= await io.loadNativeBoard();
+    }
     return await commandModule.run(io, args);
   } catch (error) {
     error = recordedMoveRefusal(io, error);
@@ -291,6 +294,7 @@ async function bindCheckoutSession(io, positionals, values) {
     'next', 'claim', 'hold', 'release', 'submit', 'ship', 'done', 'verify', 'check', 'merged', 'land', 'withdraw', 'refreeze', 'reopen', 'shout', 'answer', 'pass', 'import', 'milestone', 'takeover', 'forget'];
   if (!writes.includes(command) && !(command === 'tool-build' && first === 'promote') && !(command === 'patch' && ['attach', 'remove'].includes(first)) && !(command === 'request' && first && first !== 'list') && !(command === 'lane' && first === 'add') && !(command === 'settings' && first) && !(command === 'spec' && first === 'apply') && !(command === 'relay' && ['on', 'off'].includes(first))) return;
   if (command === 'answer' && values.as === 'person') return;
+  await io.prepareProcessPorts();
   io.nativeBoard ??= await io.loadNativeBoard();
   return (await import('./cli.js')).bindWriteSession(io, positionals, values);
 }
@@ -322,10 +326,17 @@ async function runMain(argv, streams) {
     loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument,
   });
   io.loadNativeBoard = streams.loadNativeBoard;
+  io.loadProcessPorts = streams.loadProcessPorts;
+  /** Materialize only this invocation's explicit process capabilities, at most once. */
+  io.prepareProcessPorts = async () => {
+    if (!io.loadProcessPorts) return;
+    Object.assign(io, await io.loadProcessPorts());
+    io.loadProcessPorts = undefined;
+  };
   io.hookWorker = streams.hookWorker;
   io.submitHandoffWorker = streams.submitHandoffWorker;
   /** Bind recursive CLI operations to this process root's native provider. */
-  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender });
+  io.runCommand = (args, nextStreams) => main(args, { ...nextStreams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender });
   // Background launch is a CLI operation; lower relay code receives it explicitly.
   io.launchRelaySender = streams.launchRelaySender;
   let sync = true;
@@ -353,6 +364,7 @@ async function runMain(argv, streams) {
   // Agent nudges never enter Git-hook identity, synchronization or refusal machinery.
   if (parsed?.positionals[0] === 'hook' && !parsed.values.help && !parsed.values.version
       && !['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'].includes(parsed.positionals[1])) {
+    await io.prepareProcessPorts();
     return (await import('./agent-hook.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
   const git = needsRepo ? await import('./git.js') : null;
@@ -361,7 +373,10 @@ async function runMain(argv, streams) {
     try {
       // Checkout identity supplies the display role even if a person-channel check refuses first.
       try { const info = needsRepo ? git.repoInfo(io.cwd) : null; if (info?.isMain) io.caller('coordinator', info.root); } catch { /* Unknown checkouts retain existing guidance. */ }
-      if (parsed.values.as === 'person' && !parsed.values.help && !parsed.values.version) io.nativeBoard ??= await io.loadNativeBoard();
+      if (parsed.values.as === 'person' && !parsed.values.help && !parsed.values.version) {
+        await io.prepareProcessPorts();
+        io.nativeBoard ??= await io.loadNativeBoard();
+      }
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
@@ -390,6 +405,7 @@ async function runMain(argv, streams) {
     /** Load the work around the command when any of it could act here, or null. */
     const syncWork = async () => {
       if (!sync || !(await import('./local-state.js')).syncMayAct(io.cwd)) return null;
+      await io.prepareProcessPorts();
       io.nativeBoard ??= await io.loadNativeBoard();
       return import('./cli-sync.js');
     };
