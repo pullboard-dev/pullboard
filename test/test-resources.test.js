@@ -545,7 +545,7 @@ test('reviewed executor imports stay browser-free only at their exact call sites
   const repository = resolve(import.meta.dirname, '..');
   const entries = [
     ['src/cli/sweep.js', 'sweepHere', 'spawnSync(item.check,'],
-    ['src/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
+    ['packages/sentinels/src/shell/sentinel-runner.js', 'executeSentinel', 'spawn(row.check,'],
     ['packages/rigor/src/shell/rigor-proof.js', 'runOwnedCheck', "spawn(runner?.executable ?? '/bin/sh',"],
     ['test/cli-startup.test.js', 'fixture', 'runFixtureChild(env.PULLBOARD_REAL_GIT,'],
     ['test/git-calls.test.js', 'advanceHead', 'execFileSync(box.env.PULLBOARD_REAL_GIT,'],

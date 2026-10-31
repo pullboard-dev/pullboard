@@ -70,7 +70,7 @@ const REVIEWED_EXECUTORS = new Map([
   ['src/cli/sweep.js', [{ function: 'sweepHere',
     site: "spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })",
     reason: 'sweep runs the separately selected checker; importing the CLI does not select or run it' }]],
-  ['src/sentinel-runner.js', [{ function: 'executeSentinel',
+  ['packages/sentinels/src/shell/sentinel-runner.js', [{ function: 'executeSentinel',
     site: "spawn(row.check, { cwd: directory, env: environment, shell: true, stdio: ['ignore', 'pipe', 'pipe'] })",
     reason: 'the Windows sentinel executor runs an approved check only when explicitly invoked' }]],
   ['packages/rigor/src/shell/rigor-proof.js', [{ function: 'runOwnedCheck',

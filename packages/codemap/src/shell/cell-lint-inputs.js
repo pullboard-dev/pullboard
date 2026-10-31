@@ -7,6 +7,7 @@ import { COMMAND_FILE } from '../../../kernel/index.js';
 import { bindingReadsForModules } from './cell-binding-uses.js';
 
 const DISCOVERY = readFileSync(new URL('../../../kernel/src/core/discovery.js', import.meta.url), 'utf8');
+const KERNEL_FRONT_DOOR = readFileSync(new URL('../../../kernel/index.js', import.meta.url), 'utf8');
 
 /** Resolve one literal module-relative input, excluding external URLs and parent escapes. */
 function relativeInput(file, literal) {
@@ -35,10 +36,15 @@ function importBindings(info) {
 
 /** Recognize the canonical discovered-command ABI, never every command-looking file on its own. */
 function commandInputs(file, info, names, files) {
-  if (names.get('COMMAND_CANDIDATE') !== '../discovery.js' || names.get('COMMAND_FILE') !== '../discovery.js'
-    || names.get('discovered') !== '../discovery.js' || names.get('readdirSync') !== 'node:fs') return [];
-  const provider = relativeInput(file, names.get('discovered'));
-  if (!provider || files.get(provider)?.toString('utf8') !== DISCOVERY) return [];
+  const specifier = names.get('discovered');
+  if (!specifier || names.get('COMMAND_CANDIDATE') !== specifier || names.get('COMMAND_FILE') !== specifier
+    || names.get('readdirSync') !== 'node:fs') return [];
+  const provider = relativeInput(file, specifier);
+  const legacy = specifier === '../discovery.js' && files.get(provider)?.toString('utf8') === DISCOVERY;
+  const kernel = provider === 'packages/kernel/index.js'
+    && files.get(provider)?.toString('utf8') === KERNEL_FRONT_DOOR
+    && files.get('packages/kernel/src/core/discovery.js')?.toString('utf8') === DISCOVERY;
+  if (!legacy && !kernel) return [];
   const folder = /\bconst\s+(\w+)\s*=\s*new\s+URL\(\s*(['"])[^'"]*\2\s*,\s*import\.meta\.url\s*\)/u.exec(info.code);
   const compact = info.code.replace(/\s/gu, '');
   const literal = folder && info.strings.find(row => row.start >= folder.index && row.end <= folder.index + folder[0].length);
