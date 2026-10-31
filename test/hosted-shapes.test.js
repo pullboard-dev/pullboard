@@ -458,6 +458,7 @@ import {
   BOARD_ITEM,
   BOARDS,
   HOSTED,
+  OPEN_BOARD,
   READ_SCREEN,
   STORED,
   boardView,
@@ -949,7 +950,7 @@ test('a forced hosted cell failure captures its final page state without raising
             /** Navigate normally and remove only the already witnessed item-chain node. */
             async navigate(url) {
               await page.navigate(url);
-              const shown = await page.poll(`(${READ_SCREEN}).board`, 8_000); // budget: existing blocker-settle fixture ceiling, not a speed assertion.
+              const shown = await page.poll(OPEN_BOARD, 8_000); // budget: existing blocker-settle fixture ceiling, not a speed assertion.
               assert.ok(shown, 'the real seeded board appears before this control injects its fault');
               beforeFault.push(await page.evaluate(READ_SCREEN));
               await page.evaluate(`document.querySelector('#chain').remove()`);
@@ -1070,7 +1071,7 @@ test('an excluded board is named as excluded with the step that includes it [H5,
     pairingPage = await paired.newPage({ route: front.route(session, null) });
     await pairingPage.navigate(link);
   });
-  assert.ok(await pairingPage.poll(`(${READ_SCREEN}).board`, 8_000), 'the genuine enrolled browser opens the healthy board');
+  assert.ok(await pairingPage.poll(OPEN_BOARD, 8_000), 'the genuine enrolled browser opens the healthy board');
   await pairingPage.close();
   const excluded = await siblingProject(box, 'excluded-project', 'fixture/excluded-board');
   assert.equal((await box.cliAt(excluded, 'relay', 'off')).code, 0);
@@ -1297,7 +1298,7 @@ test('an expired saved pairing preserves a valid identity when its session probe
       first = await context.newPage({ route: front.route(session, null), phone: true });
       await first.navigate(link);
     });
-    assert.ok(await first.poll(`Boolean(document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')
+    assert.ok(await first.poll(`Boolean((${OPEN_BOARD}) && document.querySelector('#chain')?.textContent.includes('private cleanup fixture item')
       && Object.keys(JSON.parse(localStorage.getItem('pullboard.relay.keys.v1') || '{}')).length)`, 8_000), // budget: existing hosted blocker-settle ceiling.
     'the actual enrolled phone renders its seeded board and saves local keys');
     enrolled = await savedIdentity(first);
@@ -1370,13 +1371,13 @@ test('an expired pairing link left in sessionStorage never blocks a paired brows
       first = await paired.newPage({ route: front.route(session, null), phone: true });
       await first.navigate(link);
     });
-    assert.ok(await first.poll(`(${READ_SCREEN}).board`, 8_000), 'real enrollment opens the seeded board'); // budget: fixture settle ceiling, not a speed bar.
+    assert.ok(await first.poll(OPEN_BOARD, 8_000), 'real enrollment opens the seeded board'); // budget: fixture settle ceiling, not a speed bar.
   } finally { if (first) await first.close(); }
   await t.test('already paired phone retains access', async () => {
     const page = await paired.newPage({ route: front.route(session, null), phone: true, bootstrap: storedScript('stale-pairing') });
     try {
       await page.navigate(HOSTED + '/');
-      assert.ok(await page.poll(`(${READ_SCREEN}).board`, 8_000), 'saved enrollment opens its board despite expired pending pairing'); // budget: fixture settle ceiling.
+      assert.ok(await page.poll(OPEN_BOARD, 8_000), 'saved enrollment opens its board despite expired pending pairing'); // budget: fixture settle ceiling.
       assert.equal(await page.evaluate("sessionStorage.getItem('pullboard.relay.device-pair.v1')"), null);
       assert.doesNotMatch((await page.evaluate(READ_SCREEN)).words, /fresh phone pairing link|DEVICE_PAIR_EXPIRED/u);
     } finally { await page.close(); }
