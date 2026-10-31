@@ -24,7 +24,7 @@ import {
   signDeviceEnrollment,
   unwrapDeviceBoardKey,
   wrapDeviceBoardKey,
-} from '../src/relay-device-keys.js';
+} from '../packages/keys/index.js';
 import { githubFixture } from './relay-fixture.js';
 import { excludedInventoryId } from '../relay/excluded-store.js';
 import {

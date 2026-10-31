@@ -8,7 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import * as setup from '../src/relay-setup.js';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { createDeviceKeys, signDeviceEnrollment } from '../src/relay-device-keys.js';
+import { createDeviceKeys, signDeviceEnrollment } from '../packages/keys/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 

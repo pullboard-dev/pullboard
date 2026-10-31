@@ -10,7 +10,7 @@ import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { prepareBoardMembers, authorizeMember } from '../src/relay-membership.js';
-import { createDeviceKeys, unwrapDeviceBoardKey } from '../src/relay-device-keys.js';
+import { createDeviceKeys, unwrapDeviceBoardKey } from '../packages/keys/index.js';
 import { handOverBoardKeys, statementBytes } from '../src/relay-handover.js';
 import { signSshVouch } from '../src/relay-ssh-proof.js';
 import { ENGINE_VERSION } from '../src/machine.js';

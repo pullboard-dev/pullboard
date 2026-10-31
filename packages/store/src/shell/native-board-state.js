@@ -30,7 +30,7 @@ import { projectSpecApprovals } from "../../../../src/spec-approval.js";
 import { specApprovalState } from "../../../../src/spec-approval.js";
 import { personBlockWords } from "../../../../src/blocks.js";
 import { verdictProjector } from "../../../../src/verdict-freshness.js";
-import { trunkRevisionReader } from "../../../../src/trunk-revision.js";
+import { trunkRevisionReader } from "../../../git/index.js";
 import {
   dependencyValues,
   hasForeignDependencies,

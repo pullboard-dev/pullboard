@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import * as store from '../src/board.js';
 import { ENGINE_VERSION as PEOPLE_VERSION } from '../src/machine.js';
-import { createDeviceKeys, unwrapDeviceBoardKey } from '../src/relay-device-keys.js';
+import { createDeviceKeys, unwrapDeviceBoardKey } from '../packages/keys/index.js';
 import { handOverBoardKeys, statementBytes } from '../src/relay-handover.js';
 import { signSshVouch } from '../src/relay-ssh-proof.js';
 import { runFixtureChild } from './fixture-child.js';

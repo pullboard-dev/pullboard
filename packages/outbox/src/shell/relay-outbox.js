@@ -30,7 +30,7 @@ import {
   exportBoard,
   restoreRelaySnapshot,
 } from '../../../../src/exchange.js';
-import { readBoardKey } from '../../../../src/relay-key.js';
+import { readBoardKey } from '../../../keys/index.js';
 import { leaveConflictNotice } from './relay-conflicts.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { transientRelayFailure } from '../../../../src/relay-move-fallback.js';

@@ -120,7 +120,7 @@ The relay never receives a board key in a form it can use. A phone gets it wrapp
 
 ## How pairing moves the board key
 
-**Linking a board.** `pullboard relay on` makes a 256-bit board key on the machine and keeps it in `~/.pullboard/relay-keys/<board>.key`, mode 600 (`generateBoardKey` in `packages/kernel/src/core/seal.js`, `storeBoardKey` in `src/relay-key.js`). The person signs in and the relay records the link. The machine receives its `pm_` and uploads the board's first sealed snapshot.
+**Linking a board.** `pullboard relay on` makes a 256-bit board key on the machine and keeps it in `~/.pullboard/relay-keys/<board>.key`, mode 600 (`generateBoardKey` in `packages/kernel/src/core/seal.js`, `storeBoardKey` in `packages/keys/src/shell/relay-key.js`). The person signs in and the relay records the link. The machine receives its `pm_` and uploads the board's first sealed snapshot.
 
 **Pairing a phone.** The machine makes a one-time locator and secret, keeps the secret in its private `relay-machine/state.json`, and shows both in a QR code (`beginDeviceEnrollment` in `src/relay-machine.js`). The phone makes an ECDH P-256 key pair whose private half cannot be exported, and keeps it in IndexedDB (`createDeviceKeys` in `src/relay-device-keys.js`). It signs its public key with an HMAC derived from the secret and posts it through the relay (`signDeviceEnrollment`). The machine checks that MAC before it trusts the key, so the relay cannot slip in a key of its own (`acceptDeviceEnrollment` in `src/relay-machine.js`). The machine then wraps the board key to the public key it recorded itself (`wrapForRecordedDevice`) and uploads the wrap with its `pm_`. It wraps again on every sync (`deliverDeviceWraps` in `src/relay.js`). The phone unwraps it with its private key and keeps the board key in `localStorage` (`deviceBoardKeys` in `relay/browser-devices.js`, `relay/browser-client.js`).
 
@@ -168,4 +168,4 @@ Revoking a phone stops new wraps and deletes its stored ones, and the board keys
 
 Some rows have no deletion path: `relay_users`, `relay_action_grants`, `relay_passkeys`, `relay_person_authority`, `phone_approval`, `person_enrollment` and the `device` tombstones. A board that expires for inactivity leaves its `wrapped_key` rows behind.
 
-RFC 0004 describes keeping the board key in the operating system's keychain. The code keeps it in a mode-600 file and moves any older keychain copy into that file (`src/relay-key.js`).
+RFC 0004 describes keeping the board key in the operating system's keychain. The code keeps it in a mode-600 file and moves any older keychain copy into that file (`packages/keys/src/shell/relay-key.js`).
