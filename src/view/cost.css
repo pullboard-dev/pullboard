@@ -98,3 +98,6 @@
 .cost-chart-day > b, .cost-chart-day > small { display: block; color: var(--ink-muted); font-size: var(--text-xs); }
 .cost-longest > button[data-cost-all] { border: 0; padding: var(--space-3) 0 0; background: transparent; color: var(--accent); font-weight: 600; cursor: pointer; }
 @media (width < 700px) { .cost-heading { flex-wrap: wrap; } .cost-heading .cost-private { margin-left: 0; } }
+.cost-page > p { margin: 0; padding: var(--space-3) var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-card); background: var(--surface); color: var(--ink-muted); font-size: var(--text-sm); }
+.cost-page > p code { color: var(--ink); font-family: var(--mono); }
+.cost-page > p button { border: 0; border-radius: var(--radius-sm); padding: var(--space-1) var(--space-3); background: var(--accent); color: white; cursor: pointer; }
