@@ -1,7 +1,7 @@
 /** Generated browser adapters over real writer receipts; this control does not claim Chrome execution [N2,N26]. */
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { lifecycleEvent, lifecycleMove } from '../../src/item-list.js';
 import { replayItem } from '../../src/view/pipeline-model.js';
 import { timelineHtml } from '../../src/view/timeline-render.js';

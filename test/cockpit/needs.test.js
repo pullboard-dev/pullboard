@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { BIN, SPEC, machine, project, build, sendBack, startView, styleOf, element, openPage, projectRows, agentEntries, itemRow, shoutNameText, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, chooseFilter, boardId, boardOf, fetchLive, serveFolder } from './fixture.js';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { runFixtureChild } from '../fixture-child.js';
 import { approvalAgentApi, approvalReadGate } from './agent-approval-fixture.js';
 import { personNeeds } from '../../src/row-decision-text.js';

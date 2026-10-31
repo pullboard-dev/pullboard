@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { accept, build, chromeExecutable, fetchLive, machine, openSnapshotChrome, press, project, startView, tapTouch } from './fixture.js';
 
 /** Serve the supported live read-only page over the fixture's authenticated board API. */

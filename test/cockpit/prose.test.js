@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { PULLBOARD_COMMANDS } from '../../src/cockpit.js';
+import { PULLBOARD_COMMANDS } from '../../src/cli/cockpit-renderer.js';
 import { HELP } from '../../src/cli.js';
 import { fetchFresh } from '../http-fixture.js';
 import { relayClientFixture } from '../relay-client-fixture.js';

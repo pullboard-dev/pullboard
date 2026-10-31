@@ -826,6 +826,10 @@
     {
       "path": "bin/source-advance.js",
       "cell": "app:lib"
+    },
+    {
+      "path": "bin/static-style-checks.js",
+      "cell": "app:cli"
     }
   ]
 }
