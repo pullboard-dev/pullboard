@@ -24,6 +24,7 @@ import {
 import { publishLatestCheckpoint } from './relay.js';
 import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import { relayOrdering } from './relay-ordering.js';
+import { flushOutbox, queueMove, outboxHasPendingCreatedItem } from './relay-outbox.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { replay as replayConflictRecord } from './relay-conflict-record.js';
 import { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } from './relay-baseline-settle.js';
@@ -86,7 +87,7 @@ async function release() {
 
 /** Keep a short record of failures beside the link; the next command's status reports pending uploads. */
 const io = {
-  withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck,
+  withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, flushOutbox, queueMove, outboxHasPendingCreatedItem,
   // Progress goes to the same short log as failures, so a stalled publisher shows how far it got.
   say(line) { io.err(line); },
   err(line) { try { appendFileSync(log, `${new Date().toISOString()} ${String(line).trim()}\n`, { mode: 0o600 }); } catch { /* No log is no worse than none. */ } },

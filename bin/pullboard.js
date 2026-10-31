@@ -79,6 +79,9 @@ process.exitCode = await main(process.argv.slice(2), {
     checkpointInBackground: (...args) => import('../src/relay-checkpoint.js').then(m => m.checkpointInBackground(...args)),
     scheduleCheckpoint: (...args) => import('../src/relay-checkpoint.js').then(m => m.scheduleCheckpoint(...args)),
     requestCheckpointCheck: (...args) => import('../src/relay-checkpoint.js').then(m => m.requestCheckpointCheck(...args)),
+    flushOutbox: (...args) => import('../src/relay-outbox.js').then(m => m.flushOutbox(...args)),
+    queueMove: (...args) => import('../src/relay-outbox.js').then(m => m.queueMove(...args)),
+    outboxHasPendingCreatedItem: (...args) => import('../src/relay-outbox.js').then(m => m.outboxHasPendingCreatedItem(...args)),
     hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
     submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */

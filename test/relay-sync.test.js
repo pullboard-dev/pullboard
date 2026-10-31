@@ -26,9 +26,10 @@ function moves(box, texts, options = {}) {
     const { replay: replayConflictRecord } = await import(${CONFLICT});
     const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${BASELINE});
     const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${CHECKPOINT});
+    const { flushOutbox, queueMove, outboxHasPendingCreatedItem } = await import(${JSON.stringify(new URL('../src/relay-outbox.js', import.meta.url).href)});
     const { checkpointPublisher } = await import(${PUBLISH});
     const { relayOrdering } = await import(${ORDERING});
-    const lines = [], io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
+    const lines = [], io = { withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, flushOutbox, queueMove, outboxHasPendingCreatedItem, err: line => lines.push(line), relayTimeoutMs: 300, ...${JSON.stringify(options)} };
     const outcomes = [];
     for (const text of ${JSON.stringify(texts)}) {
       try { await relayOperation(process.cwd(), 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text }], io); outcomes.push('ok'); }

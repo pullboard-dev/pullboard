@@ -14,7 +14,8 @@ if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? 
   const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import('../src/relay-checkpoint.js');
   const { checkpointPublisher } = await import('../src/relay-checkpoint-publish.js');
   const { relayOrdering } = await import('../src/relay-ordering.js');
+  const { flushOutbox, queueMove, outboxHasPendingCreatedItem } = await import('../src/relay-outbox.js');
   const { runCheckBaselineWorker } = await import('../src/check-baseline-worker.js');
-  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck }); }
+  try { await runCheckBaselineWorker(root, Number(rawId), request, { openBoard, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, flushOutbox, queueMove, outboxHasPendingCreatedItem }); }
   catch { process.exitCode = 1; }
 } else process.exitCode = 2;

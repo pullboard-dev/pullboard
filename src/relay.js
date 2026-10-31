@@ -127,11 +127,8 @@ import {
 } from './relay-move-fallback.js';
 import {
   ACKNOWLEDGED_OPERATIONS,
-  flushOutbox,
   outboxFields,
-  outboxHasPendingCreatedItem,
   outboxQueueable,
-  queueMove,
 } from './relay-outbox.js';
 import { outboxFile, readOutboxSummary } from '../packages/link/index.js';
 import { stampCoordinatorHolder } from './coordinator-hold.js';
@@ -192,7 +189,7 @@ async function requireAuthoritativeRehomeItem(file, state, itemId, io) {
   if (!state || !Number.isSafeInteger(itemId) || itemId < 1 || !existsSync(outboxFile(file))) return;
   await io.withOutboxGuard(file, async () => {
     if (!existsSync(outboxFile(file))) return;
-    if (await outboxHasPendingCreatedItem(outboxFile(file), readBoardKey(state.board), state.board, itemId)) {
+    if (await io.outboxHasPendingCreatedItem(outboxFile(file), readBoardKey(state.board), state.board, itemId)) {
       throw new Refused('RELAY_OUTBOX_UNBOUND', `item #${itemId} is still waiting for relay order; run pullboard status until it is sent, look up the current item ID, then retry the move`);
     }
   });
@@ -961,7 +958,7 @@ function reportRecoveredReply(record, io) {
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
 async function orderingServices(io) {
   return io.relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard,
-    flush: (root, file, state, output, senderPolicy) => flushOutbox(outboxLink(root, file, state, output, senderPolicy)) });
+    flush: (root, file, state, output, senderPolicy) => io.flushOutbox(outboxLink(root, file, state, output, senderPolicy)) });
 }
 async function applyRecords(root, key, state, records, io) { return (await orderingServices(io)).applyRecords(root, key, state, records, io); }
 async function fetchCheckpoint(state, io, key, senderPolicy) { return (await orderingServices(io)).fetchCheckpoint(state, io, key, senderPolicy); }
@@ -1029,7 +1026,7 @@ async function queueLocally(root, file, operation, args, io, command, applyLocal
   const result = await io.withOutboxGuard(file, () => {
     // A revoke can finish while this move waits: admission uses the cache protected by this guard, never its earlier snapshot.
     const current = loadLink(file);
-    return !current ? guarded.apply() : queueMove(outboxLink(root, file, current, io, senderPolicy),
+    return !current ? guarded.apply() : io.queueMove(outboxLink(root, file, current, io, senderPolicy),
       { operation, args, command, applyLocally: guarded.apply, quiet: true });
   });
   onRecorded?.();
@@ -1049,7 +1046,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
     if (operation === 'rehomeItem') await requireAuthoritativeRehomeItem(file, state, args?.[0], io);
     const guarded = landingRelayCallbacks(operation, args, {
       apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
-      queue: (error, move, apply) => queueMove(outboxLink(root, file, state, io, senderPolicy), { operation, args, command, move, error, applyLocally: apply }),
+      queue: (error, move, apply) => io.queueMove(outboxLink(root, file, state, io, senderPolicy), { operation, args, command, move, error, applyLocally: apply }),
     });
     const applyPausedMoveLocally = guarded.apply;
     if (!state && deletedRecovery(root)) return deletedMoveResult(root, operation, args, command, io, applyPausedMoveLocally);
@@ -1082,7 +1079,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
       }
       try {
         // #922: moves queued while the relay was down go up first, in the order they were made.
-        await flushOutbox(outboxLink(root, file, state, io, senderPolicy));
+        await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy));
         await catchUp(root, file, state, io, senderPolicy);
       } catch (error) {
         if (outboxQueueable(state, error, operation, io, args)) return await queue(error);
@@ -1201,7 +1198,7 @@ export async function syncRelay(root, io) {
     try {
       if (state.recovery) throw new Refused('RELAY_RECOVERY_PENDING', `a relay recovery for sequence ${state.recovery.skip} is pending; retry pullboard relay recover --skip ${state.recovery.skip} before syncing`);
       if (!await ensureOrdered(root, file, state, io)) return summary(root, state);
-      await flushOutbox(outboxLink(root, file, state, io, senderPolicy));
+      await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy));
       await catchUp(root, file, state, io, senderPolicy);
       if (state.pending) {
         // The complete prefix did not acknowledge this interrupted send. It must not run later.
@@ -1613,7 +1610,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
       if (ready) ready = await ensureOrdered(root, file, state, io);
       if (ready) {
         rmSync(deletedLinkFile(root), { force: true });
-        await flushOutbox(outboxLink(root, file, state, io, senderPolicy));
+        await io.flushOutbox(outboxLink(root, file, state, io, senderPolicy));
         await catchUp(root, file, state, io, senderPolicy);
         await deliverDeviceWraps(root, io);
         clearedExclusion = clearRelayExclusion(root);
