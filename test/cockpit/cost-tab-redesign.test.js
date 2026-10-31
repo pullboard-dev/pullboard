@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** The Cost overview renders the server analytics contract in Chrome [N26]. */
 import assert from 'node:assert/strict';
@@ -38,6 +39,9 @@ test('the private Cost overview renders prepared analytics and each confidence [
     const unknown = costOverviewHtml({...fixture, longest:[{id:2,title:'Unknown',agentMs:null,sentBack:0,sessions:[{label:'Unknown model',count:null,agentMs:null,tokensIn:null}]}]}, 2);
     assert.doesNotMatch(unknown, /0 sessions|cost-time-bar/u);
     assert.match(unknown, /No token count/u);
+    const dated = costOverviewHtml({...fixture, longest:[{id:3,title:'Dated',agentMs:1,landedAt:'2026-10-30T12:00:00Z',sessions:[]}]}, 3);
+    assert.match(dated, /datetime="2026-10-30T12:00:00Z"/u);
+    assert.doesNotMatch(dated, />2026-10-30T12:00:00Z</u);
     assert.deepEqual(chrome.exceptions, []);
   } finally { if (chrome) await closeSnapshotChrome(chrome); await new Promise(resolve => server.close(resolve)); rmSync(dir,{recursive:true,force:true}); }
 });
