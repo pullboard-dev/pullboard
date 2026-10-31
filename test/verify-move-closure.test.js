@@ -2,12 +2,16 @@
 /** @pullboard-test-input package.json */
 /** Exact-body verify shims keep the runner worker and move registry closures unchanged [C7,CD60,H16]. */
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { importsIn } from '../src/module-imports.js';
 import { readPathMap } from '../packages/codemap/index.js';
+import { MOVE_CANDIDATE, MOVE_FILE, discovered } from '../src/discovery.js';
+import { workingSourceInventory } from '../bin/checks/scan.js';
+import { packageFiles } from '../src/package-files.js';
+import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const VERIFY = new Map([...readPathMap(ROOT)].filter(([, moved]) => moved.startsWith('packages/verify/')));
@@ -34,8 +38,13 @@ function closure(entries, read) {
 }
 
 const WORKER = ['src/runner-worker.js'];
-const MOVES = readdirSync(join(ROOT, 'src/moves')).filter(file => file.endsWith('.js')).map(file => `src/moves/${file}`);
-const read = file => readFileSync(join(ROOT, file), 'utf8');
+const MOVES = discovered(readdirSync(join(ROOT, 'src/moves')), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => `src/moves/${file}`);
+const SOURCES = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT))).map(({ file, body }) => [file, body.toString('utf8')]));
+/** Read only the bounded working inventory, never a path outside it. */
+const read = file => {
+  assert.ok(SOURCES.has(file), `closure source belongs to the bounded inventory: ${file}`);
+  return SOURCES.get(file);
+};
 
 test('the worker and move registry reach exactly the verify files they reached before the move [C7,CD60,H16]', () => {
   assert.deepEqual(closure(WORKER, read).verify, ['src/proof-provenance.js', 'src/quarantine-verdict.js']);

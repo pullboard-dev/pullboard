@@ -18,7 +18,7 @@ export { eligibilityProblem, reviewEligibility } from './src/core/review-eligibi
 export { committedItemAuthors, itemReviewPolicy, reviewFamilyProblem, reviewPolicyChange, saveItemReviewPolicy, strictReviewProblem, twoTierReviews } from './src/shell/review-independence.js';
 export { aliasEngineOn, anyItemReviewPolicyEngine, familiesDiffer, familyAliasesOf, familyIndex, familyName, itemReviewPolicyEngine } from './src/core/review-policy.js';
 export { reviewQueueLine } from './src/core/review-queue-line.js';
-export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily } from './src/shell/review-routing.js';
+export { canonicalFamily, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem as routingStrictReviewProblem } from './src/shell/review-routing.js';
 export { ruleProofCounts, ruleProofWindow } from './src/shell/rule-proof-counts.js';
 export { committedRuleCoverage, proofCoverageFingerprint } from './src/shell/rule-proof-coverage.js';
 export { appendRuleProof } from './src/shell/rule-proof-index.js';

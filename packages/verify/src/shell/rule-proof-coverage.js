@@ -8,9 +8,10 @@ const FILE = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.(?:[cm]?js|cts)$/u;
 /** Bind cached interpretation to installed parser and canonical runner bytes, independent of reader runtime. */
 export function proofCoverageFingerprint() {
   const hash = createHash('sha256').update('rule-coverage-source-v2');
-  for (const name of ['./rule-proof-coverage.js', './literal-shell-words.js', '../bin/run-tests.js']) {
-    hash.update(name).update(readFileSync(new URL(name, import.meta.url)));
-  }
+  // The hashed names keep their historical spelling; each literal URL names the file where it now lives.
+  hash.update('./rule-proof-coverage.js').update(readFileSync(new URL('./rule-proof-coverage.js', import.meta.url)));
+  hash.update('./literal-shell-words.js').update(readFileSync(new URL('../../../../src/literal-shell-words.js', import.meta.url)));
+  hash.update('../bin/run-tests.js').update(readFileSync(new URL('../../../../bin/run-tests.js', import.meta.url)));
   return hash.digest('hex');
 }
 
@@ -70,7 +71,7 @@ function includedFiles(root, commit, command, tracked, depth = 0, context = {}) 
   if (words[1] === '--test') return selectedFiles(words.slice(2), tracked, false);
   if (words[1]?.replace(/^\.\//u, '') === 'bin/run-tests.js' && tracked.has('bin/run-tests.js')) {
     const source = tryGit(root, ['show', `${commit}:bin/run-tests.js`]);
-    if (source.status !== 0 || source.stdout !== readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8')) return [];
+    if (source.status !== 0 || source.stdout !== readFileSync(new URL('../../../../bin/run-tests.js', import.meta.url), 'utf8')) return [];
     return selectedFiles(words.slice(2), tracked, true);
   }
   return [];

@@ -1,1 +1,1 @@
-export { canonicalFamily, familiesDiffer, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, strictReviewProblem } from '../packages/verify/index.js';
+export { canonicalFamily, familiesDiffer, overdueReview, prioritizeReviews, requireStrictBuilderFamily, reviewReleaseCooldown, reviewRoutingEnabled, reviewWait, seatFamily, routingStrictReviewProblem as strictReviewProblem } from '../packages/verify/index.js';
