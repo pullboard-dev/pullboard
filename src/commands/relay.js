@@ -1,5 +1,6 @@
 /** The pullboard relay command, in its own module so an item adding another command never edits these lines. */
-import { nativeBoardOpeners, nativePersonRequestPorts } from '../cli-context.js';
+import { nativeBoardOpeners } from '../cli-context.js';
+import { nativePersonRequestPorts } from '../cli-context.js';
 import * as store from '../board.js';
 import { gitSyncLinked } from '../local-state.js';
 import {
@@ -12,7 +13,8 @@ import {
   Refused,
 } from '../refused.js';
 import * as relayOutput from '../relay-output.js';
-import { describeMove, refusalLine } from '../relay-outbox.js';
+import { describeMove } from '../relay-outbox.js';
+import { refusalLine } from '../relay-outbox.js';
 import { DEFAULT_RELAY } from '../relay.js';
 import { originRepository } from '../relay.js';
 import { relayPersonCoordinator } from '../relay.js';

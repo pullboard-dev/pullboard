@@ -1,4 +1,5 @@
-import { nativeBoardOpeners, nativePersonRequestPorts } from './cli-context.js';
+import { nativeBoardOpeners } from './cli-context.js';
+import { nativePersonRequestPorts } from './cli-context.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 import { readFileSync } from 'node:fs';
 import { readBoardKey } from './relay-key.js';
