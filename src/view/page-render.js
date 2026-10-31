@@ -156,7 +156,7 @@ function render() {
   const gatedOf = (item) => item.status === 'open' && (item.blockedBy.length > 0 || heldLanes.has(item.lane) || (p.itemHolds || []).some((hold) => hold.item === item.id));
   if (view.tab === 'cost' && privateCost && !snapshot && !hosted.local && !readOnly && !data.group) {
     const history = readCostHistory(p);
-    $('cost').innerHTML = costTabHtml(history.model, view.costOpen, history);
+    $('cost').innerHTML = history.loading ? '<p class="empty" role="status">Loading cost history…</p>' : history.error ? '<p class="empty" role="status">Cost history is unavailable.</p>' : costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(p.costPrices && Object.keys(p.costPrices).length) });
     document.title = $('proj-name').textContent + ' · Cost · Pullboard';
   }
   if (view.tab === 'roadmap') {

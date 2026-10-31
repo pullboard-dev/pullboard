@@ -9,13 +9,14 @@ function readCostHistory(project) {
   project.costPrices = localCostPrices;
   const root = view.root;
   const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
+  const window = view.costWindow ?? '7d';
   const kept = costHistory.get(root);
-  if (kept?.sequence === sequence) return kept;
-  const entry = { sequence, loading: true, error: null, model: null };
+  if (kept?.sequence === sequence && kept.window === window) return kept;
+  const entry = { sequence, window, loading: true, error: null, model: null };
   costHistory.set(root, entry);
-  api(boardPath(root) + '/events').then(reply => {
-    if (costHistory.get(root) !== entry || root !== view.root || !Array.isArray(reply.events)) return;
-    entry.model = costTabModel(project, reply.events, project.costPrices ?? null);
+  api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
+    if (costHistory.get(root) !== entry || root !== view.root || !reply.costAnalytics) return;
+    entry.model = reply.costAnalytics;
     entry.loading = false;
     if (view.tab === 'cost') render();
   }).catch(error => {
