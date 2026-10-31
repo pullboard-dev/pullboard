@@ -34,11 +34,11 @@ import {
   alreadyAddedLine,
   initWaitingRows,
   waitingRowLines,
-} from './blueprint-report.js';
+} from '../packages/blueprints/index.js';
 import {
   initBlueprintLines,
   initBlueprintResult,
-} from './blueprint-set.js';
+} from '../packages/blueprints/index.js';
 import {
   askedLaneNotes,
   proposeLanes,

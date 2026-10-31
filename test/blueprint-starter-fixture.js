@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import {
   bundledBlueprints,
   readBlueprint,
-} from '../src/blueprints.js';
+} from '../packages/blueprints/index.js';
 import {
   checkBaseline,
   prepareCheckBaseline,
