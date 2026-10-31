@@ -1,4 +1,6 @@
 /** Private Cost-tab selection and rendering for the local board view [N26]. */
+import { costOverviewHtml } from './cost-overview.js';
+import { bindCostOverview } from './cost-overview.js';
 
 import { modelPresentation } from './model-presentation.js';
 export { modelPresentation } from './model-presentation.js';
@@ -284,6 +286,6 @@ export function costTabHtml(model, opened = null, { loading = false, error = nul
 /** Embed this module's closure-free Cost functions into the standalone local-view page. */
 export function costTabScript() {
   const functions = [modelPresentation, costEventDetail, actorOf, kindOf, costFigure, dateLabel, escapeHtml, completeSum, median,
-    usageRole, firstSamplePhaseKnown, counterDelta, usageByItem, sharedUsageItems, recordCost, costTabModel, sessionHtml, costTabHtml];
+    usageRole, firstSamplePhaseKnown, counterDelta, usageByItem, sharedUsageItems, recordCost, costTabModel, sessionHtml, costTabHtml, costOverviewHtml, bindCostOverview];
   return functions.map((fn) => `const ${fn.name} = (${fn.toString()});`).join('\n');
 }

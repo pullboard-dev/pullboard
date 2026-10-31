@@ -50,7 +50,7 @@ function renderReleaseNotes(project) {
 }
 
 /** Draw the board shown: the sidebar, then every tab's panes from the project's board. */
-${pageRenderScript()}
+${pageRenderScript(pageScope.privateCost)}
 
 /**
  * Show or hide the lifecycle on Activity, and keep the choice: a person who closed it has learned

@@ -10,7 +10,6 @@
   ["src/help/setup.js","apps/view/src/shell/help/setup.js","imports"],
   ["src/needs-state.js","apps/view/src/shell/needs-state.js","seed"],
   ["src/needs-summary.js","apps/view/src/core/needs-summary.js","seed"],
-  ["src/needs.js","apps/view/src/core/needs.js","seed"],
   ["src/resume-needs.js","apps/view/src/core/resume-needs.js","seed"],
   ["src/serve.js","apps/view/src/shell/serve.js","seed"],
   ["src/view-session.js","apps/view/src/shell/view-session.js","seed"],
@@ -90,7 +89,8 @@
   ["src/view/item-rows.css","apps/view/src/shell/view/item-rows.css","rule"],
   ["src/view/model-presentation.js","apps/view/src/shell/view/model-presentation.js","rule"],
   ["src/view/stage.css","apps/view/src/shell/view/stage.css","rule"],
-  ["src/view-api-ports.js","apps/view/src/shell/view-api-ports.js","rule"]
+  ["src/view-api-ports.js","apps/view/src/shell/view-api-ports.js","rule"],
+  ["src/view/cost-overview.js","apps/view/src/shell/view/cost-overview.js","rule"]
  ],
  "reexports": [
   "src/background-view.js",
@@ -98,7 +98,6 @@
   "src/help/setup.js",
   "src/needs-state.js",
   "src/needs-summary.js",
-  "src/needs.js",
   "src/resume-needs.js",
   "src/serve.js",
   "src/view-session.js",

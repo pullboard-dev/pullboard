@@ -1176,7 +1176,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
       return withGitReadFacts(() => withReadBoard(board.root, current => costAnalytics({
-      items: store.listItems(current), agents: store.listAgents(current), events: store.events(current),
+      items: store.listItems(current, { all: true }), agents: store.listAgents(current), events: store.events(current),
       window, now: new Date(now()), modelPresentation: costModelPresentation,
       }), codeIsMain, boardOpeners));
     },
