@@ -1,0 +1,1 @@
+export { planSpecRevision, revisionReference, validSpecRevision, validRevisionApproval, prepareSpecRevisionDecisions, decideSpecRevisions, markAppliedRevisions, projectSpecRevisions } from "../packages/spec/index.js";

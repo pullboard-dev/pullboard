@@ -31,7 +31,7 @@
   ["src/config-forward-compat.js","packages/config/src/shell/config-forward-compat.js","rule"],
   ["test/config-forward-compat.test.js","packages/config/tests/config-forward-compat.test.js","rule"]
  ],
- "reexports": [],
+ "reexports": ["src/config.js","src/release-headlines.js","src/release-version.js","src/settings-read.js"],
  "imports": [
   {"cell":"kernel","imports":6,"before":true},
   {"cell":"git","imports":1,"before":true},

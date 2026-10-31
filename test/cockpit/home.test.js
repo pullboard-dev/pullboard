@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
-import { rebuildProofCounters } from '../../packages/verify/index.js';
+import { rebuildProofCounters } from '../../src/proof-counters.js';
 import { submitFixture } from '../board-submit-fixture.js';
 
 const HOUR = 3_600_000;

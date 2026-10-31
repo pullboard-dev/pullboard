@@ -43,7 +43,7 @@
   ["src/review-composition.js","packages/verify/src/shell/review-composition.js","rule"],
   ["src/quarantine-verdict.js","packages/verify/src/core/quarantine-verdict.js","rule"]
  ],
- "reexports": [],
+ "reexports": ["src/proof-counter-read.js","src/proof-counters.js"],
  "imports": [
   {"cell":"kernel","imports":21,"before":true},
   {"cell":"git","imports":9,"before":true},

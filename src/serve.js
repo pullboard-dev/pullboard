@@ -43,15 +43,15 @@ import {
   resolve,
 } from 'node:path';
 import * as store from './board.js';
-import { releaseHeadlinesBetween } from '../packages/config/index.js';
-import { VERSION } from '../packages/config/index.js';
+import { releaseHeadlinesBetween } from './release-headlines.js';
+import { VERSION } from './release-version.js';
 import { displayAgentName } from './agent-names.js';
 import {
   COORDINATOR,
   DEFAULT_VIEW_PORT,
   defaultViewPort,
   loadConfig,
-} from '../packages/config/index.js';
+} from './config.js';
 import {
   doctrineHistory,
   loadDoctrine,
@@ -63,7 +63,7 @@ import {
   resolveCommit,
 } from './git.js';
 import { committedIds } from './history.js';
-import { productSummaries } from '../packages/spec/index.js';
+import { productSummaries } from './products.js';
 import {
   forgetProject,
   listApiProjects,
@@ -72,18 +72,18 @@ import {
 import { fetchLocal } from '../packages/sync/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { relayLinkAvailability } from './relay.js';
-import { personNeeds } from '../packages/spec/index.js';
+import { personNeeds } from './row-decision-text.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { sentinelDraftNeeds } from './sentinels.js';
 import { sentinels } from './sentinels.js';
-import { projectRowDecisions } from '../packages/spec/index.js';
-import { projectSpecRevisions } from '../packages/spec/index.js';
-import { loadSpec } from '../packages/spec/index.js';
-import { gateFiles } from '../packages/spec/index.js';
+import { projectRowDecisions } from './row-decisions.js';
+import { projectSpecRevisions } from './spec-revisions.js';
+import { loadSpec } from './spec.js';
+import { gateFiles } from './spec.js';
 import { viewLanAddress } from './view/lan-address.js';
 import { publicSnapshot } from './view/public-export.js';
 import { openBoardForRead } from './board-read-open.js';
-import { loadMachineSettings } from '../packages/config/index.js';
+import { loadMachineSettings } from './settings-read.js';
 
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
 const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('./view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('./view/stage.css', import.meta.url), 'utf8').trimEnd());

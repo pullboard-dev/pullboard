@@ -37,7 +37,7 @@
   ["test/signoff.test.js","packages/spec/tests/signoff.test.js","seed"],
   ["src/spec-gate-move.js","packages/spec/src/shell/spec-gate-move.js","rule"]
  ],
- "reexports": [],
+ "reexports": ["src/products.js","src/row-decision-text.js","src/row-decisions.js","src/spec-revisions.js","src/spec.js"],
  "imports": [
   {"cell":"kernel","imports":18,"before":true},
   {"cell":"git","imports":8,"before":true},
