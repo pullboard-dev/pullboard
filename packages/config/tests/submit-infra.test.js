@@ -32,7 +32,7 @@ test('infra-note policies reject invalid known values and warn on unknown keys [
     assert.throws(() => configFromSource(JSON.stringify({ submit })), error => error.code === 'BAD_CONFIG');
   }
   // A fresh real process proves the forward-compatible warning, including its exact nested path.
-  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/config.js', import.meta.url).href)};
+  const source = `import {configFromSource} from ${JSON.stringify(new URL('../src/shell/config.js', import.meta.url).href)};
 console.log(JSON.stringify(configFromSource('{"submit":{"requireInfraNotes":true}}').submit));`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.failure || result.stderr);
