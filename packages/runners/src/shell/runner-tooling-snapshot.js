@@ -13,7 +13,12 @@ import { createRunnerModuleParser } from '../../../../src/runner-module-parser.j
 const readers = new WeakMap();
 // The runners.js front door re-exports these step modules; a controller generation pins their bytes too.
 const CONTROLLER_STEPS = ['src/runner-source-scan.js', 'src/runner-history-pack.js', 'src/runner-remote-tooling.js',
-  'src/runner-request.js', 'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js'];
+  'src/runner-request.js', 'src/runner-result.js', 'src/runner-dispatch.js', 'src/runner-health.js',
+  'packages/runners/index.js', 'packages/runners/src/shell/runners.js',
+  'packages/runners/src/shell/runner-source-scan.js', 'packages/runners/src/shell/runner-history-pack.js',
+  'packages/runners/src/shell/runner-remote-tooling.js', 'packages/runners/src/shell/runner-request.js',
+  'packages/runners/src/shell/runner-result.js', 'packages/runners/src/shell/runner-dispatch.js',
+  'packages/runners/src/shell/runner-health.js'];
 
 /** Read each controller step's bytes, null when absent, so a fixture holding only runners.js still pins. */
 function controllerSteps(root) {

@@ -582,7 +582,7 @@ test('moved controller step bodies stay bound to the loaded runner generation [C
   const installed = join(f.directory, 'installed');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   const loaded = captureRunnerTooling(installed);
-  for (const file of ['packages/runners/src/shell/runners.js', 'packages/runners/src/shell/runner-dispatch.js']) {
+  for (const file of ['packages/runners/index.js', 'packages/runners/src/shell/runners.js', 'packages/runners/src/shell/runner-dispatch.js']) {
     const path = join(installed, file);
     const original = readFileSync(path);
     try {
