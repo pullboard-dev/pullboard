@@ -9,6 +9,7 @@ import { capacityLines } from '../../packages/stats/index.js';
 import { releaseBlockingItems } from '../../packages/health/index.js';
 import { staleStateSnapshot } from '../../packages/health/index.js';
 import { staleStateLine } from '../board-stale-state-policy.js';
+import { lineSettings } from '../../packages/state/index.js';
 import { routingCapacity } from '../routing-capacity.js';
 import { foreignBlockers } from '../cross-repo-dependencies.js';
 import { readReceivedBoardState } from '../board-link-state.js';
@@ -79,7 +80,7 @@ export async function run(io, { values }) {
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../person-signing.js')).personSigning(board).signed } : { signed: false };
-    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...readers, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
+    return { me, mine, person, agents, presenceCounts, capacity: routingCapacity(board, agents, statusForeignBlockers, { ...readers, localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence, lineSettings }), capacityForecast: readCapacity(board, undefined, { currentProofCounters, proofCounter }), staleState, ruleCounts: ruleProofCounts(ctx.info.root, board, approvalState.spec), needs: approvalState.needs, specApprovalBaseline: approvalState.specApprovalBaseline, specApprovalEvidenceErrors: approvalState.specApprovalEvidenceErrors, stats: store.stats(board), reviewQueue: { ...store.reviewQueue(board), ...store.reviewQueueBreakdown(board) }, unread: store.unreadCount(board, me.id), relay: relay ? relay.relayStatus(ctx.info.root, io) : unlinkedRelayStatus(),
       submitInvariantProposals: submitInvariantProposals(store.submitInvariantEvents(board, ctx.config), ctx.config) };
   });
   if (!summary.relay.linked && existsSync(relayMachineDirectory())) {
