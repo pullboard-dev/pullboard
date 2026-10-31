@@ -3,6 +3,7 @@ export const DEFAULT_NEXT_STEPS = Object.freeze({
   TOOL_BUILD_UNAVAILABLE: 'restore the published build Git objects or ask the coordinator to promote a gated build',
   TOOL_BUILD_REQUIRED: 'ask the coordinator to run pullboard tool-build promote <commit> --gate-receipt <gate-id>',
   TOOL_BUILD_NOT_GATED: 'ask the coordinator to promote an accepted commit with its native green full landing receipt',
+  TOOL_BUILD_STALE: 'run a fresh pullboard gate --landing --receipt --runner-only on main, then retry promotion',
   EXIT_BUDGET: 'stop this session; release the item with --note "Done: <work>; Failed: <case or none>; Next: <next step>" so a fresh same-family seat continues',
   EXIT_REPEAT_FAILURE: 'stop this session after the repeated native failure; release with --note "Done: <work>; Failed: <case>; Next: <next step>"',
   EXIT_SUMMARY: 'release with --note "Done: <work>; Failed: <case or none>; Next: <next step>" to record the handoff atomically',

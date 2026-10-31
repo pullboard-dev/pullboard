@@ -69,6 +69,7 @@ const OPTIONS = {
   key: { type: 'string' },
   out: { type: 'string' },
   watch: { type: 'boolean' },
+  'runner-only': { type: 'boolean' },
   after: { type: 'string' },
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
@@ -327,6 +328,7 @@ async function runMain(argv, streams) {
   let auditAfterCommand = false;
   let advanceAfterCommand = false;
   let maintenanceAfterCommand;
+  let toolBuildGateAfterCommand;
   try {
     parsed = parseCommandArgs(argv);
     const command = parsed.positionals[0];
@@ -397,6 +399,7 @@ async function runMain(argv, streams) {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
     }
+    if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
     if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
@@ -408,6 +411,10 @@ async function runMain(argv, streams) {
     if (maintenanceAfterCommand) {
       try { await (await import('./worktree-maintenance-scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
       catch (error) { io.err(maintenanceTimerWarning(error)); }
+    }
+    if (toolBuildGateAfterCommand) {
+      try { await (await import('./tool-build-scheduler.js')).scheduleToolBuildGate(toolBuildGateAfterCommand); }
+      catch (error) { io.err(`tool build gate timer unavailable: ${error.code ?? error.name}`); }
     }
     if (advanceAfterCommand) {
       try {
