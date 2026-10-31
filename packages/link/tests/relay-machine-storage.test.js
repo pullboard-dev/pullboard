@@ -1,12 +1,15 @@
 /** Legacy person credentials are removed rather than loaded by native or agent work [H15,H16,B26]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { relayClientFixture } from './relay-client-fixture.js';
+import { relayClientFixture } from '../../../test/relay-client-fixture.js';
 
-const APPROVAL_MODULE = new URL('../src/relay-approval.js', import.meta.url).href;
-const MACHINE_MODULE = new URL('../src/relay-machine.js', import.meta.url).href;
+const APPROVAL_MODULE = new URL('../src/core/relay-approval.js', import.meta.url).href;
+const MACHINE_MODULE = new URL('../src/shell/relay-machine.js', import.meta.url).href;
 
 test('legacy machine and board sessions are scrubbed before an agent read or fresh sign-in [H15,H16,B26]', async t => {
   const box = await relayClientFixture(t);

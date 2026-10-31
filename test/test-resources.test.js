@@ -350,11 +350,11 @@ const CENSUS_LAUNCHED = [
   'test/cockpit/scope.test.js', 'test/cockpit/search.test.js', 'test/cockpit/shared-wait-browser.test.js', 'test/cockpit/shout-overlap.test.js',
   'test/cockpit/shouts.test.js', 'test/cockpit/snapshot.test.js', 'test/cockpit/spec.test.js', 'test/cockpit/stats.test.js',
   'test/relay-agent.test.js', 'test/relay-approval-delivery.test.js', 'test/relay-browser-fixture.test.js', 'test/relay-browser.test.js',
-  'test/relay-device-confirmation.test.js', 'test/relay-person-actions.test.js', 'test/relay-person-credential.test.js',
+  'packages/link/tests/relay-device-confirmation.test.js', 'test/relay-person-actions.test.js', 'test/relay-person-credential.test.js',
   'test/relay-person-outbox.test.js', 'test/relay-person-page.test.js', 'test/relay-person-requests.test.js',
   // Later addition: #978's independently proven two-Chrome pairing case (outside ACCEPT 1443).
   'test/relay-pairing.test.js',
-  'test/relay-setup-once.test.js', 'test/relay-snapshot-recovery.test.js', 'test/relay-snapshot-size.test.js', 'test/seal.test.js',
+  'packages/link/tests/relay-setup-once.test.js', 'test/relay-snapshot-recovery.test.js', 'test/relay-snapshot-size.test.js', 'test/seal.test.js',
 ];
 
 /** Git's environment without hook or outer-repository variables, so fixture git commands see only their own repo. */

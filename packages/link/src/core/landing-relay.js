@@ -1,5 +1,5 @@
 /** Keep physical landing authority out of optimistic local or queued relay fallbacks [Q1,H16]. */
-import { Refused } from '../packages/kernel/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Preserve ordinary move fallbacks while requiring acknowledged order for fenced landing work. */
 export function landingRelayCallbacks(operation, args, { apply, queue }) {
