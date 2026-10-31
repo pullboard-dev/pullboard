@@ -231,6 +231,20 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - H21 [approved, aim] A linked board reads and moves locally whether or not the relay answers: every move returns at once and is sent when the relay is reachable, and a conflict found on sync is refused loudly naming the winner (revises H10 for #1013). | gate: test/relay-local-first.test.js
 - H22 [draft, aim] A linked board stays linked: the person signs in once per machine, and only relay off or a revoke unlinks it. | gate: review
 
+### Proposed exclusive local ordering
+
+These draft rows revise H3/H10/H16/E2 for an explicitly selected exclusive mode and qualify H8/E5 for disconnected delegation. Default relay ordering and H21's provisional outbox remain unchanged; neither is evidence of exclusivity. Immediate remote revocation cannot be guaranteed while the owner is disconnected.
+
+- H23 [draft, must] An opted-in exclusive board commits permitted local moves without network dependencies; committed results are final, not provisional. | gate: review
+- H24 [draft, must] Authorized workers may nominate a leader; only settled moves and a recorded generation fencing competing machines establish ownership. | gate: review | serves: H23
+- H25 [draft, must] Concurrent workers share the owner's board; other machines send requests, not competing moves, preserving actor identities and existing guards. | gate: review | serves: H23
+- H26 [draft, must] Durable moves survive restart and authorized replay without loss, duplication or renumbering; full or unwritable journals refuse new moves. | gate: review | serves: H23
+- H27 [draft, must] Handover fences the old owner and settles its committed tail; elapsed time alone cannot authorize replacement. | gate: review | serves: H24
+- H28 [draft, must] Offline delegation honors local revocation immediately and remote revocation when observed; remote operations still require current permission. | gate: review | serves: H23
+- H29 [draft, aim] Bounded replication batches begin flushing within five seconds of the oldest pending move; continuous writes never postpone them. | gate: review | serves: H26
+- H30 [draft, must] Flush early when full or requested; retire only acknowledged records; send no empty batches; local commits never wait. | gate: review | serves: H29
+- H31 [draft, must] Cloning or pairing grants no ownership; status distinguishes the owner, local commits, pending replication and relay-acknowledged progress. | gate: review | serves: H24
+
 ## E · Teams: many people, one board
 
 - E1 [approved, must] A team shares one board: every person's clones, machines and phones show the same items in one order. | gate: test/team.test.js
