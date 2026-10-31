@@ -279,3 +279,10 @@ test('verify move retains Strict for each protected destination and excludes unr
     assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
   }
 });
+
+
+test('outbox move keeps the format guard strict without broadening test paths [V4,B26,H16]', () => {
+  assert.equal(gateJudgmentPath('test/relay-outbox-format.test.js'), true);
+  assert.equal(gateJudgmentPath('packages/outbox/tests/relay-outbox-format.test.js'), true);
+  assert.equal(gateJudgmentPath('packages/outbox/tests/relay-outbox-format-extra.test.js'), false);
+});
