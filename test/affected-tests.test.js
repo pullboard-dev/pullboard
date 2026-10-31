@@ -387,7 +387,7 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
   const mapped = mappedWorkingSource(sourceRoot, 'src/person.js');
-  writeFileSync(join(box.root, 'src/person.js'), readFileSync(join(box.root, mapped.shimPath), 'utf8') + '\n// ordinary source change\n');
+  box.put('src/person.js', readFileSync(join(box.root, mapped.shimPath), 'utf8') + '\n// ordinary source change\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/person.js'] });
   assert.equal(selected.full, false, selected.reason);
