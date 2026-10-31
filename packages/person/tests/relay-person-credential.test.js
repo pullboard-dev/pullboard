@@ -1,17 +1,17 @@
 /** @pullboard-test-gui */
 /** Same-user agents keep working while only the paired phone holds person authority [H5,H16,H17,B26]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn, runFixtureChild as spawnSync } from './fixture-child.js';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync } from "../../../test/fixture-child.js";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { ENGINE_VERSION } from '../src/machine.js';
-import { relayClientFixture } from './relay-client-fixture.js';
-import { enrollProtocolPhone } from './relay-device-enrollment-fixture.js';
-import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
+import { ENGINE_VERSION } from "../../../src/machine.js";
+import { relayClientFixture } from "../../../test/relay-client-fixture.js";
+import { enrollProtocolPhone } from "../../../test/relay-device-enrollment-fixture.js";
+import { findChromeExecutable, startChrome } from "../../../test/relay-browser-fixture.js";
 
-const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
+const CLI = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 
 /** Run a real native command while allowing a phone tap before the foreground process finishes. */
 function command(root, environment, args) {

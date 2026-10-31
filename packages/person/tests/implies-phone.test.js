@@ -4,12 +4,12 @@ import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { relayClientFixture } from './relay-client-fixture.js';
-import { preparePersonRequest } from '../src/person-request.js';
-import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { relayClientFixture } from "../../../test/relay-client-fixture.js";
+import { preparePersonRequest } from "../src/core/person-request.js";
+import { decodeBoardKey, seal } from "../../kernel/src/core/seal.js";
+import { ENGINE_VERSION } from "../../../src/machine.js";
 
-const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../src/' + name + '.js')).href;
+const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../../../src/' + name + '.js')).href;
 
 /**
  * Post one genuine phone answer request through the real relay, claim it as this machine's executor,

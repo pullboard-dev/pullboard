@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { authenticatePersonEnrollment, createPersonRoot, sealAccountEnvelope } from '../src/person-enrollment.js';
-import { createDeviceKeys } from '../src/relay-device-keys.js';
+import { authenticatePersonEnrollment, createPersonRoot, sealAccountEnvelope } from "../src/core/person-enrollment.js";
+import { createDeviceKeys } from "../../../src/relay-device-keys.js";
 
 /** Open in an independent isolate that has never held the original private root. */
 async function recoveredEnrollment(serialized, material, method, expected, body) {
@@ -26,8 +26,8 @@ async function recoveredEnrollment(serialized, material, method, expected, body)
   `;
   const worker = new Worker(new URL('data:text/javascript,' + encodeURIComponent(source)), { workerData: {
     serialized: JSON.stringify(isolated), material, method, expected, body,
-    vaultModule: new URL('../src/person-credential-vault.js', import.meta.url).href,
-    enrollmentModule: new URL('../src/person-enrollment.js', import.meta.url).href,
+    vaultModule: new URL('../../../src/person-credential-vault.js', import.meta.url).href,
+    enrollmentModule: new URL('../../../src/person-enrollment.js', import.meta.url).href,
   } });
   try {
     return await new Promise((resolve, reject) => {
@@ -50,9 +50,9 @@ test('an account root survives storage loss through credential and recovery enve
   // budget: a hang ceiling for real crypto and owned worker shutdown, not a speed assertion.
   console.log('vault runtime ' + JSON.stringify({ node: process.version, executable: process.execPath,
     sha256: createHash('sha256').update(readFileSync(process.execPath)).digest('hex') }));
-  assert.equal(existsSync(new URL('../src/person-credential-vault.js', import.meta.url)), true,
+  assert.equal(existsSync(new URL('../../../src/person-credential-vault.js', import.meta.url)), true,
     'a credential vault must seal and restore the actual signing root');
-  const { createCredentialVault, openCredentialVault, serializeCredentialVault } = await import('../src/person-credential-vault.js');
+  const { createCredentialVault, openCredentialVault, serializeCredentialVault } = await import("../src/core/person-credential-vault.js");
   const prf = crypto.getRandomValues(new Uint8Array(32));
   const context = { account: '42', revision: 1 };
   let created = await createCredentialVault(prf, context);

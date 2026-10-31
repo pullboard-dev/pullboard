@@ -6,8 +6,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, st
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
-import { forgetBoardKey, readBoardKey, storeBoardKey } from '../src/relay-key.js';
+import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from "../../kernel/src/core/seal.js";
+import { forgetBoardKey, readBoardKey, storeBoardKey } from "../../../src/relay-key.js";
 
 /**
  * Give one test a private home and a PATH with no keychain executable, forcing the documented file fallback.

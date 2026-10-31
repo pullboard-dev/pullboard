@@ -1,17 +1,17 @@
 /** Person-authored row decisions stay on the board until a coordinator applies them [B26,S18,S19,C7]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { startFixtureChild as spawn, runFixtureChild as spawnSync, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from "../../../test/fixture-child.js";
 import { performance } from 'node:perf_hooks';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
-import { parseSpec } from '../src/spec.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { fetchFresh } from './http-fixture.js';
+import { parseSpec } from "../../../src/spec.js";
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
+import { fetchFresh } from "../../../test/http-fixture.js";
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const SPEC_FILE = 'SPEC.md';
 const DOCTRINE_FILE = 'DOCTRINE.md';
 const TEMP_DIRS = [];

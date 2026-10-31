@@ -9,11 +9,11 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
-import { ENGINE_VERSION } from '../src/machine.js';
-import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
-import { assertSnapshotCheckpoints, cliChildDeadlineMs } from './relay-client-fixture.js';
-import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
+import { decodeBoardKey, seal, unseal } from "../../kernel/src/core/seal.js";
+import { ENGINE_VERSION } from "../../../src/machine.js";
+import { findChromeExecutable, relayWorkBudgetMs, startChrome } from "../../../test/relay-browser-fixture.js";
+import { assertSnapshotCheckpoints, cliChildDeadlineMs } from "../../../test/relay-client-fixture.js";
+import { legacyRelayClientFixture as relayClientFixture } from "../../../test/relay-client-fixture.js";
 
 const CHROME_START_BUDGET_MS = relayWorkBudgetMs(2);
 const CLI_SETUP_MARGIN_MS = relayWorkBudgetMs(0);

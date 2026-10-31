@@ -4,10 +4,10 @@ import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { runFixtureChild, runFixtureGit } from "../../../test/fixture-child.js";
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 
 const LANES = { web: { owns: ['web/'] }, api: { owns: ['api/'] }, review: { owns: [] } };
 

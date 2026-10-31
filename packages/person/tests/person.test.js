@@ -1,6 +1,6 @@
 /** Person terminal identity and immutable channel receipts on real repositories [B26]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn, fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { startFixtureChild as spawn, fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from "../../../test/fixture-child.js";
 import { performance } from 'node:perf_hooks';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,10 +8,10 @@ import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { fetchFresh } from './http-fixture.js';
+import { SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
+import { fetchFresh } from "../../../test/http-fixture.js";
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const MARKERS = {
   CLAUDECODE: '1',
   CLAUDE_CODE_ENTRYPOINT: 'cli',

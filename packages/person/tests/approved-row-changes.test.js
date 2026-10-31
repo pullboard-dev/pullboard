@@ -1,15 +1,15 @@
 /** Approved-row edits need an exact person decision or staged SSH receipt [S19,V3]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, fixtureChildMessage, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync, startFixtureChild as spawn, runFixtureChild as spawnSync, fixtureChildMessage, runFixtureChild, runFixtureGit } from "../../../test/fixture-child.js";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { once } from 'node:events';
 import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { cleanupFailureReport, removeFixtureDirectory } from './cleanup-diagnostics.js';
+import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
+import { cleanupFailureReport, removeFixtureDirectory } from "../../../test/cleanup-diagnostics.js";
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const TEMP_DIRS = [];
 const SPEC = `# Approved row edit fixture
 
