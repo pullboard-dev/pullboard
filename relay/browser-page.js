@@ -1,7 +1,7 @@
 /** The relay serves the existing cockpit over a device-only decrypting transport [H5,H15]. */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { cockpitPage } from '../src/cockpit.js';
+import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { MACHINE } from '../src/machine.js';
 import { Refused } from '../src/refused.js';

@@ -10,7 +10,7 @@ import { declaredProseCommands } from '../src/static-prose-commands.js';
 import { doctrineReport } from '../src/doctrine-checks.js';
 import { loadConfig } from '../src/config.js';
 import { HELP } from '../src/cli.js';
-import { PULLBOARD_COMMANDS } from '../src/cockpit.js';
+import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
 import { viewPureGate } from './checks/view-pure.js';
 import { boardWriteIoProblems } from './checks/board-write-io.js';
 
