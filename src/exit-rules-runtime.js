@@ -26,7 +26,7 @@ import {
   exitClaim,
   requireExitActive,
 } from './exit-rules-state.js';
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from './trusted-policy-read.js';
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */
 function sourceBytes(source, previous) {
@@ -87,11 +87,14 @@ function counters(ctx, claim, actor, item) {
 /** Check every external command before dispatch; this function never signals another process. */
 export async function enforceExitBoundary(io, command) {
   if (['init', 'settings', 'hook', 'mcp', 'view', 'serve'].includes(command)) return;
-  const { context, withBoard } = await import('./cli-context.js');
+  const { context } = await import('./cli-read-context.js');
   let ctx;
   try { ctx = context(io); }
   catch (error) { if (['NO_REPO', 'NOT_A_REPO', 'NO_CONFIG'].includes(error.code)) return; throw error; }
   if (ctx.info.isMain || mainPolicy(ctx.info.root).config.exitRules?.enabled !== true) return;
+  const { withBoard } = await import('./cli-context.js');
+  await io.prepareProcessPorts?.();
+  ctx.nativeBoard = io.nativeBoard ??= await io.loadNativeBoard();
   const { agentAt } = await import('./board.js');
   const { ordered } = await import('./cli/claim.js');
   await withBoard(ctx, async board => {

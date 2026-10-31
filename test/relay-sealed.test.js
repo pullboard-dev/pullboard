@@ -1,5 +1,6 @@
 /** Two real clients and encrypted CLI records exercise the relay without sharing their key [A4,H7]. */
 import { submitFixture } from './board-submit-fixture.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChild, runFixtureGit, runFixtureChildAsync } from './fixture-child.js';
@@ -19,7 +20,7 @@ import { registerProject } from '../src/projects.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { exportBoard, restoreRelaySnapshot, semanticBoardDigest } from '../src/exchange.js';
 import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine } from '../src/engine.js';
 import { seal as sealMove, unseal as openSealed } from '../packages/kernel/src/core/seal.js';
@@ -157,7 +158,7 @@ function initializeReplica(root, env) {
 
 /** Replay through the native CLI while acknowledging but suppressing checkpoint writes to the fixture relay. */
 function replayClientWithoutCheckpoint(root, env) {
-  const cliURL = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;
+  const cliURL = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const script = `
     import { main } from ${JSON.stringify(cliURL)};
     const realFetch = globalThis.fetch;
@@ -758,7 +759,7 @@ test('person recovery explicitly skips one future-engine blocker and publishes a
   assert.equal(humanStatus.stdout.includes('recovery pending for sequence 1; retry pullboard relay recover --skip 1'), true,
     'human status shows the actionable recovery without counting it as an upload');
   registerProject(box.root);
-  const localView = await serveView({ port: 0 });
+  const localView = await serveView({ port: 0, runCommand: nativeTestMain });
   try {
     const viewAddress = new URL(localView.url);
     const apiRequest = await fetch(viewAddress.origin + '/api/v1/boards/' + box.id + '/requests', {

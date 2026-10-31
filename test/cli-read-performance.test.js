@@ -6,7 +6,7 @@ import { tmpdir, loadavg, cpus } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { runFixtureGit } from './fixture-child.js';

@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
-import { main } from '../src/cli-main.js';
+import { main } from './native-cli-fixture.js';
 import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { exportView } from '../src/serve.js';
 import { serveView, projectState as unprovidedProjectState } from '../src/serve.js';
@@ -77,8 +77,9 @@ test('the actual CLI composition serves and exports a private real board [N26,C7
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { serveView, exportView } from ${JSON.stringify(module)};
+import { main } from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
 const root = ${JSON.stringify(box.repo)};
-const view = await serveView({ port: 0, projectRoot: root });
+const view = await serveView({ port: 0, projectRoot: root, runCommand: main });
 try {
   const link = new URL(view.url);
   const headers = { 'x-pullboard-key': link.searchParams.get('k') };
@@ -91,7 +92,7 @@ try {
 } finally { await view.close(); }
 assert.equal(exportView.supportsPublicExport, true);
 const destination = ${JSON.stringify(output)};
-const result = await exportView(root, destination, { public: true });
+const result = await exportView(root, destination, { public: true, runCommand: main });
 assert.equal(result.path, destination);
 assert.match(readFileSync(destination + '/index.html', 'utf8'), /<html/);
 const listing = JSON.parse(readFileSync(destination + '/api/v1/boards.json', 'utf8'));

@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { loadConfig } from '../src/config.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engine.js';

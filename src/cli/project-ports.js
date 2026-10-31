@@ -9,6 +9,6 @@ async function autoLinkProject(root, io) {
 }
 
 /** The board readers and relay linker registerProjectAndLink registers a project with. */
-export function projectLinkPorts() {
-  return { store: { ...boardStore, ...nativeBoardOpeners() }, autoLinkProject };
+export function projectLinkPorts(io) {
+  return { store: { ...boardStore, ...nativeBoardOpeners(io) }, autoLinkProject };
 }

@@ -1,5 +1,6 @@
 /** Project metadata and registry lifecycle (N33, N35, N36). */
 import assert from 'node:assert/strict';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -44,7 +45,7 @@ test('the API prunes a project whose folder is gone and keeps one unreadable-boa
   const local = f.repo('local', 'Local label');
   const gone = f.repo('gone', 'Gone label');
   const unreadable = f.repo('unreadable', 'Unreadable label');
-  const view = await serveView({ port: 0 });
+  const view = await serveView({ port: 0, runCommand: nativeTestMain });
   try {
     const link = new URL(view.url);
     /** Read the public listing without pruning unavailable registered roots. */
@@ -98,7 +99,7 @@ test('the API prunes a project whose folder is gone and keeps one unreadable-boa
 test('the API prunes a registered root replaced by a file and stays idempotent [N35]', async (t) => {
   const f = fleet(t);
   const root = f.repo('replaced-root', 'Replaced root');
-  const view = await serveView({ port: 0 });
+  const view = await serveView({ port: 0, runCommand: nativeTestMain });
   try {
     const link = new URL(view.url);
     /** Read the public board listing and return its validated document. */
@@ -137,7 +138,7 @@ test('the API keeps a board behind an unreadable parent without changing its reg
   const parent = join(f.dir, 'blocked-parent');
   mkdirSync(parent);
   const root = f.repo('blocked-parent/unreadable', 'Unreadable parent label');
-  const view = await serveView({ port: 0 });
+  const view = await serveView({ port: 0, runCommand: nativeTestMain });
   const link = new URL(view.url);
   /** Read the public board listing and return its validated document. */
   const boards = async () => {

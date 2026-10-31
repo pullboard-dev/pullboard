@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

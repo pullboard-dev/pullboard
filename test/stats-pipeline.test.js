@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { pipelineStats, pipelineLimit, pipelineLines } from '../src/stats-pipeline.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';

@@ -9,14 +9,14 @@ import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import '../src/cli.js'; // The child exercises this public entry point; retain its affected-test dependency.
+import './native-cli-fixture.js'; // The child exercises this public entry point; retain its affected-test dependency.
 import { outboxGuardFile } from '../src/relay-outbox-guard.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 const WORKER = fileURLToPath(new URL('../src/relay-sender-main.js', import.meta.url));
-const MAIN = new URL('../src/cli.js', import.meta.url).href;
+const MAIN = new URL('./native-cli-fixture.js', import.meta.url).href;
 
 /** Read only the PID/start/command identity of this fixture's already identified worker. */
 function identity(pid) {

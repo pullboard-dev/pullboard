@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 

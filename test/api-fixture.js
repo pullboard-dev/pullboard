@@ -16,7 +16,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { serveApi } from '../src/api.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { fetchFresh } from './http-fixture.js';

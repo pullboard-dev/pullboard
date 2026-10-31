@@ -212,7 +212,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   const file = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-dir'), 'pullboard-checkout-session.json');
   const before = readFileSync(file);
   const apiModule = pathToFileURL(resolve(import.meta.dirname, '../src/api.js')).href;
-  const cliModule = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;
+  const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
