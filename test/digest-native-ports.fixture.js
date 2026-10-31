@@ -1,5 +1,8 @@
+import { currentProofCounters } from '../packages/verify/index.js';
+import { proofCounter } from '../packages/verify/index.js';
 import { foreignBlockers } from '../src/board.js';
-import { readCapacity } from '../src/capacity-read.js';
+import { readCapacity as readCapacityWithPorts } from '../src/capacity-read.js';
+const readCapacity = (board, now) => readCapacityWithPorts(board, now, { currentProofCounters, proofCounter });
 import { capacityLines } from '../src/capacity-model.js';
 /** Native read-only digest ports for private fixtures; no substitute proof or authority [C7,A2]. */
 import { counterCaught } from '../src/proof-counter-read.js';

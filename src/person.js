@@ -1,10 +1,8 @@
 import {
-  AGENT_SESSION_IDS,
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
 /** Person actions use the view when a terminal is remote or belongs to an agent [B26]. */
-import { createHash } from 'node:crypto';
 import { COORDINATOR } from './config.js';
 import { Refused } from './refused.js';
 
@@ -17,13 +15,7 @@ export function remoteShell(environment = process.env) {
 }
 
 
-/** Distinguish agent sessions, including one stable session for an agent shell with no identifier. */
-export function agentSessionDigest(environment = process.env) {
-  if (!AGENT_SHELL_MARKERS.some((name) => Boolean(environment[name]))) return null;
-  const name = AGENT_SESSION_IDS.find((key) => Boolean(environment[key]));
-  const identity = name ? [name, environment[name]] : ['agent-shell-without-session'];
-  return createHash('sha256').update(JSON.stringify(identity)).digest('hex');
-}
+export { agentSessionDigest } from '../packages/stats/core.js';
 
 /** Quote one shell word so a person can paste it as is. */
 function shellWord(word) {

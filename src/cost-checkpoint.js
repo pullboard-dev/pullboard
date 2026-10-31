@@ -4,7 +4,6 @@ import { publicUsage } from './cost-read.js';
 import { usageCheckpoint } from './cost-ledger.js';
 import { sharedSessionTotals } from './cost-shared.js';
 import { storedSeatUsage } from './cost.js';
-import { ordered } from './cli.js';
 
 /** Recover missed local checkpoints as unknown usage bounded by actual ordered claim/end times. */
 function lifecycleIntervals(board, agent, now) {
@@ -26,7 +25,7 @@ function lifecycleIntervals(board, agent, now) {
 }
 
 /** Publish all private revisions not yet acknowledged, including allocations already closed by submit/release. */
-export async function publishUsage(ctx, board, { agent, item, operation }) {
+export async function publishUsage(ctx, board, { agent, item, operation }, { ordered } = {}) {
   const now = ctx.clock.now().getTime();
   const history = lifecycleIntervals(board, agent, now);
   const changes = usageCheckpoint(ctx.info, { agent, item, operation, model: board.nativePorts.agentModel(board, agent), now,
@@ -53,8 +52,8 @@ function checkpointStage(error) {
 }
 
 /** A secondary usage failure must never report a successfully ordered claim/submit/release as failed. */
-export async function checkpointAfterMove(ctx, board, request) {
-  try { await publishUsage(ctx, board, request); }
+export async function checkpointAfterMove(ctx, board, request, services) {
+  try { await publishUsage(ctx, board, request, services); }
   catch (error) {
     ctx.io.err(`pullboard: USAGE_PENDING: [stage=${checkpointStage(error)}] the lifecycle move was recorded, but its usage checkpoint is pending; the next native claim, submit or release will retry. Missing native attribution stays unknown.`);
   }

@@ -158,6 +158,8 @@ import {
 } from './board-event-log.js';
 import {
   ensureProofCounters,
+  currentProofCounters,
+  proofCounter,
 } from './proof-counters.js';
 import {
   ensureHotIndexes,
@@ -269,6 +271,7 @@ export function nativeBoardPorts() {
     recordRowDecisions: store.recordRowDecisions, now,
     committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
+    currentProofCounters, proofCounter,
     agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
     getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
