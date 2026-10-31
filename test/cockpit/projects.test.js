@@ -849,7 +849,12 @@ test('a migration-refused project stays quiet beside a normal board [A5,A6,N26]'
   const { serveApi } = await import(pathToFileURL(join(linked, 'src/api.js')).href);
   const { openBoard, openBoardForRead } = await import(pathToFileURL(join(linked, 'src/native-board.js')).href);
   const { refusalDocument } = await import(pathToFileURL(join(linked, 'src/next-step-words.js')).href);
-  const { main } = await import(pathToFileURL(join(linked, 'src/cli.js')).href);
+  const { main: cliMain } = await import(pathToFileURL(join(linked, 'src/cli.js')).href);
+  /** Compose the linked command with its own actual native engine. */
+  const main = (argv, streams) => cliMain(argv, { ...streams,
+    hookWorker: join(linked, 'src/cli-hook-work.js'), submitHandoffWorker: join(linked, 'src/submit-handoff-worker.js'),
+    launchRelaySender: (root, env) => { void import(pathToFileURL(join(linked, 'src/relay-sender-main.js')).href).then(sender => sender.launchRelaySender(root, env)).catch(() => {}); },
+    loadNativeBoard: () => import(pathToFileURL(join(linked, 'src/native-board.js')).href) });
   const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: { openBoard, openBoardForRead }, refusalDocument, port: 0, projects: () => projects, runCommand: main });
   /** Require the public API to retain the refusal and the healthy project together. */
   const listing = async (base, key) => {

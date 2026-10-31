@@ -16,7 +16,7 @@ import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/c
 async function viewScenario(box, mode) {
   const setupModule = pathToFileURL(resolve(import.meta.dirname, '../src/relay-setup.js')).href;
   const relayModule = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
-  const cliModule = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;
+  const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const fixtureModule = pathToFileURL(resolve(import.meta.dirname, 'fixture-child.js')).href;
   const machineModule = pathToFileURL(resolve(import.meta.dirname, '../src/relay-machine.js')).href;
   return box.script(`
@@ -279,7 +279,7 @@ async function phoneAndJoinedComputer(t) {
 
 /** Run relay devices on the linked computer and keep its text lines and its board name. */
 async function devicesText(box, args) {
-  const cliModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href);
+  const cliModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href);
   const projectsModule = JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/projects.js')).href);
   const result = await box.script(`
 import { main } from ${cliModule};
@@ -393,7 +393,7 @@ test('relay help lists every relay command, with a whole example [H17]', () => {
 test('relay pair labels the code for a computer and the QR for a phone [H17]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
-  const cliModule = pathToFileURL(resolve(import.meta.dirname, '../src/cli.js')).href;
+  const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const result = await box.script(`
 import { main } from ${JSON.stringify(cliModule)};
 let output = '';
@@ -426,7 +426,7 @@ test('the approval wait names the phone in local time once [H17]', async (t) => 
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
-import { main } from ${module('cli.js')};
+import { main } from ${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)};
 import { readRelayMachine, updateRelayMachine } from ${module('relay-machine.js')};
 import { runFixtureGit } from ${fixtureModule};
 process.env.TZ = 'America/Chicago';

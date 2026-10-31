@@ -1,6 +1,7 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
@@ -14,7 +15,7 @@ import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { serveView } from '../src/commands/view.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { applyStateDelta, createApiHandler } from '../src/api-http.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../src/api-delta-fields.js';
 import { registryFile, registerProject, forgetProject } from '../src/projects.js';
@@ -80,7 +81,8 @@ syncBuiltinESMExports();
 const [serveFile, projectJson, codeMetadataMarker] = process.argv.slice(1);
 const projects = JSON.parse(projectJson);
 const { serveView } = await import(pathToFileURL(serveFile).href);
-const view = await serveView({ port: 0 });
+const { main: nativeTestMain } = await import(${JSON.stringify(new URL('./native-cli-fixture.js', import.meta.url).href)});
+const view = await serveView({ port: 0, runCommand: nativeTestMain });
 const address = new URL(view.url);
 const key = address.searchParams.get('k');
 let pageReady = false;
@@ -307,7 +309,7 @@ async function viewHttpBox(t, existing = null) {
   });
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   registerProject(box.root);
-  view = await serveView({ port: 0 });
+  view = await serveView({ port: 0, runCommand: nativeTestMain });
   const url = new URL(view.url);
   const key = url.searchParams.get('k');
   const origin = url.origin;
@@ -1816,7 +1818,7 @@ async (t) => {
   assert.equal((await plainReply.json()).error?.code, 'B26_PERSON_CHANNEL', 'an ordinary-shell API has no person authority');
   assert.equal(box.cli(box.root, 'log').events.length, before);
   registerProject(box.root);
-  const view = await serveView({ port: 0 });
+  const view = await serveView({ port: 0, runCommand: nativeTestMain });
   t.after(() => view.close());
   const viewAddress = new URL(view.url);
   const response = await fetchFresh(viewAddress.origin + path + '/moves', {

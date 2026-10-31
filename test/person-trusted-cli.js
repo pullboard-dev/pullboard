@@ -11,5 +11,5 @@ process.emitWarning = (warning, ...rest) => {
   if (String(warning).includes('SQLite is an experimental feature')) return;
   emitWarning.call(process, warning, ...rest);
 };
-const { main } = await import('../src/cli-main.js');
-process.exitCode = await main(argv, { cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, stdin: process.stdin, trustedRelayOrigin });
+const { main } = await import('./native-cli-fixture.js');
+process.exitCode = await main(argv, { cwd: process.cwd(), stdout: process.stdout, stderr: process.stderr, stdin: process.stdin, trustedRelayOrigin, loadNativeBoard: () => import('../src/native-board.js') });

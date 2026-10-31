@@ -1,5 +1,5 @@
 /** The synchronous write-board lifecycle and compatible public CLI context exports [C7]. */
-import { board as store } from './native-board.js';
+import * as store from './board.js';
 import { Refused } from './refused.js';
 import {
   DEFAULT_RELAY,
@@ -38,19 +38,22 @@ export {
 };
 
 /** Supply canonical connection-local runtime composition after cyclic CLI modules finish loading. */
-export function nativeBoardOpeners() {
-  return { openBoard: store.openBoard, openBoardForRead: store.openBoardForRead };
+export function nativeBoardOpeners(io) {
+  const { openBoard, openBoardForRead } = io.nativeBoard;
+  return { openBoard, openBoardForRead };
 }
 
 /** Bind native request execution at this real CLI composition root. */
 async function executeNativePersonRequests(root, io, runCommand) {
-  return executePersonRequests(root, io, runCommand, nativeBoardOpeners());
+  return executePersonRequests(root, io, runCommand, nativeBoardOpeners(io));
 }
 
 /** Build a CLI context with the signed-person capabilities of its application layer. */
 export function personCommandContext(io, { main, ordered } = {}) {
   const ctx = context(io);
-  ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests: executeNativePersonRequests, main, ordered };
+  /** Preserve this invocation's native capabilities for signed recursive commands. */
+  const run = main && ((args, streams) => main(args, { ...streams, loadProcessPorts: io.loadProcessPorts, loadNativeBoard: io.loadNativeBoard, hookWorker: io.hookWorker, submitHandoffWorker: io.submitHandoffWorker, launchRelaySender: io.launchRelaySender }));
+  ctx.personPorts = { DEFAULT_RELAY, relayStatus, syncRelay, executePersonRequests: executeNativePersonRequests, main: run, ordered };
   return ctx;
 }
 
@@ -64,7 +67,7 @@ export function personCommandContext(io, { main, ordered } = {}) {
  * @returns {T}
  */
 export function withBoard(ctx, work, opened) {
-  const board = opened ?? store.openBoard(ctx.file, ctx.clock, { isMain: ctx.allowSchemaUpgrade,
+  const board = opened ?? ctx.nativeBoard.openBoard(ctx.file, ctx.clock, { isMain: ctx.allowSchemaUpgrade,
     gitRoot: ctx.info.root,
     writeContext: { command: ctx.io.relayCommand?.cliOperation, path: ctx.info.root,
       item: /^[1-9]\d*$/u.test(ctx.io.relayCommand?.positionals?.[0] ?? '') ? Number(ctx.io.relayCommand.positionals[0]) : null,
@@ -109,11 +112,16 @@ function agentRefusalText(message, code, name) {
   return patterns[code] ? message.replace(patterns[code], (_, before, id, after) => `${before}${name(id)}${after}`) : message;
 }
 
+/** Only refusals with actor positions need the invocation's native board for display names. */
+export function refusalNeedsBoard(error) {
+  return ['ALREADY_JOINED', 'HELD', 'ITEM_HELD', 'LANE_HELD', 'REVIEW_HELD', 'NOT_YOURS', 'NOT_YOUR_DECISION', 'NO_AGENT', 'NOT_YOUR_CHECKOUT', 'FACT_JUDGEMENT', 'RELAY_PERSON_ONLY', 'RELAY_SENDER_MISMATCH', 'SELF_SHOUT', 'NO_READER'].includes(error.code);
+}
+
 /** Render the refusal body without its existing final footer; structured errors retain the message. */
 export function displayedRefusal(io, error) {
   const message = io.guidance(error.message.replace(/\r?\nnext:[ \t]*[^\r\n]*\S[ \t]*(?:\r?\n)*$/u, ''));
   if (error.code === 'MODEL_REQUIRED') return message.replace(/; run pullboard .+$/u, '');
-  if (!['ALREADY_JOINED', 'HELD', 'ITEM_HELD', 'LANE_HELD', 'REVIEW_HELD', 'NOT_YOURS', 'NOT_YOUR_DECISION', 'NO_AGENT', 'NOT_YOUR_CHECKOUT', 'FACT_JUDGEMENT', 'RELAY_PERSON_ONLY', 'RELAY_SENDER_MISMATCH', 'SELF_SHOUT', 'NO_READER'].includes(error.code)) return message;
+  if (!refusalNeedsBoard(error)) return message;
   try {
     const ctx = context(io);
     const agents = withBoard(ctx, (board) => store.listAgents(board));
@@ -134,7 +142,7 @@ export function displayedRefusal(io, error) {
  * @returns {T}
  */
 export function withBoardRead(ctx, work) {
-  const board = store.openBoardForRead(ctx.file, ctx.clock);
+  const board = ctx.nativeBoard.openBoardForRead(ctx.file, ctx.clock);
   if (board && !board.current && !ctx.allowSchemaUpgrade) store.closeBoard(board);
   if (!board || (!board.current && !ctx.allowSchemaUpgrade)) return withBoard(ctx, work);
   try { return withBoard(ctx, work, board); }

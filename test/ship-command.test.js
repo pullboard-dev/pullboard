@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { openBoard } from '../src/native-board.js';
+import * as nativeBoard from '../src/native-board.js';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
@@ -70,7 +71,7 @@ test('ship review wait names its deadline without undoing the completed gate [V4
   const value = JSON.parse(submitted.out);
   const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
   const lines = [];
-  const io = { cwd: box.web, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
+  const io = { cwd: box.web, nativeBoard, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
   await assert.rejects(waitForSubmissionVerdict(context(io), id, value, receipt,
     { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem },
     { deadlineMs: 0 }), { code: 'SUBMISSION_WAIT_TIMEOUT' });
@@ -85,7 +86,16 @@ async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {
   const pending = runFixtureChildAsync(process.execPath, [helpers.BIN, 'ship', '--note', note, '--json'], { cwd: box.web, env: box.env });
   const child = pending.child;
   f.children.push(pending);
-  await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal');
+  let observedOut = '', observedErr = '';
+  child.stdout?.on('data', chunk => { observedOut += chunk; });
+  child.stderr?.on('data', chunk => { observedErr += chunk; });
+  try {
+    await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, id).item_status === 'submitted'), 'a ship submission or actionable refusal');
+  } catch (error) {
+    t.diagnostic(JSON.stringify({ phase: 'await-submit', exitCode: child.exitCode,
+      status: onBoard(box, board => store.getItem(board, id).item_status), stdout: observedOut, stderr: observedErr }));
+    throw error;
+  }
   assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'submitted', 'ship must reach its actual submit event before verdict delivery');
   assert.equal(child.exitCode, null, 'ship waits for the actual verdict');
   onBoard(box, board => {

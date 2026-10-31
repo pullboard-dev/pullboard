@@ -36,6 +36,9 @@ import { finishSentinelRun } from '../src/sentinels.js';
 import { COORDINATOR } from '../src/config.js';
 import { JSON_SHAPES } from '../src/json.js';
 import { exportView } from '../src/commands/view.js';
+import { main as nativeTestMain } from '../test/native-cli-fixture.js';
+import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from '../src/native-board.js';
+import { refusalDocument } from '../src/next-step-words.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
@@ -710,7 +713,7 @@ test('[A5,A10] static export files and page readers match API v1', async () => {
     closeBoard(board);
 
     const output = join(root, 'snapshot');
-    await exportView(root, output);
+    await exportView(root, output, { runCommand: nativeTestMain, boardOpeners: { openBoard: nativeOpenBoard, openBoardForRead: nativeOpenBoardForRead }, refusalDocument });
     const boardsFile = 'api/v1/boards.json';
     const listing = JSON.parse(readFileSync(join(output, boardsFile), 'utf8'));
     const boardId = listing.boards[0].id;

@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** Cockpit agents checks, using the shared real-board fixtures [N26]. */
+import { main as nativeTestMain } from '../native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -435,7 +436,7 @@ test('staged and exported boards carry API model display names [O8,N26,A10]', as
     assert.equal(ordinary.agents.find(a => a.agent_id === 'web-1').displayName, 'gpt-6-web-1', 'ordinary projector respects configured API name');
     assert.equal(borrowed.agents.find(a => a.agent_id === 'web-1').displayName, 'gpt-6-web-1', 'staged projector carries the same name');
     const directory = join(box.dir, 'exported-models');
-    await exportView(alpha.repo, directory);
+    await exportView(alpha.repo, directory, { runCommand: nativeTestMain });
     const boardIds = readdirSync(join(directory, 'api', 'v1', 'boards'));
     assert.equal(boardIds.length, 1, 'the export contains the real fixture board');
     const snapshot = JSON.parse(readFileSync(join(directory, 'api', 'v1', 'boards', boardIds[0], 'state.json'), 'utf8'));

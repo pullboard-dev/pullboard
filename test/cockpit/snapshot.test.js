@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** Cockpit snapshot checks, using the shared real-board fixtures [N26]. */
+import { main as nativeTestMain } from '../native-cli-fixture.js';
 import { events as readStatsEvents } from '../../src/board.js';
 import { counterProofStats as readStatsCounter } from '../../src/proof-counter-read.js';
 import assert from 'node:assert/strict';
@@ -802,7 +803,7 @@ test('the export asks for the full board [N26,A2]', { timeout: 90_000 }, // budg
       return fetchLocal(url, init);
     };
     const folder = join(box.dir, 'full-board-export');
-    await exportView(alpha.repo, folder, { fetchApi });
+    await exportView(alpha.repo, folder, { fetchApi, runCommand: nativeTestMain });
     const stateReads = asked.filter((url) => url.pathname.endsWith('/state'));
     assert.deepEqual(stateReads.map((url) => url.searchParams.get('detail')), ['full'],
       `the export reads the state once, asking for detail=full; it asked for ${asked.map((url) => url.pathname + url.search).join(', ')}`);

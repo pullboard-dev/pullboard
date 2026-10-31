@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { logEvent } from '../src/board-event-log.js';
 import { createLocalApiHandler } from '../src/api.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { apiHttpFixture } from './api-fixture.js';

@@ -16,7 +16,7 @@ function socketChild(mode, box, root, output) {
     import { Agent, createServer } from 'node:http';
     import { channel } from 'node:diagnostics_channel';
     import { Socket } from 'node:net';
-    import { main } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../src/cli.js')).href)};
+    import { main } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../native-cli-fixture.js')).href)};
     const mode = ${JSON.stringify(mode)};
     let firstWriteFault = false, closedBeforeWrite = false;
     process.on('uncaughtExceptionMonitor', error => {
