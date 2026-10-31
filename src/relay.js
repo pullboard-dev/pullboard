@@ -951,7 +951,7 @@ function reportRecoveredReply(record, io) {
 
 // Catch-up and send live in their own module, over these link and transport helpers (#1013).
 async function orderingServices(io) {
-  return io.relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard,
+  return io.relayOrdering({ request, localRecords, decoded, replayRelayRecord, reportRecoveredReply, saveLink, sealedRecord, openBoard: io.openBoard,
     flush: (root, file, state, output, senderPolicy) => io.flushOutbox(outboxLink(root, file, state, output, senderPolicy)) });
 }
 async function applyRecords(root, key, state, records, io) { return (await orderingServices(io)).applyRecords(root, key, state, records, io); }
@@ -1364,8 +1364,8 @@ export async function relayRecover(root, skip, io) {
     const state = loadLink(file);
     if (!state || state.unlinking || state.mode !== 'ordered') throw new Refused('RELAY_LINKED', 'link this ordered relay board before recovering a blocked sequence');
     const boardFile = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
-    const source = openBoard(boardFile, undefined, { isMain: codeIsFromMain(), gitRoot: root });
-    const staged = openBoard(':memory:', undefined, { gitRoot: root });
+    const source = io.openBoard(boardFile, undefined, { isMain: codeIsFromMain(), gitRoot: root });
+    const staged = io.openBoard(':memory:', undefined, { gitRoot: root });
     try {
       const cursor = appliedSequence(source);
       const sourceDigest = nativeBoardDigest(source);
@@ -1525,7 +1525,7 @@ export async function relayOn(root, address, io, { session, credential, quiet = 
   const repository = originRepository(root);
   const file = linkFile(root);
   // A clone whose pullboard.json names another board joins that board instead of linking a second one [E12].
-  const joining = await (await import('./relay-join.js')).joinNamedBoardIfAny(root, file, { linked: Boolean(loadLink(file)), url: relayOrigin(address || DEFAULT_RELAY), repository, signIn: (url) => deviceSignIn(url, io), openBoard }, io);
+  const joining = await (await import('./relay-join.js')).joinNamedBoardIfAny(root, file, { linked: Boolean(loadLink(file)), url: relayOrigin(address || DEFAULT_RELAY), repository, signIn: (url) => deviceSignIn(url, io), openBoard: io.openBoard }, io);
   if (joining) return joining;
   const { nameBoardInConfig } = await import('./relay-board-config.js');
   return locked(file, async () => {
