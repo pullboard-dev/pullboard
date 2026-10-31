@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { costOverviewHtml, bindCostOverview } from '../../src/view/cost-overview.js';
-import { cockpitPage } from '../../src/view/cockpit-page.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('the private Cost overview renders prepared analytics and each confidence [N26]', { timeout: 90000 }, async () => {
