@@ -6,8 +6,8 @@ import { observeStaleWork } from './stale-work-observation.js';
 import { releaseBlockingItems } from '../core/stale-state-blockers.js';
 import { CLAIM_STALL_MS } from '../core/stale-state-query.js';
 import { CLAIM_IDLE_RELEASE_MS } from '../core/stale-state-query.js';
-import { cleanGitEnvironment } from '../../../../src/git.js';
-import { tryGit } from '../../../../src/git.js';
+import { cleanGitEnvironment } from '../../../git/index.js';
+import { tryGit } from '../../../git/index.js';
 
 /** Capture main-red evidence only on the write maintenance path, retaining fast read-only status. */
 export async function captureStaleState(ctx, board) {
