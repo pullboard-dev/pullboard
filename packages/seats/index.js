@@ -162,6 +162,3 @@ export {
 export {
   remoteRepository,
 } from './src/core/github-remote.js';
-export {
-  COORDINATOR_HOLD_ENGINE,
-} from '../state/index.js';

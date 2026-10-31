@@ -5,5 +5,5 @@ export {
   coordinatorHolder,
   requireCoordinatorHold,
   takeCoordinator,
-  COORDINATOR_HOLD_ENGINE,
 } from '../packages/seats/index.js';
+export { COORDINATOR_HOLD_ENGINE } from './coordinator-hold-engine.js';
