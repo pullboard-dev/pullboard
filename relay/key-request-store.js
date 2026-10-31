@@ -1,6 +1,6 @@
 /** Short-lived board-key requests from a member's new device; the relay never sees a board key [E17,H15]. */
 import { randomBytes } from 'node:crypto';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const TEN_MINUTES = 10 * 60_000;
 const MAX_REQUESTS = 1_000;

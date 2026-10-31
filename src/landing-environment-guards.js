@@ -3,7 +3,7 @@ import { carriesLandingEnvironment } from './execution-environment.js';
 import { environmentProblem } from './config.js';
 import { LANDING_ENVIRONMENT_ENGINE } from './landing-environment-engine.js';
 import { ENGINE_VERSION } from './machine.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Preserve the replay engine instead of assigning current semantics to an old move. */
 function engine(board) { return board.executionEngineVersion ?? ENGINE_VERSION; }

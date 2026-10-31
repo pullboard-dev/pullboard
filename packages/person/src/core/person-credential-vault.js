@@ -1,5 +1,5 @@
 /** Client-only signing-root storage; PRF acquisition and recovery UI are separate [H15]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import {
   devicePublicKey,
   openAccountEnvelope,

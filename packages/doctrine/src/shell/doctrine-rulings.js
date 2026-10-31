@@ -31,7 +31,7 @@ import {
   git,
   tryGit,
 } from '../../../../src/git.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { writeRowApply } from '../../../../src/row-decisions.js';
 import { mainCriterionFacts } from '../../../../src/main-criterion-facts.js';
 import {

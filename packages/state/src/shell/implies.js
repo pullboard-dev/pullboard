@@ -22,7 +22,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { COORDINATOR } from '../../../../src/config.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 
 

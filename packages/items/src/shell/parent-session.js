@@ -7,7 +7,7 @@ import {
 } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { createHash } from 'node:crypto';
 import { AGENT_SESSION_IDS } from "../../../kernel/src/core/discovery.js";
 import { PARENT_SESSION_ENGINE } from "../../../../src/parent-session-engine.js";

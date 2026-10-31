@@ -9,7 +9,7 @@ import * as store from './board.js';
 import { headCommit } from './git.js';
 import { mainCheckout } from './git.js';
 import { runStaticChecks } from './gate.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';
 import { landingFailures } from './landing-step-failures.js';

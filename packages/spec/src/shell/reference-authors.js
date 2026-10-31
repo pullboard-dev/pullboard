@@ -1,7 +1,7 @@
 /** Bind explicit GitHub acknowledgements to source authors without executing referenced content [C7]. */
 import { handledReferences } from './reference-lines.js';
 import { validateReferenceTargets } from './reference-lines.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Validate typed targets and the public acknowledgement's authority and source in one ordered move. */
 export function validateReferences(brief, { actor, authors, authority, previous = '' }) {

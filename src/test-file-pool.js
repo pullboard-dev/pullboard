@@ -19,7 +19,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { machineHome } from '../packages/resources/index.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const asyncOffers = new WeakMap();
 const independentChildren = new WeakMap();

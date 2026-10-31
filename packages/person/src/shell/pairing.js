@@ -4,7 +4,7 @@ import {
   webcrypto,
 } from 'node:crypto';
 import { ENGINE_VERSION } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 import { PAIR_PACKAGE_BYTES } from "./person-pairing-limit.js";
 

@@ -1,6 +1,6 @@
 /** Helpers for `pullboard shout` and `pullboard inbox`: evidence and one-line text. Split from src/cli.js, which re-exports it [C7]. */
 import { tryGit } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /**
  * The evidence a shout carries, from its flags (B22). The commit is resolved here, in this repo,

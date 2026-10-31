@@ -1,5 +1,5 @@
 /** Shared wire-proof validation for preparation and ordered replay [C7,V4,H16]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../../../../src/known-main-failures-engine.js';
 import { KNOWN_MAIN_REWORKS_ENGINE } from '../../../../src/known-main-reworks-engine.js';
 

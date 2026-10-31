@@ -1,6 +1,6 @@
 /** The cells move plan: one move item per cell, leaf-first, from the dry run's path map [D3,CD60,CD64]. */
 import { posix } from 'node:path';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import { testFile } from './cell-lint-inventory.js';
 
 // RFC 0006 [CD14]: a cell name is one lowercase word; the dry run's hyphenated names get one word here.

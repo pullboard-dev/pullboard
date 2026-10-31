@@ -4,7 +4,7 @@ import { current } from "../shell/board-query.js";
 import { moveItem } from "../shell/board.js";
 import { COORDINATOR } from "../../../../src/config.js";
 import { IN_STATE } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { ROUTES } from "../../../../src/route-escalation.js";
 
 /**

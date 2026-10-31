@@ -22,7 +22,7 @@ import {
   ordered,
   personMode,
 } from '../cli.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Run the board-scoped readiness setting or show/sign one exact revision. */
 export async function run(io, { first, second, rest, values }) {

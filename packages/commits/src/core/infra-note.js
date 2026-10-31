@@ -6,7 +6,7 @@
 import { isAbsolute } from 'node:path';
 import { posix } from 'node:path';
 import { relative } from 'node:path';
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { tryGit } from "../../../../src/git.js";
 import { gitChildEnv } from "../../../../src/git.js";
 import { gitExecFileSync } from "../../../../src/git-adapter.js";

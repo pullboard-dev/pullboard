@@ -16,7 +16,7 @@ import {
 } from "./person-signing.js";
 import { preparePersonRequest } from "../core/person-request.js";
 import { personRequestRecords } from "../core/person-request.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { awaitPersonConfirmation } from "./person-confirmation.js";
 import { loadMachineSettings } from "../../../../src/settings.js";
 import { repoInfo } from "../../../../src/git.js";

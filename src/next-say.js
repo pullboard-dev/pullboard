@@ -7,7 +7,7 @@ import {
 } from './cli.js';
 import { withBoardRead } from './cli-context.js';
 import { reviewQueueLine } from './review-queue-line.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** Print an unreserved review first, then the build available through an explicit opt-out. */
 export function sayReviewOffer(ctx, found) {

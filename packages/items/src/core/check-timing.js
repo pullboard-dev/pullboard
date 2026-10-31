@@ -1,5 +1,5 @@
 /** Coordinator-owned timing declarations, frozen with the check rather than supplied by its executor [C7,V4]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 import { CHECK_TIMING_ENGINE } from "../../../../src/check-timing-engine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 

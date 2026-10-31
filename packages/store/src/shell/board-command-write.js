@@ -4,7 +4,7 @@ import * as store from "./board.js";
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
 import { requireAgentGrant } from "../../../../src/agent-grant.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 const PREPARE_ATTEMPTS = 4;
 

@@ -1,6 +1,6 @@
 /** Private runtime records that let an unattended CLI hand off its live view link. */
 import { spawnSync } from 'node:child_process';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   chmodSync,
   existsSync,

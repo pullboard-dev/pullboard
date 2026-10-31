@@ -115,7 +115,7 @@ import {
 } from '../packages/commits/index.js';
 import {
   Refused,
-} from './refused.js';
+} from '../packages/kernel/index.js';
 import {
   missingGate,
 } from './gate-config.js';

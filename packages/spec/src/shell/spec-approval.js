@@ -6,7 +6,7 @@ import {
   tryGit,
 } from '../../../../src/git.js';
 import { personNeeds } from '../core/row-decision-text.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   loadSpec,
   readSignoffs,

@@ -1,5 +1,5 @@
 /** Seal native receipt bytes and accepted opt-in before this submit can enter the event stream [V4,H16]. */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { createHash } from 'node:crypto';
 import { submitGatePlan } from './gate-submit.js';
 import { submitGateConfig } from './gate-submit.js';

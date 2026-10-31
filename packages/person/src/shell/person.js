@@ -4,7 +4,7 @@ import {
 } from "../../../kernel/src/core/discovery.js";
 /** Person actions use the view when a terminal is remote or belongs to an agent [B26]. */
 import { COORDINATOR } from "../../../../src/config.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 /**
  * Tell whether this shell arrived over SSH by any of its markers [B26].

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanGitEnvironment } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { GENERATED_DOC_PATHS } from './generated-doc-conflicts.js';
 
 /** Snapshot only known regular output files; generator output can never choose what landing stages. */

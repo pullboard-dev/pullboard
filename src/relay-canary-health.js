@@ -11,7 +11,7 @@ import {
   join,
 } from 'node:path';
 import { repoInfo } from './git.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const WINDOW_MS = 600000;
 const STEPS = new Set(['sign-in', 'push', 'pull', 'unseal', 'version', 'complete']);

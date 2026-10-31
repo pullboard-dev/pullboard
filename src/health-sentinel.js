@@ -7,7 +7,7 @@ import { readBoardSnapshot } from './board.js';
 import { healthReport } from '../packages/health/index.js';
 import { healthSentinelEnabled } from './settings.js';
 import { loadMachineSettings } from './settings.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { agentCpuFindings } from './sentinel-cpu.js';
 import {
   healthFindingIdentity,

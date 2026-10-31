@@ -21,7 +21,7 @@ import {
   runtimeSessionIdentity,
 } from './parent-session.js';
 import { exitedSessionIdentity } from './exit-rules-continuation.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import {
   exitClaim,
   requireExitActive,

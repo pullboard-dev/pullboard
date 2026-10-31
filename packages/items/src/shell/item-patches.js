@@ -6,7 +6,7 @@ import { ITEM_PATCH_ENGINE } from "../../../../src/item-patch-engine.js";
 import { PATCH_REVIEW_CUSTODY_ENGINE } from "../../../../src/patch-review-custody-engine.js";
 import { PATCH_FOLLOW_ENGINE } from "../../../../src/patch-follow-engine.js";
 import { itemPatchSetDigest } from "./item-patch-state.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { NO_ELIGIBLE_REVIEWER_ENGINE } from "../../../../src/no-eligible-reviewer-engine.js";
 import { outsideSource } from "../core/outside-source.js";
 import { itemPatchRecords as records } from "./item-patch-state.js";

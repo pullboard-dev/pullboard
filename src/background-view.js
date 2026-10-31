@@ -19,7 +19,7 @@ import {
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchLocal } from './local-fetch.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { registryFile } from './projects.js';
 import {
   HOSTED_ORIGIN,

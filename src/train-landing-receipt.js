@@ -6,7 +6,7 @@ import { boardReceiptStore } from './gate-run-receipt.js';
 import { readGateReceipt } from './gate-run-receipt.js';
 import { receiptBinds } from './gate-run-receipt.js';
 import { receiptFields } from './gate-run-receipt.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { policyAt } from './trusted-policy-read.js';
 
 /** Return the same actionable refusal for absent, altered, stale or differently scoped evidence. */

@@ -11,7 +11,7 @@ import { COORDINATOR } from "../../../../src/config.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { MOVES } from "../../../../src/machine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { moveItem } from "./board.js";
 import { onlyCoordinator } from "./board.js";
 

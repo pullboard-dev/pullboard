@@ -22,7 +22,7 @@ import {
   gitChildEnv,
   invalidateGitFacts,
 } from '../../../../src/git.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 import {
   checkFieldFindings,
   parseSpec,
@@ -143,6 +143,30 @@ function namesFile(line, file) {
   return line.startsWith(`${file}:`) || line.startsWith(`./${file}:`);
 }
 
+/**
+ * Each renamed path in a change, keyed by its new path, with the path it came from. Git's own
+ * rename detection (its default similarity) decides, so a moved file is the same file.
+ */
+function renamedOrigins(root, base, commit) {
+  const parts = (gitOut(root, ['diff', '-z', '--name-status', '--find-renames', base, commit, '--']) ?? '').split('\0');
+  const origins = new Map();
+  for (let at = 0; at < parts.length; at += 1) {
+    const status = parts[at];
+    if (/^R/u.test(status)) { origins.set(parts[at + 2], parts[at + 1]); at += 2; }
+    else if (/^C/u.test(status)) at += 2;
+    else if (status) at += 1;
+  }
+  return origins;
+}
+
+/** A problem line of a renamed file's origin, restated under the file's new path. */
+function carryRename(line, origins) {
+  for (const [path, origin] of origins) {
+    if (namesFile(line, origin)) return line.replace(origin, path);
+  }
+  return line;
+}
+
 /** A problem line without its line number, so a moved problem is not counted as new. */
 function problemKey(line) {
   return line.replace(/:\d+:/u, '::').trim();
@@ -234,6 +258,7 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
   const lowered = new Map(checkRulesAt(root, commit, practice).map((rule) => [rule.id, rule.count]));
   const base = (gitOut(root, ['merge-base', mainCommit, commit]) ?? '').trim() || mainCommit;
   const changed = (gitOut(root, ['diff', '-z', '--no-renames', '--name-only', base, commit, '--']) ?? '').split('\0').filter(Boolean);
+  const origins = renamedOrigins(root, base, commit);
   const results = [];
   const refusals = [];
   const uncounted = [];
@@ -254,7 +279,9 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
     }
     if (rule.mode === 'watch') continue;
     const touched = changed.filter((path) => run.problems.some((line) => namesFile(line, path)));
-    const before = touched.length ? (runCheck ? runCheck(base, rule.command, timeoutMs) : runAtCommit(root, base, rule.command, timeoutMs)) : { problems: [], broken: '' };
+    const ran = touched.length ? (runCheck ? runCheck(base, rule.command, timeoutMs) : runAtCommit(root, base, rule.command, timeoutMs)) : { problems: [], broken: '' };
+    // A renamed file is compared with its origin: the origin's problems are carried to the new path.
+    const before = { ...ran, problems: ran.problems.map((line) => carryRename(line, origins)) };
     if (count > committed) {
       const fresh = newLines(before.broken ? [] : before.problems, run.problems);
       refusals.push(`${name} rose to ${count}, was ${committed}; new problems:\n${(fresh.length ? fresh : run.problems).map((line) => `  ${line}`).join('\n')}`);

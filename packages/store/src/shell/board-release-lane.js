@@ -1,7 +1,7 @@
 import { PERSON } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 import { coordinatorOnly } from "./board.js";
 
 /**

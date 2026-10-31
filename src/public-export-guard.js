@@ -1,5 +1,5 @@
 /** A public export runs only through an exporter that declares its checked public filter [N26]. */
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /**
  * Refuse --public unless the exporter declares the checked filter, so an older build never writes private data

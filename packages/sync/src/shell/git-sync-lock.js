@@ -19,7 +19,7 @@ import {
   join,
 } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 const LEASE_MS = 120_000;
 const WAIT_MS = 120_000;

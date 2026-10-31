@@ -13,7 +13,7 @@ import {
   MOVE_CANDIDATE,
   MOVE_FILE,
   discovered,
-} from "../../../../src/discovery.js";
+} from "../../../kernel/index.js";
 
 /** The cell keeps pure moves under core/moves and effectful ones under shell/moves; both are discovered as one set. */
 const MOVE_DIRECTORIES = [new URL("../core/moves/", import.meta.url), new URL("./moves/", import.meta.url)];

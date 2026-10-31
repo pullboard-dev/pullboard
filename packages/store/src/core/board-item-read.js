@@ -3,7 +3,7 @@ import { CHECK_TIMING_ENGINE } from "../../../../src/check-timing-engine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { REJECTED_WORK_RETURN_ENGINE } from "../../../../src/rejected-work-return-engine.js";
 /** Pure per-item reads without loading the query facade [C7,H16,B13]. */
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 /**
  * The item with this id, or a refusal naming the id.
  *

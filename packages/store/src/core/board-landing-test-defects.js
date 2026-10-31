@@ -13,7 +13,7 @@ import { COORDINATOR } from "../../../../src/config.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
 import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/core.js";
 
 
 /** File a neutral repair item: an interaction is not proof that a named item or test is flaky. */

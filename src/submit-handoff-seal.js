@@ -11,7 +11,7 @@ import {
 import { prepareItemPatchSubmit } from './item-patch-submit.js';
 import { itemPatchDigest } from './item-patch-state.js';
 import { getItem } from './board-query.js';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 /** A queue captures only this board's clean registered builder head and exact deterministic companions. */
 export function sealSubmitHandoffQueue(board, id, options) {

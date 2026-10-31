@@ -1,6 +1,6 @@
 /** Isolated transport for person-signed enrollment; legacy pairing routes keep their meaning [H15]. */
 import { apiJson, readApiBody } from '../src/api-http.js';
-import { Refused } from '../src/refused.js';
+import { Refused } from '../packages/kernel/index.js';
 import { personEnrollmentBody } from '../src/person-enrollment.js';
 
 /** Deliver only within the authenticated account and its currently authorized boards. */

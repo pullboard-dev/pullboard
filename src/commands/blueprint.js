@@ -17,7 +17,7 @@ import {
 } from '../blueprints.js';
 import {
   Refused,
-} from '../refused.js';
+} from '../../packages/kernel/index.js';
 import {
   loadSpec,
 } from '../spec.js';

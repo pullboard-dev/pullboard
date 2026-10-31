@@ -1,5 +1,5 @@
 /** Window projections of the canonical lifecycle observer; absent evidence is never a zero [R1,R2]. */
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/core.js';
 import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 import { NEXT_IDLE_ENGINE } from '../../../../src/next-idle-engine.js';
 import { flowWindowBounds } from '../../../../src/flow-window-bounds.js';

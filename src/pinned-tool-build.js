@@ -14,7 +14,7 @@ import {
   resolve,
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { Refused } from './refused.js';
+import { Refused } from '../packages/kernel/index.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 

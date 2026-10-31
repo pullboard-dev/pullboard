@@ -10,7 +10,7 @@ import {
   primaryCheckoutRoot,
 } from '../cli.js';
 import { mainCheckout } from '../git.js';
-import { Refused } from '../refused.js';
+import { Refused } from '../../packages/kernel/index.js';
 
 /** Print the current source overview, a module/function card, or an item's one-hop slice. */
 export async function run(io, { first, values }) {

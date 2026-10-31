@@ -1,6 +1,6 @@
 /** Current request advice uses native row sources; historical events retain declarations, not stale ownership [D1,N26]. */
 import { rowDecisionContext } from './row-decision-state.js';
-import { Refused } from '../../../../src/refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Resolve qualified row identities from one current spec/doctrine snapshot without accepting caller statuses. */
 export function rulingRowReader(root, config) {

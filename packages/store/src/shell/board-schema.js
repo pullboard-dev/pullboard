@@ -14,7 +14,7 @@ import {
   codeIsFromMain,
   codeUsesRepository,
 } from "../../../../src/git.js";
-import { Refused } from "../../../../src/refused.js";
+import { Refused } from "../../../kernel/index.js";
 
 const reported = new Set();
 
