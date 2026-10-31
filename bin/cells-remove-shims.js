@@ -275,7 +275,7 @@ function strictProblems(box, inventory) {
 }
 
 /** Remove a cell's shims in memory-planned, audit-checked steps; returns what moved, what went, what stayed and why. */
-export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
+export function removeShims(root, plan, name, { parsers, lane = 'core', planFiles = [] } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new TypeError('shim removal needs explicit module parser operations');
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in the plan; use a name from bin/cells-plan.json`);
@@ -284,11 +284,14 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
   const settings = loadConfig(root);
   if (!Object.hasOwn(settings.lanes ?? {}, lane)) throw new Refused('CELLS_PLAN_MODE', `no lane ${lane} in pullboard.json; use one of ${Object.keys(settings.lanes ?? {}).join(', ')}`);
   const box = { root, plan, cell, files: inventory.files, imports: config.imports, settings, lane };
+  // A deletion or a dropped row rewrites these plan files, so a lane that does not own every one of them changes neither.
+  const foreignPlan = planFiles.filter(file => outOfLane(settings, lane, [file]).length).map(file => `${file} (${laneOf(settings, file)} lane)`);
   const entries = runnerEntries(box, parsers);
   box.runner = runnerClosure(root, entries);
   box.move = moveClosure(root, parsers, inventory.files);
-  const kept = new Map(), absent = cell.reexports.filter(shim => !existsSync(join(root, shim)));
-  const live = cell.reexports.filter(shim => !absent.includes(shim));
+  const kept = new Map(), absent = foreignPlan.length ? [] : cell.reexports.filter(shim => !existsSync(join(root, shim)));
+  const live = cell.reexports.filter(shim => !absent.includes(shim) && existsSync(join(root, shim)));
+  for (const shim of cell.reexports.filter(row => !existsSync(join(root, row)))) if (!absent.includes(shim)) kept.set(shim, `${shim} no longer exists; dropping its row rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
   for (const shim of live) {
     const code = box.files.get(shim)?.toString('utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu, '').replace(/\s/gu, '');
     if (!PURE_SHIM.test(code ?? '')) kept.set(shim, `${shim} still holds code, not only re-exports`);
@@ -333,13 +336,13 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
   for (const shim of live) {
     if (kept.has(shim)) continue;
     const users = [...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file);
-    const held = plans.get(shim).held;
-    if (held.length || users.length) {
-      const why = held.length ? [...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by '))] : [`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`];
-      kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`);
-      continue;
-    }
-    if (outOfLane(settings, lane, [shim]).length) { kept.set(shim, `${shim} is owned by the ${laneOf(settings, shim)} lane; a removal there deletes it`); continue; }
+    const held = plans.get(shim).held, why = [];
+    // Ownership first: a shim this lane may not delete is reported as such before the importers that also hold it.
+    if (outOfLane(settings, lane, [shim]).length) why.push(`${shim} is owned by the ${laneOf(settings, shim)} lane; a removal there deletes it`);
+    if (foreignPlan.length) why.push(`deleting ${shim} rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
+    why.push(...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by ')));
+    if (!held.length && users.length) why.push(`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`);
+    if (why.length) { kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`); continue; }
     if (tryGit(root, ['rm', '-q', '-f', '--', shim]).status !== 0) rmSync(join(root, shim), { force: true });
     deleted.push(shim);
   }
@@ -348,7 +351,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
   const cited = [...plans].flatMap(([shim, made]) => made.cited.map(file => `${file} cites ${shim}; not rewritten outside the ${lane} lane`));
   const reexports = cell.reexports.filter(shim => !deleted.includes(shim) && !absent.includes(shim));
   const next = { ...plan, cells: plan.cells.map(row => row.name === name ? { ...row, reexports } : row) };
-  return { plan: next, planInLane: !outOfLane(settings, lane, ['bin/cells-plan.json']).length, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], cited };
+  return { plan: next, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], cited };
 }
 
 /** The lines the command prints: each repoint, deletion, kept shim with its reason, and the citations left outside the lane. */

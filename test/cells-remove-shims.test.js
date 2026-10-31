@@ -122,25 +122,54 @@ test('a view-lane importer keeps its shim and its file, and a second run changes
   assert.match(again.stdout, /0 deleted, 2 kept, 0 repointed/u);
 });
 
-test('a view-lane removal edits only view files: no core door addition, no core shim deletion [C7,D3]', t => {
+/** Commit view-lane importers of the core-owned shim src/stats.js and run a view-lane removal on them. */
+function viewRemoval(t, files) {
   const box = shimmed(t);
-  box.put('src/view/panel.js', "import { extra } from '../stats.js';\nexport { extra };\n");
-  box.put('src/view/rail.js', "import { shell } from '../stats.js';\nexport { shell };\n");
+  for (const [file, source] of Object.entries(files)) box.put(file, source);
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'view importers');
   const door = read(box, 'packages/stats/index.js'), core = read(box, 'src/uses-shell.js');
   const result = removeShims(box.root, readPlan(box.root), 'stats', { parsers: PARSERS, lane: 'view' });
-  assert.equal(read(box, 'src/view/rail.js'), "import { shell } from '../../packages/stats/index.js';\nexport { shell };\n", 'a view importer the door already serves moves');
-  assert.equal(read(box, 'src/view/panel.js'), "import { extra } from '../stats.js';\nexport { extra };\n", 'a view importer needing a core door addition stays');
-  assert.equal(read(box, 'packages/stats/index.js'), door, 'the core-owned front door is never appended to');
   assert.equal(read(box, 'src/uses-shell.js'), core, 'core importers are left to the core lane');
-  assert.equal(existsSync(join(box.root, 'src/stats.js')), true, 'the core-owned shim is never deleted from the view lane');
-  const reason = new Map(result.kept).get('src/stats.js');
+  assert.equal(existsSync(join(box.root, 'src/stats.js')), true, 'the core-owned shim stays');
+  assert.deepEqual(result.deleted, []);
+  return { box, door, result, reason: new Map(result.kept).get('src/stats.js') };
+}
+
+test('(a) with lane view, a view importer of a core-owned shim leaves that shim in place and reports it [C7,D3]', t => {
+  const { box, reason } = viewRemoval(t, { 'src/view/rail.js': "import { shell } from '../stats.js';\nexport { shell };\n" });
+  assert.equal(read(box, 'src/view/rail.js'), "import { shell } from '../../packages/stats/index.js';\nexport { shell };\n", 'the view importer the door serves moves');
+  assert.match(reason, /src\/stats\.js is owned by the core lane/u);
+  assert.equal(git(box.root, 'status', '--porcelain').trim(), 'M src/view/rail.js', 'only the view file changed');
+});
+
+test('(b) with lane view, a view importer needing a binding absent from a core-owned front door adds nothing and reports it [C7,D3]', t => {
+  const { box, door, reason } = viewRemoval(t, { 'src/view/panel.js': "import { extra } from '../stats.js';\nexport { extra };\n" });
+  assert.equal(read(box, 'src/view/panel.js'), "import { extra } from '../stats.js';\nexport { extra };\n");
+  assert.equal(read(box, 'packages/stats/index.js'), door, 'the core-owned front door is never appended to');
   assert.match(reason, /src\/view\/panel\.js needs extra added to packages\/stats\/index\.js \(core lane\)/u);
   assert.match(reason, /imported by src\/\S+ \(core lane\)/u, 'the core importers hold it too, named after the refusal');
-  assert.equal(result.planInLane, false, 'the core-owned plan is not written from the view lane');
-  assert.deepEqual(result.deleted, []);
-  assert.deepEqual(git(box.root, 'status', '--porcelain').trim(), 'M src/view/rail.js', 'only the view file changed');
+  assert.equal(git(box.root, 'status', '--porcelain').trim(), '', 'nothing was written');
+});
+
+test('(c) with lane core, a door addition and the shim deletion proceed; a plan shard owned elsewhere holds the deletion [C7,D3]', t => {
+  const box = shimmed(t);
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS, lane: 'core', planFiles: ['bin/cells-plan.json', 'bin/cells-plan/02-stats.json'] });
+  assert.match(read(box, 'packages/stats/index.js'), /export \{ extra \} from "\.\/src\/shell\/shell\.js";/u, 'core adds to its own door');
+  assert.deepEqual(result.deleted, ['src/stats.js'], 'core deletes its own shim');
+  const config = JSON.parse(read(box, 'pullboard.json'));
+  config.lanes.view.owns.push('bin/cells-plan/02-stats.json');
+  const other = shimmed(t);
+  other.put('pullboard.json', JSON.stringify(config));
+  git(other.root, 'add', '-A');
+  git(other.root, 'commit', '-q', '-m', 'view owns the stats shard');
+  const shard = read(other, 'bin/cells-plan/02-stats.json'), index = read(other, 'bin/cells-plan.json');
+  const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats'], { cwd: other.root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /kept src\/stats\.js: deleting src\/stats\.js rewrites bin\/cells-plan\/02-stats\.json \(view lane\), outside the core lane/u);
+  assert.equal(existsSync(join(other.root, 'src/stats.js')), true);
+  assert.equal(read(other, 'bin/cells-plan/02-stats.json'), shard, 'the view-owned shard is never written');
+  assert.equal(read(other, 'bin/cells-plan.json'), index);
 });
 
 /** Give the shimmed fixture a runner worker, a shipped-file manifest and one move declaration, then commit. */

@@ -499,9 +499,9 @@ function main(argv) {
     const laneAt = rest.indexOf('--lane'), lane = laneAt < 0 ? 'core' : rest[laneAt + 1];
     const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
     if (cells.length !== 1 || !lane) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>]');
-    const result = removeShims(root, readPlan(root), cells[0], { parsers: { importsIn, commonJsIn }, lane });
-    if (result.changed && result.planInLane) writePlan(root, result.plan);
-    else if (result.changed) console.log(`plan not written: ${PLAN_FILE} is outside the ${lane} lane; a removal there records it`);
+    const plan = readPlan(root), cell = plan.cells.find(row => row.name === cells[0]);
+    const result = removeShims(root, plan, cells[0], { parsers: { importsIn, commonJsIn }, lane, planFiles: cell ? [PLAN_FILE, shardFile(cell)] : [PLAN_FILE] });
+    if (result.changed) writePlan(root, result.plan);
     for (const line of shimReport(result)) console.log(line);
     return 0;
   }
