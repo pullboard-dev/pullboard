@@ -1,9 +1,9 @@
 /** Deterministic empirical fixtures separate observed labor, waiting and unknown capacity [R1,R2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { capacityLines } from '../src/capacity-model.js';
-import { fitCapacity } from '../src/capacity-model.js';
-import { planCapacity } from '../src/capacity-model.js';
+import { capacityLines } from '../packages/stats/index.js';
+import { fitCapacity } from '../packages/stats/index.js';
+import { planCapacity } from '../packages/stats/index.js';
 
 const NOW = '2026-10-25T00:00:00.000Z';
 const FROM = '2026-10-01T00:00:00.000Z';

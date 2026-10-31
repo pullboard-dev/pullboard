@@ -44,8 +44,8 @@ import {
   sayBrief,
 } from '../cli-read-context.js';
 import { relayStateExists } from '../local-state.js';
-import { itemCost } from '../cost-read.js';
-import { publicUsage } from '../cost-read.js';
+import { itemCost } from '../../packages/stats/index.js';
+import { publicUsage } from '../../packages/stats/index.js';
 
 /** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
 export const nativeBoardRequired = false;

@@ -1,5 +1,5 @@
 /** Local derived capacity snapshots: nightly empirical fits and bounded forecast cadence [R1,R2]. */
-import { itemFiles } from './item-files.js';
+import { itemFiles } from '../../../../src/item-files.js';
 import { fitCapacity } from './capacity-model.js';
 import { planCapacity } from './capacity-model.js';
 

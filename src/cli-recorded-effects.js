@@ -1,6 +1,6 @@
 /** Keep post-recording observations outside the bounded CLI dispatcher [B3,H16]. */
 import { heartbeatCommand } from './cli-presence.js';
-import { checkpointAfterMove } from './cost-checkpoint.js';
+import { checkpointAfterMove } from '../packages/stats/index.js';
 
 /** Preserve heartbeat and usage order after the original native move succeeds. */
 export async function afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered }) {

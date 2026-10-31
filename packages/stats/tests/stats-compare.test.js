@@ -1,8 +1,8 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../../../src/view-api-ports.js';
 /** Two hand-computed windows use real Git/SQLite history; current rows intentionally disagree [R1,R2,N2]. */
-import { apiBoardOpeners } from './board-fixture.js';
+import { apiBoardOpeners } from '../../../test/board-fixture.js';
 
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../../../src/next-step-words.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
@@ -11,17 +11,17 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { main } from './native-cli-fixture.js';
-import { serveApi } from '../src/api.js';
-import { fetchFresh } from './http-fixture.js';
-import { exportBoard } from '../src/exchange.js';
-import { importBoard } from '../src/exchange.js';
-import { compareFlowWindows } from '../src/stats-flow.js';
-import { comparisonLines } from '../src/stats-flow-window.js';
-import { NEXT_IDLE_ENGINE } from '../src/next-idle-engine.js';
-import { runFixtureGit } from './fixture-child.js';
+import * as store from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
+import { main } from '../../../test/native-cli-fixture.js';
+import { serveApi } from '../../../src/api.js';
+import { fetchFresh } from '../../../test/http-fixture.js';
+import { exportBoard } from '../../../src/exchange.js';
+import { importBoard } from '../../../src/exchange.js';
+import { compareFlowWindows } from '../src/core/stats-flow.js';
+import { comparisonLines } from '../src/core/stats-flow-window.js';
+import { NEXT_IDLE_ENGINE } from '../../../src/next-idle-engine.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 const BASE = Date.parse('2026-10-10T00:00:00Z');
 /** Exact minute offsets avoid timing margins in every expected interval. */

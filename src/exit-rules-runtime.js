@@ -14,8 +14,8 @@ import {
   sessionSource,
   sessionSnapshot,
   usageDifference,
-} from './cost-session.js';
-import { nativeToolCallIds } from './exit-rules-calls.js';
+} from '../packages/stats/index.js';
+import { nativeToolCallIds } from '../packages/stats/index.js';
 import {
   parentSessionDigest,
   runtimeSessionIdentity,

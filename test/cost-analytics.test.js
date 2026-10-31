@@ -15,8 +15,8 @@ import { refusalDocument } from '../src/next-step-words.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { apiHttpFixture } from './api-fixture.js';
 import { fetchFresh } from './http-fixture.js';
-import { costAnalytics } from '../src/cost-analytics.js';
-import { wilson } from '../src/cost-analytics.js';
+import { costAnalytics } from '../packages/stats/index.js';
+import { wilson } from '../packages/stats/index.js';
 
 const presentation = model => ({ key: model.toLowerCase(), name: model, vendor: 'Fixture' });
 /** Build a board's ordered item, verdict and usage events. */
