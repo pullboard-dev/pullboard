@@ -36,12 +36,12 @@ export async function serveHere(io, values) {
   traceServeStartup('serve-context-ready');
   const mainRoot = git(ctx.info.root, ['worktree', 'list', '--porcelain']).split('\n')[0].slice('worktree '.length);
   traceServeStartup('serve-registration-start');
-  await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io, undefined, projectLinkPorts());
+  await registerProjectAndLink(mainRoot, new Date(), loadConfig(mainRoot), io, undefined, projectLinkPorts(io));
   traceServeStartup('serve-registration-ready');
   const port = values.port === undefined ? 0 : Number(values.port);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Refused('USAGE', '--port is a number from 0 to 65535; use 0 to choose a free one');
   traceServeStartup('serve-listen-start');
-  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(), port, runCommand: main, isMain: ctx.allowSchemaUpgrade, refusalDocument,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), port, runCommand: io.runCommand, isMain: ctx.allowSchemaUpgrade, refusalDocument,
     settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT } });
   traceServeStartup('serve-listen-ready');
   io.result?.({ url: api.url, port: api.port });

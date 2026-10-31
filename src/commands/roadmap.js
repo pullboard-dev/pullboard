@@ -1,7 +1,6 @@
 import { workQueue } from '../../packages/items/index.js';
 import * as store from '../board.js';
 import { roadmap } from '../board-milestones.js';
-import { openBoard } from '../native-board.js';
 /** The pullboard roadmap command, in its own module so an item adding another command never edits these lines. */
 import {
   Refused,
@@ -16,7 +15,7 @@ import {
 export function run(io, { first, second, rest }) {
   if (first || second || rest.length) throw new Refused('USAGE', 'pullboard roadmap takes no arguments');
   const ctx = context(io);
-  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board, { ports: { ...store, roadmap, openBoard, workQueue } }));
+  const milestones = withBoard(ctx, (board) => roadmapView.milestoneRoadmap(ctx.info.root, board, { ports: { ...store, roadmap, openBoard: ctx.nativeBoard.openBoard, workQueue } }));
   io.result?.({ milestones });
   if (!milestones.length) io.say('no milestones yet; the coordinator can add one with pullboard milestone add');
   for (const milestone of milestones) {

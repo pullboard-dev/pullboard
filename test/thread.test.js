@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { relayPresentation, relaySnapshot } from '../src/relay-presentation.js';
 import { test } from 'node:test';
 import * as store from '../src/board.js';

@@ -1,5 +1,6 @@
 /** Relay identity, expiry, permission freshness and scoped credential isolation [H8, H1]. */
 import assert from 'node:assert/strict';
+import { main as nativeTestMain } from './native-cli-fixture.js';
 import { runFixtureChild as spawnSync } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
@@ -1165,7 +1166,7 @@ test('offline linked reads use the local board, moves refuse, and the same relay
   for (const name of oldEnvironment.keys()) process.env[name] = box.env[name];
   let view;
   try {
-    view = await serveView({ port: 0 });
+    view = await serveView({ port: 0, runCommand: nativeTestMain });
     const page = await fetchPrintedViewLink(view.url);
     assert.equal(page.status, 200, 'the real local view page remains available');
     assert.match(page.headers.get('content-type') ?? '', /text\/html/);

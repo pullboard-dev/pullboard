@@ -12,7 +12,7 @@ import { createLocalApiHandler } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { observeRelayHealth } from '../src/relay-canary-health.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { apiFetch } from './api-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

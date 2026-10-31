@@ -123,13 +123,13 @@ export async function run(io, { first, second, rest, values }) {
     if (second || rest.length || values.url) throw new Refused('USAGE', 'pullboard relay pair');
     const ctx = context(io);
     if (values['new-browser']) return await relayOnAllCommand(undefined, io, { pairAdditional: true });
-    return await relayPair(ctx.info.root, io, { DEFAULT_RELAY, originRepository, syncRelay, openBoard: nativeBoardOpeners().openBoard });
+    return await relayPair(ctx.info.root, io, { DEFAULT_RELAY, originRepository, syncRelay, openBoard: nativeBoardOpeners(io).openBoard });
   }
   if (first === 'join') {
     if (!second || rest.length) throw new Refused('USAGE', 'pullboard relay join <code> [--url <address>]');
     const ctx = context(io);
     return await relayJoin(ctx.info.root, second, values.url, io, { name: values.name },
-      { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine, openBoard: nativeBoardOpeners().openBoard });
+      { DEFAULT_RELAY, originRepository, relayPersonCoordinator, syncRelay, updateRelayMachine, openBoard: nativeBoardOpeners(io).openBoard });
   }
   if (second || rest.length || (first && !['on', 'off', 'status'].includes(first)) || (values.url && first !== 'on')) throw new Refused('USAGE', 'pullboard relay [status|on|off] [--url <address>]');
   const ctx = context(io);
@@ -158,5 +158,5 @@ async function relayRead(root, io) {
     io.err(`pullboard: [RELAY_LINKED] ${error.message}`);
     return;
   }
-  await executePersonRequests(root, io, main, nativeBoardOpeners());
+  await executePersonRequests(root, io, io.runCommand, nativeBoardOpeners(io));
 }

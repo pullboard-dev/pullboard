@@ -21,7 +21,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { presentationState } from '../relay/browser-model.js';
 import { apiFetch } from './api-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';

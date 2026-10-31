@@ -1448,6 +1448,26 @@
       "cell": "app:lib"
     },
     {
+      "path": "bin/pullboard.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "bin/update-docs.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "src/cli-hook-work.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "src/relay-sender-main.js",
+      "cell": "app:lib"
+    },
+    {
+      "path": "src/submit-handoff-worker.js",
+      "cell": "app:lib"
+    },
+    {
       "path": "bin/static-style-checks.js",
       "cell": "app:cli"
     }

@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { recordBlock } from '../src/blocks.js';
 import { exportBoard } from '../src/exchange.js';
 import { resolveCommit, tryGit } from '../src/git.js';

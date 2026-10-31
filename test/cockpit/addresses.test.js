@@ -1,5 +1,6 @@
 /** @pullboard-test-gui */
 /** Real-input addresses, rendered places and browser history [N38,N26]. */
+import { main as nativeTestMain } from '../native-cli-fixture.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -610,7 +611,7 @@ test('a sandbox-blocked view port names the fix [I1,L3,P4]', { timeout: 120_000 
     };
     for (const name of Object.keys(saved)) delete process.env[name];
     process.env.CLAUDECODE = '1';
-    await assert.rejects(serveView({ port }), (error) => {
+    await assert.rejects(serveView({ port, runCommand: nativeTestMain }), (error) => {
       assert.equal(error.code, 'SANDBOX_BLOCKED');
       assert.equal(error.message, `[SANDBOX_BLOCKED] the sandbox around this command refused to let pullboard view listen on 127.0.0.1:${port} (${code})\nnext: ${harnesses[0].next}`);
       return true;

@@ -21,7 +21,6 @@ import { submitHandoffRoot } from './submit-handoff-origin.js';
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
 export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
-  const { submitHandoffWorkerEntrypoint } = await import('./submit-handoff-worker.js');
   const result = await withBoard(ctx, board => ordered(ctx, board, 'queueSubmitHandoff', [item.item_id, {
     agentId: me.id, job: randomUUID(), main: candidate.main, executionCommit: candidate.companion?.commit ?? candidate.commit, executionTree: candidate.companion?.tree ?? candidate.tree, commit: candidate.commit, tree: candidate.tree,
     digest: item.item_frozen_digest, leaseMs: ctx.config.leaseMs, companionDigest: itemPatchDigest(board, item.item_id, candidate.commit),
@@ -35,7 +34,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
       companion: candidate.companion }) + '\n', { flag: 'wx', mode: 0o600 });
     const log = openSync(join(directory, 'worker.log'), 'a', 0o600);
     try {
-      const worker = spawn(process.execPath, [submitHandoffWorkerEntrypoint(), join(directory, 'request.json')],
+      const worker = spawn(process.execPath, [ctx.io.submitHandoffWorker, join(directory, 'request.json')],
         { cwd: ctx.info.commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
       // Capture one actual incarnation before acknowledging; this file grants no board or proof authority.
       await once(worker, 'spawn');

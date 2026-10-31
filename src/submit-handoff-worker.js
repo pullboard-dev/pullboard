@@ -35,11 +35,11 @@ function jobGit(commonDir, args) {
 }
 
 /** A private request can only continue the exact native job; it supplies no actor or proof authority. */
-export async function runSubmitHandoffWorker(requestFile) {
+export async function runSubmitHandoffWorker(requestFile, { nativeBoard }) {
   const request = JSON.parse(readFileSync(requestFile, 'utf8'));
   const directory = dirname(resolve(requestFile));
   const root = join(directory, 'source');
-  const io = { cwd: root, relayJson: true,
+  const io = { cwd: root, nativeBoard, relayJson: true,
     say: line => process.stdout.write(String(line) + '\n'),
     err: line => process.stderr.write(String(line) + '\n'),
     result: value => { writeFileSync(join(directory, 'submission.json'), JSON.stringify(value) + '\n', { mode: 0o600 }); } };
@@ -82,5 +82,6 @@ export async function runSubmitHandoffWorker(requestFile) {
 export function submitHandoffWorkerEntrypoint() { return fileURLToPath(import.meta.url); }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  runSubmitHandoffWorker(process.argv[2]).catch(error => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
+  const nativeBoard = await import('./native-board.js');
+  runSubmitHandoffWorker(process.argv[2], { nativeBoard }).catch(error => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
 }

@@ -42,7 +42,7 @@ export function personMode(ctx, me, values) {
 export function actOn(io, work, { privateBoard = false } = {}) {
   const ctx = personCommandContext(io, { main, ordered });
   if (privateBoard) return runPrivateBoard(ctx, work, { withBoard, whoAmI,
-    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners() });
+    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners(io) });
   return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
 }
 

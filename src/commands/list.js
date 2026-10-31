@@ -14,6 +14,9 @@ import {
   itemLine,
 } from '../cli-read-context.js';
 
+/** Query-only dispatch defers the explicit native provider until a genuine write fallback. */
+export const nativeBoardRequired = false;
+
 /** Run `pullboard list` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { parseSpec } from '../src/spec.js';
 import { serveMcp } from '../packages/mcp/index.js';
 import { personNeedsState } from '../src/needs-state.js';

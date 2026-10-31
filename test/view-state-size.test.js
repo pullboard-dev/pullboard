@@ -14,7 +14,7 @@ import { addMilestone } from '../src/board-milestones.js';
 import { atomic } from '../src/board-event-log.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { main } from '../src/cli.js';
+import { main } from './native-cli-fixture.js';
 import { proofStats } from '../src/stats.js';
 import { ensureProofCounters } from '../src/proof-counters.js';
 import { submitFixture } from './board-submit-fixture.js';

@@ -449,7 +449,7 @@ test('a deleted-copy pending move survives interrupted cleanup and is returned o
       if (error.message !== 'the private fixture interrupts deletion-marker persistence') throw error;
       cleanupError = error.message;
     } finally { fs.default.renameSync = rename; syncBuiltinESMExports(); }
-    const { localRecords } = await import(${JSON.stringify(new URL('relay.js', box.mainURL).href)});
+    const { localRecords } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
     const beforeCleanup = localRecords(${JSON.stringify(box.root)}, board => ({
       firstCount: board.db.prepare('SELECT COUNT(*) AS count FROM item WHERE item_title=?').get(${JSON.stringify(firstTitle)}).count,
       cursor: board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='relay_applied_sequence'").get()?.meta_value

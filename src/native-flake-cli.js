@@ -27,9 +27,9 @@ import {
 export { flakesCommand as command } from './flake-command.js';
 
 /** Record the canonical direct-suite receipt through the existing authenticated board move. */
-export async function recordSuiteRun(root, receiptId, { context, ordered, withBoard, resourceAgent }) {
+export async function recordSuiteRun(root, receiptId, { context, ordered, withBoard, resourceAgent, nativeBoard }) {
   try {
-    const ctx = context({ cwd: root, say() {}, err() {}, stderr: { write() {} } });
+    const ctx = context({ cwd: root, nativeBoard, say() {}, err() {}, stderr: { write() {} } });
     const receipt = readGateReceipt(receiptStore(root), receiptId);
     if (!receipt || receipt.kind !== 'suite' || !receipt.timing) return;
     await withBoard(ctx, board => ordered(ctx, board, 'recordGateRun', [{ agentId: resourceAgent(ctx), receipt,
