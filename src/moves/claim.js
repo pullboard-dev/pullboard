@@ -16,7 +16,7 @@ import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';
 import { OUTSIDE_INTAKE_ENGINE } from '../outside-intake-engine.js';
 import { outsideSource } from '../outside-source.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
-import { REWORK_SAME_FAMILY_ENGINE } from '../../packages/state/index.js';
+import { REWORK_SAME_FAMILY_ENGINE } from '../../packages/state/core.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
