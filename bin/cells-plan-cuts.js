@@ -195,6 +195,15 @@ export function checkCuts(root, plan, name, { allLaterCells = false, temporaryEx
   const allowed = new Set(!temporaryExceptions || temporary.problems.length ? [] : temporary.edges.map(row => `${mappedPath(map, row.importer)}->${mappedPath(map, row.target)}`));
   const forbidden = new Set(allLaterCells ? plan.cells.filter(row => row.order > cell.order).map(row => row.name) : group.targets);
   const problems = new Set([...temporary.problems, ...retiredProblems(root, plan, inventory)]), seen = new Set();
+  // Test support may depend on any cell, but executable production must never depend on testkit.
+  for (const [file, imports] of inventory.edges) {
+    if (testFile(file)) continue;
+    for (const row of imports) {
+      if (!row.kind && (row.target === 'packages/testkit/index.js' || row.target.startsWith('packages/testkit/src/'))) {
+        problems.add(`production imports testkit: ${file} -> ${row.target}`);
+      }
+    }
+  }
   /** @type {{ file: string, wildcardCell: string | null }[]} */
   const pending = [...edges.keys()].filter(file => !testFile(file) && owner(file) === name)
     .map(file => ({ file, wildcardCell: null }));
