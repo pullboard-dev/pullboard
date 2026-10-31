@@ -46,7 +46,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B31 [approved, must] A thread is append-only: a correction is a new fact that supersedes the old one, and both stay visible. | gate: test/board.test.js | serves: B29
 - B32 [draft, must] A fact binds code by full sha; show prints an item's moves and facts as one timeline. | gate: test/board.test.js | serves: B29
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
-- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: packages/sandbox/tests/trunk.test.js | serves: P2
+- B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: test/trunk.test.js | serves: P2
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -86,8 +86,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - O8 [approved, must] Every agent declares the model that runs it; names show it, as web-1 (Claude) or claude-web-1 by option. | gate: test/board.test.js | serves: O3
 
 ## L · Lanes
-- L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: test/lanes.test.js
-- L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: test/lanes.test.js
+- L1 [approved, must] Lanes live in pullboard.json: folders owned, spec prefixes, when it starts. | gate: packages/config/tests/lanes.test.js
+- L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: packages/config/tests/lanes.test.js
 - L3 [approved, must] In a lane's worktree, pre-commit refuses changes outside the lane, moves included. | gate: test/e2e.test.js
 - L4 [approved, must] A worktree that has not joined a lane cannot commit. | gate: test/e2e.test.js
 
