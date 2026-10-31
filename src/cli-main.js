@@ -175,6 +175,7 @@ const OPTIONS = {
   clause: { type: 'string' },
   'check-timing': { type: 'string' },
   'never-again': { type: 'boolean' },
+  'session-end': { type: 'boolean' },
   'draft-splits': { type: 'boolean' },
   implies: { type: 'string' },
   owns: { type: 'string' },

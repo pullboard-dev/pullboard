@@ -3,6 +3,7 @@ import {
   headCommit,
 } from '../git.js';
 import {
+  events,
   getItem,
   listItems,
 } from '../board.js';
@@ -42,6 +43,17 @@ export async function run(io, { first }) {
   await sayMapSlice(io, ctx, getItem(board, id), primaryCheckoutRoot);
   io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
   io.say(commitRules);
+  // A claim released for idleness carries its work: the next builder sees the pinned commit and the files it changed (#1225).
+  if (!result.renewed) {
+    const released = events(board, { itemId: id }).filter(event => event.event_kind === 'release').at(-1);
+    const detail = released ? JSON.parse(released.event_detail) : null;
+    const handoff = detail?.idleClaim?.handoff;
+    if (handoff) {
+      io.say(`handoff from ${detail.idleClaim.holder}: last commit ${handoff.head.slice(0, 12)} kept at ${handoff.pin}; changed ${handoff.changedFiles.join(', ') || 'no files'}; merge it with git merge ${handoff.pin}`);
+    } else if (/refs\/pullboard\/handoffs\//u.test(detail?.reason ?? '')) {
+      io.say(`handoff from ${released.event_by}: ${detail.reason}`);
+    }
+  }
   return 0;
 });
 }

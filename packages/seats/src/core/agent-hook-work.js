@@ -12,7 +12,8 @@
 export async function work(event, { heartbeat, dispatch, inspect }) {
   try { await heartbeat(); }
   catch { /* A failed private observation must not suppress the ordinary native context. */ }
-  if (event === 'SessionEnd') return;
+  // An ended session frees its build claim at once instead of waiting out the idle clock (#1225).
+  if (event === 'SessionEnd') { await dispatch(['release', '--session-end']); return; }
   // This explicit native heartbeat may claim work; ordinary read commands never do.
   await dispatch(['heartbeat']);
   if (event === 'SessionStart') {

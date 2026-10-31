@@ -1,6 +1,7 @@
 import { relayRecovered } from '../relay.js';
 import { completeMoveHandoff } from '../post-move-handoff.js';
 import { prepareStaleObservation } from '../../packages/health/index.js';
+import { pinClaimHandoff } from '../../packages/health/index.js';
 import { staleReleaseNote } from '../board-stale-state-policy.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../release-reasons.js';
@@ -17,9 +18,30 @@ import {
   textArg,
 } from '../cli.js';
 
+/**
+ * A seat whose session ends releases its build claims at once (#1225), keeping its work at a board ref, so no claim
+ * waits out the idle clock after its agent has gone. Run by the SessionEnd hook; a seat may also run it on exit.
+ */
+async function releaseOnSessionEnd(io) {
+  return actOn(io, async (ctx, board, me) => {
+    const held = store.itemsInStatus(board, 'claimed', me.id).filter(item => item.item_parent_id === null);
+    const released = [];
+    for (const item of held) {
+      const handoff = pinClaimHandoff(board, { id: item.item_id, actor: me.id }, item);
+      const note = `session ended; ${handoff ? `work kept at ${handoff.pin} (${handoff.changedFiles.length} file(s): ${handoff.changedFiles.slice(0, 8).join(', ')}${handoff.changedFiles.length > 8 ? `, +${handoff.changedFiles.length - 8} more` : ''})` : 'no worktree commit could be pinned'}`;
+      await ordered(ctx, board, 'release', [item.item_id, me.id, note, 'OTHER']);
+      released.push(item.item_id);
+    }
+    io.result?.({ released });
+    io.say(released.length ? `session ended: released ${released.map(id => `#${id}`).join(', ')}` : 'session ended: no build claim to release');
+    return 0;
+  });
+}
+
 /** Run `pullboard release` and return its exit code. */
 export async function run(io, args) {
   const { first, values } = args;
+  if (values['session-end'] === true) return releaseOnSessionEnd(io);
   const act = (work) => actOn(io, work);
   let releasedContext;
   const code = await act(async (ctx, board, me) => {
