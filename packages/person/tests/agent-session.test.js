@@ -1,17 +1,38 @@
 /** Checkout-session ownership and takeover behavior [B3,B7]. */
 import assert from 'node:assert/strict';
-import { startFixtureChild as spawn, fixtureChildMessage, reportFixtureChildFailure, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import {
+  startFixtureChild as spawn,
+  fixtureChildMessage,
+  reportFixtureChildFailure,
+  runFixtureChild,
+  runFixtureGit,
+} from "../../../test/fixture-child.js";
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, readdirSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  readdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
-import { join, resolve } from 'node:path';
-import { after, test } from 'node:test';
+import {
+  join,
+  resolve,
+} from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { listResources } from '../packages/resources/index.js';
-import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { listResources } from "../../resources/index.js";
+import { SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const DIRS = [];
 const MARKERS = ['CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CODEX_CI', 'CODEX_SHELL'];
 const SPEC = '# Session fixture\n\n## G · Goals\n- G1 [approved, must] The fixture works. | gate: true\n';
@@ -211,12 +232,12 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   assert.equal(boardSnapshot(box.boardFile).shout.at(-1).shout_from, 'coordinator', 'an agent-shell shout keeps the coordinator as author');
   const file = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-dir'), 'pullboard-checkout-session.json');
   const before = readFileSync(file);
-  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../src/api.js')).href;
-  const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
+  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../../../src/api.js')).href;
+  const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../../test/native-cli-fixture.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)});
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'web', text: 'actual view action' } }, main, undefined, undefined, undefined, apiBoardOpeners);
     const asAgent = await executeMove(process.cwd(), { verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'Which path should web-1 use?', kind: 'question' } }, main, undefined, undefined, undefined, apiBoardOpeners);
