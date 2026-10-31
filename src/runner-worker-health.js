@@ -1,3 +1,4 @@
+import { processCensus } from './runner-custody.js';
 /** Answer the controller's health request from the worker's own runner root [C7]. */
 import { runnerHealthReply } from './runner-transport.js';
 import { runnerIdleReply } from './runner-transport.js';
@@ -22,7 +23,7 @@ export function serveHealth(encodedRequest) {
   try {
     const { request, root } = readRequest(encodedRequest);
     process.stdout.write(JSON.stringify(request.job !== undefined ? runnerJobReply(root, request)
-      : request.idle === true ? runnerIdleReply(root, request) : runnerHealthReply(root, request)) + '\n');
+      : request.idle === true ? runnerIdleReply(root, request, processCensus) : runnerHealthReply(root, request)) + '\n');
   } catch { process.exitCode = 1; }
 }
 
@@ -212,7 +213,7 @@ export function serveRestart(encodedRequest) {
       if (result === null) return restartRefused(root, request, diagnostic, signalAttempts);
       if (result && !signaled.includes(worker.pid)) signaled.push(worker.pid);
     }
-    const reply = runnerIdleReply(root, request);
+    const reply = runnerIdleReply(root, request, processCensus);
     if (!reply.idle) return restartRefused(root, request, { reason: reply.reason }, signalAttempts);
     process.stdout.write(JSON.stringify({ ...reply, restarted: signaled, signalAttempts }) + '\n');
   } catch (error) {
