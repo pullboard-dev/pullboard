@@ -254,7 +254,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       const row = copierReads.get(name);
       return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
     };
-    if (!operationalMentions(source, scanned, moves.map(([from]) => posix.basename(from)), copierNames, provenCopier).length) return { edits, problems };
+    if (!operationalMentions(source, scanned, moves.map(([from]) => from), copierNames, provenCopier).length) return { edits, problems };
   }
   const ports = sourceExportPorts(readSource);
   let sourcePortsUsed = false;

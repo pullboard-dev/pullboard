@@ -66,18 +66,25 @@ function enclosingCalls(code, at) {
  * template-built import, a constant used only that way) or goes through the shim-following copier.
  * @param {string} source - The fixture module text.
  * @param {{code: string, strings: Array<{start: number, end: number, text: string}>}} scanned - Its lexed form.
- * @param {string[]} basenames - File names of the moved sources.
+ * @param {string[]} paths - Repository-relative paths of the moved sources.
  * @param {Set<string>} copierNames - Local names of real import declarations that resolve to the canonical copier.
  * @param {(name: string, at: number) => boolean} provenCopier - True only when the callee at an offset is the imported, unshadowed binding.
  * @returns {Array<{start: number, end: number, text: string}>} The operational mentions.
  */
-export function operationalMentions(source, scanned, basenames, copierNames = new Set(), provenCopier = () => false) {
+export function operationalMentions(source, scanned, paths, copierNames = new Set(), provenCopier = () => false) {
   const { code, strings } = scanned;
-  const ending = new RegExp(`(?:^|[/\\\\])(?:${basenames.map(escaped).join('|')})$`, 'u');
+  const ending = new RegExp(`(?:^|[/\\\\])(?:${paths.map(path => escaped(posix.basename(path))).join('|')})$`, 'u');
   const templates = strings.filter(row => source[row.start] === '`');
   return strings.filter(row => ending.test(row.text)).filter(row => {
     if (MODULE_BEFORE.test(code.slice(0, row.start))) return false;
     const calls = enclosingCalls(code, row.start);
+    // An unambiguous direct relative filename names the repository root, not another directory's same-named asset.
+    // Keep indirect roots, path expressions and cwd mutation conservative: they may still resolve to the moved file.
+    const direct = calls[0];
+    if (direct && ['readFileSync', 'copyFileSync', 'cpSync'].includes(direct.name)
+      && !code.slice(direct.open + 1, row.start).trim() && !/\bprocess\s*\.\s*chdir\s*\(/u.test(code)
+      && /^(?:\.\/)?[\w.-]+$/u.test(row.text) && !row.text.includes('..')
+      && !paths.some(path => posix.normalize(path) === posix.normalize(row.text))) return false;
     if (calls.some(call => !call.member && copierNames.has(call.name) && provenCopier(call.name, call.at))) return false;
     const toPath = calls.some(call => call.name === 'fileURLToPath');
     // A file URL is module addressing only once it is a string; the URL object itself is a valid filesystem operand.

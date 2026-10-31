@@ -16,6 +16,18 @@ test('a read whose path can name a moved source file is still reported [C7]', ()
   assert.match(unknown.problems[0], /unproven input expression or root/);
 });
 
+test('a repo-root file with a moved asset basename is distinct from the moved path [C7]', () => {
+  const move = { file: 'test/blueprint-reads.test.js', moves: [['src/blueprints/pullboard.json', 'packages/blueprints/src/shell/blueprints/pullboard.json']], mentionsOnly: true };
+  const root = fixtureSourceEdits(PREFIX + "readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.deepEqual(root.problems, [], 'a known root file does not make an unrelated read part of this move');
+  const source = fixtureSourceEdits(PREFIX + "readFileSync('src/blueprints/pullboard.json');", move);
+  assert.equal(source.edits.length, 1, 'the actual moved source is still repointed');
+  const ambiguous = fixtureSourceEdits(PREFIX + "readFileSync(join(root, 'pullboard.json'));", move);
+  assert.ok(ambiguous.problems.length, 'an unproven root may still name the moved asset');
+  const cwd = fixtureSourceEdits(PREFIX + "process.chdir(folder); readFileSync('pullboard.json'); readFileSync(unknown);", move);
+  assert.ok(cwd.problems.length, 'a mutated cwd keeps the analysis conservative');
+});
+
 test('board database and fixture data reads are excluded and each is named with its reason [C7]', () => {
   // A `default` keyword in scope defeats the constant-folding leaf proof, as a real test body does, so only the data-root rule can clear these.
   const cases = [
