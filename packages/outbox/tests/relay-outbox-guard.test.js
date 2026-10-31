@@ -6,7 +6,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { test } from 'node:test';
-import { withFileLock } from '../src/relay-outbox-guard.js';
+import { withFileLock } from '../src/shell/relay-outbox-guard.js';
 
 /** A deterministic asynchronous handoff, without a sleep deciding which caller owns the guard. */
 function barrier() {

@@ -7,10 +7,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { readOutbox, writeOutbox } from '../src/relay-outbox.js';
-import { runFixtureGit } from './fixture-child.js';
+import { readOutbox, writeOutbox } from '../src/shell/relay-outbox.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../../..', import.meta.url));
 const OLD = '876df36c23a63993b371d4d85b9cf3b54f8ed38d';
 
 test('legacy numeric outboxes remain readable and an old reader refuses new result bindings [B26,H16,H17]', async t => {
@@ -19,7 +19,7 @@ test('legacy numeric outboxes remain readable and an old reader refuses new resu
   const source = runFixtureGit(['show', `${OLD}:src/relay-outbox.js`], { cwd: ROOT });
   // Relocate imports only; the complete accepted old module and its read function remain otherwise unchanged.
   const relocated = source.replace(/from '(\.\/[^']+)'/gu,
-    (_, specifier) => `from '${new URL(specifier, new URL('../src/relay-outbox.js', import.meta.url)).href}'`);
+    (_, specifier) => `from '${new URL(specifier, new URL('../../../src/relay-outbox.js', import.meta.url)).href}'`);
   const oldModule = join(directory, 'old-outbox.mjs');
   writeFileSync(oldModule, relocated);
   const old = await import(pathToFileURL(oldModule).href);
