@@ -23,6 +23,7 @@ import {
   invalidateGitFacts,
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
+import { lex } from '../../../kernel/index.js';
 import {
   checkFieldFindings,
   parseSpec,
@@ -143,17 +144,33 @@ function namesFile(line, file) {
   return line.startsWith(`${file}:`) || line.startsWith(`./${file}:`);
 }
 
+/** True only for a nonempty module of re-exports; comments and literal text cannot hide code. */
+function reexportOnly(source) {
+  if (source === null) return false;
+  const name = '[A-Za-z_$][\\w$]*';
+  const binding = `${name}(?:\\s+as\\s+${name})?`;
+  const names = `\\{\\s*(?:${binding}(?:\\s*,\\s*${binding})*\\s*,?)?\\s*\\}`;
+  const star = `\\*(?:\\s+as\\s+${name})?`;
+  return new RegExp(`^\\s*(?:export\\s*(?:${star}|${names})\\s+from\\s+(?:'\\s*'|"\\s*")\\s*;\\s*)+$`, 'u').test(lex(source).code);
+}
+
 /**
- * Each renamed path in a change, keyed by its new path, with the path it came from. Git's own
- * rename detection (its default similarity) decides, so a moved file is the same file.
+ * Each moved path, keyed by its new path. Git's default similarity finds renames and copies;
+ * a copy counts as a move only when its old body became a re-export-only compatibility shim.
  */
 function renamedOrigins(root, base, commit) {
-  const parts = (gitOut(root, ['diff', '-z', '--name-status', '--find-renames', base, commit, '--']) ?? '').split('\0');
+  const parts = (gitOut(root, ['diff', '-z', '--name-status', '--find-renames', '--find-copies', base, commit, '--']) ?? '').split('\0');
   const origins = new Map();
   for (let at = 0; at < parts.length; at += 1) {
     const status = parts[at];
     if (/^R/u.test(status)) { origins.set(parts[at + 2], parts[at + 1]); at += 2; }
-    else if (/^C/u.test(status)) at += 2;
+    else if (/^C/u.test(status)) {
+      const origin = parts[at + 1];
+      if (reexportOnly(gitShow(root, commit, origin)) && !reexportOnly(gitShow(root, base, origin))) {
+        origins.set(parts[at + 2], origin);
+      }
+      at += 2;
+    }
     else if (status) at += 1;
   }
   return origins;
