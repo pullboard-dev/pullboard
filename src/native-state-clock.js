@@ -1,5 +1,5 @@
 /** Piecewise clock windows of complete native state, separate from continuously refreshed flow [H5,H16,A2]. */
-import { qualifyingLandingTimes } from './roadmap.js';
+import { qualifyingLandingTimes } from '../packages/roadmap/index.js';
 
 const HOUR = 3_600_000;
 

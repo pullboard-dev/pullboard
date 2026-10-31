@@ -1,7 +1,7 @@
 import { criticalPathEnabled } from './critical-path-order.js';
 import { remainingPaths } from './critical-path-order.js';
-import { focusOrder } from './focus-milestone.js';
-import { milestoneFocus } from './focus-milestone.js';
+import { focusOrder } from '../packages/roadmap/index.js';
+import { milestoneFocus } from '../packages/roadmap/index.js';
 import { milestones } from './board-read-auxiliary.js';
 import { milestonePriorities } from './board-read-auxiliary.js';
 import { lineOrderEnabled } from './line-order.js';

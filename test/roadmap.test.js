@@ -1,7 +1,7 @@
 import { workQueue } from '../src/queue.js';
 /** Roadmap progress and withdrawn work preserve their recorded meaning [N26]. */
-import { addMilestone as addMilestoneWithPorts } from '../src/milestones.js';
-import { milestoneFocus } from '../src/focus-milestone.js';
+import { addMilestone as addMilestoneWithPorts } from '../packages/roadmap/index.js';
+import { milestoneFocus } from '../packages/roadmap/index.js';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,12 +12,10 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone, shipMilestone, roadmap } from '../src/board-milestones.js';
 import { main } from '../src/cli.js';
-import { milestoneRoadmap } from '../src/roadmap.js';
+import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import {
-  MILESTONE_SHIP_ENGINE,
-  WITHDRAW_MILESTONE_ENGINE,
-} from '../src/milestones.js';
+import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { prepareEngineMove } from '../src/engine.js';
 

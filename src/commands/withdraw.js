@@ -1,6 +1,6 @@
 import * as store from '../board.js';
 /** The pullboard withdraw command, in its own module so an item adding another command never edits these lines. */
-import * as roadmapView from '../roadmap.js';
+import * as roadmapView from '../../packages/roadmap/index.js';
 import {
   actOn,
   idArg,
