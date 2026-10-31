@@ -7,7 +7,7 @@ import { createServer, request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { machine, project, fetchLive, startView, chromeExecutable, browserPause, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
 test('a configured transport never falls back while loading or after import failure [N26,N27]', { timeout: 90_000 }, async (t) => {

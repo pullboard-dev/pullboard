@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
 /** Exercise typed item threads and deterministic replication on isolated SQLite boards [B29,B30,B31,B32]. */
@@ -255,7 +256,7 @@ function threadHttpFixture(t) {
 /** Start a real authenticated API for only this test's fixture board. */
 async function threadHttpBox(t) {
   const box = threadHttpFixture(t);
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Thread HTTP fixture' }] });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root: box.root, name: 'Thread HTTP fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');

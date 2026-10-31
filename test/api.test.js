@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
@@ -34,7 +35,7 @@ import * as apiExports from '../src/api.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../src/json.js';
-import { projectState } from '../src/serve.js';
+import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../src/projects.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
@@ -75,7 +76,7 @@ test('apiBoardListing is exported and matches the board list [A2]', async (t) =>
     { root: box.repo, name: 'Readable fixture', project: 'API parity', added: '2026-10-23T00:00:00.000Z' },
     { root: unreadableRoot, name: 'Unreadable fixture', project: 'API parity', added: '2026-10-23T00:00:00.000Z' },
   ];
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects });
   t.after(() => api.close());
   const address = new URL(api.url);
   const response = await apiFetch({ origin: address.origin, secret: address.searchParams.get('k') }, '/api/v1/boards');
@@ -169,7 +170,7 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
   const defaulted = await startLocalHandler(t, box);
   const denied = await apiFetch(defaulted, '/api/v1/boards', { headers: { host, origin } });
   assert.equal((await apiError(denied, 401)).code, 'AUTH_REQUIRED', 'omitting the allowlist preserves loopback-only Host authority');
-  for (const invalid of ['localhost', '0.0.0.0', '2001:db8::1', '192.168.7', '192.168.7.256', '192.168.007.9', '192.168.7.9:80']) assert.throws(() => createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
+  for (const invalid of ['localhost', '0.0.0.0', '2001:db8::1', '192.168.7', '192.168.7.256', '192.168.007.9', '192.168.7.9:80']) assert.throws(() => createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument,
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
@@ -540,12 +541,12 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './src/api.js'; import { refusalDocument } from './src/next-step-words.js';
+    import { serveApi } from './src/api.js'; import { viewApiPorts } from './src/view-api-ports.js'; import { refusalDocument } from './src/next-step-words.js';
     import { openBoard, openBoardForRead } from './src/native-board.js';
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;
     const project = { root, name: 'schema fixture', project: '', added: '2026-01-01T00:00:00.000Z' };
-    const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, secret: 'api-probe', runCommand: async () => 0, projects: () => [project], isMain: true });
+    const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, secret: 'api-probe', runCommand: async () => 0, projects: () => [project], isMain: true });
     try {
       const listing = await fetch(api.url).then((response) => response.json());
       console.log(JSON.stringify({
@@ -680,7 +681,7 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
 async function startLocalHandler(t, box, options = {}) {
   const secret = randomUUID();
   let port = 0;
-  const handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
+  const handler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument,
     secret,
     getPort: () => port,
     runCommand: options.runCommand ?? main,

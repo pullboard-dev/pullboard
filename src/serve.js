@@ -1,8 +1,12 @@
+import { activeViewAgents } from './view-state-summary.js';
+import { viewProofSummary } from './view-state-summary.js';
+import { compactItemSummaries } from './view-state-summary.js';
+import { viewFlowSummary } from './view-state-summary.js';
 import { modelPresentation } from './view/cost-tab.js';
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
-/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
+/** @pullboard-test-input src/view.css src/view/stage.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
  * registered project: items by state, what needs the person, shouts, doctrine, agents and activity,
@@ -39,8 +43,6 @@ import {
   resolve,
 } from 'node:path';
 import * as store from './board.js';
-import { openBoard } from './native-board.js';
-import { openBoardForRead as nativeOpenBoardForRead } from './native-board.js';
 import { releaseHeadlinesBetween } from './release-headlines.js';
 import { VERSION } from './release-version.js';
 import { displayAgentName } from './agent-names.js';
@@ -69,7 +71,6 @@ import {
 } from './projects.js';
 import { fetchLocal } from '../packages/sync/index.js';
 import { Refused } from '../packages/kernel/index.js';
-import { refusalDocument } from './next-step-words.js';
 import { relayLinkAvailability } from './relay.js';
 import { personNeeds } from './row-decision-text.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
@@ -85,7 +86,7 @@ import { openBoardForRead } from './board-read-open.js';
 import { loadMachineSettings } from './settings-read.js';
 
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */
-const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('./view/item-rows.css', import.meta.url), 'utf8').trimEnd());
+const SHARED_VIEW_CSS = readFileSync(new URL('./view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('./view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('./view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('./view/stage.css', import.meta.url), 'utf8').trimEnd());
 const PRIVATE_COST_CSS = readFileSync(new URL('./view/cost.css', import.meta.url), 'utf8');
 const SHARED_DOCTRINE_CSS = readFileSync(new URL('./view/doctrine.css', import.meta.url), 'utf8');
 const SHARED_ITEM_PANEL_CSS = readFileSync(new URL('./view/item-panel.css', import.meta.url), 'utf8');
@@ -127,8 +128,8 @@ export function portableSnapshot(value, root, field = '') {
 }
 
 /** Refuse missing higher-level services before opening a transport or writing an export [N26]. */
-function requireViewServices({ runCommand, renderPage }) {
-  for (const [name, operation] of Object.entries({ runCommand, renderPage })) {
+function requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners }) {
+  for (const [name, operation] of Object.entries({ runCommand, renderPage, refusalDocument, openBoard: boardOpeners?.openBoard, openBoardForRead: boardOpeners?.openBoardForRead })) {
     if (typeof operation !== 'function') throw new Refused('VIEW_SERVICE_REQUIRED', `the view needs its caller to provide ${name}; use the CLI view composition or pass the actual service`);
   }
 }
@@ -143,8 +144,8 @@ function requireViewServices({ runCommand, renderPage }) {
  * @param {string} directory
  * @returns {Promise<{path: string}>}
  */
-export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false, runCommand, renderPage } = {}) {
-  requireViewServices({ runCommand, renderPage });
+export async function exportView(root, directory, { fetchApi = fetchLocal, public: publicMode = false, runCommand, renderPage, refusalDocument, boardOpeners } = {}) {
+  requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const output = resolve(directory);
   if (existsSync(output) && (!statSync(output).isDirectory() || readdirSync(output).length)) {
     throw new Refused('EXPORT_EXISTS', `snapshot folder ${output} is not empty; use an empty folder`);
@@ -155,7 +156,7 @@ export async function exportView(root, directory, { fetchApi = fetchLocal, publi
     try { return repoInfo(entry.root).commonDir === info.commonDir; } catch { return false; }
   }) ?? { root: info.root, name: config.name || basename(info.root), project: config.project || '', added: new Date().toISOString() };
   const { serveApi } = await import('./api.js');
-  const api = await serveApi({ port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead } });
+  const api = await serveApi({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, port: 0, projects: () => [registered], runCommand, refusalDocument, boardOpeners });
   let listing;
   let state;
   let events;
@@ -255,10 +256,11 @@ function rememberPort(port) {
  * @param {any | null} [providedBoard] Borrow a staged connection without closing it.
  * @returns {T}
  */
-function withProject(root, read, providedBoard = null) {
+function withProject(root, read, providedBoard = null, boardOpeners) {
+  if (!providedBoard && typeof boardOpeners?.openBoard !== 'function') throw new Refused('VIEW_SERVICE_REQUIRED', 'the view projection needs its caller to provide openBoard; use the CLI view composition or pass the actual service');
   const info = repoInfo(root);
   const config = loadConfig(info.root);
-  const board = providedBoard ?? openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
+  const board = providedBoard ?? boardOpeners.openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
   try {
     return read(board, info, config);
   } finally {
@@ -331,7 +333,7 @@ function doctrineGateFiles(root, head, gate) {
  *   A supplied board stays owned by its caller.
  * @returns {any}
  */
-export function projectState(root, { seen = null, board: providedBoard = null, itemProjector = null } = {}) {
+export function projectState(root, { seen = null, board: providedBoard = null, itemProjector = null, boardOpeners } = {}) {
   return withProject(root, (board, info, config) => {
     const all = store.listItems(board, { all: true });
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
@@ -380,6 +382,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
       dashboardPace: landingPace(board, new Map(all.map(item => [item.item_id, item])), board.clock.now().getTime(), store),
       dashboardLanded: all.filter(item => item.item_status === 'verified' && item.item_merged_commit)
         .map(item => ({ id: item.item_id, commit: item.item_merged_commit, reviewer: item.item_verified_by })),
+      landingBatches: store.landingBatches(board).filter(batch => !['landed', 'blocked'].includes(batch.state))
+        .map(batch => ({ startedAt: batch.startedAt, items: (batch.items || []).map(entry => ({ id: entry.id })) })),
       agents: store.listAgents(board).map((agent) => ({ ...agent, family: agent.family, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names), lastMoveAt: lastMove.get(agent.agent_id) ?? null })),
       holds: store.laneHolds(board),
       // Each item held on its own, with its reason, so every list can say why it is not moving (#1256).
@@ -399,7 +403,7 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     const rigorRows = projectRowDecisions(store.rowDecisions(board), { root: info.root, spec: loadSpec(info.root, config).rows, practice: doctrine.rows });
     const projected = projectSpecRevisions({ ...state, rigorDrafts: rigorDraftNeeds(rigorRows, store.rowDrafts(board), store.rowDecisions(board)), sentinelDrafts: sentinelDraftNeeds(sentinels(board)) }, store.rowDrafts(board), store.rowDecisions(board));
     return { ...projected, needs: personNeeds(projected) };
-  }, providedBoard);
+  }, providedBoard, boardOpeners);
 }
 
 /**
@@ -463,8 +467,8 @@ const credentialMatches = (given, expected) => given.length === expected.length 
  *
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void> }>}
  */
-export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, lan = false } = {}) {
-  requireViewServices({ runCommand, renderPage });
+export async function serveView({ port = 0, secret = randomBytes(18).toString('base64url'), projectRoot, runCommand, renderPage, refusalDocument, boardOpeners, lan = false } = {}) {
+  requireViewServices({ runCommand, renderPage, refusalDocument, boardOpeners });
   const address = lan ? viewLanAddress() : LOOPBACK;
   const key = Buffer.from(secret);
   const cookieName = `pullboard_view_${randomBytes(9).toString('hex')}`;
@@ -484,7 +488,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
   const { startViewSignIn, viewSignInStatus, viewSignInPairingNavigation, cancelViewSignIn } = await import('./relay-setup.js');
   const signIns = new Set();
   const signInLifetime = new AbortController();
-  const apiHandler = createLocalApiHandler({ secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners: { openBoard, openBoardForRead: nativeOpenBoardForRead }, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
+  const apiHandler = createLocalApiHandler({ viewPorts: { projectState, activeViewAgents, viewProofSummary, compactItemSummaries, viewFlowSummary }, secret, getPort: () => bound, runCommand, stateDetail: 'summary', refusalDocument, costModelPresentation: modelPresentation, boardOpeners, settingsProviders: { performanceCores, defaultViewPort, DEFAULT_VIEW_PORT },
     allowedOrigins: lan ? [] : [HOSTED_ORIGIN], allowedHosts: lan ? [address] : [],
     sessionCookie: { name: cookieName, value: session }, ...(projectRoot === undefined ? {} : { scope: { projectRoot } }) });
   const reply = (res, code, type, body, headers = {}) => {
@@ -566,7 +570,7 @@ export async function serveView({ port = 0, secret = randomBytes(18).toString('b
       const registered = listApiProjects();
       const selected = body.board === undefined ? null : registered.find(project => createHash('sha256').update(project.root).digest('hex') === body.board);
       if (body.board !== undefined && !selected) throw new Refused('BAD_REQUEST', 'choose a board from this view and refresh before trying again');
-      const listing = apiBoardListing(() => registered, undefined, refusalDocument, { openBoard, openBoardForRead: nativeOpenBoardForRead });
+      const listing = apiBoardListing(() => registered, undefined, refusalDocument, boardOpeners);
       const unreadable = listing.warnings
         .filter((warning) => warning.error?.error?.code === 'BOARD_UNAVAILABLE' && (!selected || warning.root === selected.root));
       const forgotten = unreadable.filter((project) => forgetProject(project.root)).length;

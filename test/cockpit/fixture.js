@@ -441,10 +441,18 @@ function timelineRows(html) {
  */
 function agentEntries(html) {
   const rows = html.split(/<div class="agent-card[^"]*">/).slice(1).map((entry) => {
-    const opened = [...entry.matchAll(/data-item="(\d+)"[^>]*><span>([^]*?)<\/span><span class="chip[^"]*">([^<]*)</g)].map((match) => `${match[2]}: ${match[3]}`);
-    // The state is a word beside the name; what it holds follows at the full width.
-    const what = /<span class="agent-what"><i>(#\d+)<\/i> ([^]*?)<\/span>/.exec(entry), word = /<span class="agent-who">[^]*?<span class="chip[^"]*">([^<]*)</.exec(entry);
-    const first = what && word ? [null, what[1], what[2], word[1]] : null;
+    /** Read the approved stage and its explanatory marks from an agent's item presentation. */
+    const stage = (html) => {
+      const word = /<b class="stage-word">([^<]*)<\/b>/.exec(html)?.[1] || '';
+      const marks = [...html.matchAll(/class="stage-mark[^\"]*"[^>]*>([^<]*)<\/span>/g)].map((mark) => mark[1]);
+      return [word, ...marks].filter(Boolean).join(' · ');
+    };
+    const opened = [...entry.matchAll(/class="agent-work" data-item="(\d+)"[^>]*><span>([^]*?)<\/span>([^]*?)<\/div>/g)]
+      .map((match) => `${match[2]}: ${stage(match[3])}`);
+    // The stage is beside the name; what the agent holds follows at the full width.
+    const what = /<span class="agent-what"><i>(#\d+)<\/i> ([^]*?)<\/span>/.exec(entry);
+    const word = /<span class="agent-state">([^]*?)<span class="agent-doing">/.exec(entry)?.[1];
+    const first = what && word ? [null, what[1], what[2], stage(word)] : null;
     return {
       id: /data-agent="([^"]*)"/.exec(entry)?.[1],
       path: /title="Shouts with [^"]* \(([^"()]*)\)(?: · \+\d+ more items?)?"/.exec(entry)?.[1],
@@ -1101,11 +1109,12 @@ async function readRoadmap(chrome) {
           empty: card.querySelector('.milestone-empty')?.innerText ?? null,
           note: card.querySelector('.milestone-note')?.innerText ?? null,
           rows: [...card.querySelectorAll('.milestone-item')].map((row) => {
-            const chip = row.querySelector('.chip'), title = row.querySelector('.t'), style = getComputedStyle(title), box = chip.getBoundingClientRect();
+            const chip = row.querySelector('.item-stage') || row.querySelector('.chip'), word = chip.querySelector('.stage-word') || chip, title = row.querySelector('.t'), style = getComputedStyle(title), box = chip.getBoundingClientRect();
             return {
-              id: row.querySelector('.id').innerText, label: chip.innerText, tone: [...chip.classList].filter((name) => ['ok', 'no', 'warn', 'busy', 'free'].includes(name)).join(' '),
+              id: row.querySelector('.id').innerText, label: word.innerText.trim(), tone: chip.dataset.stage || [...chip.classList].filter((name) => ['ok', 'no', 'warn', 'busy', 'free'].includes(name)).join(' '),
+              marks: [...chip.querySelectorAll('.stage-marks > *')].map(mark => mark.textContent.trim()), detail: chip.querySelector('.stage-detail')?.textContent || '',
               seen: box.width > 0 && box.height > 0 && getComputedStyle(chip).visibility === 'visible',
-              chip: paint(chip), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
+              chip: paint(word), dot: getComputedStyle(row.querySelector('.dot')).backgroundColor,
               button: row.matches('button,[role="button"]'), tip: row.title, title: [...title.childNodes].slice(1).map((node) => node.textContent).join(''),
               lines: Math.round(title.getBoundingClientRect().height / parseFloat(style.lineHeight)),
               cut: title.scrollWidth > title.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',

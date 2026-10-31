@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Shared assertions and request helpers for local API fixtures. */
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
@@ -178,7 +179,7 @@ export function apiHttpFixture(t) {
 /** Serve this fixture's explicit project, avoiding any registry outside its private home. */
 export async function apiHttpBox(t, { includeMissing = false, onStateBuild, additionalProjects = [] } = {}) {
   const box = apiHttpFixture(t);
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, onStateBuild, projects: () => [...(includeMissing ? [{ root: join(box.dir, 'gone'), name: 'Missing fixture' }] : []), { root: box.root, name: 'HTTP fixture' }, ...additionalProjects] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const key = url.searchParams.get('k');

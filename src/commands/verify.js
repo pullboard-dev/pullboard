@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from '../review-composition.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../review-composition.js';
@@ -163,7 +164,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       return await ordered(ctx, board, 'verify', recovered.args);
     }
     const item = store.getItem(board, id);
-    itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
+    itemSessions.refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
     const reReview = item.item_status === 'verified' && !item.item_merged_commit;
     const stale = reReview ? verdictProjector(root, board, {}, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, trunkRef }).state(item) : null;
     if (item.item_status !== 'submitted' && !stale) {
@@ -302,6 +303,6 @@ export async function run(io, args) {
   const verdictResult = {};
   const ctx = { ...context(io), verdictResult };
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems });
+  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
 }

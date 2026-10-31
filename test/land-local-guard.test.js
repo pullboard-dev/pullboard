@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { requireLocalGuardClassification } from '../src/land-local-guard.js';
+import { landingPorts } from './landing-ports-fixture.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 
 /** Supply private in-memory ledger inputs without writing operational observations or receipts. */
@@ -12,7 +13,7 @@ function fixture(classification, green) {
   const event = { event_kind: 'flake-observation', event_id: 1, event_at: '2026-01-01T00:00:00Z',
     event_detail: JSON.stringify({ engine: NATIVE_FLAKE_ENGINE, observation }) };
   const board = { db: { prepare: () => ({ all: () => [event] }) } };
-  return { state: { board, config: { flakes: { rerun: true } }, batch: { base: observation.main } },
+  return { state: { board, landingPorts, config: { flakes: { rerun: true } }, batch: { base: observation.main } },
     gate: { failures: [failure], flakeDiagnostics: { observations: [{ id: observation.id, recorded: true, classification }] } } };
 }
 

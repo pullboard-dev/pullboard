@@ -1,3 +1,4 @@
+import { workQueue } from '../packages/items/index.js';
 import { pipelineStats } from './stats-pipeline.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
@@ -16,7 +17,7 @@ import { loadConfig } from './config.js';
 import { repoInfo } from './git.js';
 import { listApiProjects } from './projects.js';
 import { nativeStateClockWindow } from './native-state-clock.js';
-import { milestoneRoadmap } from './roadmap.js';
+import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { proofStats } from './stats.js';
 import { readCapacity } from './capacity-read.js';
 import { ruleProofCounts } from './rule-proof-counts.js';
@@ -91,8 +92,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
       milestones: scopeCommonDir === null
-        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard } })
-        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard } }),
+        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard, workQueue } })
+        : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } }),
       rowDecisions: store.rowDecisions(board),
       proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
     };

@@ -109,7 +109,7 @@ test('an exit in the configured phase cannot skip the affected phase or earn a w
 test('missing landing providers refuse before admission or work can begin [B3,R3,Q1,Q3,C7]', async () => {
   let called = false;
   const untouched = new Proxy({}, { get() { called = true; throw new Error('provider refusal read the board'); } });
-  for (const ports of [undefined, ...['quarantineWaivers', 'observeNativeFailure', 'quarantineVerdictSnapshot',
+  for (const ports of [undefined, ...['flakeLedger', 'quarantineWaivers', 'observeNativeFailure', 'quarantineVerdictSnapshot',
     'validateQuarantineGate', 'validateQuarantineLandingProof', 'gateRuns'].map(name => ({ ...landingPorts, [name]: undefined }))]) {
     await assert.rejects(land({ root: '/missing-landing-provider', board: untouched, landingPorts: ports }), /explicit canonical operation ports/u);
     await assert.rejects(runLandingBatch({ root: '/missing-landing-provider', board: untouched, landingPorts: ports }), /explicit canonical operation ports/u);

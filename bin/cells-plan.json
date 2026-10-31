@@ -846,6 +846,10 @@
     {
       "path": "src/submit-handoff-worker.js",
       "cell": "app:lib"
+    },
+    {
+      "path": "bin/static-style-checks.js",
+      "cell": "app:cli"
     }
   ]
 }

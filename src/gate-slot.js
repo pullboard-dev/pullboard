@@ -1,5 +1,5 @@
 import { mainCheckout } from './git.js';
-import { sourcePreparationFields } from './runner-overhead.js';
+import { sourcePreparationFields } from '../packages/gate/core.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from './refused.js';
 import { recordRunnerMeasurement } from './settings.js';

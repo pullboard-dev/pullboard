@@ -95,22 +95,33 @@ export function shimTargets(text) {
   return [...new Set([...bare.matchAll(/from(?:'([^']*)'|"([^"]*)");/gu)].map(match => match[1] ?? match[2]))];
 }
 
-/** Every module a shim forwards to, transitively, as root-relative paths; a file holding code has none. */
-function shimBodies(read, path, seen = new Set()) {
-  if (seen.has(path) || seen.size > 64) throw new Error(`cyclic or oversized shim chain at ${path}`);
-  seen.add(path);
-  let text;
-  try { text = read(path); } catch { return []; }
-  const targets = /\.[cm]?js$/u.test(path) ? shimTargets(text) : null;
-  if (!targets) return [];
-  const found = [];
-  for (const specifier of targets) {
-    if (!/^\.\.?\//u.test(specifier)) throw new Error(`shim ${path} forwards to a non-relative module: ${specifier}`);
-    const target = normalize(join(dirname(path), specifier)).split(sep).join('/');
-    if (target.startsWith('../') || isAbsolute(target)) throw new Error(`shim ${path} forwards outside the package: ${specifier}`);
-    found.push(target, ...shimBodies(read, target, seen));
+/** Every reachable shim body, with ancestry cycles distinct from repeated DAG nodes [C7,P3]. */
+function shimBodies(read, path) {
+  const ancestry = new Set(), complete = new Set(), found = new Set();
+  let edges = 0;
+  /** Bound depth and total traversed edges independently; a wide valid barrel is not a cycle. */
+  function visit(current) {
+    if (ancestry.has(current)) throw new Error(`cyclic shim chain at ${current}`);
+    if (ancestry.size > 64) throw new Error(`oversized shim chain at ${current}`);
+    if (complete.has(current)) return;
+    ancestry.add(current);
+    try {
+      let text;
+      try { text = read(current); } catch { complete.add(current); return; }
+      const targets = /\.[cm]?js$/u.test(current) ? shimTargets(text) : null;
+      for (const specifier of targets ?? []) {
+        if (++edges > 4096) throw new Error(`oversized shim traversal at ${current}`);
+        if (!/^\.\.?\//u.test(specifier)) throw new Error(`shim ${current} forwards to a non-relative module: ${specifier}`);
+        const target = normalize(join(dirname(current), specifier)).split(sep).join('/');
+        if (target.startsWith('../') || isAbsolute(target)) throw new Error(`shim ${current} forwards outside the package: ${specifier}`);
+        found.add(target);
+        visit(target);
+      }
+      complete.add(current);
+    } finally { ancestry.delete(current); }
   }
-  return [...new Set(found)];
+  visit(path);
+  return [...found];
 }
 
 /**

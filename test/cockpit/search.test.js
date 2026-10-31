@@ -106,7 +106,7 @@ process.stdout.write(result.stdout ?? ''); process.stderr.write(result.stderr ??
   chmodSync(wrapper, 0o755);
   // Both tabs may read the on-disk row before its commit lands between their history reads.
   writeFileSync(join(alpha.repo, file), readFileSync(future));
-  const worker = spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectState } from ${JSON.stringify(new URL('../../src/serve.js', import.meta.url).href)}; console.log(JSON.stringify(projectState(${JSON.stringify(alpha.repo)})));`], { cwd: alpha.repo, env: box.env, encoding: 'utf8' });
+  const worker = spawnSync(process.execPath, ['--input-type=module', '-e', `import { projectState } from ${JSON.stringify(new URL('../../src/cli/view-state.js', import.meta.url).href)}; console.log(JSON.stringify(projectState(${JSON.stringify(alpha.repo)})));`], { cwd: alpha.repo, env: box.env, encoding: 'utf8' });
   assert.equal(worker.status, 0, `real projectState child: ${worker.stderr}`);
   const state = JSON.parse(worker.stdout), observed = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const proof = JSON.parse(readFileSync(receipt, 'utf8'));

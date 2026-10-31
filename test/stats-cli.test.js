@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -150,7 +151,7 @@ test('[R2,A1] stats forwards the inclusive date window and returns an actionable
 /** Exercise authenticated state from the same private board used by the command checks. */
 test('[R1,R2,A2] local HTTP state exposes exactly the command statistics', async (t) => {
   const { root, board } = fixture(t);
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root, name: 'Statistics fixture' }] });
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: main, projects: () => [{ root, name: 'Statistics fixture' }] });
   t.after(() => api.close());
   const url = new URL(api.url);
   const headers = { 'x-pullboard-key': url.searchParams.get('k') };

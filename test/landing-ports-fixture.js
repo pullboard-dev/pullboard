@@ -1,3 +1,4 @@
+import { flakeLedger } from '../src/flakes.js';
 /** Canonical process-local providers for direct private landing components, matching the actual higher CLI roots. */
 import { badgeCounts } from '../src/badge.js';
 import { writeBadges } from '../src/badge.js';
@@ -6,4 +7,4 @@ import { observeNativeFailure } from '../src/native-flakes.js';
 import { quarantineWaivers, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns } from '../src/quarantine.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 
-export const landingPorts = Object.freeze({ badgeCounts, writeBadges, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns });
+export const landingPorts = Object.freeze({ badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns });

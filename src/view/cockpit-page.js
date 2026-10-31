@@ -36,7 +36,6 @@ import { MACHINE } from '../machine.js';
 import { STAR_KEY } from './star.js';
 import { starMarkup } from './star.js';
 import { starRepository } from './star.js';
-import { commandPhrases } from '../help.js';
 import { personNeeds } from '../row-decision-text.js';
 import { homeCapacity } from './home.js';
 import { homeRules } from './home.js';
@@ -63,8 +62,6 @@ import { settingsMarkup } from './settings-page.js';
 import { settingsPageScript } from './settings-page.js';
 import { agentApprovalScript } from './agent-approval.js';
 import { historyLoadingScript } from './history-loading.js';
-/** The CLI's default phrases, ordered by depth for the existing prose inventory guard. */
-export const PULLBOARD_COMMANDS = Object.freeze(commandPhrases().sort((left, right) => right.split(' ').length - left.split(' ').length));
 /**
  * The item lifecycle as the page draws it (M1): each state with what it means and, for a final
  * state, what every way in checks; each move with who makes it, its command or the clock's
@@ -106,7 +103,8 @@ function lifecycle() {
  * @param {{snapshot?: boolean, readOnly?: boolean, requests?: boolean, transportModule?: string|null, apiBase?: string, apiHeaders?: Record<string, string>, stylesheet?: string, paths?: boolean, hostedLocal?: boolean, relaySession?: boolean, signIn?: string|null, hostedReleaseVersion?: string, hostedReleaseVersions?: string[]|null, costPrices?: Record<string, {freshInput?: number, cacheReadInput?: number, cacheWriteInput?: number, output?: number}>|null}} [options] - Served connection and assets, optional person requests over a read-only transport, host routes, a static page with event replay, or the hosted page that reads this machine's view first.
  * @returns {string}
  */
-export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null, costPrices = null } = {}) {
+export function cockpitPage(key = '', { snapshot = false, readOnly = false, requests = false, transportModule = null, apiBase = '', apiHeaders = { 'x-pullboard-key': key }, stylesheet = null, paths = false, hostedLocal = false, relaySession = false, signIn = null, hostedReleaseVersion, hostedReleaseVersions = null, costPrices = null, commandPhrases } = {}) {
+  if (typeof commandPhrases !== 'function') throw new TypeError('the page needs its higher renderer to provide commandPhrases');
   // Derive the current CLI inventory for every served, relay or exported page.
   const COMMAND_SOURCE = 'pullboard (?:' + commandPhrases().join('|') + ')(?![\\w-])(?: (?:--?[\\w-]+|\\d+|#\\d+|"[^"\\n]*"|[A-Z][A-Z0-9_]*|[\\w-]*[\\/.:@][^\\s"]*|[a-z]+-\\d+)(?![\\w-]))*';
 

@@ -1,8 +1,7 @@
 /** Render prepared agents-panel data as HTML; labels, avatars, chips, titles and ages are caller-prepared. */
 export function agentsPanelHtml(panel) {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
-  const state = (agent, item, brief = false) => item.reviewer === agent.agentId
-    ? '<span class="chip warn">reviewing</span>' : brief ? item.briefStateHtml : item.stateHtml;
+  const state = (agent, item, brief = false) => brief ? item.briefStateHtml : item.stateHtml;
   const row = agent => {
     const first = agent.holding[0];
     const more = agent.holding.length - 1;

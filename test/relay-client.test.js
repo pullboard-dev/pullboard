@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
 import { withApiCommandEnvironment } from './api-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
@@ -965,7 +966,7 @@ async function competingReplicaClaims(fixture, timing) {
   }
   let localApi;
   try {
-    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ boardOpeners: apiBoardOpeners, refusalDocument, runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
+    localApi = await timing.wait('start the local API used to exercise relay ordering', () => serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument, runCommand: apiCommand, projects: () => [{ root: clones[0], name: 'Clone API' }] }));
     const address = new URL(localApi.url);
     const response = await timing.wait('send the first API move through clone A', () => fetchFresh(`${address.origin}/api/v1/boards/${boardId}/moves`, {
       method: 'POST', headers: { 'x-pullboard-key': address.searchParams.get('k'), 'content-type': 'application/json' },

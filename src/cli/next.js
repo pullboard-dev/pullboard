@@ -1,3 +1,4 @@
+import { agentSessionDigest } from '../person.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { laneSeatContext } from '../seat-checkout.js';
@@ -6,8 +7,8 @@ import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
 import { mainRedReviewItems } from '../main-red.js';
 import { computedReturnArgs } from '../computed-conflict-return.js';
-import { focusReviewFirst } from '../focus-milestone.js';
-import { focusReasons } from '../focus-milestone.js';
+import { focusReviewFirst } from '../../packages/roadmap/index.js';
+import { focusReasons } from '../../packages/roadmap/index.js';
 import { mainLaneWork } from '../next-steps.js';
 import * as store from '../board.js';
 import { withBoardRead } from '../cli-context.js';
@@ -27,6 +28,7 @@ import { relayLinked } from '../relay.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
 import { claimOrdered } from './claim.js';
+import { currentReworkRoutingPolicy } from './claim.js';
 import { whoAmI } from './join.js';
 import { MainSpecMerged } from './claim.js';
 import { claimFreezer } from './claim.js';
@@ -72,7 +74,7 @@ export async function nextOnce(ctx, values) {
   if (!looked.claim) return looked;
   return await withBoard(ctx, async (board) => {
     if (values.verify) checkMainVerifier(ctx, board, values);
-    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems });
+    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest });
     const picked = nextPick(ctx, board, values);
     if (!picked.claim) return picked;
     const { me, item, held, shared, reasons, reviewSkipped, seats } = picked;
@@ -102,7 +104,8 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id && !pendingSubmitHandoff(board, item)
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
-    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle };
+    priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board) };
   const own = heldItem ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
@@ -111,7 +114,7 @@ function nextPick(ctx, board, values) {
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
-    observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, undefined, { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
+    observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
   if (offer?.item && !values.build && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };
   if (!item) return { reasons, ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };

@@ -1,6 +1,7 @@
+import { workQueue } from '../src/queue.js';
 /** Roadmap progress and withdrawn work preserve their recorded meaning [N26]. */
-import { addMilestone as addMilestoneWithPorts } from '../src/milestones.js';
-import { milestoneFocus } from '../src/focus-milestone.js';
+import { addMilestone as addMilestoneWithPorts } from '../packages/roadmap/index.js';
+import { milestoneFocus } from '../packages/roadmap/index.js';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -11,12 +12,10 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone, shipMilestone, roadmap } from '../src/board-milestones.js';
 import { main } from './native-cli-fixture.js';
-import { milestoneRoadmap } from '../src/roadmap.js';
+import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { submitFixture } from './board-submit-fixture.js';
-import {
-  MILESTONE_SHIP_ENGINE,
-  WITHDRAW_MILESTONE_ENGINE,
-} from '../src/milestones.js';
+import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
+import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { prepareEngineMove } from '../src/engine.js';
 
@@ -258,7 +257,7 @@ test('[N26] each milestone sums its items by state with an estimate', async t =>
     needsYou: [held, waiting], pace: { last6h: 5, last2h: 3, last24h: 7 }, estimate: { low: 3.5, high: 6 }, window: '6h', reason: null };
   assert.deepEqual((await box.run()).milestones[0].summary, expected);
   assert.match(await box.run(false), /^  5 left of 6: 1 landed, 1 landing, 1 in review, 1 building, 1 waiting, 1 held; about 3.5 to 6 h at today's pace\.$/m);
-  const direct = milestoneRoadmap(box.repo, box.board, { projects: () => [], ports: { ...store, roadmap, openBoard } })[0];
+  const direct = milestoneRoadmap(box.repo, box.board, { projects: () => [], ports: { ...store, roadmap, openBoard, workQueue } })[0];
   assert.equal(direct.total, 6, 'withdrawn work is excluded from milestone membership');
   assert.equal(direct.withdrawn, 1, 'the omitted withdrawn member remains reported separately');
   assert.ok(direct.items.every(entry => entry.status !== 'withdrawn'));
@@ -293,7 +292,7 @@ test('[N26] roadmap holds and unavailable scoped references partition without le
   const paused = box.item('waiting', 'paused');
   store.holdLane(box.board, 'paused', { agentId: 'coordinator', reason: 'Paused lane' });
   addMilestone(box.board, { agentId: 'coordinator', name: 'Scoped', items: [building, paused, 'unregistered-private#7'] });
-  const scoped = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })[0];
+  const scoped = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } })[0];
   assert.equal(scoped.summary.building, 1, 'a live builder takes precedence over a hold');
   assert.equal(scoped.summary.held, 1, 'a held lane counts its open work');
   assert.equal(scoped.summary.waiting, 1, 'an unresolved foreign item remains in the total');
@@ -301,7 +300,7 @@ test('[N26] roadmap holds and unavailable scoped references partition without le
   assert.equal(scoped.summary.estimate, null);
   assert.doesNotMatch(JSON.stringify(scoped), /unregistered-private/, 'the summary preserves scoped reference redaction');
   box.at(now + 2 * HOUR);
-  const expired = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })[0].summary;
+  const expired = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } })[0].summary;
   assert.equal(expired.building, 0);
   assert.equal(expired.held, 2, 'the expired builder is held instead of waiting');
   assert.equal(expired.waiting, 1);
@@ -393,6 +392,8 @@ test('roadmap ports refuse before board access while canonical composition retai
     const before = store.events(board);
     assert.throws(() => addMilestoneWithPorts(board, { agentId: 'coordinator', name: 'Missing' }), TypeError);
     assert.throws(() => milestoneRoadmap('.', board), TypeError);
+    assert.throws(() => milestoneRoadmap('.', board, { ports: { ...store, roadmap, openBoard } }), TypeError,
+      'a missing work queue refuses before any roadmap board access');
     assert.throws(() => milestoneFocus(board), TypeError);
     assert.deepEqual(store.events(board), before, 'missing ports add no native events');
     assert.deepEqual(store.milestones(board), [], 'missing ports never write roadmap metadata');

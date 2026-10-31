@@ -1,10 +1,4 @@
 /** Shared read-only queue blockers keep routing capacity and the queue on one policy [N2,B24]. */
-import {
-  localDependencyIds,
-  dependencyLabel,
-} from './item-dependencies.js';
-import { itemFileCollisions } from './item-files.js';
-
 /**
  * What an item waits on before an agent can take it: dependencies, file collisions and holds.
  *
@@ -19,12 +13,12 @@ export function itemWaits(board, item, inFlight, foreignBlockers, reads = board.
 
 /** Apply the same blockers with a lane hold from the current read projection. */
 function waitsWithLane(board, item, inFlight, lane, foreignBlockers, reads) {
-  const after = localDependencyIds(item)
+  const after = reads.localDependencyIds(item)
     .map((id) => reads.itemById(board, id))
     .filter((before) => before && before.item_status !== 'verified')
     .map((before) => `#${before.item_id} (${before.item_status})`);
-  const collisions = itemFileCollisions(item, inFlight);
-  return [...after, ...foreignBlockers(board, item).map(ref => `${dependencyLabel(ref)} (${ref.status} on its own board)`), ...collisions, ...(item.item_hold_reason ? [`held: ${item.item_hold_reason}`] : []), ...(lane ? [`${item.item_lane} lane held: ${lane.hold_reason}`] : [])];
+  const collisions = reads.itemFileCollisions(item, inFlight);
+  return [...after, ...foreignBlockers(board, item).map(ref => `${reads.dependencyLabel(ref)} (${ref.status} on its own board)`), ...collisions, ...(item.item_hold_reason ? [`held: ${item.item_hold_reason}`] : []), ...(lane ? [`${item.item_lane} lane held: ${lane.hold_reason}`] : [])];
 }
 
 /** Read ready open items through the queue's exact dependency, collision and hold checks. */

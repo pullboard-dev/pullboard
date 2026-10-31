@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../view-api-ports.js';
 /** The pullboard watch command, in its own module so an item adding another command never edits these lines. */
 import { nativeBoardOpeners } from '../cli-context.js';
 import { runningView } from '../view-session.js';
@@ -13,5 +14,5 @@ import {
 
 /** Run `pullboard watch` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  return await watchCommand({ boardOpeners: nativeBoardOpeners(io), io, values, words: [first, second, ...rest], ctx: context(io), primaryCheckoutRoot, runCommand: io.runCommand, runningView, refusalDocument });
+  return await watchCommand({ viewPorts: viewApiPorts, boardOpeners: nativeBoardOpeners(io), io, values, words: [first, second, ...rest], ctx: context(io), primaryCheckoutRoot, runCommand: io.runCommand, runningView, refusalDocument });
 }

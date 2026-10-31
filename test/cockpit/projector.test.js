@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
-import * as serve from '../../src/serve.js';
+import * as serve from '../../src/cli/view-state.js';
 import { projectItemState } from '../../src/api.js';
 import { machine, project, build, sendBack, accept } from './fixture.js';
 

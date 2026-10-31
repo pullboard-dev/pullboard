@@ -150,7 +150,8 @@
   ["src/release-reasons.js","packages/store/src/core/release-reasons.js","rule"],
   ["src/submit-outcome.js","packages/store/src/shell/submit-outcome.js","rule"],
   ["src/submit-handoff-state.js","packages/store/src/shell/submit-handoff-state.js","rule"],
-  ["src/submit-handoff-read.js","packages/store/src/shell/submit-handoff-read.js","rule"]
+  ["src/submit-handoff-read.js","packages/store/src/shell/submit-handoff-read.js","rule"],
+  ["src/rework-family-routing.js","packages/store/src/core/rework-family-routing.js","rule"]
  ],
  "reexports": [
   "src/board-access.js",

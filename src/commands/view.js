@@ -46,7 +46,9 @@ import {
   join,
   resolve,
 } from 'node:path';
-import { cockpitPage } from '../cockpit.js';
+import { cockpitPage } from '../cli/cockpit-renderer.js';
+import { nativeBoardOpeners } from '../cli-context.js';
+import { refusalDocument } from '../next-step-words.js';
 import {
   context,
   recordViewBind,
@@ -85,8 +87,8 @@ export async function viewHere(io, values) {
     const exporter = io.exportView ?? exportView;
     if (values.public) assertPublicExportSupported(exporter);
     const exported = values.public
-      ? await exporter(io.cwd, resolve(io.cwd, values.export), { public: true, runCommand: io.runCommand })
-      : await exporter(io.cwd, resolve(io.cwd, values.export), { runCommand: io.runCommand });
+      ? await exporter(io.cwd, resolve(io.cwd, values.export), { public: true, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument })
+      : await exporter(io.cwd, resolve(io.cwd, values.export), { runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument });
     io.result?.(exported);
     io.say(`wrote snapshot ${exported.path}`);
     return 0;
@@ -136,7 +138,7 @@ export async function viewHere(io, values) {
   let view;
   try {
     // The adapter override is carried only by the in-process command streams, for private CLI fixtures.
-    view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
+    view = await (io.serveView ?? serveView)({ port, runCommand: io.runCommand, boardOpeners: nativeBoardOpeners(io), refusalDocument, isMain: codeIsFromMain(), ...(lan ? { lan: true } : {}), ...(projectRoot ? { projectRoot } : {}) });
     const sentinel = startServeSentinel({ projectRoot });
     const boundAt = new Date().toISOString();
     const closeServer = view.close;

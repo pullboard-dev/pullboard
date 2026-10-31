@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cockpitPage } from '../../src/cockpit.js';
+import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import {
   boardOf, chooseFilter, chromeExecutable, closeSnapshotChrome, fetchLive, machine, openSnapshotChrome,
   pickProject, press, project, startView,

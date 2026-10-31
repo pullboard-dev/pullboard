@@ -13,8 +13,8 @@ import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 import { PARENT_SESSION_ENGINE } from './parent-session-engine.js';
 import { FAMILY_DECLARE_ENGINE } from './family-declare-engine.js';
 import { derivedFamily } from './family-declaration.js';
-import { familyAliasesOf } from './review-policy.js';
-import { familyName } from './review-policy.js';
+import { familyAliasesOf } from '../packages/items/core.js';
+import { familyName } from '../packages/items/core.js';
 import { ENGINE_VERSION } from './machine.js';
 import {
   saveAgentParent,

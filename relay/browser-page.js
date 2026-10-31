@@ -1,14 +1,14 @@
 /** The relay serves the existing cockpit over a device-only decrypting transport [H5,H15]. */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { cockpitPage } from '../src/cockpit.js';
+import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { MACHINE } from '../src/machine.js';
 import { Refused } from '../src/refused.js';
 import { APPROVAL_CARD_STYLES } from './browser-approval-card.js';
 import { relayScreenMarkup } from './browser-notice.js';
 
-const STYLES = readFileSync(new URL('../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd()) + APPROVAL_CARD_STYLES;
+const STYLES = readFileSync(new URL('../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('../src/view/stage.css', import.meta.url), 'utf8').trimEnd()) + APPROVAL_CARD_STYLES;
 
 /** Refuse relay startup locally while the public shell has no relay session; keep its sign-in link and never reload. */
 const SIGN_IN_TRANSPORT = '/** Preserve device-only pairing before sign-in without starting relay reads. */\nimport { rememberPairing } from "./client.js";\nimport { registerApp } from "./install.js";\nexport function createTransport() {\n  void registerApp();\n  rememberPairing();\n  throw new Error("Sign in with GitHub to open your linked boards.");\n}\n';

@@ -1,6 +1,6 @@
 import { environmentProblem } from './config.js';
 import { testOutcomeFields } from './test-outcomes.js';
-import { sourcePreparationFields } from './runner-overhead.js';
+import { sourcePreparationFields } from '../packages/gate/core.js';
 /**
  * What a gate run leaves for people and agents: the digest of its output and its sanitized timing profile. Trusted
  * policy checks write both, so they live apart from the gate's queue and runners, which a board read never needs [C7].

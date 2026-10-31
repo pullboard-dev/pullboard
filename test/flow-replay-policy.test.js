@@ -92,7 +92,7 @@ test('replay accepts modelled board controls and explicitly refuses unmodelled c
   assert.equal(result.replay.items[0].cycleMinutes, 10, 'recorded work is retained while observed queue waits are not imposed');
   assert.deepEqual(result.replay.items[0].stages,
     { build: 5, reviewWait: 0, review: 3, sendBackIdle: 0, mergeWait: 2 });
-  for (const key of ['barReady', 'takeoverMinutes']) {
+  for (const key of ['barReady', 'takeoverMinutes', 'reworkSameFamily']) {
     for (const value of [false, key === 'barReady' ? true : 30]) {
       assert.throws(() => replayFlow(rework(), { settings: { [key]: value } }),
         new RegExp(key + '.*not modelled by replay', 'u'), 'unknown authority is never silently ignored');

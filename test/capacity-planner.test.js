@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Seeded native history drives the same capacity projection in status and the daily digest [N2,R1,R2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -88,7 +89,7 @@ test('status shows max useful agents the binding constraint and its lever [N2,R1
   const morning = JSON.parse(digest.out);
   assert.deepEqual(morning.capacityForecast, planner, 'morning digest uses the identical cached projection');
   assert.match(morning.markdown, /Max useful agents now:/u);
-  const api = await serveApi({ boardOpeners: apiBoardOpeners, runCommand: main, refusalDocument,
+  const api = await serveApi({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, runCommand: main, refusalDocument,
     projects: () => [{ root: box.repo, name: 'Capacity fixture', project: '', added: '2026-10-20T00:00:00Z' }] });
   t.after(() => api.close());
   const address = new URL(api.url);
