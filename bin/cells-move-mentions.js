@@ -70,9 +70,10 @@ function enclosingCalls(code, at) {
  * @param {Set<string>} copierNames - Local names of real import declarations that resolve to the canonical copier.
  * @param {(name: string, at: number) => boolean} provenCopier - True only when the callee at an offset is the imported, unshadowed binding.
  * @param {(name: string, at: number) => boolean} provenReader - True only for an imported, unshadowed native filesystem reader.
+ * @param {(name: string, at: number) => boolean} provenOperation - An unshadowed direct native fs reader or pure path call.
  * @returns {Array<{start: number, end: number, text: string}>} The operational mentions.
  */
-export function operationalMentions(source, scanned, paths, copierNames = new Set(), provenCopier = () => false, provenReader = () => false) {
+export function operationalMentions(source, scanned, paths, copierNames = new Set(), provenCopier = () => false, provenReader = () => false, provenOperation = () => false) {
   const { code, strings } = scanned;
   const ending = new RegExp(`(?:^|[/\\\\])(?:${paths.map(path => escaped(posix.basename(path))).join('|')})$`, 'u');
   const templates = strings.filter(row => source[row.start] === '`');
@@ -81,13 +82,21 @@ export function operationalMentions(source, scanned, paths, copierNames = new Se
   const closedNativeImports = !/\b(?:import|require)\s*\(/u.test(code)
     && strings.filter(row => /(?:\bfrom|\bimport)\s*$/u.test(code.slice(0, row.start)))
       .every(row => /^(?:node:)?(?:fs|path)$/u.test(row.text));
+  // Arbitrary calls, tagged programs and an earlier filesystem operand can change cwd indirectly.
+  // This shortcut recognizes only a closed sequence of compiler-bound native operations, never general JS.
+  const operations = [...code.matchAll(/\(/gu)].map(match => {
+    const callee = /(?<![\w$.])([A-Za-z_$][\w$]*)\s*$/u.exec(code.slice(0, match.index));
+    return callee && { name: callee[1], at: callee.index };
+  });
+  const closedOperations = !templates.length && operations.every(call => call && provenOperation(call.name, call.at));
   return strings.filter(row => ending.test(row.text)).filter(row => {
     if (MODULE_BEFORE.test(code.slice(0, row.start))) return false;
     const calls = enclosingCalls(code, row.start);
     // An unambiguous direct relative filename names the repository root, not another directory's same-named asset.
     // Keep indirect roots, path expressions and cwd mutation conservative: they may still resolve to the moved file.
     const direct = calls[0];
-    if (closedNativeImports && direct && !direct.member && provenReader(direct.name, direct.at)
+    if (closedNativeImports && closedOperations && direct && !direct.member && provenReader(direct.name, direct.at)
+      && !operations.some(call => call.at < direct.at && provenReader(call.name, call.at))
       && !code.slice(direct.open + 1, row.start).trim() && !/\b(?:chdir|process|globalThis)\b/u.test(source)
       && /^(?:\.\/)?[\w.-]+$/u.test(row.text) && !row.text.includes('..')
       && !paths.some(path => posix.normalize(path) === posix.normalize(row.text))) return false;

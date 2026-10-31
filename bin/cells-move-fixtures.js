@@ -255,18 +255,22 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
     };
     const readerNames = new Set([...real.bindings].filter(([, row]) => row.module === 'fs' && READS.has(row.imported)).map(([name]) => name));
+    const operationNames = new Set([...real.bindings].filter(([, row]) =>
+      row.module === 'fs' && READS.has(row.imported)
+      || row.module === 'path' && ['join', 'resolve', 'dirname', 'normalize', 'relative', 'basename', 'extname', 'isAbsolute'].includes(row.imported)).map(([name]) => name));
     let readerReads = null;
-    const provenReader = (name, at) => {
-      if (!readerNames.has(name)) return false;
+    const provenOperation = (name, at) => {
+      if (!operationNames.has(name)) return false;
       if (!readerReads) {
         try {
-          readerReads = bindingReadsForModules([{ file, source, body: real.body, bindings: [...readerNames].map(local => ({ local })) }]).get(file);
+          readerReads = bindingReadsForModules([{ file, source, body: real.body, bindings: [...operationNames].map(local => ({ local })) }]).get(file);
         } catch { readerReads = new Map(); }
       }
       const row = readerReads.get(name);
       return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
     };
-    if (!operationalMentions(source, scanned, moves.map(([from]) => from), copierNames, provenCopier, provenReader).length) return { edits, problems };
+    const provenReader = (name, at) => readerNames.has(name) && provenOperation(name, at);
+    if (!operationalMentions(source, scanned, moves.map(([from]) => from), copierNames, provenCopier, provenReader, provenOperation).length) return { edits, problems };
   }
   const ports = sourceExportPorts(readSource);
   let sourcePortsUsed = false;

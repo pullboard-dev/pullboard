@@ -36,6 +36,15 @@ test('a repo-root file with a moved asset basename is distinct from the moved pa
     const importedCwd = fixtureSourceEdits(PREFIX + dependency + " readFileSync('pullboard.json'); readFileSync(unknown);", move);
     assert.ok(importedCwd.problems.length || importedCwd.edits.length, 'an unevaluated dependency cannot establish the caller cwd');
   }
+  const cwdProgram = "process.chdir('src/blueprints')";
+  const encoded = [...cwdProgram].map(character => character.charCodeAt(0)).join(',');
+  for (const program of [
+    `const change = Function(String.fromCharCode(${encoded})); change();`,
+    'unknown();', 'unknown`program`;', 'readFileSync(unknown);',
+  ]) {
+    const indirectCwd = fixtureSourceEdits(PREFIX + program + " readFileSync('pullboard.json'); readFileSync(unknown);", move);
+    assert.ok(indirectCwd.problems.length || indirectCwd.edits.length, 'unproven earlier operations cannot establish the cwd');
+  }
   const wrapper = fixtureSourceEdits("import * as fs from 'node:fs'; import { join } from 'node:path'; function readFileSync(name) { return fs.readFileSync(join('src/blueprints', name)); } readFileSync('pullboard.json');", move);
   assert.ok(wrapper.problems.length || wrapper.edits.length, 'a local reader wrapper may resolve the same name to the moved asset');
   const shadow = fixtureSourceEdits(PREFIX + "function run(readFileSync) { readFileSync('pullboard.json'); } run(unknown);", move);
