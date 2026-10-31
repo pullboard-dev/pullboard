@@ -46,8 +46,10 @@ function literalAfter(info, at) {
 
 /** Every name a module exports with the module and name that define it, following export-star chains. */
 function exportsOf(box, file, seen = new Set()) {
+  if (!seen.size && box.exportCache?.has(file)) return box.exportCache.get(file);
   const names = new Map(), bytes = box.files.get(file);
   if (!bytes || seen.has(file)) return names;
+  if (!seen.size) box.exportCache?.set(file, names);
   const info = scan(bytes.toString('utf8')), chain = new Set(seen).add(file);
   for (const match of info.code.matchAll(/\bexport\s*\{([^}]*)\}\s*(from\s*)?/gu)) {
     const literal = match[2] ? literalAfter(info, match.index + match[0].length) : null;
@@ -67,6 +69,13 @@ function exportsOf(box, file, seen = new Set()) {
   for (const match of info.code.matchAll(/\bexport\s+(?:async\s+)?(?:(?:const|let|var|class)\s+|function\s*\*?\s*)([\w$]+)/gu)) names.set(match[1], { module: file, name: match[1] });
   if (/\bexport\s+default\b/u.test(info.code)) names.set('default', { module: file, name: 'default' });
   return names;
+}
+
+/** The module and local name that finally define one export, following re-export chains, or null. */
+function origin(box, module, name, depth = 0) {
+  const row = exportsOf(box, module).get(name);
+  if (!row || depth > 64) return null;
+  return row.module === module ? `${module}#${row.name}` : origin(box, row.module, row.name, depth + 1);
 }
 
 /** What an importer takes at one literal: its kind and binding names (or ALL), or null when the site is not understood. */
@@ -116,7 +125,10 @@ function choose(box, shim, file, use) {
   const lost = names.filter(name => !have.has(name));
   if (lost.length) return { refuse: `${file} imports ${lost.join(', ')}, which ${shim} does not export` };
   /** Whether a module already exports every wanted name. */
-  const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name)); };
+  // A target covers a use only when each name resolves to the same definition the shim gives it: a door can bind one
+  // name to a different body than the shim does (src/board.js gives ensureCoordinator the write-store one).
+  const same = (module, name) => origin(box, module, name) === origin(box, shim, name);
+  const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name) && same(module, name)); };
   const core = cell.pureFrontDoor && box.files.has(cell.pureFrontDoor) ? cell.pureFrontDoor : null;
   const pure = pureReason(box, file);
   if (pure) {
@@ -128,6 +140,8 @@ function choose(box, shim, file, use) {
   if (core && testFile(file) && use.kind === 'static' && use.names !== ALL && names.length && covers(core)) return { path: core, adds: [] };
   if (file.startsWith(`${cell.root}/`)) return leaf && covers(leaf) ? { path: leaf, adds: [] } : { refuse: `${file} inside ${cell.name} needs names its own ${shim} leaf lacks` };
   const door = cell.frontDoor, present = exportsOf(box, door), adds = [];
+  const differ = names.filter(name => present.has(name) && !same(door, name));
+  if (differ.length) return { refuse: `${file} imports ${differ.join(', ')} from ${shim}, which ${door} binds to a different definition` };
   for (const name of names.filter(value => !present.has(value))) {
     const row = have.get(name);
     adds.push({ file: door, name, line: `export { ${row.name === name ? name : `${row.name} as ${name}`} } from ${JSON.stringify(specifier(door, row.module))};` });
@@ -283,7 +297,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   const config = inventory.files.has('package.json') ? JSON.parse(inventory.files.get('package.json').toString('utf8')) : {};
   const settings = loadConfig(root);
   if (!Object.hasOwn(settings.lanes ?? {}, lane)) throw new Refused('CELLS_PLAN_MODE', `no lane ${lane} in pullboard.json; use one of ${Object.keys(settings.lanes ?? {}).join(', ')}`);
-  const box = { root, plan, cell, files: inventory.files, imports: config.imports, settings, lane };
+  const box = { root, plan, cell, files: inventory.files, imports: config.imports, settings, lane, exportCache: new Map() };
   // A deletion or a dropped row rewrites these plan files, so a lane that does not own every one of them changes neither.
   const foreignPlan = planFiles.filter(file => outOfLane(settings, lane, [file]).length).map(file => `${file} (${laneOf(settings, file)} lane)`);
   const entries = runnerEntries(box, parsers);

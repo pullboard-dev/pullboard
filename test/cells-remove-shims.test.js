@@ -122,6 +122,28 @@ test('a view-lane importer keeps its shim and its file, and a second run changes
   assert.match(again.stdout, /0 deleted, 2 kept, 0 repointed/u);
 });
 
+test('an importer of a name the door binds to a different definition keeps the shim, named and namespace alike [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('packages/stats/src/shell/write.js', 'export const open = "write";\n');
+  box.put('packages/stats/src/shell/read.js', 'export const open = "read";\n');
+  box.put('packages/stats/index.js', read(box, 'packages/stats/index.js') + 'export { open } from "./src/shell/read.js";\nexport { open as write_open } from "./src/shell/write.js";\n');
+  box.put('src/stats-open.js', 'export { write_open as open } from "../packages/stats/index.js";\n');
+  box.put('src/uses-open.js', "import { open } from './stats-open.js';\nexport { open };\n");
+  box.put('src/all-open.js', "import * as all from './stats-open.js';\nexport const keys = Object.keys(all);\n");
+  const plan = readPlan(box.root), stats = plan.cells.find(cell => cell.name === 'stats');
+  stats.paths.push(['src/stats-open.js', 'packages/stats/src/shell/write.js', 'seed']);
+  stats.reexports.push('src/stats-open.js');
+  writePlan(box.root, plan);
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'aliased door');
+  const result = removeShims(box.root, plan, 'stats', { parsers: PARSERS });
+  assert.equal(read(box, 'src/uses-open.js'), "import { open } from './stats-open.js';\nexport { open };\n", 'the read-store open is never swapped in');
+  assert.equal(read(box, 'src/all-open.js'), "import * as all from './stats-open.js';\nexport const keys = Object.keys(all);\n");
+  const reason = new Map(result.kept).get('src/stats-open.js');
+  assert.match(reason, /src\/uses-open\.js imports open from src\/stats-open\.js, which packages\/stats\/index\.js binds to a different definition/u);
+  assert.match(reason, /src\/all-open\.js imports open from src\/stats-open\.js/u);
+});
+
 /** Commit view-lane importers of the core-owned shim src/stats.js and run a view-lane removal on them. */
 function viewRemoval(t, files) {
   const box = shimmed(t);
