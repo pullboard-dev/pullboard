@@ -1,12 +1,2 @@
-/** Empty-next observations use the existing authenticated ordered protocol [R2,N2]. */
-import { NEXT_IDLE_ENGINE } from '../next-idle-engine.js';
-/** Older replicas must not silently omit a prospective observation. */
-function minimumEngine() { return NEXT_IDLE_ENGINE; }
-/** Bind the observation to its authenticated native actor. */
-function actor(move) { return move.args[0]?.agentId ?? null; }
-export default Object.freeze({ operation: 'recordNextIdle', order: 1000, engine: NEXT_IDLE_ENGINE,
-  itemIdFirstArgument: false, minimumEngine, actor,
-  nextSteps: Object.freeze({
-    NOT_JOINED: 'join a lane from this worktree: pullboard join <lane> --model "<model name>" (see: pullboard lanes)',
-    BAD_IDLE_REASON: 'run next again and use its structured idle observation',
-  }) });
+/** Compatibility shim: recordNextIdle.js now lives in the moves cell [C7]. */
+export { default } from "../../packages/moves/src/core/moves/recordNextIdle.js";

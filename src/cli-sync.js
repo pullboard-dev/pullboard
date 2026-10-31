@@ -2,7 +2,7 @@ import { nativeBoardOpeners } from './cli-context.js';
 import { nativePersonRequestPorts } from './cli-context.js';
 import { recordedMoveRefusal } from './recorded-move.js';
 import { readFileSync } from 'node:fs';
-import { readBoardKey } from './relay-key.js';
+import { readBoardKey } from '../packages/keys/index.js';
 /**
  * The relay and baseline work around a command: link a new project, sync the relay, deliver finished baselines and
  * run the person's waiting requests. The command line loads it only when one of them could act [C7].
