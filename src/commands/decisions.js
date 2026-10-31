@@ -1,4 +1,4 @@
-import { projectRulingOwners } from '../ruling-owner-context.js';
+import { projectRulingOwners } from '../../packages/spec/index.js';
 /** The pullboard decisions command, in its own module so an item adding another command never edits these lines. */
 import { basename } from 'node:path';
 import * as store from '../board.js';
@@ -6,7 +6,7 @@ import {
   projectPersonDecisions,
   projectSiblings,
   repoLabels,
-} from '../project-decisions.js';
+} from '../../packages/spec/index.js';
 import {
   agentDisplayName,
   context,

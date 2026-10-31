@@ -2,7 +2,7 @@
 import { shellWord } from '../src/cli-read-context.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import {
   cpSync,
   mkdirSync,

@@ -15,10 +15,10 @@ import { dueSentinels } from './sentinels.js';
 import { sentinels } from './sentinels.js';
 import { runDueSentinels } from './sentinel-runner.js';
 import { withSentinelTrunk } from './sentinel-runner.js';
-import { healthSentinelEnabled } from './settings.js';
+import { healthSentinelEnabled } from '../packages/config/index.js';
 import { recordedHealthFindings } from './health-sentinel.js';
 import { scanHealthSentinel } from './health-sentinel.js';
-import { initialSpecApprovalBaseline } from './spec-approval-bootstrap.js';
+import { initialSpecApprovalBaseline } from '../packages/spec/index.js';
 
 /** The watch command's existing string options, shared with the CLI parser. */
 export const SENTINEL_OPTIONS = {

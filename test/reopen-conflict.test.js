@@ -10,7 +10,7 @@ import { moveArgs } from '../src/api-moves.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { CONFLICT_ENGINE } from '../src/trunk-conflict.js';
+import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();

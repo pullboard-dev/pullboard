@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import {
   cleanGitEnvironment,
   gitChildEnv,
@@ -26,7 +26,7 @@ import { Refused } from '../../../kernel/index.js';
 import {
   checkFieldFindings,
   parseSpec,
-} from '../../../../src/spec.js';
+} from '../../../spec/index.js';
 
 const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
 

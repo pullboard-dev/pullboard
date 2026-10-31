@@ -1,6 +1,6 @@
 import { itemCheckBaseline } from './board-query.js';
 /** Durable sealed request intake and ordinary-move receipts; no replica executes CLI intent [H12,H16]. */
-import { answerQuestion } from './spec.js';
+import { answerQuestion } from '../packages/spec/index.js';
 import * as store from './board.js';
 import { recordedRefusal } from './recorded-refusal.js';
 import { Refused } from '../packages/kernel/index.js';
@@ -18,7 +18,7 @@ import {
   barDigest,
   barReadiness,
   barReadySetting,
-} from './bar-readiness.js';
+} from '../packages/verify/index.js';
 import {
   barEffectValues,
   sameBarEffect,

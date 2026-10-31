@@ -3,7 +3,7 @@ import { readGateReceipt } from '../gate-run-receipt.js';
 import { receiptBinds } from '../gate-run-receipt.js';
 import { gateRuns } from '../quarantine.js';
 import { getItem } from '../board.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import { policyAt } from '../../packages/sandbox/index.js';
 import { checkNeedsBrowser } from '../browser-admission.js';
 import { runnerExecutionServices } from '../runners.js';

@@ -25,7 +25,7 @@ import { writePlan } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installCutCases } from './cells-plan-cut-cases.js';
 import { fixture } from './cells-plan-fixture.js';
-import { mechanicalConflictFiles, resolveMechanicalIndex } from '../src/mechanical-merge.js';
+import { mechanicalConflictFiles, resolveMechanicalIndex } from '../packages/merge/index.js';
 import { formatJson } from '../bin/cells-plan.js';
 import { git } from './cells-plan-fixture.js';
 

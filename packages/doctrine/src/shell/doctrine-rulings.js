@@ -21,7 +21,7 @@ import * as store from '../../../../src/board.js';
 import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import {
   appliedDoctrine,
   doctrineFromSource,
@@ -32,12 +32,12 @@ import {
   tryGit,
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
-import { writeRowApply } from '../../../../src/row-decisions.js';
+import { writeRowApply } from '../../../spec/index.js';
 import { mainCriterionFacts } from '../../../../src/main-criterion-facts.js';
 import {
   loadSpec,
   parseSpec,
-} from '../../../../src/spec.js';
+} from '../../../spec/index.js';
 
 /**
  * Read one doctrine file at a commit, falling back to the other default name the way loadDoctrine

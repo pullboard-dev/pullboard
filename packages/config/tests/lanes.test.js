@@ -22,7 +22,7 @@ import { laneOf } from '../../../src/lanes.js';
 import { outOfLane } from '../../../src/lanes.js';
 import { crossLaneFixture } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
-import { specGateMoveOnly } from '../../../src/spec-gate-move.js';
+import { specGateMoveOnly } from '../../spec/index.js';
 import { submissionPaths } from '../../sandbox/index.js';
 
 const CONFIG = {

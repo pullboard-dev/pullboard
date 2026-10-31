@@ -15,7 +15,7 @@ import {
   changeRange,
   qualityBreaches,
 } from './rigor-quality.js';
-import { draftRow } from '../../../../src/spec-draft.js';
+import { draftRow } from '../../../spec/index.js';
 
 /** The source a drafted quality row carries, so a rerun finds it whatever the person decided. */
 export function qualitySource(key) {

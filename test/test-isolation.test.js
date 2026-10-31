@@ -12,7 +12,7 @@ import { runFixtureChildAsync } from './fixture-child.js';
 import { childJournalPreloadSource } from '../src/child-journal-preload.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
 import { takeResource } from '../packages/resources/index.js';
-import { DEFAULT_VIEW_PORT } from '../src/config.js';
+import { DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 
 const RUNNER = resolve(import.meta.dirname, '../bin/run-tests.js');

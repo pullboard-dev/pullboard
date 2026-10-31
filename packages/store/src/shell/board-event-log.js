@@ -7,8 +7,8 @@ import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { writeSync } from 'node:fs';
 import { Refused } from "../../../kernel/index.js";
 import { agentModel } from "./board-query.js";
-import { appendProofCounter } from "../../../../src/proof-counters.js";
-import { ensureProofCounters } from "../../../../src/proof-counters.js";
+import { appendProofCounter } from "../../../verify/index.js";
+import { ensureProofCounters } from "../../../verify/index.js";
 
 import { beginImmediateQueued } from "./board-busy.js";
 import { beginCapture } from "./board-capture.js";

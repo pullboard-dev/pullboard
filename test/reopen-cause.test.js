@@ -24,7 +24,7 @@ import {
   RIGOR_COLD_NOTICE,
 } from '../packages/rigor/index.js';
 import { conflictReport } from '../packages/rigor/index.js';
-import { trunkMerge } from '../src/trunk-merge.js';
+import { trunkMerge } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();

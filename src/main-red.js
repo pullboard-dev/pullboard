@@ -40,7 +40,7 @@ import {
   mainPolicy,
   policyAt,
 } from '../packages/sandbox/index.js';
-import { parseSpec } from './spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { listItems } from './board.js';
 import {
   takeResource,
@@ -57,8 +57,8 @@ import {
 import { linkKnownMainReworks } from './known-main-reworks.js';
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
-import { browserFreeChecksEnabled } from './settings.js';
-import { loadMachineSettings } from './settings-read.js';
+import { browserFreeChecksEnabled } from '../packages/config/index.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { recentReceipts } from './gate-receipt.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';

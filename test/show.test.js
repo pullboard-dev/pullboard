@@ -11,8 +11,8 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { loadConfig } from '../src/config.js';
-import { frozenCriterion, loadSpec } from '../src/spec.js';
+import { loadConfig } from '../packages/config/index.js';
+import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

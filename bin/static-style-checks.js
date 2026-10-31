@@ -9,7 +9,7 @@ import { importStyleViolations } from '../src/static-import-style.js';
 import { engineFolderProblems } from '../src/engine-folder.js';
 import { declaredProseCommands } from '../src/static-prose-commands.js';
 import { doctrineReport } from '../src/doctrine-checks.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { HELP } from '../src/cli.js';
 import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
 import { viewPureGate } from './checks/view-pure.js';

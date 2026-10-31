@@ -1,6 +1,6 @@
 /** Explicit machine-local canary commands; all messages retain the caller's ordinary authority [H5,H17]. */
 import { realpathSync } from 'node:fs';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { PERSON } from './board.js';
 import { laneNames } from './lanes.js';
 import { Refused } from '../packages/kernel/index.js';
@@ -11,8 +11,8 @@ import {
 import {
   loadMachineSettings,
   setRelayCanary,
-} from './settings.js';
-import { relayCanaryConfig } from './settings-read.js';
+} from '../packages/config/index.js';
+import { relayCanaryConfig } from '../packages/config/index.js';
 import { readRelayHealth } from './relay-canary-health.js';
 import {
   startRelayCanaryWatch,

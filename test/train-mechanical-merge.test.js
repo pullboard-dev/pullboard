@@ -24,7 +24,7 @@ import { json } from './land-board-fixture.js';
 import {
   mergeMechanicalSources,
   resolveMechanicalMerge,
-} from '../src/train-mechanical-merge.js';
+} from '../packages/merge/index.js';
 import {
   discoverFormats,
   formatTable,

@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { board as store } from '../src/native-board.js';
-import { reviewEligibility } from '../src/review-eligibility.js';
+import { reviewEligibility } from '../packages/verify/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { dispatchWork } from '../src/dispatch-eligibility.js';

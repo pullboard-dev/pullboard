@@ -4,10 +4,10 @@ import { withBoardRead } from '../cli-board-read.js';
 import * as store from '../board-query.js';
 import {
   mainMergeFor,
-} from '../trunk-conflict.js';
+} from '../../packages/merge/index.js';
 import {
   verdictProjector,
-} from '../verdict-freshness.js';
+} from '../../packages/verify/index.js';
 import {
   agentDisplayName,
   context,

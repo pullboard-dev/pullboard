@@ -8,10 +8,10 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { configFromSource, defaults } from '../src/config.js';
+import { configFromSource, defaults } from '../packages/config/index.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
-import { barReadiness, barReadySetting, setBarReady, signBar } from '../src/bar-readiness.js';
+import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
 import { saveAgentSession, saveAgentParent } from '../src/seats.js';
 
 const COMMIT = 'a'.repeat(40);

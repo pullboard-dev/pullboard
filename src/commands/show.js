@@ -1,10 +1,10 @@
 import { submitHandoff } from '../submit-handoff-read.js';
-import { loadMachineSettings } from '../settings-read.js';
-import { localUsage } from '../cost-prices.js';
-import { dollarText } from '../cost-prices.js';
+import { loadMachineSettings } from '../../packages/config/index.js';
+import { localUsage } from '../../packages/config/index.js';
+import { dollarText } from '../../packages/config/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
-import { reviewEligibility } from '../review-eligibility.js';
+import { reviewEligibility } from '../../packages/verify/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {
   testRuntimeEnvironment,
@@ -23,18 +23,18 @@ import {
   agentApprovalLine,
   itemAgentApprovals,
   specApprovalState,
-} from '../spec-approval.js';
+} from '../../packages/spec/index.js';
 import {
   sayCheckBaseline,
 } from '../check-baseline-format.js';
 import {
   mainMergeFor,
   mainMergeLines,
-} from '../trunk-conflict.js';
+} from '../../packages/merge/index.js';
 import {
   staleVerdictRefusal,
   verdictProjector,
-} from '../verdict-freshness.js';
+} from '../../packages/verify/index.js';
 import {
   agentDisplayName,
   context,

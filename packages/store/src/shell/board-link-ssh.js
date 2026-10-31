@@ -2,11 +2,11 @@
 import { Refused } from "../../../kernel/index.js";
 import { boardId } from "./board-query.js";
 import { headCommit } from "../../../../src/git.js";
-import { sha256 } from "../../../../src/signature.js";
-import { hasSignerFile } from "../../../../src/signature.js";
-import { isVerifiedSignoff } from "../../../../src/signature.js";
-import { signRowDecision } from "../../../../src/signature.js";
-import { verifyRowDecision } from "../../../../src/signature.js";
+import { sha256 } from "../../../spec/index.js";
+import { hasSignerFile } from "../../../spec/index.js";
+import { isVerifiedSignoff } from "../../../spec/index.js";
+import { signRowDecision } from "../../../spec/index.js";
+import { verifyRowDecision } from "../../../spec/index.js";
 
 /** Refuse missing or unverifiable board authority without an unsigned compatibility fallback. */
 function unauthorized() { throw new Refused('BOARD_LINK_AUTH', 'obtain this board’s established approver signature through its configured signer authority'); }

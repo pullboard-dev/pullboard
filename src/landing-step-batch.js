@@ -3,7 +3,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js
 import { requirePublishGreen } from './publish-pause.js';
 import { cadenceDeferral } from './landing-cadence.js';
 import { requireOutsideOwner } from './outside-source.js';
-import { mechanicalConflictFiles } from './mechanical-merge.js';
+import { mechanicalConflictFiles } from '../packages/merge/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -24,7 +24,7 @@ import { checkLandingMessages } from './landing-message.js';
 import { landingContext } from './landing-message.js';
 import { requireLandingHost } from './landing-host.js';
 import { policyAt } from '../packages/sandbox/index.js';
-import { staleVerdictRefusal } from './verdict-freshness.js';
+import { staleVerdictRefusal } from '../packages/verify/index.js';
 import { candidates } from './landing-step-selection.js';
 import { idleLanding } from './landing-step-selection.js';
 import { emptyLanding } from './landing-step-selection.js';

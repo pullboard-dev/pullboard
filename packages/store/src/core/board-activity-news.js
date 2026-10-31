@@ -1,4 +1,4 @@
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { ACTIVITY_NEWS_ENGINE } from "../../../../src/activity-news-engine.js";
 

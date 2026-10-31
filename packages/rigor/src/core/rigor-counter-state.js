@@ -3,7 +3,7 @@ import { causeProblem } from '../../../../src/board-rigor.js';
 import { causeReading } from '../../../../src/board-rigor.js';
 import { eventCauses } from '../../../../src/board-rigor.js';
 import { isMergeConflict } from '../../../../src/board-rigor.js';
-import { parseSpec } from '../../../../src/spec.js';
+import { parseSpec } from '../../../spec/index.js';
 import { readRigorSource } from '../../../../src/board-rigor-source.js';
 import { automaticSourceFromText } from '../../../../src/board-rigor-auto-source.js';
 import { readAutomaticRigorSource } from '../../../../src/board-rigor-auto-source.js';

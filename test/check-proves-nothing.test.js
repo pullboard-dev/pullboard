@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { closeBoard } from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { refuseProvesNothing } from '../src/check-accept.js';
+import { refuseProvesNothing } from '../packages/verify/index.js';
 import { sayCheckBaseline } from '../src/check-baseline.js';
 
 /** The #849 shape: an item whose whole-suite check is green on main before any work. */

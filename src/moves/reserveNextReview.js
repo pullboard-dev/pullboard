@@ -1,6 +1,6 @@
 import { REVIEW_ROUTING_ENGINE } from '../review-routing-engine.js';
-import { anyItemReviewPolicyEngine } from '../review-policy.js';
-import { anyRequiredReviewFamilyEngine } from '../required-review-family.js';
+import { anyItemReviewPolicyEngine } from '../../packages/verify/index.js';
+import { anyRequiredReviewFamilyEngine } from '../../packages/verify/index.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by reserveNextReview, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from '../landing-lease-engine.js';

@@ -16,7 +16,7 @@ import {
 import {
   refuseNextIdle,
 } from '../next-steps.js';
-import { reviewQueueLine } from '../review-queue-line.js';
+import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

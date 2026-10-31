@@ -7,14 +7,14 @@ import {
 import {
   barCoverageForPolicy,
   prepareBarCoverage,
-} from '../bar-coverage.js';
+} from '../../packages/verify/index.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 /** Inspect, enable and independently sign acceptance bars [B4,V1,V2,H16]. */
 import { getItem } from '../board.js';
 import {
   barReadiness,
   barReadySetting,
-} from '../bar-readiness.js';
+} from '../../packages/verify/index.js';
 import {
   actOn,
   barActorForCommand,

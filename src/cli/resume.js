@@ -6,12 +6,12 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../board.js';
 import { span } from '../cli-context.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import { contains } from '../git.js';
 import { VERSION } from '../help.js';
 import { requireTrunkMerge } from '../../packages/sandbox/index.js';
-import { staleVerdictRefusal } from '../verdict-freshness.js';
-import { releaseHeadlinesBetween } from '../release-headlines.js';
+import { staleVerdictRefusal } from '../../packages/verify/index.js';
+import { releaseHeadlinesBetween } from '../../packages/config/index.js';
 
 /** The next step for an agent holding a claim: build it and submit. */
 export const buildNext = (card) => `build #${card.holding[0].item_id}, commit, then pullboard submit ${card.holding[0].item_id}`;

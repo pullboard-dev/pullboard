@@ -1,12 +1,12 @@
 import { firstRefusal } from '../../../../src/board-item-read.js';
-import { compositionFamilyFallback } from '../../../../src/review-composition.js';
-import { reviewWait } from '../../../../src/review-routing.js';
-import { eligibilityProblem } from '../../../../src/review-eligibility.js';
+import { compositionFamilyFallback } from '../../../verify/index.js';
+import { reviewWait } from '../../../verify/index.js';
+import { eligibilityProblem } from '../../../verify/index.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
-import { familyIndex } from '../../../../src/review-policy.js';
-import { unreviewableStrict } from '../../../../src/review-reachability.js';
+import { familyIndex } from '../../../verify/index.js';
+import { unreviewableStrict } from '../../../verify/index.js';
 import { withLocalSeatPresence } from '../../../../src/seat-presence.js';
-import { mechanicalConflictFiles } from '../../../../src/mechanical-merge.js';
+import { mechanicalConflictFiles } from '../../../merge/index.js';
 import { localDependencyIds } from '../../../../src/item-dependencies.js';
 import { dependencyLabel } from '../../../items/index.js';
 import { itemFileCollisions } from '../../../items/index.js';
@@ -28,7 +28,7 @@ import { missedJobFindings } from '../../../../src/board-recurring-jobs.js';
 import {
   COORDINATOR,
   durationMs,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import {
   mainCheckout,
   tryGit,
@@ -52,7 +52,7 @@ import { ROUTES } from '../../../../src/board.js';
 import { rowDecisions } from '../../../../src/board.js';
 import { unverifiedSubmissions } from '../../../../src/board.js';
 import { roadmap } from '../../../../src/board-milestones.js';
-import { staleRowDecisions } from '../../../../src/row-decision-state.js';
+import { staleRowDecisions } from '../../../spec/index.js';
 import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../../src/queue.js';
 import { trunkRef } from '../../../sandbox/index.js';

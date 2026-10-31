@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import {
   CONFIG_FILE,
   loadConfig,
-} from './config.js';
+} from '../packages/config/index.js';
 
 /** The board id this checkout's pullboard.json names, or null. */
 export function namedBoard(root) {

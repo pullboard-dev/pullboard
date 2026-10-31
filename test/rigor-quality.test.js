@@ -25,7 +25,7 @@ import {
 } from 'node:test';
 import { loadDoctrine } from '../src/doctrine.js';
 import { doctrineReport } from '../src/doctrine-checks.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import {
   QUALITY_RULES,
   breachLine,

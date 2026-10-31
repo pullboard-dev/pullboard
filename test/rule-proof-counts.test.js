@@ -14,12 +14,12 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
-import { clearProofCounters } from '../src/proof-counters.js';
+import { clearProofCounters } from '../packages/verify/index.js';
 import {
   ruleProofCounts,
   ruleProofWindow,
-} from '../src/rule-proof-counts.js';
-import { loadSpec } from '../src/spec.js';
+} from '../packages/verify/index.js';
+import { loadSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
 import { runFixtureChild } from './fixture-child.js';

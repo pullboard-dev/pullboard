@@ -11,7 +11,7 @@ import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 import { gatedToolBuild } from '../src/pinned-tool-publish.js';
 import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../src/tool-build-scheduler.js';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../src/pinned-tool-build.js';
 import { copyPackageFiles } from '../src/package-files.js';
 

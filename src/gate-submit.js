@@ -37,7 +37,7 @@ import { contains } from './git.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import {
   browserFreeChecksEnabled,
-} from './settings.js';
+} from '../packages/config/index.js';
 import {
   selectAffectedTests,
   selectTestTreeGuards,

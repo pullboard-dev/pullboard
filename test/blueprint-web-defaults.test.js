@@ -13,7 +13,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
-import { parseSpec } from '../src/spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { readBlueprint } from '../src/blueprints.js';
 import { validateBlueprint } from '../src/blueprints.js';
 import { waitingRows } from '../src/blueprint-report.js';

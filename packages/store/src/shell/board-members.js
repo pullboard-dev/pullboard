@@ -1,6 +1,6 @@
 /** Signed membership travels inside the native sealed board state [E17,H16]. */
 import { Refused } from "../../../kernel/index.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import {
   atomic,
   logEvent,

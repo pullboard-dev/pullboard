@@ -24,9 +24,9 @@ import { readDigest } from '../src/digest.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { recurringJobs } from '../src/board-recurring-jobs.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { gateRuns } from '../src/gate-control.js';
-import { JSON_SHAPES } from '../src/json.js';
+import { JSON_SHAPES } from '../packages/config/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 const HOUR = 3_600_000;

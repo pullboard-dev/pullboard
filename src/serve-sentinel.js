@@ -2,8 +2,8 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { listProjects } from './projects.js';
-import { loadConfig } from './config.js';
-import { healthSentinelEnabled } from './settings.js';
+import { loadConfig } from '../packages/config/index.js';
+import { healthSentinelEnabled } from '../packages/config/index.js';
 import { startRelayCanaryWatch } from './relay-canary-watch.js';
 
 /** Ten minutes is the declared background cadence, not a test performance budget. */

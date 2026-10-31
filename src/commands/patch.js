@@ -1,5 +1,5 @@
-import { asSubmitted } from '../review-reachability.js';
-import { refuseUnreviewable } from '../review-reachability.js';
+import { asSubmitted } from '../../packages/verify/index.js';
+import { refuseUnreviewable } from '../../packages/verify/index.js';
 import { normalizeItemPatch } from '../item-patch-paths.js';
 import { itemPolicy } from '../../packages/sandbox/index.js';
 import { headCommit } from '../git.js';

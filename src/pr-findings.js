@@ -8,7 +8,7 @@ import {
   linkPublishRepair,
   logEvent,
 } from './board.js';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 /** Require bounded provider identities; strings become observations, never commands. */

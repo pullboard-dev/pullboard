@@ -20,7 +20,7 @@ import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import {
   CONFLICT_ENGINE,
   carriesConflict,
-} from '../trunk-conflict.js';
+} from '../../packages/merge/index.js';
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {

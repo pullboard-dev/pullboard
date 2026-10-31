@@ -1,5 +1,5 @@
-import { asSubmitted } from '../src/review-reachability.js';
-import { refuseUnreviewable } from '../src/review-reachability.js';
+import { asSubmitted } from '../packages/verify/index.js';
+import { refuseUnreviewable } from '../packages/verify/index.js';
 /** Real native attachment previews and submit moves share strict ownership authority [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -7,7 +7,7 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
-import { reviewEligibility } from '../src/review-eligibility.js';
+import { reviewEligibility } from '../packages/verify/index.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard } from '../src/exchange.js';

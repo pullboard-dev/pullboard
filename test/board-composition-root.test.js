@@ -40,7 +40,7 @@ import * as legacy from '../src/board.js';
 import { board as library } from '../src/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { openBoardStore } from '../src/board-store.js';
-import { recordRowDraft } from '../src/row-draft-store.js';
+import { recordRowDraft } from '../packages/spec/index.js';
 import { setPersonSigning } from '../src/person-signing.js';
 import { recordGateRun } from '../src/quarantine.js';
 import { advanceItemSource } from '../packages/sandbox/index.js';

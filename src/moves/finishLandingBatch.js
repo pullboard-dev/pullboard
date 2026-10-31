@@ -1,5 +1,5 @@
 import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
-import { quarantineBatchGates } from '../quarantine-verdict.js';
+import { quarantineBatchGates } from '../../packages/verify/index.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by finishLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERDICT_REVIEW_ENGINE } from '../engine-metadata.js';

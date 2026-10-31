@@ -5,7 +5,7 @@ import {
 } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from './board.js';
-import { loadConfig } from './config.js';
+import { loadConfig } from '../packages/config/index.js';
 import {
   codeIsFromMain,
   git,

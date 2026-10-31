@@ -1243,7 +1243,7 @@ async function main(args) {
     }
     testTimeoutMs();
     const { testConcurrency } = await import('../src/test-concurrency.js');
-    const { browserByLaunchEnabled } = await import('../src/settings.js');
+    const { browserByLaunchEnabled } = await import('../packages/config/index.js');
     concurrency = { ...testConcurrency(process.cwd()), byLaunch: browserByLaunchEnabled() };
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
@@ -1281,7 +1281,7 @@ async function main(args) {
   }
   const gui = testsNeedGui(process.cwd(), guiFiles);
   const { cpuRunnerRequired } = await import('../src/cpu-load-admission.js');
-  const runnerAdmission = (await import('../src/settings.js')).gateRunnerAdmission();
+  const runnerAdmission = (await import('../packages/config/index.js')).gateRunnerAdmission();
   const runnerOnly = runnerAdmission.runnerOnly === true || cpuRunnerRequired(process.cwd(), guiFiles);
   timing.plan(fullSuite && isGitWorkTree(process.cwd(), process.env) ? trackedDefaultTestFiles(process.cwd(), process.env) : guiFiles,
     fullSuite && !testSelectionPatterns(args, optionTakesValue).length && !args.some(arg => /^--test[-_](?:shard|skip[-_]pattern|only)(?:=|$)/u.test(arg)));
@@ -1357,7 +1357,7 @@ async function main(args) {
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
       const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../src/gate-slot.js'), import('../src/settings.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+        import('../src/gate-slot.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
       let announced = false;

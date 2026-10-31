@@ -310,7 +310,7 @@ test('an imported board never inherits a same-path coordinator heartbeat [B3,A7]
 test('plain status counts large seat history and hides gone seats behind --all [B3,C7]', async (t) => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { heartbeatSeat } = await import('../src/seat-presence.js');
-  const { JSON_SHAPES } = await import('../src/json.js');
+  const { JSON_SHAPES } = await import('../packages/config/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -632,7 +632,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
 test('gone claim maintenance is opt-in and preserves recent seats and ordinary authority [B3,B5,H2]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { heartbeatSeat } = await import('../src/seat-presence.js');
-  const { defaults, loadConfig, configFromSource } = await import('../src/config.js');
+  const { defaults, loadConfig, configFromSource } = await import('../packages/config/index.js');
   const f = goneClaimFixture(t);
   const id = f.claim();
   assert.equal(defaults().claims.releaseGone, false);

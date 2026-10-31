@@ -3,7 +3,7 @@ import { getItem } from "../../../../src/board.js";
 import { setTimeout as delay } from 'node:timers/promises';
 import { personRequestRecords } from "../core/person-request.js";
 import { Refused } from "../../../kernel/index.js";
-import { loadMachineSettings } from "../../../../src/settings.js";
+import { loadMachineSettings } from "../../../config/index.js";
 
 /** Preserve the ordinary command's required JSON fields while adding its confirmed request receipt. */
 function confirmedResult(record, board) {

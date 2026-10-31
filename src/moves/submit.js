@@ -2,7 +2,7 @@ import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../known-main-autofile-engine.js';
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../known-main-owner-pattern-engine.js';
 import { ENGINE_VERSION } from '../engine-metadata.js';
 import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
-import { itemReviewPolicyEngine } from '../review-policy.js';
+import { itemReviewPolicyEngine } from '../../packages/verify/index.js';
 import { checkTimingEngine } from '../../packages/items/core.js';
 import { itemPatchRecords } from '../../packages/items/core.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
@@ -18,7 +18,7 @@ import { OUTSIDE_INTAKE_ENGINE } from '../outside-intake-engine.js';
 import { outsideSource } from '../../packages/items/core.js';
 import { BOARD_SENTINEL_ENGINE } from '../sentinel-engine.js';
 import { BAR_CHECK_ENGINE } from '../bar-check-engine.js';
-import { barCheckEnabled } from '../bar-check.js';
+import { barCheckEnabled } from '../../packages/verify/index.js';
 import { SUBMISSION_PROOF_ENGINE } from '../move-engine-constants.js';
 import { submissionProof } from '../../packages/state/src/core/submission-proof.js';
 

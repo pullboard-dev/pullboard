@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { selectAffectedTests } from '../src/affected-tests.js';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { refuseSandboxBlocked, sandboxBlockedOperation } from '../src/gate.js';
 import { fileDenialWatcher } from '../packages/sandbox/index.js';

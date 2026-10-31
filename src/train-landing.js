@@ -2,7 +2,7 @@
 import { checkedLandingCommit } from './board.js';
 import { getItem } from './board.js';
 import { landingBatches } from './board.js';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { contains } from './git.js';
 import { git } from './git.js';
 import { mainCheckout } from './git.js';

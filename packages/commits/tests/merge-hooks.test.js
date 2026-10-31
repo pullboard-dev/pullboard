@@ -1,7 +1,7 @@
 /** Real merge hooks prove main integration without weakening lane ownership [L3,H16,B26]. */
 import { boardBusyError } from "../../../src/board-access.js";
 import { openBoardReadOnly } from "../../../src/board-read-open.js";
-import { rowDecisions } from "../../../src/row-decisions-query.js";
+import { rowDecisions } from "../../spec/index.js";
 import { checkLoosening } from "../../../src/doctrine-checks.js";
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
@@ -22,7 +22,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { defaults } from "../../../src/config.js";
+import { defaults } from "../../config/index.js";
 import { preCommitProblems } from "../src/shell/hooks.js";
 
 const BIN = join(import.meta.dirname, '..', '..', '..', 'bin', 'pullboard.js');

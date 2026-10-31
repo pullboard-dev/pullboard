@@ -15,7 +15,7 @@ import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

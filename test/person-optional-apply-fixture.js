@@ -21,8 +21,8 @@ import { preparePersonRequest } from '../src/person-request.js';
 import {
   prepareRowDecisions,
   planRowApply,
-} from '../src/row-decisions.js';
-import { loadConfig } from '../src/config.js';
+} from '../packages/spec/index.js';
+import { loadConfig } from '../packages/config/index.js';
 import {
   applyRelayMove,
   prepareEngineMove,

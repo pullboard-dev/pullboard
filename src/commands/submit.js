@@ -8,7 +8,7 @@ import {
   submitHandoffPolicy,
   requireSubmitHandoffExecution,
 } from '../submit-handoff-origin.js';
-import { blockingFailures } from '../quarantine-verdict.js';
+import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { withImportParseCache } from '../module-import-cache.js';
@@ -27,7 +27,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { gateRunnerAdmission } from '../settings.js';
+import { gateRunnerAdmission } from '../../packages/config/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
   retainTestOutput,
@@ -47,16 +47,16 @@ import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../item-patch-submit.js';
 import { withItemPatchSubmit } from '../item-patch-submit.js';
 import { boundedProofReason } from '../../packages/state/src/core/submission-proof.js';
-import { completeMoveHandoff } from '../post-move-handoff.js';
+import { completeMoveHandoff } from '../../packages/verify/index.js';
 import {
   barReadySetting,
   barReadyProblem,
-} from '../bar-readiness.js';
-import { barCheckWarning } from '../bar-check.js';
+} from '../../packages/verify/index.js';
+import { barCheckWarning } from '../../packages/verify/index.js';
 import { requireSubmitComposition } from '../submit-composition.js';
 import { composeAfterProof } from '../submit-composition.js';
 import { trunkMoveFact } from '../submit-composition.js';
-import { judgeTrunkMove } from '../verdict-trunk.js';
+import { judgeTrunkMove } from '../../packages/verify/index.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { explicitCheckFiles } from '../browser-admission.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
@@ -64,10 +64,10 @@ import * as store from '../board.js';
 import { agentSessionDigest } from '../person.js';
 import {
   refuseProvesNothing,
-} from '../check-accept.js';
+} from '../../packages/verify/index.js';
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   laneNames,
 } from '../lanes.js';
@@ -77,7 +77,7 @@ import {
   ruleLine,
 } from '../doctrine-checks.js';
 import * as gateReceipt from '../gate-receipt.js';
-import { recordNativeProof } from '../proof-cli.js';
+import { recordNativeProof } from '../../packages/verify/index.js';
 import { proofRunReceipt } from '../proof-receipts.js';
 import {
   gateWaitReporter,
@@ -125,7 +125,7 @@ import {
 } from '../submit-preflight.js';
 import {
   refuseUnreviewable,
-} from '../review-reachability.js';
+} from '../../packages/verify/index.js';
 import {
   changedLines,
   oversizeNote,
@@ -166,7 +166,7 @@ import { mainFailureNotices } from '../main-red.js';
 import { linkKnownMainReworks } from '../known-main-reworks.js';
 import { unownedMainReds } from '../known-main-reworks.js';
 import { ambiguousMainReds } from '../known-main-reworks.js';
-import { submitReferenceReminders } from '../reference-lines.js';
+import { submitReferenceReminders } from '../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 
 /** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */

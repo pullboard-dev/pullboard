@@ -7,7 +7,7 @@ import {
   readAutomaticRigorSource,
 } from '../../../../src/board-rigor-auto-source.js';
 import { planAutomaticRigorApply } from './rigor-auto-apply.js';
-import { writeRowApply } from '../../../../src/row-decisions.js';
+import { writeRowApply } from '../../../spec/index.js';
 import {
   splitAlreadyProposed,
   splitProposal,

@@ -1,4 +1,4 @@
-import { receiptBlockingGreen } from './quarantine-verdict.js';
+import { receiptBlockingGreen } from '../packages/verify/index.js';
 /** Native exact-envelope landing evidence; origin binds bytes and replay checks sealed fields [C7,B3]. */
 import { createHash } from 'node:crypto';
 import { git } from './git.js';

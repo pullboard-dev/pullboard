@@ -5,8 +5,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { ciObservations } from './ci-flakes.js';
-import { CONFIG_FILE } from './config.js';
-import { COORDINATOR } from './config.js';
+import { CONFIG_FILE } from '../packages/config/index.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { laneOf } from './lanes.js';
 import { flakeLedger } from './flakes.js';
 import { flakeQuarantines } from './quarantine.js';

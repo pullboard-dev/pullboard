@@ -2,8 +2,8 @@ import { LAND_COLLISION_ENGINE } from "../../../../src/landing-collision-engine.
 import { itemById } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { acceptedVerdict } from "../../../../src/verdict-reviews.js";
-import { checkedLandingCommit } from "../../../../src/verdict-reviews.js";
+import { acceptedVerdict } from "../../../verify/index.js";
+import { checkedLandingCommit } from "../../../verify/index.js";
 import { guardLandingWrite } from "../core/board-landing-lease.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { VERDICT_REVIEW_ENGINE } from "../../../../src/machine.js";

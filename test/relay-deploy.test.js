@@ -10,7 +10,7 @@ import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { releaseHeadlinesBetween } from '../src/release-headlines.js';
+import { releaseHeadlinesBetween } from '../packages/config/index.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../src/machine.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';

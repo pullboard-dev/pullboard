@@ -1,12 +1,12 @@
-import { effectiveItemHead } from './source-advance-state.js';
+import { effectiveItemHead } from '../packages/verify/index.js';
 import { isRecordedConflictContext } from './recorded-conflict-context.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { repoInfo } from './git.js';
-import { recordedTrunkMerge } from './trunk-merge.js';
-import { trunkMerge } from './trunk-merge.js';
-import { refuseRecordedHistoryOverrides } from './trunk-merge.js';
+import { recordedTrunkMerge } from '../packages/merge/index.js';
+import { trunkMerge } from '../packages/merge/index.js';
+import { refuseRecordedHistoryOverrides } from '../packages/merge/index.js';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { Refused } from '../packages/kernel/index.js';

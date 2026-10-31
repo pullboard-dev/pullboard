@@ -16,7 +16,7 @@ import {
   causeProblem,
   rigorReport,
 } from '../../../../src/board-rigor.js';
-import { draftRow } from '../../../../src/spec-draft.js';
+import { draftRow } from '../../../spec/index.js';
 import { proveCauseCheck } from './rigor-proof.js';
 import { rigorSource } from '../../../../src/board-rigor-source.js';
 import { rigorSentinelName } from '../../../../src/sentinels.js';

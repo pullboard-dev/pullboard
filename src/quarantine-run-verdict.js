@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs';
 import { accountedFailures } from '../packages/gate/core.js';
 import { gateStages } from './gate-stages.js';
 import { timingAccountingStages } from './run-timing.js';
-import { proofCounts } from './proof-provenance.js';
+import { proofCounts } from '../packages/verify/index.js';
 import { testOutcomeFields } from './test-outcomes.js';
-import { quarantineVerdict } from './quarantine-verdict.js';
+import { quarantineVerdict } from '../packages/verify/index.js';
 
 /** Unknown execution, incomplete identities or an unexplained shell component always remain blocking. */
 export function quarantineRunVerdict(run, quarantines, { root, sourceClean, privateCommand, outcomeId, source } = {}) {

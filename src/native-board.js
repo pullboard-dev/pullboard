@@ -8,8 +8,8 @@ import {
 import {
   nativeProofBlockingGreen,
   receiptBlockingGreen,
-} from './quarantine-verdict.js';
-import { reviewPatchAuthors } from './review-composition.js';
+} from '../packages/verify/index.js';
+import { reviewPatchAuthors } from '../packages/verify/index.js';
 import {
   localDependencyIds,
   dependencyLabel,
@@ -143,9 +143,9 @@ import { normalizedDispatch } from './dispatch-health.js';
 import { rejectedWorkReturns } from './rejected-work-return.js';
 import { guardLandingWrite } from './board-landing-lease.js';
 
-import { recordRowVerification as applyRowVerification } from './spec-verdicts.js';
-import { decideSpecRevisions as applySpecRevisionDecisions } from './spec-revisions.js';
-import { draftSpecRow as applySpecRowDraft } from './row-drafts.js';
+import { recordRowVerification as applyRowVerification } from '../packages/spec/index.js';
+import { decideSpecRevisions as applySpecRevisionDecisions } from '../packages/spec/index.js';
+import { draftSpecRow as applySpecRowDraft } from '../packages/spec/index.js';
 /** One native board composition root supplies connection-local runtime providers [C7]. */
 import * as store from './board.js';
 import {
@@ -180,7 +180,7 @@ import {
   ensureProofCounters,
   currentProofCounters,
   proofCounter,
-} from './proof-counters.js';
+} from '../packages/verify/index.js';
 import {
   ensureHotIndexes,
   missingAdditiveIndexes,
@@ -239,7 +239,7 @@ import {
   strictReviewProblem,
   reviewPolicyChange,
   saveItemReviewPolicy,
-} from './review-independence.js';
+} from '../packages/verify/index.js';
 import {
   holdUntilKind,
   forgetHoldMaintenance,
@@ -253,7 +253,7 @@ import {
 } from './board-link-state.js';
 import {
   verdictWithdrawalTarget,
-} from './verdict-withdrawal.js';
+} from '../packages/verify/index.js';
 import {
   computedConflictProblem,
 } from './computed-conflict-receipt.js';
@@ -262,9 +262,9 @@ import {
 } from './board-item-read.js';
 import {
   itemReviewPolicy,
-} from './review-policy.js';
+} from '../packages/verify/index.js';
 
-import { normalizeReviewDefaults } from './review-default.js';
+import { normalizeReviewDefaults } from '../packages/verify/index.js';
 
 import * as self from './native-board.js';
 import * as milestoneOperations from './board-milestones.js';

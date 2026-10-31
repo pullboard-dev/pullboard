@@ -1,5 +1,5 @@
 /** The pullboard help command, in its own module so an item adding another command never edits these lines. */
-import { loadConfig } from '../config.js';
+import { loadConfig } from '../../packages/config/index.js';
 import {
   context,
   primaryCheckoutRoot,

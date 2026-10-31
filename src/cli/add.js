@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { main } from '../cli-main.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import { outOfLane } from '../lanes.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { briefFiles } from '../brief.js';

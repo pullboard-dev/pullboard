@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { parseArgs } from 'node:util';
 import { COMMANDS } from './commands/index.js';
-import { commandOutput } from './json-output.js';
+import { commandOutput } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 export const CHECKOUT_LEASES = new WeakMap();
@@ -374,7 +374,7 @@ async function runMain(argv, streams) {
       // A private item never makes an otherwise unrelated repo transport on the way in or out.
       && !(command === 'add' && parsed.values.private === true)
       // A coordinator declaration on a linked clone must refuse before auto-link or relay sync.
-      && !(command === 'join' && parsed.positionals[1] === (await import('./config.js')).COORDINATOR);
+      && !(command === 'join' && parsed.positionals[1] === (await import('../packages/config/index.js')).COORDINATOR);
     needsRepo = !(parsed.values.help || parsed.values.version || command === 'help' || command === 'version');
   } catch { sync = false; needsRepo = false; }
   // Agent nudges never enter Git-hook identity, synchronization or refusal machinery.

@@ -45,7 +45,7 @@ import {
   gateRunnersFirstEnabled,
   gateRunnerAdmission,
   loadMachineSettings,
-} from './settings.js';
+} from '../packages/config/index.js';
 
 /** Give a direct full suite the same admitted execution and immutable receipt writer as a gate. */
 export async function runFullSuite(root, runner, executionServices) {

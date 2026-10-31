@@ -6,7 +6,7 @@ import { loadDoctrine } from '../doctrine.js';
 import { primaryCheckoutRoot } from '../cli.js';
 import { relayRecovered } from '../relay.js';
 import { proposeLanes } from '../init.js';
-import { counterProofStats } from '../proof-counter-read.js';
+import { counterProofStats } from '../../packages/verify/index.js';
 import { localDependencyIds } from '../item-dependencies.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
 import {
@@ -15,7 +15,7 @@ import {
 import {
   staleFrozenItems,
   staleItemFinding,
-} from '../approved-rows.js';
+} from '../../packages/spec/index.js';
 import {
   backgroundViewLine,
 } from '../background-view.js';
@@ -27,7 +27,7 @@ import {
 import {
   COORDINATOR,
   loadConfig,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   resumeDoctrineNotes,
   staleDoctrineRows,
@@ -47,7 +47,7 @@ import {
 import {
   resumeNeeds,
 } from '../resume-needs.js';
-import { personNeeds } from '../row-decision-text.js';
+import { personNeeds } from '../../packages/spec/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -67,11 +67,11 @@ import {
 } from '../sentinel-command.js';
 import {
   withStarterWork,
-} from '../setup-rows.js';
+} from '../../packages/spec/index.js';
 import {
   loadSpec,
-} from '../spec.js';
-import { initialSpecApprovalBaseline } from '../spec-approval-bootstrap.js';
+} from '../../packages/spec/index.js';
+import { initialSpecApprovalBaseline } from '../../packages/spec/index.js';
 import { readResumeSources } from '../resume-sources.js';
 import {
   flowAlertLine,
@@ -82,11 +82,11 @@ import {
 import {
   mainMergeLines,
   mainMergesFor,
-} from '../trunk-conflict.js';
+} from '../../packages/merge/index.js';
 import {
   staleVerdictRefusal,
   verdictProjector,
-} from '../verdict-freshness.js';
+} from '../../packages/verify/index.js';
 import {
   agentDisplayName,
   boardSetup,

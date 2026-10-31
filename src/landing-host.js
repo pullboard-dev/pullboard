@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
-import { loadMachineSettings } from './settings.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import {
   environmentLabel,
   executionEnvironment,

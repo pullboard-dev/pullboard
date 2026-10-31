@@ -15,7 +15,7 @@ import { proofRunReceipt } from '../src/proof-receipts.js';
 import { fixtureBoard } from './board-fixture.js';
 import * as store from '../src/board.js';
 import { itemById } from '../src/board-item-read.js';
-import { exitRulesDefaults, exitRulesConfigProblems } from '../src/exit-rules-config.js';
+import { exitRulesDefaults, exitRulesConfigProblems } from '../packages/config/index.js';
 import { nativeToolCallIds } from '../packages/stats/index.js';
 import { exitRulesDecision } from '../packages/stats/index.js';
 import { exitClaim, exitClaimDecision, exitedSession, requireExitActive, exitContinuationSummary } from '../src/exit-rules-state.js';

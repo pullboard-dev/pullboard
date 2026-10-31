@@ -1,4 +1,4 @@
-import { blockingFailures } from './quarantine-verdict.js';
+import { blockingFailures } from '../packages/verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { runnerExecutionServices } from './runners.js';

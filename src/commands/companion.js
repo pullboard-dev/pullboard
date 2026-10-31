@@ -2,8 +2,8 @@
 import * as store from '../board.js';
 import { isLane } from '../lanes.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { idProblems } from '../spec.js';
-import { loadSpec } from '../spec.js';
+import { idProblems } from '../../packages/spec/index.js';
+import { loadSpec } from '../../packages/spec/index.js';
 import { checkBaseline } from '../check-baseline.js';
 import { prepareCheckBaseline } from '../check-baseline.js';
 import { refuseCheckSyntax } from '../check-baseline.js';

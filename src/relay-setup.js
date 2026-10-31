@@ -39,7 +39,7 @@ import {
   revokeRelayPersonSession,
 } from './relay.js';
 import { terminalQr } from './qr.js';
-import { relayOfferEnabled } from './settings.js';
+import { relayOfferEnabled } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { publishExcludedBoards } from './relay-excluded.js';
 import { plannedRelayBoard } from './relay-relink.js';

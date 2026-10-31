@@ -25,7 +25,7 @@ import {
   git,
   tryGit,
 } from './git.js';
-import { loadConfig } from './config.js';
+import { loadConfig } from '../packages/config/index.js';
 import {
   CODEX_MANUAL_NOTE,
   mcpSetup,

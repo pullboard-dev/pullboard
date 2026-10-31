@@ -2,9 +2,9 @@ import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
 import { checkTimingEngine } from '../../packages/items/core.js';
 import { REJECT_CLAUSE_ENGINE } from '../reject-clause-engine.js';
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
-import { itemReviewPolicyEngine } from '../review-policy.js';
+import { itemReviewPolicyEngine } from '../../packages/verify/index.js';
 import { ITEM_PATCH_ENGINE } from '../item-patch-engine.js';
-import { requiredReviewFamilyEngine } from '../required-review-family.js';
+import { requiredReviewFamilyEngine } from '../../packages/verify/index.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by verify, discovered without a shared registry edit [C7,V4,H16]. */
 import {

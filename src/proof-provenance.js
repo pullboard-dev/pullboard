@@ -1,1 +1,0 @@
-export { observedFailureSignatures, proofCounts, proofFields, receiptFields, runTimingFields, sameEnvironment, testRuntimeEnvironment, testRuntimeRows } from '../packages/verify/src/core/proof-provenance.js';

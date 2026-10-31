@@ -1,6 +1,6 @@
-import { JSON_SHAPES } from './json.js';
-import { commandOutput as collectCommandOutput } from './json-output.js';
-import { versionedRefusal } from './json-output.js';
+import { JSON_SHAPES } from '../packages/config/index.js';
+import { commandOutput as collectCommandOutput } from '../packages/config/index.js';
+import { versionedRefusal } from '../packages/config/index.js';
 import { withMoveNextSteps } from './move-registry.js';
 import { DEFAULT_NEXT_STEPS } from './next-step-defaults.js';
 /** Pure refusal guidance shared by JSON and CLI output without loading ledger or Git [P4,W4,C7]. */
@@ -10,12 +10,12 @@ import {
   COORDINATOR_PERSON_REQUEST,
   personRequestStep,
   personRequestGuidance,
-} from './json-output.js';
+} from '../packages/config/index.js';
 export {
   COORDINATOR_PERSON_REQUEST,
   personRequestStep,
   personRequestGuidance,
-} from './json-output.js';
+} from '../packages/config/index.js';
 
 /** @type {Readonly<Record<string, string>>} */
 export const NEXT_STEPS = withMoveNextSteps(DEFAULT_NEXT_STEPS);

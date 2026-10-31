@@ -10,7 +10,7 @@ import { gitChildEnv } from '../git.js';
 import { mainCheckout } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { gitOut } from '../history.js';
-import { ID_RE } from '../spec.js';
+import { ID_RE } from '../../packages/spec/index.js';
 import { parseCommitMessage } from '../../packages/commits/index.js';
 import { committedIds } from '../history.js';
 import { trunkRef } from '../../packages/sandbox/index.js';

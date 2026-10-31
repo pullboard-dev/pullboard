@@ -23,12 +23,12 @@ import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
 import { runOnRunner } from './runners.js';
-import { frozenCheckCeilingMs } from './config.js';
+import { frozenCheckCeilingMs } from '../packages/config/index.js';
 import {
   privateCheckEnvelope,
   privateGuard,
 } from './runner-private-mode.js';
-import { proofCounts } from './proof-provenance.js';
+import { proofCounts } from '../packages/verify/index.js';
 import {
   policyGit,
   trunkRef,
@@ -38,7 +38,7 @@ import {
   frozenCheck,
 } from '../packages/sandbox/index.js';
 import { mappedCheck } from '../packages/codemap/index.js';
-import { environmentProblem } from './config.js';
+import { environmentProblem } from '../packages/config/index.js';
 import {
   digestOf,
   writeTimingProfile,

@@ -2,7 +2,7 @@ import { receiptRecorder } from './native-flake-receipts.js';
 import { recordRun } from './gate-execution.js';
 /** CLI diagnostic adapters keep policy capture, execution and evidence inside the existing gate admission. */
 import { readFileSync } from 'node:fs';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { mappedCheck } from '../packages/codemap/index.js';
 import { laneOf } from './lanes.js';
 import {
@@ -16,7 +16,7 @@ import {
 } from './gate-run-receipt.js';
 import { runProfiledShell } from './gate.js';
 import { runFrozenProof } from './gate.js';
-import { recordNativeProof } from './proof-cli.js';
+import { recordNativeProof } from '../packages/verify/index.js';
 import { proofRunReceipt } from './proof-receipts.js';
 import { quarantineVerdictSnapshot } from './quarantine.js';
 import {

@@ -12,13 +12,13 @@ import {
 } from '../browser-admission.js';
 import {
   checkAcceptCommand,
-} from '../check-accept.js';
+} from '../../packages/verify/index.js';
 import {
   firstInputLine,
 } from '../cli-support.js';
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   digestOf,
   refuseSandboxBlocked,
@@ -33,7 +33,7 @@ import {
 import * as seatCheckout from '../seat-checkout.js';
 import {
   browserFreeChecksEnabled,
-} from '../settings.js';
+} from '../../packages/config/index.js';
 import {
   frozenCheck,
   itemPolicy,

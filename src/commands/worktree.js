@@ -6,7 +6,7 @@ import * as store from '../board.js';
 import {
   COORDINATOR,
   loadConfig,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   git,
   repoInfo,

@@ -11,7 +11,7 @@ import * as store from '../board.js';
 import {
   COORDINATOR,
   loadConfig,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   codeIsFromMain,
   repoInfo,
@@ -31,7 +31,7 @@ import {
   initRepo,
   relayOfferAtInit,
 } from '../init.js';
-import { captureSpecApprovalBaseline } from '../spec-approval.js';
+import { captureSpecApprovalBaseline } from '../../packages/spec/index.js';
 import {
   agentSessionDigest,
 } from '../person.js';

@@ -2,12 +2,12 @@
 import * as store from '../board.js';
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   reopenConflict,
   requireTrunkConflict,
   reopenedLine,
-} from '../trunk-conflict.js';
+} from '../../packages/merge/index.js';
 import {
   trunkMerge,
 } from '../../packages/sandbox/index.js';

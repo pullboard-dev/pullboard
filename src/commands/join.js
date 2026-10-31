@@ -9,7 +9,7 @@ import {
 } from '../agent-names.js';
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   isLane,
   laneNames,

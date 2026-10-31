@@ -6,7 +6,7 @@ import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
 import { quarantineRunVerdict } from './quarantine-run-verdict.js';
 import { sourcePreparationFields } from '../packages/gate/core.js';
-import { gateRunnerAdmission } from './settings.js';
+import { gateRunnerAdmission } from '../packages/config/index.js';
 import { gitChildEnv } from './git.js';
 import { invalidateGitFacts } from './git.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -106,7 +106,7 @@ import {
 import {
   proofCounts,
   observedFailureSignatures,
-} from './proof-provenance.js';
+} from '../packages/verify/index.js';
 import {
   logLines,
 } from './timing.js';

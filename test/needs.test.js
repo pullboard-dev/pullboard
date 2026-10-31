@@ -8,7 +8,7 @@ import { Readable } from 'node:stream';
 import { test } from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { main } from './native-cli-fixture.js';
-import { parseSpec } from '../src/spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { serveMcp } from '../packages/mcp/index.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { refusalDocument } from '../src/next-step-words.js';
@@ -116,7 +116,7 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
   assert.equal(human.code, 0, human.err || human.out);
   assert.doesNotMatch(human.out, /answer in SPEC\.md/u);
   assert.ok(human.out.includes(`pullboard spec answer ${question.id} "<choice>"`));
-  const { personNeeds } = await import('../src/row-decision-text.js');
+  const { personNeeds } = await import('../packages/spec/index.js');
   const browserBuilder = runInNewContext(`(${personNeeds.toString()})`);
   const browserNeeds = browserBuilder({ spec: parseSpec(source).rows }).filter(need => need.kind === 'pending');
   assert.deepEqual(JSON.parse(JSON.stringify(browserNeeds)), pending, 'the standalone browser builder gives the same commands');
@@ -134,7 +134,7 @@ test('a pending question names pullboard spec answer [S1,B26]', async (t) => {
 });
 
 test('only materialized Rigor proposals need the person while coordinator work stays intact [N26,B26,A6]', async () => {
-  const { personNeeds } = await import('../src/row-decision-text.js');
+  const { personNeeds } = await import('../packages/spec/index.js');
   const waiting = { kind: 'rigor-draft', id: 'doctrine:RG1', target: 'doctrine:RG1', unproved: true, materialized: false,
     text: 'Review a repeated cause.', evidence: { occurrences: 2 }, what: 'Coordinator: materialize with pullboard spec apply' };
   const ready = { ...waiting, id: 'doctrine:RG2', target: 'doctrine:RG2', materialized: true };

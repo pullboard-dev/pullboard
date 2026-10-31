@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { git } from '../src/git.js';
 import { runSubmitGate } from '../src/gate.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
-import { withSourceComposition } from '../src/source-advance-compose.js';
+import { withSourceComposition } from '../packages/merge/index.js';
 import { captureSourceAdvanceBasis } from '../packages/sandbox/index.js';
 import { boardReceiptStore } from '../src/gate-run-receipt.js';
 import { readGateReceipt } from '../src/gate-run-receipt.js';

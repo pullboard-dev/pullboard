@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { JSON_SHAPES } from '../src/json.js';
+import { JSON_SHAPES } from '../packages/config/index.js';
 
 const guide = readFileSync(new URL('./api.md', import.meta.url), 'utf8');
 

@@ -3,7 +3,7 @@
  * repeats [D1,V1]. A cause key comes only from structured fields, never from free-text notes,
  * because typed reasons almost never repeat word for word while structured causes do.
  */
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { HEALTH_SENTINEL_ENGINE } from "./board-health-receipts.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";

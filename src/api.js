@@ -8,7 +8,7 @@ import { lifecycleEvent } from './item-list.js';
 import { withdrawnFrom } from './item-list.js';
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import { gitSpawnSync } from './git-adapter.js';
-import { counterProofStats } from './proof-counter-read.js';
+import { counterProofStats } from '../packages/verify/index.js';
 import { proofStats } from './stats.js';
 import { buildLocalBoardState } from './native-board-state.js';
 import { stateFileInputs } from './native-board-state.js';
@@ -43,7 +43,7 @@ import { roadmap } from './board-milestones.js';
 import {
   COORDINATOR,
   loadConfig,
-} from './config.js';
+} from '../packages/config/index.js';
 import {
   codeIsFromMain,
   repoInfo,
@@ -66,7 +66,7 @@ import {
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import {
   ruleProofWindow,
-} from './rule-proof-counts.js';
+} from '../packages/verify/index.js';
 import {
   SUMMARY_KEYS,
   itemSummary,
@@ -79,13 +79,13 @@ import {
 import {
   projectItemSpecApprovals,
   specApprovalState,
-} from './spec-approval.js';
+} from '../packages/spec/index.js';
 import { Refused } from '../packages/kernel/index.js';
-import { verdictProjector } from './verdict-freshness.js';
+import { verdictProjector } from '../packages/verify/index.js';
 import { trunkRevisionReader } from './trunk-revision.js';
 import { relayPresentationShout } from './relay-presentation.js';
 import { createApiHandler } from './api-http.js';
-import { settingsInventory } from './settings-inventory.js';
+import { settingsInventory } from '../packages/config/index.js';
 import { moveArgs } from './api-moves.js';
 import { personRequestStatuses } from './relay-requests.js';
 import { relayCanaryNeeds } from './relay-canary-needs.js';

@@ -6,8 +6,8 @@ import { after, test } from 'node:test';
 import { commitCitations } from '../src/cli/spec.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { frozenCriterion, parseSpec } from '../src/spec.js';
-import { rowEvidence } from '../src/evidence.js';
+import { frozenCriterion, parseSpec } from '../packages/spec/index.js';
+import { rowEvidence } from '../packages/verify/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

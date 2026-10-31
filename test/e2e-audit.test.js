@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../src/git.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { refreshTestPlacement } from '../src/test-placement-report.js';
 import { testValueReport } from '../src/test-value.js';
 import { createE2eHelpers } from './e2e-helpers.js';

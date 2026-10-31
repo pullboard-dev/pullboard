@@ -1,9 +1,9 @@
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { withDerivedFamilies } from "../../../../src/family-declaration.js";
-import { effectiveItemHead } from "../../../../src/source-advance-state.js";
+import { effectiveItemHead } from "../../../verify/index.js";
 import { agentParent } from "../../../../src/seat-parent.js";
 export { agentParent } from "../../../../src/seat-parent.js";
-import { projectReviewFamily } from "../../../../src/required-review-family.js";
+import { projectReviewFamily } from "../../../verify/index.js";
 import { withSeatPresence } from "./seat-presence.js";
 import { projectItemDecisions } from "../../../../src/item-decision-queue.js";
 import { itemById } from "../core/board-item-read.js";
@@ -24,18 +24,18 @@ import {
 import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
 import { workerInboxQuery } from "../core/board-worker-inbox.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
-import { verdictWithdrawals } from "../../../../src/verdict-withdrawal.js";
+import { verdictWithdrawals } from "../../../verify/index.js";
 import { reopenCauseCorrection } from "../../../../src/reopen-cause.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { itemFiles } from "../../../../src/item-files.js";
-import { parseSpec } from "../../../../src/spec.js";
+import { parseSpec } from "../../../spec/index.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
 import { Refused } from "../../../kernel/index.js";
 export { closeBoard, openBoardForRead, openBoardReadOnly, readEventLogVersion, systemClock } from "./board-read-open.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
 export { stats } from "../core/board-stats.js";
 export { submitInvariantEvents } from "./board-hot.js";
-export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../../src/verdict-reviews.js";
+export { acceptedVerdict, verdictReviewProblem, verdictsFor } from "../../../verify/index.js";
 
 export const PERSON = 'person';
 
@@ -301,7 +301,7 @@ export function laneHolds(board) {
   return board.db.prepare('SELECT * FROM hold ORDER BY hold_lane').all();
 }
 
-export { rowDecisions } from "../../../../src/row-decisions-query.js";
+export { rowDecisions } from "../../../spec/index.js";
 
 /** The board's recorded row drafts, oldest first, without loading its mutation engine. */
 export function rowDrafts(board) {
