@@ -86,7 +86,7 @@ test('a loaded controller refuses changed private compiler bytes before an optio
   const snapshot = await import(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-tooling-snapshot.js')).href);
   const loaded = snapshot.captureRunnerTooling(installed);
   for (const file of ['packages/runners/src/shell/runner-module-parser.js', 'packages/runners/src/shell/runner-module-parser-worker.js']) {
-    const path = join(installed, file);
+    const path = toolSourcePath(installed, file);
     const original = readFileSync(path);
     try {
       writeFileSync(path, Buffer.concat([original, Buffer.from('\n// changed after actual installed module load\n')]));
@@ -583,7 +583,7 @@ test('private compiler stays independent while the public facade still initializ
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  const facade = join(installed, 'packages/runners/src/shell/runners.js');
+  const facade = toolSourcePath(installed, 'packages/runners/src/shell/runners.js');
   writeFileSync(facade, 'throw new Error("FACADE_EAGER_MARKER");\n' + readFileSync(facade, 'utf8'));
   const script = `
 import assert from 'node:assert/strict';
@@ -599,7 +599,7 @@ await assert.rejects(import(${JSON.stringify(pathToFileURL(join(installed, 'src/
 `;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context);
-  const reader = join(installed, 'packages/runners/src/shell/runner-package.js');
+  const reader = toolSourcePath(installed, 'packages/runners/src/shell/runner-package.js');
   const source = readFileSync(reader, 'utf8');
   assert.ok(source.includes("from './runner-module-parser.js'"));
   writeFileSync(reader, source.replace("from './runner-module-parser.js'", "from '../../../../src/runner-module-parser.js'"));
@@ -614,7 +614,7 @@ test('moved controller step bodies stay bound to the loaded runner generation [C
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
   const loaded = captureRunnerTooling(installed);
   for (const file of ['packages/runners/index.js', 'packages/runners/src/shell/runners.js', 'packages/runners/src/shell/runner-dispatch.js']) {
-    const path = join(installed, file);
+    const path = toolSourcePath(installed, file);
     const original = readFileSync(path);
     try {
       writeFileSync(path, Buffer.concat([original, Buffer.from('\n// changed moved controller body\n')]));
