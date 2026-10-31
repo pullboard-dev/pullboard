@@ -13,3 +13,5 @@ export { RESERVED_CORES, RESERVED_MEMORY_MB, PLAIN_SLOT_MB, BROWSER_SLOT_MB, com
 export { installRunnerPackage } from "./src/shell/runner-package-install.js";
 export { transportText, runnerFailure, resultFrom } from "./src/shell/runner-result.js";
 export { probeRunnerJob as healthProbeRunnerJob, probeRunnerHealth as healthProbeRunnerHealth, runnerExecutionServices as healthRunnerExecutionServices } from "./src/shell/runner-health.js";
+export { MAX_BLOB_BYTES, sourceGit, sourceObjects, protectedHistoryPath, protectionAt, protectHistory, objectRecord } from "./src/shell/runner-source-scan.js";
+export { originAncestor, candidateTags, historyPack, anonymousOrigin } from "./src/shell/runner-history-pack.js";
