@@ -13,7 +13,7 @@ import { serveMcp } from '../packages/mcp/index.js';
 import { personNeedsState } from '../src/needs-state.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { writeLegacyWebQuestions } from './blueprint-question.fixture.js';
-import { readBlueprint } from '../src/blueprints.js';
+import { readBlueprint } from '../packages/blueprints/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 test('one builder lists what needs the person [N26,A9]', async (t) => {

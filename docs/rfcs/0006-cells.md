@@ -88,8 +88,6 @@ packages/pricing/
 - During the move, a package still in a cycle may import a named file inside another (`#store/src/board.js`) until it leaves the cycle. [R59]
 - A split keeps the old name as a front door that re-exports, until its callers move. [R62]
 
-During a move behind shims, each old source path re-exports through the cell's `packages/<cell>/index.js`, never a moved leaf directly. Keep that front door and its package reachable from a production app. `node bin/cells-plan.js --moved <cell>` checks the shim targets and production reachability before the move is submitted.
-
 **Why.** Importing by name means regrouping or splitting folders later changes only the root map. Declaring dependencies would duplicate the imports (K2, K5); approving each *new* edge records the intent at the moment it changes. A trial move of Pullboard found 40 of 44 proposed cells in one import cycle; importing by package name fails until that cycle is cut, while importing named files loads, so the transition rule is explicit and counted down.
 
 ## 4. Comments and types
@@ -279,3 +277,20 @@ This mapping translates the design board's citations into this repository's perm
 
 The undecided design items R3, R8, R41, R43 and R46 have no approved row.
 <!-- cells-rule-map:end -->
+
+## Note on moves behind shims
+
+During a move behind shims, each old source path re-exports through the cell's `packages/<cell>/index.js`, never a moved leaf directly. Keep that front door and its package reachable from a production app. `node bin/cells-plan.js --moved <cell>` checks the shim targets and production reachability before the move is submitted. This note sits outside the approved body; it applies [R62] and changes no row.
+
+## Amendment, 31 October 2026: local sealing
+
+Approved by the person on 31 October 2026 ("Seals are approved"; Proposal A). These rows make §8's verdict rule [R38] concrete. The approved body above is unchanged; these rows add to it. Proof that travels between boards stays in RFC 0007, rescoped to that question.
+
+- A cell's verdict is keyed to a content hash of its files and assets plus the hashes of the front doors it imports. [A1]
+- Invalidation is computed, never judged: a change unseals exactly the cells whose hash it changes, through the import graph. [A2]
+- Submit and landing run only the tests of the cells a change unseals, plus contracts at changed front doors; journeys [R52] run per landing batch. [A3]
+- An item proves once: review and landing reuse its proof and add only the merge composition and the batch's journeys. [A4]
+- A reviewer cites a sealed cell's verdict receipt instead of re-checking it. [A5]
+- Until seals exist, a generated tier manifest classifies each test file (one cell and pure, or infrastructure and journey), and per-change selection uses only the touched cells' tests. [A6]
+
+**Why.** None of §8 was built, so every change ran heavy tests: about 1.5 runner-hours per item, with 93% of builder time going to tools. Keying verdicts to content makes a change pay only for the cells it actually changes, which turns minutes of testing per item into about a minute now, and toward none once seals hold.

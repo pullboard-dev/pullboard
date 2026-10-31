@@ -662,3 +662,19 @@ test('an export used only through a literal dynamic import of a shim is reachabl
   assert.ok(keys(computed).includes('packages/sample/index.js#lazy'), 'a non-literal specifier proves nothing');
   assert.ok(computed.unknown.some(row => row.file === 'apps/demo/index.js' && row.reason.includes('computed')), 'the non-literal import is named in the output');
 });
+
+test('discovered command reach requires the exact kernel front door and discovery body [C7,CD62]', t => {
+  const box = fixture(t);
+  const source = fileURLToPath(new URL('../', import.meta.url));
+  copyPackageFiles(source, box.root, { files: packageFiles(source).filter(file =>
+    file === 'src/commands/index.js' || file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
+  box.put('apps/demo/index.js', "import { COMMANDS } from '../../src/commands/index.js'; COMMANDS.next();\n");
+  box.put('src/commands/next.js', 'export function run() {}\n');
+  const index = readFileSync(join(box.root, 'packages/kernel/index.js'), 'utf8');
+  const discovery = readFileSync(join(box.root, 'packages/kernel/src/core/discovery.js'), 'utf8');
+  box.put('packages/kernel/index.js', index + '\n// changed provider\n');
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'src/commands/next.js'));
+  box.put('packages/kernel/index.js', index);
+  box.put('packages/kernel/src/core/discovery.js', discovery + '\n// changed discovery\n');
+  assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'src/commands/next.js'));
+});
