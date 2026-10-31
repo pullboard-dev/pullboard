@@ -9,7 +9,7 @@
   ["src/milestones.js","packages/roadmap/src/core/milestones.js","seed"],
   ["src/roadmap.js","packages/roadmap/src/core/roadmap.js","seed"]
  ],
- "reexports": ["src/milestones.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":1,"before":true},
   {"cell":"git","imports":1,"before":true},
