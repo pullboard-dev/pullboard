@@ -31,7 +31,7 @@ function onBoard(box, action, clock) {
   try { return action(board); } finally { store.closeBoard(board); }
 }
 
-/** Submit through the public CLI and let a real recorded verdict release its waiting child. */
+/** Submit through the public CLI, then independently record a real verdict for queue-return tests. */
 async function waitingVerdict(t, decision, { command = 'submit', json = false, builderHeartbeatOffsetMs = 0 } = {}) {
   const box = helpers.project('true');
   assert.equal(box.run(box.repo, 'add', 'web', 'Wait for the verdict', '--specs', 'G1',
@@ -46,7 +46,10 @@ async function waitingVerdict(t, decision, { command = 'submit', json = false, b
   await helpers.waitFor(() => child.exitCode !== null || onBoard(box, board => store.getItem(board, 1).item_status === 'submitted'),
     'a public submission or its actionable refusal');
   assert.equal(onBoard(box, board => store.getItem(board, 1).item_status), 'submitted', child.stderrText);
-  assert.equal(child.exitCode, null, '--wait stays attached until the verdict, not only until submission');
+  await helpers.waitFor(() => child.exitCode !== null, 'the final gate to end submit before any verdict');
+  await child.closed;
+  assert.equal(child.exitCode, 0, child.stdoutText + child.stderrText);
+  assert.equal(onBoard(box, board => store.verdictsFor(board, 1).length), 0, 'gate completion requires no review');
   const note = decision === 'ACCEPT' ? 'The submitted fixture meets its bar.' : 'The fixture deliberately rejects this concrete clause.';
   if (builderHeartbeatOffsetMs) {
     onBoard(box, board => heartbeatSeat(board, store.getItem(board, 1).item_built_by),
@@ -58,22 +61,21 @@ async function waitingVerdict(t, decision, { command = 'submit', json = false, b
     ...(decision === 'REJECT' ? { clause: 'The fixture check passes.' } : {}) }));
   await helpers.waitFor(() => child.exitCode !== null, 'the verdict to end the attached submit');
   await child.closed;
-  assert.equal(child.exitCode, decision === 'ACCEPT' ? 0 : 1, 'reject is actionable failure; accept succeeds');
+  assert.equal(child.exitCode, 0, 'a later independent verdict does not change the completed gate result');
   if (json) {
     const document = JSON.parse(child.stdoutText);
     assert.equal(document.id, 1);
     assert.ok(document.commit);
     assert.ok(document.pin);
     assert.ok(document.gate);
-    assert.equal(document.verdict.verdict_decision, decision);
-    assert.equal(document.verdict.verdict_note, note);
+    assert.equal(document.verdict, undefined, 'submit reports its gate independently of a later review');
   }
-  assert.match(child.stdoutText + child.stderrText, new RegExp(decision, 'iu'));
-  assert.ok((child.stdoutText + child.stderrText).includes(note), 'the builder receives the actual recorded verdict note');
+  assert.ok(onBoard(box, board => store.verdictsFor(board, 1)).some(row => row.verdict_decision === decision
+    && row.verdict_note === note), 'the actual independent verdict and note remain on the board');
   return box;
 }
 
-test('submit --wait prints the verdict, and an unclaimed reject returns to the queue with its note [V2,V4,B5,B13,A6]', async t => {
+test('submit --wait ends at its gate, and a later unclaimed reject returns with its note [V2,V4,B5,B13,A6]', async t => {
   await waitingVerdict(t, 'ACCEPT');
   const box = await waitingVerdict(t, 'REJECT');
   const rejected = onBoard(box, board => store.events(board).findLast(event => event.event_kind === 'reject'));
@@ -112,7 +114,7 @@ test('submit --wait prints the verdict, and an unclaimed reject returns to the q
 });
 
 /** The historical alias retains the same versioned submission fields while returning its verdict. */
-test('done --wait preserves submission JSON and prints the exact accepted verdict [V2,A1]', async t => {
+test('done --wait preserves gate JSON independently of the later accepted verdict [V2,A1]', async t => {
   await waitingVerdict(t, 'ACCEPT', { command: 'done', json: true });
 });
 
