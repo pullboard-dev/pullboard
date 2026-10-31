@@ -1,0 +1,53 @@
+/** Prove the actual move declarations' bounded literal import closure without evaluating them [C7,H16]. */
+import { isBuiltin } from 'node:module';
+import { lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { join, posix } from 'node:path';
+import { discovered, MOVE_CANDIDATE, MOVE_FILE } from '../src/discovery.js';
+
+/** Refuse symlinks, absent modules and paths outside the finite repository source capability. */
+function sourceAt(root, file, allowed) {
+  if (!allowed.has(file) || !/^[\w./-]+$/u.test(file)
+    || file.split('/').some(part => !part || part === '.' || part === '..')) throw new Error('unproven move source');
+  let path = root;
+  for (const part of file.split('/')) {
+    path = join(path, part);
+    const stat = lstatSync(path);
+    if (stat.isSymbolicLink() || (path === join(root, file) ? !stat.isFile() : !stat.isDirectory())) {
+      throw new Error('non-regular move source');
+    }
+  }
+  return readFileSync(path, 'utf8');
+}
+
+/** Return only a complete finite declaration closure; opaque or unbounded source grants no exception. */
+export function moveDeclarationFiles(root, { importsIn, commonJsIn, files }) {
+  const allowed = new Set(files);
+  const directory = join(root, 'src/moves');
+  if (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) throw new Error('unproven moves directory');
+  let pending = discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
+    .map(name => `src/moves/${name}`);
+  if (!pending.length) throw new Error('no move declarations');
+  const reached = new Set();
+  let bytes = 0;
+  while (pending.length) {
+    const level = [...new Set(pending)].filter(file => !reached.has(file));
+    pending = [];
+    const sources = level.map(file => {
+      reached.add(file);
+      const source = sourceAt(root, file, allowed);
+      bytes += Buffer.byteLength(source);
+      if (reached.size > 4096 || bytes > 1_048_576) throw new Error('move closure exceeds source bounds');
+      return source;
+    });
+    if (commonJsIn(sources).some(Boolean)) throw new Error('opaque move loader');
+    const edges = importsIn(sources);
+    for (const [index, imports] of edges.entries()) for (const specifier of imports) {
+      if (isBuiltin(specifier)) continue;
+      if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error('non-literal relative move import');
+      const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
+      if (!/\.[cm]?js$/u.test(target)) throw new Error('unproven executable move dependency');
+      pending.push(target);
+    }
+  }
+  return reached;
+}
