@@ -5,8 +5,9 @@ import { HOOK_WORKER } from '../src/cli-hook-work.js';
 import { launchRelaySender } from '../src/relay-sender-main.js';
 import { withOutboxGuard } from '../src/relay-outbox-guard.js';
 import { replay as replayConflictRecord } from '../src/relay-conflict-record.js';
+import { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } from '../src/relay-baseline-settle.js';
 
 /** Run the production CLI with the same explicit native capability as its process entry. */
 export function main(argv, streams) {
-  return cliMain(argv, { ...streams, withOutboxGuard, replayConflictRecord, hookWorker: HOOK_WORKER, submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)), launchRelaySender, loadNativeBoard: () => import('../src/native-board.js') });
+  return cliMain(argv, { ...streams, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, hookWorker: HOOK_WORKER, submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)), launchRelaySender, loadNativeBoard: () => import('../src/native-board.js') });
 }

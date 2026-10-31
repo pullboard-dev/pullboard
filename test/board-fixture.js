@@ -8,6 +8,7 @@ import { closeBoard } from '../src/native-board.js';
 import { Refused } from '../src/refused.js';
 import { withOutboxGuard } from '../src/relay-outbox-guard.js';
 import { replay as replayConflictRecord } from '../src/relay-conflict-record.js';
+import { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } from '../src/relay-baseline-settle.js';
 
 const FILE_PURPOSES = new Set(['persistence', 'locking', 'migration']);
 
@@ -42,4 +43,4 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
 }
 
 /** Bind the actual native openers at API fixture roots, never inside API projection code. */
-export const apiBoardOpeners = Object.freeze({ openBoard, openBoardForRead, withOutboxGuard, replayConflictRecord });
+export const apiBoardOpeners = Object.freeze({ openBoard, openBoardForRead, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline });

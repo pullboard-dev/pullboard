@@ -128,11 +128,6 @@ import {
   scheduleCheckpoint,
 } from './relay-checkpoint.js';
 import {
-  decideUncertainBaseline,
-  remoteBoardMissing,
-  uncertainUploadFailure,
-} from './relay-baseline-settle.js';
-import {
   baselineNotAccepted,
   transientRelayFailure,
   transportFailure,
@@ -597,7 +592,7 @@ function rememberBaselineFailure(io, file, error) {
 async function remoteBaselineAbsent(state, io) {
   try { await request(state, '/api/v1/boards/' + state.board + '/state', {}, io); }
   catch (error) {
-    if (remoteBoardMissing(error)) return true;
+    if (await io.remoteBoardMissing(error)) return true;
     throw error;
   }
   return false;
@@ -650,7 +645,7 @@ function acceptBaseline(root, file, state) {
 
 /** Decide a first upload whose reply was lost, through this link's transport and saved state (#919). */
 function decideBaseline(root, file, state, io) {
-  return decideUncertainBaseline(state, io, { read: () => request(state, '/api/v1/boards/' + state.board + '/state', {}, io),
+  return io.decideUncertainBaseline(state, io, { read: () => request(state, '/api/v1/boards/' + state.board + '/state', {}, io),
     accept: () => acceptBaseline(root, file, state), fence: () => fenceBaseline(file, state),
     save: () => saveLink(file, state), remember: (error) => rememberBaselineFailure(io, file, error) });
 }
@@ -670,7 +665,7 @@ async function uploadInitialBaseline(root, file, state, io) {
     acceptBaseline(root, file, state);
     return true;
   } catch (error) {
-    if (sent && state.baselineUncertain && uncertainUploadFailure(error)) {
+    if (sent && state.baselineUncertain && await io.uncertainUploadFailure(error)) {
       if (await decideBaseline(root, file, state, io)) return true;
     } else if (sent && state.baselineUncertain) { delete state.baselineUncertain; saveLink(file, state); }
     if (error.relayVersion === 1 && error.code === 'BASELINE_EXISTS') fenceBaseline(file, state);

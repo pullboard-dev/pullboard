@@ -106,6 +106,9 @@ export async function runCheckBaselineWorker(root, id, request, services) {
   const io = {
     withOutboxGuard: services.withOutboxGuard,
     replayConflictRecord: services.replayConflictRecord,
+    remoteBoardMissing: services.remoteBoardMissing,
+    uncertainUploadFailure: services.uncertainUploadFailure,
+    decideUncertainBaseline: services.decideUncertainBaseline,
     /** Discard normal relay prose in the detached worker. */
     say() {},
     /** Retain delivery failures in the receipt rather than an abandoned terminal stream. */
