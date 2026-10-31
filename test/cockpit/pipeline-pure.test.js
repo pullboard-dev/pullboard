@@ -1,7 +1,7 @@
 /** Canonical lifecycle replay and pipeline projection from plain snapshot values [N26,N38,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { lifecycleMove } from '../../src/lifecycle-move.js';
+import { lifecycleMove } from '../../packages/items/src/core/lifecycle-move.js';
 import { replayItem } from '../../src/view/pipeline-model.js';
 import { pipelineStage } from '../../src/view/pipeline-model.js';
 import { pipelineSince } from '../../src/view/pipeline-model.js';
