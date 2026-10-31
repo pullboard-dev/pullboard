@@ -15,5 +15,6 @@
   "src/runner-result.js": "packages/runners/src/shell/runner-result.js",
   "src/runner-health.js": "packages/runners/src/shell/runner-health.js",
   "src/runner-source-scan.js": "packages/runners/src/shell/runner-source-scan.js",
-  "src/runner-history-pack.js": "packages/runners/src/shell/runner-history-pack.js"
+  "src/runner-history-pack.js": "packages/runners/src/shell/runner-history-pack.js",
+  "src/runner-request.js": "packages/runners/src/shell/runner-request.js"
 }
