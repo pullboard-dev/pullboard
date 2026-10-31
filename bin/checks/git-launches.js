@@ -11,7 +11,7 @@ import {
   gitLaunchGrowth,
   gitLaunchReport,
   loweredGitLaunchBaseline,
-} from '../../src/git-launch-ratchet.js';
+} from '../../packages/git/index.js';
 import { report } from './scan.js';
 
 const BASELINE = new URL('../../packages/git/src/shell/git-launch-baseline.json', import.meta.url);

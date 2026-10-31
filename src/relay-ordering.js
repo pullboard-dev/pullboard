@@ -17,7 +17,7 @@ import {
 } from './git.js';
 import { refusalFromReceipt } from './recorded-refusal.js';
 import { Refused } from '../packages/kernel/index.js';
-import { readBoardKey } from './relay-key.js';
+import { readBoardKey } from '../packages/keys/index.js';
 import {
   outboxAhead,
   outboxWaiting,

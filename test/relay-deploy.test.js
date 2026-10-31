@@ -17,7 +17,7 @@ import { githubFixture } from './relay-fixture.js';
 import { createRelayBrowserHandler } from '../relay/browser-page.js';
 import { encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { createHash, randomBytes } from 'node:crypto';
-import { createDeviceKeys, signDeviceEnrollment, unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../src/relay-device-keys.js';
+import { createDeviceKeys, signDeviceEnrollment, unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../packages/keys/index.js';
 import { approvalContext, openApproval, sealApproval, signApprovalIntent, verifyApprovalIntent } from '../src/relay-approval.js';
 import { RELAY_REQUEST_BOUND_MS } from './relay-budget.js';
 

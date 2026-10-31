@@ -27,7 +27,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   installStep,
-} from '../worktree.js';
+} from '../../packages/git/index.js';
 import {
   existsSync,
   mkdirSync,

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDeviceKeys, signDeviceEnrollment } from '../src/relay-device-keys.js';
+import { createDeviceKeys, signDeviceEnrollment } from '../packages/keys/index.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { relayOutboxSetting } from '../src/cli.js';
 import { relayClientFixture } from './relay-client-fixture.js';

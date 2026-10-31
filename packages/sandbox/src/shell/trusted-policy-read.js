@@ -44,7 +44,7 @@ export function mainPolicy(root) {
   return policyAt(root, checkout.commit);
 }
 
-export { trunkRef } from '../../../../src/git-trunk-ref.js';
+export { trunkRef } from '../../../git/index.js';
 
 /** Re-read coordinator settings from a pinned Git object; never from the candidate filesystem. */
 export function policyAt(root, commit) {
