@@ -19,7 +19,7 @@ export const PENDING_WRITE_REPAIRS = Object.freeze({
   'packages/merge/src/shell/merge-only-submit.js#prepareMergeOnlySubmit': 1878,
   'packages/stats/src/shell/cost-checkpoint.js#publishUsage': 1867,
   // Coordinator44638, follow-up1878: these exact old I/O providers remain visible and temporary.
-  'src/rule-proof-index.js#appendRuleProof': 1878,
+  'packages/verify/src/shell/rule-proof-index.js#appendRuleProof': 1878,
   'src/proof-receipts.js#proofRunReceipt': 1878,
   'src/seat-presence.js#persistedObservation': 1878,
   'src/seat-presence.js#observationRows': 1878,

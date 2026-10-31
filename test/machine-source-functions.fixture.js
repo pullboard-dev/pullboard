@@ -63,7 +63,7 @@ export const MACHINE_CALLBACKS = {
     verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget',
     computedConflictProblem: 'computed-conflict-receipt.js#computedConflictProblem',
   },
-  'reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
+  '../packages/verify/src/shell/reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
   'board-health.js': {
     normalizedDispatch: 'dispatch-health.js#normalizedDispatch',
     rejectedWorkReturns: 'rejected-work-return.js#rejectedWorkReturns',
@@ -71,8 +71,8 @@ export const MACHINE_CALLBACKS = {
   'outside-verify.js': { verifyOutsideSandbox: 'sandbox-verify.js#verifyOutsideSandbox' },
   'item-authors.js': { strictReviewProblem: 'review-independence.js#strictReviewProblem' },
   // Native verification ports retain these exact receipt and projection guards.
-  'proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
-  'proof-counters.js': {
+  '../packages/verify/src/core/proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
+  '../packages/verify/src/shell/proof-counters.js': {
     appendRigorCounter: '../packages/rigor/src/shell/rigor-counters.js#appendRigorCounter',
     ensureRigorCounters: '../packages/rigor/src/shell/rigor-counters.js#ensureRigorCounters',
   },

@@ -1070,6 +1070,10 @@
     {
       "path": "bin/cells-move-closure.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/bar-corrections.js",
+      "reason": "canonical engine identity retained in src during package moves"
     }
   ],
   "retired": [
@@ -2747,6 +2751,14 @@
         "src/usage-batch-engine.js",
         "packages/stats/src/shell/usage-batch-engine.js",
         "rule"
+      ]
+    },
+    {
+      "cell": "verify",
+      "row": [
+        "src/bar-corrections.js",
+        "packages/verify/src/core/bar-corrections.js",
+        "seed"
       ]
     }
   ]
