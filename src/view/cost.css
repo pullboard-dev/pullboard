@@ -66,6 +66,9 @@
 .cost-prices b { color: var(--ink); }
 .cost-copy { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding: 3px 3px 3px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--ink); white-space: nowrap; }
 .cost-copy code { font: 12.5px var(--mono); }
+.cost-copy { max-width: 100%; flex-wrap: wrap; white-space: normal; }
+.cost-copy code { min-width: 0; overflow-wrap: anywhere; }
+.cost-model-table-wrap { min-width: 0; max-width: 100%; }
 .cost-copy button { padding: 3px 10px; border: 0; border-radius: 5px; background: var(--accent); color: var(--on-accent); font: 600 12px var(--sans); cursor: pointer; }
 .cost-overview { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; }
 .cost-summary { display: grid; gap: 16px; align-content: start; padding: 16px 18px; }
