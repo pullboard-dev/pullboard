@@ -11,3 +11,7 @@ export { requireLedger, recordItemSession, refuseSelfSession } from './src/shell
 export { requireOutsideReceipt } from './src/shell/outside-proof.js';
 export { waitForSubmissionVerdict } from './src/shell/submit-wait.js';
 export { briefFiles } from './src/core/brief.js';
+export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords } from './src/shell/blocks.js';
+export { ITEM_SIZE_BUDGET, changedLines, oversizeNote } from './src/core/submit-size.js';
+export { requireSubmitComposition, composeAfterProof, trunkMoveFact } from './src/core/submit-composition.js';
+export { conflictNoteFiles, legacyConflictNote, reopenConflictEvidence, conflictCause, reopenCauseCorrection } from './src/core/reopen-cause.js';
