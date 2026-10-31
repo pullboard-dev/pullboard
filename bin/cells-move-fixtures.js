@@ -517,7 +517,14 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     const method = operation(parsed, 'path', ['join', 'resolve', 'dirname']);
     if (!method || !parsed.args.length) return null;
     const base = path(parsed.args[0], substitutions, seen);
-    if (!base || base.fixture) return base;
+    if (!base) return null;
+    if (base.fixture) {
+      // A fresh directory proves only its descendants; dirname, absolute resets and parent traversal can escape it.
+      if (method === 'dirname') return null;
+      const segments = parsed.args.slice(1).map(arg => literal(arg, substitutions));
+      return segments.every(segment => typeof segment === 'string' && segment && !posix.isAbsolute(segment)
+        && !segment.split('/').includes('..')) ? base : null;
+    }
     if (method === 'dirname' && parsed.args.length === 1) return { path: posix.dirname(base.path), render: target => base.render(target) };
     if (method === 'dirname') return null;
     const segments = parsed.args.slice(1).map(arg => literal(arg, substitutions));
