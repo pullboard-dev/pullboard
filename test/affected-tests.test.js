@@ -2,7 +2,7 @@ import { mappedWorkingSource } from '../bin/checks/scan.js';
 /** @pullboard-test-input source-tree */
 /** Documentation input selection remains conservative across committed trees [V4,C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -387,7 +387,9 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
   const mapped = mappedWorkingSource(sourceRoot, 'src/person.js');
-  box.put('src/person.js', readFileSync(join(box.root, mapped.shimPath), 'utf8') + '\n// ordinary source change\n');
+  // The helper copy already installed the mapped shim at this path; the ordinary change appends to it rather than copying tool bytes.
+  assert.equal(mapped.shimPath, 'src/person.js');
+  appendFileSync(join(box.root, mapped.shimPath), '\n// ordinary source change\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/person.js'] });
   assert.equal(selected.full, false, selected.reason);
