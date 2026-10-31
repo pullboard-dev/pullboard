@@ -2,7 +2,6 @@
 /** One command removes a cell's shims: repoint, delete, keep what would cut upward, and change nothing the second time [C7,D3]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -11,11 +10,15 @@ import { computePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { removeShims } from '../bin/cells-remove-shims.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { fixture } from './cells-plan-fixture.js';
+import { CONFIG } from './cells-remove-shims-read.js';
+import { readFixture } from './cells-remove-shims-read.js';
 import { git } from './cells-plan-fixture.js';
 
+const PARSERS = { importsIn, commonJsIn };
 const TOOL = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
-const CONFIG = readFileSync(new URL('../pullboard.json', import.meta.url), 'utf8');
 const SEED = { source: 'fixture', sha256: 'none', order: ['kernel', 'stats', 'mid', 'late', 'app:cli'],
   cells: { kernel: ['src/refused.js'], stats: ['src/stats.js'], mid: ['src/mid.js'], late: ['src/late.js'], 'app:cli': ['src/cli.js'] }, tests: {} };
 
@@ -58,11 +61,11 @@ function shimmed(t) {
 }
 
 /** Read one fixture file's current bytes. */
-const read = (box, file) => readFileSync(join(box.root, file), 'utf8');
+const read = (box, file) => readFixture(box.root, file);
 
 test('removal repoints each importer kind, adds a missing binding, deletes the shim and keeps the upward one [C7,D3]', t => {
   const box = shimmed(t);
-  const result = removeShims(box.root, box.plan, 'stats');
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
   assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
   assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../packages/stats/core.js';\nconsole.log(pure);\n");
   assert.equal(read(box, 'src/lazy.js'), "export const lazy = () => import('../packages/stats/index.js');\n");
@@ -83,7 +86,7 @@ test('removal repoints each importer kind, adds a missing binding, deletes the s
 test('a core file keeps its shim rather than reach past the cell core [C7,D3]', t => {
   const box = shimmed(t);
   box.put('packages/stats/src/core/impure.js', "import { shell } from '../../../../src/stats.js';\nexport const impure = shell;\n");
-  const result = removeShims(box.root, box.plan, 'stats');
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
   assert.equal(existsSync(join(box.root, 'src/stats.js')), true);
   assert.equal(read(box, 'packages/stats/src/core/impure.js'), "import { shell } from '../../../../src/stats.js';\nexport const impure = shell;\n");
   assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /core file packages\/stats\/src\/core\/impure\.js/u);

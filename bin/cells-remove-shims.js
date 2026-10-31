@@ -12,8 +12,6 @@ import { loadConfig } from '../packages/config/index.js';
 import { tryGit } from '../packages/git/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { laneOf } from '../packages/seats/index.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
 import { Refused } from '../src/refused.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { ownerFor } from './cells-plan-cuts.js';
@@ -201,10 +199,11 @@ function strictProblems(box, inventory) {
 }
 
 /** Remove a cell's shims in memory-planned, audit-checked steps; returns what moved, what went, what stayed and why. */
-export function removeShims(root, plan, name, { lane = 'core' } = {}) {
+export function removeShims(root, plan, name, { parsers, lane = 'core' } = {}) {
+  if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new TypeError('shim removal needs explicit module parser operations');
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in the plan; use a name from bin/cells-plan.json`);
-  const parsers = { importsIn, commonJsIn }, inventory = cellInventory(root, parsers);
+  const inventory = cellInventory(root, parsers);
   const config = inventory.files.has('package.json') ? JSON.parse(inventory.files.get('package.json').toString('utf8')) : {};
   const box = { root, plan, cell, files: inventory.files, imports: config.imports };
   const kept = new Map(), absent = cell.reexports.filter(shim => !existsSync(join(root, shim)));

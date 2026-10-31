@@ -497,7 +497,7 @@ function main(argv) {
   });
   if (mode === '--remove-shims') {
     if (rest.length !== 1) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell>');
-    const result = removeShims(root, readPlan(root), rest[0]);
+    const result = removeShims(root, readPlan(root), rest[0], { parsers: { importsIn, commonJsIn } });
     if (result.changed) writePlan(root, result.plan);
     for (const line of shimReport(result)) console.log(line);
     return 0;
