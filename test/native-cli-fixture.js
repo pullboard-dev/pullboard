@@ -3,8 +3,9 @@ import { fileURLToPath } from 'node:url';
 import { main as cliMain } from '../src/cli-main.js';
 import { HOOK_WORKER } from '../src/cli-hook-work.js';
 import { launchRelaySender } from '../src/relay-sender-main.js';
+import { withOutboxGuard } from '../src/relay-outbox-guard.js';
 
 /** Run the production CLI with the same explicit native capability as its process entry. */
 export function main(argv, streams) {
-  return cliMain(argv, { ...streams, hookWorker: HOOK_WORKER, submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)), launchRelaySender, loadNativeBoard: () => import('../src/native-board.js') });
+  return cliMain(argv, { ...streams, withOutboxGuard, hookWorker: HOOK_WORKER, submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)), launchRelaySender, loadNativeBoard: () => import('../src/native-board.js') });
 }
