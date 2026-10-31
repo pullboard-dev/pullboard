@@ -1,3 +1,4 @@
+import { conditionalHoldFloor } from '../packages/health/index.js';
 import { recordFamilyDeclareActivation } from '../src/family-declaration.js';
 import { withDerivedFamily } from '../src/family-declaration.js';
 import { policyAt } from '../src/trusted-policy-read.js';
@@ -358,8 +359,24 @@ test('native engine composition keeps supplied upper operations and refuses miss
     calls++;
     throw refusal;
   }
-  const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider, MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor };
+  const providers = { ...original.store, ...original, validPresence, recordTrainLanding: trainProvider, MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor, conditionalHoldFloor };
   const composed = boardEnginePorts(providers);
+  const floor = () => 42;
+  let floorDispatch = 0;
+  /** Observe the exact floor provider and request passed by the store's engine adapter. */
+  function minimumProvider(operation, args, actualBoard, at, actualFloor) {
+    assert.equal(operation, 'claim');
+    assert.deepEqual(args, [17]);
+    assert.equal(actualBoard, board);
+    assert.equal(at, '2026-10-31T00:00:00.000Z');
+    assert.equal(actualFloor, floor);
+    floorDispatch++;
+    return actualFloor();
+  }
+  const withFloor = boardEnginePorts({ ...providers, conditionalHoldFloor: floor, minimumMoveEngine: minimumProvider });
+  assert.equal(withFloor.minimumOperationEngine('claim', [17], board, '2026-10-31T00:00:00.000Z'), 42);
+  assert.equal(floorDispatch, 1, 'the explicit provider dispatches exactly once');
+
   assert.equal(composed.store.recordTrainLanding, trainProvider);
   assert.equal(composed.sandboxPolicyReads, original.sandboxPolicyReads, 'the root passes exact canonical function identities without a cache or fallback');
   for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
@@ -372,7 +389,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
   assert.equal(calls, 1);
   assert.deepEqual(legacy.events(board), before);
   assert.equal(original.store.recordTrainLanding, recordTrainLanding, 'another connection keeps the native provider');
-  for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily', 'recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor']) {
+  for (const name of ['submitHandoffEngines', 'pipelineCauseEngines', 'firstRefusalDetail', 'itemPatchDigest', 'recordFamilyDeclareActivation', 'withDerivedFamily', 'recordTrainLanding', 'validPresence', 'sealItemPatchFollow', 'MOVE_REGISTRY', 'MOVE_OPERATIONS', 'minimumMoveEngine', 'declaredMoveActor', 'conditionalHoldFloor']) {
     const missing = { ...providers };
     delete missing[name];
     assert.throws(() => boardEnginePorts(missing), error => error.code === 'NO_POLICY' && error.message.includes(name));

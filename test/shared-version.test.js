@@ -5,7 +5,11 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import {
+  join,
+  relative,
+  resolve,
+} from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 
@@ -30,7 +34,7 @@ function fixture(t) {
   /** Run source from the chosen checkout, independently of the command's working directory. */
   const cli = (code, cwd, ...args) => run(cwd, process.execPath, [join(code, 'bin/pullboard.js'), ...args]);
   git(root, 'init', '-q', '-b', 'main');
-  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { core: { owns: ['src/'] } } }));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { core: { owns: ['src/', 'packages/store/src/shell/board-schema-source.js'] } } }));
   writeFileSync(join(root, 'SPEC.md'), '# Version fixture\n\n## G · Goals\n- G1 [approved, must] Preserve the shared board. | gate: true\n');
   git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize source fixture');
   const initialized = cli(root, root, 'init'); assert.equal(initialized.status, 0, initialized.stderr);
@@ -43,7 +47,7 @@ function fixture(t) {
   /** Read persistent formats without invoking a writable opener. */
   const versions = () => { const db = new DatabaseSync(file, { readOnly: true }); try { return { schema: db.prepare('PRAGMA user_version').get().user_version, log: db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='event_log_version'").get().meta_value }; } finally { db.close(); } };
   /** Change only one version constant in the uncommitted linked source. */
-  const bump = (name, from, to) => { const path = join(lane, 'src/board-schema-source.js'); const text = readFileSync(path, 'utf8'); const updated = text.replace(`export const ${name} = ${from};`, `export const ${name} = ${to};`); assert.notEqual(updated, text); writeFileSync(path, updated); return 'src/board-schema-source.js'; };
+  const bump = (name, from, to) => { const path = toolSourcePath(lane, 'packages/store/src/shell/board-schema-source.js'); const text = readFileSync(path, 'utf8'); const updated = text.replace(`export const ${name} = ${from};`, `export const ${name} = ${to};`); assert.notEqual(updated, text); writeFileSync(path, updated); return relative(lane, path); };
   return { dir, root, lane, env, file, run, cli, git, probe, versions, bump };
 }
 

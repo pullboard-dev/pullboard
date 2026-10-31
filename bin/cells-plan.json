@@ -1074,6 +1074,10 @@
     {
       "path": "src/bar-corrections.js",
       "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
+      "path": "src/health-sentinel-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
