@@ -8,6 +8,8 @@ import {
 } from '../cli.js';
 
 /** Run `pullboard flakes` and return its exit code. */
-export function run(io, { first, second, rest }) {
+export async function run(io, { first, second, rest }) {
+  // Hidden: bin/run-tests.js records its direct suite receipt here, in this process's composition.
+  if (first === 'record-suite') { await nativeFlakes.recordSuiteRun(io.cwd, second, { context, ordered, withBoard, resourceAgent, nativeBoard: io.nativeBoard }); return 0; }
   return nativeFlakes.command(context(io), { first, second, rest }, withBoard, { ordered, resourceAgent });
 }

@@ -1236,8 +1236,8 @@ async function main(args) {
       ]);
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
-        if (direct.receiptId) await (await import('../src/native-flake-cli.js')).recordSuiteRun(process.cwd(), direct.receiptId,
-          { ...(await import('../src/cli.js')), nativeBoard: await import('../src/native-board.js') });
+        // The CLI records the receipt in its own process, so this entry never imports the native board.
+        if (direct.receiptId) try { spawnSync(process.execPath, [join(process.cwd(), 'bin', 'pullboard.js'), 'flakes', 'record-suite', direct.receiptId], { cwd: process.cwd(), stdio: 'ignore', timeout: 60_000 }); } catch { /* the private receipt and the suite verdict stand */ }
         process.stdout.write(direct.output); process.exitCode = direct.isGreen ? 0 : 1; return;
       }
     }
