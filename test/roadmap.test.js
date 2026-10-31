@@ -394,6 +394,8 @@ test('roadmap ports refuse before board access while canonical composition retai
     const before = store.events(board);
     assert.throws(() => addMilestoneWithPorts(board, { agentId: 'coordinator', name: 'Missing' }), TypeError);
     assert.throws(() => milestoneRoadmap('.', board), TypeError);
+    assert.throws(() => milestoneRoadmap('.', board, { ports: { ...store, roadmap, openBoard } }), TypeError,
+      'a missing work queue refuses before any roadmap board access');
     assert.throws(() => milestoneFocus(board), TypeError);
     assert.deepEqual(store.events(board), before, 'missing ports add no native events');
     assert.deepEqual(store.milestones(board), [], 'missing ports never write roadmap metadata');

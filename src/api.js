@@ -1,4 +1,4 @@
-import { workQueue } from './queue.js';
+import { workQueue } from '../packages/items/index.js';
 import { costAnalytics } from '../packages/stats/index.js';
 import { personSigningPresentation } from './person-signing-presentation.js';
 import { projectFit } from './blueprint-fit.js';

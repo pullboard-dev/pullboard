@@ -1,4 +1,4 @@
-import { workQueue } from '../queue.js';
+import { workQueue } from '../../packages/items/index.js';
 import * as store from '../board.js';
 import { roadmap } from '../board-milestones.js';
 import { openBoard } from '../native-board.js';
