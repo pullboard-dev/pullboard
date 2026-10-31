@@ -21,7 +21,7 @@ test('roadmap lists open items in queue order with pins applied and agrees with 
   const queue = workQueue(board, { buildOrder: store.buildOrder, canTake: store.canTake, listItems: store.listItems, milestonePriorities: store.milestonePriorities,
     milestones: store.milestones, roadmap: roadmap, ROUTES: store.ROUTES, foreignBlockers: store.foreignBlockers, eligibilityProblem });
   const queued = queue.releases[0].items.map(item => item.id);
-  const [shown] = milestoneRoadmap('/unused', board, { projects: () => [], ports: { ...store, roadmap, openBoard } });
+  const [shown] = milestoneRoadmap('/unused', board, { projects: () => [], ports: { ...store, roadmap, openBoard, workQueue } });
   assert.equal(queued[0], ids[3], 'the queue puts the pinned item first');
   assert.deepEqual(shown.items.map(entry => entry.id), queued, 'roadmap and queue agree on every open item and its order');
   assert.deepEqual(shown.items.map(entry => entry.position), queued.map((_, index) => index + 1), 'each item carries its queue position');
