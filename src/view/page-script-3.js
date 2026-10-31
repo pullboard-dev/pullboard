@@ -9,13 +9,14 @@ function readCostHistory(project) {
   project.costPrices = localCostPrices;
   const root = view.root;
   const sequence = Number(project.sequence ?? project.events?.[0]?.event_id ?? 0);
+  const window = view.costWindow ?? '7d';
   const kept = costHistory.get(root);
-  if (kept?.sequence === sequence) return kept;
-  const entry = { sequence, loading: true, error: null, model: null };
+  if (kept?.sequence === sequence && kept.window === window) return kept;
+  const entry = { sequence, window, loading: true, error: null, model: null };
   costHistory.set(root, entry);
-  api(boardPath(root) + '/events').then(reply => {
-    if (costHistory.get(root) !== entry || root !== view.root || !Array.isArray(reply.events)) return;
-    entry.model = costTabModel(project, reply.events, project.costPrices ?? null);
+  api(boardPath(root) + '/cost-analytics?window=' + encodeURIComponent(window)).then(reply => {
+    if (costHistory.get(root) !== entry || root !== view.root || !reply.costAnalytics) return;
+    entry.model = reply.costAnalytics;
     entry.loading = false;
     if (view.tab === 'cost') render();
   }).catch(error => {
@@ -39,7 +40,12 @@ export function pageScriptPart3(scope) {
 const privateCostSource = privateCost ? `${costTabScript()}
 const costHistory = new Map();
 const localCostPrices = ${JSON.stringify(costPrices ?? null).replace(/</g, '\\u003c')};
-${readCostHistory.toString()}` : '';
+${readCostHistory.toString()}
+function costPaneHtml(history, project) {
+  if (history.loading) return '<p class="empty" role="status">Loading cost history…</p>';
+  if (history.error) return '<p class="empty" role="status">Cost history is unavailable.</p>';
+  return costOverviewHtml(history.model, view.costOpen, { hasPrices: Boolean(project.costPrices && Object.keys(project.costPrices).length) });
+}` : '';
 return `${privateCostSource}
 
 /** Whether a selected project is backed by the read-only relay transport. */
