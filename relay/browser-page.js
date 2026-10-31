@@ -1,14 +1,129 @@
 /** The relay serves the existing cockpit over a device-only decrypting transport [H5,H15]. */
 import { createHash } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { posix } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { cockpitPage } from '../src/cli/cockpit-renderer.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { MACHINE } from '../src/machine.js';
 import { Refused } from '../packages/kernel/index.js';
+import { lex } from '../packages/kernel/index.js';
 import { APPROVAL_CARD_STYLES } from './browser-approval-card.js';
 import { relayScreenMarkup } from './browser-notice.js';
 
 const STYLES = readFileSync(new URL('../src/view.css', import.meta.url), 'utf8').replace('/* @pullboard-dashboard-styles */', readFileSync(new URL('../src/view/dashboard.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-items-row-styles */', readFileSync(new URL('../src/view/item-rows.css', import.meta.url), 'utf8').trimEnd()).replace('/* @pullboard-stage-styles */', readFileSync(new URL('../src/view/stage.css', import.meta.url), 'utf8').trimEnd()) + APPROVAL_CARD_STYLES;
+
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+/**
+ * The browser modules served by a fixed public name, each read from its exact body. Relay files import one another by
+ * these names; every other module they reach is served at its repository path below MODULE_PREFIX.
+ */
+const BROWSER_MODULES = {
+  '/relay/install.js': new URL('./browser-install.js', import.meta.url),
+  '/relay/device-keys.js': new URL('../packages/keys/src/core/relay-device-keys.js', import.meta.url),
+  '/relay/relay-approval.js': new URL('../src/relay-approval.js', import.meta.url),
+  '/relay/browser-devices.js': new URL('./browser-devices.js', import.meta.url),
+  '/relay/browser-excluded.js': new URL('./browser-excluded.js', import.meta.url),
+  '/relay/excluded-notice.js': new URL('./excluded-notice.js', import.meta.url),
+  '/relay/browser-approval-card.js': new URL('./browser-approval-card.js', import.meta.url),
+  '/relay/browser-passkeys.js': new URL('./browser-passkeys.js', import.meta.url),
+  '/relay/client.js': new URL('./browser-client.js', import.meta.url),
+  '/relay/person-pairing-limit.js': new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
+  '/relay/person-enrollment.js': new URL('../packages/person/src/core/person-enrollment.js', import.meta.url),
+  '/relay/relay-limits.js': new URL('../src/relay-limits.js', import.meta.url),
+  '/relay/browser-notice.js': new URL('./browser-notice.js', import.meta.url),
+  '/relay/browser-upload-status.js': new URL('./browser-upload-status.js', import.meta.url),
+  '/relay/browser-deadline.js': new URL('./browser-deadline.js', import.meta.url),
+  '/relay/browser-stream.js': new URL('./browser-stream.js', import.meta.url),
+  '/relay/browser-pages.js': new URL('./browser-pages.js', import.meta.url),
+  '/relay/browser-history.js': new URL('./browser-history.js', import.meta.url),
+  '/relay/page-layout.js': new URL('../packages/pages/src/core/relay-page-layout.js', import.meta.url),
+  '/relay/sealed-pages.js': new URL('../packages/pages/src/core/sealed-pages.js', import.meta.url),
+  '/relay/model.js': new URL('./browser-model.js', import.meta.url),
+  '/relay/lifecycle-move.js': new URL('../packages/items/src/core/lifecycle-move.js', import.meta.url),
+  '/relay/seal.js': new URL('../packages/kernel/src/core/seal.js', import.meta.url),
+  '/relay/api-moves.js': new URL('../src/api-moves.js', import.meta.url),
+  '/relay/person-bar-effect.js': new URL('../packages/person/src/core/person-bar-effect.js', import.meta.url),
+  '/relay/person-request.js': new URL('../packages/person/src/core/person-request.js', import.meta.url),
+  '/relay/refused.js': new URL('../packages/kernel/src/core/refused.js', import.meta.url),
+};
+
+/**
+ * Modules a browser must not load, with what it reads instead: a public URL, or the exact body behind a shim or a front
+ * door that has no pure core.js. A cell front door with a pure core.js is read as that core.js without an entry here.
+ */
+const BROWSER_STANDINS = {
+  'src/machine.js': '/relay/engine.js',
+  'src/relay-device-keys.js': new URL('../packages/keys/src/core/relay-device-keys.js', import.meta.url),
+  'packages/keys/index.js': new URL('../packages/keys/src/core/relay-device-keys.js', import.meta.url),
+  'src/relay-page-layout.js': new URL('../packages/pages/src/core/relay-page-layout.js', import.meta.url),
+  'src/sealed-pages.js': new URL('../packages/pages/src/core/sealed-pages.js', import.meta.url),
+  'src/lifecycle-move.js': new URL('../packages/items/src/core/lifecycle-move.js', import.meta.url),
+  'src/person-pairing-limit.js': new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
+};
+
+/** Where a module the browser reaches by repository path is served; its directory structure is kept, so relative imports resolve. */
+export const MODULE_PREFIX = '/relay/m/';
+
+/** A repository path from a module URL under `root`, or a public URL string unchanged. */
+function repositoryPath(root, value) {
+  return value instanceof URL ? posix.relative(root.split('\\').join('/'), fileURLToPath(value).split('\\').join('/')) : value;
+}
+
+/** Refuse a browser module graph that cannot load, naming the module and the import. */
+function refuseModule(path, text, why) {
+  throw new Refused('RELAY_BROWSER_MODULE', `relay browser module ${path} imports ${text}: ${why}; serve a pure module or add a browser stand-in in relay/browser-page.js`);
+}
+
+/**
+ * Build every served browser module from repository bytes. Each import specifier is rewritten to the relative URL of
+ * what the browser is served for its target: a public name, a stand-in, a cell's pure core.js for its front door, or the
+ * module itself at its repository path below MODULE_PREFIX. A Node builtin, a bare package or a missing file refuses.
+ */
+export function browserModules(root, { named, standins = {}, generated = {} }) {
+  const served = new Map(), urlOf = new Map(), pending = [];
+  const stand = Object.fromEntries(Object.entries(standins).map(([path, value]) => [path, repositoryPath(root, value)]));
+  for (const [url, value] of Object.entries(named)) { urlOf.set(repositoryPath(root, value), url); pending.push([url, repositoryPath(root, value)]); }
+  const publicUrls = new Set([...Object.keys(named), ...Object.keys(generated)]);
+  /** The URL a repository path is served at, queuing its module the first time. */
+  const serve = path => {
+    const door = /^packages\/[^/]+\/index\.js$/u.test(path) && existsSync(join(root, path.replace(/index\.js$/u, 'core.js'))) ? path.replace(/index\.js$/u, 'core.js') : path;
+    const target = stand[path] ?? door;
+    if (target.startsWith('/')) return target;
+    if (!urlOf.has(target)) { urlOf.set(target, MODULE_PREFIX + target); pending.push([MODULE_PREFIX + target, target]); }
+    return urlOf.get(target);
+  };
+  /** Rewrite each import specifier of one module; `path` is its repository path, or null for generated text. */
+  const rewrite = (url, path, source) => {
+    const info = lex(source);
+    let out = source;
+    for (const row of info.strings.filter(literal => /\b(?:from|import)\s*\(?\s*$/u.test(info.code.slice(0, literal.start))).reverse()) {
+      const text = row.text, where = path ?? url;
+      if (!text.startsWith('./') && !text.startsWith('../')) refuseModule(where, text, 'a browser cannot load a Node builtin or a bare package');
+      const asServed = posix.normalize(posix.join(posix.dirname(url), text));
+      let target = asServed;
+      if (!publicUrls.has(asServed)) {
+        const repository = path === null ? null : posix.normalize(posix.join(posix.dirname(path), text));
+        if (repository === null || (!Object.hasOwn(stand, repository) && !existsSync(join(root, repository)))) refuseModule(where, text, 'it is neither a public relay module nor a repository file');
+        target = serve(repository);
+      }
+      const relative = posix.relative(posix.dirname(url), target);
+      out = out.slice(0, row.start + 1) + (relative.startsWith('.') ? relative : `./${relative}`) + out.slice(row.end - 1);
+    }
+    return out;
+  };
+  while (pending.length) {
+    const [url, path] = pending.shift();
+    if (served.has(url)) continue;
+    if (!existsSync(join(root, path))) refuseModule(path, path, 'the file does not exist');
+    served.set(url, rewrite(url, path, readFileSync(join(root, path), 'utf8')));
+  }
+  for (const [url, source] of Object.entries(generated)) served.set(url, rewrite(url, null, source));
+  return served;
+}
 
 /** Refuse relay startup locally while the public shell has no relay session; keep its sign-in link and never reload. */
 const SIGN_IN_TRANSPORT = '/** Preserve device-only pairing before sign-in without starting relay reads. */\nimport { rememberPairing } from "./client.js";\nimport { registerApp } from "./install.js";\nexport function createTransport() {\n  void registerApp();\n  rememberPairing();\n  throw new Error("Sign in with GitHub to open your linked boards.");\n}\n';
@@ -35,44 +150,20 @@ function respond(res, type, content, scriptHashes = []) {
 
 /** Serve the board-free shell publicly; a session enables only its separate read-only relay transport. */
 export function createRelayBrowserHandler({ authenticate }) {
+  const modules = browserModules(ROOT, { named: BROWSER_MODULES, standins: BROWSER_STANDINS, generated: {
+    '/relay/screens.js': '/** Wire the first screens\' Copy buttons [H17]. */\nimport { wireRelayScreens } from \'./browser-notice.js\';\nwireRelayScreens(document);\n',
+    '/relay/sign-in.js': SIGN_IN_TRANSPORT,
+    '/relay/engine.js': 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\nexport const MACHINE = ' + JSON.stringify({ initial: MACHINE.initial, moves: MACHINE.moves.map(({ verb, from, to, by }) => ({ verb, from, to, by })) }) + ';\n',
+  } });
   const assets = new Map([
     ['/view.css', ['text/css', STYLES]],
     ['/relay/screens.css', ['text/css', readFileSync(new URL('./browser-screens.css', import.meta.url), 'utf8')]],
-    ['/relay/screens.js', ['text/javascript', '/** Wire the first screens\' Copy buttons [H17]. */\nimport { wireRelayScreens } from \'./browser-notice.js\';\nwireRelayScreens(document);\n']],
     ['/manifest.webmanifest', ['application/manifest+json', readFileSync(new URL('./app.webmanifest', import.meta.url), 'utf8')]],
     ['/service-worker.js', ['text/javascript', readFileSync(new URL('./service-worker.js', import.meta.url), 'utf8')]],
     ['/icons/pullboard.svg', ['image/svg+xml', readFileSync(new URL('./icons/pullboard.svg', import.meta.url), 'utf8')]],
     ['/icons/pullboard-192.png', ['image/png', readFileSync(new URL('./icons/pullboard-192.png', import.meta.url))]],
     ['/icons/pullboard-512.png', ['image/png', readFileSync(new URL('./icons/pullboard-512.png', import.meta.url))]],
-    ['/relay/install.js', ['text/javascript', readFileSync(new URL('./browser-install.js', import.meta.url), 'utf8')]],
-    ['/relay/device-keys.js', ['text/javascript', readFileSync(new URL('../src/relay-device-keys.js', import.meta.url), 'utf8')]],
-    ['/relay/relay-approval.js', ['text/javascript', readFileSync(new URL('../src/relay-approval.js', import.meta.url), 'utf8').replace("'./relay-device-keys.js'", "'./device-keys.js'")]],
-    ['/relay/browser-devices.js', ['text/javascript', readFileSync(new URL('./browser-devices.js', import.meta.url), 'utf8')]],
-    ['/relay/browser-excluded.js', ['text/javascript', readFileSync(new URL('./browser-excluded.js', import.meta.url), 'utf8')]],
-    ['/relay/excluded-notice.js', ['text/javascript', readFileSync(new URL('./excluded-notice.js', import.meta.url), 'utf8')]],
-    ['/relay/browser-approval-card.js', ['text/javascript', readFileSync(new URL('./browser-approval-card.js', import.meta.url), 'utf8')]],
-    ['/relay/browser-passkeys.js', ['text/javascript', readFileSync(new URL('./browser-passkeys.js', import.meta.url), 'utf8')]],
-    ['/relay/client.js', ['text/javascript', readFileSync(new URL('./browser-client.js', import.meta.url), 'utf8')]],
-    ['/relay/person-pairing-limit.js', ['text/javascript', readFileSync(new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url), 'utf8')]],
-    ['/relay/person-enrollment.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-enrollment.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
-    ['/relay/relay-limits.js', ['text/javascript', readFileSync(new URL('../src/relay-limits.js', import.meta.url), 'utf8')]],
-    ['/relay/sign-in.js', ['text/javascript', SIGN_IN_TRANSPORT]],
-    ['/relay/browser-notice.js', ['text/javascript', readFileSync(new URL('./browser-notice.js', import.meta.url), 'utf8')]],
-    ['/relay/browser-upload-status.js', ['text/javascript', readFileSync(new URL('./browser-upload-status.js', import.meta.url), 'utf8')]],
-    ['/relay/browser-deadline.js', ['text/javascript', readFileSync(new URL('./browser-deadline.js', import.meta.url), 'utf8').replace("'../src/refused.js'", "'./refused.js'")]],
-    ['/relay/browser-stream.js', ['text/javascript', readFileSync(new URL('./browser-stream.js', import.meta.url), 'utf8')]],
-    ['/relay/browser-pages.js', ['text/javascript', readFileSync(new URL('./browser-pages.js', import.meta.url), 'utf8').replaceAll("'../src/relay-page-layout.js'", "'./page-layout.js'").replaceAll("'../src/sealed-pages.js'", "'./sealed-pages.js'").replaceAll("'../src/refused.js'", "'./refused.js'")]],
-    ['/relay/browser-history.js', ['text/javascript', readFileSync(new URL('./browser-history.js', import.meta.url), 'utf8')]],
-    ['/relay/page-layout.js', ['text/javascript', readFileSync(new URL('../packages/pages/src/core/relay-page-layout.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
-    ['/relay/sealed-pages.js', ['text/javascript', readFileSync(new URL('../packages/pages/src/core/sealed-pages.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"').replace('"../../../kernel/src/core/seal.js"', '"./seal.js"')]],
-    ['/relay/model.js', ['text/javascript', readFileSync(new URL('./browser-model.js', import.meta.url), 'utf8').replace("'../src/refused.js'", "'./refused.js'").replace("'../src/machine.js'", "'./engine.js'").replaceAll("'../src/lifecycle-move.js'", "'./lifecycle-move.js'")]],
-    ['/relay/engine.js', ['text/javascript', 'export const ENGINE_VERSION = ' + ENGINE_VERSION + ';\nexport const MACHINE = ' + JSON.stringify({ initial: MACHINE.initial, moves: MACHINE.moves.map(({ verb, from, to, by }) => ({ verb, from, to, by })) }) + ';\n']],
-    ['/relay/lifecycle-move.js', ['text/javascript', readFileSync(new URL('../packages/items/src/core/lifecycle-move.js', import.meta.url), 'utf8')]],
-    ['/relay/seal.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/seal.js', import.meta.url), 'utf8')]],
-    ['/relay/api-moves.js', ['text/javascript', readFileSync(new URL('../src/api-moves.js', import.meta.url), 'utf8')]],
-    ['/relay/person-bar-effect.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-bar-effect.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
-    ['/relay/person-request.js', ['text/javascript', readFileSync(new URL('../packages/person/src/core/person-request.js', import.meta.url), 'utf8').replace('"../../../../src/refused.js"', '"./refused.js"')]],
-    ['/relay/refused.js', ['text/javascript', readFileSync(new URL('../packages/kernel/src/core/refused.js', import.meta.url), 'utf8')]],
+    ...[...modules].map(([path, source]) => [path, ['text/javascript', source]]),
   ]);
   return async function handleBrowser(req, res) {
     const path = new URL(req.url, 'http://localhost').pathname;
