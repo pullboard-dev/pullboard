@@ -13,7 +13,7 @@ import { browser, waitForDemoBoard } from './capture-browser.mjs';
 import { FIXED_TIME, isolatedEnv } from './demo-env.mjs';
 import { renderTour } from './tour-renderer.mjs';
 import { themeVariants } from '../img/theme.mjs';
-import { AGENT_SHELL_MARKERS } from '../../src/person.js';
+import { AGENT_SHELL_MARKERS } from '../../packages/kernel/index.js';
 
 const ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const BIN = join(ROOT, 'bin', 'pullboard.js');
