@@ -13,7 +13,7 @@ import { runShell } from '../src/shell-run.js';
 import { captureTestRuntimes, testRuntimeEnvironment } from '../packages/sandbox/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fileURLToPath } from 'node:url';
-import { bindRefs, resolveMove, strayItemRefs } from '../src/relay-outbox.js';
+import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
 import { recordNativeProof } from '../packages/verify/index.js';
 import { proofRunReceipt } from '../src/proof-receipts.js';
 import { createE2eHelpers } from './e2e-helpers.js';

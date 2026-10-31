@@ -23,7 +23,7 @@ import {
 } from './git.js';
 import {
   withFileLock,
-} from './relay-outbox-guard.js';
+} from '../packages/outbox/index.js';
 import {
   readMainAudit,
   saveMainAudit,

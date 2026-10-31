@@ -12,7 +12,7 @@ import { closeBoard } from '../src/board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../src/known-main-autofile-engine.js';
 import { rememberCreatedItems } from '../src/relay-created-items.js';
-import { bindRefs, resolveMove } from '../src/relay-outbox.js';
+import { bindRefs, resolveMove } from '../packages/outbox/index.js';
 import { readGateReceipt } from '../src/gate-run-receipt.js';
 import { sealKnownMainAutofile } from '../src/known-main-autofile-receipts.js';
 import { validateKnownMainAutofile } from '../src/known-main-autofile.js';

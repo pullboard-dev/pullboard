@@ -26,7 +26,7 @@ import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
 import { withGitFacts } from './git.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
-import { withFileLock } from './relay-outbox-guard.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { maintenanceTimerWarning } from './worktree-maintenance-diagnostics.js';
 import { readMaintenanceLastRun } from './worktree-maintenance-diagnostics.js';
 import { maintenanceDurations } from '../packages/config/index.js';

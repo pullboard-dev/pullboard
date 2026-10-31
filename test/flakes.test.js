@@ -32,7 +32,7 @@ import { context } from '../src/cli.js';
 import { ordered } from '../src/cli.js';
 import { withBoard } from '../src/cli.js';
 import { runSubmitGate } from '../src/gate.js';
-import { withFileLock } from '../src/relay-outbox-guard.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { readMainAudit } from '../src/main-audit-state.js';
 import { saveMainAudit } from '../src/main-audit-state.js';
 import { landingLeaseState } from '../src/board-landing-lease.js';
