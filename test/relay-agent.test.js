@@ -1,5 +1,5 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
 /** @pullboard-test-gui */
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
