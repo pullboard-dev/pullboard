@@ -21,7 +21,7 @@ import { mappedPath } from '../packages/codemap/index.js';
 import { Refused } from '../src/refused.js';
 
 /** Attribute original paths, moved identities and front doors to their committed plan cell. */
-function ownerFor(plan, map) {
+export function ownerFor(plan, map) {
   const paths = new Map();
   for (const cell of plan.cells) {
     paths.set(cell.frontDoor, cell.name);

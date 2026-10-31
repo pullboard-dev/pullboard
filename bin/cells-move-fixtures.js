@@ -254,7 +254,23 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       const row = copierReads.get(name);
       return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
     };
-    if (!operationalMentions(source, scanned, moves.map(([from]) => posix.basename(from)), copierNames, provenCopier).length) return { edits, problems };
+    const readerNames = new Set([...real.bindings].filter(([, row]) => row.module === 'fs' && READS.has(row.imported)).map(([name]) => name));
+    const operationNames = new Set([...real.bindings].filter(([, row]) =>
+      row.module === 'fs' && READS.has(row.imported)
+      || row.module === 'path' && ['join', 'resolve', 'dirname', 'normalize', 'relative', 'basename', 'extname', 'isAbsolute'].includes(row.imported)).map(([name]) => name));
+    let readerReads = null;
+    const provenOperation = (name, at) => {
+      if (!operationNames.has(name)) return false;
+      if (!readerReads) {
+        try {
+          readerReads = bindingReadsForModules([{ file, source, body: real.body, bindings: [...operationNames].map(local => ({ local })) }]).get(file);
+        } catch { readerReads = new Map(); }
+      }
+      const row = readerReads.get(name);
+      return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
+    };
+    const provenReader = (name, at) => readerNames.has(name) && provenOperation(name, at);
+    if (!operationalMentions(source, scanned, moves.map(([from]) => from), copierNames, provenCopier, provenReader, provenOperation).length) return { edits, problems };
   }
   const ports = sourceExportPorts(readSource);
   let sourcePortsUsed = false;
@@ -494,6 +510,10 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     const parsed = call(range);
     if (!parsed) return null;
     if (operation(parsed, 'fs', ['mkdtempSync'])) return { fixture: true };
+    if (operation(parsed, 'fs', ['realpathSync']) && parsed.args.length === 1) {
+      const value = path(parsed.args[0], substitutions, seen);
+      if (value?.fixture) return value;
+    }
     // The canonical copier's resolver follows shims to the moved body in every fixture, for any move.
     const copier = imported.bindings.get(parsed.name);
     if (!parsed.member && copier?.module === 'source' && copier.imported === 'toolSourcePath'
@@ -513,7 +533,14 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     const method = operation(parsed, 'path', ['join', 'resolve', 'dirname']);
     if (!method || !parsed.args.length) return null;
     const base = path(parsed.args[0], substitutions, seen);
-    if (!base || base.fixture) return base;
+    if (!base) return null;
+    if (base.fixture) {
+      // A fresh directory proves only its descendants; dirname, absolute resets and parent traversal can escape it.
+      if (method === 'dirname') return null;
+      const segments = parsed.args.slice(1).map(arg => literal(arg, substitutions));
+      return segments.every(segment => typeof segment === 'string' && segment && !posix.isAbsolute(segment)
+        && !segment.split('/').includes('..')) ? base : null;
+    }
     if (method === 'dirname' && parsed.args.length === 1) return { path: posix.dirname(base.path), render: target => base.render(target) };
     if (method === 'dirname') return null;
     const segments = parsed.args.slice(1).map(arg => literal(arg, substitutions));
