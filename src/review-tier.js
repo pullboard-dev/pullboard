@@ -2,15 +2,22 @@
 import { REVIEW_DEFAULT_ENGINE } from './review-default-engine.js';
 import { REVIEW_TIER_ENGINE } from './review-tier-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
-import { itemPatches } from './item-patch-state.js';
-import { itemPatchPaths } from './item-patch-paths.js';
-import { outsideSource } from './outside-source.js';
+import { itemPatches } from '../packages/items/core.js';
+import { itemPatchPaths } from '../packages/items/core.js';
+import { outsideSource } from '../packages/items/core.js';
 
 // Rulings 39301/39401: source areas and named guard tests, never all test/board/review/person families.
 const SOURCE_DIRECTORIES = ['relay/', 'src/gate/', 'src/auth/', 'src/relay/', 'src/kernel/', 'src/landing/', 'src/runner/',
   'bin/checks/', '.githooks/', '.husky/', '.github/workflows/'];
 const SOURCE_FAMILIES = ['gate', 'landing', 'runner', 'relay'];
 const SOURCE_FILES = new Set([
+  // Exact moved identities retain their existing Strict classification (#1565).
+  'packages/items/src/shell/parent-session.js',
+  'packages/items/src/shell/item-patches.js',
+  'packages/items/src/shell/item-patch-state.js',
+  'packages/items/src/shell/item-patch-compose.js',
+  'packages/items/src/core/item-patch-paths.js',
+  'packages/items/src/shell/item-authors.js',
   'package.json', 'pullboard.json', 'bin/run-tests.js',
   // Check admission, selection and the evidence that decides whether a failure blocks.
   'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',

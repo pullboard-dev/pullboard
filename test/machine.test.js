@@ -150,6 +150,7 @@ const CAUGHT = {
   'review-reachability.js#unreviewableStrict': ['review-eligibility.js#reviewEligibility'], // Eligibility is read as data; only its own refusal escapes.
   // Invalid authenticated-link metadata remains an unavailable dependency inside these exact catches.
   'cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', 'board-link-state.js#readReceivedBoardState'],
+  '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../src/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
@@ -184,6 +185,13 @@ const CAUGHT = {
  * Keep walking the CLI dispatcher itself so a new item rule there cannot hide behind this boundary.
  */
 const TRANSPORT_BOUNDARIES = new Set(['relay.js#relayLinked', 'relay.js#relayOperation', 'relay.js#relayRecovered', 'relay.js#relayCommandReceipt', 'relay.js#relayCommandReceiptReported']);
+
+/** Exact moved providers retain the same injected lifecycle callbacks as their original bodies. */
+const ITEM_CALLBACK_SOURCES = {
+  '../packages/items/src/core/reopen-authority.js': 'reopen-authority.js',
+  '../packages/items/src/shell/outside-verify.js': 'outside-verify.js',
+  '../packages/items/src/shell/item-authors.js': 'item-authors.js',
+};
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
@@ -220,10 +228,11 @@ function codeWalk(read, { caught = false } = {}) {
     let facts = localFacts.get(key);
     if (!facts) {
       const body = bodies.get(name) ?? '';
+      const callbacks = CALLBACKS[file] ?? CALLBACKS[ITEM_CALLBACK_SOURCES[file]];
       const codes = new Set([...body.matchAll(/new Refused\(\s*(['"])([A-Z][A-Z0-9_]*)\1/g)].map((match) => match[2]));
       const callees = [
-        ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? CALLBACKS[file]?.[callee])),
-        ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : CALLBACKS[file]?.[`${space}.${callee}`])),
+        ...[...body.matchAll(/(?<!\w)(?<!(?<!\.\.)\.)(\w+)\(/g)].map(([, callee]) => (bodies.has(callee) ? `${file}#${callee}` : named.get(callee) ?? callbacks?.[callee])),
+        ...[...body.matchAll(/\b(\w+(?:\.\w+)*)\.(\w+)\(/g)].map(([, space, callee]) => (spaces.has(space) ? `${spaces.get(space)}#${callee}` : callbacks?.[`${space}.${callee}`])),
       ];
       callees.push(...runnerControllerCallees(file, body, source));
       facts = { codes, callees };
@@ -236,7 +245,7 @@ function codeWalk(read, { caught = false } = {}) {
     }
     return codes;
   };
-  return { functions: (file) => [...load(file).bodies.keys()], refusalsOf };
+  return { functions: (file) => [...(load(file).bodies.size ? load(file).bodies.keys() : load(file).named.keys())], refusalsOf };
 }
 
 /**
@@ -561,7 +570,7 @@ test('a broken copy of the code fails the check: a refusal added wherever a move
       "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
     assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignReader), [], 'only the exact foreign evidence reader is caught as unavailable');
   }
-  const inForeignCaller = editedSource('cross-repo-dependencies.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
+  const inForeignCaller = editedSource('../packages/items/src/core/cross-repo-dependencies.js', /^function stateFor\(board, ref, readReceivedBoardState\) \{$/m,
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machineRules.MACHINE, inForeignCaller).sort(), [
     'MOON_PHASE is raised by claim but not declared there',
@@ -1302,11 +1311,13 @@ test('the two conditional guards behave as declared: a renewal passes a held lan
  */
 function statusWriters(read) {
   const writers = [];
+  const movedFiles = packageFiles(fileURLToPath(new URL('..', import.meta.url)))
+    .filter(file => file.startsWith('packages/items/src/') && file.endsWith('.js')).map(file => `../${file}`);
   const files = [...fs.readdirSync(new URL('../src/', import.meta.url)).filter((name) => name.endsWith('.js')),
-    '../packages/config/src/core/json.js'];
+    '../packages/config/src/core/json.js', ...movedFiles];
   for (const file of files) {
     const source = read(file);
-    const allowedNames = file === 'board.js' ? ['moveItem'] : file === 'item-fields.js' ? ['setItem'] : file === 'board-query.js' ? ['current'] : [];
+    const allowedNames = file === 'board.js' ? ['moveItem'] : file === '../packages/items/src/core/item-fields.js' ? ['setItem'] : file === 'board-query.js' ? ['current'] : [];
     const allowed = allowedNames.map((name) => functionsIn(source).get(name));
     const spans = allowed.filter(Boolean).map((body) => [source.indexOf(body), source.indexOf(body) + body.length]);
     if (file === 'json.js' || file === '../packages/config/src/core/json.js') {
@@ -1326,9 +1337,9 @@ function statusWriters(read) {
 
 test('only moveItem writes an item\'s status, and a write anywhere else fails the check [M1]', () => {
   assert.deepEqual(statusWriters(fromDisk), []);
-  const besideSetter = editedSource('item-fields.js', /^export function setItem/m,
+  const besideSetter = editedSource('../packages/items/src/core/item-fields.js', /^export function setItem/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function setItem");
-  assert.deepEqual(statusWriters(besideSetter), ['item-fields.js#reopenByHand'], 'the generic setter exemption never covers a writer beside it');
+  assert.deepEqual(statusWriters(besideSetter), ['../packages/items/src/core/item-fields.js#reopenByHand'], 'the generic setter exemption never covers a writer beside it');
   const besideReader = editedSource('board-query.js', /^export function current/m,
     "export function reopenByHand(board, id) {\n  board.db.prepare(\"update item set item_status = 'open' where item_id = ?\").run(id);\n}\n\nexport function current");
   assert.deepEqual(statusWriters(besideReader), ['board-query.js#reopenByHand'], 'the projection exemption never covers a writer beside it');
