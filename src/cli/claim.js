@@ -168,7 +168,7 @@ export async function ordered(ctx, board, operation, args) {
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());
     if (!ctx.privateBoard && requested && gitSyncLinked(ctx.info.root)) ctx.io.recordedMove = true;
-    await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor });
+    await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
   };
   const digest = personIdentity.agentSessionDigest();
