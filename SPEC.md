@@ -73,7 +73,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - V16 [approved, must] Submit runs the gate itself on the exact tree it submits, never trusting an earlier stamp. | gate: test/gate.test.js | serves: P1
 - V17 [draft, must] Submit refuses a head carrying commits pinned to another item that is not verified. | gate: test/e2e.test.js | serves: V6
 - V18 [draft, must] Accept runs the repo's install step before the frozen check; a failed install or timeout reads unverified, never red. | gate: test/e2e.test.js | serves: V2
-- V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: test/verdict-check.test.js | serves: V8
+- V19 [draft, must] Every accept records whether a frozen check ran at the submitted commit; show and the ledger say so. | gate: packages/store/tests/verdict-check.test.js | serves: V8
 
 ## O · Options
 - O1 [approved, aim] Pullboard asks the person once whether to check for new releases, and checks only if they said yes; pullboard update upgrades on request. | gate: test/settings.test.js | serves: O5
