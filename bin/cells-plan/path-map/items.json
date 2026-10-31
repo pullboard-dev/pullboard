@@ -1,3 +1,4 @@
 {
+  "src/outside-sensitive.js": "packages/items/src/core/outside-sensitive.js",
   "src/outside-source.js": "packages/items/src/core/outside-source.js"
 }
