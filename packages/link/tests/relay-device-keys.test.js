@@ -1,18 +1,22 @@
 /** Real device enrollment and key wraps; actual WebCrypto only [H5,H15,H17]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runFixtureChild as spawnSync } from './fixture-child.js';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { runFixtureChild as spawnSync } from '../../../test/fixture-child.js';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { acceptDeviceEnrollment, beginDeviceEnrollment, readRelayMachine, removeRecordedDevice, wrapForRecordedDevice } from '../src/relay-machine.js';
-import {
-  authenticateDeviceEnrollment,
-  createDeviceKeys,
-  signDeviceEnrollment,
-  unwrapDeviceBoardKey,
-  wrapDeviceBoardKey,
-} from '../packages/keys/index.js';
+import { acceptDeviceEnrollment } from '../src/shell/relay-machine.js';
+import { beginDeviceEnrollment } from '../src/shell/relay-machine.js';
+import { readRelayMachine } from '../src/shell/relay-machine.js';
+import { removeRecordedDevice } from '../src/shell/relay-machine.js';
+import { wrapForRecordedDevice } from '../src/shell/relay-machine.js';
+import { authenticateDeviceEnrollment } from '../../keys/index.js';
+import { createDeviceKeys } from '../../keys/index.js';
+import { signDeviceEnrollment } from '../../keys/index.js';
+import { unwrapDeviceBoardKey } from '../../keys/index.js';
+import { wrapDeviceBoardKey } from '../../keys/index.js';
 
 /** Encode test bytes using the protocol's canonical unpadded base64url representation. */
 function b64url(bytes) {
@@ -133,7 +137,7 @@ test('machine device enrollment survives a new process and refuses unrecorded or
   await assert.rejects(wrapForRecordedDevice(key, { ...context, device: other.deviceId }, owner), { code: 'DEVICE_NOT_ENROLLED' });
   await assert.rejects(wrapForRecordedDevice(key, context, { ...owner, account: 'other-account' }), { code: 'DEVICE_NOT_ENROLLED' });
   assert.equal(statSync(join(home, 'relay-machine/state.json')).mode & 0o777, 0o600);
-  const module = new URL('../src/relay-machine.js', import.meta.url).href;
+  const module = new URL('../src/shell/relay-machine.js', import.meta.url).href;
   const restarted = spawnSync(process.execPath, ['--input-type=module', '-e',
     `import {readRelayMachine} from ${JSON.stringify(module)}; console.log(JSON.stringify(readRelayMachine().devices.map(device => device.deviceId)));`],
   { env: process.env, encoding: 'utf8' });

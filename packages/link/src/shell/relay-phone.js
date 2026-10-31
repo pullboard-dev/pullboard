@@ -2,19 +2,17 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { basename } from 'node:path';
-import {
-  approvalContext,
-  createApprovalReply,
-  openApproval,
-  sealApproval,
-  signApprovalIntent,
-} from './relay-approval.js';
-import { readBoardKey } from '../packages/keys/index.js';
+import { approvalContext } from '../core/relay-approval.js';
+import { createApprovalReply } from '../core/relay-approval.js';
+import { openApproval } from '../core/relay-approval.js';
+import { sealApproval } from '../core/relay-approval.js';
+import { signApprovalIntent } from '../core/relay-approval.js';
+import { readBoardKey } from '../../../keys/index.js';
 import { readRelayMachine } from './relay-machine.js';
-import { requirePersonChannel } from './person.js';
-import { repoInfo } from './git.js';
-import { listApiProjects } from './projects.js';
-import { Refused } from '../packages/kernel/index.js';
+import { requirePersonChannel } from '../../../person/index.js';
+import { repoInfo } from '../../../../src/git.js';
+import { listApiProjects } from '../../../seats/index.js';
+import { Refused } from '../../../kernel/core.js';
 
 /** Select only a phone whose public key was MAC-authenticated into this native machine's roster. */
 export function approvalPhone(state, { exclude } = {}) {

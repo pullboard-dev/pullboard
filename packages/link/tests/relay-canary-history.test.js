@@ -1,8 +1,8 @@
 /** Ordinary client traffic cannot change the configured monitor's alert window [H5,H17]. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { observeRelayHealth } from '../src/relay-canary-health.js';
-import { relayClientFixture } from './relay-client-fixture.js';
+import { observeRelayHealth } from '../src/shell/relay-canary-health.js';
+import { relayClientFixture } from '../../../test/relay-client-fixture.js';
 
 const SLOW = { ok: true, step: 'complete', code: 'OK', roundTripMs: 2101, relayVersion: 1 };
 const FAST = { ...SLOW, roundTripMs: 10 };
