@@ -287,3 +287,9 @@ test('runners move preserves strict tier for every previously strict body [V4,B2
   }
   assert.equal(gateJudgmentPath('packages/runners/tests/unrelated.test.js'), false);
 });
+
+test('outbox move keeps the format guard strict without broadening test paths [V4,B26,H16]', () => {
+  assert.equal(gateJudgmentPath('test/relay-outbox-format.test.js'), true);
+  assert.equal(gateJudgmentPath('packages/outbox/tests/relay-outbox-format.test.js'), true);
+  assert.equal(gateJudgmentPath('packages/outbox/tests/relay-outbox-format-extra.test.js'), false);
+});
