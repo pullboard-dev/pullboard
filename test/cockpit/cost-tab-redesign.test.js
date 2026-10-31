@@ -8,6 +8,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { costOverviewHtml, bindCostOverview } from '../../src/view/cost-overview.js';
+import { modelPresentation } from '../../src/view/model-presentation.js';
+import { costAnalytics } from '../../packages/stats/index.js';
 import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import { chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
@@ -28,7 +30,7 @@ test('the private Cost overview renders prepared analytics and each confidence [
     assert.equal(geometry.parts.length,2); assert.equal(geometry.parts[1].y + geometry.parts[1].height, geometry.parts[0].y, 'daily segments stack without overlap');
     assert.ok(geometry.ranges >= 2); assert.equal(geometry.split,2);
     assert.equal(await chrome.stable("document.querySelectorAll('.cost-model-table').length"), 1, 'building and verifying share the model table');
-    assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted came back later/u);
+    assert.match(await chrome.stable("document.querySelector('.cost-model-table').innerText"), /Accepted, came back later/u);
 
     await chrome.click("document.querySelector('[data-cost-window=\"30d\"]')");
     await chrome.waitFor("document.querySelector('[data-cost-window=\"30d\"]').getAttribute('aria-pressed') === 'true'");
@@ -89,4 +91,26 @@ test('the private Cost tab consumes the server projection and routes controls [N
       assert.deepEqual(publicChrome.exceptions, []);
     } finally { if (publicChrome) await closeSnapshotChrome(publicChrome); await publicView.close(); }
   } finally { if (chrome) await closeSnapshotChrome(chrome); await view.stop(); rmSync(dir,{recursive:true,force:true}); }
+});
+
+test('Cost names merge, the unrecorded note hides at zero, and unknown durations stay out of the totals [N26]', () => {
+  assert.equal(modelPresentation('GPT-6/openai').name, 'GPT-6', 'a /vendor suffix is dropped before matching');
+  assert.deepEqual([modelPresentation('GPT-6/openai').key, modelPresentation('GPT-6').key], ['gpt-6', 'gpt-6']);
+  assert.equal(modelPresentation('GPT-6 Codex').name, 'Codex');
+  assert.equal(modelPresentation('GPT-6/openai').vendor, 'OpenAI');
+  const base = { version: 1, window: '7d', totals: { agentMs: 7200000, itemCount: 2, sentBack: { itemShare: 0, agentMsShare: 0, agentMs: 0 } }, days: [{ date: '2026-10-28', firstTimeMs: 3600000, sentBackMs: 3600000, items: 2 }], builders: { rows: [] }, verifiers: { rows: [] }, longest: [], allItems: 2 };
+  assert.doesNotMatch(costOverviewHtml({ ...base, unknownBuilderModelShare: 0 }), /record which model built them/u, 'no note at 0%');
+  assert.match(costOverviewHtml({ ...base, unknownBuilderModelShare: 0.5 }), /50% of items don't record which model built them/u);
+  const html = costOverviewHtml(base);
+  assert.match(html, />Wed<\/text>/u, 'the axis names the weekday');
+  assert.match(html, /<title>Wednesday, Oct 28\n2 items landed/u, 'each bar has a tooltip');
+  assert.match(html, /<text class="v"[^>]*>2\.0 h<\/text>/u, 'each bar carries its hours');
+  assert.doesNotMatch(html, /🔒/u, 'a line lock icon, not the emoji');
+  const at = '2026-10-28T15:00:00.000Z', event = (id, kind, item, by, detail = {}) => ({ event_id: id, event_kind: kind, item_id: item, event_by: by, event_at: at, event_detail: JSON.stringify(detail) });
+  const result = costAnalytics({ items: [{ item_id: 1, item_title: 'A' }, { item_id: 2, item_title: 'B' }], agents: [], window: '7d', now: new Date('2026-10-30T12:00:00Z'), timeZone: 'UTC', modelPresentation,
+    events: [event(1, 'submit', 1, 'x'), event(2, 'merged', 1, 'x'), event(3, 'merged', 2, 'x'), event(4, 'usage', 1, 'x', { item: 1, revision: 1, records: [{ model: 'M', wallMs: 3600000, inputTokens: 5 }, { model: 'M', wallMs: 3600000, inputTokens: 5 }] })] });
+  assert.equal(result.totals.itemCount, 2);
+  assert.equal(result.totals.agentMs, 7200000, 'an item with no recorded time does not blank the total');
+  assert.equal(result.days[0].firstTimeMs, 7200000, 'nor the day');
+  assert.equal(result.longest[0].sessions[0].count, 2, 'a model line counts its sessions');
 });
