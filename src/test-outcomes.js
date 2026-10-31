@@ -5,24 +5,8 @@ import { sep } from 'node:path';
 const PREFIX = '# pullboard test outcomes ';
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u;
 
-/** Normalize bounded per-test facts; malformed or duplicate identities grant no quarantine evidence. */
-export function testOutcomeFields(value) {
-  if (!Array.isArray(value) || !value.length || value.length > 100000) return null;
-  const keys = new Set(), rows = [];
-  for (const row of value) {
-    if (!row || Object.keys(row).sort().join(',') !== 'file,name,passed,skipped'
-      || typeof row.file !== 'string' || !row.file || row.file.length > 4096
-      || row.file.startsWith('/') || /^[A-Za-z]:/u.test(row.file) || /[\\\r\n\0]/u.test(row.file)
-      || row.file.split('/').some(part => !part || part === '.' || part === '..')
-      || typeof row.name !== 'string' || !row.name || row.name.length > 8192 || /[\r\n\0]/u.test(row.name)
-      || typeof row.passed !== 'boolean' || typeof row.skipped !== 'boolean') return null;
-    const key = JSON.stringify([row.file, row.name]);
-    if (keys.has(key)) return null;
-    keys.add(key);
-    rows.push({ file: row.file, name: row.name, passed: row.passed, skipped: row.skipped });
-  }
-  return rows;
-}
+import { testOutcomeFields } from '../packages/verify/core.js';
+export { testOutcomeFields } from '../packages/verify/core.js';
 
 /** Observe the controller's actual Node events before public reporters can interpret their output. */
 export function testOutcomeCollector(root) {

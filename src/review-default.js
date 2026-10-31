@@ -3,10 +3,9 @@ import { REVIEW_DEFAULT_ENGINE } from './review-default-engine.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { gateJudgmentItem } from './review-tier.js';
 import { itemReviewPolicy } from './review-policy.js';
-import { logEvent } from './board-event-log.js';
 
 /** Existing snapshots change only on a successful modern write; failed writes roll back this witness too. */
-export function normalizeReviewDefaults(board) {
+export function normalizeReviewDefaults(board, { logEvent }) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_DEFAULT_ENGINE) return;
   if (!board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='item'").get()
     || !board.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='board_meta'").get()) return;

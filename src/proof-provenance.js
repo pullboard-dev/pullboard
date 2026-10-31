@@ -1,7 +1,7 @@
 /** Normalize execution facts without inventing missing runtime identities or test counts [C7,H16]. */
 import { createHash } from 'node:crypto';
 import { environmentProblem } from './config.js';
-import { testOutcomeFields } from './test-outcomes.js';
+import { testOutcomeFields } from '../packages/verify/core.js';
 import { quarantineVerdictFields } from './quarantine-verdict.js';
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
