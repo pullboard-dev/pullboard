@@ -1,0 +1,47 @@
+/** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
+// The front door: each runner step lives in its own module; this file only re-exports and dispatches.
+export { placeRunner, runnerStage } from '../../../../src/runner-stage-model.js';
+import { validateRunner } from '../../../../src/gate-policy-load.js';
+import { runnerSource } from '../../../../src/gate-policy-load.js';
+import { RunnerDropped } from '../../../../src/gate-policy-load.js';
+import { inRunnerGeneration } from '../../../../src/runner-remote-tooling.js';
+import { pinRunnerTooling } from '../../../../src/runner-remote-tooling.js';
+import { runOnRunner } from '../../../../src/runner-dispatch.js';
+import { runOnRunnerAsync as runOnRunnerAsyncStep } from '../../../../src/runner-dispatch.js';
+import { serveRunnerController as serveRunnerControllerStep } from '../../../../src/runner-dispatch.js';
+import { refuseLegacyControllerEntry } from '../../../../src/runner-dispatch.js';
+import { probeRunnerHealth as probeRunnerHealthStep } from '../../../../src/runner-health.js';
+import { probeRunnerJob as probeRunnerJobStep } from '../../../../src/runner-health.js';
+import { runnerExecutionServices as runnerExecutionServicesStep } from '../../../../src/runner-health.js';
+export { validateRunner, runnerSource, RunnerDropped };
+export { runOnRunner };
+
+// This instance's controller generation, pinned at load as the single file pinned it.
+const GENERATION = pinRunnerTooling();
+
+/** Isolate asynchronous execution in a fresh controller, refusing tooling changed since this instance loaded. */
+export async function runOnRunnerAsync(root, command, options) {
+  return inRunnerGeneration(GENERATION, () => runOnRunnerAsyncStep(root, command, options));
+}
+
+/** Serve only a directly launched controller, under the generation this entry loaded. */
+export async function serveRunnerController(ports) {
+  return inRunnerGeneration(GENERATION, () => serveRunnerControllerStep(ports));
+}
+
+/** Ask this instance's pinned worker for exact cleanup or an explicit idle and writable proof. */
+export async function probeRunnerHealth(runner, previous, options) {
+  return inRunnerGeneration(GENERATION, () => probeRunnerHealthStep(runner, previous, options));
+}
+
+/** Observe an exact job through this instance's pinned worker generation, never request-selected code. */
+export async function probeRunnerJob(runner, identity, options) {
+  return inRunnerGeneration(GENERATION, () => probeRunnerJobStep(runner, identity, options));
+}
+
+/** Supply the canonical late-bound runner operations, bound to this instance's generation. */
+export function runnerExecutionServices() {
+  return runnerExecutionServicesStep({ runOnRunner, runOnRunnerAsync, probeRunnerHealth });
+}
+
+refuseLegacyControllerEntry(new URL('../../../../src/runners.js', import.meta.url));
