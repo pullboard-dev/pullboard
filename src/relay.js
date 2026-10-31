@@ -203,9 +203,9 @@ const AUTH_NOTICES = new WeakSet();
 const DELETION_NOTICES = new WeakSet();
 
 /** Refuse a re-home that names an ID still owned by an unacknowledged local add. */
-async function requireAuthoritativeRehomeItem(file, state, itemId) {
+async function requireAuthoritativeRehomeItem(file, state, itemId, io) {
   if (!state || !Number.isSafeInteger(itemId) || itemId < 1 || !existsSync(outboxFile(file))) return;
-  await withOutboxGuard(file, async () => {
+  await (io.withOutboxGuard ?? withOutboxGuard)(file, async () => {
     if (!existsSync(outboxFile(file))) return;
     if (await outboxHasPendingCreatedItem(outboxFile(file), readBoardKey(state.board), state.board, itemId)) {
       throw new Refused('RELAY_OUTBOX_UNBOUND', `item #${itemId} is still waiting for relay order; run pullboard status until it is sent, look up the current item ID, then retry the move`);
@@ -216,7 +216,7 @@ async function requireAuthoritativeRehomeItem(file, state, itemId) {
 /** Check a selected team item before move-command destination reservation can choose another ID. */
 export async function assertRehomeSourceItemOrdered(root, itemId, io) {
   const file = linkFile(root);
-  await locked(file, async () => requireAuthoritativeRehomeItem(file, loadLink(file), itemId), io);
+  await locked(file, async () => requireAuthoritativeRehomeItem(file, loadLink(file), itemId, io), io);
 }
 /** Find the shared local link metadata without opening a board or connecting for an unlinked repo. */
 function linkFile(root) { return relayFiles(repoInfo(root).commonDir).link; }
@@ -1029,7 +1029,7 @@ async function queueLocally(root, file, operation, args, io, command, applyLocal
     queue: () => { throw new Refused('RELAY_OUTBOX', 'a local-first move queues itself; it is never queued twice'); },
   });
   // An unlink that finished while this move waited for the guard leaves an ordinary local board.
-  const result = await withOutboxGuard(file, () => {
+  const result = await (io.withOutboxGuard ?? withOutboxGuard)(file, () => {
     // A revoke can finish while this move waits: admission uses the cache protected by this guard, never its earlier snapshot.
     const current = loadLink(file);
     return !current ? guarded.apply() : queueMove(outboxLink(root, file, current, io, senderPolicy),
@@ -1049,7 +1049,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
   if (local) return queueLocally(root, file, operation, args, io, command, applyLocally, onRecorded, senderPolicy);
   return locked(file, async () => {
     const state = loadLink(file);
-    if (operation === 'rehomeItem') await requireAuthoritativeRehomeItem(file, state, args?.[0]);
+    if (operation === 'rehomeItem') await requireAuthoritativeRehomeItem(file, state, args?.[0], io);
     const guarded = landingRelayCallbacks(operation, args, {
       apply: () => typeof applyLocally === 'function' ? applyLocally() : localRecords(root, (board) => board.enginePorts.store[operation](board, ...args)),
       queue: (error, move, apply) => queueMove(outboxLink(root, file, state, io, senderPolicy), { operation, args, command, move, error, applyLocally: apply }),
@@ -1293,7 +1293,7 @@ export async function relayRevoke(root, id, io) {
     const result = await nativePhoneAction(state, 'revoke-token', id, io, request);
     if (result.id !== id || result.revoked !== true) throw new Refused('RELAY_RESPONSE', 'the relay did not acknowledge this token revocation; retry its opaque id');
     // Queue admission and the local revocation marker share one short guard; the phone and network never hold it.
-    await withOutboxGuard(file, () => {
+    await (io.withOutboxGuard ?? withOutboxGuard)(file, () => {
       const current = loadLink(file);
       for (const credential of Object.values(current.agentTokens ?? {})) if (credential.id === id) credential.revoked = true;
       saveLink(file, current);
@@ -1658,7 +1658,7 @@ export async function relayOff(root, io) {
     catch { /* Missing key or pairing cannot stop local unlinking. */ }
     rememberRelink(root, state.board);
     // A local-first move queues under the outbox guard, so the outbox is set aside under it too (#1013).
-    await withOutboxGuard(file, () => archiveRelinkOutbox(root, state));
+    await (io.withOutboxGuard ?? withOutboxGuard)(file, () => archiveRelinkOutbox(root, state));
     rmSync(file, { force: true });
     try { forgetBoardKey(state.board, state.keyStorage); }
     catch { /* The local opt-out is complete even when secure key storage is temporarily locked. */ }
