@@ -1,5 +1,5 @@
 import { CHECK_ACCEPT_ENGINE } from '../../../../src/move-engine-constants.js';
-export { CHECK_ACCEPT_ENGINE };
+export { CHECK_ACCEPT_ENGINE } from '../../../../src/move-engine-constants.js';
 /**
  * A check that already passes on main proves nothing, so a board that asks for it holds the item
  * until the person accepts that exact check [V2,V4,B26].

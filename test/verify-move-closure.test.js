@@ -48,7 +48,7 @@ const read = file => {
 
 test('the worker and move registry reach exactly the verify files they reached before the move [C7,CD60,H16]', () => {
   assert.deepEqual(closure(WORKER, read).verify, ['src/proof-provenance.js', 'src/quarantine-verdict.js']);
-  assert.deepEqual(closure(MOVES, read).verify, ['src/bar-check.js', 'src/bar-corrections.js', 'src/proof-provenance.js',
+  assert.deepEqual(closure(MOVES, read).verify, ['src/bar-check.js', 'src/proof-provenance.js',
     'src/quarantine-verdict.js', 'src/required-review-family.js', 'src/review-policy.js', 'src/review-tier.js']);
   assert.ok(!closure(MOVES, read).native.includes('node:child_process'), 'the registry gained no process launcher');
 });

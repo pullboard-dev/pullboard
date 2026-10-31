@@ -2,10 +2,9 @@
 export { normalizeReviewDefaults } from './src/shell/review-default.js';
 export { barActorForCommand, nativeBarActor, nativeBarActorForSeat, normalizeBarActor } from './src/shell/bar-actor.js';
 export { barCheckEnabled, barCheckFactFields, barCheckState, barCheckWarning } from './src/core/bar-check.js';
-export { BAR_ENGINE, barCorrectionFields, barCorrectionLine, barCorrections, barReadySetting, barStatsLines, carriesBarReason, readBarState } from './src/shell/bar-corrections.js';
 export { barCoverageCommand, barCoverageDigest, barCoverageForPolicy, barTestPath, normalizeBarCoverage, prepareBarCoverage, previewBarCoverage } from './src/shell/bar-coverage.js';
-export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar } from './src/shell/bar-readiness.js';
-export { CHECK_ACCEPT_ENGINE, PROVES_NOTHING_HOLD, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/shell/check-accept.js';
+export { barDigest, barNotes, barReadiness, barReadinessRequired, barReadyProblem, recordBarRevision, setBarReady, signBar, barReadySetting } from './src/shell/bar-readiness.js';
+export { PROVES_NOTHING_HOLD, acceptCheck, checkAcceptCommand, checkAcceptance, checkDigest, provingCheck, refuseClaimProvesNothing, refuseProvesNothing } from './src/shell/check-accept.js';
 export { citedTestFiles, rowEvidence, rowStage } from './src/shell/evidence.js';
 export { nextReview, ownSessionReviews, returnUnmergeable } from './src/core/next-review.js';
 export { completeMoveHandoff } from './src/core/post-move-handoff.js';
@@ -36,3 +35,4 @@ export { editCheck, selfWidenedFiles, widenedCheckFiles } from './src/shell/chec
 export { asSubmitted, refuseUnreviewable, unreviewableStrict } from './src/core/review-reachability.js';
 export { compositionAuthors, compositionFamilyFallback, compositionOwner, compositionReviews, compositionSessionOptions, reviewPatchAuthors } from './src/shell/review-composition.js';
 export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarantineBatchGates, quarantineVerdict, quarantineVerdictFields, receiptBlockingGreen } from './src/core/quarantine-verdict.js';
+export { CHECK_ACCEPT_ENGINE } from '../../src/move-engine-constants.js';
