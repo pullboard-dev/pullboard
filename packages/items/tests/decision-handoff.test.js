@@ -17,9 +17,9 @@ function signature(value) {
 }
 
 test('a decision hand-off returns one matching answer to its source board, once [B21,H16]', async t => {
-  assert.equal(existsSync(new URL('../src/decision-handoff.js', import.meta.url)), true,
+  assert.equal(existsSync(new URL('../src/shell/decision-handoff.js', import.meta.url)), true,
     'the durable decision hand-off contract must exist');
-  const { decisionHandoffs, optionsDigest } = await import('../src/decision-handoff.js');
+  const { decisionHandoffs, optionsDigest } = await import('../src/shell/decision-handoff.js');
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-decision-handoff-'));
   const databases = [];
   t.after(() => { for (const db of databases) db.close(); rmSync(dir, { recursive: true }); });

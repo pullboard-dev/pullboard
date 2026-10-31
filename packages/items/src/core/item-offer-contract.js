@@ -1,5 +1,5 @@
 /** Common exact wire primitives; board identity resolution is always supplied by the consumer [H3,H16]. */
-import { Refused } from './refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** A wire record has explicit fields, never arbitrary properties or array indices. */
 export function exactOfferFields(value, keys, code = 'ITEM_OFFER') {

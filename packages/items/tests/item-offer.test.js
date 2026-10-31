@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/item-offer.js */
+/** @pullboard-test-loads packages/items/src/shell/item-offer.js */
 /** Durable offers disclose content only to their recipient; private receipts carry references [B2,H3,H16]. */
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
@@ -7,11 +7,11 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import * as store from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
 
 test('an accepted offer makes at most one child and a receipt carries no text [B2,H3,H16]', async t => {
-  const module = new URL('../src/item-offer.js', import.meta.url);
+  const module = new URL('../src/shell/item-offer.js', import.meta.url);
   assert.ok(existsSync(module), 'the shared item-offer contract must exist');
   const api = await import(module.href);
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-item-offer-'));
