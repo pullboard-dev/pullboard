@@ -31,7 +31,7 @@ const SOURCE_FILES = new Set([
   'src/refused.js', 'src/discovery.js', 'src/js-lex.js', 'src/literal-shell-words.js',
   'src/person.js', 'src/person-presence.js', 'src/person-signing.js', 'src/person-request.js', 'src/person-attested.js',
   'src/seal.js', 'packages/kernel/src/core/seal.js', 'src/sealed-pages.js', 'src/signature.js', 'src/agent-grant.js', 'src/coordinator-hold.js',
-  'src/seat-review-read.js', 'src/parent-session.js', 'src/item-patches.js', 'src/item-patch-state.js',
+  'packages/seats/src/shell/coordinator-hold.js', 'packages/seats/src/core/seat-review-read.js', 'src/seat-review-read.js', 'src/parent-session.js', 'src/item-patches.js', 'src/item-patch-state.js',
   'src/item-patch-compose.js', 'src/item-patch-paths.js', 'src/proof-receipts.js', 'src/pre-push-receipts.js',
   'src/train-mechanical-merge.js', 'src/release-gate.js', 'src/release-gate-receipt.js',
   'src/source-advance.js', 'packages/sandbox/src/shell/source-advance.js',

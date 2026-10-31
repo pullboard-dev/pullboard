@@ -78,5 +78,6 @@
   "specs": ["C7","doctrine:CD60","doctrine:CD64"],
   "check": "node bin/cells-plan.js --moved config",
   "after": ["kernel","git","queue","resources"]
- }
+ },
+ "pureFrontDoor": "packages/config/core.js"
 }
