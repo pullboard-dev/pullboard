@@ -5,18 +5,18 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { logEvent } from '../src/board-event-log.js';
-import { createE2eHelpers } from './e2e-helpers.js';
-import { runFixtureChild } from './fixture-child.js';
-import { storedSeatUsage } from '../src/cost.js';
-import { USAGE_BATCH_LIMIT } from '../src/cost-read.js';
-import { USAGE_BATCH_ENGINE } from '../src/usage-batch-engine.js';
-import { prepareEngineMove } from '../src/engine.js';
-import { applyEngineMove } from '../src/engine.js';
-import { declaredMoveActor } from '../src/move-registry.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import * as store from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
+import { logEvent } from '../../../src/board-event-log.js';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { storedSeatUsage } from '../src/shell/cost.js';
+import { USAGE_BATCH_LIMIT } from '../src/shell/cost-read.js';
+import { USAGE_BATCH_ENGINE } from '../../../src/usage-batch-engine.js';
+import { prepareEngineMove } from '../../../src/engine.js';
+import { applyEngineMove } from '../../../src/engine.js';
+import { declaredMoveActor } from '../../../src/move-registry.js';
+import { minimumMoveEngine } from '../../../src/move-registry.js';
 
 /** A private joined repository and historical events are fixture data, not measured provider usage. */
 function fixture(t, count = 48) {
@@ -49,10 +49,10 @@ test('a real claim publishes all 48 pending revisions in one transaction and ret
   const { box, helpers, board, agent, ids } = fixture(t);
   t.after(() => store.closeBoard(board));
   const cli = pathToFileURL(join(helpers.BIN, '../../src/cli.js')).href;
-  const checkpoint = pathToFileURL(join(helpers.BIN, '../../src/cost-checkpoint.js')).href;
+  const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code = `import {context,withBoard,whoAmI,claimOrdered,freezer,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import * as nativeBoard from ${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)};
     const io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');}};
     const ctx=context(io),holds=[],operations=[];io.onOrderedMove=event=>operations.push(event.operation);
     await withBoard(ctx,async board=>{
@@ -107,10 +107,10 @@ test('1001 pending revisions progress across bounded commands and never duplicat
   const {box,helpers,board,agent,ids}=fixture(t,USAGE_BATCH_LIMIT+1);
   t.after(()=>store.closeBoard(board));
   const cli=pathToFileURL(join(helpers.BIN,'../../src/cli.js')).href;
-  const checkpoint=pathToFileURL(join(helpers.BIN,'../../src/cost-checkpoint.js')).href;
+  const checkpoint=pathToFileURL(join(helpers.BIN,'../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code=`import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
-    import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import * as nativeBoard from ${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)};
     const operations=[],io={cwd:process.cwd(),nativeBoard,say(){},err(message){process.stderr.write(message+'\\n');},onOrderedMove(event){operations.push(event.operation);}};
     const ctx=context(io);await withBoard(ctx,board=>publishUsage(ctx,board,{agent:whoAmI(ctx,board).id,operation:'refresh'},{ordered}));
     console.log(JSON.stringify({operations}));`;

@@ -8,13 +8,13 @@ import { renameSync } from 'node:fs';
 import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { agentSessionDigest } from '../packages/stats/core.js';
+import { agentSessionDigest } from '../../core.js';
 import { sessionSnapshot } from './cost-session.js';
 import { sessionSource } from './cost-session.js';
 import { usageDifference } from './cost-session.js';
 import { sharedBefore } from './cost-shared-ledger.js';
 import { sharedAfter } from './cost-shared-ledger.js';
-import { Refused } from './refused.js';
+import { Refused } from '../../../../src/refused.js';
 import { SPLIT_COUNTS } from './cost-read.js';
 import { unknownInputSplit } from './cost-read.js';
 

@@ -10,3 +10,6 @@ export function agentSessionDigest(environment = process.env) {
   return createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 }
 
+export {
+  hasInputSplit,
+} from './src/shell/cost-read.js';

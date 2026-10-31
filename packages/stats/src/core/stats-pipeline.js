@@ -1,7 +1,7 @@
-import { pipelineCauseType } from '../packages/kernel/index.js';
+import { pipelineCauseType } from '../../../kernel/index.js';
 /** Recorded lifecycle intervals and attempts for a bounded window of landed items [R1,R2,C7]. */
-import { Refused } from './refused.js';
-import { proofEventDetail } from '../packages/kernel/src/core/event-detail.js';
+import { Refused } from '../../../../src/refused.js';
+import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 
 const STAGES = ['claim', 'submit', 'reviewWait', 'review', 'landing'];
 const CAUSES = ['runner-wait', 'flake', 'main-red', 'bar-change', 'conflict', 'companion-wait', 'test-failure', 'other', 'unknown'];

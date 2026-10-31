@@ -7,7 +7,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { PIPELINE_CAUSE_ENGINE } from '../src/pipeline-cause-engine.js';
 import { pipelineCause, PIPELINE_CAUSES } from '../packages/kernel/index.js';
-import { pipelineStats } from '../src/stats-pipeline.js';
+import { pipelineStats } from '../packages/stats/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

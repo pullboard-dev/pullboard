@@ -1,7 +1,7 @@
 import { currentProofCounters } from '../packages/verify/index.js';
 import { proofCounter } from '../packages/verify/index.js';
 import { workQueue } from '../packages/items/index.js';
-import { pipelineStats } from './stats-pipeline.js';
+import { pipelineStats } from '../packages/stats/index.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
 import { counterProofStats } from './proof-counter-read.js';
@@ -21,7 +21,7 @@ import { listApiProjects } from './projects.js';
 import { nativeStateClockWindow } from './native-state-clock.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { proofStats } from './stats.js';
-import { readCapacity } from './capacity-read.js';
+import { readCapacity } from '../packages/stats/index.js';
 import { ruleProofCounts } from './rule-proof-counts.js';
 import { milestoneNamesByItem } from './item-list.js';
 import { withListFields } from './item-list.js';

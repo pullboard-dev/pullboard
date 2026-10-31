@@ -2,9 +2,9 @@
 import { USAGE_BATCH_LIMIT } from './cost-read.js';
 import { recordUsage } from './cost.js';
 import { recordSharedUsage } from './cost-shared.js';
-import { ENGINE_VERSION } from './engine-metadata.js';
-import { USAGE_BATCH_ENGINE } from './usage-batch-engine.js';
-import { Refused } from './refused.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
+import { USAGE_BATCH_ENGINE } from '../../../../src/usage-batch-engine.js';
+import { Refused } from '../../../../src/refused.js';
 
 /** Publish only the authenticated seat's revisions; any invalid record rolls back the entire batch. */
 export function recordUsageBatch(board, payload) {

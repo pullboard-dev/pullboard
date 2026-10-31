@@ -5,7 +5,7 @@ import { dashboardHtml } from '../../src/view/dashboard-render.js';
 import { dashboardModel } from '../../src/view/dashboard-model.js';
 import { roadmapSummary } from '../../src/view/roadmap-summary.js';
 import { dashboardData } from './view-data.js';
-import { compareFlowWindows } from '../../src/stats-flow.js';
+import { compareFlowWindows } from '../../packages/stats/src/core/stats-flow.js';
 
 /** Extract a single named Dashboard section so row and footer assertions stay scoped. */
 function section(html, name) {

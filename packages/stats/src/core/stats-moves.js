@@ -1,5 +1,5 @@
 /** Separate recorded native moves from commands explicitly supplied by seats [R1,R2,C7]. */
-import { Refused } from './refused.js';
+import { Refused } from '../../../../src/refused.js';
 import { pipelineLimit } from './stats-pipeline.js';
 
 const MOVES = new Set(['add', 'claim', 'renew', 'release', 'submit', 'reserve', 'accept', 'reject', 'reopen', 'merged', 'refreeze', 'withdraw']);
