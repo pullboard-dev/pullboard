@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 /** SQLite fixture boards default to memory; disk is an explicit boundary contract [C7]. */
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,6 +8,7 @@ import { openBoardForRead } from '../src/native-board.js';
 import { closeBoard } from '../src/native-board.js';
 import { Refused } from '../src/refused.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../src/relay-outbox.js';
+const checkpointWorker = fileURLToPath(new URL('../src/relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
 import { withOutboxGuard } from '../src/relay-outbox-guard.js';
 import { replay as replayConflictRecord } from '../src/relay-conflict-record.js';
@@ -48,4 +50,4 @@ export function fixtureBoard(t, { clock, storage = 'memory', purpose } = {}) {
 }
 
 /** Bind the actual native openers at API fixture roots, never inside API projection code. */
-export const apiBoardOpeners = Object.freeze({ openBoard, openBoardForRead, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
+export const apiBoardOpeners = Object.freeze({ openBoard, openBoardForRead, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });

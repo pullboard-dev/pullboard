@@ -114,7 +114,7 @@ export async function runCheckBaselineWorker(root, id, request, services) {
     relayOrdering: services.relayOrdering,
     checkpointInBackground: services.checkpointInBackground,
     scheduleCheckpoint: services.scheduleCheckpoint,
-    requestCheckpointCheck: services.requestCheckpointCheck,
+    requestCheckpointCheck: services.requestCheckpointCheck, checkpointWorker: services.checkpointWorker,
     outboxPolicy: services.outboxPolicy, outboxFields: services.outboxFields, flushOutbox: services.flushOutbox, queueMove: services.queueMove, outboxHasPendingCreatedItem: services.outboxHasPendingCreatedItem,
     /** Discard normal relay prose in the detached worker. */
     say() {},

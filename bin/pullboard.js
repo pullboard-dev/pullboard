@@ -84,6 +84,7 @@ process.exitCode = await main(process.argv.slice(2), {
     flushOutbox: (...args) => import('../src/relay-outbox.js').then(m => m.flushOutbox(...args)),
     queueMove: (...args) => import('../src/relay-outbox.js').then(m => m.queueMove(...args)),
     outboxHasPendingCreatedItem: (...args) => import('../src/relay-outbox.js').then(m => m.outboxHasPendingCreatedItem(...args)),
+    checkpointWorker: fileURLToPath(new URL('../src/relay-checkpoint-worker.js', import.meta.url)),
     hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
     submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */

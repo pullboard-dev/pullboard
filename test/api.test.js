@@ -514,7 +514,6 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.equal(JSON.parse(envBypass.stdout).error.code, 'UNMERGED_SCHEMA',
     'PULLBOARD_CODE_IS_MAIN cannot impersonate main-checkout source provenance');
   assert.deepEqual(readFileSync(dbFile), before, 'the removed environment override cannot migrate the shared board');
-
   const relayProbe = join(linked, '.schema-relay-probe.mjs');
   writeFileSync(relayProbe, `
     import { localRecords } from './src/relay.js';

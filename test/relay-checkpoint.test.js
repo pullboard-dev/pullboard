@@ -1,14 +1,15 @@
 /** @pullboard-test-input source-tree */
 /** A move sends only its own event; one background publisher sends the checkpoint once moves go quiet [H5]. */
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { tmpdir } from 'node:os';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { CHECKPOINT_BACKGROUND_ENV, CHECKPOINT_QUIET_ENV } from '../src/relay-checkpoint.js';
+import { CHECKPOINT_BACKGROUND_ENV, CHECKPOINT_QUIET_ENV, scheduleCheckpoint } from '../src/relay-checkpoint.js';
 
 /** Whether a relay call uploads a checkpoint: an API1 state write or an API2 page publish. */
 function checkpointUpload(call) {
@@ -180,4 +181,21 @@ test('a move returns while the publisher asks whether an upload pause is over [H
   box.holdProbes(false);
   await publisherDone(box, from, 1);
   assert.equal(JSON.parse(readFileSync(box.linkFile, 'utf8')).checkpointRefusal, undefined, 'the ended pause is cleared');
+});
+
+
+test('checkpoint scheduling executes the supplied process worker with its exact board arguments [H5,C7]', async t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-checkpoint-port-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const file = join(root, 'relay.json');
+  const observed = join(root, 'spawned.json');
+  const worker = join(root, 'supplied-worker.mjs');
+  writeFileSync(worker, `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(observed)}, JSON.stringify(process.argv.slice(2)));`);
+  assert.throws(() => scheduleCheckpoint(root, file), /requires its process worker path/u);
+  assert.equal(existsSync(join(root, 'relay-checkpoint.due')), false, 'a missing port starts no partial scheduling');
+  scheduleCheckpoint(root, file, worker);
+  const deadline = Date.now() + 10_000;
+  while (!existsSync(observed) && Date.now() < deadline) await new Promise(done => setTimeout(done, 25));
+  assert.deepEqual(JSON.parse(readFileSync(observed, 'utf8')), [root, file], 'the actual spawned worker receives the original board and link');
+  assert.ok(Number(readFileSync(join(root, 'relay-checkpoint.due'), 'utf8')) > 0, 'the move remains recorded for the publisher');
 });

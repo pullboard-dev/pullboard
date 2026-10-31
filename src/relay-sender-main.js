@@ -13,6 +13,7 @@ import {
   ACKNOWLEDGED_OPERATIONS,
   outboxQueueable,
 } from './relay-outbox.js';
+const checkpointWorker = fileURLToPath(new URL('./relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { replay as replayConflictRecord } from './relay-conflict-record.js';
@@ -46,13 +47,13 @@ async function serve(root, file, io) {
   const hookWorker = fileURLToPath(new URL('./cli-hook-work.js', import.meta.url));
   const submitHandoffWorker = fileURLToPath(new URL('./submit-handoff-worker.js', import.meta.url));
   const nativeBoard = await loadNativeBoard();
-  const boardIo = { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
+  const boardIo = { ...io, openBoard: nativeBoard.openBoard, nativeBoardPorts: nativeBoard.nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, hookWorker, submitHandoffWorker, nativeBoard, loadNativeBoard, launchRelaySender, relayOutbox: () => relayOutboxSetting(root) };
   await syncRelay(root, boardIo);
   try {
     const { executePersonRequests } = await import('./relay-request-execution.js');
     const { main } = await import('./cli-main.js');
     /** Retain the sender process's explicit native capabilities in person commands. */
-    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, submitHandoffWorker, launchRelaySender, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
+    const runCommand = (args, streams) => main(args, { ...streams, loadNativeBoard, hookWorker, submitHandoffWorker, launchRelaySender, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem });
     const { nativePersonRequestPorts } = await import('./cli-context.js');
     await executePersonRequests(root, boardIo, runCommand, nativePersonRequestPorts(boardIo));
   } catch (error) { io.err(`person requests not run: ${error.message}`); }

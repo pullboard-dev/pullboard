@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 /**
  * The background checkpoint publisher for one board (#1014): waits until moves have been quiet, uploads one
  * checkpoint under the relay lock, and goes again only if a move arrived meanwhile. One runs per board at a time;
@@ -36,6 +37,7 @@ import {
   ACKNOWLEDGED_OPERATIONS,
   outboxQueueable,
 } from './relay-outbox.js';
+const checkpointWorker = fileURLToPath(new URL('./relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
 import { withOutboxGuard } from './relay-outbox-guard.js';
 import { replay as replayConflictRecord } from './relay-conflict-record.js';
@@ -104,7 +106,7 @@ async function release() {
 /** Keep a short record of failures beside the link; the next command's status reports pending uploads. */
 const io = {
   openBoard, nativeBoardPorts,
-  withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem,
+  withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, checkpointWorker, outboxPolicy, outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem,
   // Progress goes to the same short log as failures, so a stalled publisher shows how far it got.
   say(line) { io.err(line); },
   err(line) { try { appendFileSync(log, `${new Date().toISOString()} ${String(line).trim()}\n`, { mode: 0o600 }); } catch { /* No log is no worse than none. */ } },

@@ -1140,7 +1140,7 @@ export async function relayOperation(root, operation, args, io, command, applyLo
       delete state.recovered;
       saveLink(file, state);
       // A phone reads the next checkpoint; the background publisher sends it once moves go quiet (#1014).
-      if (await io.checkpointInBackground()) await io.scheduleCheckpoint(root, file);
+      if (await io.checkpointInBackground()) await io.scheduleCheckpoint(root, file, io.checkpointWorker);
       else {
         // A phone can read a compacted checkpoint; failed presentation uploads do not undo the move.
         try { await publishCheckpoint(root, file, state, io); }
@@ -1206,7 +1206,7 @@ export async function syncRelay(root, io) {
       // In the background, a command never builds the presentation to compare it: a saved, unsent checkpoint asks
       // for an upload, and any other command asks the publisher to compare, so a spec edit alone still reaches the
       // phone. Otherwise the command publishes a changed presentation itself, as before #1014.
-      if (await io.checkpointInBackground()) { if (state.checkpoint) await io.scheduleCheckpoint(root, file); else await io.requestCheckpointCheck(root, file); }
+      if (await io.checkpointInBackground()) { if (state.checkpoint) await io.scheduleCheckpoint(root, file, io.checkpointWorker); else await io.requestCheckpointCheck(root, file, io.checkpointWorker); }
       else if (state.checkpoint || state.presentationDigest !== presentationDigest(relayPresentation(root, {}, presentationPorts))) await publishCheckpoint(root, file, state, io);
       await deliverDeviceWraps(root, io);
       if (io.keyRequestsWaiting && !state.environment) await (await import('./relay-handover.js')).handOverKeys(root, state, readBoardKey(state.board), request, io); // an agent token never hands over a key

@@ -114,7 +114,7 @@ test('a refused upload never blocks board moves [H16,B26]', async (t) => {
       const { checkpointPublisher } = await import(${JSON.stringify(new URL('../src/relay-checkpoint-publish.js', import.meta.url).href)});
       const { relayOrdering } = await import(${JSON.stringify(new URL('../src/relay-ordering.js', import.meta.url).href)});
       const diagnostics = [];
-      const io = { openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, /** Retain safe diagnostic lines for exact per-move counts. */ err: line => diagnostics.push(line) };
+      const io = { checkpointWorker: ${JSON.stringify(new URL('../src/relay-checkpoint-worker.js', import.meta.url).pathname)}, openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, /** Retain safe diagnostic lines for exact per-move counts. */ err: line => diagnostics.push(line) };
       try {
       await syncRelay(process.cwd(), io);
       await relayOperation(process.cwd(), 'shout', [{ from: 'coordinator', to: 'all', lanes: [], text: 'first internal paused move' }], io);
@@ -554,7 +554,7 @@ test('a refused later checkpoint names each distinct ordered move with the same 
       const { relayOrdering } = await import(${JSON.stringify(new URL('../src/relay-ordering.js', import.meta.url).href)});
     const root = process.cwd();
     const lines = [];
-    const io = { openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, cwd: root, say(value) { lines.push(value); }, err(value) { lines.push(value); } };
+    const io = { checkpointWorker: ${JSON.stringify(new URL('../src/relay-checkpoint-worker.js', import.meta.url).pathname)}, openBoard, nativeBoardPorts, withOutboxGuard, replayConflictRecord, remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline, checkpointPublisher, relayOrdering, checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck, outboxPolicy: () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable }), outboxFields, flushOutbox, queueMove, outboxHasPendingCreatedItem, cwd: root, say(value) { lines.push(value); }, err(value) { lines.push(value); } };
     const notices = () => lines.filter(line => line.includes('relay checkpoint refused for '));
     await syncRelay(root, io);
     const first = await relayOperation(root, 'shout', [{ from: 'coordinator', to: 'all', text: 'same io first ordered move', lanes: [] }], io);
