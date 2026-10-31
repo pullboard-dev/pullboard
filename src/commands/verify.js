@@ -303,6 +303,6 @@ export async function run(io, args) {
   const verdictResult = {};
   const ctx = { ...context(io), verdictResult };
   const code = await verifyHere(ctx, id, args);
-  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems });
+  if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
 }

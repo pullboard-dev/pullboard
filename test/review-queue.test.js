@@ -1,3 +1,4 @@
+import { agentSessionDigest } from '../src/person.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js */
 /** A review offer accounts for backlog, live reservations and reviewer eligibility [Q1,V15]. */
 import { submitFixture } from './board-submit-fixture.js';
@@ -242,7 +243,7 @@ async function refusedReturn(t, reopen) {
   const ctx = { info: { root: '/fixture' }, io: { err: () => {} }, config: { reviewLeaseMs: REVIEW_LEASE, verify: { policy: 'any' } } };
   const me = { id: agents.betaReviewer, lane: 'review' };
   const trunkMerge = () => ({ commit: 'a'.repeat(40), files: ['web/list.html'] });
-  const run = () => nextReview(ctx, board, me, {}, { ordered, idArg: Number, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems });
+  const run = () => nextReview(ctx, board, me, {}, { ordered, idArg: Number, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest });
   return { board, id, operations, run };
 }
 
