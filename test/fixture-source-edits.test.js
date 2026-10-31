@@ -28,6 +28,17 @@ test('a repo-root file with a moved asset basename is distinct from the moved pa
   assert.ok(cwd.problems.length, 'a mutated cwd keeps the analysis conservative');
 });
 
+test('a proven realpath of a fresh fixture remains distinct from a repository asset [C7]', () => {
+  const prefix = "import { readFileSync, mkdtempSync, realpathSync } from 'node:fs'; import { join } from 'node:path'; import { tmpdir } from 'node:os';\n";
+  const move = { file: 'test/fixture-root.test.js', moves: [['src/blueprints/pullboard.json', 'packages/blueprints/src/shell/blueprints/pullboard.json']], mentionsOnly: true };
+  const safe = fixtureSourceEdits(prefix + "const dir = realpathSync(mkdtempSync(join(tmpdir(), 'demo-'))); const root = join(dir, 'repo'); readFileSync(join(root, 'pullboard.json'));", move);
+  assert.deepEqual(safe.problems, [], 'a native fresh temporary directory stays a fixture after canonicalization');
+  const unknown = fixtureSourceEdits(prefix + "const dir = realpathSync(untrusted); readFileSync(join(dir, 'pullboard.json'));", move);
+  assert.ok(unknown.problems.length, 'realpath of an unknown root is not evidence of fixture identity');
+  const source = fixtureSourceEdits(prefix + "const dir = realpathSync('src/blueprints'); readFileSync(join(dir, 'pullboard.json'));", move);
+  assert.ok(source.problems.length || source.edits.length, 'realpath of a repository source directory remains reported');
+});
+
 test('board database and fixture data reads are excluded and each is named with its reason [C7]', () => {
   // A `default` keyword in scope defeats the constant-folding leaf proof, as a real test body does, so only the data-root rule can clear these.
   const cases = [

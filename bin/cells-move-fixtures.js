@@ -494,6 +494,10 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     const parsed = call(range);
     if (!parsed) return null;
     if (operation(parsed, 'fs', ['mkdtempSync'])) return { fixture: true };
+    if (operation(parsed, 'fs', ['realpathSync']) && parsed.args.length === 1) {
+      const value = path(parsed.args[0], substitutions, seen);
+      if (value?.fixture) return value;
+    }
     // The canonical copier's resolver follows shims to the moved body in every fixture, for any move.
     const copier = imported.bindings.get(parsed.name);
     if (!parsed.member && copier?.module === 'source' && copier.imported === 'toolSourcePath'
