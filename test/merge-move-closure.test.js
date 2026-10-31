@@ -1,4 +1,4 @@
-/** @pullboard-test-input source-tree */
+/** @pullboard-test-input source-tree package.json */
 /** The exact conflict shim exception preserves accepted move discovery dependencies [C7,CD60,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -8,6 +8,9 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { importsIn } from '../src/module-imports.js';
 import { readPathMap } from '../packages/codemap/index.js';
+import { workingSourceInventory } from '../bin/checks/scan.js';
+import { packageFiles } from '../src/package-files.js';
+import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const ORIGINAL = 'src/trunk-conflict.js';
@@ -40,7 +43,15 @@ function closure(read, identities) {
 }
 
 test('conflict shim preserves the accepted main move closure and the broad index fails the control [C7,CD60,H16]', () => {
-  const read = file => readFileSync(join(ROOT, file), 'utf8');
+  const sources = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT)))
+    .map(({ file, body }) => [file, body.toString('utf8')]));
+  const manifest = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
+  /** Read only exact finite inventory bytes, with the one explicit JSON data input retained. */
+  const read = file => {
+    if (file === 'package.json') return manifest;
+    assert.ok(sources.has(file), `closure source belongs to the bounded inventory: ${file}`);
+    return sources.get(file);
+  };
   const identities = new Map([...readPathMap(ROOT)].map(([old, moved]) => [moved, old]));
   // Reconstruct only module operands; the digest pins every other accepted main byte.
   const original = read(MOVED).replace(/(from\s+)(['"])(\.[^'"]+)\2/gu, (_, prefix, quote, specifier) => {
