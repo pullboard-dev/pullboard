@@ -1,4 +1,4 @@
-import { frozenCheckTiming } from '../packages/items/index.js';
+import { frozenCheckTiming } from './check-timing.js';
 /** Finite autonomous main-merge work uses ordinary admission, native receipts and ordered writes [C7,V4,H16]. */
 import { copyFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';

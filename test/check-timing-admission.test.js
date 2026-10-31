@@ -70,8 +70,8 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { frozenCriterion } from '../src/spec.js';
 import { parseSpec } from '../src/spec.js';
-import { parseCheckTiming } from '../packages/items/index.js';
-import { frozenCheckTiming } from '../packages/items/index.js';
+import { parseCheckTiming } from '../src/check-timing.js';
+import { frozenCheckTiming } from '../src/check-timing.js';
 import { CHECK_TIMING_ENGINE } from '../src/check-timing-engine.js';
 import { exportBoard } from '../src/exchange.js';
 

@@ -3,7 +3,7 @@ import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from '../known-main-owner-pattern-eng
 import { ENGINE_VERSION } from '../engine-metadata.js';
 import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';
 import { itemReviewPolicyEngine } from '../review-policy.js';
-import { checkTimingEngine } from '../../packages/items/index.js';
+import { checkTimingEngine } from '../check-timing.js';
 import { itemPatchRecords } from '../item-patch-state.js';
 import { ITEM_PATCH_SUBMIT_ENGINE } from '../item-patch-submit-engine.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';

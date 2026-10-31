@@ -38,4 +38,3 @@ export { SUBMITTED_CONFLICT_ENGINE } from '../../src/submitted-conflict-engine.j
 export { HANDOFF_ENGINE } from '../../src/handoff-engine.js';
 export { RULING_OWNER_ENGINE } from '../../src/ruling-owner-engine.js';
 export { DECISION_QUEUE_ENGINE } from '../../src/decision-queue-engine.js';
-export { CHECK_TIMING_ENGINE } from '../../src/check-timing-engine.js';

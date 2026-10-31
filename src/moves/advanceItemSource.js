@@ -1,4 +1,4 @@
-import { checkTimingEngine } from '../../packages/items/index.js';
+import { checkTimingEngine } from '../check-timing.js';
 /** An autonomous trusted worker records a proved main merge without manufacturing a review [C7,V4,H16]. */
 import { SOURCE_ADVANCE_ENGINE } from '../source-advance-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from '../quarantine-verdict-engine.js';

@@ -2,7 +2,6 @@
   "src/audit-failure-item.js": "packages/items/src/core/audit-failure-item.js",
   "src/blocks.js": "packages/items/src/shell/blocks.js",
   "src/brief.js": "packages/items/src/core/brief.js",
-  "src/check-timing.js": "packages/items/src/core/check-timing.js",
   "src/critical-path-order.js": "packages/items/src/core/critical-path-order.js",
   "src/decision-handoff.js": "packages/items/src/shell/decision-handoff.js",
   "src/decision-origin.js": "packages/items/src/core/decision-origin.js",

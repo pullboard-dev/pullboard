@@ -1,4 +1,4 @@
-import { parseCheckTiming } from '../../packages/items/index.js';
+import { parseCheckTiming } from '../check-timing.js';
 import { requirePersonChannel } from '../person.js';
 import { githubPullClient } from '../pr-github.js';
 import {

@@ -1,4 +1,4 @@
-import { frozenCheckTiming } from '../../packages/items/index.js';
+import { frozenCheckTiming } from '../check-timing.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';

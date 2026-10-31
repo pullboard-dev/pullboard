@@ -1,6 +1,6 @@
 import { PIPELINE_CAUSE_ENGINE } from '../pipeline-cause-engine.js';
 import { EXIT_RULES_ENGINE } from '../exit-rules-engine.js';
-import { checkTimingEngine } from '../../packages/items/index.js';
+import { checkTimingEngine } from '../check-timing.js';
 import { CROSS_REPO_DEPENDENCY_ENGINE } from '../cross-repo-dependency-engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../submit-admission-engine.js';
 import { hasForeignDependencies } from '../item-dependencies.js';
