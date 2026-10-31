@@ -1,4 +1,4 @@
-/** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js packages/resources/src/shell/machine-home.js src/settings.js packages/resources/index.js src/config.js */
+/** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js packages/resources/src/shell/machine-home.js packages/config/src/shell/settings.js packages/resources/index.js packages/config/src/shell/config.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
 import { awaitNestedRun } from '../src/test-file-pool.js';
 import assert from 'node:assert/strict';
@@ -30,10 +30,10 @@ import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { machineHome } from ${module('packages/resources/index.js')};
-import { loadMachineSettings } from ${module('src/settings.js')};
+import { loadMachineSettings } from ${module('packages/config/src/shell/settings.js')};
 import { listResources } from ${module('packages/resources/index.js')};
 import { foreignNodeOptions } from ${module('src/test-isolation.js')};
-import { defaultViewPort } from ${module('src/config.js')};
+import { defaultViewPort } from ${module('packages/config/src/shell/config.js')};
 import { chooseViewPort } from ${module('test/view-port-fixture.js')};
 // A test that drops its machine home falls back to the account home, as view-port-fixture.js does.
 delete process.env.PULLBOARD_MACHINE_HOME;

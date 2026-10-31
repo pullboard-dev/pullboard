@@ -22,7 +22,7 @@ after(e2e.cleanup);
 function gate(box) {
   const module = new URL('../src/gate.js', import.meta.url).href;
   const script = `import {runGate} from ${JSON.stringify(module)};
-import {loadConfig} from ${JSON.stringify(new URL('../src/config.js', import.meta.url).href)};
+import {loadConfig} from ${JSON.stringify(new URL('../packages/config/src/shell/config.js', import.meta.url).href)};
 ${executionServicesSource(module)}
 const result=await runGate(process.cwd(),loadConfig(process.cwd()),{executionServices,trustStamp:false,landing:true,agent:'coordinator'});
 if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:result.receiptId}));`;

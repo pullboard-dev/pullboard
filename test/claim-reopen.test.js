@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/board.js src/claims.js src/config.js src/machine.js src/engine.js */
+/** @pullboard-test-loads src/board.js src/claims.js packages/config/src/shell/config.js src/machine.js src/engine.js */
 /** Reopened claims reserve the original builder's context only when enabled [B13,B5]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';

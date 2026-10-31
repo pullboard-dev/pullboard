@@ -154,8 +154,8 @@ function simulatedReaderContext(box, identity) {
   const script = `
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
 import { openBoard } from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
-import { ruleProofCounts } from ${JSON.stringify(new URL('../src/rule-proof-counts.js', import.meta.url).href)};
-import { loadSpec } from ${JSON.stringify(new URL('../src/spec.js', import.meta.url).href)};
+import { ruleProofCounts } from ${JSON.stringify(new URL('../packages/verify/src/shell/rule-proof-counts.js', import.meta.url).href)};
+import { loadSpec } from ${JSON.stringify(new URL('../packages/spec/src/shell/spec.js', import.meta.url).href)};
 const root = ${JSON.stringify(box.root)};
 const actualRuntime = { execPath: process.execPath, version: process.version };
 const board = openBoard(${JSON.stringify(join(box.root, '.git', 'pullboard', 'board.sqlite'))}, undefined, { isMain: false });

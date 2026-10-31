@@ -153,7 +153,7 @@ test('next answers within sixty seconds on a generated private SQLite board of c
 test('the real progress worker reports during synchronous private SQLite work before the phase ends [C7]', async t => {
   const files = privateFixtureFiles('next-sync-phase-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
-  const progressModule = new URL('../src/next-take.js', import.meta.url).href;
+  const progressModule = new URL('../packages/sandbox/src/shell/next-take.js', import.meta.url).href;
   const monitorModule = new URL('../src/next-progress-monitor.js', import.meta.url).href;
   files.write('phase.mjs', `
 import { DatabaseSync } from 'node:sqlite';
