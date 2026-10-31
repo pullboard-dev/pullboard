@@ -300,7 +300,8 @@ test('the private view shows its last twenty native landings; a public export ke
     const ids = JSON.parse(await chrome.stable("JSON.stringify([...document.querySelectorAll('#cost [data-cost-row]')].map(node => Number(node.dataset.costRow)))"));
     assert.deepEqual(ids, analytics.longest.map(row => row.id), 'the page renders the server-selected items in order');
     await chrome.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1800, deviceScaleFactor: 1, mobile: false });
-    const shotPath = '/tmp/pullboard-2092-cost-cb3-1440.png';
+    await chrome.stable("document.documentElement.dataset.theme = 'light'");
+    const shotPath = '/tmp/pullboard-2092-cost-light-1440.png';
     const shot = await chrome.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
     writeFileSync(shotPath, Buffer.from(shot.data, 'base64'));
     console.log('Cost proof screenshot:', shotPath);
