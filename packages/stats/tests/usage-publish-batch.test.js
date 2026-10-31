@@ -49,7 +49,7 @@ test('a real claim publishes all 48 pending revisions in one transaction and ret
   const { box, helpers, board, agent, ids } = fixture(t);
   t.after(() => store.closeBoard(board));
   const cli = pathToFileURL(join(helpers.BIN, '../../src/cli.js')).href;
-  const checkpoint = pathToFileURL(join(helpers.BIN, '../../src/cost-checkpoint.js')).href;
+  const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code = `import {context,withBoard,whoAmI,claimOrdered,freezer,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)};
@@ -107,7 +107,7 @@ test('1001 pending revisions progress across bounded commands and never duplicat
   const {box,helpers,board,agent,ids}=fixture(t,USAGE_BATCH_LIMIT+1);
   t.after(()=>store.closeBoard(board));
   const cli=pathToFileURL(join(helpers.BIN,'../../src/cli.js')).href;
-  const checkpoint=pathToFileURL(join(helpers.BIN,'../../src/cost-checkpoint.js')).href;
+  const checkpoint=pathToFileURL(join(helpers.BIN,'../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code=`import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)};

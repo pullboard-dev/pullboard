@@ -49,7 +49,7 @@ function seatUsage(box, cwd, identity) {
   for (const key of ['CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'CLAUDE_CODE_SESSION_ID', 'CLAUDECODE', 'CLAUDE_CODE_ENTRYPOINT', 'AI_AGENT', 'CODEX_CI', 'CODEX_SHELL']) delete env[key];
   Object.assign(env, identity);
   const cli = pathToFileURL(join(helpers.BIN, '../../src/cli.js')).href;
-  const checkpoint = pathToFileURL(join(helpers.BIN, '../../src/cost-checkpoint.js')).href;
+  const checkpoint = pathToFileURL(join(helpers.BIN, '../../packages/stats/src/shell/cost-checkpoint.js')).href;
   const code = `import {context,withBoard,whoAmI,ordered} from ${JSON.stringify(cli)};
     import {publishUsage} from ${JSON.stringify(checkpoint)};
     import * as nativeBoard from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
