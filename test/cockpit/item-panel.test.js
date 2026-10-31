@@ -125,7 +125,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
       assert.equal(shown.title, '#1Long item panel fixture', `${width}px title is readable with its mono id`);
       assert.equal(shown.titleSize, '17px');
       assert.match(shown.where, /web[\s\S]*strong[\s\S]*Panel release/u);
-      assert.match(shown.status, /Passed[\s\S]*Resubmitted after a send-back[\s\S]*Built by/u);
+      assert.match(shown.status, /Verified[\s\S]*Resubmitted after a send-back[\s\S]*Built by/u);
       assert.equal(shown.selected, 'Overview');
       assert.equal(shown.verdicts, 2);
       assert.ok(shown.historyCount > 5, 'the native lifecycle provides a countable history disclosure');

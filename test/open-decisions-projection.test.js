@@ -54,7 +54,7 @@ test('recipient decision seeks retain live roles, options and legacy shapes with
     assert.doesNotMatch(plan, /SCAN (?:ask|reply)/u, 'neither open questions nor answer lookup requires a shout scan');
   }
   // Change live ownership through the real domain; no cached audience/result survives the move.
-  store.release(board, item, 'web-1');
+  store.release(board, item, 'web-1', 'Hand the fixture claim to another builder.', 'OTHER');
   store.claim(board, item, { agentId: 'web-2', lane: 'web', leaseMs: 3_600_000, freeze: () => ({ text: 'decision seeks', digest: 'decision-seeks' }) });
   for (const audience of ['web-1', 'web-2', 'coordinator']) assert.deepEqual(store.openDecisions(board, audience), reference(board, audience));
   assert.equal(store.openDecisions(board, 'web-1').some(row => row.item === item), false);

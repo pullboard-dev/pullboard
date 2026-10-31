@@ -375,7 +375,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   await json(box, repo, 'next');
   await json(box, repo, 'claim', ['1']);
   await json(box, repo, 'check', ['1']);
-  await json(box, repo, 'release', ['1', '--no-next']);
+  await json(box, repo, 'release', ['1', '--reason', 'BLOCKED', '--no-next']);
   await json(box, repo, 'claim', ['1']);
   const submitted = await json(box, repo, 'submit', ['1', '--no-next']);
   await exercisePatchCommands({ box, json, submitted });
@@ -394,7 +394,7 @@ catalogCase('[A1] command results match the catalog across roots and subcommands
   // #1870 requires governing rows: exercise actual person-approved spec apply and changed frozen bars.
   assertSpecCorrectionRefreezesCitations(t);
   assert.equal((await json(box, repo, 'refreeze', ['4'])).unchanged, true);
-  await json(box, repo, 'release', ['4', '--no-next']);
+  await json(box, repo, 'release', ['4', '--reason', 'BLOCKED', '--no-next']);
 
   await json(box, repo, 'add', ['coordinator', 'Escalate item', '--route', 'light', '--criterion', 'the item is built', '--check', 'true', '--brief', 'Files:\n- README.md\nChange:\n- keep this fixture\nTest:\n- The item check passes']);
   await json(box, repo, 'claim', ['5']);

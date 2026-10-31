@@ -89,12 +89,12 @@ test('[B13,B5] first refusal ends on direct builder release, claimed release or 
     for (const mode of ['direct', 'claimed', 'expiry']) {
       const f = fixture(t);
       const id = returned(f, cause, 30);
-      assert.throws(() => store.release(f.board, id, f.other), error => error.code === 'NOT_YOURS');
+      assert.throws(() => store.release(f.board, id, f.other, 'This claim belongs to the builder.', 'OTHER'), error => error.code === 'NOT_YOURS');
       f.advance(5);
       if (mode === 'expiry') f.advance(25);
       else {
         if (mode === 'claimed') claim(f, id, f.builder);
-        store.release(f.board, id, f.builder);
+        store.release(f.board, id, f.builder, 'Return the claim before reopening the first refusal.', 'OTHER');
       }
       claim(f, id, f.other);
       assert.equal(store.getItem(f.board, id).item_owner, f.other, `${cause}/${mode}`);
@@ -122,7 +122,7 @@ test('[B13,B5] first refusal does not bypass the existing one-live-claim rule', 
     criterion: 'prove', check: 'true', brief: 'Files: src/a.js\nTest: proves another fix' });
   claim(f, second, f.builder);
   assert.throws(() => claim(f, id, f.builder), error => error.code === 'ONE_CLAIM');
-  store.release(f.board, second, f.builder);
+  store.release(f.board, second, f.builder, 'Return the second fixture claim.', 'OTHER');
   claim(f, id, f.builder);
 });
 
@@ -135,7 +135,7 @@ test('[B13,B5] releasing another review cannot cancel the builder reservation', 
   claim(f, another, f.other);
   submitFixture(f.board, another, { agentId: f.other, commit: COMMIT, tree: COMMIT });
   store.reserveReview(f.board, another, { agentId: f.builder, leaseMs: 1_800_000, policy: 'any' });
-  assert.equal(store.release(f.board, another, f.builder, 'another reviewer can take this'), true);
+  assert.equal(store.release(f.board, another, f.builder, 'another reviewer can take this', 'ROUTED_ELSEWHERE'), true);
   assert.throws(() => claim(f, id, f.other), error => error.code === 'REOPEN_HELD_FOR_BUILDER');
   assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item, null);
   assert.equal(store.nextFor(f.board, { agentId: f.builder, lane: 'core' }).item.item_id, id);
@@ -178,7 +178,7 @@ test('[B13,B5,H16] a sealed return persists one window and notice across replay 
   assert.throws(() => applyEngineMove(replica, { ...claimMove, engine: REOPEN_FIRST_REFUSAL_ENGINE - 1 }, { sequence: 2, at: '2026-01-01T00:05:00Z' }), /engine/);
   assert.equal(store.getItem(replica, id).item_owner, null);
   assert.equal(prepareEngineMove(replica, 'release', [id, f.builder]).engine, ENGINE_VERSION);
-  store.release(replica, id, f.builder);
+  store.release(replica, id, f.builder, 'Return the replicated fixture claim.', 'OTHER');
   store.claim(replica, id, { agentId: f.other, lane: 'core', leaseMs: 7_200_000, freeze: () => null });
 });
 
@@ -245,7 +245,7 @@ test('[B4,V2,H16] readiness is default off and activation preserves old frozen w
   assert.equal(barReadySetting(f.board).enabled, false);
   const old = readyItem(f, 'green');
   claim(f, old, f.builder);
-  store.release(f.board, old, f.builder);
+  store.release(f.board, old, f.builder, 'Return the old fixture claim.', 'OTHER');
   const activation = setBarReady(f.board, { agentId: 'coordinator', enabled: true });
   assert.deepEqual(setBarReady(f.board, { agentId: 'coordinator', enabled: true }), activation, 'repeating on cannot grandfather new obligations');
   claim(f, old, f.builder);
@@ -255,7 +255,7 @@ test('[B4,V2,H16] readiness is default off and activation preserves old frozen w
   assert.throws(() => claim(f, fresh, f.builder), error => error.code === 'BAR_NOT_READY' && error.message.includes('red check baseline'));
   setBarReady(f.board, { agentId: 'coordinator', enabled: false });
   claim(f, fresh, f.builder);
-  store.release(f.board, fresh, f.builder);
+  store.release(f.board, fresh, f.builder, 'Return the fresh fixture claim.', 'OTHER');
   setBarReady(f.board, { agentId: 'coordinator', enabled: true });
   claim(f, fresh, f.builder);
   assert.throws(() => setBarReady(f.board, { agentId: f.other, enabled: false }), error => error.code === 'COORDINATOR_ONLY');

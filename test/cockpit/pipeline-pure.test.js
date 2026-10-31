@@ -6,6 +6,9 @@ import { replayItem } from '../../src/view/pipeline-model.js';
 import { pipelineStage } from '../../src/view/pipeline-model.js';
 import { pipelineSince } from '../../src/view/pipeline-model.js';
 import { itemListFields } from '../../src/view/pipeline-model.js';
+import { withdrawnFromStatus } from '../../src/view/pipeline-model.js';
+import { itemStagePresentation } from '../../src/view/pipeline-model.js';
+import { itemStageKey } from '../../src/view/pipeline-model.js';
 
 // Explicit lifecycle data, rather than importing engine discovery and its filesystem adapter.
 const FLOW = { initial: 'open', moves: [
@@ -52,3 +55,48 @@ test('list summaries remain authoritative while full snapshots derive holders an
   assert.equal(fields.since, event('submit', 4).at);
   assert.equal(JSON.stringify(item), before);
 });
+
+/** Verify withdrawal recovery for each lifecycle transition represented in stored history. */
+function testWithdrawnStageRecovery() {
+  assert.equal(withdrawnFromStatus({ status: 'withdrawn', history: [] }), 'open');
+  assert.equal(withdrawnFromStatus({ status: 'withdrawn', withdrawnFrom: 'verified', history: [] }), 'verified');
+  assert.equal(withdrawnFromStatus({ status: 'withdrawn', history: [event('claim', 1), event('withdraw', 2)] }), 'claimed');
+  assert.equal(withdrawnFromStatus({ status: 'withdrawn', history: [event('renew', 1), event('withdraw', 2)] }), 'claimed');
+  for (const kind of ['submit', 'submit-merge', 'intake']) {
+    assert.equal(withdrawnFromStatus({ status: 'withdrawn', history: [event(kind, 1), event('withdraw', 2)] }), 'submitted');
+  }
+  assert.equal(withdrawnFromStatus({ status: 'withdrawn', history: [event('accept', 1), event('withdraw', 2)] }), 'verified');
+  assert.equal(withdrawnFromStatus({ status: 'withdrawn', history: [event('merged', 1), event('withdraw', 2)] }), 'merged');
+  for (const kind of ['add', 'reject', 'reopen', 'release', 'lapse']) {
+    assert.equal(withdrawnFromStatus({ status: 'withdrawn', history: [event('claim', 1), event(kind, 2), event('withdraw', 3)] }), 'open');
+  }
+}
+
+/** Verify each approved stage and its short detail from plain item snapshots. */
+function testApprovedStagePresentations() {
+  assert.deepEqual(itemStagePresentation({ status: 'open', blockedBy: [42] }, { gated: true }), { stage: 'Gated', detail: 'by #42' });
+  assert.deepEqual(itemStagePresentation({ status: 'open' }, { gated: true, gateDetail: 'approval pending' }), { stage: 'Gated', detail: 'approval pending' });
+  assert.deepEqual(itemStagePresentation({ status: 'open', route: 'strong' }), { stage: 'Ready', detail: 'strong route' });
+  assert.deepEqual(itemStagePresentation({ status: 'open' }), { stage: 'Ready', detail: 'ready for a builder' });
+  assert.deepEqual(itemStagePresentation({ status: 'claimed', claim: { by: 'view-1' } }), { stage: 'Building', detail: 'by view-1' });
+  assert.deepEqual(itemStagePresentation({ status: 'claimed' }), { stage: 'Building', detail: 'under a build lease' });
+  assert.deepEqual(itemStagePresentation({ status: 'submitted', reviewer: 'tests-1' }), { stage: 'In review', detail: 'tests-1 verifying' });
+  assert.deepEqual(itemStagePresentation({ status: 'submitted' }), { stage: 'In review', detail: 'awaiting a verdict' });
+  assert.deepEqual(itemStagePresentation({ status: 'verified' }), { stage: 'Verified', detail: 'queued for the train' });
+  assert.deepEqual(itemStagePresentation({ status: 'verified' }, { landingBatchAt: '2:30 AM' }), { stage: 'Landing', detail: 'in the 2:30 AM batch' });
+  assert.deepEqual(itemStagePresentation({ status: 'verified', merged: 'a'.repeat(40) }), { stage: 'Merged', detail: 'landed' });
+  assert.deepEqual(itemStagePresentation({ status: 'open', stage: 'merged' }), { stage: 'Merged', detail: 'landed' });
+  assert.deepEqual(itemStagePresentation({ status: 'withdrawn', history: [event('submit', 1), event('withdraw', 2)] }), { stage: 'In review', detail: 'awaiting a verdict' });
+  assert.deepEqual(itemStagePresentation({ status: 'unknown' }), { stage: 'Ready', detail: 'stage unavailable' });
+}
+
+/** Verify stable machine keys for every approved display stage and whitespace normalization. */
+function testApprovedStageKeys() {
+  assert.deepEqual(['Gated', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged'].map(itemStageKey),
+    ['gated', 'ready', 'building', 'in-review', 'verified', 'landing', 'merged']);
+  assert.equal(itemStageKey(' In   Review '), '-in-review-');
+}
+
+test('withdrawn stage recovery preserves each recorded prior state [N26,N28,N38]', testWithdrawnStageRecovery);
+test('stage presentation maps every lifecycle input to its approved word and detail [N26,N28,N38]', testApprovedStagePresentations);
+test('stage keys are stable for all approved display words [N26,N28,N38]', testApprovedStageKeys);

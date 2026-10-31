@@ -53,24 +53,25 @@ test('a review in progress names its reviewer [N26]', async () => {
   try {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
-    assert.match(itemRow(page.show('chain'), 1), /<span class="chip warn" title="reviewing until [^"]+">web-2 \(Test Model\) reviewing<\/span><\/li>$/, 'the row names who holds the review');
+    assert.match(itemRow(page.show('chain'), 1), /aria-label="In review:/, 'a review keeps the approved lifecycle stage');
+    assert.match(itemRow(page.show('chain'), 1), /<small class="stage-detail"(?: title="[^"]*")?>web-2 \(Test Model\) verifying<\/small>/, 'the row names who holds the review');
     assert.doesNotMatch(page.show('needs'), /Greeting/, "a review is the agents' work, so it stays out of Needs-you");
     page.run('view.open.idle = true; render();');
     await page.click({ tab: 'shouts' });
     const holds = (id) => agentEntries(page.show('agents')).find((agent) => agent.id === id).holds;
-    assert.deepEqual(holds('web-2'), ['#1 Greeting: reviewing'], 'the reviewer holds it');
-    assert.deepEqual(holds('web-1'), ['#1 Greeting: to verify'], 'the builder waits on it');
+    assert.deepEqual(holds('web-2'), ['#1 Greeting: In review'], 'the reviewer sees the shared verdict stage');
+    assert.deepEqual(holds('web-1'), ['#1 Greeting: In review'], 'the builder waits on the same verdict stage');
     await page.click({ tab: 'items' });
     // A name is board text, so it is escaped: give the board on hand a reviewer with markup and redraw.
     page.run('data.project.items.find((i) => i.id === 1).claim.by = "web<b>"; render();');
-    assert.match(itemRow(page.show('chain'), 1), />web&lt;b&gt; reviewing<\/span><\/li>$/);
+    assert.match(itemRow(page.show('chain'), 1), /<small class="stage-detail"(?: title="[^"]*")?>web&lt;b&gt; verifying<\/small>/);
     await page.run('refresh()');
 
     box.git(second, 'switch', '-q', '--detach', alpha.branch);
     box.run(second, 'verify', '1', 'accept', '--note', 'opened the page and read the greeting');
     await page.run('refresh()');
     await page.click({ state: 'all' });
-    assert.match(itemRow(page.show('chain'), 1), /<span class="chip ok">verified<\/span><\/li>$/, 'once the verdict lands, the review is over');
+    assert.match(itemRow(page.show('chain'), 1), /<b class="stage-word">Verified<\/b>/, 'once the verdict lands, the review is over');
     await page.click({ tab: 'shouts' });
     assert.deepEqual(holds('web-2'), []);
   } finally {
@@ -99,12 +100,12 @@ test('a stale verdict shows a stale chip [N26,V4]', async () => {
     const marks = (html) => (html.match(/<span class="chip stale"[^>]*>stale<\/span>/g) ?? []).join('');
     const rows = (html, at) => [1, 2, 3, 4].map((id) => marks(html.split('<li').find((row) => row.includes(at(id))) ?? ''));
     assert.deepEqual(rows(page.show('chain'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the list marks the stale and legacy verdicts, never the fresh or merged one');
-    assert.match(itemRow(page.show('chain'), 1), /<span class="chip ok">verified<\/span><\/li>$/, 'the status stays verified');
+    assert.match(itemRow(page.show('chain'), 1), /<b class="stage-word">Verified<\/b>/, 'the status stays verified');
     await page.click({ state: 'verified' });
     assert.deepEqual(rows(page.show('chain'), (id) => `data-item="${id}"`), [stale, '', '', legacy], 'the verified filter still lists them');
     await page.click({ go: 'item:1' });
     assert.equal(marks(page.show('detail')), stale, 'the detail marks it beside the verified chip');
-    await page.click({ dataItemPanelTab: 'verdicts' });
+    await page.click({ itemPanelTab: 'verdicts' });
     assert.match(page.show('detail'), /<div class="verdict yes"><b>Accepted · <span title="CRITERION_MET">criterion met<\/span>/, 'the ACCEPT stays in the history with its native reason tooltip');
     await page.click({ go: 'item:3' });
     assert.equal(marks(page.show('detail')), '', 'a merged item carries no mark');
@@ -136,19 +137,21 @@ test('each row says what it waits on [N26]', async () => {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
     const rows = Object.fromEntries(page.show('chain').split('<li class="row').slice(1).map((row) => [/data-item="(\d+)"/.exec(row)[1], {
-      chip: /<span class="chip ([^"]*)"[^>]*>(.*?)<\/span><\/li>$/.exec(row).slice(1).map(value => value.replace(/<[^>]*>/g, '')).join(': '),
+      stage: /<b class="stage-word">([^<]*)<\/b>/.exec(row)?.[1] || /aria-label="([^:]+):/.exec(row)?.[1],
+      detail: /<small class="stage-detail"(?: title="[^"]*")?>([^<]*)<\/small>/.exec(row)?.[1],
+      marks: [...row.matchAll(/class="stage-mark[^\"]*"[^>]*>([^<]*)<\/span>/g)].map((match) => match[1]),
       gated: /^[^"]*\bgated\b/.test(row),
       waits: [...row.matchAll(/<span class="gate">(.*?)<\/span>/g)].map((match) => match[1]),
     }]));
-    assert.deepEqual(rows['1'], { chip: 'free: unclaimed', gated: false, waits: [] }, 'free to claim');
-    assert.deepEqual(rows['2'], { chip: 'busy: web-1 (Test Model)', gated: false, waits: [] }, 'a claim names its holder');
-    assert.deepEqual(rows['3'], { chip: 'waiting: Waiting on #2', gated: true, waits: [] }, 'gated on #2, which is still being built');
-    assert.deepEqual(rows['4'], { chip: 'gate: lane held', gated: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
-    assert.deepEqual(rows['5'], { chip: 'warn: to verify', gated: false, waits: [] });
-    assert.deepEqual(rows['6'], { chip: 'no: sent back', gated: false, waits: [] });
+    assert.deepEqual(rows['1'], { stage: 'Ready', detail: 'strong route', marks: [], gated: false, waits: [] }, 'free to claim');
+    assert.deepEqual(rows['2'], { stage: 'Building', detail: 'by web-1 (Test Model)', marks: [], gated: false, waits: [] }, 'a claim names its holder');
+    assert.deepEqual(rows['3'], { stage: 'Gated', detail: 'by #2', marks: [], gated: true, waits: [] }, 'gated on #2, which is still being built');
+    assert.deepEqual(rows['4'], { stage: 'Gated', detail: 'lane api held: API &lt;freeze&gt; until Friday', marks: ['Lane held'], gated: true, waits: ['lane held: API &lt;freeze&gt; until Friday'] });
+    assert.deepEqual(rows['5'], { stage: 'In review', detail: 'awaiting a verdict', marks: [], gated: false, waits: [] });
+    assert.deepEqual(rows['6'], { stage: 'Ready', detail: 'strong route', marks: ['Sent back'], gated: false, waits: [] });
 
     await page.click({ go: 'item:2' });
-    assert.match(page.show('detail'), /<h2><span>#2<\/span>Base<\/h2>/, 'the gate links to what it waits on');
+    assert.match(page.show('detail'), /<h2><span class="id">#2<\/span>Base<\/h2>/, 'the gate links to what it waits on');
   } finally {
     await view.stop();
   }
@@ -211,7 +214,7 @@ test('an item detail shows its pending, red and green check baselines from the A
         }
         await page.run('refresh()');
         const completed = page.show('detail');
-        assert.match(completed, /<h2><span>#\d+<\/span>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
+        assert.match(completed, /<h2><span class="id">#\d+<\/span>Pending baseline<\/h2>/, 'the open detail stays on the pending item');
         assert.ok(completed.includes('<span class="chip ok">green</span>'), 'the open detail updates to the completed result');
         assert.ok(completed.includes('This check already passed before the work, so it proves nothing.'), 'the completed warning appears without reopening the detail');
       }
@@ -271,10 +274,10 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.ok(!detail.includes('<b>greeting</b>'), 'the note cannot inject markup');
     assert.ok(detail.indexOf('<h3>Done when</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
     assert.ok(detail.indexOf('<h3>Brief</h3>') < detail.indexOf('<h3>Spec rows it serves</h3>'));
-    assert.equal(detail.split('second line of the note').length, 3, 'the full note appears once in Overview and once in its Verdicts disclosure');
+    assert.equal(detail.replace(/\b(?:title|aria-label)="[^"]*"/gu, '').split('second line of the note').length, 3, 'the full note appears once in Overview and once in its Verdicts disclosure');
 
     await page.click({ item: '2', classes: 'row' });
-    assert.match(page.show('detail'), /item-panel-status[^]*Waiting for a reviewer[^]*Resubmitted after a send-back/);
+    assert.match(page.show('detail'), /item-panel-status[^]*In review[^]*Resubmitted after a send-back/);
     assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*the farewell is missing/);
 
     assert.ok(itemRow(page.show('chain'), 5).includes('<b><span title="BEHAVIOR_MISMATCH">Behavior did not match</span></b> the footer is empty'), 'a row being reworked still says why');
@@ -285,7 +288,7 @@ test('a sent-back item shows why first [N26]', async () => {
     // A withdrawn item has no row; the person reaches it from a spec row or the activity feed.
     assert.equal(itemRow(page.show('chain'), 4), '');
     await page.click({ go: 'item:4' });
-    assert.match(page.show('detail'), /<h2><span>#4<\/span>Banner<\/h2>/);
+    assert.match(page.show('detail'), /<h2><span class="id">#4<\/span>Banner<\/h2>/);
     assert.match(page.show('detail'), /item-panel-status[^]*Withdrawn/);
     assert.match(beforeDoneWhen(), /class="item-panel-latest sentback"[^]*<b class="item-panel-verdict-label">Sent back · <span title="BEHAVIOR_MISMATCH">Behavior did not match<\/span><\/b>[^]*the banner covers the heading/, 'withdrawn after a reject, it still opens with why');
     assert.ok(page.show('detail').indexOf('<h3>Done when</h3>') < page.show('detail').indexOf('<h3>Brief</h3>'));
@@ -296,7 +299,7 @@ test('a sent-back item shows why first [N26]', async () => {
     assert.doesNotMatch(verified, /class="item-panel-latest sentback"/, 'the latest panel is not tinted as sent back after acceptance');
     assert.ok(verified.indexOf('<h3>Done when</h3>') < verified.indexOf('<h3>Brief</h3>'));
     assert.match(verified, /aria-selected="true"[^>]*>Overview/);
-    await page.click({ dataItemPanelTab: 'verdicts' });
+    await page.click({ itemPanelTab: 'verdicts' });
     const verdicts = page.show('detail');
     assert.match(verdicts, /aria-selected="true"[^>]*>Verdicts/);
     assert.ok(verdicts.indexOf('the page shows it') < verdicts.indexOf('no heading yet'), 'every verdict remains available newest first');
@@ -668,7 +671,8 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     await page.type('q', 'retired widget');
     const found = itemRow(page.show('chain'), 40);
     assert.match(found, /Retired widget/, 'a search finds the withdrawn item too');
-    assert.match(found, /<span class="chip ">withdrawn<\/span>/);
+    assert.match(found, /<b class="stage-word">Ready<\/b>/);
+    assert.match(found, /<span class="stage-mark no"[^>]*>Withdrawn<\/span>/);
     assert.match(page.show('filter-menu'), /<span class="filter-option-label">All<\/span><b>1<\/b>/);
     assert.match(page.show('filter-menu'), /<span class="filter-option-label">Active<\/span><b>0<\/b>/, 'a withdrawn item is not active');
     await page.type('q', '');
@@ -686,7 +690,7 @@ test('shout ids, search and narrow windows reach the item [N26]', async () => {
     assert.equal(feed.match(/class="ref"/g).length, 7);
     await page.click({ go: 'item:2', classes: 'ref' });
     assert.equal(page.run('view.tab'), 'items', 'the link opens the Items tab');
-    assert.match(page.show('detail'), /<h2><span>#2<\/span>Farewell banner<\/h2>/, 'on that item');
+    assert.match(page.show('detail'), /<h2><span class="id">#2<\/span>Farewell banner<\/h2>/, 'on that item');
     assert.equal(page.element('detail').scrolled, 0, 'side by side, the detail is already in view');
 
     const narrow = await openPage(view, { width: 600 });
@@ -721,7 +725,7 @@ test('the detail opens on the top item, not a blank form [N26]', async () => {
   try {
     const page = await openPage(view);
     await page.click({ tab: 'items' });
-    const shown = () => /<h2><span>#(\d+)<\/span>([^<]*)</.exec(page.show('detail'))?.slice(1).join(' ');
+    const shown = () => /<h2><span class="id">#(\d+)<\/span>([^<]*)</.exec(page.show('detail'))?.slice(1).join(' ');
     const rows = () => [...page.show('chain').matchAll(/<li class="(row s-[^"]+)" data-item="(\d+)"/g)].map((match) => match[2] + (match[1].split(/\s/u).includes('on') ? '*' : ''));
     const form = () => [page.element('add-form').hidden, page.element('detail').hidden];
 
@@ -850,7 +854,7 @@ test("item detail merges API facts and moves in one responsive timeline [B33,B29
   const addFact = (kind, text, ...flags) => JSON.parse(box.run(alpha.web, 'fact', '1', kind, text, ...flags, '--json')).fact;
   const oldNote = addFact('note', 'Earlier observation, now replaced.');
   addFact('capture', 'Captured the rendered page.', '--ref', `SPEC.md:1-2@${sourceHead}`);
-  box.run(alpha.web, 'release', '1');
+  box.run(alpha.web, 'release', '1', '--reason', 'OTHER', '--note', 'The item detail fixture releases its claim before opening the thread.');
   addFact('measurement', 'The view settles in 8 seconds.');
   box.run(alpha.web, 'claim', '1');
   addFact('diff', 'The detail gained a thread.');
@@ -1109,10 +1113,10 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
         const box = (node) => node.getBoundingClientRect();
         const lines = (node) => Math.round(box(node).height / parseFloat(getComputedStyle(node).lineHeight));
         const apart = (a, b) => a.right <= b.left + 0.5 || b.right <= a.left + 0.5 || a.bottom <= b.top + 0.5 || b.bottom <= a.top + 0.5;
-        const title = row.querySelector('.t'), meta = row.querySelector('.meta'), chip = row.querySelector(':scope > .chip');
+        const title = row.querySelector('.t'), meta = row.querySelector('.meta'), chip = row.querySelector('.row-side .item-stage');
         return { id: row.dataset.item, tip: row.title, height: Math.round(box(row).height),
           titleLines: lines(title), ellipsis: getComputedStyle(title).textOverflow === 'ellipsis' && getComputedStyle(title).whiteSpace === 'nowrap',
-          cut: title.scrollWidth > title.clientWidth, metaLines: lines(meta), chip: chip.className + ': ' + chip.textContent,
+          cut: title.scrollWidth > title.clientWidth, metaLines: lines(meta), stage: chip.querySelector('.stage-word')?.textContent.trim() || chip.getAttribute('aria-label').split(': ')[0], detail: chip.querySelector('.stage-detail').textContent.trim(),
           chipHeight: Math.round(box(chip).height), chipClear: apart(box(chip), box(meta)) && apart(box(chip), box(title)),
           code: [...title.querySelectorAll('code')].map((code) => getComputedStyle(code).display) };
       }))`));
@@ -1122,30 +1126,32 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
         assert.equal(row.tip, titles[row.id], `${width}: the row's tooltip is its whole title`);
         assert.ok(row.titleLines === 1 && row.ellipsis, `title is one line, set to end in an ellipsis at ${place(row)}`);
         assert.equal(row.metaLines, 1, `the meta line never wraps, a long verdict reason included, at ${place(row)}`);
-        assert.ok(row.chipHeight < 24 && row.chipClear, `the chip is one line and nothing runs over it at ${place(row)}`);
+        assert.ok(row.chipHeight < 40 && row.chipClear, `the stage and detail stay together without overlapping title or metadata at ${place(row)}`);
       }
       assert.ok(rows.find((row) => row.id === '2').cut, `${width}: the long title is cut, so its ellipsis shows`);
       assert.deepEqual(rows.find((row) => row.id === '2').code, ['inline'], `${width}: inline code in a title stays a word in the line, not a block`);
       assert.equal(new Set(rows.map((row) => row.height)).size, 1, `${width}: every row is as tall as the next: ${JSON.stringify(rows.map((row) => [row.id, row.height]))}`);
       assert.equal(new Set(rows.map((row) => row.chipHeight)).size, 1, `${width}: every chip is the same size`);
-      const chips = Object.fromEntries(rows.map((row) => [row.id, row.chip]));
-      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['chip free: unclaimed', 'chip free: unclaimed', 'chip waiting: Waiting on #1', 'chip no: sent back'], `${width}: each state's chip in the list`);
-      assert.match(chips[5], /^chip busy: web-\d+ \(Test Model\)$/, `${width}: a claimed item names who builds it, in the building colour`);
+      const chips = Object.fromEntries(rows.map((row) => [row.id, `${row.stage}: ${row.detail}`]));
+      assert.deepEqual([chips[1], chips[2], chips[3], chips[4]], ['Ready: strong route', 'Ready: strong route', 'Gated: by #1', 'Ready: strong route'], `${width}: each item's stage and short detail`);
+      assert.match(chips[5], /^Building: by web-\d+ \(Test Model\)$/, `${width}: a claimed item names who builds it below the stage`);
       // The same state wears the same chip in the item's detail as in its row.
       for (const row of rows) {
         await chrome.click(`document.querySelector('#chain .row[data-item="${row.id}"]')`);
         await chrome.waitFor(`document.querySelector('#detail h2')?.textContent.startsWith('#${row.id}')`);
         const detail = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-          const chip = document.querySelector('#detail .meta.spaced .chip'), listed = document.querySelector('#chain .row[data-item="${row.id}"] > .chip');
+          const chip = document.querySelector('#detail .item-panel-status .item-stage'), listed = document.querySelector('#chain .row[data-item="${row.id}"] .row-side .item-stage');
+          const word = chip.querySelector('.stage-word'), listedWord = listed.querySelector('.stage-word'), seat = listed.querySelector('.item-seat');
           const paint = (node) => [getComputedStyle(node).backgroundColor, getComputedStyle(node).color, getComputedStyle(node).outlineStyle];
-          return { chip: chip.className + ': ' + chip.textContent, samePaint: JSON.stringify(paint(chip)) === JSON.stringify(paint(listed)) };
+          return { chip: word.textContent.trim() + ': ' + chip.querySelector('.stage-detail').textContent.trim(), samePaint: listedWord ? JSON.stringify(paint(word)) === JSON.stringify(paint(listedWord)) : null, seat: seat?.textContent.trim(), seatStage: seat?.getAttribute('aria-label'), seatVisible: seat ? seat.getClientRects().length > 0 : false };
         })())`));
-        assert.ok(detail.samePaint, `${width}: #${row.id}'s chip has its row's colours in the detail: ${JSON.stringify(detail)} vs ${row.chip}`);
-        if (row.id !== '5') assert.equal(detail.chip, row.chip, `${width}: #${row.id}'s detail says what its row says`);
-        else assert.equal(detail.chip, 'chip busy: building', `${width}: the detail says building, in the colour of its row's builder chip`);
+        if (detail.seat) {
+          assert.ok(detail.seatVisible && detail.seatStage.startsWith(row.stage + ': '), `${width}: ruling 49037 keeps the visible seat and accessible stage: ${JSON.stringify(detail)}`);
+        } else assert.ok(detail.samePaint, `${width}: #${row.id}'s unheld stage has its row's appearance in the detail: ${JSON.stringify(detail)} vs ${chips[row.id]}`);
+        assert.equal(detail.chip, chips[row.id], `${width}: #${row.id}'s detail says what its row says`);
       }
     }
-    // A builder's name can be long; its chip stops at its cap and ends in an ellipsis, leaving the title its line.
+    // Ruling 49037: a long model stays in the hover; the visible native seat remains whole.
     // Keep the long name in the real fixture so a live refresh cannot replace it between widths.
     const configPath = join(demo.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -1155,14 +1161,14 @@ test('list rows hold their shape: one-line titles end in an ellipsis, every row 
     await chrome.stable('refresh()');
     for (const width of [375, 1280]) {
       await chrome.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false });
-      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain .row[data-item="5"] > .chip')?.textContent.startsWith('claude-opus')`);
+      await chrome.waitFor(`innerWidth === ${width} && document.querySelector('#chain .row[data-item="5"] .stage-detail')?.textContent.startsWith('by claude-opus')`);
       const named = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const row = document.querySelector('#chain .row[data-item="5"]'), chip = row.querySelector(':scope > .chip'), meta = row.querySelector('.meta');
+        const row = document.querySelector('#chain .row[data-item="5"]'), chip = row.querySelector('.row-side .item-seat'), meta = row.querySelector('.meta');
         const a = chip.getBoundingClientRect(), b = meta.getBoundingClientRect();
-        return { chipWidth: a.width, cap: 10 * parseFloat(getComputedStyle(document.documentElement).fontSize), cut: chip.scrollWidth > chip.clientWidth,
+        return { seat: chip.textContent.trim(), hover: chip.title, chipWidth: a.width, cap: 10 * parseFloat(getComputedStyle(document.documentElement).fontSize), cut: chip.scrollWidth > chip.clientWidth,
           ellipsis: getComputedStyle(chip).textOverflow === 'ellipsis', clear: b.right <= a.left + 0.5, heights: [...new Set([...document.querySelectorAll('#chain .row')].map((r) => Math.round(r.getBoundingClientRect().height)))] };
       })())`));
-      assert.ok(named.chipWidth <= named.cap + 0.5 && named.cut && named.ellipsis, `${width}: a long builder name stops at the chip's cap, cut with an ellipsis: ${JSON.stringify(named)}`);
+      assert.ok(/^web-\d+$/u.test(named.seat) && !named.cut && named.hover.includes('claude-opus-designer-on-a-long-review-model-name') && named.hover.includes('Building:'), `${width}: the native seat stays whole and the long model and stage are available on hover: ${JSON.stringify(named)}`);
       assert.ok(named.clear && named.heights.length === 1, `${width}: and the row keeps its meta clear and its height: ${JSON.stringify(named)}`);
     }
   } finally {
@@ -1260,15 +1266,17 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
     await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
     assert.equal(await chrome.stable('location.pathname'), '/items/pipeline', 'Pipeline has its own shareable address');
     await chrome.waitFor("typeof data !== 'undefined' && location.pathname === '/items/pipeline' && !document.querySelector('#pipeline').hidden");
-    const expectedCounts = [status.open, status.claimed, status.submitted, 1, 1];
-    const read = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('[data-pipeline-stage]')].map(stage => ({ stage:stage.dataset.pipelineStage, label:stage.querySelector('h2').textContent, count:Number(stage.querySelector('[data-stage-count]').textContent), oldest:Number(stage.querySelector('.pipeline-oldest a[data-go]')?.dataset.go.slice('item:'.length) || 0), since:stage.querySelector('.pipeline-oldest time')?.dataset.ago || null, age:stage.querySelector('.pipeline-oldest time')?.textContent || '', ids:[...stage.querySelectorAll('.pipeline-item')].map(item => Number(item.dataset.item)) })))`));
-    assert.deepEqual(read.map(stage => stage.label), ['Not started', 'Building', 'Waiting for review', 'Accepted, waiting to merge', 'Merged']);
-    assert.deepEqual(read.map(stage => stage.count), expectedCounts, 'open/claimed/submitted match status; accepted plus merged equals verified');
-    assert.equal(read[3].count + read[4].count, status.verified);
-    assert.deepEqual(read.map(stage => stage.ids), [[5, 6], [4], [3], [2], [1]], 'an accept without a merge remains waiting to merge');
+    const expectedCounts = [0, status.open, status.claimed, status.submitted, 1, 0, 1];
+    const read = JSON.parse(await chrome.stable(`JSON.stringify([...document.querySelectorAll('#pipeline [data-pipeline-stage]')].map(stage => ({ stage:stage.dataset.pipelineStage, label:stage.querySelector('h2').textContent, count:Number(stage.querySelector('[data-stage-count]').textContent), oldest:Number(stage.querySelector('.pipeline-oldest a[data-go]')?.dataset.go.slice('item:'.length) || 0), since:stage.querySelector('.pipeline-oldest time')?.dataset.ago || null, age:stage.querySelector('.pipeline-oldest time')?.textContent || '', ids:[...stage.querySelectorAll('.pipeline-item')].map(item => Number(item.dataset.item)) })))`));
+    assert.deepEqual(read.map(stage => stage.label), ['Gated', 'Ready', 'Building', 'In review', 'Verified', 'Landing', 'Merged']);
+    assert.deepEqual(read.map(stage => stage.count), expectedCounts, 'the seven ordered stage columns preserve the native status counts');
+    assert.equal(read[4].count + read[6].count, status.verified);
+    assert.deepEqual(read.map(stage => stage.ids), [[], [5, 6], [4], [3], [2], [], [1]], 'an accept without a merge remains verified');
     const observedAt = await chrome.stable('Date.now()');
     for (const stage of read) {
-      const [id, minute] = arrivals[stage.stage], since = new Date(base + minute * 60_000).toISOString();
+      const arrivalKey = { ready: 'open', building: 'claimed', 'in-review': 'submitted', verified: 'accepted' }[stage.stage] || stage.stage;
+      if (!stage.ids.length) { assert.equal(stage.oldest, 0, stage.stage + ': empty stage has no oldest item'); continue; }
+      const [id, minute] = arrivals[arrivalKey], since = new Date(base + minute * 60_000).toISOString();
       assert.equal(stage.oldest, id, stage.stage + ': oldest item');
       assert.equal(stage.since, since, stage.stage + ': stage arrival survives edit or lease renewal');
       assert.ok(stage.age.length > 0, stage.stage + ': visible elapsed age');
@@ -1305,8 +1313,8 @@ test('Pipeline view shows every stage, status counts, stage ages, detail links a
       }
     }
     box.run(alpha.repo, 'merged', '2', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-    await chrome.waitFor("document.querySelector('[data-stage-count=accepted]').textContent === '0' && document.querySelector('[data-stage-count=merged]').textContent === '2'");
-    assert.equal(await chrome.stable("document.querySelector('[data-pipeline-stage=accepted] .pipeline-oldest').textContent"), 'No items', 'a recorded merge advances only the accepted item and leaves an honest empty stage');
+    await chrome.waitFor("document.querySelector('[data-stage-count=verified]').textContent === '0' && document.querySelector('[data-stage-count=merged]').textContent === '2'");
+    assert.equal(await chrome.stable("document.querySelector('#pipeline [data-pipeline-stage=verified] .pipeline-oldest').textContent"), 'No items', 'a recorded merge advances only the verified item and leaves an honest empty stage');
     await press(chrome, "document.querySelector('[data-items-view=\"list\"]')");
     await chrome.waitFor("!location.hash && !document.querySelector('#item-list').hidden && document.querySelector('#pipeline').hidden");
     assert.equal(await chrome.stable(listRead), listBefore, 'returning to List preserves its Active rows, metadata and ordering');
@@ -1448,7 +1456,7 @@ test('Pipeline view dates an expired claim from its recorded deadline [N26,N38]'
     const page = await openPage(view);
     await page.click({ tab: 'items' });
     await page.click({itemsView:'pipeline'});
-    const open = () => page.show('pipeline').split('data-pipeline-stage="open"')[1].split('</header>')[1].split('</p>')[0];
+    const open = () => page.show('pipeline').split('data-pipeline-stage="ready"')[1].split('</header>')[1].split('</p>')[0];
     assert.match(open(), /data-go="item:2"/, 'an open item from minute35 is older than a claim that lapses at minute40');
     assert.match(open(), new RegExp(new Date(base+35*60_000).toISOString()), 'the oldest open timestamp is the arrival');
     box.run(alpha.repo, 'withdraw', '2', 'Private fixture now isolates the lapse age');

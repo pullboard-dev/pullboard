@@ -86,7 +86,7 @@ export function releaseExitClaim(board, id, actor, note) {
   if (!identity || !family) throw new Refused('EXIT_CONTINUATION', 'restore your native session and honest family binding before handing off this claim');
   const summary = typeof note === 'string' ? /^Done:\s*(.+?);\s*Failed:\s*(.+?);\s*Next:\s*(.+)$/isu.exec(note) : null;
   if (!summary || note.length > 4096 || summary.slice(1).some(value => !value.trim()))
-    throw new Refused('EXIT_SUMMARY', 'release with --note "Done: <work>; Failed: <case or none>; Next: <next step>" to retain the complete handoff');
+    throw new Refused('EXIT_SUMMARY', 'release with --reason OTHER --note "Done: <work>; Failed: <case or none>; Next: <next step>" to retain the complete handoff');
   const item = itemById(board, id);
   if (item.item_status !== 'claimed' || item.item_owner !== actor) throw new Refused('NOT_YOURS', 'release only your current exit-rule claim');
   const at = board.clock.now().toISOString();
@@ -120,6 +120,6 @@ export function requireExitActive(board, actor, operation, args = []) {
   for (const item of items) {
     const decision = exitClaimDecision(board, item.item_id, actor);
     if (decision) throw new Refused(decision.code,
-      `session exit rule reached for #${item.item_id}; stop and release with --note "Done: <work>; Failed: <case or none>; Next: <next step>"`);
+      `session exit rule reached for #${item.item_id}; stop and release with --reason OTHER --note "Done: <work>; Failed: <case or none>; Next: <next step>"`);
   }
 }

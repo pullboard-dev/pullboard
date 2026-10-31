@@ -35,7 +35,7 @@ function seedClosedClaims(box) {
       instant += 1_000;
       store.claim(board, id, { agentId: agent, lane: 'web', leaseMs: LEASE, freeze });
       instant += 1_000;
-      store.release(board, id, agent);
+      store.release(board, id, agent, 'Close the private usage fixture claim.', 'OTHER');
     }
     return { file, agent, prior, target: add('Claim to resume usage') };
   } finally { store.closeBoard(board); }

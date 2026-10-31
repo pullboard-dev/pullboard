@@ -130,7 +130,7 @@ test('[B29,B31,B32] itemThread merges moves and facts in append order with exact
   clock.advance(1_000);
   const fact = store.appendFact(board, id, { agentId: 'web-2', kind: 'capture', text: 'first line\nsecond line stays', factId: 'ordered-fact' });
   clock.advance(1_000);
-  store.release(board, id, 'web-1');
+  store.release(board, id, 'web-1', 'Return the claim before reading its thread.', 'OTHER');
   const releaseEvent = store.events(board, { itemId: id }).at(-1);
   const thread = store.itemThread(board, id);
   assert.deepEqual(thread.map((entry) => entry.type === 'fact' ? `fact:${entry.id}` : `move:${entry.kind}`), [

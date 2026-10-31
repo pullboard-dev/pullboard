@@ -279,6 +279,10 @@ export { prepareMergeOnlySubmit };
 
 export { reviewHolder } from './board-query.js';
 
+/** Native composition providers for the store's lower-layer family routing rule. */
+export const seatFamily = reviewRouting.seatFamily;
+export const canonicalFamily = reviewRouting.canonicalFamily;
+
 /** Return a reviewer's active one-hour cooldown, if a later submission has not reset it [V1,R1]. */
 export const reviewReleaseCooldown = (board, itemId, agentId) => reviewRouting.reviewReleaseCooldown(board, itemId, agentId, { engineVersion: ENGINE_VERSION, reviewReleasesSinceSubmit, cooldownMs: REVIEW_RELEASE_COOLDOWN_MS });
 

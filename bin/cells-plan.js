@@ -26,6 +26,8 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../src/refused.js';
+import { runnerPackage } from '../src/runner-package.js';
+import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { fileCuts } from './cells-plan-cuts.js';
@@ -289,6 +291,15 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   const cell = plan.cells.find(row => row.name === name);
   if (!cell) throw new Refused('CELLS_PLAN_CELL', `no cell ${name} in ${PLAN_FILE}; use a name from its cells list`);
   const problems = [];
+  let workerFiles;
+  /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
+  function inWorkerClosure(from, to) {
+    if (workerFiles === undefined) {
+      try { workerFiles = new Set(Object.keys(runnerPackage(root).files)); }
+      catch { workerFiles = new Set(); /* An unprovable worker closure grants no shim exception. */ }
+    }
+    return workerFiles.has(from) && workerFiles.has(to);
+  }
   problems.push(...pureFrontDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
   const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
@@ -300,7 +311,8 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
       else for (const match of code.matchAll(/from(['"])([^'"]*)\1;/gu)) {
         const target = match[2].startsWith('.') ? posix.normalize(posix.join(posix.dirname(from), match[2])) : null;
-        if (target !== cell.frontDoor && target !== cell.pureFrontDoor) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
+        const workerLeaf = target === to && /^(?:export\{[^}]+\}from(?:'[^']*'|"[^"]*");)+$/u.test(code) && inWorkerClosure(from, to);
+        if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !workerLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
   }
@@ -417,6 +429,13 @@ function fileItems(root, plan, yes) {
 function main(argv) {
   const [mode = '--check', ...rest] = argv;
   const root = resolve('.');
+  if (mode === '--engine-stays') {
+    const [cellName, ...paths] = rest;
+    const next = retainEnginePaths({ root, plan: readPlan(root), cellName, paths, pathMap: readPathMap(root) });
+    writePlan(root, next);
+    console.log(`retained ${paths.length} canonical engine paths in src`);
+    return;
+  }
   if (mode === '--refresh-cuts') {
     const plan = readPlan(root), { edges, unknown } = cellInventory(root, { importsIn, commonJsIn });
     const endpoints = new Set([...edges.keys(), ...[...edges.values()].flatMap(rows => rows.map(row => row.target))]);
@@ -469,7 +488,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays state <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell>');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

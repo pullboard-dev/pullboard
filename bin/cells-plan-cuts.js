@@ -195,11 +195,23 @@ export function checkCuts(root, plan, name, { allLaterCells = false, temporaryEx
   const allowed = new Set(!temporaryExceptions || temporary.problems.length ? [] : temporary.edges.map(row => `${mappedPath(map, row.importer)}->${mappedPath(map, row.target)}`));
   const forbidden = new Set(allLaterCells ? plan.cells.filter(row => row.order > cell.order).map(row => row.name) : group.targets);
   const problems = new Set([...temporary.problems, ...retiredProblems(root, plan, inventory)]), seen = new Set();
-  const pending = [...edges.keys()].filter(file => !testFile(file) && owner(file) === name);
+  // Test support may depend on any cell, but executable production must never depend on testkit.
+  for (const [file, imports] of inventory.edges) {
+    if (testFile(file)) continue;
+    for (const row of imports) {
+      if (!row.kind && (row.target === 'packages/testkit/index.js' || row.target.startsWith('packages/testkit/src/'))) {
+        problems.add(`production imports testkit: ${file} -> ${row.target}`);
+      }
+    }
+  }
+  /** @type {{ file: string, wildcardCell: string | null }[]} */
+  const pending = [...edges.keys()].filter(file => !testFile(file) && owner(file) === name)
+    .map(file => ({ file, wildcardCell: null }));
   while (pending.length) {
-    const file = pending.pop();
-    if (seen.has(file)) continue;
-    seen.add(file);
+    const { file, wildcardCell } = pending.pop();
+    const identity = JSON.stringify([file, wildcardCell]);
+    if (seen.has(identity)) continue;
+    seen.add(identity);
     const unresolved = unknown.filter(row => row.file === file);
     const cell = owner(file);
     if (cell !== name && !(allLaterCells && cell === null) && !onlyForwards(files.get(file)?.toString('utf8') ?? '',
@@ -208,8 +220,13 @@ export function checkCuts(root, plan, name, { allLaterCells = false, temporaryEx
     for (const { target, acceptedWildcard } of edges.get(file) ?? []) {
       if (testFile(target)) continue;
       const cell = owner(target);
-      if (forbidden.has(cell) && !acceptedWildcard && !allowed.has(`${file}->${target}`)) problems.add(`${name} still imports later ${cell}: ${file} -> ${target}`);
-      else pending.push(target);
+      // An existing wildcard's target may move behind exact same-cell re-export shims.
+      // Preserve only that target's cell through pure exports; computed loaders and real
+      // implementations never inherit it, nor can an independent literal importing path.
+      const forwardedCell = wildcardCell !== null && owner(file) === wildcardCell && cell === wildcardCell
+        && onlyForwards(files.get(file)?.toString('utf8') ?? '', false) ? wildcardCell : null;
+      if (forbidden.has(cell) && !acceptedWildcard && forwardedCell === null && !allowed.has(`${file}->${target}`)) problems.add(`${name} still imports later ${cell}: ${file} -> ${target}`);
+      else pending.push({ file: target, wildcardCell: acceptedWildcard ? cell : forwardedCell });
     }
   }
   return [...problems].sort();

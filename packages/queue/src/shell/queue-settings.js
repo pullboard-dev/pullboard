@@ -84,6 +84,7 @@ export function readGateQueueSettings(file) {
 /** Board-owned controller inputs; false means off, independently of machine gate settings. */
 export const LINE_SETTING_DEFINITIONS = Object.freeze({
   'route.liveOnly': Object.freeze({ type: 'boolean' }),
+  reworkSameFamily: Object.freeze({ type: 'boolean' }),
   order: Object.freeze({ type: 'boolean' }),
   focusMilestone: Object.freeze({ type: 'milestone' }),
   reviewsFirst: Object.freeze({ type: 'boolean' }),

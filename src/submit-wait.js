@@ -25,7 +25,7 @@ function submissionOutcome(ctx, id, commit, submittedEvent, { withBoardRead, eve
 }
 
 /** Keep synchronizing while attached, reporting the recorded verdict and its complete note. */
-export async function waitForSubmissionVerdict(ctx, id, submission, receipt, ports) {
+export async function waitForSubmissionVerdict(ctx, id, submission, receipt, ports, { deadlineMs = 30 * 60_000 } = {}) {
   const { retrySync } = ports;
   const { commit } = submission;
   const submittedEvent = receipt?.event_id;
@@ -33,7 +33,9 @@ export async function waitForSubmissionVerdict(ctx, id, submission, receipt, por
     || JSON.parse(receipt.event_detail).commit !== commit) {
     throw new Refused('SUBMISSION_CHANGED', `the exact acknowledged submission for #${id} is unavailable; run pullboard inbox to synchronize it`);
   }
-  ctx.io.say(`waiting for the verdict on #${id} at ${commit.slice(0, 12)}`);
+  if (!Number.isFinite(deadlineMs) || deadlineMs < 0) throw new Refused('USAGE', 'review wait needs a finite nonnegative deadline');
+  const deadline = Date.now() + deadlineMs;
+  ctx.io.say(`waiting for the verdict on #${id} at ${commit.slice(0, 12)} until ${new Date(deadline).toISOString()}`);
   let nextSync = 0;
   for (;;) {
     if (Date.now() >= nextSync) {
@@ -49,6 +51,10 @@ export async function waitForSubmissionVerdict(ctx, id, submission, receipt, por
     if (attemptChanged || item.item_commit !== commit || item.item_status !== 'submitted') {
       throw new Refused('SUBMISSION_CHANGED', `#${id} left this submission without a verdict; run pullboard show ${id} to read its current state`);
     }
-    await pause(250);
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Refused('SUBMISSION_WAIT_TIMEOUT',
+      `review wait deadline reached for #${id} at ${commit}; its gate is complete and independent review is still pending`,
+      `run pullboard show ${id} to read the review state; do not resubmit the completed gate`);
+    await pause(Math.min(250, remaining));
   }
 }

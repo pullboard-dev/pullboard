@@ -189,15 +189,15 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
   box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships when the review lands; your call on the name.', '--items', '1,2,3,4,beacon#1');
   box.run(alpha.repo, 'milestone', 'add', 'Next', '--note', 'Queued behind Launch.', '--items', '5,6,7');
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Ideas not filed yet.');
-  // Roadmap's approved short stage words retain the lifecycle tone used by each item state.
+  // What the person reads on each row: the approved stage word; rejected work is a separate mark.
   const words = [
-    { id: '#2', label: 'Accepted', tone: 'ok' },
-    { id: '#4', label: 'In review', tone: 'warn' },
-    { id: '#3', label: 'Sent back', tone: 'no' },
-    { id: 'beacon#1', label: 'Sent back', tone: 'no' },
-    { id: '#1', label: 'Landed', tone: 'ok' },
-    { id: '#5', label: 'Building', tone: 'busy' },
-    { id: '#6', label: 'Ready', tone: 'free' },
+    { id: '#2', label: 'Verified', tone: 'verified' },
+    { id: '#4', label: 'In review', tone: 'in-review' },
+    { id: '#3', label: 'Ready', tone: 'ready' },
+    { id: 'beacon#1', label: 'Ready', tone: 'ready' },
+    { id: '#1', label: 'Merged', tone: 'merged' },
+    { id: '#5', label: 'Building', tone: 'building' },
+    { id: '#6', label: 'Ready', tone: 'ready' },
   ];
   phase('states-ready');
   const view = await startView(box);
@@ -236,8 +236,9 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
       assert.deepEqual(seen.cards.map((card) => [card.count, card.progress, card.filled]), [['1/5 landed', [1, 5], 0.2], ['0/2 landed', [0, 2], 0], [null, null, null]], `${width}: counts and bars say how many retained items landed`);
       assert.deepEqual([seen.cards[2].empty, seen.cards[2].rows.length], ['No items yet.', 0], `${width}: an empty milestone says so with zero summary counts`);
       const rows = seen.cards.flatMap((card) => card.rows);
-      assert.deepEqual(rows.map(({ id, label, tone }) => ({ id, label, tone })), words, `${width}: each roadmap chip distinguishes landed and accepted with the Items tab's colour`);
-      assert.ok(rows.every((row) => row.seen), `${width}: every chip is on screen`);
+      assert.deepEqual(rows.map(({ id, label, tone }) => ({ id, label, tone })), words, `${width}: each roadmap row uses an approved stage word`);
+      assert.deepEqual(rows.filter((row) => row.id === '#3' || row.id === 'beacon#1').map((row) => row.marks), [['Sent back'], ['Sent back']], `${width}: a rejected item keeps its mark beside its stage`);
+      assert.ok(rows.every((row) => row.seen), `${width}: every stage is on screen`);
       assert.deepEqual(rows.map((row) => row.title), [titles[1], titles[3], titles[2], 'Billing webhook retries', titles[0], titles[4], titles[5]], `${width}: shipping groups lead landed items and preserve milestone order within each group`);
       assert.deepEqual(rows.map((row) => row.tip), rows.map((row) => row.title), `${width}: each row's tooltip is its whole title`);
       assert.ok(rows.every((row) => row.lines === 1 && row.ellipsis), `${width}: every title holds one line, set to end in an ellipsis: ${JSON.stringify(rows)}`);
@@ -271,8 +272,8 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
     // Another repo's item opens on its own board, and Back and Forward move between the two boards.
     await openRoadmapItem(chrome, 'beacon#1');
     await chrome.waitFor(`document.querySelector('#proj-name').textContent === 'beacon' && ${showing('items', '/beacon/items/1')} && document.querySelector('#detail h2')?.innerText.includes('Billing webhook retries')`);
-    const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .meta .chip'); return {
-      id: document.querySelector('#detail h2 span').innerText, label: chip.innerText, chip: getComputedStyle(chip).color + ' on ' + getComputedStyle(chip).backgroundColor,
+    const there = JSON.parse(await chrome.stable(`JSON.stringify((() => { const chip = document.querySelector('#detail .meta .item-stage'); return {
+      id: document.querySelector('#detail h2 span').innerText, label: chip.querySelector('.stage-word').innerText, chip: getComputedStyle(chip.querySelector('.stage-word')).color + ' on ' + getComputedStyle(chip.querySelector('.stage-word')).backgroundColor,
       dot: getComputedStyle(document.querySelector('#chain [data-item="1"] .dot')).backgroundColor }; })())`));
     const crossed = seen.cards[0].rows.find((row) => row.id === 'beacon#1');
     assert.deepEqual(there, { id: '#1', label: crossed.label, chip: crossed.chip, dot: crossed.dot }, "the other repo's Items tab shows that item with the Roadmap's word and colours");
@@ -289,21 +290,21 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
       await openRoadmapItem(chrome, row.id);
       await chrome.waitFor(`${showing('items', '/roadmap-demo/items/' + row.id.slice(1))} && document.querySelector('#detail h2 span')?.innerText === ${JSON.stringify(row.id)}`);
       const here = JSON.parse(await chrome.stable(`JSON.stringify((() => {
-        const chip = document.querySelector('#detail .meta .chip'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
-        return { label: chip.innerText, chip: getComputedStyle(chip).color + ' on ' + getComputedStyle(chip).backgroundColor, dot: dot ? getComputedStyle(dot).backgroundColor : 'not listed' };
+        const chip = document.querySelector('#detail .meta .item-stage'), word = chip.querySelector('.stage-word'), dot = document.querySelector('#chain [data-item="${row.id.slice(1)}"] .dot');
+        return { label: word.innerText, chip: getComputedStyle(word).color + ' on ' + getComputedStyle(word).backgroundColor, dot: dot ? getComputedStyle(dot).backgroundColor : 'not listed' };
       })())`));
-      assert.deepEqual(here, { label: ['landed', 'accepted'].includes(row.label) ? 'verified' : row.label, chip: row.chip, dot: row.label === 'withdrawn' ? 'not listed' : row.dot }, `${row.id}: the Items tab keeps its verified label while both tabs share colours`);
+      assert.deepEqual(here, { label: row.label, chip: row.chip, dot: row.label === 'Withdrawn' ? 'not listed' : row.dot }, `${row.id}: the Items detail keeps the Roadmap stage and its state dot`);
       await travel(chrome, -1);
       await settled(chrome, `${showing('roadmap', roadmapPath)} && !!${roadmapRow(row.id)}`);
     }
 
     // It updates live as items move, here and on the other repo's board.
     accept(box, alpha, 4);
-    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.chip').innerText === 'Accepted' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '1/5 landed'`, 15_000); // budget: hang ceiling for the accepted receipt and unchanged landed count to reach the browser; no throughput claim.
+    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.stage-word').innerText === 'Verified' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '1/5 landed'`, 15_000); // budget: hang ceiling for the accepted receipt and unchanged landed count to reach the browser; no throughput claim.
     landRoadmapItem(box, alpha, 4);
-    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.chip').innerText === 'Landed' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '2/5 landed'`, 15_000); // budget: hang ceiling for the real merge receipt and landed count to reach the browser; no throughput claim.
+    await chrome.waitFor(`${roadmapRow('#4')}?.querySelector('.stage-word').innerText === 'Merged' && document.querySelector('#roadmap .roadmap-left [aria-label]').getAttribute('aria-label') === '2/5 landed'`, 15_000); // budget: hang ceiling for the real merge receipt and landed count to reach the browser; no throughput claim.
     box.run(beacon.web, 'claim', '1');
-    await chrome.waitFor(`${roadmapRow('beacon#1')}?.querySelector('.chip').innerText === 'Building'`, 15_000); // budget: hang ceiling for the claimed external item to refresh; no throughput claim.
+    await chrome.waitFor(`${roadmapRow('beacon#1')}?.querySelector('.stage-word').innerText === 'Building'`, 15_000); // budget: hang ceiling for the claimed external item to refresh; no throughput claim.
 
     // A board with no milestones says how one starts; the address stays the Roadmap's.
     await press(chrome, `document.querySelector('[data-root=${JSON.stringify(beacon.repo)}]')`);
@@ -913,8 +914,8 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
     await chrome.stable("(()=>{const m=data.project.milestones.find(m=>m.name==='State summary');m.count=512;m.limit=700;m.summary={...m.summary,pace:{last6h:7,last2h:7},estimate:{low:71,high:212.5}};render();return true;})()");
     const truth=await chrome.stable(`${milestone('Past target')}.textContent`);
     assert.match(truth,/1 of 3 landed/u,'acceptance does not count as landed');assert.match(truth,/past target/u);
-    const states=JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('Past target')}.querySelectorAll('.milestone-item')].map(row=>[row.querySelector('.id').textContent,row.querySelector('.chip').textContent]))`));
-    assert.deepEqual(Object.fromEntries(states),{'#1':'verified','#2':'accepted','#3':'unclaimed'});
+    const states=JSON.parse(await chrome.stable(`JSON.stringify([...${milestone('Past target')}.querySelectorAll('.milestone-item')].map(row=>[row.querySelector('.id').textContent,row.querySelector('.stage-word')?.textContent]))`));
+    assert.deepEqual(Object.fromEntries(states),{'#1':'Merged','#2':'Verified','#3':'Ready'});
     await press(chrome,"document.querySelector('[data-key=shipped] > .milestone-head')");
     await chrome.waitFor(`${milestone('Shipped release')}?.querySelector('.milestone-head')`);
     assert.match(await chrome.stable(`${milestone('Shipped release')}.textContent`),new RegExp(shipped.slice(0,12)),'the shipped release names its actual commit');
@@ -1074,9 +1075,9 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
       assert.equal(colors.reason, colors.danger, `${scheme}: the callout uses the danger token`);
       await press(chrome, row('#6'));
       await opened('#5');
-      const landed = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('#5')},panel=r.parentElement.querySelector('.milestone-why');return {color:getComputedStyle(panel.querySelector('.roadmap-event:last-child .roadmap-step')).backgroundColor,chip:r.querySelector('.roadmap-landed')?.textContent,icon:!!r.querySelector('.roadmap-landed svg')};})())`));
+      const landed = JSON.parse(await chrome.stable(`JSON.stringify((()=>{const r=${row('#5')},panel=r.parentElement.querySelector('.milestone-why');return {color:getComputedStyle(panel.querySelector('.roadmap-event:last-child .roadmap-step')).backgroundColor,stage:r.querySelector('.stage-word')?.textContent,icon:!!r.querySelector('.roadmap-landed svg')};})())`));
       assert.equal(landed.color, colors.success, `${scheme}: landing history uses the success token`);
-      assert.equal(landed.chip, 'verified'); assert.equal(landed.icon, false, 'a landed row reads verified, with no checkmark');
+      assert.equal(landed.stage, 'Merged'); assert.equal(landed.icon, false, 'a landed row reads Merged, with no checkmark');
       await press(chrome, row('#5'));
     }
     for (const width of [375,1280]) for (const scheme of ['light','dark']) {

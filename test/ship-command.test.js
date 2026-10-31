@@ -13,6 +13,10 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { cleanupFixtureChildren } from './fixture-child.js';
 import { runFixtureChild } from './fixture-child.js';
+import { context } from '../src/cli-read-context.js';
+import { withBoardRead } from '../src/cli-context.js';
+import { retrySync } from '../src/cli-sync.js';
+import { waitForSubmissionVerdict } from '../src/submit-wait.js';
 
 /** Read or mutate only this private fixture's actual CLI board, closing before a child runs. */
 function onBoard(box, work) {
@@ -55,6 +59,25 @@ function stage(box, file, body) {
   writeFileSync(join(box.web, file), body);
   box.git(box.web, 'add', file);
 }
+
+test('ship review wait names its deadline without undoing the completed gate [V4,B3]', async t => {
+  const { box, id } = fixture(t);
+  const changed = createE2eHelpers().commitFile(box, box.web, 'web/deadline.txt', 'Completed gate.\n',
+    'feat(web): deadline fixture [G1]');
+  assert.equal(changed.status, 0, changed.stderr);
+  const submitted = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  assert.equal(submitted.code, 0, submitted.out + submitted.err);
+  const value = JSON.parse(submitted.out);
+  const receipt = onBoard(box, board => store.events(board, { itemId: id }).findLast(row => row.event_kind === 'submit'));
+  const lines = [];
+  const io = { cwd: box.web, say: line => lines.push(line), err: line => lines.push(line), result: () => {} };
+  await assert.rejects(waitForSubmissionVerdict(context(io), id, value, receipt,
+    { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem },
+    { deadlineMs: 0 }), { code: 'SUBMISSION_WAIT_TIMEOUT' });
+  assert.ok(lines.some(line => line.includes(`waiting for the verdict on #${id}`) && line.includes(' until ')));
+  assert.equal(onBoard(box, board => store.getItem(board, id).item_status), 'submitted');
+  assert.equal(onBoard(box, board => store.verdictsFor(board, id).length), 0, 'expiry creates no review verdict');
+});
 
 /** A fixture reviewer releases the actual --wait only after observing its durable submit. */
 async function shipAndAccept(t, f, note = 'The staged fixture shipped.') {

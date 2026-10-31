@@ -147,9 +147,9 @@ test('opening an item loads its detail on demand [N26,A2]', { timeout: 150_000 }
 
       // The pipeline counts each stage from the summaries, with no further read.
       await press(chrome, "document.querySelector('[data-items-view=\"pipeline\"]')");
-      await chrome.waitFor("!!document.querySelector('#pipeline [data-stage-count=\"open\"]')");
+      await chrome.waitFor("!!document.querySelector('#pipeline [data-stage-count=\"building\"]')");
       const stages = await chrome.stable("Object.fromEntries([...document.querySelectorAll('#pipeline [data-stage-count]')].map((count) => [count.dataset.stageCount, count.textContent]))");
-      assert.deepEqual(stages, { open: '0', claimed: '1', submitted: '1', accepted: '1', merged: '0' });
+      assert.deepEqual(stages, { gated: '0', unclaimed: '0', building: '1', 'in-review': '1', verified: '1', landing: '0', merged: '0' });
       assert.deepEqual(itemReads(await chrome.stable('window.__pbReads')), ['items?q=zeppelin', 'items/2', 'items/1', 'items/2']);
       assert.deepEqual(chrome.exceptions, [], 'the live view opens items without browser exceptions');
       await view.stop();

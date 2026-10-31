@@ -273,6 +273,7 @@ export function nativeBoardPorts() {
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
     getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
     listAgents: store.listAgents, verdictWithdrawalTarget, computedConflictProblem, firstRefusal,
+    seatFamily: store.seatFamily, canonicalFamily: store.canonicalFamily,
     itemReviewPolicy, reviewPolicyChange, saveItemReviewPolicy,
     milestones: store.milestones, listItems: store.listItems, buildOrder: store.buildOrder,
     canTake: store.canTake, milestonePriorities: store.milestonePriorities, roadmap, ROUTES: store.ROUTES,

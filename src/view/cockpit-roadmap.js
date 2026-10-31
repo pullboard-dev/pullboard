@@ -67,6 +67,8 @@ function milestoneItem(entry, p) {
     root,
     titles: renderIndex(source).titles,
     state: read ? stateOf(read) : null,
+    stageHtml: read ? stageMarkup(item || { ...read, status: entry.state === 'accepted' || entry.state === 'landed' ? 'verified' : read.status,
+      merged: entry.state === 'landed' ? 'recorded' : null }, source || {}, item?.status === 'open' && Boolean(item.blockedBy?.length || heldNote(item, source, entry, Date.now())), heldNote(item, source, entry, Date.now()) || '', item ? itemStageMarks(item, source) : []) : '',
     stale: item ? staleChip(item) : '', held: item ? heldNote(item, source, entry, Date.now()) : null,
     block: block(!expanded && !Array.isArray(detail?.item?.history)),
     // Until its omitted fields arrive, an expanded row paints what its summary holds and fills the rest in place (#1039).
@@ -136,6 +138,7 @@ function milestonePresentation(row, titles) {
   for (const id of row.after || []) afterHtml += '<span class="roadmap-after"><svg aria-hidden="true" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.5"/></svg>after <a class="ref" href="' + itemAddress(id, row.root) + '" data-go="item:' + id + '">#' + id + '</a></span>';
   return { root: view.root, open: view.roadmapOpen.get(JSON.stringify([view.root, 'i:' + row.label])) === true,
     titleHtml: row.title ? inline(String(row.title).replace(/\\s+/g, ' '), row.titles || titles, 'in-place', row.root) : undefined,
+    stateChipHtml: row.stageHtml || (row.state ? chip(row.state) : ''),
     afterHtml };
 }
 /** Preserve the existing browser helper while delegating its actual HTML to the pure renderer. */

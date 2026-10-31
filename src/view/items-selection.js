@@ -12,7 +12,7 @@ export function selectItemsView({ items, query = '', matchedIds = [], readyIds =
     .filter(item => !query || matched.has(item.id));
 
   const names = { active: 'Active', verified: 'Verified', all: 'All' };
-  if (state === 'verify') names.verify = 'To verify';
+  if (state === 'verify') names.verify = 'In review';
   if (state === 'gated') names.gated = 'Gated';
   if (state === 'ready') names.ready = 'Ready, in rank order';
 

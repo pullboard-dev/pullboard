@@ -40,7 +40,7 @@ function claimAndRelease(f, id, claimAt, releaseAt) {
     freeze: () => ({ text: 'A stable actor fixture criterion.', digest: 'actor-fixture-digest' }),
   });
   f.setTime(releaseAt);
-  release(f.board, id, 'web-1');
+  release(f.board, id, 'web-1', 'Return the fixture claim to another agent.', 'OTHER');
 }
 
 /** Build a legacy history before a family change and ordinary moves after that declaration. */

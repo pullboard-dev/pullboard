@@ -164,7 +164,7 @@ test('the actual background sentinel scans once, honors off switches and drains 
   await tick(); assert.equal(receipts().notices.length, 2, 'a persisting finding posts nothing again');
   const renewed = openBoard(boardFile);
   store.claim(renewed, id, { agentId: builder, lane, leaseMs: 3_600_000, freeze: item => frozenCriterion(loadSpec(repo, config), item, loadDoctrine(repo, config)) });
-  store.release(renewed, id, builder); store.closeBoard(renewed);
+  store.release(renewed, id, builder, 'Return the background sentinel fixture claim.', 'OTHER'); store.closeBoard(renewed);
   await tick();
   assert.equal(receipts().notices.filter(row => row.shout_text.startsWith('Resolved:')).length, 2);
   writeFileSync(hold, 'hold the next owned child before CLI execution');

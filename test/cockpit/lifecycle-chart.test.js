@@ -61,7 +61,7 @@ test('Activity starts on its feed and remembers the plain lifecycle toggle in Ch
     '--note', 'The greeting is missing.', '--no-next');
   build(box, demo, 3, 'review.txt');
   box.run(demo.web, 'claim', '4');
-  box.run(demo.web, 'release', '4', '--no-next', '--note', 'Another agent can take this.');
+  box.run(demo.web, 'release', '4', '--no-next', '--reason', 'OTHER', '--note', 'Another agent can take this.');
   box.run(demo.web, 'claim', '5');
   box.run(demo.web, 'claim', '5');
   box.run(demo.repo, 'withdraw', '6', 'This is outside the release.');

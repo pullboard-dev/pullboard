@@ -23,6 +23,24 @@ export function activityHtml(model, { filter = 'all', open = [], controls = true
   };
   const icon = kind => '<svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + paths[kind] + '</svg>';
   const pill = (n, label, tone) => n ? '<span class="activity-pill ' + tone + '">' + n + ' ' + label + '</span>' : '';
+  /** Show only recorded lifecycle evidence, leaving absent fields absent. */
+  const evidence = entry => {
+    const detail = entry.detail || {}, lines = [];
+    if (typeof detail.note === 'string' && detail.note.trim()) lines.push(detail.note);
+    if (entry.kind === 'submit' && detail.submissionProof) {
+      const proof = detail.submissionProof;
+      if (Array.isArray(proof.files) && proof.files.length) lines.push('Checks: ' + proof.files.join(', '));
+      if (typeof proof.reason === 'string' && proof.reason.trim()) lines.push(proof.reason);
+      if (typeof detail.gateGreen === 'boolean') lines.push(detail.gateGreen ? 'Check passed' : 'Check did not pass');
+    }
+    if (entry.kind === 'reject' && typeof detail.reason === 'string') lines.unshift('Reason: ' + detail.reason.replaceAll('_', ' ').toLowerCase());
+    if (entry.kind === 'merged' && typeof detail.commit === 'string') lines.push('Landed at ' + detail.commit.slice(0, 12));
+    if (entry.kind === 'main-moved') {
+      if (Array.isArray(detail.items) && detail.items.length) lines.push('Items: ' + detail.items.map(id => '#' + id).join(', '));
+      if (typeof detail.sha === 'string') lines.push('Main at ' + detail.sha.slice(0, 12));
+    }
+    return lines.map(line => '<p class="activity-evidence">' + esc(line).replaceAll('\n', '<br>') + '</p>').join('');
+  };
   const row = entry => {
     let tone = 'note', glyph = 'note', content;
     if (entry.kind === 'sentinels') {
@@ -46,7 +64,7 @@ export function activityHtml(model, { filter = 'all', open = [], controls = true
       const recipient = entry.to === 'coordinator' ? 'the coordinator' : entry.to === 'person' ? 'the person'
         : /^item:\d+$/u.test(entry.to || '') ? 'the item’s followers' : entry.to || 'the board';
       content = '<p>' + who(entry.by, entry.agent) + ' ' + sentence + (entry.kind === 'shout' ? ' ' + esc(recipient) + about(entry) : '') + '</p>'
-        + (entry.kind !== 'shout' && entry.item ? item(entry.item, entry.itemHref) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + entry.quoteHtml + '</blockquote>' : '');
+        + (entry.kind !== 'shout' && entry.item ? item(entry.item, entry.itemHref) : '') + (entry.kind === 'shout' && entry.words ? '<blockquote class="activity-quote">' + entry.quoteHtml + '</blockquote>' : '') + evidence(entry);
     }
     return sharedRowHtml({ variant: 'activity', state: tone, time: entry.timeLabel, iconHtml: icon(glyph), mainHtml: content,
       attributes: { 'data-activity-kind': entry.kind, ...(entry.kind === 'shout' && entry.by === 'coordinator' ? { 'data-activity-coordinator': 'true' } : {}) } });

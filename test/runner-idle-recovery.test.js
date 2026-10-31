@@ -28,6 +28,8 @@ function control(t, body) {
     import { probeRunnerHealth } from ${JSON.stringify(url('runners.js'))};
     import { initializeRunnerRecovery, recordRunnerFailure, recoverUnavailableRunners } from ${JSON.stringify(url('../packages/resources/index.js'))};
     import { claimRunnerLaunch, runnerLaunchAllowed, claimRunnerWorker } from ${JSON.stringify(url('runner-transport.js'))};
+    import { processCensus } from ${JSON.stringify(url('runner-custody.js'))};
+    const custodyURL = ${JSON.stringify(url('runner-custody.js'))};
     const transportURL = ${JSON.stringify(url('runner-transport.js'))};
     const root = ${JSON.stringify(root)};
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, root, slots: 1, browser: 0 };
@@ -54,7 +56,7 @@ test('a valid started request without completion recovers only after fencing and
     const first = await recoverUnavailableRunners(db, [runner], { ...options, now: Date.now() + 2000 });
     const events = db.prepare('SELECT kind,detail FROM runner_recovery_event ORDER BY rowid').all();
     console.log(JSON.stringify({ first, held: db.prepare('SELECT COUNT(*) n FROM runner_unavailable').get().n,
-      allowed: runnerLaunchAllowed(root, identity), startup: claimRunnerWorker(root, identity),
+      allowed: runnerLaunchAllowed(root, identity), startup: claimRunnerWorker(root, identity, processCensus),
       events: events.map(row => ({ kind: row.kind, detail: JSON.parse(row.detail) })) }));
   `);
   assert.equal(actual.first, true, JSON.stringify(actual));
@@ -128,9 +130,10 @@ test('a worker paused after startup admission prevents idle recovery before any 
     claimRunnerLaunch(root, identity);
     const source = [
       'import { claimRunnerWorker } from ' + JSON.stringify(transportURL) + ';',
+      'import { processCensus } from ' + JSON.stringify(custodyURL) + ';',
       'import { existsSync, writeFileSync } from "node:fs";',
       'import { spawnSync } from "node:child_process";',
-      'if (!claimRunnerWorker(' + JSON.stringify(root) + ',' + JSON.stringify(identity) + ')) throw new Error("startup fenced");',
+      'if (!claimRunnerWorker(' + JSON.stringify(root) + ',' + JSON.stringify(identity) + ',processCensus)) throw new Error("startup fenced");',
       'writeFileSync(' + JSON.stringify(ready) + ', "ready");',
       'while (!existsSync(' + JSON.stringify(resume) + ')) await new Promise(resolve => setTimeout(resolve, 20));',
       'const result = spawnSync(process.execPath, ["-e", ' + JSON.stringify('require("node:fs").writeFileSync(' + JSON.stringify(spawned) + ', "spawned")') + ']);',

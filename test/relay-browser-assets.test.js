@@ -1,3 +1,4 @@
+/** @pullboard-test-input src/view.css src/view/dashboard.css src/view/item-rows.css src/view/stage.css */
 /** Check the real public module routes used by the relay browser client [H5,H16]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -42,4 +43,18 @@ test('the HTTP-served browser module import closure includes the SSE transport a
     }
   }
   assert.ok(seen.has('/relay/browser-stream.js'), 'the served client can fetch the SSE transport module it imports');
+});
+
+
+test('the relay stylesheet includes shared stage and item-row rules without unresolved markers [N26,H5]', async t => {
+  const handler = createRelayBrowserHandler({ authenticate: async () => { throw new Error('public assets must not authenticate'); } });
+  const server = createServer(async (request, response) => { if (!await handler(request, response)) response.writeHead(404).end(); });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(resolveClose => server.close(resolveClose)));
+  const response = await fetch('http://127.0.0.1:' + server.address().port + '/view.css', { signal: AbortSignal.timeout(2000) });
+  assert.equal(response.status, 200);
+  const css = await response.text();
+  assert.doesNotMatch(css, /@pullboard-[\w-]+-styles/u);
+  for (const selector of ['.stage-word', '.item-stage', '.stage-mark', '.roadmap-status', '.row.item-row']) assert.ok(css.includes(selector), selector + ' reaches the relay stylesheet');
 });
