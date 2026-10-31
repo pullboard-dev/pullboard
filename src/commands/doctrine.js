@@ -5,7 +5,7 @@ import {
   checkRulesAt,
   doctrineReport,
   ruleLine,
-} from '../doctrine-checks.js';
+} from '../../packages/doctrine/index.js';
 import {
   gateWaitReporter,
 } from '../gate-wait.js';

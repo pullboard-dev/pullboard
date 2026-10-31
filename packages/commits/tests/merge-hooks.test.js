@@ -2,7 +2,7 @@
 import { boardBusyError } from "../../../src/board-access.js";
 import { openBoardReadOnly } from "../../../src/board-read-open.js";
 import { rowDecisions } from "../../../src/row-decisions-query.js";
-import { checkLoosening } from "../../../src/doctrine-checks.js";
+import { checkLoosening } from "../../doctrine/index.js";
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';

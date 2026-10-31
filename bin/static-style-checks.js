@@ -8,7 +8,7 @@ import { styleSources } from '../packages/codemap/index.js';
 import { importStyleViolations } from '../src/static-import-style.js';
 import { engineFolderProblems } from '../src/engine-folder.js';
 import { declaredProseCommands } from '../src/static-prose-commands.js';
-import { doctrineReport } from '../src/doctrine-checks.js';
+import { doctrineReport } from '../packages/doctrine/index.js';
 import { loadConfig } from '../src/config.js';
 import { HELP } from '../src/cli.js';
 import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
