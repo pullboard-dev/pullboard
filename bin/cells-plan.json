@@ -2753,7 +2753,7 @@
       "cell": "verify",
       "row": [
         "src/bar-corrections.js",
-        "packages/verify/src/shell/bar-corrections.js",
+        "packages/verify/src/core/bar-corrections.js",
         "seed"
       ]
     }
