@@ -12,6 +12,7 @@ import {
   Refused,
 } from '../refused.js';
 import * as relayOutput from '../relay-output.js';
+import { describeMove, refusalLine } from '../relay-outbox.js';
 import { DEFAULT_RELAY } from '../relay.js';
 import { originRepository } from '../relay.js';
 import { relayPersonCoordinator } from '../relay.js';
@@ -139,7 +140,7 @@ export async function run(io, { first, second, rest, values }) {
     : first === 'off' ? await relayOff(ctx.info.root, io) : relayStatus(ctx.info.root);
   io.result?.(result);
   const boardName = listApiProjects().find((project) => project.root === ctx.info.root)?.name ?? basename(ctx.info.root);
-  for (const line of relayOutput.detailLines(result, boardName)) io.say(line);
+  for (const line of relayOutput.detailLines(result, boardName, { describeMove, refusalLine })) io.say(line);
   return 0;
 }
 

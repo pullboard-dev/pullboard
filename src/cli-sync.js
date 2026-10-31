@@ -104,7 +104,7 @@ export async function retrySync(io) {
 
 /** Before a command: link this project when the machine links new ones, sync, then run the person's waiting requests. */
 export async function syncBefore(io, main) {
-  try { if (io.relayCommand?.cliOperation !== 'sync' && !gitSyncLinked(io.cwd)) await autoLinkProject(io.cwd, io); } catch (error) { if (!(error instanceof Refused)) throw error; }
+  try { if (io.relayCommand?.cliOperation !== 'sync' && !gitSyncLinked(io.cwd)) await autoLinkProject(io.cwd, io, nativeBoardOpeners()); } catch (error) { if (!(error instanceof Refused)) throw error; }
   const local = localFirstLink(io);
   if (local && senderInBackground()) {
     // The sender runs the person's waiting requests too, so a read never waits on them.
