@@ -56,6 +56,7 @@ import { barCheckWarning } from '../bar-check.js';
 import { requireSubmitComposition } from '../submit-composition.js';
 import { composeAfterProof } from '../submit-composition.js';
 import { trunkMoveFact } from '../submit-composition.js';
+import { judgeTrunkMove } from '../verdict-trunk.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { explicitCheckFiles } from '../browser-admission.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
@@ -523,7 +524,7 @@ export async function submitHere(ctx, id, infra) {
           digest: job.digest, receipts: [...new Set(submissionReceiptIds)] } }]);
     });
     const composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
-      readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles,
+      readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles, judgeTrunkMove,
         ...(ctx.submitHandoffOutput ? { onMergeFailure: error => writeFileSync(join(ctx.submitHandoffOutput, 'merge-failure.log'), String(error.stderr || error.stack || error.message), { mode: 0o600 }) } : {}) });
     submitted = composed.commit;
     trunkMove = composed.evidence;

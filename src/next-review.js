@@ -1,3 +1,4 @@
+import { reviewPatchAuthors } from './review-composition.js';
 import { compositionSessionOptions } from './review-composition.js';
 import { reviewCompanionOffer } from './item-patch-review.js';
 import { retryReviewCommit } from './verdict-retry.js';
@@ -62,7 +63,7 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, 
  */
 export function ownSessionReviews(info, board, digest = agentSessionDigest(), { listItems }) {
   return listItems(board).filter((item) => item.item_status === 'submitted').flatMap((item) => {
-    try { refuseSelfSession(info, item, digest, itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) }); return []; }
+    try { refuseSelfSession(info, item, digest, itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) }); return []; }
     catch (error) { if (error instanceof Refused && error.code === 'SELF_SESSION_VERIFY') return [item.item_id]; throw error; }
   });
 }
@@ -101,7 +102,7 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
   if (values.verifyId !== undefined) {
     const id = idArg(values.verifyId, 'an item id after --verify');
     const item = getItem(board, id);
-    refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
+    refuseSelfSession(ctx.info, item, agentSessionDigest(), itemAuthors(board, item, { reviewPatchAuthors, committedItemAuthors, twoTierReviews }), { commitOnly: twoTierReviews(board) && itemReviewPolicy(board, item.item_id).tier === 'standard', ...compositionSessionOptions(board, item) });
     ctx.io.nextPhase?.('review reservation', id);
     return composedReservation(ctx, board, { item: await ordered('reserveReview', [id, reservation]), reasons: [] }, getItem);
   }

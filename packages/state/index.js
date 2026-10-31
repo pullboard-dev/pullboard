@@ -26,4 +26,5 @@ export { submitAdmission } from './src/core/submit-admission.js';
 export { completesAdmittedSubmit } from './src/core/submit-admission.js';
 export { EXIT_RULES_ENGINE } from '../../src/exit-rules-engine.js';
 export { ENGINE_VERSION } from '../../src/engine-metadata.js';
+export { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
 export { RELEASE_REASONS_ENGINE } from '../../src/release-reasons-engine.js';

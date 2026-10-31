@@ -1,3 +1,5 @@
+import { asSubmitted } from '../packages/verify/index.js';
+import { refuseUnreviewable } from '../packages/verify/index.js';
 import { invalidateItemPatch as applyItemPatchInvalidation } from './item-patches.js';
 import { applyItemPatchAttachment } from './item-patches.js';
 import { getItem } from './board-query.js';
@@ -16,5 +18,5 @@ export function invalidateItemPatch(board, id, agentId) {
 
 /** Attach native bytes atomically, with lifecycle mutation confined to moveItem. */
 export function attachItemPatch(board, id, options) {
-  return applyItemPatchAttachment(board, id, options, { atomic, logEvent, getItem, listAgents, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
+  return applyItemPatchAttachment(board, id, options, { atomic, logEvent, getItem, listAgents, asSubmitted, refuseUnreviewable, invalidate: changed => invalidateItemPatch(board, changed, options.agentId) });
 }

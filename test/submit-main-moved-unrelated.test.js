@@ -11,12 +11,13 @@ import { selectAffectedTests } from '../src/affected-tests.js';
 import { explicitCheckFiles } from '../src/browser-admission.js';
 import { composeAfterProof } from '../src/submit-composition.js';
 import { trunkMoveFact } from '../src/submit-composition.js';
+import { judgeTrunkMove } from '../src/verdict-trunk.js';
 import { runFixtureGit } from './fixture-child.js';
 
 const ENV = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
   GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
 for (const key of Object.keys(ENV)) if (key.startsWith('GIT_') && !/^(?:GIT_CONFIG_|GIT_AUTHOR_|GIT_COMMITTER_)/u.test(key)) delete ENV[key];
-const SERVICES = { selectAffectedTests, explicitCheckFiles };
+const SERVICES = { selectAffectedTests, explicitCheckFiles, judgeTrunkMove };
 // Submit's own merge commits with the seat's Git identity; this private process supplies a fixture one.
 Object.assign(process.env, { GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' });
 
