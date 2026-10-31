@@ -70,8 +70,8 @@ test('removal repoints each importer kind, adds a missing binding, deletes the s
   assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../packages/stats/core.js';\nconsole.log(pure);\n");
   assert.equal(read(box, 'src/lazy.js'), "export const lazy = () => import('../packages/stats/index.js');\n");
   assert.match(read(box, 'src/reader.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/index\.js'\)/u);
-  assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/index\.js', import\.meta\.url\)/u);
-  assert.equal(read(box, 'test/declared.test.js').split('\n')[0], '/** @pullboard-test-input packages/stats/index.js package.json */');
+  assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/src\/shell\/shell\.js', import\.meta\.url\)/u);
+  assert.equal(read(box, 'test/declared.test.js').split('\n')[0], '/** @pullboard-test-input packages/stats/src/shell/shell.js package.json */');
   assert.equal(read(box, 'src/uses-extra.js'), "import { extra } from '../packages/stats/index.js';\nexport { extra };\n");
   assert.match(read(box, 'packages/stats/index.js'), /export \{ extra \} from "\.\/src\/shell\/shell\.js";/u);
   assert.equal(existsSync(join(box.root, 'src/stats.js')), false, 'src/stats.js has no importer left');

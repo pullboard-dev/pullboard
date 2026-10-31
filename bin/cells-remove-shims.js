@@ -99,6 +99,7 @@ function choose(box, shim, file, use) {
   /** Whether a module already exports every wanted name. */
   const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name)); };
   const leaf = cell.paths.find(([from]) => from === shim)?.[1];
+  if (use.kind === 'url' || use.kind === 'input') return leaf && box.files.has(leaf) ? { path: leaf, adds: [] } : { refuse: `${file} reads ${shim}, whose moved file ${leaf} is missing` };
   const core = cell.pureFrontDoor && box.files.has(cell.pureFrontDoor) ? cell.pureFrontDoor : null;
   if (/(?:^|\/)core(?:\/|\.js$)/u.test(file)) return core && covers(core) ? { path: core, adds: [] } : { refuse: `core file ${file} would reach past ${cell.name} core.js: ${names.filter(name => !core || !exportsOf(box, core).has(name)).join(', ')}` };
   if (core && testFile(file) && use.kind === 'static' && use.names !== ALL && names.length && covers(core)) return { path: core, adds: [] };
