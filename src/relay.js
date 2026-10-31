@@ -121,7 +121,6 @@ import { locked } from './relay-lock.js';
 import { relayOrdering } from './relay-ordering.js';
 import { nudgeRelaySender } from './relay-local-first.js';
 import { localFirstLink } from './relay-local-first.js';
-import { checkpointPublisher } from './relay-checkpoint-publish.js';
 import {
   baselineNotAccepted,
   transientRelayFailure,
@@ -855,10 +854,16 @@ async function replayRelayRecord(board, key, state, record, io) {
 }
 
 // Checkpoint publishing lives in its own module, over these link and transport helpers (#1014).
-const checkpoints = checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage, presentationPorts: () => nativeBoardPorts().presentation });
-const publishCheckpoint = (...args) => checkpoints.publishCheckpoint(...args);
+async function checkpointServices(io) {
+  return io.checkpointPublisher({ request, saveLink, loadLink, linkFile, readBoardKey, sealedRecord, reportCheckpointRefusal, safePauseCode, safePauseMessage, presentationPorts: () => nativeBoardPorts().presentation });
+}
+async function publishCheckpoint(root, file, state, io) {
+  return (await checkpointServices(io)).publishCheckpoint(root, file, state, io);
+}
 /** Publish this board's checkpoint once, as the background publisher's one step (#1014). */
-export const publishLatestCheckpoint = (...args) => checkpoints.publishLatestCheckpoint(...args);
+export async function publishLatestCheckpoint(root, io, options) {
+  return (await checkpointServices(io)).publishLatestCheckpoint(root, io, options);
+}
 
 /** Drain a legacy source once, refusing foreign history before it can be silently checkpointed. */
 async function ensureOrdered(root, file, state, io) {

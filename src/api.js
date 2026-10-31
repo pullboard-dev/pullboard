@@ -817,7 +817,7 @@ async function createRequest(root, body, isMain, personChannel, boardOpeners) {
   if (typeof body.text !== 'string' || !body.text.trim() || Object.keys(body).some((key) => key !== 'text')) throw new Refused('BAD_REQUEST', 'a request needs {text: "what the coordinator should do"}');
   const message = { from: 'person', to: COORDINATOR, text: body.text, request: true, lanes: laneNames(loadConfig(root)) };
   if (relayLinked(root)) {
-    const id = await relayOperation(root, 'shout', [message], { err: () => {}, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck });
+    const id = await relayOperation(root, 'shout', [message], { err: () => {}, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck });
     return withBoard(root, (board) => ({ version: VERSION,
       event: store.events(board).find((event) => JSON.parse(event.event_detail).shout === id),
       result: { id, request: true } }), isMain, boardOpeners);
@@ -1185,7 +1185,7 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     move: (board, body) => executeMove(board.root, body, runCommand, codeIsMain, personChannel, refusalDocument, boardOpeners),
     request: (board, body) => createRequest(board.root, body, codeIsMain, personChannel, boardOpeners),
     tokens: async (board) => (await relayTokens(board.root, { err() {} })).tokens,
-    revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, say() {}, err() {} }),
+    revokeToken: (board, id) => relayRevoke(board.root, id, { personChannel, withOutboxGuard: boardOpeners.withOutboxGuard, replayConflictRecord: boardOpeners.replayConflictRecord, remoteBoardMissing: boardOpeners.remoteBoardMissing, uncertainUploadFailure: boardOpeners.uncertainUploadFailure, decideUncertainBaseline: boardOpeners.decideUncertainBaseline, checkpointPublisher: boardOpeners.checkpointPublisher, checkpointInBackground: boardOpeners.checkpointInBackground, scheduleCheckpoint: boardOpeners.scheduleCheckpoint, requestCheckpointCheck: boardOpeners.requestCheckpointCheck, say() {}, err() {} }),
   }, { tagState: true });
 }
 

@@ -109,6 +109,7 @@ export async function runCheckBaselineWorker(root, id, request, services) {
     remoteBoardMissing: services.remoteBoardMissing,
     uncertainUploadFailure: services.uncertainUploadFailure,
     decideUncertainBaseline: services.decideUncertainBaseline,
+    checkpointPublisher: services.checkpointPublisher,
     checkpointInBackground: services.checkpointInBackground,
     scheduleCheckpoint: services.scheduleCheckpoint,
     requestCheckpointCheck: services.requestCheckpointCheck,
