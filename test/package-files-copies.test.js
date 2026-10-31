@@ -465,6 +465,7 @@ writeFileSync(resource,readFileSync(resource,'utf8')+'\\n// changed after contro
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_TOOLING_CHANGED');`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context);
+
 });
 
 for (const kind of ['opaque', 'unshipped']) {
@@ -598,6 +599,13 @@ await assert.rejects(import(${JSON.stringify(pathToFileURL(join(installed, 'src/
 `;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context);
+  const reader = join(installed, 'packages/runners/src/shell/runner-package.js');
+  const source = readFileSync(reader, 'utf8');
+  assert.ok(source.includes("from './runner-module-parser.js'"));
+  writeFileSync(reader, source.replace("from './runner-module-parser.js'", "from '../../../../src/runner-module-parser.js'"));
+  const backEdge = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
+  assert.notEqual(backEdge.status, 0, 'the former private-to-barrel back edge triggers the planted facade');
+  assert.match(backEdge.stderr, /FACADE_EAGER_MARKER/);
 });
 
 test('moved controller step bodies stay bound to the loaded runner generation [C7,P3]', t => {
