@@ -1045,11 +1045,11 @@
     },
     {
       "path": "src/move-history/186.json",
-      "reason": "explicit bounded placement: stays in place during the move"
+      "reason": "canonical engine identity retained in src during package moves"
     },
     {
       "path": "src/rework-same-family-engine.js",
-      "reason": "explicit bounded placement: stays in place during the move"
+      "reason": "canonical engine identity retained in src during package moves"
     }
   ],
   "retired": [
@@ -2658,6 +2658,22 @@
       "row": [
         "src/move-history/185.json",
         "packages/state/src/shell/move-history/185.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "src/move-history/186.json",
+        "packages/state/src/shell/move-history/186.json",
+        "rule"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "src/rework-same-family-engine.js",
+        "packages/state/src/core/rework-same-family-engine.js",
         "rule"
       ]
     }
