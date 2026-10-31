@@ -26,7 +26,7 @@ import {
   forgetBoardKey,
   readBoardKey,
   storeBoardKey,
-} from "../../../src/relay-key.js";
+} from "../../keys/index.js";
 
 /**
  * Give one test a private home and a PATH with no keychain executable, forcing the documented file fallback.

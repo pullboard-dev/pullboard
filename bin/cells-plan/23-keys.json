@@ -12,7 +12,7 @@
   ["src/relay-person-enrollment.js","packages/keys/src/shell/relay-person-enrollment.js","seed"],
   ["test/relay-pairing-options.test.js","packages/keys/tests/relay-pairing-options.test.js","seed"]
  ],
- "reexports": ["src/relay-device-keys.js","src/relay-key.js","src/relay-pairing-client.js","src/relay-person-enrollment.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":4,"before":true},
   {"cell":"git","imports":1,"before":true},

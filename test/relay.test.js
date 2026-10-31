@@ -66,7 +66,7 @@ function linkedBoardCount(database) {
 
 const relaySetupURL = new URL('../src/relay-setup.js', import.meta.url).href;
 const relayMachineURL = new URL('../src/relay-machine.js', import.meta.url).href;
-const relayDeviceKeysURL = new URL('../src/relay-device-keys.js', import.meta.url).href;
+const relayDeviceKeysURL = new URL('../packages/keys/index.js', import.meta.url).href;
 
 /** Call the shared setup flow with a private caller signal and credential-free output streams. */
 async function runRelayOnAll(box, signalMode) {
