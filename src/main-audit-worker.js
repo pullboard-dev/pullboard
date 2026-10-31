@@ -61,7 +61,7 @@ import {
 } from './lanes.js';
 import {
   withFileLock,
-} from './relay-outbox-guard.js';
+} from '../packages/outbox/index.js';
 import {
   mainAuditDirectory,
 } from './main-audit-state.js';

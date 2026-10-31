@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { closeBoard } from '../src/board.js';
-import { transport } from '../src/relay-conflict-record.js';
+import { transport } from '../packages/outbox/index.js';
 import { runRelaySender } from '../src/relay-sender-worker.js';
 import { intakeFixture, advanceOutsideFixture, fixtureJSON } from './intake-fixture.js';
 

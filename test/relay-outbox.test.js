@@ -12,12 +12,12 @@ import {
   bindRefs,
   resolveMove,
   strayItemRefs,
-} from '../src/relay-outbox.js';
+} from '../packages/outbox/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { relayFixtureChild } from './relay-client-fixture.js';
 import { Refused } from '../packages/kernel/core.js';
-import { outboxQueueable } from '../src/relay-outbox.js';
+import { outboxQueueable } from '../packages/outbox/index.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 

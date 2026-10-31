@@ -22,14 +22,14 @@ import {
   checkpointFiles,
   checkpointQuietMs,
   publisherHolding,
-} from './relay-checkpoint.js';
+} from '../packages/outbox/index.js';
 import { publishLatestCheckpoint } from './relay.js';
 import {
   openBoard,
   nativeBoardPorts,
 } from './native-board.js';
-import { checkpointPublisher } from './relay-checkpoint-publish.js';
-import { relayOrdering } from './relay-ordering.js';
+import { checkpointPublisher } from '../packages/outbox/index.js';
+import { relayOrdering } from '../packages/outbox/index.js';
 import {
   flushOutbox,
   queueMove,
@@ -37,16 +37,16 @@ import {
   outboxFields,
   ACKNOWLEDGED_OPERATIONS,
   outboxQueueable,
-} from './relay-outbox.js';
+} from '../packages/outbox/index.js';
 const checkpointWorker = fileURLToPath(new URL('./relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
-import { withOutboxGuard } from './relay-outbox-guard.js';
-import { replay as replayConflictRecord } from './relay-conflict-record.js';
+import { withOutboxGuard } from '../packages/outbox/index.js';
+import { replay as replayConflictRecord } from '../packages/outbox/index.js';
 import {
   remoteBoardMissing,
   uncertainUploadFailure,
   decideUncertainBaseline,
-} from './relay-baseline-settle.js';
+} from '../packages/outbox/index.js';
 
 // Importing the process root must not start a publisher in the caller's process.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

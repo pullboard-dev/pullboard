@@ -11,7 +11,7 @@ import { decideSpecRevisions } from '../src/native-board.js';
 import * as milestones from '../src/board-milestones.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { publishLatestCheckpoint } from '../src/relay.js';
-import { checkpointPublisher } from '../src/relay-checkpoint-publish.js';
+import { checkpointPublisher } from '../packages/outbox/index.js';
 import { captureSpecApprovalBaseline } from '../src/spec-approval.js';
 import { loadConfig } from '../src/config.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
