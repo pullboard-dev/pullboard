@@ -18,3 +18,4 @@ export { conflictNoteFiles, legacyConflictNote, reopenConflictEvidence, conflict
 export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/core/decision-origin.js';
 export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/core/item-notes.js';
 export { criticalPathEnabled, remainingPaths, criticalPathOrder } from './src/core/critical-path-order.js';
+export { INBOX_NEWEST, coordinatorInbox, coordinatorInboxLines, inboxFirst, commitOwners, commitOwnerLines, commitFirst } from './src/core/resume.js';
