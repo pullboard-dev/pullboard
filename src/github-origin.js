@@ -1,5 +1,5 @@
 /** GitHub origin discovery without loading relay transport [C7,H16]. */
-import { tryGit } from './git.js';
+import { tryGit } from '../packages/git/index.js';
 import { remoteRepository } from './github-remote.js';
 
 /** Resolve the actual GitHub origin; optional discovery leaves ineligible local projects alone. */

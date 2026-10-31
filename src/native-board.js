@@ -157,7 +157,7 @@ import {
   roadmap,
   shipMilestone,
 } from './board-milestones.js';
-import { beginCommandPhase } from './command-phase.js';
+import { beginCommandPhase } from '../packages/link/index.js';
 
 import { boardEnginePorts } from './board-engine-ports.js';
 import {

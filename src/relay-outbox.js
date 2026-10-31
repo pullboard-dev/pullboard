@@ -51,7 +51,7 @@ import {
   outboxFile,
   outboxSummaryFile,
   readOutboxSummary,
-} from './relay-outbox-summary.js';
+} from '../packages/link/index.js';
 export {
   outboxFile,
   outboxSummaryFile,

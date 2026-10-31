@@ -7,6 +7,8 @@ import {
   syncRelay,
 } from './relay.js';
 import { executePersonRequests } from './relay-request-execution.js';
+import { executeMove } from './api.js';
+import { refusalDocument } from './next-step-words.js';
 import {
   agentDisplayName,
   context,
@@ -43,9 +45,14 @@ export function nativeBoardOpeners(io) {
   return { openBoard, openBoardForRead };
 }
 
+/** Supply the board openers plus the API move executor and refusal formatter that link's request execution is given as ports (link must not import later cells). */
+export function nativePersonRequestPorts(io) {
+  return { ...nativeBoardOpeners(io), executeMove, refusalDocument };
+}
+
 /** Bind native request execution at this real CLI composition root. */
 async function executeNativePersonRequests(root, io, runCommand) {
-  return executePersonRequests(root, io, runCommand, nativeBoardOpeners(io));
+  return executePersonRequests(root, io, runCommand, nativePersonRequestPorts(io));
 }
 
 /** Build a CLI context with the signed-person capabilities of its application layer. */
