@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runRelaySender } from './relay-sender-worker.js';
-import { outboxWaiting } from './relay-outbox.js';
+import { outboxWaiting } from '../packages/outbox/index.js';
 import {
   flushOutbox,
   queueMove,
@@ -12,23 +12,23 @@ import {
   outboxFields,
   ACKNOWLEDGED_OPERATIONS,
   outboxQueueable,
-} from './relay-outbox.js';
+} from '../packages/outbox/index.js';
 const checkpointWorker = fileURLToPath(new URL('./relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
-import { withOutboxGuard } from './relay-outbox-guard.js';
-import { replay as replayConflictRecord } from './relay-conflict-record.js';
+import { withOutboxGuard } from '../packages/outbox/index.js';
+import { replay as replayConflictRecord } from '../packages/outbox/index.js';
 import {
   remoteBoardMissing,
   uncertainUploadFailure,
   decideUncertainBaseline,
-} from './relay-baseline-settle.js';
+} from '../packages/outbox/index.js';
 import {
   checkpointInBackground,
   scheduleCheckpoint,
   requestCheckpointCheck,
-} from './relay-checkpoint.js';
-import { checkpointPublisher } from './relay-checkpoint-publish.js';
-import { relayOrdering } from './relay-ordering.js';
+} from '../packages/outbox/index.js';
+import { checkpointPublisher } from '../packages/outbox/index.js';
+import { relayOrdering } from '../packages/outbox/index.js';
 
 /** The actual CLI composition entry executed by background sender processes. */
 export const SENDER_WORKER = fileURLToPath(import.meta.url);

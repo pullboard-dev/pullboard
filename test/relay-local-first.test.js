@@ -12,8 +12,8 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { captureBoardChanges } from '../src/board-capture.js';
 import { SENDER_WORKER } from '../src/relay-sender-main.js';
-import { outboxGuardFile } from '../src/relay-outbox-guard.js';
-import { undoQueued } from '../src/relay-outbox-undo.js';
+import { outboxGuardFile } from '../packages/outbox/index.js';
+import { undoQueued } from '../packages/outbox/index.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture, relayFixtureChild } from './relay-client-fixture.js';
 

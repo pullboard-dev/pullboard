@@ -97,7 +97,7 @@ export async function run(io, { values }) {
     io.result(summary);
     return 0;
   }
-  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../relay-outbox.js')))) io.say(line);
+  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../packages/outbox/index.js')))) io.say(line);
   const { items, accepted, rejected } = summary.stats;
   io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
   io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);

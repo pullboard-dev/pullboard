@@ -19,7 +19,7 @@ import { holdsLease } from '../packages/resources/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { maintenanceGit } from './worktree-maintenance-archive.js';
 import { workingDirectories } from './landing-worktree-prune.js';
-import { withFileLock } from './relay-outbox-guard.js';
+import { withFileLock } from '../packages/outbox/index.js';
 
 export { workingDirectories as maintenanceWorkingDirectories };
 
