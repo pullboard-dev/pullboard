@@ -115,6 +115,8 @@ process.stdout.write(JSON.stringify({other}));
         await chrome.navigate(local.link.href);
         await chrome.waitFor("!document.body.classList.contains('loading') && data?.projects?.length === 2");
         await chrome.stable("typeof sharingReady === 'undefined' ? null : sharingReady");
+        // A person who has set the first-run page aside sees the sign-in invitation; while it is up the banner steps aside (#2066).
+        await chrome.stable("(() => { keep('pb.firstrun.' + view.root, 'hidden'); render(); return true; })()");
         assert.equal(await chrome.stable("document.querySelector('#share-note')?.hidden === false"), true,
           'the real local view offers one quiet invitation before any board is linked');
         assert.equal(await chrome.stable("document.querySelector('#share-note b')?.textContent"), 'Open your boards on any device');
