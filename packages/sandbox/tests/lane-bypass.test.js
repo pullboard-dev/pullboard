@@ -1,13 +1,37 @@
 /** Reproduce lane-policy bypasses with private Git repositories and their installed hooks [L1,L3]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { after, test } from 'node:test';
-import { submissionPaths } from '../src/trusted-policy.js';
+import {
+  runFixtureExecFile as execFileSync,
+  runFixtureChild as spawnSync,
+  runFixtureChild,
+  runFixtureGit,
+} from '../../../test/fixture-child.js';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  tmpdir,
+} from 'node:os';
+import {
+  join,
+  resolve,
+} from 'node:path';
+import {
+  after,
+  test,
+} from 'node:test';
+import {
+  submissionPaths,
+} from '../src/shell/trusted-policy.js';
 
-const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
+const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const SANDBOXES = [];
 const SPEC = '# Lane bypass fixture\n\n## Goals\n- G1 [approved, must] The web lane owns its page. | gate: true\n- G2 [approved, must] The API lane owns its route. | gate: true\n';
 
