@@ -1,3 +1,4 @@
+import { workQueue } from '../src/queue.js';
 /** Roadmap progress and withdrawn work preserve their recorded meaning [N26]. */
 import { addMilestone as addMilestoneWithPorts } from '../src/milestones.js';
 import { milestoneFocus } from '../src/focus-milestone.js';
@@ -258,7 +259,7 @@ test('[N26] each milestone sums its items by state with an estimate', async t =>
     needsYou: [held, waiting], pace: { last6h: 5, last2h: 3, last24h: 7 }, estimate: { low: 3.5, high: 6 }, window: '6h', reason: null };
   assert.deepEqual((await box.run()).milestones[0].summary, expected);
   assert.match(await box.run(false), /^  5 left of 6: 1 landed, 1 landing, 1 in review, 1 building, 1 waiting, 1 held; about 3.5 to 6 h at today's pace\.$/m);
-  const direct = milestoneRoadmap(box.repo, box.board, { projects: () => [], ports: { ...store, roadmap, openBoard } })[0];
+  const direct = milestoneRoadmap(box.repo, box.board, { projects: () => [], ports: { ...store, roadmap, openBoard, workQueue } })[0];
   assert.equal(direct.total, 6, 'withdrawn work is excluded from milestone membership');
   assert.equal(direct.withdrawn, 1, 'the omitted withdrawn member remains reported separately');
   assert.ok(direct.items.every(entry => entry.status !== 'withdrawn'));
@@ -293,7 +294,7 @@ test('[N26] roadmap holds and unavailable scoped references partition without le
   const paused = box.item('waiting', 'paused');
   store.holdLane(box.board, 'paused', { agentId: 'coordinator', reason: 'Paused lane' });
   addMilestone(box.board, { agentId: 'coordinator', name: 'Scoped', items: [building, paused, 'unregistered-private#7'] });
-  const scoped = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })[0];
+  const scoped = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } })[0];
   assert.equal(scoped.summary.building, 1, 'a live builder takes precedence over a hold');
   assert.equal(scoped.summary.held, 1, 'a held lane counts its open work');
   assert.equal(scoped.summary.waiting, 1, 'an unresolved foreign item remains in the total');
@@ -301,7 +302,7 @@ test('[N26] roadmap holds and unavailable scoped references partition without le
   assert.equal(scoped.summary.estimate, null);
   assert.doesNotMatch(JSON.stringify(scoped), /unregistered-private/, 'the summary preserves scoped reference redaction');
   box.at(now + 2 * HOUR);
-  const expired = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })[0].summary;
+  const expired = milestoneRoadmap(box.repo, box.board, { projects: () => [], hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } })[0].summary;
   assert.equal(expired.building, 0);
   assert.equal(expired.held, 2, 'the expired builder is held instead of waiting');
   assert.equal(expired.waiting, 1);

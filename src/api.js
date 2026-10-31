@@ -1,3 +1,4 @@
+import { workQueue } from './queue.js';
 import { costAnalytics } from '../packages/stats/index.js';
 import { activeViewAgents } from './view-state-summary.js';
 import { viewProofSummary } from './view-state-summary.js';
@@ -152,8 +153,8 @@ function boardStateRevision(root, id, isMain, { projects = listApiProjects, scop
     const hasExternalMilestones = inputs.milestones.some((milestone) => milestone.items.some((item) => typeof item !== 'number'));
     return { ...inputs, externalMilestones: hasExternalMilestones
       ? scopeCommonDir === null
-        ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard } })
-        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard } })
+        ? milestoneRoadmap(info.root, board, { ports: { ...store, roadmap, openBoard, workQueue } })
+        : milestoneRoadmap(info.root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } })
       : null };
   }, isMain, boardOpeners);
   const inputs = {

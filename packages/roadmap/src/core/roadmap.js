@@ -9,7 +9,6 @@ import {
   repoInfo,
 } from "../../../../src/git.js";
 import { listApiProjects } from "../../../../src/projects.js";
-import { workQueue } from "../../../../src/queue.js";
 import { milestoneReferencesToRemove } from "./milestones.js";
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
@@ -65,7 +64,7 @@ export async function withdrawWithMilestones(ctx, board, me, id, reason, ordered
  * @returns {any[]}
  */
 export function milestoneRoadmap(root, board, options = {}) {
-  const ports = roadmapPorts(options.ports, ["closeBoard", "getItem", "laneHolds", "listItems", "openBoard", "roadmap", "eventsOfKinds", "openDecisions", "PERSON"]);
+  const ports = roadmapPorts(options.ports, ["closeBoard", "getItem", "laneHolds", "listItems", "openBoard", "roadmap", "eventsOfKinds", "openDecisions", "PERSON", "workQueue"]);
   const { closeBoard, getItem, laneHolds, listItems, openBoard, roadmap } = ports;
   const projects = (options.projects ?? listApiProjects)();
   let hiddenExternal = 0;
@@ -128,7 +127,7 @@ export function milestoneRoadmap(root, board, options = {}) {
 function queuePositions(board, ports) {
   const positions = new Map();
   if (typeof ports.buildOrder !== 'function') return positions;
-  const queue = workQueue(board, ports);
+  const queue = ports.workQueue(board, ports);
   for (const item of [...queue.releases.flatMap(release => release.items), ...queue.unreleased]) positions.set(item.id, positions.size + 1);
   return positions;
 }
