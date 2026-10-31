@@ -1,3 +1,4 @@
+import { viewApiPorts } from '../src/view-api-ports.js';
 /** Person requests stay open until answered and their messages enter the event log (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -129,7 +130,7 @@ test("the API passes blank shout text to the CLI's own refusal [A2,A9]", async (
   const box = e2e.project('true');
   const secret = randomUUID();
   let port = 0;
-  handler = createLocalApiHandler({ boardOpeners: apiBoardOpeners, refusalDocument,
+  handler = createLocalApiHandler({ viewPorts: viewApiPorts, boardOpeners: apiBoardOpeners, refusalDocument,
     secret, getPort: () => port, runCommand: main,
     projects: () => [{ root: box.repo, name: 'Shout fixture', project: '', added: '2026-01-01T00:00:00.000Z' }],
   });
@@ -205,7 +206,7 @@ test('the API refuses incomplete native board providers before discovery or comm
     projects: () => { discoveries++; return []; },
   };
   for (const boardOpeners of [undefined, {}, { openBoard: apiBoardOpeners.openBoard }, { openBoardForRead: apiBoardOpeners.openBoardForRead }]) {
-    assert.throws(() => createLocalApiHandler({ ...options, boardOpeners }), /actual native board openers/u);
+    assert.throws(() => createLocalApiHandler({ viewPorts: viewApiPorts, ...options, boardOpeners }), /actual native board openers/u);
   }
   assert.deepEqual({ discoveries, commands }, { discoveries: 0, commands: 0 });
 });
