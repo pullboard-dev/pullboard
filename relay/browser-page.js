@@ -24,7 +24,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const BROWSER_MODULES = {
   '/relay/install.js': new URL('./browser-install.js', import.meta.url),
   '/relay/device-keys.js': new URL('../packages/keys/src/core/relay-device-keys.js', import.meta.url),
-  '/relay/relay-approval.js': new URL('../src/relay-approval.js', import.meta.url),
+  '/relay/relay-approval.js': new URL('../packages/link/src/core/relay-approval.js', import.meta.url),
   '/relay/browser-devices.js': new URL('./browser-devices.js', import.meta.url),
   '/relay/browser-excluded.js': new URL('./browser-excluded.js', import.meta.url),
   '/relay/excluded-notice.js': new URL('./excluded-notice.js', import.meta.url),
@@ -33,7 +33,7 @@ const BROWSER_MODULES = {
   '/relay/client.js': new URL('./browser-client.js', import.meta.url),
   '/relay/person-pairing-limit.js': new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
   '/relay/person-enrollment.js': new URL('../packages/person/src/core/person-enrollment.js', import.meta.url),
-  '/relay/relay-limits.js': new URL('../src/relay-limits.js', import.meta.url),
+  '/relay/relay-limits.js': new URL('../packages/link/src/core/relay-limits.js', import.meta.url),
   '/relay/browser-notice.js': new URL('./browser-notice.js', import.meta.url),
   '/relay/browser-upload-status.js': new URL('./browser-upload-status.js', import.meta.url),
   '/relay/browser-deadline.js': new URL('./browser-deadline.js', import.meta.url),
@@ -62,6 +62,8 @@ const BROWSER_STANDINS = {
   'src/sealed-pages.js': new URL('../packages/pages/src/core/sealed-pages.js', import.meta.url),
   'src/lifecycle-move.js': new URL('../packages/items/src/core/lifecycle-move.js', import.meta.url),
   'src/person-pairing-limit.js': new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
+  // The moved relay limits read PAIR_PACKAGE_BYTES through the person door; its pure core.js does not carry that body.
+  'packages/person/index.js': new URL('../packages/person/src/shell/person-pairing-limit.js', import.meta.url),
 };
 
 /** Where a module the browser reaches by repository path is served; its directory structure is kept, so relative imports resolve. */
