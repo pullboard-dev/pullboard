@@ -1,6 +1,6 @@
 /** Local durable I-D contract; consumers supply their existing authority port and ordered mutation boundary. */
 import { createHash } from 'node:crypto';
-import { Refused } from './refused.js';
+import { Refused } from '../../../kernel/index.js';
 
 function binding() { return new Refused('DECISION_HANDOFF_BINDING', 'Use the exact versioned handoff, namespaced decision and original option set.'); }
 function denied() { return new Refused('DECISION_HANDOFF_AUTH', 'Obtain authority for this exact disclosed question, answer or source query.'); }

@@ -88,4 +88,4 @@ export function incrementalAudit(keys, previous = null) {
 }
 
 /** Preserve the existing public binding; native item creation reads its focused lower home. */
-export { auditFailureItem } from './audit-failure-item.js';
+export { auditFailureItem } from '../packages/items/index.js';

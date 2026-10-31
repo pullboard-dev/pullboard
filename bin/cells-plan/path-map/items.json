@@ -1,8 +1,10 @@
 {
+  "src/audit-failure-item.js": "packages/items/src/core/audit-failure-item.js",
   "src/blocks.js": "packages/items/src/shell/blocks.js",
   "src/brief.js": "packages/items/src/core/brief.js",
   "src/check-timing.js": "packages/items/src/core/check-timing.js",
   "src/critical-path-order.js": "packages/items/src/core/critical-path-order.js",
+  "src/decision-handoff.js": "packages/items/src/shell/decision-handoff.js",
   "src/decision-origin.js": "packages/items/src/core/decision-origin.js",
   "src/handoff.js": "packages/items/src/core/handoff.js",
   "src/item-decision-queue.js": "packages/items/src/core/item-decision-queue.js",
@@ -23,5 +25,6 @@
   "src/submit-invariants.js": "packages/items/src/core/submit-invariants.js",
   "src/submit-preflight.js": "packages/items/src/core/submit-preflight.js",
   "src/submit-size.js": "packages/items/src/core/submit-size.js",
-  "src/submit-wait.js": "packages/items/src/shell/submit-wait.js"
+  "src/submit-wait.js": "packages/items/src/shell/submit-wait.js",
+  "test/decision-handoff.test.js": "packages/items/tests/decision-handoff.test.js"
 }
