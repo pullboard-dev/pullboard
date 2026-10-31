@@ -39,14 +39,14 @@ import {
 import {
   mainPolicy,
   policyAt,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import { parseSpec } from './spec.js';
 import { listItems } from './board.js';
 import {
   takeResource,
   requiredExecutorOf,
 } from '../packages/resources/index.js';
-import { sameEnvironment } from './execution-environment.js';
+import { sameEnvironment } from '../packages/sandbox/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import {
   matchingMainFailures,

@@ -16,7 +16,7 @@ import {
 import { testsNeedBrowser } from './browser-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from '../packages/kernel/index.js';
-import { mainPolicy } from './trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import {
   runProfiledShellAsync,
   withGateSlot,

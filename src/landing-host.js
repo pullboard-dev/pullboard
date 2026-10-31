@@ -2,13 +2,13 @@
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { loadMachineSettings } from './settings.js';
 import {
   environmentLabel,
   executionEnvironment,
   sameEnvironment,
-} from './execution-environment.js';
+} from '../packages/sandbox/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 /** Check one machine's own choice; a board policy never opts another machine in. */

@@ -1,4 +1,4 @@
-import { trunkRef } from '../trusted-policy-read.js';
+import { trunkRef } from '../../packages/sandbox/index.js';
 import { agentDoctrine } from '../doctrine-rulings.js';
 import { appliedDoctrine } from '../doctrine.js';
 import { doctrineFromSource } from '../doctrine.js';

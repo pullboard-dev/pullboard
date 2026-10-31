@@ -31,7 +31,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   mainPolicy,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   existsSync,
 } from 'node:fs';

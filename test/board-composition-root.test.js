@@ -1,10 +1,10 @@
 import { conditionalHoldFloor } from '../packages/health/index.js';
 import { recordFamilyDeclareActivation } from '../src/family-declaration.js';
 import { withDerivedFamily } from '../src/family-declaration.js';
-import { policyAt } from '../src/trusted-policy-read.js';
-import { frozenCheck } from '../src/trusted-policy.js';
-import { itemPolicy } from '../src/trusted-policy.js';
-import { requireTrunkMerge } from '../src/trusted-policy.js';
+import { policyAt } from '../packages/sandbox/index.js';
+import { frozenCheck } from '../packages/sandbox/index.js';
+import { itemPolicy } from '../packages/sandbox/index.js';
+import { requireTrunkMerge } from '../packages/sandbox/index.js';
 import { PIPELINE_CAUSE_ENGINE } from '../src/pipeline-cause-engine.js';
 import { firstRefusalDetail } from '../src/claims.js';
 import { itemPatchDigest } from '../src/item-patch-state.js';
@@ -43,7 +43,7 @@ import { openBoardStore } from '../src/board-store.js';
 import { recordRowDraft } from '../src/row-draft-store.js';
 import { setPersonSigning } from '../src/person-signing.js';
 import { recordGateRun } from '../src/quarantine.js';
-import { advanceItemSource } from '../src/source-advance.js';
+import { advanceItemSource } from '../packages/sandbox/index.js';
 
 test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
   for (const name of ['draftSpecRow', 'decideSpecRevisions', 'recordRowVerification']) {

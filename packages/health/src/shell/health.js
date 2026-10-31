@@ -55,7 +55,7 @@ import { roadmap } from '../../../../src/board-milestones.js';
 import { staleRowDecisions } from '../../../../src/row-decision-state.js';
 import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../../src/queue.js';
-import { trunkRef } from '../../../../src/trusted-policy.js';
+import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../../src/route-capacity.js';
 import { readRelayHealth } from '../../../../src/relay-canary-health.js';
 

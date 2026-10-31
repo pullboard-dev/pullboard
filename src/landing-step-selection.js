@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import * as store from './board.js';
 import { tryGit } from './git.js';
 import { landingLeaseState } from './board-landing-lease.js';
-import { sameEnvironment } from './execution-environment.js';
+import { sameEnvironment } from '../packages/sandbox/index.js';
 import { staleVerdictRefusal } from './verdict-freshness.js';
 import { verdictProjector } from './verdict-freshness.js';
 

@@ -8,7 +8,7 @@ import {
   barCoverageForPolicy,
   prepareBarCoverage,
 } from '../bar-coverage.js';
-import { mainPolicy } from '../trusted-policy.js';
+import { mainPolicy } from '../../packages/sandbox/index.js';
 /** Inspect, enable and independently sign acceptance bars [B4,V1,V2,H16]. */
 import { getItem } from '../board.js';
 import {

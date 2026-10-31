@@ -1,4 +1,4 @@
-import { mainPolicy } from './trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 /** Capture queued source at the genuine registered origin before the native writer; replay consumes values only. */
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';

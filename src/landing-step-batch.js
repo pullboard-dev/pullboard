@@ -23,7 +23,7 @@ import { Refused } from '../packages/kernel/index.js';
 import { checkLandingMessages } from './landing-message.js';
 import { landingContext } from './landing-message.js';
 import { requireLandingHost } from './landing-host.js';
-import { policyAt } from './trusted-policy.js';
+import { policyAt } from '../packages/sandbox/index.js';
 import { staleVerdictRefusal } from './verdict-freshness.js';
 import { candidates } from './landing-step-selection.js';
 import { idleLanding } from './landing-step-selection.js';

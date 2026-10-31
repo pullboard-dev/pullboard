@@ -3,7 +3,7 @@ import { recordTrainLanding } from '../src/record-train-landing.js';
 import { receiptBinds } from '../src/gate-run-receipt.js';
 import { gateRuns } from '../src/quarantine.js';
 import { COORDINATOR } from '../src/config.js';
-import { policyAt } from '../src/trusted-policy-read.js';
+import { policyAt } from '../packages/sandbox/index.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
 import assert from 'node:assert/strict';

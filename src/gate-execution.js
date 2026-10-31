@@ -25,7 +25,7 @@ import {
 } from './gate-slot.js';
 import {
   policyAt,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import {
   COLLECTION_ID_ENV,
   parseCollectionReports,
@@ -76,7 +76,7 @@ import {
   captureTestRuntimes,
   executionEnvironment,
   testRuntimeEnvironment,
-} from './execution-environment.js';
+} from '../packages/sandbox/index.js';
 import {
   gitPath,
   headCommit,
@@ -102,7 +102,7 @@ import { committedTestOutcomes } from './test-outcomes.js';
 import {
   frozenCheck,
   mainPolicy,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import {
   proofCounts,
   observedFailureSignatures,
@@ -145,7 +145,7 @@ import {
 } from './gate-output.js';
 import {
   sandboxBlockedOperation,
-} from './sandbox-denial.js';
+} from '../packages/sandbox/index.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';

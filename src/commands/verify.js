@@ -12,10 +12,10 @@ import {
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
-import { trunkRef } from '../trusted-policy-read.js';
+import { trunkRef } from '../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { committedItemAuthors } from '../review-independence.js';
-import { verifyOutsideSandbox } from '../sandbox-verify.js';
+import { verifyOutsideSandbox } from '../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../source-advance-state.js';
 import { agentSessionDigest } from '../person.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
@@ -79,7 +79,7 @@ import {
   itemPolicy,
   requireTrunkMerge,
   submissionPaths,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   composeReview,
   composesAtAdmission,

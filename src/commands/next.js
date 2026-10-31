@@ -9,7 +9,7 @@ import {
   mainRedBuildOffer,
   nextTake,
   nextProgress,
-} from '../next-take.js';
+} from '../../packages/sandbox/index.js';
 import {
   sayCheckBaseline,
 } from '../check-baseline.js';

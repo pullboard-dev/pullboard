@@ -9,7 +9,7 @@ import { span } from '../cli-context.js';
 import { COORDINATOR } from '../config.js';
 import { contains } from '../git.js';
 import { VERSION } from '../help.js';
-import { requireTrunkMerge } from '../trusted-policy.js';
+import { requireTrunkMerge } from '../../packages/sandbox/index.js';
 import { staleVerdictRefusal } from '../verdict-freshness.js';
 import { releaseHeadlinesBetween } from '../release-headlines.js';
 

@@ -56,7 +56,7 @@ import {
 } from '../spec.js';
 import {
   trunkRef,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   readFileSync,
   existsSync,

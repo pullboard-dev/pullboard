@@ -9,7 +9,7 @@ import { tryGit } from '../../../../src/git.js';
 import {
   submissionPaths,
   dependencySnapshots,
-} from '../../../../src/trusted-policy.js';
+} from '../../../sandbox/index.js';
 import {
   BLANKS,
   STATES,

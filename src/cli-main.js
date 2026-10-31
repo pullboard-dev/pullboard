@@ -270,7 +270,7 @@ async function rememberTrunk(io, { repoInfo, mainCheckout }) {
   }
   if (!info.isMain) return;
   const primary = mainCheckout(info.root);
-  if (primary?.branch) (await import('./trusted-policy-read.js')).trunkRef(info.root, primary.branch);
+  if (primary?.branch) (await import('../packages/sandbox/index.js')).trunkRef(info.root, primary.branch);
 }
 
 /** Whether a parsed command line only prints version or help, which asks Git nothing. */
@@ -466,7 +466,7 @@ async function runMain(argv, streams) {
         let eligible = true;
         try {
           const { landingLeaseState } = await import('./board-landing-lease.js');
-          eligible = (await import('./source-advance-worker.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
+          eligible = (await import('../packages/sandbox/index.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
             openBoardForRead: (await import('./cli-context.js')).nativeBoardOpeners(io).openBoardForRead });
         }
         catch { /* Unknown state keeps the normal worker path, which records incomplete work. */ }

@@ -27,7 +27,7 @@ import { checkAtCommit } from '../src/runner-private-check.js';
 import {
   dependencySnapshots,
   submissionPaths,
-} from '../src/trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 

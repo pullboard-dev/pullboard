@@ -13,7 +13,7 @@ import { gitOut } from '../history.js';
 import { ID_RE } from '../spec.js';
 import { parseCommitMessage } from '../../packages/commits/index.js';
 import { committedIds } from '../history.js';
-import { trunkRef } from '../trusted-policy.js';
+import { trunkRef } from '../../packages/sandbox/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 

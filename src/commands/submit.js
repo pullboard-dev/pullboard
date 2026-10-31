@@ -18,7 +18,7 @@ import { commonJsIn } from '../module-imports.js';
 import { requireSubmitCells } from '../../bin/cells-submit-checks.js';
 import { landedCutItemRows } from '../../bin/cells-submit-checks.js';
 import { privateCheckEnvelope } from '../runner-private-mode.js';
-import { trunkRef } from '../trusted-policy-read.js';
+import { trunkRef } from '../../packages/sandbox/index.js';
 import {
   mkdirSync,
   mkdtempSync,
@@ -138,7 +138,7 @@ import {
   policyAt,
   requireTrunkMerge,
   submissionPaths,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   nextOnce,
   withBoardRead,

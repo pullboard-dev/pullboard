@@ -22,7 +22,7 @@ import { relayRelink } from './relay-relink.js';
 import { updateRelayMachine } from './relay-machine.js';
 import { listApiProjects } from './projects.js';
 import { Refused } from '../packages/kernel/index.js';
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import {
   localRecords,
   relayPersonCoordinator,

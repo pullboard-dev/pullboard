@@ -23,7 +23,7 @@ import { Refused } from '../../packages/kernel/index.js';
 import { mainRedReworkItems } from '../main-red.js';
 import { nextReview } from '../next-review.js';
 import { ownSessionReviews } from '../next-review.js';
-import { trunkMerge } from '../trusted-policy.js';
+import { trunkMerge } from '../../packages/sandbox/index.js';
 import { relayLinked } from '../relay.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';

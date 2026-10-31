@@ -32,18 +32,18 @@ import { proofCounts } from './proof-provenance.js';
 import {
   policyGit,
   trunkRef,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import {
   itemPolicy,
   frozenCheck,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import { mappedCheck } from '../packages/codemap/index.js';
 import { environmentProblem } from './config.js';
 import {
   digestOf,
   writeTimingProfile,
 } from './gate-output.js';
-import { sandboxBlockedScanner } from './sandbox-denial.js';
+import { sandboxBlockedScanner } from '../packages/sandbox/index.js';
 import {
   logLines,
   timingFromLog,

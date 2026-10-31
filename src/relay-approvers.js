@@ -6,7 +6,7 @@
  */
 import { Refused } from '../packages/kernel/index.js';
 import { request } from './relay.js';
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 
 /**
  * Send accepted main's approver list to the relay within a person's sign-in, when it differs from the relay's. A

@@ -40,7 +40,7 @@ import {
   mainPolicy,
   policyAt,
   trunkRef,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import { familyIndex } from './review-policy.js';
 import { MAIN_MERGE_LABEL } from './trunk-conflict.js';
 

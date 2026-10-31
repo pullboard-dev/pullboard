@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { importOnlyChange } from '../src/import-only-change.js';
-import { submissionPaths } from '../src/trusted-policy.js';
+import { submissionPaths } from '../packages/sandbox/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const BIN = join(import.meta.dirname, '..', 'bin', 'pullboard.js');

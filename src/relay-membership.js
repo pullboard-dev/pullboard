@@ -1,5 +1,5 @@
 /** Membership authority comes from committed policy or exact local SSH proofs, never a relay assertion [E17]. */
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import {
   boardMembersBytes,

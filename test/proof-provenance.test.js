@@ -10,7 +10,7 @@ import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { boardReceiptStore, receiptBody, receiptFields } from '../src/gate-run-receipt.js';
 import { proofCounts } from '../src/proof-provenance.js';
 import { runShell } from '../src/shell-run.js';
-import { captureTestRuntimes, testRuntimeEnvironment } from '../src/execution-environment.js';
+import { captureTestRuntimes, testRuntimeEnvironment } from '../packages/sandbox/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fileURLToPath } from 'node:url';
 import { bindRefs, resolveMove, strayItemRefs } from '../src/relay-outbox.js';

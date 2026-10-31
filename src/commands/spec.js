@@ -1,7 +1,7 @@
 /** The pullboard spec command, in its own module so an item adding another command never edits these lines. */
 import { answerQuestion } from '../spec.js';
 import { rowDrafts } from '../board-query.js';
-import { trunkRef } from '../trusted-policy-read.js';
+import { trunkRef } from '../../packages/sandbox/index.js';
 import { loadDoctrine } from '../doctrine.js';
 import { verifiedPasskeyRowDecision } from '../person-signing.js';
 import {

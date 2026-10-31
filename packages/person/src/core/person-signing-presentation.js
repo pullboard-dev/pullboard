@@ -11,7 +11,7 @@ import {
   barDigest,
   barReadiness,
 } from "../../../../src/bar-readiness.js";
-import { mainPolicy } from "../../../../src/trusted-policy.js";
+import { mainPolicy } from "../../../sandbox/index.js";
 import { previewBarCoverage } from "../../../../src/bar-coverage.js";
 import { Refused } from "../../../kernel/core.js";
 

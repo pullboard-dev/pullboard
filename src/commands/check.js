@@ -38,7 +38,7 @@ import {
   frozenCheck,
   itemPolicy,
   mainPolicy,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   agentDisplayName,
   browserAdmissionReporter,

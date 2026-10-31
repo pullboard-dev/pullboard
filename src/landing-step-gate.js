@@ -23,7 +23,7 @@ import { selectRegistryGuards } from '../packages/kernel/index.js';
 import { placementLandingPlan } from './test-placement.js';
 import { laneOf } from './lanes.js';
 import { Refused } from '../packages/kernel/index.js';
-import { environmentLabel } from './execution-environment.js';
+import { environmentLabel } from '../packages/sandbox/index.js';
 import { landingFileTimes } from './submit-invariants.js';
 import { environmentWarnings } from './landing-step-selection.js';
 import { landingFailures } from './landing-step-failures.js';

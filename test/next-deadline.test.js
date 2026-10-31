@@ -5,7 +5,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
-import { nextProgress } from '../src/next-take.js';
+import { nextProgress } from '../packages/sandbox/index.js';
 import { startNextProgressMonitor } from '../src/next-progress-monitor.js';
 import { fixture } from './next-take-fixture.js';
 import {

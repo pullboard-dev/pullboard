@@ -46,7 +46,7 @@ import {
 } from './git.js';
 import {
   policyAt,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import {
   runGate,
 } from './gate.js';

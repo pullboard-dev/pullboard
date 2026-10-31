@@ -8,7 +8,7 @@ import { laneOf } from './lanes.js';
 import {
   mainPolicy,
   policyAt,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import { pinRunMain } from './gate.js';
 import {
   readGateReceipt,

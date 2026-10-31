@@ -3,7 +3,7 @@ import { quarantineBatchGates } from '../quarantine-verdict.js';
 import { RIGOR_AUTO_ENGINE } from '../rigor-auto-engine.js';
 /** Routing metadata owned by recordLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERDICT_REVIEW_ENGINE } from '../engine-metadata.js';
-import { carriesLandingEnvironment } from '../execution-environment.js';
+import { carriesLandingEnvironment } from '../../packages/sandbox/index.js';
 import {
   NATIVE_FLAKE_ENGINE,
   carriesFlakeDiagnostics,

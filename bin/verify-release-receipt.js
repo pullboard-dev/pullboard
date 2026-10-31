@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Verify an authenticated recorded receipt for the exact tagged commit before hosted npm OIDC publication [I15]. */
 import { parseArgs } from 'node:util';
-import { verifyHostedRelease } from '../src/release-hosted.js';
+import { verifyHostedRelease } from '../packages/sandbox/index.js';
 import { releaseReceiptFields } from '../src/release-gate-receipt.js';
 import { releaseReceiptProblem } from '../src/release-gate-receipt.js';
 import { latestGitHubReleaseRun } from '../src/release-transport.js';

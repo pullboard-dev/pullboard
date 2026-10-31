@@ -16,12 +16,12 @@ import {
 } from './item-dependencies.js';
 import { itemFileCollisions } from './item-files.js';
 import { withLocalSeatPresence } from './seat-presence.js';
-import { policyAt } from './trusted-policy-read.js';
+import { policyAt } from '../packages/sandbox/index.js';
 import {
   frozenCheck,
   itemPolicy,
   requireTrunkMerge,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
@@ -83,7 +83,7 @@ import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import {
   advanceItemSource,
   sourceAdvanceCASProblem,
-} from './source-advance.js';
+} from '../packages/sandbox/index.js';
 import {
   proposeSentinel,
   decideSentinel,
@@ -120,7 +120,7 @@ import {
 import {
   sealSourceAdvance,
   sealSourceAdvanceReturn,
-} from './source-advance-origin.js';
+} from '../packages/sandbox/index.js';
 import { computedReturnArgs } from './computed-conflict-return.js';
 import {
   requirePreparedComputedConflict,
@@ -365,7 +365,7 @@ export function decideSpecRevisions(board, options) { return applySpecRevisionDe
 export function recordRowVerification(board, options) { return applyRowVerification(board, options, board.nativePorts); }
 
 /** Actual public operations remain owned by their providers; the raw board bridge expires with #1776. */
-export { advanceItemSource } from './source-advance.js';
+export { advanceItemSource } from '../packages/sandbox/index.js';
 export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from './sentinels.js';
 export { flakeLedger, recordFlakeObservation } from './flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';

@@ -27,7 +27,7 @@ import { waiverLine } from '../src/land.js';
 import { waivedFailures } from '../src/land.js';
 import { applyEngineMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
-import { mainPolicy } from '../src/trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';

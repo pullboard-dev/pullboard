@@ -10,7 +10,7 @@ import {
 } from '../trunk-conflict.js';
 import {
   trunkMerge,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import { legacyConflictNote } from '../reopen-cause.js';
 import {
   actOn,
