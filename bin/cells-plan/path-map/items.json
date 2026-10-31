@@ -28,6 +28,7 @@
   "src/submit-preflight.js": "packages/items/src/core/submit-preflight.js",
   "src/submit-size.js": "packages/items/src/core/submit-size.js",
   "src/submit-wait.js": "packages/items/src/shell/submit-wait.js",
+  "test/bar-native-session.test.js": "packages/items/tests/bar-native-session.test.js",
   "test/decision-handoff.test.js": "packages/items/tests/decision-handoff.test.js",
   "test/item-offer.test.js": "packages/items/tests/item-offer.test.js"
 }

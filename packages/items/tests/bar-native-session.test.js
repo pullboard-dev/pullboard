@@ -4,12 +4,12 @@ import { after, test } from 'node:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { runFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
 import { join } from 'node:path';
-import { createE2eHelpers } from './e2e-helpers.js';
-import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
-import { parentSessionDigest } from '../src/parent-session.js';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import * as store from '../../../src/board.js';
+import { openBoard } from '../../../src/native-board.js';
+import { parentSessionDigest } from '../../../src/parent-session.js';
 
 const fixtures=createE2eHelpers();
 after(fixtures.cleanup);
