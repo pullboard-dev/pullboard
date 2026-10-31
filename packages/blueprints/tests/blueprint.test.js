@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** pullboard blueprint add: a blueprint lands on a board as drafts, once [S1,I1]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
