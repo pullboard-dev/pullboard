@@ -76,13 +76,18 @@ export function operationalMentions(source, scanned, paths, copierNames = new Se
   const { code, strings } = scanned;
   const ending = new RegExp(`(?:^|[/\\\\])(?:${paths.map(path => escaped(posix.basename(path))).join('|')})$`, 'u');
   const templates = strings.filter(row => source[row.start] === '`');
+  // A relative fs operand is cwd-dependent. Any unevaluated dependency may change cwd before this reader runs.
+  // Admit this shortcut only for a closed native fs/path module; source imports and dynamic loaders stay unproven.
+  const closedNativeImports = !/\b(?:import|require)\s*\(/u.test(code)
+    && strings.filter(row => /(?:\bfrom|\bimport)\s*$/u.test(code.slice(0, row.start)))
+      .every(row => /^(?:node:)?(?:fs|path)$/u.test(row.text));
   return strings.filter(row => ending.test(row.text)).filter(row => {
     if (MODULE_BEFORE.test(code.slice(0, row.start))) return false;
     const calls = enclosingCalls(code, row.start);
     // An unambiguous direct relative filename names the repository root, not another directory's same-named asset.
     // Keep indirect roots, path expressions and cwd mutation conservative: they may still resolve to the moved file.
     const direct = calls[0];
-    if (direct && !direct.member && provenReader(direct.name, direct.at)
+    if (closedNativeImports && direct && !direct.member && provenReader(direct.name, direct.at)
       && !code.slice(direct.open + 1, row.start).trim() && !/\b(?:chdir|process|globalThis)\b/u.test(source)
       && /^(?:\.\/)?[\w.-]+$/u.test(row.text) && !row.text.includes('..')
       && !paths.some(path => posix.normalize(path) === posix.normalize(row.text))) return false;

@@ -32,6 +32,10 @@ test('a repo-root file with a moved asset basename is distinct from the moved pa
   assert.ok(computed.problems.length || computed.edits.length, 'a computed process operation keeps the cwd unproven');
   const processAlias = fixtureSourceEdits(PREFIX + "const proc = process; proc['ch' + 'dir']('src/blueprints'); readFileSync('pullboard.json'); readFileSync(unknown);", move);
   assert.ok(processAlias.problems.length || processAlias.edits.length, 'a process alias cannot hide a cwd change');
+  for (const dependency of ["import './changes-cwd.js';", "import { change } from './changes-cwd.js'; change();", "await import('./changes-cwd.js');", "import { runInThisContext } from 'node:vm'; runInThisContext(code);"]) {
+    const importedCwd = fixtureSourceEdits(PREFIX + dependency + " readFileSync('pullboard.json'); readFileSync(unknown);", move);
+    assert.ok(importedCwd.problems.length || importedCwd.edits.length, 'an unevaluated dependency cannot establish the caller cwd');
+  }
   const wrapper = fixtureSourceEdits("import * as fs from 'node:fs'; import { join } from 'node:path'; function readFileSync(name) { return fs.readFileSync(join('src/blueprints', name)); } readFileSync('pullboard.json');", move);
   assert.ok(wrapper.problems.length || wrapper.edits.length, 'a local reader wrapper may resolve the same name to the moved asset');
   const shadow = fixtureSourceEdits(PREFIX + "function run(readFileSync) { readFileSync('pullboard.json'); } run(unknown);", move);
