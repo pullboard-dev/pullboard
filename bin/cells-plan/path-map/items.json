@@ -11,6 +11,9 @@
   "src/item-files.js": "packages/items/src/core/item-files.js",
   "src/item-holds.js": "packages/items/src/core/item-holds.js",
   "src/item-notes.js": "packages/items/src/core/item-notes.js",
+  "src/item-offer-contract.js": "packages/items/src/core/item-offer-contract.js",
+  "src/item-offer.js": "packages/items/src/shell/item-offer.js",
+  "src/item-receipt.js": "packages/items/src/shell/item-receipt.js",
   "src/item-sessions.js": "packages/items/src/shell/item-sessions.js",
   "src/outside-proof.js": "packages/items/src/shell/outside-proof.js",
   "src/outside-sensitive.js": "packages/items/src/core/outside-sensitive.js",
@@ -25,5 +28,6 @@
   "src/submit-preflight.js": "packages/items/src/core/submit-preflight.js",
   "src/submit-size.js": "packages/items/src/core/submit-size.js",
   "src/submit-wait.js": "packages/items/src/shell/submit-wait.js",
-  "test/decision-handoff.test.js": "packages/items/tests/decision-handoff.test.js"
+  "test/decision-handoff.test.js": "packages/items/tests/decision-handoff.test.js",
+  "test/item-offer.test.js": "packages/items/tests/item-offer.test.js"
 }

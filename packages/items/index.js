@@ -27,3 +27,4 @@ export { reopenAuthority } from './src/core/reopen-authority.js';
 export { openHandoff, takeHandoff } from './src/core/handoff.js';
 export { itemDecisionDetail, recordItemDecision, projectItemDecisions } from './src/core/item-decision-queue.js';
 export { auditFailureItem } from './src/core/audit-failure-item.js';
+export { itemOfferAnnouncement, readItemOffer, acceptItemOffer, declineItemOffer, recordItemOfferResult, minimalItemReceipt, verifyItemReceipt } from './src/shell/item-offer.js';
