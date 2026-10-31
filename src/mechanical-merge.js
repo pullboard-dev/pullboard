@@ -179,10 +179,15 @@ function rowName(row) {
 function rowCollision(base, ours, theirs) {
   const original = new Map(base.map(row => [rowName(row), identity(row)]));
   const right = new Map(theirs.map(row => [rowName(row), identity(row)]));
-  return ours.some(row => {
+  const left = new Map(ours.map(row => [rowName(row), identity(row)]));
+  const changed = ours.some(row => {
     const name = rowName(row), mine = identity(row), other = right.get(name);
     return other !== undefined && other !== mine && original.get(name) !== mine && original.get(name) !== other;
   });
+  // A row one side removes while the other side changes it is a real edit of that row too.
+  const removed = [...original].some(([name, was]) => (!left.has(name) && right.has(name) && right.get(name) !== was)
+    || (!right.has(name) && left.has(name) && left.get(name) !== was));
+  return changed || removed;
 }
 
 /** Merge snapshot data; deletions win only over unchanged values, and only jointly raised counters use max. */

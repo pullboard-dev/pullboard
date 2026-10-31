@@ -378,6 +378,26 @@ test('different keys added to the config defaults merge clean in both orders; on
   assert.deepEqual(mechanicalConflictFiles(twice.root, twice.heads[0], twice.heads[1]), ['src/config.js'], 'the same new key with two values is a real conflict');
 });
 
+test('a plan row one branch deletes and the other changes still conflicts in both orders [C7,D3]', t => {
+  const base = [ROW(1), ROW(2)];
+  const gone = base.filter(row => row[0] !== 'src/m-2.js');
+  const moved = base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', 'packages/b/m-2.js', 'rule'] : row));
+  const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD(gone), SHARD(moved));
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1]), [SHARD_FILE]);
+  assert.deepEqual(mechanicalConflictFiles(root, heads[1], heads[0]), [SHARD_FILE]);
+  const apart = divergent(t, SHARD_FILE, SHARD(base), SHARD(gone), SHARD([...base, ROW(3)]));
+  assert.deepEqual(mechanicalConflictFiles(apart.root, apart.heads[0], apart.heads[1]), [], 'a delete beside a disjoint append still merges');
+});
+
+test('a config default one branch deletes and the other changes still conflicts in both orders [C7]', t => {
+  const gone = DEFAULTS().replace('    // Explains the next setting.\n    map: { slice: false },\n', '');
+  const changed = DEFAULTS().replace('slice: false', 'slice: true');
+  assert.notEqual(gone, DEFAULTS());
+  const { root, heads } = divergent(t, 'src/config.js', DEFAULTS(), gone, changed);
+  assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1]), ['src/config.js']);
+  assert.deepEqual(mechanicalConflictFiles(root, heads[1], heads[0]), ['src/config.js']);
+});
+
 test('replay of a version-three receipt keeps the older policy for plan rows [H16,C7]', t => {
   const base = [ROW(1), ROW(2)];
   const edit = (to) => base.map(row => (row[0] === 'src/m-2.js' ? ['src/m-2.js', to, 'rule'] : row));
