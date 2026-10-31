@@ -46,3 +46,22 @@ test('the board-file debt ratchet names outstanding tests and prevents new logic
     assert.equal(debt.some(row => row.path === path), false, `${path} has no remaining board-file opens`);
   }
 });
+
+/** Moving a test relocates its existing debt; neither spelling gains another allowance. */
+test('store test moves retain exact board-file ceilings and refuse one extra open [C7]', () => {
+  const moved = {
+    'api-identity': 8, badge: 1, 'board-capture': 4, 'claim-reopen-clock': 1,
+    'commit-metadata': 1, 'landing-noop': 1, 'shout-readable': 1,
+    'stacked-submit': 2, 'verdict-check': 2, verify: 1,
+  };
+  for (const [name, ceiling] of Object.entries(moved)) {
+    const path = `packages/store/tests/${name}.test.js`;
+    const legacy = `test/${name}.test.js`;
+    assert.equal(BOARD_FILE_BASELINE[path], ceiling);
+    assert.equal(Object.hasOwn(BOARD_FILE_BASELINE, legacy), false);
+    const opens = boardFileOpens('openBoard(file);\n'.repeat(ceiling + 1), path);
+    assert.deepEqual(boardFileGrowth(opens, BOARD_FILE_BASELINE), [opens[ceiling]]);
+    const oldOpen = boardFileOpens('openBoard(file);', legacy);
+    assert.deepEqual(boardFileGrowth(oldOpen, BOARD_FILE_BASELINE), oldOpen);
+  }
+});
