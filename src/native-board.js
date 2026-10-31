@@ -1,3 +1,7 @@
+import { submitGateConfig } from './gate-submit.js';
+import { submitGatePlan } from './gate-submit.js';
+import { nativeProofBlockingGreen } from './quarantine-verdict.js';
+import { receiptBlockingGreen } from './quarantine-verdict.js';
 import { reviewPatchAuthors } from './review-composition.js';
 import { policyAt } from './trusted-policy-read.js';
 import { frozenCheck } from './trusted-policy.js';
@@ -263,6 +267,7 @@ export { closeBoard } from './board-read-open.js';
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {
   const nativePorts = Object.freeze({
+    patchProof: Object.freeze({ boardReceiptStore, readGateReceipt, submitGateConfig, submitGatePlan, nativeProofBlockingGreen, receiptBlockingGreen }),
     quarantine: Object.freeze({ quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, validateQuarantineVerdict, recordSealedGateRun, sealQuarantineVerdict, gateRuns, requireBound, validateQuarantineProofIds }),
     sourceAdvanceCASProblem, beginCommandPhase, exportedMeta, guardRestore,
     newRigorNotices, rigorNoticeText, sealSourceAdvanceReturn, conflictValue, nextSteps: NEXT_STEPS, landingEnvironment, deriveRigorCause, recordAutomaticRigorDrafts, normalizedDispatch, rejectedWorkReturns,
