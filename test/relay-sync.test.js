@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** A relay timeout, a busy link lock or an uncertain baseline never fails a local board move [B26,H16,H17]. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

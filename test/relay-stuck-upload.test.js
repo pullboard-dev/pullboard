@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** Legacy API1 refusals recover without blocking moves; current API2 pause proofs live in relay-upload-pause.test.js [H16,B26]. */
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync } from './fixture-child.js';
