@@ -24,13 +24,13 @@ import {
   realGitAdapter,
   withGitAdapter,
 } from '../src/git-adapter.js';
-import { createMemoryGitAdapter } from '../src/git-memory.js';
+import { createMemoryGitAdapter } from '../packages/git/index.js';
 import {
   gitLaunches,
   gitLaunchGrowth,
   gitLaunchReport,
   loweredGitLaunchBaseline,
-} from '../src/git-launch-ratchet.js';
+} from '../packages/git/index.js';
 import {
   cleanGitEnvironment,
   contains,

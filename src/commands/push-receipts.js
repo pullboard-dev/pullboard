@@ -24,8 +24,8 @@ import {
   headTree,
   isClean,
 } from '../git.js';
-import { pushedFirstParentCommits } from '../pre-push-receipts.js';
-import { nativePushReceiptProblems } from '../push-native-evidence.js';
+import { pushedFirstParentCommits } from '../../packages/git/index.js';
+import { nativePushReceiptProblems } from '../../packages/git/index.js';
 import { runPushReceiptSmoke } from '../push-receipt-smoke.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { mainPolicy } from '../trusted-policy-read.js';
