@@ -309,7 +309,7 @@ export async function verifyHere(ctx, id, { second, values }) {
           reopen: (id, conflict, note) => {
             const item = store.getItem(board, id);
             if (item.item_status !== 'verified' || item.item_merged_commit) return null;
-            return ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : {}), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]);
+            return ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : { withdrawVerdict: true }), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]);
           },
           execute: () => executeBoardLanding(landing, board, io) });
       });

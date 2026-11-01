@@ -84,7 +84,8 @@ test('automatic landing returns a conflicting acceptance to its builder with exa
   assert.equal(batches, 1, 'the remaining clean batch is selected once');
   assert.deepEqual(returned, [{ files: ['web/result.txt'], trunk }]);
   assert.equal(json(box, box.repo, 'show', String(id)).item_status, 'open');
-  assert.equal(json(box, box.web, 'claim', String(id)).item_owner, 'web-1');
+  json(box, box.web, 'claim', String(id));
+  assert.equal(json(box, box.repo, 'show', String(id)).item_owner, 'web-1');
 });
 
 test('only an explicit valid trunk override permits manual landing [B35,B3]', () => {
