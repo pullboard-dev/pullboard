@@ -29,12 +29,14 @@ test('a 300-file out-of-lane commit is refused for exactly those paths, with git
   assert.equal(refused.size, 300, 'every foreign path is still named');
   let traced = '';
   try { traced = readFileSync(trace, 'utf8'); } catch { /* no trace file */ }
-  const diffs = traced.split('\n').filter(line => /git.* diff .*--cached/.test(line) && !/--name-status/.test(line));
-  assert.ok(diffs.length <= 1, `one staged diff per commit, saw ${diffs.length}`);
-  const calls = traced.split('\n').filter(Boolean).length;
+  // Git versions may emit extra executable-path diagnostics per invocation; count only command records.
+  const commands = traced.split('\n').filter(line => /trace: (?:built-in|exec): git(?: |$)/u.test(line));
+  const diffs = commands.filter(line => /git.* diff .*--cached/.test(line) && !/--name-status/.test(line));
+  assert.equal(diffs.length, 1, 'one staged diff per commit');
+  const calls = commands.length;
   // Bound: the hook costs about 27 git calls on any commit (spec-file shows, repo probes, one diff, batched
   // ls-tree/ls-files/cat-file). 40 leaves headroom for new probes and sits far below the 900+ the per-file path
   // ran, so a per-file regression fails it. The ruling on #2232 proves the time bar by this bound, not a clock.
-  assert.ok(calls <= 40, `git ran ${calls} times for 300 files; trace:\n${traced}`);
-  console.log(`# precommit-seconds ${seconds.toFixed(2)} diffs ${diffs.length} gitcalls ${traced.split('\n').filter(Boolean).length}`);
+  assert.ok(calls <= 40, `git ran ${calls} times for 300 files; the old path ran several per file`);
+  console.log(`# precommit-seconds ${seconds.toFixed(2)} diffs ${diffs.length} gitcalls ${calls}`);
 });
