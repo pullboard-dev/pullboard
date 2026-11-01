@@ -84,7 +84,10 @@ try {
   process.on('message', () => scan());
   process.on('disconnect', stop);
   // Budget: check parent custody each second between compile batches; no operational worker is touched.
-  parentWatch = setInterval(checkParent, 1_000);
+  parentWatch = setInterval(() => {
+    checkParent();
+    scan();
+  }, 1_000);
   checkParent();
   scan();
 } catch { stop(); }
