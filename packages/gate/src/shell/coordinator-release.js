@@ -47,13 +47,19 @@ export function checkCoordinatorRelease(root, { now = new Date(), personOverride
     throw new Refused('GATE_RUN_EVIDENCE', 'a person records a release override from the primary checkout; run the release gate there with --person-override \"reason\"');
   }
   const board = openBoardForRead(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
+  if (board) board.db.exec('SAVEPOINT coordinator_release_read');
   let gauge;
   let projectRelease;
   try {
     projectRelease = board ? previousCoordinatorMilestone(board) : null;
     gauge = board ? coordinatorActions(board, { until: now.toISOString() }) : { available: false, perLanding: null, reason: 'no native board exists' };
   }
-  finally { if (board) closeBoard(board); }
+  finally {
+    if (board) {
+      try { board.db.exec('RELEASE coordinator_release_read'); }
+      finally { closeBoard(board); }
+    }
+  }
   const previous = previousRelease(root);
   const projectProblem = projectRelease ? coordinatorActionRise(gauge, projectRelease.coordinatorActions.gauge) : null;
   const problem = projectProblem ?? (previous && !gauge.available ? 'coordinator actions are unavailable for a previously measured release' : coordinatorActionRise(gauge, previous?.gauge));
