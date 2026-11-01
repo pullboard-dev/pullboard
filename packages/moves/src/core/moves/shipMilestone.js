@@ -1,5 +1,5 @@
-import { COORDINATOR_ACTIONS_ENGINE } from '../../../../state/index.js';
-import { ENGINE_VERSION } from '../../../../state/index.js';
+import { COORDINATOR_ACTIONS_ENGINE } from '../../../../../src/coordinator-actions-engine.js';
+import { ENGINE_VERSION } from '../../../../../src/engine-metadata.js';
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by shipMilestone, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
