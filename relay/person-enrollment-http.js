@@ -1,5 +1,5 @@
 /** Isolated transport for person-signed enrollment; legacy pairing routes keep their meaning [H15]. */
-import { apiJson, readApiBody } from '../src/api-http.js';
+import { apiJson, readApiBody } from '../packages/api/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { personEnrollmentBody } from '../src/person-enrollment.js';
 

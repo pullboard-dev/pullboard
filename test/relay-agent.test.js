@@ -14,7 +14,7 @@ import { after, test } from 'node:test';
 import { claim as claimStoredItem, closeBoard, register as registerStoredAgent } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { submitFixture as submitStoredItem } from './board-submit-fixture.js';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';

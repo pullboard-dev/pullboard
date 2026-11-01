@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createLocalApiHandler } from '../src/api.js';
+import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { observeRelayHealth } from '../src/relay-canary-health.js';

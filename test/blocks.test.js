@@ -4,7 +4,7 @@ import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-
 /** A refusal that stops someone reaches whoever can clear it, is recorded, and repeats are counted [C6,N26]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { repoInfo } from '../src/git.js';
 import { personNeedsState } from '../src/needs-state.js';

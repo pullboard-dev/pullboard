@@ -232,7 +232,7 @@ test('a shout from the local view as the person is recorded as the person [N26,B
   assert.equal(boardSnapshot(box.boardFile).shout.at(-1).shout_from, 'coordinator', 'an agent-shell shout keeps the coordinator as author');
   const file = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-dir'), 'pullboard-checkout-session.json');
   const before = readFileSync(file);
-  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../../../src/api.js')).href;
+  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../../api/src/shell/api.js')).href;
   const cliModule = pathToFileURL(resolve(import.meta.dirname, '../../../test/native-cli-fixture.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});

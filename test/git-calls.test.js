@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { test } from 'node:test';
 import { main } from './native-cli-fixture.js';
 import { headCommit, withGitFacts } from '../src/git.js';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { pathToFileURL } from 'node:url';
 import { fetchFresh } from './http-fixture.js';

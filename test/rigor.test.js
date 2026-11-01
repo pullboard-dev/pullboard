@@ -18,7 +18,7 @@ import { openBoard } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import { applyEngineMove, applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
-import { executeMove } from '../src/api.js';
+import { executeMove } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';
 import { refusePersonMove } from '../packages/mcp/index.js';
 import { CAUSE_ENGINE, ENGINE_VERSION } from '../packages/state/index.js';
