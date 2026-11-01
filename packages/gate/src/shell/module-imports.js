@@ -55,6 +55,19 @@ const MAX_COMPILED_SOURCE_BYTES = 64 * 1024 * 1024;
 /** Copy a private compiler result so callers never receive a mutable cache container. */
 function copyCompilation(row) { return { compiles: row.compiles, imports: [...row.imports] }; }
 
+/**
+ * Run a sweep with one compile cache, so a source parsed once is never re-compiled by a later pass of the same
+ * command. Any NODE_OPTIONS at all turns the cache off, since the preload policy could change what compiles.
+ *
+ * @template T
+ * @param {() => T} work
+ * @returns {T}
+ */
+export function withParseScope(work) {
+  if (process.env.NODE_OPTIONS) return work();
+  return importParseScopes.run({ epochs: new Map(), bytes: 0, entries: 0, allowed: () => !process.env.NODE_OPTIONS }, work);
+}
+
 /** Compile fresh bytes with real V8, reusing only successful subprocess results in this one scope. */
 function look(sources) {
   const scope = importParseScopes.getStore();

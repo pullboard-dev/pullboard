@@ -4,8 +4,8 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
-import { cellInventory } from '../packages/codemap/index.js';
-import { readPathMap } from '../packages/codemap/index.js';
+import { cellInventory, updateCellInventory } from '../packages/codemap/index.js';
+import { importCuts, readPathMap } from '../packages/codemap/index.js';
 import { repositoryImport } from '../packages/codemap/index.js';
 import { testFile } from '../packages/codemap/index.js';
 import { loadConfig } from '../packages/config/index.js';
@@ -16,7 +16,7 @@ import { outOfLane } from '../packages/seats/index.js';
 import { runnerPackage } from '../src/runner-package.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
 import { Refused } from '../packages/kernel/index.js';
-import { checkCuts } from './cells-plan-cuts.js';
+import { checkCuts, entryPlacementProblems, retiredProblems } from './cells-plan-cuts.js';
 import { ownerFor } from './cells-plan-cuts.js';
 
 /** Marks a use that takes the shim's whole namespace, so every name it exports must stay reachable. */
@@ -310,8 +310,10 @@ function moveClosure(root, parsers, files) {
 /** Every strict upward-cut problem across all cells, keyed so a repointed path still names the same edge. */
 function strictProblems(box, inventory) {
   const rows = new Map();
+  // The path map and process entries do not vary by cell: read and parse them once per sweep (#2232).
+  const map = readPathMap(box.root), shared = { map, retired: retiredProblems(box.root, box.plan, inventory), groups: importCuts(box.plan), entries: entryPlacementProblems(box.root, box.plan, inventory.files, map) };
   for (const { name } of box.plan.cells) {
-    for (const problem of checkCuts(box.root, box.plan, name, { allLaterCells: true, temporaryExceptions: false, inventory })) {
+    for (const problem of checkCuts(box.root, box.plan, name, { allLaterCells: true, temporaryExceptions: false, inventory, shared })) {
       const found = /^(\S+) still imports later (\S+): (\S+) -> /u.exec(problem);
       rows.set(found ? `${found[1]}|${found[2]}|${found[3]}` : `${name}|${problem}`, problem);
     }
@@ -348,7 +350,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   try {
     for (;;) {
       applyToDisk(box, materialize(box, plans, excluded), touched);
-      after = cellInventory(root, parsers);
+      after = updateCellInventory(root, parsers, inventory, touched);
       const fresh = [...strictProblems(box, after)].filter(([key]) => !before.has(key));
       const blamed = [];
       /** Hold every edit in a file of a closure that the repoint broke, naming why. */
@@ -393,8 +395,11 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     why.push(...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by ')));
     if (!held.length && users.length) why.push(`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`);
     if (why.length) { kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`); continue; }
-    if (tryGit(root, ['rm', '-q', '-f', '--', shim]).status !== 0) rmSync(join(root, shim), { force: true });
     deleted.push(shim);
+  }
+  // One git rm for every deleted shim, not one process each; a refusal falls back to plain file removal (#2232).
+  if (deleted.length && tryGit(root, ['rm', '-q', '-f', '--', ...deleted]).status !== 0) {
+    for (const shim of deleted) if (tryGit(root, ['rm', '-q', '-f', '--', shim]).status !== 0) rmSync(join(root, shim), { force: true });
   }
   const rewritten = [];
   for (const [shim, made] of plans) for (const edit of made.edits) if (!excluded.has(edit)) rewritten.push({ shim, file: edit.file, from: edit.from, to: edit.text || '(removed duplicate)' });

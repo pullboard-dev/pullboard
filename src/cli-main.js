@@ -252,6 +252,15 @@ async function runCommand(argv, io) {
     return await commandModule.run(io, args);
   } catch (error) {
     error = recordedMoveRefusal(io, error);
+    if (error instanceof Refused && error.code === 'RUNNER_TOOLING_CHANGED' && io.submitToolingAttempt?.owned) {
+      const { prepareSubmitToolingRetry } = await import('../packages/runners/index.js');
+      const selection = prepareSubmitToolingRetry(io.submitToolingAttempt.snapshot, io.submitToolingAttempt);
+      if (selection) {
+        io.submitToolingAttempt.retry = selection;
+        io.submitToolingAttempt.error = error;
+        return 1;
+      }
+    }
     if (error instanceof Refused) {
       io.refusal?.(error);
       io.err(`pullboard: ${await displayedRefusal(io, error)}\nnext: ${io.refusalDocument(error).error.next}`);
@@ -319,7 +328,23 @@ export async function main(argv, streams) {
   // Version and help ask Git nothing, so they never load it.
   if (asksGitNothing(argv)) return runMain(argv, streams);
   const { withGitFacts } = await import('./git.js');
-  return withGitFacts(() => runMain(argv, streams));
+  let command;
+  try { command = parseCommandArgs(argv).positionals[0]; } catch { /* Normal parsing renders usage. */ }
+  if (!['submit', 'done'].includes(command)) return withGitFacts(() => runMain(argv, streams));
+  const { captureSubmitTooling, retrySubmitTooling } = await import('../packages/runners/index.js');
+  const attempt = { snapshot: captureSubmitTooling(), argv, cwd: streams.cwd ?? process.cwd() };
+  const status = await withGitFacts(() => runMain(argv, { ...streams, submitToolingAttempt: attempt }));
+  if (!attempt.retry) return status;
+  // runMain's finally has released the original checkout lease before a fresh process can bind it.
+  try { return await retrySubmitTooling(attempt.retry, argv, streams); }
+  catch (error) {
+    const output = commandOutput(argv, streams, { loadRefusal: async () => (await import('./next-step-words.js')).refusalDocument });
+    await output.prepareRefusal();
+    output.refusal(attempt.error);
+    output.err(`automatic submit retry could not start (${error.code ?? error.message}); rerun pullboard submit`);
+    output.flush(1);
+    return 1;
+  }
 }
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */
@@ -363,6 +388,7 @@ async function runMain(argv, streams) {
   let auditAfterCommand = false;
   let advanceAfterCommand = false;
   let maintenanceAfterCommand;
+  let automaticLandingAfterCommand;
   let toolBuildGateAfterCommand;
   try {
     parsed = parseCommandArgs(argv);
@@ -432,6 +458,7 @@ async function runMain(argv, streams) {
     await (await syncWork())?.syncBefore(io, io.runCommand);
     traceServeStartup('cli-command-preamble-ready');
     const code = await runCommand(argv, io);
+    if (io.submitToolingAttempt?.retry) return code;
     auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
       && !parsed.values['dry-run'] && parsed.values.waive === undefined)
       || (parsed?.positionals[0] === 'merged' && parsed.values['gate-receipt'] !== undefined));
@@ -445,6 +472,7 @@ async function runMain(argv, streams) {
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance') {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
+      automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
     if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
@@ -455,6 +483,10 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
+    if (automaticLandingAfterCommand) {
+      try { await (await import('../packages/landing/index.js')).recoverAutomaticLanding(automaticLandingAfterCommand.info.root, new URL('../bin/automatic-landing.js', import.meta.url)); }
+      catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
+    }
     if (maintenanceAfterCommand) {
       try { await (await import('./worktree-maintenance-scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
       catch (error) { io.err(maintenanceTimerWarning(error)); }

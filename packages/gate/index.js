@@ -31,7 +31,7 @@ export { scheduleMainAudit, waitMainAudit } from "./src/shell/main-audit-schedul
 export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/shell/main-audit-state.js";
 export { runMainAudits } from "./src/shell/main-audit-worker.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
-export { importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
+export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, RELEASE_RECEIPT_MAX_BYTES } from "./src/shell/release-gate-receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/shell/release-gate.js";
@@ -60,5 +60,5 @@ export { timingRunner, timingFromOutput, logLines, timingFromLog, runnerPhaseFie
 export { timingSource, sameTimingSource, suiteTimingFields, formatSuiteTiming, suiteTimingFromOutput, timingAccountingOutput, timingAccountingStages, observedRunTiming, beginSuiteTiming, TIMING_RUN_ID_ENV, SUITE_TIMING_PREFIX } from "./src/shell/run-timing.js";
 export { testOutputSummary, retainTestOutput, renderTestSummary, summaryProfile, withTestOutput } from "./src/shell/test-output-summary.js";
 export { cachedAffectedGraph } from "./src/shell/affected-graph-cache.js";
-
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/shell/coordinator-release.js';
+export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/shell/test-tiers.js';

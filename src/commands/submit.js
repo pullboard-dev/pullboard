@@ -1,6 +1,7 @@
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
+import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -402,13 +403,13 @@ export async function submitHere(ctx, id, infra) {
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, artifactDirectory: ctx.submitHandoffOutput }));
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   const doctrine = hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? await withGateSlot(root, async lease => {
+    ? await cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
       const remote = runnerAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
       try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
         practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remote ? { runCheck: remote.runCheck } : {}) }); }
       finally { remote?.finish(); }
     },
-      { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) })
+      { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) }))
     : [];
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
   const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, staticChecked: true, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
@@ -649,9 +650,15 @@ export async function run(io, { first, values }) {
           const item = store.getItem(board, id), attempt = ctx.submitAttempt;
           if (item.item_status !== 'claimed' || item.item_owner !== attempt.agentId || item.item_frozen_digest !== attempt.digest
             || !(item.item_lease_until > ctx.clock.now().toISOString())) return;
-          await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
-            freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
-            submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+          if (error.code === 'RUNNER_TOOLING_CHANGED') {
+            await ordered(ctx, board, 'appendFact', [id, { agentId: attempt.agentId, kind: 'note',
+              text: `Submit infrastructure refusal [RUNNER_TOOLING_CHANGED]: ${error.message.slice(0, 4000)}. No failed submit is recorded.` }]);
+            if (ctx.io.submitToolingAttempt) ctx.io.submitToolingAttempt.owned = true;
+          } else {
+            await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
+              freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
+              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+          }
         });
       } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
     }
