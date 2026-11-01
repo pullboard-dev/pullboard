@@ -117,6 +117,7 @@ export function browserModuleReach(source, selected = null) {
         if (exported && (selected.has(row.name) || selected.has('default'))) active.add(row.name);
       }
       for (const row of rows.filter(row => row.kind === 'export' && !row.request)) {
+        if (row.names === null && selected.size) for (const fn of functions) active.add(fn.name);
         for (const name of row.names ?? []) if (selected.has(name.imported)) active.add(name.local);
       }
       let prior;
@@ -140,7 +141,7 @@ export function browserModuleReach(source, selected = null) {
   for (const row of rows.filter(row => row.request)) {
     let demand = null;
     if (row.kind === 'export') {
-      if (selected !== null) demand = row.names === null ? new Set(selected)
+      if (selected !== null) demand = row.names === null ? row.clause === '*' ? new Set(selected) : null
         : new Set(row.names.filter(name => selected.has(name.imported)).map(name => name.local));
       const namespace = /^\*\s+as\s+([$\w]+)$/u.exec(row.clause);
       if (selected !== null && namespace) demand = selected.has(namespace[1]) ? null : new Set();

@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { browserBoundFiles, testsNeedBrowser, withImportParseCache } from '../packages/gate/index.js';
+import { browserBoundFiles, importsIn, realBrowserSourceFiles, testsNeedBrowser, withBrowserSourceFiles, withImportParseCache } from '../packages/gate/index.js';
 
 /** Write actual ES modules whose launch expressions the classifier must inspect without executing. */
 function graph(t, sources) {
@@ -14,6 +14,7 @@ function graph(t, sources) {
     mkdirSync(dirname(join(root, file)), { recursive: true });
     writeFileSync(join(root, file), source);
   }
+  assert.doesNotThrow(() => importsIn(Object.values(sources)), 'every fixture is a real compilable ES module');
   return root;
 }
 
@@ -36,6 +37,18 @@ test('named barrel reads exclude uncalled executors but aliases and namespace ca
     for (const file of ['launcher', 'namespace', 'union']) assert.equal(await testsNeedBrowser(root, [`test/${file}.test.js`], { byLaunch: true }), true, file);
     assert.equal(await testsNeedBrowser(root, ['test/scanner.test.js'], { byLaunch: false }), true, 'the legacy conservative mode retains its browser reservation');
   });
+  const reads = new Map();
+  const sourceFiles = { ...realBrowserSourceFiles,
+    /** Count actual file reads while preserving the ordinary source bytes and filesystem failures. */
+    async readFile(file, encoding) {
+      reads.set(file, (reads.get(file) ?? 0) + 1);
+      return realBrowserSourceFiles.readFile(file, encoding);
+    },
+  };
+  assert.deepEqual(await withBrowserSourceFiles(sourceFiles, () => browserBoundFiles(root,
+    ['test/scanner.test.js', 'test/alias.test.js'], { byLaunch: true })), []);
+  assert.equal(reads.get(join(root, 'packages/cell/index.js')), 1, 'one source read for the shared barrel across a census');
+  assert.equal(reads.get(join(root, 'packages/cell/launch.js')), 1, 'an unused executor still has its module evaluation inspected');
 });
 
 test('unselected barrel modules retain direct and transitive evaluation launches [C7,O5]', async t => {
@@ -43,10 +56,24 @@ test('unselected barrel modules retain direct and transitive evaluation launches
     "import {spawnSync} from 'node:child_process'; spawnSync('google-chrome', []); export function launch() {}",
     "import {spawnSync} from 'node:child_process'; function boot() { spawnSync('google-chrome', []); } boot(); export function launch() {}",
     "import './boot.js'; export function launch() {}",
+    "import {spawnSync} from 'node:child_process'; function unused() { if(false) /} function fake() {/; } spawnSync('google-chrome', []); export function launch() {}",
   ]) {
     const root = graph(t, { ...SOURCES, 'packages/cell/launch.js': source,
       'packages/cell/boot.js': "import {spawnSync} from 'node:child_process'; spawnSync('google-chrome', []);" });
     assert.equal(await testsNeedBrowser(root, ['test/scanner.test.js'], { byLaunch: true }), true, source);
+  }
+});
+
+test('opaque export aliases and dynamic scope retain every callable browser capability [C7,O5]', async t => {
+  const root = graph(t, { ...SOURCES,
+    'quoted.js': "import {spawnSync} from 'node:child_process'; function work(options) {spawnSync(options.command, []);} export {work as 'browser-op'};",
+    'quoted-barrel.js': "export {'browser-op' as read} from './quoted.js';",
+    'test/quoted.test.js': "import {read} from '../quoted-barrel.js'; read({command:'google-chrome'});",
+    'test/eval.test.js': "import {launch} from '../packages/cell/index.js'; const input = JSON.parse(process.env.COMMAND); eval('launch(input)');",
+    'test/escaped-eval.test.js': "import {launch} from '../packages/cell/index.js'; const input = JSON.parse(process.env.COMMAND); \\u0065val('launch(input)');",
+  });
+  for (const name of ['quoted', 'eval', 'escaped-eval']) {
+    assert.equal(await testsNeedBrowser(root, [`test/${name}.test.js`], { byLaunch: true }), true, name);
   }
 });
 

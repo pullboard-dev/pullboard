@@ -539,9 +539,11 @@ function parsedSources(sources, memo) {
  * @param {Map<string, {commonJs:boolean, imports:string[]}>} [memo] - parses shared across one census of many files
  * @param {Map<string, boolean>} [launchFree] - Chrome fixture import verdicts shared the same way
  * @param {Map<string, boolean>} [safeChildImports] - exact-byte fixed-Git import parses within this census only
+ * @param {Map<string, string>} [sourceMemo] - one source read per file in this immutable census
+ * @param {Map<string, Map<string, object>>} [reachMemo] - verified projections shared by source bytes and demanded exports
  * @returns {Promise<boolean>}
  */
-async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map()) {
+async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map()) {
   byLaunch ??= await browserByLaunchSetting();
   if (!Array.isArray(files) || files.length === 0) return browserFallback(onFallback, '<test selection>', 'selection is empty or unavailable');
   const normalized = files.map((file) => repositoryPath(root, file));
@@ -573,6 +575,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         if (path.endsWith('.json')) continue;
         if (/\.(?:cjs|cts)$/u.test(path)) return browserFallback(onFallback, path, 'CommonJS loader behavior is not statically classified');
         paths.push(path);
+        if (sourceMemo.has(path)) { sources.push(sourceMemo.get(path)); continue; }
         if (committed) {
           const source = committedSource(root, committed, path);
           if (source === null) return browserFallback(onFallback, path, 'committed source is missing or not a regular file');
@@ -582,13 +585,19 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
           if (!(await staysInside(root, absolute, true))) return browserFallback(onFallback, path, 'live source resolves outside the repository');
           sources.push(await browserSourceFiles().readFile(absolute, 'utf8'));
         }
+        sourceMemo.set(path, sources.at(-1));
       }
       if (!sources.length) break;
+      const reachKeys = [];
       const reaches = sources.map((source, index) => {
         if (!byLaunch) return { source, requests: new Map(), barrel: false };
-        const initial = browserModuleReach(source);
+        const cache = !process.env.NODE_OPTIONS && reachMemo.get(source);
+        const initial = cache?.get('all') ?? browserModuleReach(source);
         const value = demands.get(paths[index]);
-        return byLaunch && (value.narrow || initial.barrel) ? browserModuleReach(source, value.names) : initial;
+        const selected = value.narrow || initial.barrel ? value.names : null;
+        const key = selected === null ? 'all' : JSON.stringify([...selected].sort());
+        reachKeys[index] = key;
+        return cache?.get(key) ?? (selected === null ? initial : browserModuleReach(source, selected));
       });
       const probes = reaches.flatMap(row => row.proofs ?? []);
       const compiled = probes.length ? moduleCompiles(probes.map(row => row.source)) : [];
@@ -599,6 +608,15 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         if (!proven) {
           const full = browserModuleReach(sources[index]);
           reaches[index] = { ...full, requests: new Map([...full.requests.keys()].map(request => [request, null])) };
+        }
+        if (byLaunch) {
+          const { proofs: _proofs, ...provenReach } = reaches[index];
+          reaches[index] = provenReach;
+          if (!process.env.NODE_OPTIONS) {
+            const cache = reachMemo.get(sources[index]) ?? new Map();
+            cache.set(reachKeys[index], provenReach);
+            reachMemo.set(sources[index], cache);
+          }
         }
       }
       const originalSources = [...sources];
@@ -695,9 +713,10 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     const memo = new Map();
     const launchFree = new Map();
     const safeChildImports = new Map();
+    const sourceMemo = new Map(), reachMemo = new Map();
     const bound = [];
     for (const file of files) {
-      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports)) bound.push(file);
+      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo)) bound.push(file);
     }
     return bound;
   });
