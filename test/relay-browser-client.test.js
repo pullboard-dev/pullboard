@@ -294,8 +294,14 @@ for (const apiVersion of [1, 2]) test('the phone shows moves past its checkpoint
     name: 'pb_session', value: (await box.phoneSession()).token, url: box.origin, httpOnly: true, sameSite: 'Lax',
   });
   assert.equal(cookie.success, true);
+  await chrome.send('Page.addScriptToEvaluateOnNewDocument', { source: "window.__relayModuleErrors=[];addEventListener('error',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.message).slice(0,500)));addEventListener('unhandledrejection',event=>window.__relayModuleErrors.length<8&&window.__relayModuleErrors.push(String(event.reason?.message??event.reason).slice(0,500)));" });
   await chrome.navigate(box.origin + '/#board=' + link.board + '&key=' + readFileSync(box.keyFile, 'utf8').trim());
-  await chrome.waitFor('document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')');
+  try { await chrome.waitFor('document.querySelector("#chain")?.textContent.includes(' + JSON.stringify(initialTitle) + ')'); }
+  catch (error) {
+    const state = await chrome.evaluate('({errors:window.__relayModuleErrors,notice:document.querySelector("#relay-notice")?.textContent,body:document.body.innerText.slice(0,1200)})');
+    error.message += '; fixture browser state: ' + JSON.stringify(state);
+    throw error;
+  }
   const checkpointItems = await chrome.evaluate(`Array.from(document.querySelectorAll('#chain [data-item]'), row => ({ id: row.dataset.item, title: row.getAttribute('title') }))`);
   assert.ok(checkpointItems.some(item => item.title === initialTitle), 'the initial checkpoint exposes the added item alongside fixture seeds');
   const loadsBefore = box.calls.filter(call => call.method === 'GET' && call.path === '/').length;
