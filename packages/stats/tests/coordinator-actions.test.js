@@ -15,6 +15,7 @@ import { coordinatorActionLines } from '../index.js';
 import { checkCoordinatorRelease } from '../../gate/index.js';
 import { recordCoordinatorRelease } from '../../gate/index.js';
 import { readCoordinatorRelease } from '../../gate/index.js';
+import { shipMilestone as rawShipMilestone } from '../../roadmap/index.js';
 import { MOVE_REGISTRY } from '../../moves/index.js';
 import { COORDINATOR_ACTIONS_ENGINE } from '../../state/index.js';
 import { runReleaseGate } from '../../gate/index.js';
@@ -157,4 +158,10 @@ test('project milestone shipping enforces and records the ratchet in the shared 
   store.shout(f.board, { from: 'coordinator', to: 'all', text: 'A later manual nudge', lanes: ['core'] });
   assert.throws(() => checkCoordinatorRelease(f.root, { now: at(60) }), /rose.*shout/u,
     'the native full-gate path also sees the project release baseline without any host audit files');
+});
+
+
+test('release override validation takes its ports before reading the board [B35,C7]', () => {
+  const board = new Proxy({}, { get() { throw new Error('board touched before ports'); } });
+  assert.throws(() => rawShipMilestone(board, 'Release', { agentId: 'coordinator', commit: 'a'.repeat(40), asPerson: true, reason: 'Person reason.' }, {}), TypeError);
 });

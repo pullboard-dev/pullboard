@@ -399,13 +399,13 @@ export function removeMilestone(board, name, { agentId }, ports) {
  * @returns {{ milestone: any, into: string | null, moved: number[], notMoved: string[] }}
  */
 export function shipMilestone(board, name, { agentId, commit, next, asPerson = false, reason, channel = 'terminal' }, ports) {
-  if ((asPerson || reason !== undefined) && (board.executionEngineVersion ?? ENGINE_VERSION) < COORDINATOR_ACTIONS_ENGINE) {
-    throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording a project release override');
-  }
   const { atomic, itemById, listItems, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "listItems", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   if (typeof commit !== 'string' || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) {
     throw new Refused('MILESTONE_COMMIT', "shipping records main's commit and main has none here; commit to main, then ship from the main checkout");
+  }
+  if ((asPerson || reason !== undefined) && (board.executionEngineVersion ?? ENGINE_VERSION) < COORDINATOR_ACTIONS_ENGINE) {
+    throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording a project release override');
   }
   return atomic(board, () => {
     const entries = milestones(board);
