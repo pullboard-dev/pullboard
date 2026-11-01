@@ -639,7 +639,7 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "test/submit-gate.test.js",
+      "file": "test/submit-gate-fixture.js",
       "line": 70,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
@@ -647,49 +647,49 @@
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 465,
+      "line": 376,
       "expression": "join(mainRoot, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 471,
+      "line": 382,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 586,
+      "line": 497,
       "expression": "join(mainRoot, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 617,
+      "line": 528,
       "expression": "join(candidateOnly.box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 712,
+      "line": 623,
       "expression": "join(acceptedRoot, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 718,
+      "line": 629,
       "expression": "join(trusted.box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
       "file": "test/submit-gate.test.js",
-      "line": 1483,
+      "line": 1394,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
