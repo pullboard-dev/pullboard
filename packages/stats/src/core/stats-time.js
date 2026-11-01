@@ -23,16 +23,45 @@ function phaseAfter(event, detail, state) {
   switch (event.event_kind) {
     case 'add': return 'queued';
     case 'claim': case 'renew': state.claimed = true; return state.rejected ? 'rejectRebuilding' : 'building';
-    case 'submit': state.rejected = false; return 'reviewWait';
+    case 'submit': state.claimed = false; state.rejected = false; return 'reviewWait';
     case 'reserve': return 'reviewing';
     case 'accept': return 'landing';
     case 'reject': state.rejected = true; return 'rejectWaitingBuilder';
-    case 'release': return detail.review ? 'reviewWait' : state.claimed ? 'idleHold' : 'queued';
+    case 'release': if (detail.review) return 'reviewWait'; state.claimed = false; return state.rejected ? 'rejectWaitingBuilder' : 'queued';
     case 'reopen': case 'withdraw': case 'lapse': case 'escalate':
-      return state.rejected ? 'rejectWaitingBuilder' : state.claimed ? 'idleHold' : 'queued';
-    case 'refreeze': return detail.retainedClaim ? null : state.claimed ? 'idleHold' : 'queued';
+      state.claimed = false; return state.rejected ? 'rejectWaitingBuilder' : 'queued';
+    case 'refreeze': if (detail.retainedClaim) return null; state.claimed = false; return state.rejected ? 'rejectWaitingBuilder' : 'queued';
     default: return null;
   }
+}
+
+/** Resolve observed stalls within their claim, ending at the holder's next work or a claim boundary. */
+function idleSpans(events) {
+  const spans = [];
+  let holder = null, claimAt = null, pending = null, lastEnd = null;
+  const close = at => {
+    if (pending !== null && Number.isFinite(at) && at >= pending) spans.push([pending, at]);
+    if (Number.isFinite(at)) lastEnd = at;
+    pending = null;
+  };
+  for (const event of events) {
+    const at = Date.parse(event.event_at), detail = proofEventDetail(event);
+    if (event.event_kind === 'claim') { close(at); holder = event.event_by; claimAt = at; lastEnd = at; continue; }
+    if (event.event_kind === 'claim_stalled' && holder && detail.holder === holder) {
+      const start = Date.parse(detail.lastActivity), observed = Date.parse(detail.observedAt);
+      if (Number.isFinite(start) && Number.isFinite(observed) && Number.isFinite(at)
+        && start >= claimAt && start <= observed && observed <= at) {
+        const bounded = Math.max(start, lastEnd ?? start);
+        if (bounded <= observed) pending = pending === null ? bounded : Math.min(pending, bounded);
+      }
+      continue;
+    }
+    const boundary = ['submit', 'release', 'lapse', 'withdraw', 'reopen', 'escalate'].includes(event.event_kind) || event.event_kind === 'refreeze' && !detail.retainedClaim;
+    const activity = event.event_by === holder && ['commit', 'proof-run', 'fact', 'submit'].includes(event.event_kind);
+    if (boundary || activity) close(at);
+    if (boundary || event.event_kind === 'submit') { holder = null; claimAt = null; }
+  }
+  return spans;
 }
 
 /** Split one building interval that ends at a submit: gate phases first, then recorded tool and thinking, rest stays building. */
@@ -51,6 +80,7 @@ function breakdown(events, receipts = []) {
   const phases = Object.fromEntries(TIME_PHASES.map(phase => [phase, 0]));
   const state = { claimed: false, rejected: false };
   const facts = { toolMs: 0, thinkingMs: 0 };
+  const idle = idleSpans(events);
   let phase = null, since = null, gate = null, claimAt = null, pendingBuild = 0;
   for (const event of events) {
     const at = Date.parse(event.event_at), detail = proofEventDetail(event);
@@ -82,8 +112,11 @@ function breakdown(events, receipts = []) {
       }
     }
     if (phase && Number.isFinite(at) && at >= since) {
-      const ms = at - since;
+      let ms = at - since;
       if (phase === 'building' || phase === 'rejectRebuilding') {
+        const stalled = idle.reduce((sum, [start, end]) => sum + Math.max(0, Math.min(at, end) - Math.max(since, start)), 0);
+        phases.idleHold += stalled;
+        ms -= stalled;
         pendingBuild += ms;
         if (event.event_kind === 'submit') {
           carve(pendingBuild, detail.gatePhases ?? gate, facts, phases, phase);

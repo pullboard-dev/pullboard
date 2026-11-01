@@ -45,7 +45,8 @@ test('every phase sums to each landed item clock time [R1,R2,C7]', () => {
 test('queued, building, review and landing minutes match the known events [R1,R2,C7]', () => {
   const [one, two] = timeStats(HISTORY, { now: NOW, days: 7 }).items;
   assert.deepEqual([one.phases.queued, one.phases.building, one.phases.reviewWait, one.phases.reviewing, one.phases.landing].map(ms => ms / MIN), [10, 30, 10, 10, 5]);
-  assert.equal(two.phases.idleHold / MIN, 10, 'release to the next claim is an idle hold');
+  assert.equal(two.phases.idleHold / MIN, 0, 'unclaimed time is not an idle hold');
+  assert.equal(two.phases.queued / MIN, 15, 'release to the next claim is unclaimed queue time');
   assert.equal(two.phases.rejectWaitingBuilder / MIN, 10, 'reject to the next claim waits for the builder');
   assert.equal(two.phases.rejectRebuilding / MIN, 15, 'the next claim to submit rebuilds');
 });
@@ -59,10 +60,36 @@ test('recorded gate phases and seat time split building without changing the tot
 
 test('medians and totals cover the window and drop items that landed outside it [R1,R2,C7]', () => {
   const stats = timeStats(HISTORY, { now: NOW, days: 7 });
-  assert.equal(stats.phases.queued.totalMs / MIN, 15);
-  assert.equal(stats.phases.queued.medianMs / MIN, 7.5);
+  assert.equal(stats.phases.queued.totalMs / MIN, 25);
+  assert.equal(stats.phases.queued.medianMs / MIN, 12.5);
   assert.equal(timeStats(HISTORY, { now: NOW + 8 * 86400000, days: 7 }).landed, 0);
   assert.ok(timeLines(stats).length > 3);
+});
+
+test('a stalled claim charges idle time through the holder’s next real activity [R1,R2,C7]', () => {
+  const holder = 'core-1';
+  const history = [ev(11, 0, 'add'), { ...ev(11, 5, 'claim'), event_by: holder },
+    { ...ev(11, 30, 'claim_stalled', { holder, lastActivity: new Date(T0 + 10 * MIN).toISOString(), observedAt: new Date(T0 + 30 * MIN).toISOString(), idleMinutes: 20 }), event_by: 'sentinel' },
+    { ...ev(11, 35, 'fact', { kind: 'note' }), event_by: 'other' },
+    { ...ev(11, 45, 'fact', { kind: 'note' }), event_by: holder },
+    { ...ev(11, 60, 'submit'), event_by: holder }, ev(11, 65, 'accept'), ev(11, 70, 'merged')];
+  const item = timeStats(history, { now: NOW }).items[0];
+  assert.equal(item.phases.idleHold / MIN, 35, 'the other seat does not end the stall');
+  assert.equal(item.phases.building / MIN, 20);
+  assert.equal(TIME_PHASES.reduce((sum, phase) => sum + item.phases[phase], 0), item.clockMs);
+});
+
+test('repeated stall notices do not double count and a release closes the idle span [R1,R2,C7]', () => {
+  const holder = 'core-1';
+  const notice = minute => ({ ...ev(12, minute, 'claim_stalled', { holder, lastActivity: new Date(T0 + 20 * MIN).toISOString(), observedAt: new Date(T0 + minute * MIN).toISOString() }), event_by: 'sentinel' });
+  const history = [ev(12, 0, 'add'), { ...ev(12, 1, 'claim'), event_by: holder }, ev(12, 5, 'submit'), ev(12, 6, 'reject'),
+    { ...ev(12, 10, 'claim'), event_by: holder }, notice(40), notice(45), ev(12, 50, 'release'),
+    { ...ev(12, 60, 'claim'), event_by: holder }, ev(12, 70, 'submit'), ev(12, 75, 'accept'), ev(12, 80, 'merged')];
+  const item = timeStats(history, { now: NOW }).items[0];
+  assert.equal(item.phases.idleHold / MIN, 30);
+  assert.equal(item.phases.rejectRebuilding / MIN, 20);
+  assert.equal(item.phases.rejectWaitingBuilder / MIN, 14);
+  assert.equal(TIME_PHASES.reduce((sum, phase) => sum + item.phases[phase], 0), item.clockMs);
 });
 
 test('a checkpoint is one dated JSON line and a weekly one is due only after seven days [R1,C7]', () => {
