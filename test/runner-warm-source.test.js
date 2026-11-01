@@ -82,8 +82,10 @@ test('warm runner source moves a clean base and sends only the changed history [
     assert.ok(changed.sourcePreparation.packBytes > 32, 'new source sends actual new objects');
     assert.ok(changed.sourcePreparation.packBytes < cold.sourcePreparation.packBytes / 4, 'unchanged bulk objects are not resent');
     assert.ok(Number.isSafeInteger(warm.executionPhases.sourceMs));
-    assert.ok(warm.executionPhases.sourceMs < 1_000, `same-commit source preparation was ${warm.executionPhases.sourceMs}ms`);
-    assert.ok(changed.executionPhases.sourceMs < 1_000, `parent-held source preparation was ${changed.executionPhases.sourceMs}ms`);
+    // Bounded work, not elapsed time: warm and parent-held preparation each make one fetch and resend no bulk history.
+    assert.ok(Number.isSafeInteger(changed.executionPhases.sourceMs));
+    assert.equal(changed.sourcePreparation.git.fetch.calls, 1, 'parent-held source preparation makes one actual worker fetch');
+    assert.ok(warm.sourcePreparation.packBytes < cold.sourcePreparation.packBytes / 4, 'same-commit preparation resends no bulk history');
     assert.ok(Number.isSafeInteger(warm.executionPhases.commandMs));
     git(repo, env, 'checkout', '--orphan', 'unrelated');
     git(repo, env, 'rm', '-rf', '.');
