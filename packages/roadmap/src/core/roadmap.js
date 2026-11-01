@@ -9,6 +9,7 @@ import {
   repoInfo,
 } from "../../../../src/git.js";
 import { listApiProjects } from "../../../../src/projects.js";
+import { itemProgress } from './work-progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
 
 /** Require explicit board readers before resolving local or foreign roadmap state. */
@@ -82,7 +83,7 @@ export function milestoneRoadmap(root, board, options = {}) {
         : openBoard(join(info.commonDir, 'pullboard', 'board.sqlite'), undefined, { isMain: codeIsFromMain() });
       try {
         const item = getItem(other, Number(number));
-        externalItems.set(reference, { item, held: Boolean(item.item_hold_reason)
+        externalItems.set(reference, { item, progress: itemProgress(other, item.item_id), held: Boolean(item.item_hold_reason)
           || laneHolds(other).some(hold => hold.hold_lane === item.item_lane) });
         return { id: reference, title: item.item_title, status: item.item_status, landed: Boolean(item.item_merged_commit) };
       } finally {
@@ -119,7 +120,14 @@ export function milestoneRoadmap(root, board, options = {}) {
       summary[state]++;
     }
     Object.assign(summary, milestoneForecast(summary.left, pace, Boolean(milestone.shipped)));
-    return { ...milestone, items: queueOrdered(milestone, placed, landedAt), summary };
+    const ordered = queueOrdered(milestone, placed, landedAt).map(entry => ({ ...entry,
+      progress: typeof entry.id === 'number' ? itemProgress(board, entry.id) : externalItems.get(entry.id)?.progress ?? null }));
+    const progress = ordered.map(entry => entry.progress).filter(Boolean);
+    return { ...milestone, items: ordered, summary, progress: { landed: milestone.landed, total: milestone.total,
+      holders: [...new Set(progress.map(entry => entry.holder).filter(Boolean))],
+      waits: [...new Set(ordered.flatMap(entry => entry.progress?.waits ?? [`${entry.id}: progress unavailable`]))],
+      idleMinutes: progress.length ? Math.min(...progress.map(entry => entry.idleMinutes)) : null,
+      idleBasis: 'board activity; worktree activity unknown' } };
   });
 }
 

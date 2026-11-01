@@ -1098,6 +1098,10 @@
     {
       "path": "src/move-history/189.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/board-progress-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
