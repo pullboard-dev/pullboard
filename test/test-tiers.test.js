@@ -8,7 +8,7 @@ import { generateTestTiers, writeTestTiers } from '../packages/gate/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { fileURLToPath } from 'node:url';
 
-const command = fileURLToPath(new URL('../bin/test-tiers.js', import.meta.url));
+const command = fileURLToPath(new URL('../packages/gate/bin/test-tiers.js', import.meta.url));
 
 /** Write only synthetic sources in a private Git repository, never running those candidate modules. */
 function fixture(t, sources) {
