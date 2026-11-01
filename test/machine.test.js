@@ -153,9 +153,9 @@ const CAUGHT = {
   '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../src/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
-  'commands/submit.js#submitHere': ['native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // observeNativeFailure catches its optional pair/recording errors; they cannot become lifecycle refusals.
-  'commands/verify.js#verifyHere': ['cli.js#freezer', 'cli/claim.js#freezer', 'native-flakes.js#observeFailure'],
+  'commands/verify.js#verifyHere': ['cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],

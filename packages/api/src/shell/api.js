@@ -4,8 +4,8 @@ import { personSigningPresentation } from '../../../../src/person-signing-presen
 import { projectFit } from '../../../blueprints/index.js';
 import { pendingFit } from '../../../blueprints/index.js';
 import { fitFile } from '../../../blueprints/index.js';
-import { lifecycleEvent } from '../../../../src/item-list.js';
-import { withdrawnFrom } from '../../../../src/item-list.js';
+import { lifecycleEvent } from '../../../items/index.js';
+import { withdrawnFrom } from '../../../items/index.js';
 import { verifiedPasskeyRowDecision } from '../../../../src/person-row-proof.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 import { counterProofStats } from '../../../verify/index.js';
@@ -19,7 +19,7 @@ import { nativeStateClockMatches } from '../../../store/index.js';
 import {
   dependencyValues,
   localDependencyIds,
-} from '../../../../src/item-dependencies.js';
+} from '../../../items/index.js';
 /** The local API v1: the CLI's moves, persistent board identities and live events (A2). */
 import {
   createHash,
@@ -70,7 +70,7 @@ import {
 import {
   SUMMARY_KEYS,
   itemSummary,
-} from '../../../../src/item-list.js';
+} from '../../../items/index.js';
 import {
   compareFlowWindows,
   prepareFlowHistory,

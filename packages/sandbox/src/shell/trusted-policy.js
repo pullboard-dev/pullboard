@@ -1,7 +1,7 @@
 /** Coordinator policy and immutable submission declarations, independent of check execution [V4,V16,L3,M3]. */
 import {
   localDependencyIds,
-} from '../../../../src/item-dependencies.js';
+} from '../../../items/index.js';
 import {
   trunkMerge,
 } from '../../../merge/index.js';

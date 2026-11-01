@@ -1,4 +1,4 @@
-import { setItem as writeItemFields } from "../../../../src/item-fields.js";
+import { setItem as writeItemFields } from "../../../items/index.js";
 import { now } from "./board-query.js";
 import { liftConditionalHold } from "../core/board-conditional-holds.js";
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";

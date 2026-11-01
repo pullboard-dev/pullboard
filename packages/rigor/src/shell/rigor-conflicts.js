@@ -4,8 +4,8 @@ import { shownPath } from '../../../kernel/src/core/registry-guards.js';
 import {
   conflictNoteFiles,
   reopenConflictEvidence,
-} from '../../../../src/reopen-cause.js';
-export { conflictNoteFiles } from '../../../../src/reopen-cause.js';
+} from '../../../items/index.js';
+export { conflictNoteFiles } from '../../../items/index.js';
 
 const WINDOW_DAYS = 14;
 const HOT_ITEMS = 2;

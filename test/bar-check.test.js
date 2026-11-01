@@ -5,7 +5,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { barCheckState, barCheckWarning } from '../packages/verify/index.js';
-import { parentSessionDigest } from '../src/parent-session.js';
+import { parentSessionDigest } from '../packages/items/index.js';
 import { saveAgentSession } from '../src/seats.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';

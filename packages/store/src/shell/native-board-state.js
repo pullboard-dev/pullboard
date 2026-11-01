@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE } from "../../../config/index.js";
-import { BLOCKS_FILE } from "../../../../src/blocks.js";
+import { BLOCKS_FILE } from "../../../items/index.js";
 import * as store from "./board.js";
 import { roadmap } from "./board-milestones.js";
 import { displayAgentName } from "../../../../src/agent-names.js";
@@ -23,18 +23,18 @@ import { milestoneRoadmap } from "../../../roadmap/index.js";
 import { proofStats } from "../../../../src/stats.js";
 import { readCapacity } from "../../../stats/index.js";
 import { ruleProofCounts } from "../../../verify/index.js";
-import { milestoneNamesByItem } from "../../../../src/item-list.js";
-import { withListFields } from "../../../../src/item-list.js";
+import { milestoneNamesByItem } from "../../../items/index.js";
+import { withListFields } from "../../../items/index.js";
 import { projectRowDecisions } from "../../../spec/index.js";
 import { projectSpecApprovals } from "../../../spec/index.js";
 import { specApprovalState } from "../../../spec/index.js";
-import { personBlockWords } from "../../../../src/blocks.js";
+import { personBlockWords } from "../../../items/index.js";
 import { verdictProjector } from "../../../verify/index.js";
 import { trunkRevisionReader } from "../../../git/index.js";
 import {
   dependencyValues,
   hasForeignDependencies,
-} from "../../../../src/item-dependencies.js";
+} from "../../../items/index.js";
 
 /** Build the complete local API state, including fields that the shared project snapshot omits. */
 export function buildLocalBoardState(root, boardId, board, codeIsMain, { previous = null, fullItemRebuild = true, afterSequence = 0, changedLeases = new Set(), onItemBuild, projects = listApiProjects, scopeCommonDir = null, observedAt = Date.now(), freshnessReader = null, localRelayHealth = null, localCapacity = false } = {}, ports) {

@@ -6,7 +6,7 @@ import { Refused } from "../../../kernel/index.js";
 import {
   outsideSource,
   saveOutsideSource,
-} from "../../../../src/outside-source.js";
+} from "../../../items/index.js";
 
 /** Validate exact immutable identifiers before recording an outside source. */
 function validate(source, frozen) {

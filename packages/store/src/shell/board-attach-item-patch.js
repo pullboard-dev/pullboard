@@ -1,7 +1,7 @@
 import { asSubmitted } from "../../../verify/index.js";
 import { refuseUnreviewable } from "../../../verify/index.js";
-import { invalidateItemPatch as applyItemPatchInvalidation } from "../../../../src/item-patches.js";
-import { applyItemPatchAttachment } from "../../../../src/item-patches.js";
+import { invalidateItemPatch as applyItemPatchInvalidation } from "../../../items/index.js";
+import { applyItemPatchAttachment } from "../../../items/index.js";
 import { getItem } from "./board-query.js";
 import { listAgents } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";

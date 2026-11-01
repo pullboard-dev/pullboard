@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { normalizeItemPatch } from '../src/item-patch-paths.js';
-import { composeItemPatches } from '../src/item-patch-compose.js';
+import { composeItemPatches } from '../packages/items/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

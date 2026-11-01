@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { recordItemSession, refuseSelfSession, requireLedger } from '../src/item-sessions.js';
+import { recordItemSession, refuseSelfSession, requireLedger } from '../packages/items/index.js';
 
 /** Own only a disposable local ledger, without borrowing an actual checkout or session. */
 function fixture(t) {

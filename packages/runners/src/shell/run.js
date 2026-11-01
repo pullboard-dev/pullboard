@@ -1,5 +1,5 @@
-import { localDependencyIds } from '../../../../src/item-dependencies.js';
-import { itemNotesText } from '../../../../src/item-notes.js';
+import { localDependencyIds } from '../../../items/index.js';
+import { itemNotesText } from '../../../items/index.js';
 /**
  * `pullboard run` (N14, B15): builds routed items with no one at the keyboard. For each item it may
  * take, it writes a context pack (the bar, the cited rows, the brief and the files as they are now),
@@ -22,7 +22,7 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../../src/board.js';
-import { briefFiles } from '../../../../src/brief.js';
+import { briefFiles } from '../../../items/index.js';
 import { CONFIG_FILE } from '../../../config/index.js';
 import { COORDINATOR } from '../../../config/index.js';
 import { loadConfig } from '../../../config/index.js';

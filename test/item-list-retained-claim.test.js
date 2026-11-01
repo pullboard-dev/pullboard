@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { logEvent } from '../packages/store/index.js';
-import { withListFields } from '../src/item-list.js';
+import { withListFields } from '../packages/items/index.js';
 import { projectItemState } from '../src/api.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';

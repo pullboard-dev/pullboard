@@ -16,7 +16,7 @@ import { readAutomaticRigorSource } from '../board-rigor-auto-source.js';
 /** The pullboard digest command, in its own module so an item adding another command never edits these lines. */
 import {
   digestCommand,
-} from '../digest.js';
+} from '../../packages/items/index.js';
 import {
   context,
 } from '../cli.js';

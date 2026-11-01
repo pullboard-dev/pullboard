@@ -5,7 +5,7 @@ import { agentParent } from "../../../../src/seat-parent.js";
 export { agentParent } from "../../../../src/seat-parent.js";
 import { projectReviewFamily } from "../../../verify/index.js";
 import { withSeatPresence } from "./seat-presence.js";
-import { projectItemDecisions } from "../../../../src/item-decision-queue.js";
+import { projectItemDecisions } from "../../../items/index.js";
 import { itemById } from "../core/board-item-read.js";
 import {
   activityEventDetail,
@@ -15,7 +15,7 @@ import {
   projectAgentActivity,
 } from "../core/board-activity-feed.js";
 export { itemById };
-import { outsideSource } from "../../../../src/outside-source.js";
+import { outsideSource } from "../../../items/index.js";
 import {
   COORDINATION_SHOUT,
   itemShoutReader,
@@ -25,9 +25,9 @@ import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
 import { workerInboxQuery } from "../core/board-worker-inbox.js";
 /** Canonical board queries shared by reads and the synchronous write store [C7]. */
 import { verdictWithdrawals } from "../../../verify/index.js";
-import { reopenCauseCorrection } from "../../../../src/reopen-cause.js";
+import { reopenCauseCorrection } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
-import { itemFiles } from "../../../../src/item-files.js";
+import { itemFiles } from "../../../items/index.js";
 import { parseSpec } from "../../../spec/index.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../src/sentinel-engine.js";
 import { Refused } from "../../../kernel/index.js";

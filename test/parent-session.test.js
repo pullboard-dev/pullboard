@@ -18,11 +18,11 @@ import {
   parentSessionDigest,
   runtimeParentSession,
   runtimeSessionIdentity,
-} from '../src/parent-session.js';
+} from '../packages/items/index.js';
 import * as store from '../src/board.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { workQueue } from '../src/queue.js';
+import { workQueue } from '../packages/items/index.js';
 import {
   prepareEngineMove,
   applyEngineMove,

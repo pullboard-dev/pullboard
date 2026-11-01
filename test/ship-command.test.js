@@ -17,7 +17,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { context } from '../src/cli-read-context.js';
 import { withBoardRead } from '../src/cli-context.js';
 import { retrySync } from '../src/cli-sync.js';
-import { waitForSubmissionVerdict } from '../src/submit-wait.js';
+import { waitForSubmissionVerdict } from '../packages/items/index.js';
 
 /** Read or mutate only this private fixture's actual CLI board, closing before a child runs. */
 function onBoard(box, work) {

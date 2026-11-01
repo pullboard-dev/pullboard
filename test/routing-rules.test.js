@@ -13,7 +13,7 @@ import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
 import { applyEngineMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { crossLaneFixture } from './e2e-helpers.js';
-import { parentSessionDigest } from '../src/parent-session.js';
+import { parentSessionDigest } from '../packages/items/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';

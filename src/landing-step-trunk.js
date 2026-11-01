@@ -4,7 +4,7 @@ import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from './land-local-guard.js';
-import { requireOutsideOwner } from './outside-source.js';
+import { requireOutsideOwner } from '../packages/items/index.js';
 import * as store from './board.js';
 import { headCommit } from './git.js';
 import { mainCheckout } from './git.js';

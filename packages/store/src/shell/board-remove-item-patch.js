@@ -1,4 +1,4 @@
-import { applyItemPatchRemoval } from "../../../../src/item-patches.js";
+import { applyItemPatchRemoval } from "../../../items/index.js";
 import { getItem } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";

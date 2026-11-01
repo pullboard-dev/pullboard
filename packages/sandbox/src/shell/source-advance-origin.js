@@ -40,7 +40,7 @@ import {
 } from './source-advance.js';
 import {
   prepareItemPatchReview,
-} from '../../../../src/item-patch-review.js';
+} from '../../../items/index.js';
 import {
   randomUUID,
 } from 'node:crypto';
@@ -64,7 +64,7 @@ import {
 } from './source-advance.js';
 import {
   itemPatchDigest,
-} from '../../../../src/item-patch-state.js';
+} from '../../../items/index.js';
 import {
   mainPolicy,
 } from './trusted-policy-read.js';
@@ -79,7 +79,7 @@ import {
 } from '../../../kernel/index.js';
 import {
   outsideSource,
-} from '../../../../src/outside-source.js';
+} from '../../../items/index.js';
 
 const PREPARED = new Map();
 const BASES = new WeakSet();

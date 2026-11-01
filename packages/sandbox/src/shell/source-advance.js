@@ -19,7 +19,7 @@ import {
 } from '../../../store/index.js';
 import {
   itemPatchDigest,
-} from '../../../../src/item-patch-state.js';
+} from '../../../items/index.js';
 import {
   receiptFields,
 } from '../../../verify/index.js';
