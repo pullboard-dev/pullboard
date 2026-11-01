@@ -1,3 +1,5 @@
+import { releaseSource } from '../../../gate/index.js';
+import { runReleaseGate } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../../src/runners.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
@@ -660,7 +662,7 @@ export function printShardFileTimes(path, write = text => process.stdout.write(t
   for (const [file, ms] of Object.entries(times)) write(`${FILE_TIME_LINE}${Math.round(ms)} ${file}\n`);
 }
 
-/** Supply canonical landing policy readers without moving their authority into the lower gate. */
+/** Supply landing policy and release orchestration ports without adding higher imports to their consumers. */
 export function landingExecutionServices() {
-  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors });
+  return Object.freeze({ constrainedLandingHost, captureReleaseQueue, releaseExecutors, releaseSource, runReleaseGate });
 }

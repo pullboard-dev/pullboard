@@ -576,3 +576,48 @@ test('private compiler missing duplicate and spurious hints retain atomic reques
   assert.deepEqual(await reply(3),{version:1,id:3,results:[{compiles:true,imports:['./watcher-fallback.js']}]});
   assert.deepEqual(readdirSync(protocol).filter(name=>name.startsWith('reply-')),['reply-3.json']);
 });
+
+/** Missing notifications must not strand a valid request; exercise the real worker with only watch delivery suppressed. */
+test('private compiler drains atomic requests when watcher notifications are lost [C7,P3]', async t => {
+  const f = fixture(t);
+  const protocol = join(f.directory, 'lost-notification-protocol');
+  mkdirSync(protocol);
+  const wrapper = join(f.directory, 'lost-notification-worker.mjs');
+  const entry = resolve(import.meta.dirname, '../src/runner-module-parser-worker.js');
+  writeFileSync(wrapper, `import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+const actualWatch = fs.watch;
+fs.watch = (directory, listener) => actualWatch(directory, () => {});
+syncBuiltinESMExports();
+await import(${JSON.stringify(pathToFileURL(entry).href)});
+`);
+  /** Publish the same regular atomic request that production uses, without any IPC hint. */
+  function publish(id, source) {
+    const temporary = join(protocol, `request-${id}.tmp`);
+    writeFileSync(temporary, JSON.stringify({ version: 1, id, sources: [source] }));
+    renameSync(temporary, join(protocol, `request-${id}.json`));
+  }
+  publish(1, "import './startup.js';");
+  const worker = spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
+    wrapper, protocol, String(process.pid)], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+  let stderr = '';
+  worker.stderr.on('data', part => { stderr += part; });
+  const closed = new Promise(resolve => worker.once('close', (code, signal) => resolve({ code, signal })));
+  t.after(async () => {
+    if (worker.exitCode === null && worker.signalCode === null) worker.kill('SIGKILL');
+    await closed;
+  });
+  /** Retain the existing ten-second protocol ceiling and require an actual atomic result. */
+  async function reply(id) {
+    const file = join(protocol, `reply-${id}.json`), deadline = Date.now() + 10_000;
+    while (!existsSync(file) && Date.now() < deadline && worker.exitCode === null && worker.signalCode === null) await pause(2);
+    assert.ok(existsSync(file), `missing real reply ${id}: ${stderr}`);
+    return JSON.parse(readFileSync(file, 'utf8'));
+  }
+  assert.deepEqual(await reply(1), { version: 1, id: 1, results: [{ compiles: true, imports: ['./startup.js'] }] });
+  rmSync(join(protocol, 'request-1.json'));
+  rmSync(join(protocol, 'reply-1.json'));
+  publish(2, "import './without-a-notification.js';");
+  assert.deepEqual(await reply(2), { version: 1, id: 2, results: [{ compiles: true, imports: ['./without-a-notification.js'] }] });
+});
+
