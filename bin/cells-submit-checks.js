@@ -302,7 +302,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const cutRows = services.readCutItems?.(acceptedMain, root);
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
   const inputs = { acceptedMain, source, criterion, cuts: cutRows };
-  const canReuse = cacheEligible() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
+  const canReuse = cacheEligible() && !process.env.NODE_OPTIONS && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
     config: inputs, code: [fileURLToPath(import.meta.url)], commands: [] }) : null;
   const cached = readCheckReceipt(root, receiptKey);
