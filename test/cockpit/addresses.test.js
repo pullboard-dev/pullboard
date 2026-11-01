@@ -62,7 +62,7 @@ function addressBoard(box, name, group) {
   writeFileSync(join(p.repo, 'DOCTRINE.md'), `# Local rules\n\n## Team\n- PB1 [approved, must] ${name} distinct practice rule. | gate: review\n`);
   box.run(p.repo, 'add', 'web', `${name} first address item`, '--specs', 'G1');
   box.run(p.repo, 'add', 'web', `${name} second address item`, '--specs', 'G1');
-  box.run(p.repo, 'milestone', 'add', `${name} address milestone`, '--items', '1,2');
+  box.run(p.repo, 'milestone', 'add', `${name} address milestone`, '--reason', 'Arrange fixture release', '--items', '1,2');
   return p;
 }
 /** Own one browser and server, with cleanup even if an assertion fails. */

@@ -12,7 +12,7 @@ test('the view names a milestone limit only near capacity, including empty and s
   assert.ok(executable, 'Chrome is required for milestone capacity labels.');
   const box = machine(), alpha = project(box, 'milestone-caps');
   box.run(alpha.repo, 'add', 'web', 'Release work', '--specs', 'G1', '--criterion', 'Ready.');
-  box.run(alpha.repo, 'milestone', 'add', 'Active', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', 'Active', '--reason', 'Arrange fixture release', '--items', '1');
   box.run(alpha.repo, 'milestone', 'edit', 'Active', '--limit', '2');
   for (const name of ['Empty', 'Shipped']) {
     box.run(alpha.repo, 'milestone', 'add', name);

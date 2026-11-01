@@ -2,7 +2,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import assert from 'node:assert/strict';
 import { unseal } from '../packages/kernel/src/core/seal.js';
-import { syncRelay } from '../src/relay.js';
+import { syncRelay } from '../packages/link/index.js';
 import * as store from '../src/board.js';
 import { openBoardForRead } from '../src/native-board.js';
 

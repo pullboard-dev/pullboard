@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
-import { assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
+import { auditKey, assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
@@ -194,39 +194,6 @@ const ITEM_CALLBACK_SOURCES = {
   '../packages/items/src/shell/item-authors.js': 'item-authors.js',
   '../packages/gate/src/shell/gate-execution.js': 'gate-execution.js',
 };
-
-/** Exact relocated provider identities for the existing caller-specific audit metadata. */
-const STORE_AUDIT_IDENTITIES = {
-  "../packages/gate/src/shell/gate-execution.js": "gate-execution.js",
-  "../packages/gate/src/shell/gate-submit.js": "gate-submit.js",
-  "../packages/gate/src/shell/gate.js": "gate.js",
-  "../packages/store/src/core/exit-rules-continuation.js": "exit-rules-continuation.js",
-  "../packages/store/src/shell/board-access.js": "board-access.js",
-  "../packages/store/src/shell/board-health.js": "board-health.js",
-  "../packages/store/src/core/board-link-state.js": "board-link-state.js",
-  "../packages/store/src/shell/board-query.js": "board-query.js",
-  "../packages/store/src/shell/board-read-open.js": "board-read-open.js",
-  "../packages/store/src/shell/board.js": "board.js",
-  "../packages/store/src/shell/proof-receipts.js": "proof-receipts.js",
-  "../packages/store/src/shell/board-store.js": "board-store.js",
-  "../packages/store/src/core/board-rigor-auto-source.js": "board-rigor-auto-source.js",
-  "../packages/store/src/core/board-rigor-source.js": "board-rigor-source.js",
-  "../packages/store/src/core/board-rigor.js": "board-rigor.js",
-  "../packages/store/src/shell/board-claim.js": "board-claim.js",
-  "../packages/store/src/shell/board-finish-landing-batch.js": "board-finish-landing-batch.js",
-  "../packages/store/src/shell/board-next-for.js": "board-next-for.js",
-  "../packages/store/src/shell/board-record-landing-batch.js": "board-record-landing-batch.js",
-  "../packages/store/src/shell/board-refreeze.js": "board-refreeze.js",
-  "../packages/store/src/shell/board-reopen.js": "board-reopen.js",
-  "../packages/store/src/shell/board-verify.js": "board-verify.js"
-};
-
-/** Compare physical aliases without changing function names or expanding any caught boundary. */
-function auditKey(key) {
-  const [file, name] = key.split('#');
-  const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
-  return `${STORE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
-}
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the

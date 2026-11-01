@@ -9,7 +9,7 @@ import { openBoard } from '../src/native-board.js';
 import { appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
-import { personRequestRecords, requestIntentDigest } from '../src/relay-requests.js';
+import { personRequestRecords, requestIntentDigest } from '../packages/link/index.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 

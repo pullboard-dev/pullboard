@@ -33,12 +33,12 @@ import {
 import { readBoardKey } from '../../../keys/index.js';
 import { leaveConflictNotice } from './relay-conflicts.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
-import { transientRelayFailure } from '../../../../src/relay-move-fallback.js';
+import { transientRelayFailure } from '../../../link/index.js';
 import {
   refuseRevokedSeat,
   seatReceipt,
   withSeatName,
-} from '../../../../src/relay-seats.js';
+} from '../../../link/index.js';
 import {
   seal,
   unseal,
@@ -62,7 +62,7 @@ import {
   createsItems,
   entryCreatedItems,
   rememberCreatedItems,
-} from '../../../../src/relay-created-items.js';
+} from '../../../link/index.js';
 
 /** How many replay refusals the link keeps for pullboard status; older ones stay in the relay's own receipts. */
 const KEPT_REFUSALS = 20;
