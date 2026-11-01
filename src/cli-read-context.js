@@ -16,7 +16,7 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { displayAgentName } from './agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import * as store from '../packages/store/index.js';
 import {
   CONFIG_FILE,

@@ -7,7 +7,7 @@ import {
   withBoard,
 } from '../cli.js';
 import { COORDINATOR } from '../../packages/config/index.js';
-import { laneNames } from '../lanes.js';
+import { laneNames } from '../../packages/seats/index.js';
 import { relayLinked } from '../relay.js';
 import { relayMachineContext } from '../relay.js';
 import { relayOperation } from '../relay.js';

@@ -18,7 +18,7 @@ import { serveView } from '../src/commands/view.js';
 import { main } from './native-cli-fixture.js';
 import { applyStateDelta, createApiHandler } from '../packages/api/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';
-import { registryFile, registerProject, forgetProject } from '../src/projects.js';
+import { registryFile, registerProject, forgetProject } from '../packages/seats/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { board as store } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';

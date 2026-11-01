@@ -12,7 +12,7 @@ import * as store from '../src/board.js';
 import { finishTrunk } from '../src/landing-step-publish.js';
 import { openBoard } from '../src/native-board.js';
 import { postLandSuite } from '../src/post-land-suite.js';
-import { laneOf } from '../src/lanes.js';
+import { laneOf } from '../packages/seats/index.js';
 import { unownedMainReds } from '../packages/store/index.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';

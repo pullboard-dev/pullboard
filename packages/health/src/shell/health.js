@@ -56,7 +56,7 @@ import { staleRowDecisions } from '../../../spec/index.js';
 import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
-import { routeWorkShortages } from '../../../../src/route-capacity.js';
+import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../../src/relay-canary-health.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */

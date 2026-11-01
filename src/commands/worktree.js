@@ -1,7 +1,7 @@
 /** The pullboard worktree command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
-} from '../agent-names.js';
+} from '../../packages/seats/index.js';
 import * as store from '../board.js';
 import {
   COORDINATOR,
@@ -17,11 +17,11 @@ import {
 } from '../person.js';
 import {
   noteHelperParent,
-} from '../agent-session.js';
+} from '../../packages/seats/index.js';
 import {
   isLane,
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

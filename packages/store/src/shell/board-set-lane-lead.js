@@ -1,4 +1,4 @@
-import { applyLaneLead } from "../../../../src/lane-lead-policy.js";
+import { applyLaneLead } from "../../../seats/index.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 

@@ -1,8 +1,8 @@
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { withDerivedFamilies } from "../../../../src/family-declaration.js";
 import { effectiveItemHead } from "../../../verify/index.js";
-import { agentParent } from "../../../../src/seat-parent.js";
-export { agentParent } from "../../../../src/seat-parent.js";
+import { agentParent } from "../../../seats/index.js";
+export { agentParent } from "../../../seats/index.js";
 import { projectReviewFamily } from "../../../verify/index.js";
 import { withSeatPresence } from "./seat-presence.js";
 import { projectItemDecisions } from "../../../items/index.js";

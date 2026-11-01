@@ -32,7 +32,7 @@ import {
   productLine,
   productSummaries,
 } from '../../packages/spec/index.js';
-import { originRepository } from '../github-origin.js';
+import { originRepository } from '../../packages/seats/index.js';
 import {
   loadSpec,
 } from '../../packages/spec/index.js';

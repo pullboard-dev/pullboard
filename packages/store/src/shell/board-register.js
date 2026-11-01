@@ -11,9 +11,9 @@ import { VERIFIER_STANDING_ENGINE } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { saveJoinedSession } from "../../../items/index.js";
 import { agentAt } from "./board-query.js";
-import { newSeatId } from "../../../../src/seats.js";
-import { saveAgentModel } from "../../../../src/seats.js";
-import { seatLineage } from "../../../../src/seats.js";
+import { newSeatId } from "../../../seats/index.js";
+import { saveAgentModel } from "../../../seats/index.js";
+import { seatLineage } from "../../../seats/index.js";
 
 /**
  * Register a worktree as an agent (B3): the main checkout as the one coordinator, any other

@@ -1,7 +1,7 @@
 /** The real capabilities behind the post-land suite: the machine setting, the runner suite, board reads and Main red ownership [C7,H16]. */
 import { join } from 'node:path';
 import { git } from './git.js';
-import { laneOf } from './lanes.js';
+import { laneOf } from '../packages/seats/index.js';
 import { listItems } from '../packages/store/index.js';
 import { unownedMainReds } from '../packages/store/index.js';
 import { postLandSuiteEnabled } from '../packages/config/index.js';

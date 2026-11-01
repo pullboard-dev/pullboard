@@ -1,7 +1,7 @@
 import { rulingOwner } from '../../packages/spec/index.js';
 import { rulingRowReader } from '../../packages/spec/index.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { addressedSeat } from '../seat-address.js';
+import { addressedSeat } from '../../packages/seats/index.js';
 /** The pullboard shout command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { requireReadableShout } from '../../packages/shouts/index.js';
@@ -13,7 +13,7 @@ import {
 } from '../../packages/config/index.js';
 import {
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   personShout,
 } from '../person.js';

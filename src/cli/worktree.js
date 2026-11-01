@@ -18,7 +18,7 @@ import { headCommit } from '../git.js';
 import { mainCheckout } from '../git.js';
 import { tryGit } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { registeredProjectRootsSnapshot } from '../projects.js';
+import { registeredProjectRootsSnapshot } from '../../packages/seats/index.js';
 
 /** Describe the active configured location for new agent worktrees. */
 export function worktreeLocation(mainRoot, config) {

@@ -11,7 +11,7 @@ import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { DIGEST_MAX_BYTES } from '../packages/items/index.js';
 import { exportBoard } from '../packages/store/index.js';
-import { registerProject } from '../src/projects.js';
+import { registerProject } from '../packages/seats/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 

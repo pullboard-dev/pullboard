@@ -8,7 +8,7 @@ import { headTree } from './git.js';
 import { isClean } from './git.js';
 import { runProfiledShell } from './gate.js';
 import { withLandingGateSlot } from './gate.js';
-import { laneOf } from './lanes.js';
+import { laneOf } from '../packages/seats/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';

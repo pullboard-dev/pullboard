@@ -22,7 +22,7 @@ import {
 import {
   context,
 } from '../cli.js';
-import { agentHookStatus } from '../agent-hooks.js';
+import { agentHookStatus } from '../../packages/seats/index.js';
 
 /** Run `pullboard doctor` and return its exit code. */
 export function run(io) {

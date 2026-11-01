@@ -6,7 +6,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { barCheckState, barCheckWarning } from '../packages/verify/index.js';
 import { parentSessionDigest } from '../packages/items/index.js';
-import { saveAgentSession } from '../src/seats.js';
+import { saveAgentSession } from '../packages/seats/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
 import { ENGINE_VERSION } from '../src/engine-metadata.js';

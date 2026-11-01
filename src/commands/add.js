@@ -20,7 +20,7 @@ import {
 } from '../../packages/gate/index.js';
 import {
   isLane,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

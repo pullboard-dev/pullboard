@@ -4,7 +4,7 @@ import { requireSignedPerson } from '../person-signing-cli.js';
 import { requirePersonChannel } from '../person.js';
 import {
   isLane,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
