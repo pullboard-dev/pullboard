@@ -27,7 +27,7 @@ const ev = (item, minute, kind, detail = {}) => ({ event_id: ++id, item_id: item
 /** Item 1: one clean pass. Item 2: a reject cycle and an idle hold, with recorded gate and seat time. */
 const HISTORY = [
   ev(1, 0, 'add'), ev(1, 10, 'claim'), ev(1, 40, 'submit'), ev(1, 50, 'reserve'), ev(1, 60, 'accept'), ev(1, 65, 'merged'),
-  ev(2, 0, 'add'), ev(2, 5, 'claim'), ev(2, 15, 'fact', { kind: 'seat-time', toolMs: 4 * MIN, thinkingMs: 2 * MIN }),
+  ev(2, 0, 'add'), ev(2, 5, 'claim'), ev(2, 15, 'fact', { kind: 'measurement', text: JSON.stringify({ kind: 'seat-time', toolMs: 4 * MIN, thinkingMs: 2 * MIN }) }),
   ev(2, 20, 'release'), ev(2, 30, 'claim'),
   ev(2, 50, 'submit', { gatePhases: { static: MIN, doctrine: 2 * MIN, check: 3 * MIN, test: 4 * MIN, conflict: 0 } }),
   ev(2, 60, 'reserve'), ev(2, 70, 'reject'), ev(2, 80, 'claim'), ev(2, 95, 'submit'), ev(2, 100, 'reserve'), ev(2, 110, 'accept'), ev(2, 120, 'merged'),
@@ -58,6 +58,41 @@ test('recorded gate phases and seat time split building without changing the tot
   assert.deepEqual(['static', 'doctrine', 'check', 'test', 'conflict'].map(phase => two.phases[phase] / MIN), [1, 2, 3, 4, 0]);
   assert.equal(two.phases.tool / MIN, 4);
   assert.equal(two.phases.thinking / MIN, 2);
+});
+
+test('native measurement facts split tool and thinking from building [R1,R2,C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  const added = box.run(box.repo, 'add', 'web', 'Measured build', '--specs', 'G1', '--route', 'strong', '--json');
+  assert.equal(added.code, 0, added.err || added.out);
+  const item = JSON.parse(added.out).item.item_id;
+  const text = JSON.stringify({ kind: 'seat-time', toolMs: 4 * MIN, thinkingMs: 2 * MIN });
+  const recorded = box.run(box.repo, 'fact', String(item), 'measurement', text, '--json');
+  assert.equal(recorded.code, 0, recorded.err || recorded.out);
+  const fact = JSON.parse(recorded.out).fact;
+  assert.equal(fact.kind, 'measurement');
+  assert.equal(fact.text, text);
+  const history = [ev(item, 0, 'add'), ev(item, 10, 'claim'), ev(item, 15, 'fact', fact),
+    ev(item, 40, 'submit'), ev(item, 50, 'accept'), ev(item, 60, 'merged')];
+  const row = timeStats(history, { now: NOW }).items[0];
+  assert.equal(row.phases.tool / MIN, 4);
+  assert.equal(row.phases.thinking / MIN, 2);
+  assert.equal(row.phases.building / MIN, 24);
+  assert.equal(TIME_PHASES.reduce((sum, phase) => sum + row.phases[phase], 0), row.clockMs);
+});
+
+test('malformed and unrelated measurements do not invent seat time [R1,R2,C7]', () => {
+  for (const text of ['not JSON', 'null', '[]', '{"kind":"cost","toolMs":240000}',
+    '{"kind":"seat-time","toolMs":-1,"thinkingMs":"120000"}']) {
+    const history = [ev(1, 0, 'add'), ev(1, 10, 'claim'), ev(1, 15, 'fact', { kind: 'measurement', text }),
+      ev(1, 40, 'submit'), ev(1, 50, 'accept'), ev(1, 60, 'merged')];
+    const row = timeStats(history, { now: NOW }).items[0];
+    assert.equal(row.phases.tool, 0);
+    assert.equal(row.phases.thinking, 0);
+    assert.equal(row.phases.building / MIN, 30);
+    assert.equal(TIME_PHASES.reduce((sum, phase) => sum + row.phases[phase], 0), row.clockMs);
+  }
 });
 
 test('medians and totals cover the window and drop items that landed outside it [R1,R2,C7]', () => {

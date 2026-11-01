@@ -75,6 +75,19 @@ function carve(ms, gate, facts, into, base) {
   into[base] += left;
 }
 
+/** Read native measurement text tagged seat-time, retaining older exported seat-time envelopes. */
+function recordedSeatTime(detail) {
+  let value = detail;
+  if (detail.kind === 'measurement') {
+    try { value = JSON.parse(detail.text); } catch { return null; }
+  }
+  if (!value || value.kind !== 'seat-time') return null;
+  return {
+    toolMs: Number.isFinite(value.toolMs) && value.toolMs >= 0 ? value.toolMs : 0,
+    thinkingMs: Number.isFinite(value.thinkingMs) && value.thinkingMs >= 0 ? value.thinkingMs : 0,
+  };
+}
+
 /** Walk one item's events from add to merge; every millisecond lands in exactly one phase. */
 function breakdown(events, receipts = []) {
   const phases = Object.fromEntries(TIME_PHASES.map(phase => [phase, 0]));
@@ -84,8 +97,9 @@ function breakdown(events, receipts = []) {
   let phase = null, since = null, gate = null, claimAt = null, pendingBuild = 0;
   for (const event of events) {
     const at = Date.parse(event.event_at), detail = proofEventDetail(event);
-    if (event.event_kind === 'fact' && detail.kind === 'seat-time') {
-      facts.toolMs += Math.max(0, Number(detail.toolMs) || 0); facts.thinkingMs += Math.max(0, Number(detail.thinkingMs) || 0);
+    const seatTime = event.event_kind === 'fact' ? recordedSeatTime(detail) : null;
+    if (seatTime) {
+      facts.toolMs += seatTime.toolMs; facts.thinkingMs += seatTime.thinkingMs;
       continue;
     }
     const receipt = event.event_kind === 'proof-run' ? detail.receipt : null;
