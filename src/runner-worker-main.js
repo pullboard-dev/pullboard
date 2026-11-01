@@ -163,6 +163,11 @@ export async function main(S) {
     if (tracker) await tracker.stopDescendants();
     S.cleanupStage = 'final process groups';
     await drainAllOwned(S);
+    if (S.recycleSource) {
+      S.cleanupStage = 'source checkout return';
+      await S.recycleSource();
+      await drainAllOwned(S);
+    }
     if (tracker) {
       S.cleanupStage = 'final verification';
       await tracker.verifyAfterGroups();

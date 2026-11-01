@@ -23,6 +23,7 @@ export function createWorkerState(entryUrl) {
     rejectPendingFrame: null,
     activeDescendantTracker: null,
     sourcePreparation: null,
+    recycleSource: null,
     cleanupDeadline: Infinity,
     phaseCleanupDeadline: Infinity,
     phaseCleanupTimer: null,

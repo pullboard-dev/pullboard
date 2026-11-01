@@ -212,8 +212,10 @@ export function controllerRegistrationPorts({ pool, open, update, processStarted
       try {
         update(db, () => {
           const holder = db.prepare('SELECT pid,started,controller_identity FROM holder WHERE token=?').get(owner.token);
-          if (!holder || holder.pid !== parentPid || holder.started !== identity.holderStarted || holder.controller_identity)
-            throw new Refused('RESOURCE_LEASE_LOST', "runner controller needs its actual parent's unbound native lease");
+          if (!holder) throw new Refused('RESOURCE_LEASE_LOST', 'runner controller lease holder is missing');
+          if (holder.pid !== parentPid) throw new Refused('RESOURCE_LEASE_LOST', 'runner controller lease holder PID differs from its parent');
+          if (holder.started !== identity.holderStarted) throw new Refused('RESOURCE_LEASE_LOST', 'runner controller lease holder start time differs from its parent');
+          if (holder.controller_identity) throw new Refused('RESOURCE_LEASE_LOST', 'runner controller lease already has a bound controller');
           db.prepare('UPDATE holder SET controller_identity=? WHERE token=?').run(JSON.stringify(identity), owner.token);
         });
       } finally { db.close(); }
