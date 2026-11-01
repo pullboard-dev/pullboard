@@ -9,6 +9,7 @@ import {
   repoInfo,
 } from "../../../../src/git.js";
 import { listApiProjects } from "../../../../src/projects.js";
+import { workProgress } from './work-progress.js';
 import { itemProgress } from './work-progress.js';
 import { milestoneReferencesToRemove } from "./milestones.js";
 
@@ -94,6 +95,7 @@ export function milestoneRoadmap(root, board, options = {}) {
     }
   };
   const milestones = roadmap(board, resolveExternal);
+  const progressById = workProgress(board);
   const items = new Map(listItems(board, { all: true }).map(item => [item.item_id, item]));
   const holds = new Set(laneHolds(board).map(hold => hold.hold_lane));
   const now = board.clock.now().getTime();
@@ -121,7 +123,7 @@ export function milestoneRoadmap(root, board, options = {}) {
     }
     Object.assign(summary, milestoneForecast(summary.left, pace, Boolean(milestone.shipped)));
     const ordered = queueOrdered(milestone, placed, landedAt).map(entry => ({ ...entry,
-      progress: typeof entry.id === 'number' ? itemProgress(board, entry.id) : externalItems.get(entry.id)?.progress ?? null }));
+      progress: typeof entry.id === 'number' ? progressById.get(entry.id) : externalItems.get(entry.id)?.progress ?? null }));
     const progress = ordered.map(entry => entry.progress).filter(Boolean);
     return { ...milestone, items: ordered, summary, progress: { landed: milestone.landed, total: milestone.total,
       holders: [...new Set(progress.map(entry => entry.holder).filter(Boolean))],

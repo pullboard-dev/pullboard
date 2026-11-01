@@ -131,7 +131,7 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
     liftConditionalHold(board, event, logEvent, setItem);
-    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold_lane'].includes(kind)) {
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
       notifyUnblocked(board, event, logEvent);
       board.lastEvent = event;
     }

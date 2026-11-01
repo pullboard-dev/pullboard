@@ -10,27 +10,37 @@ export function progressWaits(item, byId) {
   return waits;
 }
 
-/** Project actual board stages, holders and elapsed board activity without estimating code completion. */
-export function itemProgress(board, id, { now = board.clock.now(), workObservation } = {}) {
-  const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
-  if (!item) return null;
-  const byId = new Map(board.db.prepare('SELECT * FROM item').all().map(row => [row.item_id, row]));
-  const stage = item.item_merged_commit ? 'landed' : item.item_status === 'verified' ? 'accepted' : item.item_status;
-  const holder = item.item_status === 'claimed' && item.item_lease_until > new Date(now).toISOString() ? item.item_owner
-    : item.item_status === 'submitted' && item.item_review_until > new Date(now).toISOString() ? item.item_review_by : null;
-  const activity = board.db.prepare(`SELECT MAX(event_at) AS at FROM event WHERE item_id=?
-    AND event_kind IN ('add','claim','submit','accept','reject','release','merged','withdraw','refreeze','attempt')`).get(id).at ?? item.item_created_at;
-  const observed = holder && workObservation ? workObservation(board, holder) : null;
-  const lastActivity = observed?.available && observed.at && observed.at > activity ? observed.at : activity;
-  const waits = progressWaits(item, byId);
-  const laneHold = board.db.prepare('SELECT * FROM hold WHERE hold_lane=?').get(item.item_lane);
-  if (laneHold) waits.push(`lane hold: ${laneHold.hold_reason}`);
-  if (stage === 'submitted') waits.push(item.item_review_by ? 'review verdict' : 'independent reviewer');
-  if (stage === 'accepted') waits.push('landing on main');
-  return { item: id, stage, holder, heldBy: item.item_hold_by ?? null, waits,
-    lastActivity, idleMinutes: Math.max(0, Math.floor((new Date(now) - new Date(lastActivity)) / 60_000)),
-    idleBasis: observed?.available ? 'board and observed worktree activity' : 'board activity; worktree activity unknown' };
+/** Compute one consistent snapshot in bounded queries, rather than rescanning history per item. */
+export function workProgress(board, { now = board.clock.now(), workObservation } = {}) {
+  const items = board.db.prepare('SELECT * FROM item').all();
+  const byId = new Map(items.map(item => [item.item_id, item]));
+  const activity = new Map(board.db.prepare(`SELECT item_id,MAX(event_at) AS at FROM event
+    WHERE event_kind IN ('add','claim','submit','accept','reject','release','merged','withdraw','refreeze','attempt','reserve_review')
+    GROUP BY item_id`).all().map(row => [row.item_id, row.at]));
+  const holds = new Map(board.db.prepare('SELECT * FROM hold').all().map(row => [row.hold_lane, row]));
+  const observations = new Map();
+  const at = new Date(now).toISOString();
+  return new Map(items.map(item => {
+    const stage = item.item_merged_commit ? 'landed' : item.item_status === 'verified' ? 'accepted' : item.item_status;
+    const holder = item.item_status === 'claimed' && item.item_lease_until > at ? item.item_owner
+      : item.item_status === 'submitted' && item.item_review_until > at ? item.item_review_by : null;
+    if (holder && workObservation && !observations.has(holder)) observations.set(holder, workObservation(board, holder));
+    const observed = observations.get(holder);
+    const recorded = activity.get(item.item_id) ?? item.item_created_at;
+    const lastActivity = observed?.available && observed.at && observed.at > recorded ? observed.at : recorded;
+    const waits = progressWaits(item, byId);
+    const laneHold = holds.get(item.item_lane);
+    if (laneHold) waits.push(`lane hold: ${laneHold.hold_reason}`);
+    if (stage === 'submitted') waits.push(holder ? 'review verdict' : 'independent reviewer');
+    if (stage === 'accepted') waits.push('landing on main');
+    return [item.item_id, { item: item.item_id, stage, holder, heldBy: item.item_hold_by ?? laneHold?.hold_by ?? null, waits,
+      lastActivity, idleMinutes: Math.max(0, Math.floor((new Date(now) - new Date(lastActivity)) / 60_000)),
+      idleBasis: observed?.available ? 'board and observed worktree activity' : 'board activity; worktree activity unknown' }];
+  }));
 }
+
+/** Read one item's actual workflow stage without estimating code completion. */
+export function itemProgress(board, id, options) { return workProgress(board, options).get(id) ?? null; }
 
 /** Keep the human view a rendering of the same native fields exposed in JSON. */
 export function progressLine(progress) {
