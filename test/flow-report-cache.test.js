@@ -12,6 +12,7 @@ import { openBoard } from '../src/native-board.js';
 import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone, orderMilestoneItems } from '../src/board-milestones.js';
 import { proofStats } from '../packages/stats/index.js';
 import { flowStats } from '../packages/stats/index.js';
+import { FLOW_REPORT_VERSION } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -255,4 +256,27 @@ test('repeated native landing receipts preserve the first measured landing inter
   const repeated = proofStats(board, { now: base + minute * 60_000 }, statsReadPorts).flow.report;
   assert.deepEqual(repeated, first, 'another valid receipt cannot turn measured history into a gap or double its elapsed time');
   assert.deepEqual(repeated, flowStats(store.events(board), null, base + minute * 60_000, { submissions: 1, rejections: 0, rejectionShare: 0 }).report);
+});
+
+test('a writer never resets a newer flow report and upgrades only an older one, as versions alternate [R1,R2]', t => {
+  const board = fixture(t);
+  const key = 'local:proof-stats:v2:report-summary';
+  const stored = () => JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+  const summary = () => stored().data;
+  const stamp = version => board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?')
+    .run(JSON.stringify({ ...stored(), data: { ...summary(), version } }), key);
+  const replayed = [];
+  board.onFlowReportEvent = event => replayed.push(event.event_id);
+  for (const round of [1, 2]) {
+    stamp(FLOW_REPORT_VERSION + 1);
+    const newer = summary();
+    store.addItem(board, { by: 'coordinator', lane: 'core', title: `A newer report stays put ${round}` });
+    assert.deepEqual(summary(), newer, 'older code leaves a newer report exactly as stored');
+    assert.deepEqual(replayed, [], 'older code replays no history for a newer report');
+    stamp(FLOW_REPORT_VERSION - 1);
+    store.addItem(board, { by: 'coordinator', lane: 'core', title: `An older report upgrades ${round}` });
+    assert.equal(summary().version, FLOW_REPORT_VERSION, 'current code upgrades an older report');
+    assert.ok(replayed.length > 0, 'the upgrade replays history once');
+    replayed.length = 0;
+  }
 });

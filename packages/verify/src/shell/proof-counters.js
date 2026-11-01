@@ -118,7 +118,7 @@ export function appendProofCounter(board, event) {
   const { appendRigorCounter } = board.runtimePorts.verification;
   appendRigorCounter(board, event);
   const summary = proofCounter(board, 'summary') ?? emptySummary();
-  ensureReportCounters(board, summary.last);
+  const keepReport = ensureReportCounters(board, summary.last);
   ensureCapacityCounters(board, summary.last);
   board.onProofStatsEvent?.(event);
   let detail;
@@ -131,7 +131,7 @@ export function appendProofCounter(board, event) {
   if (summary.invalid) { put(board, 'summary', summary); put(board, 'capacity-summary', { ...emptyCapacityCounter(), invalid: true, last: event.event_id }); return; }
   if (summary.firstEventAt === null || at < Date.parse(summary.firstEventAt)) summary.firstEventAt = event.event_at;
   if (summary.lastEventAt === null || at >= Date.parse(summary.lastEventAt)) summary.lastEventAt = event.event_at;
-  appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
+  if (keepReport) appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
   appendCapacityCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
   const key = `item:${event.item_id}`;
   const item = proofCounter(board, key) ?? { id: event.item_id, flow: { id: event.item_id, lane: 'unknown' } };
@@ -214,26 +214,31 @@ function resetReportCounters(board) {
   put(board, 'report-policy', newReportPolicy());
 }
 
-/** Catch up only missed report events after an older writer, without recounting other statistics. */
+/**
+ * Catch up only missed report events after an older writer, without recounting other statistics. Returns whether this
+ * code keeps the report: a report a newer writer stored is left alone, because resetting it to this older version made
+ * old and new worktrees replay all history in turn under the board lock.
+ */
 function ensureReportCounters(board, until) {
   let summary = proofCounter(board, 'report-summary');
+  if (summary && summary.version > FLOW_REPORT_VERSION) return false;
   if (!summary || summary.version !== FLOW_REPORT_VERSION) {
     resetReportCounters(board);
     summary = proofCounter(board, 'report-summary');
   }
-  if (summary.last >= until || summary.invalid) return;
+  if (summary.last >= until || summary.invalid) return true;
   const read = board.db.prepare('SELECT * FROM event WHERE event_id>? AND event_id<=? ORDER BY event_id LIMIT 256');
   let cursor = summary.last;
   while (true) {
     const batch = read.all(cursor, until);
-    if (!batch.length) return;
+    if (!batch.length) return true;
     for (const event of batch) {
       let detail;
       try { detail = JSON.parse(event.event_detail); } catch { detail = null; }
       const at = Date.parse(event.event_at);
       if (detail === null || !Number.isFinite(at)) {
         put(board, 'report-summary', { ...summary, invalid: true });
-        return;
+        return true;
       }
       board.onFlowReportEvent?.(event);
       appendReportCounter(event, detail, at, key => proofCounter(board, key), (key, value) => put(board, key, value));
