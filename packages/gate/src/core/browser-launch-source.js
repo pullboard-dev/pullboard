@@ -169,6 +169,7 @@ function reviewedCall(source, code, call, end, executors) {
       const body = parameters + 1 + code.slice(parameters + 1).search(/\S/u);
       if (code[body] !== '{') continue;
       const last = closing(code, body);
+      if (executor.body && (last === null || compact(source.slice(body + 1, last)) !== compact(executor.body))) continue;
       if (last !== null && call.at > body && end < last) return true;
     }
   }

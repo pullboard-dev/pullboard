@@ -16,6 +16,7 @@ import {
 import {
   commonJsIn,
   importsIn,
+  moduleCompiles,
 } from './module-imports.js';
 import { withImportParseCache } from './module-import-cache.js';
 import {
@@ -70,8 +71,10 @@ const SAFE_CHILD_PROCESS_MODULES = new Map([
 const REVIEWED_EXECUTORS = new Map([
   ['packages/gate/src/shell/browser-slot-guard.js', [
     { function: 'guardedChildProcess', site: 'original.apply(this, input)',
+      body: 'const browser = browserInCall(method, input); if (browser) throw browserSlotRefusal(browser); return original.apply(this, input);',
       reason: 'the installed wrapper checks browserInCall before forwarding the original process operation' },
     { function: 'guardedPromisified', site: 'custom.apply(this, input)',
+      body: 'const browser = browserInCall(method, input); if (browser) return Promise.reject(browserSlotRefusal(browser)); return custom.apply(this, input);',
       reason: 'the installed promise wrapper checks browserInCall before forwarding the original process operation' },
   ]],
   ['src/cli/sweep.js', [{ function: 'sweepHere',
@@ -587,6 +590,17 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         const value = demands.get(paths[index]);
         return byLaunch && (value.narrow || initial.barrel) ? browserModuleReach(source, value.names) : initial;
       });
+      const probes = reaches.flatMap(row => row.proofs ?? []);
+      const compiled = probes.length ? moduleCompiles(probes.map(row => row.source)) : [];
+      let probe = 0;
+      for (let index = 0; index < reaches.length; index++) {
+        const proofs = reaches[index].proofs ?? [];
+        const proven = proofs.map(row => compiled[probe++] === row.compiles).every(Boolean);
+        if (!proven) {
+          const full = browserModuleReach(sources[index]);
+          reaches[index] = { ...full, requests: new Map([...full.requests.keys()].map(request => [request, null])) };
+        }
+      }
       const originalSources = [...sources];
       if (byLaunch) sources.splice(0, sources.length, ...reaches.map(row => row.source));
       const browserCalls = sources.map((source, index) => namesChromeLauncher(source, paths[index]));

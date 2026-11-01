@@ -77,17 +77,20 @@ function merge(left, right) {
 /**
  * Narrow explicit named-binding demands. Ordinary graph entries retain their prior conservative behavior.
  * Unselected modules still execute their top level, and any function read there remains reachable.
+ * The caller must verify every returned compile-only probe before using a narrowed source.
  */
 export function browserModuleReach(source, selected = null) {
   const lexical = lex(source), { code, strings } = lexical;
+  const opaque = /\b(?:eval|Function)\b|\\u(?:[\da-f]{4}|\{[\da-f]+\})/iu.test(code);
   const rows = clauses(source, code, strings);
   const barrel = rows.length > 0 && rows.every(row => row.kind === 'export' && row.request)
     && !blank(code, rows.map(row => [row.start, row.end])).replace(/[;\s]/gu, '');
   let projected = source;
+  const proofs = [];
   if (selected !== null) {
     const syntax = delimiters(code);
     // Dynamic scope can observe declarations that are not lexically referenced.
-    if (!syntax || /\b(?:eval|Function)\b/u.test(code)) selected = null;
+    if (!syntax || opaque || source.length > 1024 * 1024) selected = null;
     else {
       const functions = [];
       for (const match of code.matchAll(new RegExp(`\\b(?:async\\s+)?function\\s*\\*?\\s+(${ID})\\s*\\(`, 'gu'))) {
@@ -99,7 +102,7 @@ export function browserModuleReach(source, selected = null) {
         let body = close + 1;
         while (/\s/u.test(code[body] ?? '') && body < code.length) body++;
         if (code[body] !== '{' || !syntax.pairs.has(body)) continue;
-        functions.push({ name: match[1], start: match.index, end: syntax.pairs.get(body) + 1,
+        functions.push({ name: match[1], nameAt: match.index + match[0].lastIndexOf(match[1]), start: match.index, end: syntax.pairs.get(body) + 1,
           parameters: [open + 1, close], body: [body + 1, syntax.pairs.get(body)] });
       }
       const probe = blank(code, [...rows.map(row => [row.start, row.end]), ...functions.map(row => [row.start, row.end])]);
@@ -121,7 +124,15 @@ export function browserModuleReach(source, selected = null) {
         prior = active.size;
         for (const row of functions) if (active.has(row.name)) retain(code.slice(row.start, row.end));
       } while (prior !== active.size);
-      projected = blank(source, functions.filter(row => !active.has(row.name)).flatMap(row => [row.parameters, row.body]));
+      const inactive = functions.filter(row => !active.has(row.name));
+      if (inactive.length > 64) selected = null;
+      else {
+        projected = blank(source, inactive.flatMap(row => [row.parameters, row.body]));
+        for (const row of inactive) {
+          proofs.push({ source: source.slice(0, row.nameAt) + '0' + source.slice(row.nameAt + row.name.length), compiles: false });
+          proofs.push({ source: source.slice(0, row.end - 1) + '\nreturn;\n' + source.slice(row.end - 1), compiles: true });
+        }
+      }
     }
   }
   const reads = blank(lex(projected).code, rows.map(row => [row.start, row.end]));
@@ -138,7 +149,8 @@ export function browserModuleReach(source, selected = null) {
       demand = used.some(name => name.imported === '*') ? null : new Set(used.map(name => name.imported));
       if (selected === null && !row.names.length) demand = null;
     }
+    if (opaque) demand = null;
     requests.set(row.request, requests.has(row.request) ? merge(requests.get(row.request), demand) : demand);
   }
-  return { source: projected, requests, barrel };
+  return { source: projected, requests, barrel, proofs };
 }
