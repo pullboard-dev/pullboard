@@ -85,7 +85,7 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   const { main, box, marker } = project(t);
   let original = move(box, main.dir);
   if (command === 'remove-shims') {
-    tool(box, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'core');
+    tool(box, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'build');
     original = commitAll(box, 'refactor(core): remove the leaf shim [G1]');
   }
   tool(box, 'cells-plan.js', '--check');
@@ -103,7 +103,7 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   assert.equal(box.git('rev-parse', command === 'remove-shims' ? 'HEAD~2' : 'HEAD^'), currentMain);
   assert.match(readFileSync(join(box.root, 'packages/leaf/src/core/leaf.js'), 'utf8'), /value = 2/u);
   assert.ok(existsSync(marker), 'regeneration runs the full gate even when normal submit defers it');
-  assert.equal(result.full, true);
+  assert.equal(result.gate.full, true);
   const item = JSON.parse(box.run('show', '1', '--json').out);
   assert.equal(item.item_status, 'submitted');
   assert.equal(item.item_commit, head);
