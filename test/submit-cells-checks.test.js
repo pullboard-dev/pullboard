@@ -392,12 +392,12 @@ async function refusal(promise) {
   try { await promise; return ''; } catch (error) { return error.message; }
 }
 
-test('submit refuses deleting a module a test names inside a generated script, never for a comment mention [C7,D3]', async t => {
-  for (const form of [() => '${ROOT}/src/doomed.js', root => join(root, 'src/doomed.js'), root => pathToFileURL(join(root, 'src/doomed.js')).href]) {
+test('submit refuses deleting a module a test names inside a generated script, never for a comment or prose mention [C7,D3]', async t => {
+  for (const form of [() => './src/doomed.js', () => '${ROOT}/src/doomed.js', root => join(root, 'src/doomed.js'), root => pathToFileURL(join(root, 'src/doomed.js')).href]) {
     const box = plannedFixture(t, fixture => {
       fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
       fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
-      fixture.put('test/child.test.js', `const script = \`import { doomed } from '${form(fixture.root)}';\`;\n// src/quiet.js once held the quiet value\nexport { script };\n`);
+      fixture.put('test/child.test.js', `const script = \`import('${form(fixture.root)}').then(m => m.doomed);\`;\n// src/quiet.js once held the quiet value\nconst note = 'the old src/quiet.js held the quiet value';\nexport { script, note };\n`);
     });
     const remove = file => { git(box.root, 'rm', '-q', '--', file); writePlan(box.root, computePlan(box.root)); };
     remove('src/doomed.js');
@@ -407,6 +407,6 @@ test('submit refuses deleting a module a test names inside a generated script, n
     git(box.root, 'checkout', '-q', box.main, '--', 'src/doomed.js', 'bin');
     remove('src/quiet.js');
     assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)), /names deleted/u,
-      'a comment mention never holds a deletion');
+      'a comment or prose mention never holds a deletion');
   }
 });

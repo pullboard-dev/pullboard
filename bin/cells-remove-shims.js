@@ -251,24 +251,38 @@ function hitsByShim(box, shims) {
   return hits;
 }
 
+/** A string token that is a whole module path: no whitespace, a module extension, nothing after the path. */
+const PATH_TOKEN = /^[^\s'"`]+\.[cm]?js$/u;
+/** Code just before a literal that hands it to a module or path call: import(), require(), new URL() or path.join(). */
+const PATH_ARGUMENT = /\b(?:import|require|URL|join)\s*\(\s*(?:[^()'"`]*,\s*)?$/u;
+
 /**
- * Whether a string names `path` as a whole module path: bare or relative, absolute, a file: URL, or after a template root
- * such as `${ROOT}/src/x.js`. A longer repository path that only ends the same way, like packages/a/src/x.js, is another module.
+ * Whether one path-shaped string names `path`: ./ or ../ relative, absolute, a file: URL, a template root such as
+ * `${ROOT}/src/x.js`, or a bare repository path handed to a path call. A longer repository path that merely ends the
+ * same way, like ./packages/a/src/x.js, is another module.
  */
-function namesPath(text, path) {
-  for (let at = text.indexOf(path); at >= 0; at = text.indexOf(path, at + 1)) {
-    if (/^(?:[\w/-]|\.\w)/u.test(text.slice(at + path.length))) continue;
-    const prefix = /[^\s'"`(),=;]*$/u.exec(text.slice(0, at))[0].replace(/^file:\/\//u, '');
-    if (/^(?:\.{1,2}\/)*$/u.test(prefix) || prefix.startsWith('/') || prefix.includes('}')) return true;
-  }
+function pathToken(token, path, argument) {
+  if (!PATH_TOKEN.test(token) || !token.endsWith(path)) return false;
+  const prefix = token.slice(0, -path.length).replace(/^file:\/\//u, '');
+  if (prefix && !prefix.endsWith('/')) return false;
+  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || prefix.startsWith('/') || /^\$\{[^}]*\}\//u.test(prefix) : argument;
+}
+
+/**
+ * Whether a string literal names `path` as a module: the whole literal is a path, or a quoted string inside it is, as in a
+ * generated child script's `import ... from './src/x.js'`. A sentence that mentions a path is prose and never counts.
+ */
+function namesPath(text, path, argument) {
+  if (pathToken(text, path, argument)) return true;
+  for (const quoted of text.matchAll(/(['"])([^'"\s]*)\1/gu)) if (pathToken(quoted[2], path, false)) return true;
   return false;
 }
 
 /**
- * Every place a test source names one of `paths` inside a string literal, such as a generated child script importing
- * `./src/x.js`, `/abs/root/src/x.js` or `file:///abs/root/src/x.js`. Import checks cannot see these, so deleting a named
+ * Every place a test source names one of `paths` in a string literal (see namesPath): a generated child script importing
+ * `./src/x.js`, `/abs/root/src/x.js` or `file:///abs/root/src/x.js` is invisible to import checks, so deleting a named
  * path turns main red. A literal that `resolve` maps to the path is an ordinary import the repoint already handles;
- * comments are never strings, so a comment mention never holds a path.
+ * comments and prose sentences never hold a path.
  */
 export function scriptMentions(files, paths, resolve = () => null) {
   const rows = [], wanted = [...new Set(paths)];
@@ -276,8 +290,10 @@ export function scriptMentions(files, paths, resolve = () => null) {
     if (!testFile(file) || !/\.[cm]?js$/u.test(file)) continue;
     const source = bytes.toString('utf8');
     if (!wanted.some(path => source.includes(path))) continue;
-    for (const literal of lex(source).strings) for (const path of wanted) {
-      if (!literal.text.includes(path) || resolve(file, literal.text) === path || !namesPath(literal.text, path)) continue;
+    const info = lex(source);
+    for (const literal of info.strings) for (const path of wanted) {
+      if (!literal.text.includes(path) || resolve(file, literal.text) === path) continue;
+      if (!namesPath(literal.text, path, PATH_ARGUMENT.test(info.code.slice(Math.max(0, literal.start - 200), literal.start)))) continue;
       rows.push({ file, line: source.slice(0, literal.start).split('\n').length, path });
     }
   }

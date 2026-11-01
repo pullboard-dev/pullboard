@@ -308,17 +308,24 @@ test('a repoint that would pull a process launcher into the move-registry closur
   assert.equal(existsSync(join(box.root, 'src/stats-pure.js')), true);
 });
 
-test('a shim a test names inside a generated script stays, and a comment mention never holds it [C7,D3]', t => {
+test('a shim a test names inside a generated script stays, and a comment or prose mention never holds it [C7,D3]', t => {
   const quiet = shimmed(t);
   quiet.put('test/comment.test.js', '// src/stats.js once held the stats shell\nexport const note = 1;\n');
-  assert.deepEqual(removeShims(quiet.root, quiet.plan, 'stats', { parsers: PARSERS }).deleted, ['src/stats.js'], 'a comment is not a use');
-  for (const form of [root => `./src/stats.js`, root => join(root, 'src/stats.js'), root => pathToFileURL(join(root, 'src/stats.js')).href]) {
-    const box = shimmed(t);
-    box.put('test/child.test.js', `export const script = ${JSON.stringify(`import { shell } from '${form(box.root)}';\nconsole.log(shell);`)};\n`);
-    const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
-    assert.equal(existsSync(join(box.root, 'src/stats.js')), true, `the generated child script still imports ${form(box.root)}`);
-    assert.deepEqual(result.deleted, []);
-    assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /test\/child\.test\.js:1 names src\/stats\.js inside a string/u);
+  quiet.put('test/prose.test.js', 'export const description = "The retired src/stats.js was a shim, not an import";\n');
+  assert.deepEqual(removeShims(quiet.root, quiet.plan, 'stats', { parsers: PARSERS }).deleted, ['src/stats.js'], 'a comment or prose sentence is not a use');
+  const prose = shimmed(t);
+  prose.put('test/prose.test.js', "export const note = 'the old src/stats.js held the stats shell';\n");
+  assert.deepEqual(removeShims(prose.root, prose.plan, 'stats', { parsers: PARSERS }).deleted, ['src/stats.js'], 'a prose sentence naming the path is not a use');
+  const forms = [root => './src/stats.js', root => join(root, 'src/stats.js'), root => pathToFileURL(join(root, 'src/stats.js')).href];
+  for (const form of forms) {
+    for (const wrap of [spec => spec, spec => `import('${spec}').then(m => console.log(m.shell));`]) {
+      const box = shimmed(t);
+      box.put('test/child.test.js', `export const script = ${JSON.stringify(wrap(form(box.root)))};\n`);
+      const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+      assert.equal(existsSync(join(box.root, 'src/stats.js')), true, `the test still names ${form(box.root)}`);
+      assert.deepEqual(result.deleted, []);
+      assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /test\/child\.test\.js:1 names src\/stats\.js inside a string/u);
+    }
   }
 });
 
