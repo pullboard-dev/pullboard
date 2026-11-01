@@ -1,3 +1,6 @@
+import { prepareEngineMove } from '../../state/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../state/index.js';
+import { MOVE_REGISTRY } from '../../moves/index.js';
 import { requireFixtureReviewFamilies } from "../../../test/review-family-fixture.js";
 /** @pullboard-test-loads src/board.js src/claims.js */
 /** Advancing clocks preserve the entire opt-in builder window [B13,B5]. */
@@ -66,5 +69,69 @@ test('[B13,B5] every return anchors its full builder window to one advancing-clo
       claim(f, id, f.other);
       assert.equal(store.getItem(f.board, id).item_owner, f.other);
     }
+  }
+});
+
+/** Record the person-approved opt-in without changing defaults on other boards. */
+function enable(f, key = 'returnRejectedWork') {
+  store.setLineSetting(f.board, { agentId: 'coordinator', key, value: true, reason: 'approved automatic returns', window: { observed: 1 } });
+}
+/** Ask the real native planner for this seat's next build. */
+function next(f, agentId) { return store.nextFor(f.board, { agentId, lane: 'core' }); }
+
+test('[B35,B13] rejection is the builder next work with its clause, verdict and handoff', t => {
+  const f = fixture(t); enable(f);
+  const older = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'older', criterion: 'prove', specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/older.js\nTest: proves older work' });
+  const id = returned(f, 'reject', 0);
+  const picked = next(f, f.builder);
+  assert.equal(picked.item.item_id, id);
+  assert.match(picked.reasons.join('\n'), /prove.*proof.*builder handoff/u);
+  assert.equal(next(f, f.other).item.item_id, older);
+  assert.throws(() => claim(f, id, f.other), error => error.code === 'REOPEN_HELD_FOR_BUILDER');
+  claim(f, id, f.builder);
+  assert.equal(store.getItem(f.board, id).item_owner, f.builder);
+});
+
+test('[B35,B13,H16] any lane family can take an unclaimed reject at the thirty-minute boundary', t => {
+  const f = fixture(t); enable(f); enable(f, 'reworkSameFamily');
+  const id = returned(f, 'reject', 0);
+  assert.equal(next(f, f.other).item, null);
+  f.advance(30);
+  const picked = next(f, f.other);
+  assert.equal(picked.item.item_id, id);
+  assert.match(picked.reasons.join('\n'), /prove.*proof.*builder handoff/u);
+  claim(f, id, f.other);
+  assert.equal(store.getItem(f.board, id).item_owner, f.other);
+});
+
+test('[B35,V6] manual reopen refuses with the board-return explanation', t => {
+  const f = fixture(t); enable(f);
+  const id = returned(f, 'reject', 0);
+  assert.throws(() => store.reopen(f.board, id, { agentId: 'coordinator', note: 'return it' }),
+    error => error.code === 'BOARD_RETURNS_REJECTED' && error.message.includes('the board returns rejected work'));
+  assert.equal(store.getItem(f.board, id).item_verdict, 'REJECT');
+});
+
+test('[B35,H16] rejection routing remains opt-in and respects item holds', t => {
+  const f = fixture(t);
+  const id = returned(f, 'reject', 0);
+  assert.equal(next(f, f.other).item.item_id, id);
+  enable(f);
+  store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'stop-reason triage' });
+  assert.equal(next(f, f.builder).item, null);
+  assert.throws(() => claim(f, id, f.builder), error => error.code === 'ITEM_HELD');
+});
+
+test('[B35,H16] automatic rejection routing is sealed into claim and verdict replay floors', t => {
+  const f = fixture(t); enable(f);
+  const id = returned(f, 'reject', 0);
+  const options = { agentId: f.builder, lane: 'core', leaseMs: 7_200_000,
+    freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'fixture-bar' }) };
+  const claimMove = prepareEngineMove(f.board, 'claim', [id, options]);
+  const verdictMove = prepareEngineMove(f.board, 'verify', [id, { agentId: f.other, decision: 'REJECT' }]);
+  assert.equal(claimMove.args[1].returnRejectedWork, true);
+  assert.equal(verdictMove.args[1].returnRejectedWork, true);
+  for (const operation of ['claim', 'verify', 'reopen']) {
+    assert.ok(MOVE_REGISTRY[operation].minimumEngine([id, { returnRejectedWork: true }], f.board) >= REJECTION_RETURN_ENGINE);
   }
 });
