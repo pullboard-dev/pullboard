@@ -109,10 +109,16 @@ export function importOnlyChange(before, after, { specifiersOnly = false } = {})
 
 /** Prove every cross-lane path edit follows a supplied same-item move or deleted shim [L3]. */
 export function movedImportOnlyChange(before, after, file, moves) {
-  const decode = value => Buffer.isBuffer(value) && !value.includes(0) ? value.toString('utf8') : typeof value === 'string' ? value : null;
+  const decode = value => {
+    if (typeof value === 'string') return value;
+    if (!Buffer.isBuffer(value) || value.includes(0)) return null;
+    const text = value.toString('utf8');
+    return Buffer.from(text, 'utf8').equals(value) ? text : null;
+  };
   before = decode(before); after = decode(after);
   if (before === null || after === null || before === after) return false;
   try {
+    importsIn([before, after]);
     const oldSpans = staticImportSpans(before), newSpans = staticImportSpans(after);
     if (!oldSpans || !newSpans || oldSpans.length !== newSpans.length) return false;
     const { posix } = awaitImportPath;
