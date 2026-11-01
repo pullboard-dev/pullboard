@@ -3,7 +3,7 @@
   "reads": [
     {
       "file": "test/api-catalog.test.js",
-      "line": 850,
+      "line": 851,
       "expression": "join(source.repo, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
@@ -73,7 +73,7 @@
     },
     {
       "file": "test/e2e-helpers.js",
-      "line": 283,
+      "line": 284,
       "expression": "join(box.repo, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
@@ -255,7 +255,7 @@
     },
     {
       "file": "test/land-no-remote-fixture.js",
-      "line": 69,
+      "line": 67,
       "expression": "join(remoteRepo, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
@@ -784,6 +784,13 @@
       "expression": "file",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
+    },
+    {
+      "file": "test/land-batch-fixture.js",
+      "line": 26,
+      "expression": "path",
+      "kind": "config",
+      "why": "Reads this test's private generated pullboard.json before opting its landing into manual publication; no bundled blueprint source is read."
     }
   ]
 }
