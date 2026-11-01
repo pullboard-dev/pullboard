@@ -75,10 +75,10 @@ import { initialSpecApprovalBaseline } from '../../packages/spec/index.js';
 import { readResumeSources } from '../../packages/items/index.js';
 import {
   flowAlertLine,
-} from '../stats-flow.js';
+} from '../../packages/stats/index.js';
 import {
   proofStats,
-} from '../stats.js';
+} from '../../packages/stats/index.js';
 import {
   mainMergeLines,
   mainMergesFor,

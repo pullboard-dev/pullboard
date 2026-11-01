@@ -37,14 +37,7 @@
   ["src/stats-moves.js","packages/stats/src/core/stats-moves.js","rule"],
   ["src/cost-analytics.js","packages/stats/src/shell/cost-analytics.js","rule"]
  ],
- "reexports": [
-  "src/flow-replay.js",
-  "src/flow-report-counter.js",
-  "src/stats-flow-report.js",
-  "src/stats-flow-window.js",
-  "src/stats-flow.js",
-  "src/stats.js"
- ],
+ "reexports": ["src/stats-flow.js","src/stats.js"],
  "imports": [
   {"cell":"kernel","imports":4,"before":true},
   {"cell":"seats","imports":1,"before":true},

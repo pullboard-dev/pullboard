@@ -25,8 +25,8 @@ import { restoreRelaySnapshot } from '../packages/store/index.js';
 import { semanticBoardDigest } from '../packages/store/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { proofStats as legacyProofStats } from './fixtures/proof-stats-legacy.js';
-import { proofStats } from '../src/stats.js';
-import { eventCounts } from '../src/stats.js';
+import { proofStats } from '../packages/stats/index.js';
+import { eventCounts } from '../packages/stats/index.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
