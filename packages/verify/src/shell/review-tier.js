@@ -47,7 +47,7 @@ const SOURCE_FILES = new Set([
   'packages/items/src/shell/item-authors.js',
   'package.json', 'pullboard.json', 'bin/run-tests.js',
   // Check admission, selection and the evidence that decides whether a failure blocks.
-  'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',
+  'src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'packages/github/src/shell/ci-flakes.js', 'src/native-flakes.js', 'src/native-flake-cli.js',
   'src/affected-tests.js', 'src/test-selection.js', 'src/test-result-store.js', 'src/test-file-dispatch.js',
   'src/test-run.js', 'src/test-file-pool.js', 'src/test-isolation.js', 'src/test-action-cache.js',
   'src/test-action-transfer.js', 'src/test-placement.js', 'src/module-imports.js',
