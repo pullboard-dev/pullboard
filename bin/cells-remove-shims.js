@@ -131,7 +131,9 @@ function choose(box, shim, file, use) {
   // A target covers a use only when each name resolves to the same definition the shim gives it: a door can bind one
   // name to a different body than the shim does (src/board.js gives ensureCoordinator the write-store one).
   const same = (module, name) => origin(box, module, name) === origin(box, shim, name);
-  const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name) && same(module, name)); };
+  // A namespace (import * as, import(), a module URL) also sees every key the target exports, so it needs no extra one.
+  const extra = module => use.names === ALL ? [...exportsOf(box, module).keys()].filter(name => !have.has(name)) : [];
+  const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name) && same(module, name)) && !extra(module).length; };
   const core = cell.pureFrontDoor && box.files.has(cell.pureFrontDoor) ? cell.pureFrontDoor : null;
   const pure = pureReason(box, file);
   if (pure) {
@@ -145,6 +147,8 @@ function choose(box, shim, file, use) {
   const door = cell.frontDoor, present = exportsOf(box, door), adds = [];
   const differ = names.filter(name => present.has(name) && !same(door, name));
   if (differ.length) return { refuse: `${file} imports ${differ.join(', ')} from ${shim}, which ${door} binds to a different definition` };
+  const more = extra(door);
+  if (more.length) return { refuse: `${file} takes the whole ${shim} namespace, and ${door} also exports ${more.slice(0, 8).join(', ')}${more.length > 8 ? ` +${more.length - 8} more` : ''}` };
   for (const name of names.filter(value => !present.has(value))) {
     const row = have.get(name);
     adds.push({ file: door, name, line: `export { ${row.name === name ? name : `${row.name} as ${name}`} } from ${JSON.stringify(specifier(door, row.module))};` });
