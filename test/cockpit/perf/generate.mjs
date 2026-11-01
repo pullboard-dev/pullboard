@@ -332,7 +332,7 @@ export function generateStressBoard({ seed = 'pullboard-perf-606', size = 150, p
       for (let index = 0, cursor = 0; index < milestoneCount; index += 1) {
         const itemCount = Math.floor(rowCount / milestoneCount) + (index < rowCount % milestoneCount ? 1 : 0);
         const referenced = Array.from({ length: itemCount }, () => ids[cursor++ % ids.length]);
-        addMilestone(board, { agentId: 'coordinator', name: `Milestone ${index + 1}`, note: textOf(seed, `Roadmap note ${index + 1}`, 120), items: referenced });
+        addMilestone(board, { agentId: 'coordinator', name: `Milestone ${index + 1}`, note: textOf(seed, `Roadmap note ${index + 1}`, 120), items: referenced, reason: 'Arrange stress fixture release' });
       }
       const snapshot = boardSnapshot(board, seed, source, initialEvent);
       const boardDigest = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');

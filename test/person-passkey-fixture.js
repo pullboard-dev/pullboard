@@ -10,7 +10,7 @@ import {
   setPersonSigning,
 } from '../packages/person/index.js';
 import { validatePersonRequest } from '../packages/person/core.js';
-import { receivePersonRequest } from '../src/relay-requests.js';
+import { receivePersonRequest } from '../packages/link/index.js';
 
 /** SHA-256 bytes of a value. */
 function sha256(value) { return createHash('sha256').update(value).digest(); }

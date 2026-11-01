@@ -10,12 +10,12 @@ import {
 } from '../git.js';
 import {
   unlinkedRelayProjects,
-} from '../relay-setup.js';
+} from '../../packages/link/index.js';
 import {
   formatSnapshotLimit,
   pendingCheckpointProblem,
   pendingSnapshotSize,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   skillProblems,
 } from '../skills.js';
