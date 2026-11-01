@@ -2,7 +2,7 @@
 import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import {
   sentinelCommand,
-} from '../sentinel-command.js';
+} from '../../packages/sentinels/index.js';
 import {
   main,
   ordered,
@@ -10,9 +10,9 @@ import {
   withBoard,
 } from '../cli.js';
 import { personCommandContext } from '../cli-context.js';
-import { recordTimeCheckpoint } from '../stats-time-checkpoint.js';
+import { recordTimeCheckpoint } from '../../packages/stats/index.js';
 import { retainedReceipts } from '../../packages/gate/index.js';
-import { events } from '../board.js';
+import { events } from '../../packages/store/index.js';
 
 /** Run `pullboard sentinel` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {

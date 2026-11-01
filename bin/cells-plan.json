@@ -1140,10 +1140,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/stats-time-checkpoint.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/same-family-refusal-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },

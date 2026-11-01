@@ -1,20 +1,22 @@
 /** Where item time goes: every phase sums to each landed item's clock time, in a fixture with known events [R1,R2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { TIME_PHASES } from '../packages/stats/index.js';
-import { checkpointLine } from '../packages/stats/index.js';
-import { timeLines } from '../packages/stats/index.js';
-import { timeStats } from '../packages/stats/index.js';
-import { weeklyDue } from '../packages/stats/index.js';
-import { proofFields } from '../packages/verify/index.js';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { TIME_PHASES } from '../index.js';
+import { checkpointLine } from '../index.js';
+import { timeLines } from '../index.js';
+import { timeStats } from '../index.js';
+import { weeklyDue } from '../index.js';
+import { proofFields } from '../../verify/index.js';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runFixtureGit } from './fixture-child.js';
-import { recordTimeCheckpoint } from '../src/stats-time-checkpoint.js';
-import { retainedReceipts } from '../packages/gate/index.js';
-import { events } from '../src/board.js';
-import { createE2eHelpers } from './e2e-helpers.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { recordTimeCheckpoint } from '../index.js';
+import { retainedReceipts } from '../../gate/index.js';
+import { events } from '../../store/index.js';
+import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 
 const T0 = Date.parse('2026-10-01T00:00:00.000Z');
 const MIN = 60000;

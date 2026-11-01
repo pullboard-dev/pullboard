@@ -1,7 +1,7 @@
 /** The pullboard milestone command, in its own module so an item adding another command never edits these lines. */
-import * as store from '../board.js';
+import * as store from '../../packages/store/index.js';
 import { retainedReceipts } from '../../packages/gate/index.js';
-import { recordTimeCheckpoint } from '../stats-time-checkpoint.js';
+import { recordTimeCheckpoint } from '../../packages/stats/index.js';
 import { checkReleaseReferences } from '../../packages/spec/index.js';
 import {
   mainCheckout,

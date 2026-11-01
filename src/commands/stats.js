@@ -27,7 +27,7 @@ import { counterProofStats } from '../../packages/verify/index.js';
 import {
   barStatsLines,
 } from '../bar-corrections.js';
-import * as store from '../board.js';
+import * as store from '../../packages/store/index.js';
 import { caughtLines } from '../../packages/items/index.js';
 import * as gateReceipt from '../gate-receipt.js';
 import { readRunnerStage } from '../runner-stage-read.js';

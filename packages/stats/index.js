@@ -154,3 +154,5 @@ export {
 
 export { coordinatorActionStats, coordinatorActionLines, coordinatorActionRise } from './src/core/coordinator-actions.js';
 export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/shell/coordinator-actions.js';
+
+export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';
