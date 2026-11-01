@@ -57,7 +57,7 @@ import { localReleaseRank } from '../../../../src/release-queue.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../../src/route-capacity.js';
-import { readRelayHealth } from '../../../../src/relay-canary-health.js';
+import { readRelayHealth } from '../../../link/index.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
 export const HEALTH_DEFAULTS = Object.freeze({ stuck: '1h', holds: '1d', release: '1d' });

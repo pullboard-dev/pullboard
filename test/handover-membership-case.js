@@ -7,8 +7,8 @@ import { tmpdir } from 'node:os';
 import * as store from '../src/board.js';
 import { ENGINE_VERSION as PEOPLE_VERSION } from '../packages/state/index.js';
 import { createDeviceKeys, unwrapDeviceBoardKey } from '../packages/keys/index.js';
-import { handOverBoardKeys, statementBytes } from '../src/relay-handover.js';
-import { signSshVouch } from '../src/relay-ssh-proof.js';
+import { handOverBoardKeys, statementBytes } from '../packages/link/index.js';
+import { signSshVouch } from '../packages/link/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Preserve the real device-key and direct GitHub-signature boundary using the team's private Git helpers. */
