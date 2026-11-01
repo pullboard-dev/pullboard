@@ -1,16 +1,29 @@
 /** A red item check remains mandatory and compares its failed files with main for recovery guidance [V1,V4]. */
-import { executionServicesSource } from './gate-execution-fixture.js';
+import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import '../src/main-red.js'; // The private driver below invokes this production entry point.
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import '../src/shell/main-red.js'; // The private driver below invokes this production entry point.
+import { chmodSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, join } from 'node:path';
-import { after, test } from 'node:test';
+import { delimiter } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { after } from 'node:test';
+import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
-import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
+import { runFixtureChild } from '../../../test/fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
 
-const BIN = join(import.meta.dirname, '../bin/pullboard.js');
+const BIN = join(import.meta.dirname, '../../../bin/pullboard.js');
 const roots = [];
 
 test('executor-pinned main comparisons run afresh, preserve generic cache and refuse another runtime [V4,C7]', t => {
@@ -20,8 +33,8 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
   });
   const driver = join(box.directory, 'pinned-comparison.mjs');
   writeFileSync(driver, [
-    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
-    `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/sandbox/src/shell/execution-environment.js')).href)};`,
+    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
+    `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../sandbox/src/shell/execution-environment.js')).href)};`,
     'const [root, mode] = process.argv.slice(2);',
     "const profile = {tests:[{file:'test/inherited.test.js',passed:false}]};",
     'const environment = executionEnvironment();',
@@ -207,9 +220,9 @@ test('main comparisons use the free CPU slot while browser work keeps its browse
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite');
   const driver = join(box.directory, 'cpu-browser-driver.mjs');
   writeFileSync(driver, [
-    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href)}`,
-    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
+    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href)};
+${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href)}`,
+    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
     "import { existsSync, writeFileSync } from 'node:fs';",
     "import { join } from 'node:path';",
     'const [mode, root, control] = process.argv.slice(2);',
@@ -298,8 +311,8 @@ test("a red submit's comparisons keep FIFO and release between files [V4,C7]", a
   const main = commit(box.root, box.env);
   const driver = join(box.directory, 'queue-driver.mjs');
   writeFileSync(driver, [
-    `import { takeResource } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href)};`,
-    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
+    `import { takeResource } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../resources/index.js')).href)};`,
+    `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
     "import { appendFileSync, existsSync, writeFileSync } from 'node:fs';",
     "import { join } from 'node:path';",
     "const [mode, root] = process.argv.slice(2); const control = process.env.COMPARE_CONTROL;",
