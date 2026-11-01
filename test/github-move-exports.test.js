@@ -1,6 +1,7 @@
 /** Exact legacy namespace and binding identity survive the GitHub move [C7,CD60]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import * as barrel from '../packages/github/index.js';
 import * as legacy0 from '../src/ci-flakes.js';
 import * as provider0 from '../packages/github/src/shell/ci-flakes.js';
 import * as legacy1 from '../src/intake-github.js';
@@ -44,9 +45,7 @@ test('GitHub move preserves every legacy export name and exact provider binding 
 });
 
 test('the broader GitHub barrel cannot masquerade as the CI observation module [C7,CD60]', async () => {
-  const barrel = await import('../packages/github/index.js');
   assert.notDeepEqual(Object.keys(barrel).sort(), ['ciObservations']);
   assert.equal(typeof barrel.publishTrunk, 'function', 'the planted barrel route exposes an unrelated operation');
-  const legacy = await import('../src/ci-flakes.js');
-  assert.equal(Object.hasOwn(legacy, 'publishTrunk'), false, 'the compatibility entry never grants that operation');
+  assert.equal(Object.hasOwn(legacy0, 'publishTrunk'), false, 'the compatibility entry never grants that operation');
 });
