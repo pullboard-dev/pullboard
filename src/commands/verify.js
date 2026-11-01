@@ -1,3 +1,4 @@
+import { mainCheckout } from '../../packages/git/index.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { automaticLandingEnabled } from '../../packages/merge/index.js';
 import { landAcceptedItems } from '../../packages/merge/index.js';
@@ -296,7 +297,7 @@ export async function verifyHere(ctx, id, { second, values }) {
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
-  if (accepted && automaticLandingEnabled(mainPolicy(ctx.info.root).config)) {
+  if (accepted && mainCheckout(ctx.info.root)?.branch && automaticLandingEnabled(mainPolicy(ctx.info.root).config)) {
     const root = primaryCheckoutRoot(ctx.info);
     const io = { ...ctx.io, cwd: root, result: undefined, relayCommand: undefined, requestedCommand: undefined, personRequest: undefined, personRequestMoveId: undefined };
     try {
