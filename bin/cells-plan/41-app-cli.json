@@ -264,7 +264,8 @@
   ["src/submit-gate-wait.js","apps/cli/src/shell/submit-gate-wait.js","rule"],
   ["src/tool-build-scheduler.js","apps/cli/src/shell/tool-build-scheduler.js","rule"],
   ["src/cli/cockpit-renderer.js","apps/cli/src/shell/cli/cockpit-renderer.js","rule"],
-  ["src/cli/view-state.js","apps/cli/src/shell/cli/view-state.js","rule"]
+  ["src/cli/view-state.js","apps/cli/src/shell/cli/view-state.js","rule"],
+  ["src/commands/check-baseline.js","apps/cli/src/shell/commands/check-baseline.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
