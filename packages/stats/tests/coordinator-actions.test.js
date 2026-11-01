@@ -15,6 +15,8 @@ import { coordinatorActionLines } from '../index.js';
 import { checkCoordinatorRelease } from '../../gate/index.js';
 import { recordCoordinatorRelease } from '../../gate/index.js';
 import { readCoordinatorRelease } from '../../gate/index.js';
+import { MOVE_REGISTRY } from '../../moves/index.js';
+import { COORDINATOR_ACTIONS_ENGINE } from '../../state/index.js';
 import { runReleaseGate } from '../../gate/index.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 
@@ -135,9 +137,12 @@ test('a builder worktree cannot declare the person release override [B35,R2,I15]
 test('project milestone shipping enforces and records the ratchet in the shared board log [B35,R2,I15]', t => {
   const f = fixture(t);
   keepBaseline(f, FIRST, checkCoordinatorRelease(f.root, { now: at(60) }));
+  assert.equal(MOVE_REGISTRY.shipMilestone.minimumEngine(['First release', { coordinatorActions: true }], f.board), COORDINATOR_ACTIONS_ENGINE);
+  assert.equal(MOVE_REGISTRY.shipMilestone.minimumEngine(['First release', {}], f.board), COORDINATOR_ACTIONS_ENGINE, 'fresh native API captures use the new floor too');
   store.addMilestone(f.board, { agentId: 'coordinator', name: 'First release', items: [] });
   store.addMilestone(f.board, { agentId: 'coordinator', name: 'Next release', items: [] });
   store.shipMilestone(f.board, 'First release', { agentId: 'coordinator', commit: f.head });
+  assert.equal(MOVE_REGISTRY.shipMilestone.minimumEngine(['Next release', {}], f.board), COORDINATOR_ACTIONS_ENGINE, 'an activated project cannot fall back to an unmarked older ship');
   store.shout(f.board, { from: 'coordinator', to: 'all', text: 'Another mechanical nudge', lanes: ['core'] });
   assert.throws(() => store.shipMilestone(f.board, 'Next release', { agentId: 'coordinator', commit: f.head }),
     error => error.code === 'COORDINATOR_ACTIONS_ROSE' && /shout/u.test(error.message));

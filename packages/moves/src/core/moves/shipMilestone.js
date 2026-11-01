@@ -1,5 +1,5 @@
-import { COORDINATOR_ACTIONS_ENGINE } from '../../../../../src/coordinator-actions-engine.js';
 import { ENGINE_VERSION } from '../../../../../src/engine-metadata.js';
+import { COORDINATOR_ACTIONS_ENGINE } from '../../../../../src/coordinator-actions-engine.js';
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by shipMilestone, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
@@ -16,7 +16,10 @@ function existingEngine(args, board, at) {
 
 /** New ships seal the shared release ratchet; historical executions retain their original rule. */
 function minimumEngine(args, board, at) {
-  return Math.max(existingEngine(args, board, at), (args[1]?.asPerson !== undefined || args[1]?.reason !== undefined || (board?.executionEngineVersion ?? ENGINE_VERSION) >= COORDINATOR_ACTIONS_ENGINE) ? COORDINATOR_ACTIONS_ENGINE : 1);
+  const captured = args[1]?.coordinatorActions === true || args[1]?.asPerson === true || args[1]?.reason !== undefined;
+  const current = board && (board.executionEngineVersion ?? ENGINE_VERSION) >= COORDINATOR_ACTIONS_ENGINE;
+  const active = board?.db?.prepare("SELECT 1 FROM event WHERE event_kind='milestone_ship' AND json_type(event_detail,'$.coordinatorActions')='object' LIMIT 1").get();
+  return Math.max(existingEngine(args, board, at), captured || current || active ? COORDINATOR_ACTIONS_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

@@ -73,7 +73,7 @@ export async function run(io, { first, second, rest, values }) {
     }
     name = second;
     checkReleaseReferences(ctx.info.root, board, name, mainCheckout(ctx.info.root)?.commit ?? null, store);
-    const shipped = await ordered(ctx, board, 'shipMilestone', [name, { agentId: me.id, commit: mainCheckout(ctx.info.root)?.commit ?? null, ...(values.next === undefined ? {} : { next: values.next }), ...(values.as === 'person' ? { asPerson: true, reason: values.reason, channel: 'terminal' } : {}) }]);
+    const shipped = await ordered(ctx, board, 'shipMilestone', [name, { agentId: me.id, coordinatorActions: true, commit: mainCheckout(ctx.info.root)?.commit ?? null, ...(values.next === undefined ? {} : { next: values.next }), ...(values.as === 'person' ? { asPerson: true, reason: values.reason, channel: 'terminal' } : {}) }]);
     io.result?.(shipped);
     const outcome = shipped.moved.length ? `moved ${shipped.moved.map((id) => `#${id}`).join(', ')} into ${shipped.into}` : 'no local items moved';
     const external = shipped.notMoved.length ? `; not moved across boards: ${shipped.notMoved.join(', ')}` : '';
