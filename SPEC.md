@@ -280,10 +280,10 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - E43 [draft, aim] Handles carry an organization prefix across organizations, as acme/web#12. | gate: test/team-authority-first-pin.test.js test/team-coordinator.test.js test/team-cross-repo.test.js test/team-device-link.test.js test/team-lease-events.test.js test/team-matching-host.test.js test/team-member-handover.test.js test/team-optional-apply.test.js test/team-owner-death.test.js test/team-owner-fence.test.js test/team-people.test.js test/team-person-signing.test.js test/team-private-board.test.js test/team-project-decisions.test.js test/team-queue-freshness.test.js test/team-queue-policy.test.js test/team-receipt-replay.test.js test/team-session-access.test.js test/team-stale-verdict.test.js test/team-verification-repair.test.js
 
 ## Q · Queues and procedures
-- Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: test/resources.test.js
-- Q2 [approved, must] Taking a full resource queues the taker in order, and it says what it waits behind. | gate: test/resources.test.js | serves: Q1
-- Q3 [approved, must] A resource is held under a lease, so a holder that dies frees it when the lease lapses. | gate: test/resources.test.js | serves: Q1
-- Q4 [approved, must] Each gate run takes one of its machine's gate slots, two by default; a cached pass takes none. | gate: test/resources.test.js | serves: Q1
+- Q1 [approved, must] A resource has a name, a capacity, a scope (machine, repo or board) and a queue. | gate: packages/gate/tests/resources.test.js
+- Q2 [approved, must] Taking a full resource queues the taker in order, and it says what it waits behind. | gate: packages/gate/tests/resources.test.js | serves: Q1
+- Q3 [approved, must] A resource is held under a lease, so a holder that dies frees it when the lease lapses. | gate: packages/gate/tests/resources.test.js | serves: Q1
+- Q4 [approved, must] Each gate run takes one of its machine's gate slots, two by default; a cached pass takes none. | gate: packages/gate/tests/resources.test.js | serves: Q1
 - Q5 [draft, aim] Procedures are state machines declared as data: states, moves, actors, guards and resources. | gate: test/procedures.test.js
 - Q6 [draft, aim] The item lifecycle runs from its declaration, as the first procedure. | gate: test/procedures.test.js | serves: Q5
 - Q7 [draft, aim] Agents raise proposals from friction; another agent reviews the evidence; the coordinator adopts. | gate: test/procedures.test.js | serves: Q5
