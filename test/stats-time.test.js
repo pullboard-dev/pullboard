@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runFixtureGit } from './fixture-child.js';
 import { recordTimeCheckpoint } from '../src/stats-time-checkpoint.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 const T0 = Date.parse('2026-10-01T00:00:00.000Z');
 const MIN = 60000;
@@ -146,4 +147,25 @@ test('weekly and release checkpoints append without replacing earlier history [R
   const rows = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.deepEqual(rows.map(row => row.reason), ['weekly', 'release', 'weekly']);
   assert.equal(rows[1].label, '0.9.4');
+});
+
+test('coordinator sentinel and milestone ship record their checkpoints [R1,R2,C7]', t => {
+  const previousModel = process.env.PULLBOARD_MODEL;
+  process.env.PULLBOARD_MODEL = 'fixture-model';
+  t.after(() => { if (previousModel === undefined) delete process.env.PULLBOARD_MODEL; else process.env.PULLBOARD_MODEL = previousModel; });
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const run = (...args) => {
+    const result = box.run(box.repo, ...args);
+    assert.equal(result.code, 0, result.err || result.out);
+  };
+  run('sentinel', 'run', '--health-only');
+  run('sentinel', 'run', '--health-only');
+  run('milestone', 'add', 'release-test');
+  run('milestone', 'ship', 'release-test');
+  const file = join(box.repo, '.git', 'pullboard', 'stats-history.jsonl');
+  const rows = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(rows.map(row => row.reason), ['weekly', 'release']);
+  assert.equal(rows[1].label, 'release-test');
 });
