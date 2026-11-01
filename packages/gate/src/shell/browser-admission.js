@@ -25,6 +25,7 @@ import {
 import { literalShellWords } from '../../../kernel/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
 import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
+import { browserModuleReach } from '../core/browser-module-reach.js';
 import { browserSourceFiles } from './browser-source-files.js';
 
 const MODULE_SUFFIXES = ['.js', '.mjs', '.cjs', '.cts', '.json'];
@@ -67,6 +68,12 @@ const SAFE_CHILD_PROCESS_MODULES = new Map([
 ]);
 /** Reviewed generic executors and fixed Git/Node calls retain prior import behavior; all other calls stay conservative. */
 const REVIEWED_EXECUTORS = new Map([
+  ['packages/gate/src/shell/browser-slot-guard.js', [
+    { function: 'guardedChildProcess', site: 'original.apply(this, input)',
+      reason: 'the installed wrapper checks browserInCall before forwarding the original process operation' },
+    { function: 'guardedPromisified', site: 'custom.apply(this, input)',
+      reason: 'the installed promise wrapper checks browserInCall before forwarding the original process operation' },
+  ]],
   ['src/cli/sweep.js', [{ function: 'sweepHere',
     site: "spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })",
     reason: 'sweep runs the separately selected checker; importing the CLI does not select or run it' }]],
@@ -539,14 +546,26 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
   if (normalized.some((file) => file === JOURNEYS_TEST || file === 'test/cockpit' || file.startsWith('test/cockpit/'))) return true;
 
   let frontier = [...new Set(normalized)];
-  const seen = new Set();
+  const demands = new Map(frontier.map(path => [path, { names: null, narrow: false }]));
+  const processed = new Map();
+  /** A second import can expose another export or a broader legacy path; revisit only when demand grows. */
+  function demand(path, names, narrow, next) {
+    const before = demands.get(path);
+    const value = before ? { names: before.names === null || names === null ? null : new Set([...before.names, ...names]),
+      narrow: before.narrow && narrow } : { names, narrow };
+    const key = JSON.stringify([value.narrow, value.names === null ? null : [...value.names].sort()]);
+    demands.set(path, value);
+    if (processed.get(path) !== key) next.add(path);
+  }
   try {
     while (frontier.length) {
       const paths = [];
       const sources = [];
       for (const path of frontier) {
-        if (seen.has(path)) continue;
-        seen.add(path);
+        const value = demands.get(path);
+        const key = JSON.stringify([value.narrow, value.names === null ? null : [...value.names].sort()]);
+        if (processed.get(path) === key) continue;
+        processed.set(path, key);
         if (path === CHROME_FIXTURE && !byLaunch) return true;
         if (path.endsWith('.json')) continue;
         if (/\.(?:cjs|cts)$/u.test(path)) return browserFallback(onFallback, path, 'CommonJS loader behavior is not statically classified');
@@ -562,6 +581,14 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         }
       }
       if (!sources.length) break;
+      const reaches = sources.map((source, index) => {
+        if (!byLaunch) return { source, requests: new Map(), barrel: false };
+        const initial = browserModuleReach(source);
+        const value = demands.get(paths[index]);
+        return byLaunch && (value.narrow || initial.barrel) ? browserModuleReach(source, value.names) : initial;
+      });
+      const originalSources = [...sources];
+      if (byLaunch) sources.splice(0, sources.length, ...reaches.map(row => row.source));
       const browserCalls = sources.map((source, index) => namesChromeLauncher(source, paths[index]));
       if (paths.some((path, index) => (path.startsWith('test/') || SAFE_CHILD_PROCESS_MODULES.has(path))
         && browserCalls[index])) return true;
@@ -569,7 +596,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       const starts = sources.map(source => byLaunch && usesDynamicBuiltinLoader(source));
       const dynamicLoaderIndex = byLaunch ? -1 : sources.findIndex(usesDynamicBuiltinLoader);
       if (dynamicLoaderIndex >= 0) return browserFallback(onFallback, paths[dynamicLoaderIndex], 'dynamic process builtin loading can load an unclassified module');
-      const commonJsIndex = parsedSources(sources, memo).findIndex(parsed => parsed.commonJs);
+      const commonJsIndex = parsedSources(originalSources, memo).findIndex(parsed => parsed.commonJs);
       if (commonJsIndex >= 0) return browserFallback(onFallback, paths[commonJsIndex], 'CommonJS loading is not statically classified');
       const imports = parsedSources(sources, memo).map(parsed => parsed.imports);
       const next = new Set();
@@ -610,7 +637,11 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
             if (!launchFree.get(key)) return true;
             continue;
           }
-          if (!target.endsWith('.json') && !seen.has(target)) next.add(target);
+          if (!target.endsWith('.json')) {
+            const value = demands.get(paths[index]);
+            const names = byLaunch ? reaches[index].requests.has(request) ? reaches[index].requests.get(request) : null : null;
+            demand(target, names, byLaunch && (value.narrow || reaches[index].barrel || names !== null), next);
+          }
         }
         if (starts[index] && browserCalls[index]) return true;
       }
