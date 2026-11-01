@@ -1,4 +1,6 @@
 import { parseCheckTiming } from '../check-timing.js';
+import { criterionSize } from '../../packages/items/index.js';
+import { criterionCells } from '../../packages/items/index.js';
 import { requirePersonChannel } from '../person.js';
 import { githubPullClient } from '../pr-github.js';
 import {
@@ -92,6 +94,11 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
+  const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
+  const sizeReason = values['force-size']?.trim();
+  if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
+  if (size.oversized && !sizeReason) throw new Refused('ITEM_TOO_LARGE', `criterion names ${size.cells.length} cells and ${size.clauses} clauses (size ${size.score})`,
+    `split it into one item per named cell (${size.cells.join(', ') || 'none'}) and at most three numbered clauses per item; or use --force-size "reason"`);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'add', args: {
     lane: item.lane, title: item.title, ...(values.wait ? { wait: true } : {}), as: 'person',
   } }, item, asPerson);
@@ -106,6 +113,8 @@ export async function run(io, args) {
   if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const id = await ordered(ctx, board, 'addItem', [item]);
+  if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
+    text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
   io.result?.({ item: store.getItem(board, id) });
   io.say(`#${id}`);
   sayCheckBaseline(io, store.getItem(board, id));

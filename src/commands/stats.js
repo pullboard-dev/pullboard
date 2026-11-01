@@ -1,4 +1,7 @@
 import { coordinatorActions } from '../../packages/stats/index.js';
+import { timeStats } from '../../packages/stats/index.js';
+import { timeLines } from '../../packages/stats/index.js';
+import { criterionCells } from '../../packages/items/index.js';
 import { coordinatorActionLines } from '../../packages/stats/index.js';
 import { pipelineLimit } from '../../packages/stats/index.js';
 import { pipelineStats } from '../../packages/stats/index.js';
@@ -50,7 +53,15 @@ import {
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
-  if (first !== undefined && !['pipeline', 'moves'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats pipeline, or pullboard stats moves --limit 20');
+  if (first !== undefined && !['pipeline', 'moves', 'time'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats time, pullboard stats pipeline, or pullboard stats moves --limit 20');
+  if (first === 'time') {
+    if (second !== undefined || rest?.length || ['since', 'window', 'compare', 'limit', 'transcripts'].some(key => values[key] !== undefined)) throw new Refused('USAGE', 'use pullboard stats time to report every landed item');
+    const catalog = criterionCells(ctx.info.root);
+    const time = withBoard(ctx, board => timeStats(store.events(board), store.listItems(board, { all: true }), catalog));
+    io.result?.({ time });
+    for (const line of timeLines(time)) io.say(line);
+    return 0;
+  }
   if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
   if (first === 'moves') {
     if (second !== undefined || rest?.length || values.since !== undefined || values.window !== undefined || values.compare) throw new Refused('USAGE', 'select landed items with pullboard stats moves --limit 20');
