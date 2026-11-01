@@ -62,8 +62,8 @@ test('a run from a private clone keeps its release rank [C7,O5]', () => {
     const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
     const current = addItem(board, { by: 'coordinator', lane: 'web', title: 'Current' });
     const later = addItem(board, { by: 'coordinator', lane: 'web', title: 'Later' });
-    addMilestone(board, { agentId: 'coordinator', name: 'Now', items: [current] });
-    addMilestone(board, { agentId: 'coordinator', name: 'Next', items: [later] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Now', items: [current] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Next', items: [later] });
     const expectedRanks = new Map([current, later, 999].map(id => [id, localReleaseRank(roadmap(board), id)]));
     closeBoard(board);
     const clone = join(dir, 'clone');
@@ -102,8 +102,8 @@ test('the queue ranks unblockers and quick wins first and keeps coordinator over
   const midUnblocker = add('Mid unblocker', 'mid');
   const blocked = add('Blocked behind the mid unblocker', 'mid', [midUnblocker]);
   const waiting = Array.from({ length: 21 }, (_, index) => add(`Waits on the keystone ${index + 1}`, 'strong', [keystone]));
-  addMilestone(board, { agentId: 'coordinator', name: 'now', items: [strongOneOff, lateStrong, lightOneOff, midOneOff, keystone, midUnblocker, blocked] });
-  addMilestone(board, { agentId: 'coordinator', name: 'later', items: waiting });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'now', items: [strongOneOff, lateStrong, lightOneOff, midOneOff, keystone, midUnblocker, blocked] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'later', items: waiting });
   /** The milestone's items in queue order, and the queue rows by id. */
   const queue = () => {
     const shown = workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility });
@@ -176,7 +176,7 @@ test('ordinary milestone ordering preserves coordinator overrides until an expli
   for (const title of ['Pinned work', 'Sunk work', 'Ordinary work']) {
     command(box.repo, 'add', 'web', title, '--specs', 'G1');
   }
-  command(box.repo, 'milestone', 'add', 'Now', '--items', '1,2,3');
+  command(box.repo, 'milestone', 'add', 'Now', '--reason', 'Arrange fixture release', '--items', '1,2,3');
   command(box.repo, 'milestone', 'pin', 'Now', '1', '--reason', 'release blocker');
   command(box.repo, 'milestone', 'sink', 'Now', '2', '--reason', 'await the design');
   const reordered = command(box.web, 'milestone', 'order', 'Now', '2,3').milestone;

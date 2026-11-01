@@ -148,8 +148,8 @@ test('cached flow retains every native milestone membership through edits remova
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
   const who = { agentId: 'coordinator' };
-  addMilestone(board, { ...who, name: 'A', items: [1] });
-  addMilestone(board, { ...who, name: 'B', items: [1] });
+  addMilestone(board, { ...who, reason: 'Arrange fixture release', name: 'A', items: [1] });
+  addMilestone(board, { ...who, reason: 'Arrange fixture release', name: 'B', items: [1] });
   store.setLineSetting(board, { ...who, key: 'focusMilestone', value: 'A', reason: 'Private focus control', window: { items: 1 } });
   /** Compare the hot cached projection with canonical replay after each native policy transition. */
   const observe = () => {
@@ -171,7 +171,7 @@ test('cached flow retains every native milestone membership through edits remova
   editMilestoneItems(board, 'B', { ...who, remove: [1] });
   minute = 20;
   assert.deepEqual(observe().items[0].milestones, ['A']);
-  editMilestoneItems(board, 'B', { ...who, add: [1] });
+  editMilestoneItems(board, 'B', { ...who, reason: 'Arrange fixture release', add: [1] });
   minute = 30;
   editMilestone(board, 'B', { ...who, newName: 'C' });
   assert.deepEqual(observe().items[0].milestones, ['A', 'C']);
@@ -185,7 +185,7 @@ test('cached flow retains every native milestone membership through edits remova
   removeMilestone(board, 'C', who);
   assert.deepEqual(observe().items[0].milestones, []);
   minute = 60;
-  addMilestone(board, { ...who, name: 'D', items: [1] });
+  addMilestone(board, { ...who, reason: 'Arrange fixture release', name: 'D', items: [1] });
   store.setLineSetting(board, { ...who, key: 'focusMilestone', value: 'D', reason: 'Private next focus', window: { items: 1 } });
   minute = 70;
   editMilestoneItems(board, 'D', { ...who, remove: [1] });
