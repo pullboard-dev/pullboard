@@ -1,3 +1,5 @@
+import { mainPolicy } from '../../packages/sandbox/index.js';
+import { requireManualLanding } from '../../packages/merge/index.js';
 import { flakeLedger } from '../flakes.js';
 import { badgeCounts } from '../badge.js';
 import { writeBadges } from '../badge.js';
@@ -50,6 +52,7 @@ export async function run(io, { first, second, rest, values }) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the coordinator lands verified batches; ask your coordinator to run pullboard land');
+  requireManualLanding(mainPolicy(ctx.info.root).config);
   if (first || second || rest.length || values.due && (values.adopt || values.waive !== undefined || values.max !== undefined)) throw new Refused('USAGE', 'pullboard land [--max N] [--dry-run] [--adopt] | land --due [--dry-run] | land --waive <test> --until <date> --reason "why"; --due cannot combine with --max, --adopt or --waive');
   if (values.waive !== undefined) {
     const confirmed = await requireSignedPerson(ctx, board, me, { verb: 'land-waive', args: { waive: String(values.waive), until: String(values.until ?? ''), reason: String(values.reason ?? '') } });
@@ -66,6 +69,13 @@ export async function run(io, { first, second, rest, values }) {
     const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
     await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
   }
+  await executeBoardLanding(ctx, board, io, values);
+  return 0;
+});
+}
+
+/** Compose the existing native batch engine for both automatic acceptance and an authorized manual command. */
+export async function executeBoardLanding(ctx, board, io, values = {}) {
   const result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../bin/landing-worker.js', import.meta.url)),
     write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
@@ -73,6 +83,5 @@ export async function run(io, { first, second, rest, values }) {
   io.result?.(result);
   for (const blocked of result.blocked ?? []) if (blocked.code === 'STALE_VERDICT') io.say(staleVerdictRefusal({ item_id: blocked.id }, blocked).message);
   if (!result.batch && !result.deferredUntil && !result.cadence) io.say(result.items ? `would land: ${result.items.map((id) => `#${id}`).join(', ') || 'none'}` : 'no verified items ready to land');
-  return 0;
-});
+  return result;
 }
