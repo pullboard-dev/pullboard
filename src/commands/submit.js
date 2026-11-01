@@ -388,7 +388,8 @@ export async function submitHere(ctx, id, infra) {
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
   const cells = await timedSubmitStage(ctx, 'cells', () => requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
-    readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)) }));
+    readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
+    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }));
   if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.

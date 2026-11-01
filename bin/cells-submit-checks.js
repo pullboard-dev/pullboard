@@ -1,3 +1,4 @@
+import { inventoryCache } from './cells-inventory-cache.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
 import { existsSync } from 'node:fs';
@@ -205,7 +206,7 @@ function candidatePlan(candidateRoot) {
 }
 
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
-function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers } = {}) {
+function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers, inventories } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
   if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
   const before = readPlan(mainRoot);
@@ -219,7 +220,8 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
   const direct = touchedCells(changed, before, after, []);
   if (!direct.length) return { cells: [], problems: [] };
-  const oldInventory = cellInventory(mainRoot, parsers), newInventory = cellInventory(candidateRoot, parsers);
+  const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
+  const newInventory = inventories ? inventories.candidate(candidateRoot, oldInventory, changed) : cellInventory(candidateRoot, parsers);
   const oldReport = cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
@@ -242,11 +244,12 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
 }
 
 /** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
-function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers }) {
+function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories }) {
   if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [] };
   const before = readPlan(baseRoot), after = candidatePlan(sourceRoot);
   const changed = git(sourceRoot, ['diff', '--name-only', '--no-renames', '-z', cutBase, 'HEAD']).split('\0').filter(Boolean);
-  const oldInventory = cellInventory(baseRoot, parsers), newInventory = cellInventory(sourceRoot, parsers);
+  const oldInventory = inventories ? inventories.base(baseRoot, cutBase) : cellInventory(baseRoot, parsers);
+  const newInventory = inventories ? inventories.candidate(sourceRoot, oldInventory, changed) : cellInventory(sourceRoot, parsers);
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
   const problems = [], existingCuts = [];
   const candidateMap = readPathMap(sourceRoot);
@@ -305,15 +308,16 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const cached = readCheckReceipt(root, receiptKey);
   if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
     && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
+  const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory);
   commit = cellsComposition(root, acceptedMain, source);
   const cutBase = git(root, ['merge-base', acceptedMain, source]);
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
       ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
-    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible });
+    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible, inventories });
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
-      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers }));
+      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories }));
       unchangedSnapshot(baseRoot, cutBase);
       unchangedSnapshot(sourceRoot, source);
       return cuts;

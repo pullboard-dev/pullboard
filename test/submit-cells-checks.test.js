@@ -1,3 +1,5 @@
+import { inventoryCache } from '../bin/cells-inventory-cache.js';
+import { cellInventory } from '../packages/codemap/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
@@ -401,4 +403,24 @@ test('submit cell receipt reuses exact input and invalidates changed cut authori
   const changed = await preflight(box.root, box.main, box.main, box.item, services);
   assert.notEqual(changed.reused, true, 'changed board authority cannot reuse the old receipt');
   assert.ok(checkouts > afterFirst);
+});
+
+test('shared cell inventory updates changed modules and reports structural fallback [C7,D3]', t => {
+  const box = fixture(t);
+  const main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const modes = [], key = { checkDigest: 'fixture-checker' };
+  const first = inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode));
+  const baseline = first.base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full');
+  const second = inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode));
+  const restored = second.base(box.root, main);
+  assert.equal(modes.at(-1), 'base-cache');
+  assert.deepEqual(restored.edges, baseline.edges);
+  box.put('src/refused.js', 'export class Refused extends Error { value = 1; }\n');
+  const updated = second.candidate(box.root, restored, ['src/refused.js']);
+  assert.equal(modes.at(-1), 'candidate-incremental');
+  assert.deepEqual(updated.edges, cellInventory(box.root, { importsIn, commonJsIn }).edges);
+  box.put('src/extra.js', 'export const extra = true;\n');
+  second.candidate(box.root, restored, ['src/extra.js']);
+  assert.equal(modes.at(-1), 'candidate-full-fallback');
 });
