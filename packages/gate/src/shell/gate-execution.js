@@ -361,8 +361,9 @@ export function runProfiledShell(root, command, options) {
   const execution = profiledExecution(root, command, options);
   try {
     const { value: plan } = execution.next();
-    const run = plan.gateLease?.runner
-      ? plan.gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
+    const { gateLease } = plan;
+    const run = gateLease?.runner
+      ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
       : runShell(root, command, plan.localOptions);
     return execution.next(run).value;
   } finally { execution.return(); }
@@ -373,8 +374,9 @@ export async function runProfiledShellAsync(root, command, options) {
   const execution = profiledExecution(root, command, options);
   try {
     const { value: plan } = execution.next();
-    const run = plan.gateLease?.runner
-      ? await plan.gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions)
+    const { gateLease } = plan;
+    const run = gateLease?.runner
+      ? await gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions)
       : await runShellAsync(root, command, plan.localOptions);
     return execution.next(run).value;
   } finally { execution.return(); }

@@ -14,6 +14,8 @@ import { openBoard } from '../src/native-board.js';
 import { saveAgentSession } from '../src/seats.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
+import { readActivityDelivery } from '../packages/activity/index.js';
+import { itemProgress } from '../packages/roadmap/index.js';
 import { proofStats } from '../packages/stats/index.js';
 import { counterProofStats } from '../packages/verify/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
@@ -93,6 +95,11 @@ test('an idle or waiting claim goes on hold and frees the seat, and a second cla
   f.advance(20);
   f.maintain();
   assert.equal(kinds(f, a, 'claim_stalled').length, 1, 'twenty idle minutes show as stalled and tell the lead');
+  const delivery = readActivityDelivery(f.board, f.first);
+  const stalled = delivery.interrupts.find(entry => entry.reason === 'stalled' && entry.item === a);
+  assert.ok(stalled, 'the stalled holder is notified automatically without a coordinator nudge');
+  store.recordActivityDelivery(f.board, { agentId: f.first, interrupts: [stalled], through: delivery.cursor });
+  assert.equal(store.activityDeliveryState(f.board, f.first).pending.find(entry => entry.id === stalled.id).reason, 'stalled');
   f.maintain();
   assert.equal(kinds(f, a, 'claim_stalled').length, 1, 'the lead is told once');
   // Renewing is not work: it neither resets the idle time nor delays the release.
@@ -124,7 +131,20 @@ test('an idle or waiting claim goes on hold and frees the seat, and a second cla
   assert.equal(store.getItem(f.board, waiting).item_status, 'open');
   assert.match(JSON.parse(kinds(f, waiting, 'release').at(-1).event_detail).reason, new RegExp(`Waiting on #${dependency}`, 'u'));
   assert.throws(() => f.claim(waiting, f.second), error => error.code === 'BLOCKED' && error.message.includes(`#${dependency}`), 'the wait holds the item');
+  const beforeLanding = itemProgress(f.board, waiting);
+  assert.ok(beforeLanding.waits.includes(`#${dependency}`));
+  const shoutsBefore = f.board.db.prepare('SELECT COUNT(*) AS n FROM shout').get().n;
   store.merged(f.board, dependency, { agentId: 'coordinator', commit: 'b'.repeat(40) });
+  assert.equal(f.board.db.prepare('SELECT COUNT(*) AS n FROM shout').get().n, shoutsBefore, 'landing needs no coordinator status shout');
+  const unblockedDelivery = readActivityDelivery(f.board, f.first);
+  const unblocked = unblockedDelivery.interrupts.find(entry => entry.reason === 'unblocked' && entry.item === waiting);
+  assert.ok(unblocked, 'the released waiting claim retains its immutable notification recipient');
+  assert.ok(!readActivityDelivery(f.board, f.second).interrupts.some(entry => entry.reason === 'unblocked' && entry.item === waiting));
+  store.recordActivityDelivery(f.board, { agentId: f.first, interrupts: [unblocked], through: unblockedDelivery.cursor });
+  store.merged(f.board, dependency, { agentId: 'coordinator', commit: 'b'.repeat(40) });
+  assert.equal(kinds(f, waiting, 'work_notice').length, 1, 'a repeated landing does not duplicate the notice');
+  assert.deepEqual(itemProgress(f.board, waiting).waits, []);
+  assert.equal(itemProgress(f.board, dependency).stage, 'landed');
   f.claim(waiting, f.second);
   assert.equal(store.getItem(f.board, waiting).item_owner, f.second, 'the hold lifts when the wait lands');
 });
@@ -288,4 +308,24 @@ test('three rejected submits return the claim to another seat, including after a
   f.maintain();
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.match(JSON.parse(kinds(f, id, 'fact').at(-1).event_detail).text, /two hours/u);
+});
+
+
+test('board views replace status-only shouts while evidence and questions remain messages [B35]', t => {
+  const f = fixture(t);
+  const id = f.add();
+  f.claim(id, f.first);
+  f.advance(5);
+  const progress = itemProgress(f.board, id);
+  assert.equal(progress.stage, 'claimed');
+  assert.equal(progress.holder, f.first);
+  assert.equal(progress.idleMinutes, 5);
+  for (const text of [`#${id} is stalled`, `#${id} waits on #123`, `please resume #${id}`]) {
+    assert.throws(() => store.shout(f.board, { from: 'coordinator', to: f.first, text, lanes: ['core'] }),
+      error => error.code === 'BOARD_SHOWS_THIS' && error.message.includes('the board shows this'));
+  }
+  assert.doesNotThrow(() => store.shout(f.board, { from: 'coordinator', to: f.first,
+    text: `#${id} is rejected because the parser loses an empty input; preserve that fixture`, lanes: ['core'] }));
+  assert.doesNotThrow(() => store.shout(f.board, { from: 'coordinator', to: f.first,
+    text: `#${id} is stalled; which invariant needs a ruling?`, lanes: ['core'] }));
 });
