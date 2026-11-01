@@ -117,7 +117,7 @@ test('a line setting change is a recorded move with its reason and its range [R1
     '--window', JSON.stringify(numbers), '--json');
   assert.equal(changed.code, 0, `a board setting change succeeds: ${changed.err}${changed.out}`);
   assert.equal(initial.code, 0, initial.err);
-  const defaults = { 'route.liveOnly': false, order: false, focusMilestone: false, collisionFreeBatch: false, reviewsFirst: false, requireReviewFamilies: false, reworkSameFamily: false, wipPerReviewer: false, barReady: false,
+  const defaults = { 'route.liveOnly': false, order: false, focusMilestone: false, collisionFreeBatch: false, reviewsFirst: false, requireReviewFamilies: false, reworkSameFamily: false, returnRejectedWork: false, wipPerReviewer: false, barReady: false,
     'bar.check': false, 'bar.sharpenToPerson': false, takeoverMinutes: false,
     landingBatchSize: false, landingCadenceMinutes: false };
   assert.deepEqual(JSON.parse(initial.out).lineSettings, defaults, 'all line controls start off, not silently enabled by a machine file');
@@ -131,7 +131,7 @@ test('a line setting change is a recorded move with its reason and its range [R1
     reason: 'Review waiting exceeds the target', window: numbers, model: 'unknown' });
   assert.equal(first.event_by, 'coordinator');
   const values = [['focusMilestone', '0.9.3'], ['focusMilestone', false], ['order', true], ['order', false], ['reviewsFirst', false], ['wipPerReviewer', 1.5], ['wipPerReviewer', 3],
-    ['barReady', true], ['bar.check', true], ['collisionFreeBatch', true], ['collisionFreeBatch', false], ['reworkSameFamily', true], ['reworkSameFamily', false],
+    ['barReady', true], ['bar.check', true], ['collisionFreeBatch', true], ['collisionFreeBatch', false], ['returnRejectedWork', true], ['returnRejectedWork', false], ['reworkSameFamily', true], ['reworkSameFamily', false],
     ['takeoverMinutes', 15], ['takeoverMinutes', 60], ['landingBatchSize', 1], ['landingBatchSize', 8],
     ['landingCadenceMinutes', 5], ['landingCadenceMinutes', 30]];
   let sequence = appliedSequence(board);

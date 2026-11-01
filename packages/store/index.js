@@ -84,3 +84,5 @@ export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";
 export { HEALTH_CAP_ENGINE } from "../../src/health-cap-engine.js";
 export { RECURRING_JOB_ENGINE } from "../../src/job-engine.js";
 export { RIGOR_NOTICE_ENGINE } from "../../src/rigor-notice-engine.js";
+
+export { rejectionReturnEnabled } from './src/core/rework-family-routing.js';
