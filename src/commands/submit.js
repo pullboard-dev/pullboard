@@ -297,7 +297,7 @@ export async function submitHere(ctx, id, infra) {
     }
     return item;
   });
-  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
+  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest, stage: 'fast' };
   const barWarning = await withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
@@ -425,7 +425,7 @@ export async function submitHere(ctx, id, infra) {
 
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
-  ctx.submitStage = 'runner';
+  ctx.submitAttempt.stage = 'runner';
   let gate = await runGate(frozenCheck(held));
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
@@ -640,7 +640,7 @@ export async function submitHere(ctx, id, infra) {
 /** Run `pullboard submit` and return its exit code. */
 export async function run(io, { first, values }) {
   const submissionResult = {};
-  const ctx = { ...context(io), submissionResult, submitStage: 'fast' };
+  const ctx = { ...context(io), submissionResult };
   const id = idArg(first);
   /** Dispatch before optional verdict waiting, retaining this exact submission document. */
   ctx.afterSubmission = submission => completeMoveHandoff(ctx, id, values, submission, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
@@ -667,7 +667,7 @@ export async function run(io, { first, values }) {
           } else {
             await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
               freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
-              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000), ...(ctx.submitStage === 'fast' ? { stage: 'fast' } : {}) } }]);
+              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000), ...(attempt.stage === 'fast' ? { stage: 'fast' } : {}) } }]);
           }
         });
       } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
