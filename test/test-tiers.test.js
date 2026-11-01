@@ -32,13 +32,15 @@ test('single-package purity, cross-package imports and git spawning select T1, T
     'test/unit.test.js': 'import { add } from "../packages/math/index.js"; import assert from "node:assert/strict"; assert.equal(add(1,2),3);',
     'test/cross.test.js': 'import "../packages/math/index.js"; import "../packages/text/index.js";',
     'test/git.test.js': 'import "../packages/math/index.js"; import { spawnSync as run } from "node:child_process"; run("git", ["status"]);',
+    'test/unused.test.js': 'import "../packages/math/index.js"; import { spawnSync } from "node:child_process";',
   });
   const report = generateTestTiers(root);
-  assert.equal(report.files.length, 3);
+  assert.equal(report.files.length, 4);
   assert.equal(row(report, 'test/unit.test.js').tier, 'T1');
   assert.deepEqual(row(report, 'test/unit.test.js').packages, ['packages/math']);
   assert.equal(row(report, 'test/cross.test.js').tier, 'T3');
   assert.equal(row(report, 'test/git.test.js').tier, 'T3');
+  assert.equal(row(report, 'test/unused.test.js').tier, 'T1');
   assert.match(row(report, 'test/git.test.js').reasons.join(' '), /process/u);
 });
 
@@ -82,7 +84,7 @@ test('the same generation command is byte-stable and check mode exposes class ch
   assert.equal(run().status, 0);
   assert.equal(readFileSync(join(root, 'packages/gate/test-tiers.json'), 'utf8'), before);
   assert.equal(run('--check').status, 0);
-  writeFileSync(join(root, 'test/unit.test.js'), 'import "../packages/math/index.js"; import "node:child_process";');
+  writeFileSync(join(root, 'test/unit.test.js'), 'import "../packages/math/index.js"; import { spawnSync } from "node:child_process"; spawnSync("git");');
   assert.equal(run('--check').status, 1);
   assert.equal(readFileSync(join(root, 'packages/gate/test-tiers.json'), 'utf8'), before, 'checking never rewrites the reviewed manifest');
   assert.equal(writeTestTiers(root).manifest.files[0].tier, 'T3');

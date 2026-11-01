@@ -16,7 +16,6 @@ import { lex } from '../../../kernel/index.js';
 
 export const TEST_TIERS_FILE = 'packages/gate/test-tiers.json';
 const TEST = /\.(?:test|spec)\.[cm]?js$/u;
-const PROCESS_MODULES = new Set(['child_process', 'worker_threads', 'cluster']);
 
 /** Syntax the import parser cannot prove remains a journey, while parser infrastructure failures still refuse. */
 function tierImports(sources) {
@@ -62,17 +61,17 @@ function ownerOf(file, files, owners) {
 }
 
 /** Retain infrastructure imports and calls even when a test reaches them through a fixture helper. */
-function infrastructure(file, source, requests) {
+function infrastructure(file, source) {
   const reasons = new Set();
-  for (const request of requests) {
-    const builtin = request.replace(/^node:/u, '');
-    if (PROCESS_MODULES.has(builtin)) reasons.add('process');
-    if (builtin === 'sqlite') reasons.add('board');
-    if (/^(?:playwright|puppeteer|selenium)(?:[/-]|$)/u.test(builtin)) reasons.add('browser');
-  }
   const { code } = lex(source);
+  // Follow named aliases of process starters as well as their original names; importing a
+  // process module alone does not mean the test starts a process.
+  const aliases = [...code.matchAll(/\b(?:spawn|spawnSync|exec|execSync|execFile|execFileSync|fork|Worker)\s+(?:as)\s+([\w$]+)/gu),
+    ...code.matchAll(/\b(?:spawn|spawnSync|exec|execSync|execFile|execFileSync|fork|Worker)\s*:\s*([\w$]+)/gu)]
+    .map(match => match[1]);
   if (/\b(?:openBoard|openBoardStore|openBoardForRead|openBoardReadOnly|fixtureBoard|DatabaseSync)\s*\(/u.test(code)) reasons.add('board');
-  if (/\b(?:spawn|spawnSync|exec|execSync|execFile|execFileSync|fork|Worker)\s*\(/u.test(code)) reasons.add('process');
+  if (/\b(?:spawn|spawnSync|exec|execSync|execFile|execFileSync|fork|Worker)\s*\(/u.test(code)
+    || aliases.some(name => new RegExp(`\\b${name.replaceAll('$', '\\$')}\\s*\\(`, 'u').test(code))) reasons.add('process');
   if (/\b(?:launch|launchPersistentContext|connectOverCDP)\s*\(/u.test(code)) reasons.add('browser');
   if (/\b(?:startRunner|runRunner|runTestFiles|runFullSuite)\s*\(/u.test(code)) reasons.add('runner');
   return [...reasons].map(reason => `${reason}: ${file}`);
@@ -120,10 +119,9 @@ export function generateTestTiers(root) {
     const { files, edges, unknown } = inventory;
     const owners = cellOwners(files);
     const modules = [...edges.keys()];
-    const requests = tierImports(modules.map(file => files.get(file).toString('utf8')));
     const common = commonEdges(files, edges, unknown);
     const evidence = new Map();
-    for (const [index, file] of modules.entries()) evidence.set(file, infrastructure(file, files.get(file).toString('utf8'), [...requests[index], ...(common.get(file)?.requests.filter(Boolean) ?? [])]));
+    for (const file of modules) evidence.set(file, infrastructure(file, files.get(file).toString('utf8')));
     for (const row of unknown) {
       if (row.specifier && isBuiltin(row.specifier) || row.reason === 'CommonJS loader closure is unresolved' && common.get(row.file)?.proven) continue;
       const reasons = evidence.get(row.file) ?? [];
