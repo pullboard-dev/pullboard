@@ -45,6 +45,22 @@ export function pinClaimHandoff(board, row, item) {
     uncommitted: dirty.status === 0 ? dirty.stdout.split('\n').filter(Boolean).length : null };
 }
 
+/** Live claims read per write; a board with more rotates through them, one window per minute. */
+const LIVE_WINDOW = 64;
+
+/**
+ * The live claims one write observes (#1225): every live claim when there are at most LIVE_WINDOW, otherwise one
+ * window of them chosen by the minute, so every claim is observed within ceil(count / LIVE_WINDOW) minutes of writes
+ * and none can be starved by lower-numbered claims. Choosing by the clock needs no stored cursor and no extra move.
+ */
+function liveClaimWindow(board, actor, at) {
+  const live = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until>? ORDER BY item_id").all(actor, at.toISOString());
+  if (live.length <= LIVE_WINDOW) return live;
+  const windows = Math.ceil(live.length / LIVE_WINDOW);
+  const start = (Math.floor(at.getTime() / 60_000) % windows) * LIVE_WINDOW;
+  return live.slice(start, start + LIVE_WINDOW);
+}
+
 /**
  * Capture at most 32 claims before an ordinary write: claims idle past their lapsed lease (#1933), and, since #1225, live
  * claims with no real work for 20 minutes (stalled, told once) or 40 (released with a handoff), and claims waiting on
@@ -59,8 +75,7 @@ export function captureLapsedClaims(ctx, board, actor) {
   const items = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id>? ORDER BY item_id LIMIT 32").all(actor, cutoff, cursor);
   if (items.length < 32) items.push(...board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id<=? ORDER BY item_id LIMIT ?").all(actor, cutoff, cursor, 32 - items.length));
   const lapsed = new Set(items.map(item => item.item_id));
-  const live = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until>? ORDER BY item_id LIMIT 32").all(actor, at.toISOString());
-  for (const item of live) if (items.length < 32 && !lapsed.has(item.item_id)) items.push(item);
+  items.push(...liveClaimWindow(board, actor, at));
   if (!items.length) return null;
   // A seat whose worktree no longer exists can do no work there, so it reads as idle rather than unknown (#1225 row 7).
   const gone = holder => { const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(holder)?.agent_path; return Boolean(path) && !existsSync(path); };
@@ -83,6 +98,8 @@ export function captureLapsedClaims(ctx, board, actor) {
     const told = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_stalled:${row.id}`)?.meta_value;
     return told === String(row.episodeEventId) ? [] : [{ ...row, idle: 'stall' }];
   });
+  // At most 32 decisions per write; any left over are taken by the next write.
+  snapshot.claims = snapshot.claims.slice(0, 32);
   if (!snapshot.claims.length && !lapsedItems.length) return null;
   return snapshot;
 }

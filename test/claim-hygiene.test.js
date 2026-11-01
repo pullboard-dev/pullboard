@@ -74,7 +74,7 @@ function fixture(t) {
   };
   const health = id => staleStateSnapshot(board, {}, { now: new Date(at), items: [store.getItem(board, id)], claimsOnly: true,
     workObservation: () => ({ available: true, at: null }) }).claims[0]?.health;
-  return { board, git, repo, base, worktrees, first, second, helper, add, claim, maintain, touch, health,
+  return { board, git, repo, base, worktrees, first, second, helper, seat, add, claim, maintain, touch, health,
     advance: minutes => { at += minutes * 60_000; } };
 }
 
@@ -196,4 +196,33 @@ test('an exiting seat releases its claim at once and the next builder sees its h
   const taken = box.run(next, 'claim', '1');
   assert.equal(taken.code, 0, taken.out + taken.err);
   assert.match(taken.out, /handoff from web-1: session ended; work kept at refs\/pullboard\/handoffs\/1\//u, 'the next builder sees why it stopped and where the work is');
+});
+
+test('an idle claim after 32 active claims is still released, and a larger board rotates through every claim [B4,B5,B13]', t => {
+  const f = fixture(t);
+  const seats = [f.first, f.second];
+  for (let index = 0; index < 31; index += 1) seats.push(f.seat(`extra-${index}`, '4'));
+  const ids = seats.map(seat => { const id = f.add(); f.claim(id, seat); return id; });
+  f.advance(30);
+  for (let index = 0; index < 32; index += 1) f.touch(seats[index], `active-${index}.txt`);
+  f.advance(11);
+  f.maintain();
+  assert.equal(store.getItem(f.board, ids[32]).item_status, 'open', 'the 33rd claim cannot remain stalled past 40 minutes');
+  assert.ok(ids.slice(0, 32).every(id => store.getItem(f.board, id).item_status === 'claimed'), 'the active claims stay claimed');
+  // Past the read window, writes in later minutes rotate the window until the last-numbered idle claim is taken.
+  const more = [];
+  for (let index = 0; index < 70; index += 1) {
+    const seat = f.seat(`window-${index}`, '5');
+    const id = f.add();
+    f.claim(id, seat);
+    more.push({ id, seat });
+  }
+  f.advance(1);
+  for (const { seat } of more.slice(0, -1)) f.touch(seat, 'busy.txt');
+  for (let index = 0; index < 32; index += 1) f.touch(seats[index], 'busy.txt');
+  f.advance(41);
+  for (const { seat } of more.slice(0, -1)) f.touch(seat, 'busy-again.txt');
+  for (let index = 0; index < 32; index += 1) f.touch(seats[index], 'busy-again.txt');
+  for (let pass = 0; pass < 3; pass += 1) { f.maintain(); f.advance(1); }
+  assert.equal(store.getItem(f.board, more.at(-1).id).item_status, 'open', 'the highest-numbered idle claim is reached by rotation');
 });
