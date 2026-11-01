@@ -22,7 +22,7 @@ import { outboxWaiting } from './relay-outbox.js';
 import {
   senderFiles,
   senderHolding,
-} from '../../../../src/relay-local-first.js';
+} from '../../../link/index.js';
 
 const files = senderFiles();
 // Budget: a board is pulled this often while the sender runs, so another machine's move shows here within seconds.

@@ -1,10 +1,12 @@
 import { clauseInspectionEnabled } from '../../packages/config/index.js';
 import { clauseInspectionProblem } from '../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../packages/state/index.js';
+import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
+import { runnerPhaseFields } from '../timing.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -68,7 +70,7 @@ import { selectAffectedTests } from '../affected-tests.js';
 import { explicitCheckFiles } from '../browser-admission.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import {
   refuseProvesNothing,
 } from '../../packages/verify/index.js';
@@ -125,7 +127,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   relayRecovered,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import * as seatCheckout from '../seat-checkout.js';
 import {
   submitPreflight,
@@ -176,6 +178,14 @@ import { unownedMainReds } from '../../packages/store/index.js';
 import { ambiguousMainReds } from '../../packages/store/index.js';
 import { submitReferenceReminders } from '../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
+
+/** Sum sequential worker intervals only when every attempted run has complete measurements. */
+export function doctrineExecutionPhases(observations, attempts) {
+  const phases = observations.map(row => runnerPhaseFields(row.executionPhases));
+  const fields = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs', 'totalMs'];
+  return attempts && attempts === observations.length && phases.every(Boolean)
+    ? runnerPhaseFields({ version: 1, ...Object.fromEntries(fields.map(field => [field, phases.reduce((sum, phase) => sum + phase[field], 0)])) }) : null;
+}
 
 /** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
 function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
@@ -231,13 +241,13 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
       }
       return { problems: bytes.toString('utf8').split(/\r?\n/u).map(line => line.trimEnd()).filter(line => line.trim()), broken: '', seconds };
     },
-    /** A multi-check hold has no measured aggregate runner interval; individual actual phases stay in its observations. */
+    /** Sum the disjoint worker intervals for sequential rule runs when all were measured. */
     finish() {
       lease.tracker?.mark('ranAt');
       const single = attempts === 1 && observations.length === 1 ? observations[0] : null;
       lease.environment = observations.length && attempts === observations.length && observations.every(row => JSON.stringify(row.environment) === JSON.stringify(observations[0].environment)) ? observations[0].environment : null;
       lease.executionAdmission = single?.executionAdmission ?? null;
-      lease.executionPhases = single?.executionPhases ?? null;
+      lease.executionPhases = doctrineExecutionPhases(observations, attempts);
     },
   };
 }
@@ -491,7 +501,7 @@ export async function submitHere(ctx, id, infra) {
   const files = `${selected}${gate.files.length > 8 ? `, … ${gate.files.length - 8} more in the full log` : ''}`;
   const invariants = gate.submitInvariants?.length
     ? `submit invariants: ${gate.submitInvariants.slice(0, 8).join(', ')}; ` : '';
-  const scope = gate.deferred
+  const scope = gate.testTiers ? testTierReport(gate.testTiers) : gate.deferred
     ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
@@ -633,6 +643,7 @@ export async function submitHere(ctx, id, infra) {
   for (const notice of mainFailures) ctx.io.say(notice.message);
   return reportSubmission(ctx, id, submitted, { mainFailures, green: gate.isGreen && !criterionMatched, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: { ...gate.check, profile: summaryProfile(gate.check.profile) },
     ...summary, log: gate.log, profile: summaryProfile(gate.profile), profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
+    ...(gate.testTiers ? { testTiers: gate.testTiers, phasePlan: gate.phasePlan, proofReceiptIds: gate.proofReceiptIds } : {}),
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
     ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),

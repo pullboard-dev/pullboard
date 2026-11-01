@@ -5,7 +5,7 @@ import {
 } from '../help.js';
 import {
   signingSetting,
-} from '../person-signing-cli.js';
+} from '../../packages/person/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

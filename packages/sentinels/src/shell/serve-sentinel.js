@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { listProjects } from "../../../../src/projects.js";
 import { loadConfig } from "../../../config/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
-import { startRelayCanaryWatch } from "../../../../src/relay-canary-watch.js";
+import { startRelayCanaryWatch } from "../../../link/index.js";
 
 /** Ten minutes is the declared background cadence, not a test performance budget. */
 export const HEALTH_SENTINEL_INTERVAL_MS = 10 * 60_000;

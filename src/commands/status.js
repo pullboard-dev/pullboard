@@ -21,7 +21,7 @@ import * as store from '../../packages/store/index.js';
 import { personNeedsSummary } from '../needs-summary.js';
 import { identifyCaller } from '../cli-read-context.js';
 import { relayStateExists } from '../../packages/store/index.js';
-import { unlinkedRelayStatus } from '../relay-status-fields.js';
+import { unlinkedRelayStatus } from '../../packages/link/index.js';
 import { ruleProofCounts } from '../../packages/verify/index.js';
 import { memoryHeldRuns } from '../../packages/store/index.js';
 import { readRunnerUtilization } from '../runner-utilization.js';
@@ -38,7 +38,7 @@ import {
 } from '../../packages/spec/index.js';
 import {
   signingLine,
-} from '../person-signing-words.js';
+} from '../../packages/person/index.js';
 import {
   submitInvariantLine,
   submitInvariantProposals,

@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../packages/kernel/index.js';
 import { computerName } from '../src/computer-name.js';
 import { repositoryName } from './github.js';
-import { approvalContext } from '../src/relay-approval.js';
+import { approvalContext } from '../packages/link/index.js';
 import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 import { PEOPLE_ENGINE } from '../src/people-engine.js';
 import {
@@ -26,7 +26,7 @@ import {
   verifyAssertion,
   verifyRegistration,
 } from './passkeys.js';
-import { presenceAttestation } from '../src/person-presence.js';
+import { presenceAttestation } from '../packages/person/index.js';
 
 export const ACCESS_WINDOW_MS = 10 * 60_000;
 const MAX_TTL = 30 * 24 * 3600_000;

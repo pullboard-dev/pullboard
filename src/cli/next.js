@@ -1,5 +1,5 @@
 import { rejectionReturnEnabled } from '../../packages/store/index.js';
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { laneSeatContext } from '../seat-checkout.js';
@@ -25,7 +25,7 @@ import { mainRedReworkItems } from '../main-red.js';
 import { nextReview } from '../../packages/verify/index.js';
 import { ownSessionReviews } from '../../packages/verify/index.js';
 import { trunkMerge } from '../../packages/sandbox/index.js';
-import { relayLinked } from '../relay.js';
+import { relayLinked } from '../../packages/link/index.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
 import { claimOrdered } from './claim.js';

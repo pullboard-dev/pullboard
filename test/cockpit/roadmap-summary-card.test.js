@@ -19,7 +19,7 @@ test('a roadmap summary card separates its counts, legend and forecast at phone 
   assert.ok(executable, 'Chrome is required for the rendered roadmap summary card.');
   const box = machine(), alpha = project(box, 'roadmap-summary-card');
   box.run(alpha.repo, 'add', 'web', 'Capacity work', '--specs', 'G1', '--criterion', 'The page renders.');
-  box.run(alpha.repo, 'milestone', 'add', 'Capacity', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', 'Capacity', '--reason', 'Arrange fixture release', '--items', '1');
   box.run(alpha.repo, 'milestone', 'edit', 'Capacity', '--limit', '2');
   const api = JSON.parse(box.run(alpha.repo, 'roadmap', '--json'));
   const actual = api.milestones.find(milestone => milestone.name === 'Capacity');
@@ -33,6 +33,8 @@ test('a roadmap summary card separates its counts, legend and forecast at phone 
     assert.deepEqual(live.summary, actual.summary, 'the initial card input is the summary from the real API');
     await press(chrome, "document.querySelector('[data-tab=roadmap]')");
     await chrome.waitFor("document.querySelector('[data-key=\"m:Capacity\"] .milestone-head')");
+    // The completion estimate names a part of day in the browser's zone, so pin it; the machine's zone shifts at DST.
+    await chrome.send('Emulation.setTimezoneOverride', { timezoneId: 'UTC' });
     // This is a presenter-only scenario; the native API input above remains separately checked as real board data.
     await chrome.stable("(()=>{const m=data.project.milestones.find(milestone=>milestone.name==='Capacity');data.project.observedAt='2026-10-28T12:00:00Z';m.count=512;m.limit=700;m.summary={total:512,left:512,landed:0,landing:7,review:0,building:0,waiting:493,held:12,needsYou:[],pace:{last6h:7,last2h:7},estimate:{low:71,high:212.5},window:'6h',reason:null};render();return true;})()");
     for (const width of [320, 375, 1280]) {

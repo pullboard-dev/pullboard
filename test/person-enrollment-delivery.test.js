@@ -7,7 +7,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import {
   createPersonRoot,
   signPersonEnrollment,
-} from '../src/person-enrollment.js';
+} from '../packages/person/core.js';
 import {
   createDeviceKeys,
   unwrapDeviceBoardKey,

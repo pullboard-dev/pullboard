@@ -1,6 +1,6 @@
 /** Short-lived opaque pairing envelopes; relay storage never receives or derives the code secret [H15,H17]. */
 import { Refused } from '../packages/kernel/index.js';
-import { PAIR_ENVELOPE_BYTES, PAIR_STORED_BYTES } from '../src/relay-limits.js';
+import { PAIR_ENVELOPE_BYTES, PAIR_STORED_BYTES } from '../packages/link/index.js';
 
 const TEN_MINUTES = 10 * 60_000;
 const TOMBSTONE_MINUTES = 10 * 60_000;

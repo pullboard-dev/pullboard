@@ -153,13 +153,14 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
  * @param {{ waitMs?: number, gateSlotHeld?: boolean, gateLease?: object, mutate?: (directory: string) => string, guard?: object }} [options] - Queue wait before the private check started;
  *   mutate changes the scratch tree after checkout (a guard revert) and returns a reason when it cannot [C7,V4].
  */
-export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLease, mutate, guard } = {}) {
+export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, gateLease, mutate, guard, supplement = '', testTiers } = {}) {
   const frozenCommand = frozenCheck(item);
-  if (!frozenCommand) return { state: 'pass', green: true, checked: false, report: '' };
+  if (!frozenCommand && !supplement) return { state: 'pass', green: true, checked: false, report: '' };
   let command;
   let policy;
   let config;
-  try { policy = itemPolicy(root, item); config = policy.config; command = mappedCheck(root, frozenCommand, { commit: item.item_commit }); }
+  try { policy = itemPolicy(root, item); config = policy.config; command = frozenCommand ? mappedCheck(root, frozenCommand, { commit: item.item_commit }) : '';
+    if (supplement) command = [command, supplement].filter(Boolean).map(part => `(\n${part}\n)`).join(' && '); }
   catch { return checkResult('unverified', 'policy', '', '', { root, item }); }
   if (gateLease?.runner) {
     let descriptor;
@@ -169,7 +170,8 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
       return { ...checkResult('unverified', problem, '', '', { root, item }), guardProblem: problem };
     }
     if (mutate && !descriptor) return checkResult('unverified', 'a remote mutation requires a frozen declarative guard', '', '', { root, item });
-    return runnerPrivateCheck(root, item, command, policy, gateLease, descriptor, waitMs, checkResult);
+    const result = runnerPrivateCheck(root, item, command, policy, gateLease, descriptor, waitMs, checkResult);
+    return testTiers ? { ...result, testTiers, executionCommand: command } : result;
   }
   const install = config.check.install;
   const timeout = frozenCheckCeilingMs(config);
@@ -185,6 +187,7 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
     gateLease.testOutcomeRunId ? { [TIMING_RUN_ID_ENV]: gateLease.testOutcomeRunId } : {});
   else if (gateSlotHeld) env[GATE_SLOT_HELD_ENV] = '1';
   delete env.PULLBOARD_RELAY_TOKEN;
+  if (testTiers) delete env.NODE_TEST_CONTEXT;
   let installOutput = '';
   let checkOutput = '';
   let environment = null;
@@ -201,8 +204,9 @@ export function checkAtCommit(root, item, { waitMs = 0, gateSlotHeld = false, ga
     const runner = timingRunner(command);
     const events = checkLogPath && existsSync(checkLogPath) ? timingFromLog(checkLogPath, runner) : timingFromOutput(checkOutput, runner);
     timingProfile = { ...events, wallMs: Math.max(0, Date.now() - checkStartedAt), environment };
-    return checkResult(state, stage, installOutput, checkOutput, { root, item, commandRoot: copy, installLogPath, checkLogPath, timingProfile, waitMs,
+    const result = checkResult(state, stage, installOutput, checkOutput, { root, item, commandRoot: copy, installLogPath, checkLogPath, timingProfile, waitMs,
       environment, testRuntimes, executed, exitCode, proofCounts: privateCheckCounts(checkLogPath, checkOutput), executionSourceUnchanged: checkedSourceReady && privateSourceUnchanged(copy, item.item_commit, env) });
+    return testTiers ? { ...result, testTiers, executionCommand: command } : result;
   };
   try {
     const common = policyGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();

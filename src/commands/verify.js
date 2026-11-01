@@ -1,3 +1,7 @@
+import { selectTestTiers } from '../../packages/gate/index.js';
+import { testTierProofFiles } from '../../packages/gate/index.js';
+import { testTierCommand } from '../../packages/gate/index.js';
+import { testTierReport } from '../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
@@ -18,8 +22,8 @@ import { selectAffectedTests } from '../affected-tests.js';
 import { committedItemAuthors } from '../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../../packages/verify/index.js';
-import { agentSessionDigest } from '../person.js';
-import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
+import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { itemReviewPolicy } from '../../packages/verify/index.js';
 import { twoTierReviews } from '../../packages/verify/index.js';
@@ -68,7 +72,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   relayRecovered,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
@@ -202,12 +206,17 @@ export async function verifyHere(ctx, id, { second, values }) {
       if (!admitted) ({ trunk, review } = composeNow());
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const checkedItem = { ...item, item_commit: checkedCommit };
-        if (frozenCheck(item)) {
-          const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item), { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
-          const gui = await checkNeedsGui(root, frozenCheck(item), { commit: checkedCommit });
+        const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests });
+        const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
+        /** Keep the frozen command and selected units inside one immutable private check. */
+        const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;
+        if (testTiers) ctx.io.say(testTierReport(testTiers));
+        if (frozenCheck(item) || supplement) {
+          const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item) || supplement, { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
+          const gui = await checkNeedsGui(root, frozenCheck(item) || supplement, { commit: checkedCommit });
           // Exact command classifiers still govern local and remote private-check admission [C7,V4].
-          const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item), { commit: checkedCommit }));
-          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item), { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+          const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item) || supplement, { commit: checkedCommit }));
+          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
         } else {
           check = checkAtCommit(root, checkedItem);
         }
