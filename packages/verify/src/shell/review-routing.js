@@ -1,3 +1,4 @@
+import { VENDOR_FAMILY_ENGINE } from '../../../../src/vendor-family-engine.js';
 import { reviewPatchAuthors } from './review-composition.js';
 import { compositionFamilyFallback } from './review-composition.js';
 import { seatFamily } from '../../../items/index.js';
@@ -28,7 +29,8 @@ export function strictReviewProblem(board, item, agentId) {
   const family = familyName(seatFamily(board, agentId), familyAliasesOf(board));
   const fallback = compositionFamilyFallback(board, item);
   const built = fallback?.family ?? familyName(item.item_builder_family, familyAliasesOf(board));
-  if (!(family && built && family !== built)) return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict; ask a verifier from another declared vendor family${!family || !built ? '; declare missing families with pullboard join --family <vendor>' : ''}`);
+  const join = (!family || !built) && (board.executionEngineVersion ?? ENGINE_VERSION) >= VENDOR_FAMILY_ENGINE ? 'pullboard join --family <vendor>' : undefined;
+  if (!(family && built && family !== built)) return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict; ask a verifier from another declared vendor family${join ? `; declare missing families with ${join}` : ''}`, join);
   return fallback ? null : companionFamilyProblem(board, item, family);
 }
 

@@ -921,7 +921,7 @@ test('[V4,B26] unknown declared families remain distinct and missing families na
     const g = fixture(t);
     joinSeat(g.board, 'core-6', null, '6');
     const missing = g.add({ sensitive }); g.submit(missing);
-    assert.throws(() => g.reserve(missing, 'core-6'), error => error.code === 'O2_FAMILY_MATCH' && /pullboard join --family/u.test(error.message));
+    assert.throws(() => g.reserve(missing, 'core-6'), error => error.code === 'O2_FAMILY_MATCH' && /pullboard join --family/u.test(error.message) && /pullboard join --family/u.test(error.next));
   }
 });
 
