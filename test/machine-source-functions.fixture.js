@@ -185,3 +185,13 @@ export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
   assert.ok(codeWalk(planted).refusalsOf(entry).has('GIT_PACKAGE_PROBE'),
     'a Git compatibility shim cannot hide a new refusal in its actual implementation');
 }
+
+/** Prove that only the exact caught landing effect is excluded from verification's refusal audit [B35,M1,M4]. */
+export function assertPostVerdictLandingAudit(editedSource, codeProblems, machine) {
+  const caught = editedSource('commands/land.js', /^export async function landAfterAcceptance\([^\n]+\) \{$/m,
+    "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(machine, caught), [], 'only the exact call after the committed verdict is caught');
+  const uncaught = editedSource('commands/verify.js', /^export async function verifyHere\(ctx, id, \{ second, values \}\) \{$/m,
+    "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(machine, uncaught), ['MOON_PHASE is raised by accept and reject but not declared there'], 'a real verification refusal remains audited');
+}

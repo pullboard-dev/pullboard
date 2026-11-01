@@ -31,7 +31,7 @@ function deferredProject(landProject) {
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
   writeFileSync(path, JSON.stringify({ ...config, gate: `${runner} full`, affectedTests: `${runner} affected`,
-    landing: { publish: 'separate' }, submitGate: 'landing', submitDeferAbove: 1 }, null, 2));
+    landing: { manualOverride: true, publish: 'separate' }, submitGate: 'landing', submitDeferAbove: 1 }, null, 2));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.repo, 'web/land-0.test.js'), 'PASS\n');
