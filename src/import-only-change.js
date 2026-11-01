@@ -1,5 +1,6 @@
 /** Prove a source change stays inside static module imports, without evaluating repository code [C7]. */
 import { importsIn } from './module-imports.js';
+import * as awaitImportPath from 'node:path';
 import { lex } from '../packages/kernel/index.js';
 
 const IMPORT_WORD = /(?<![\p{ID_Continue}$\u200c\u200d#])import(?![\p{ID_Continue}$\u200c\u200d])/u;
@@ -104,4 +105,76 @@ export function importOnlyChange(before, after, { specifiersOnly = false } = {})
   } catch {
     return false;
   }
+}
+
+/** Prove every cross-lane path edit follows a supplied same-item move or deleted shim [L3]. */
+export function movedImportOnlyChange(before, after, file, moves) {
+  const decode = value => {
+    if (typeof value === 'string') return value;
+    if (!Buffer.isBuffer(value) || value.includes(0)) return null;
+    const text = value.toString('utf8');
+    return Buffer.from(text, 'utf8').equals(value) ? text : null;
+  };
+  before = decode(before); after = decode(after);
+  if (before === null || after === null || before === after) return false;
+  try {
+    importsIn([before, after]);
+    const oldSpans = staticImportSpans(before), newSpans = staticImportSpans(after);
+    if (!oldSpans || !newSpans || oldSpans.length !== newSpans.length) return false;
+    const { posix } = awaitImportPath;
+    const edits = [];
+    for (let i = 0; i < oldSpans.length; i++) {
+      const a = oldSpans[i].specifier, b = newSpans[i].specifier;
+      const oldValue = before.slice(a.start + 1, a.end - 1), newValue = after.slice(b.start + 1, b.end - 1);
+      if (oldValue === newValue) continue;
+      if (!oldValue.startsWith('.') || !newValue.startsWith('.')) return false;
+      const oldPath = posix.normalize(posix.join(posix.dirname(file), oldValue));
+      const newPath = posix.normalize(posix.join(posix.dirname(file), newValue));
+      if (moves.get(oldPath) !== newPath) return false;
+      edits.push({ start: a.start + 1, end: a.end - 1, value: newValue });
+    }
+    let result = before;
+    for (const edit of edits.reverse()) result = result.slice(0, edit.start) + edit.value + result.slice(edit.end);
+    // Test-input declarations use repository-root paths, and remain otherwise byte identical.
+    const annotation = /(@pullboard-test-input[^\r\n*]*)/gu;
+    /** Keep annotations only in actual doc comments, never lookalike string literals. */
+    const declarations = source => {
+      const comments = lex(source).comments;
+      return [...source.matchAll(annotation)].filter(row => comments.some(comment =>
+        row.index >= comment.start && row.index + row[0].length <= comment.end
+        && /^\/\*\*\s*@pullboard-test-input\b/u.test(source.slice(comment.start, comment.end))));
+    };
+    const oldRows = declarations(result), newRows = declarations(after);
+    if (oldRows.length !== newRows.length) return false;
+    let inputChanges = 0;
+    for (let i = oldRows.length - 1; i >= 0; i--) {
+      const oldWords = oldRows[i][0].split(/(\s+)/u), newWords = newRows[i][0].split(/(\s+)/u);
+      if (oldWords.length !== newWords.length) return false;
+      for (let j = 0; j < oldWords.length; j++) if (oldWords[j] !== newWords[j]) {
+        if (moves.get(oldWords[j]) !== newWords[j]) return false;
+        inputChanges++;
+      }
+      result = result.slice(0, oldRows[i].index) + newRows[i][0] + result.slice(oldRows[i].index + oldRows[i][0].length);
+    }
+    return (edits.length > 0 || inputChanges > 0) && result === after;
+  } catch { return false; }
+}
+
+/** Collect renames and deleted one-target forwarding shims from a NUL-delimited Git diff [L3]. */
+export function movedImportTargets(diff, readBefore, existsAfter) {
+  const fields = diff.split('\0'), moves = new Map();
+  for (let i = 0; i < fields.length - 1;) {
+    const status = fields[i++], oldPath = fields[i++];
+    if (status.startsWith('R')) { moves.set(oldPath, fields[i++]); continue; }
+    if (status.startsWith('C')) { i++; continue; }
+    if (status !== 'D') continue;
+    const bytes = readBefore(oldPath);
+    const source = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : bytes;
+    if (typeof source !== 'string') continue;
+    const match = /^(?:\s*\/\*\*[\s\S]*?\*\/\s*)?export\s*(?:\{[\w$,\s]+\}|\*)\s*from\s*(['"])(\.\.?\/[^'"\n]+)\1\s*;?\s*$/u.exec(source);
+    if (!match) continue;
+    const target = awaitImportPath.posix.normalize(awaitImportPath.posix.join(awaitImportPath.posix.dirname(oldPath), match[2]));
+    if (existsAfter(target)) moves.set(oldPath, target);
+  }
+  return moves;
 }

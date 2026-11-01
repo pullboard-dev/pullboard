@@ -95,11 +95,29 @@ function actorsFrom(history, boundary) {
   return { agentCount: agents.length, familyCount: groups.length, agents, families: groups };
 }
 
+/** Independently derive note ratios from native history, including seats without a submission [R1,R2]. */
+function notesFrom(history, boundary) {
+  const seats = new Map();
+  for (const event of history) {
+    if (['board', 'person', 'clock', 'coordinator'].includes(event.event_by)
+      || boundary && Date.parse(event.event_at) < Date.parse(boundary)) continue;
+    const note = event.event_kind === 'fact' && JSON.parse(event.event_detail).kind === 'note';
+    if (!note && event.event_kind !== 'submit') continue;
+    const row = seats.get(event.event_by) ?? { seat: event.event_by, notes: 0, submits: 0 };
+    if (note) row.notes += 1; else row.submits += 1;
+    seats.set(event.event_by, row);
+  }
+  return [...seats.keys()].sort().map(seat => {
+    const row = seats.get(seat);
+    return { ...row, notesPerSubmit: row.submits ? row.notes / row.submits : null };
+  });
+}
+
 /** Assemble the public statistics shared by the CLI and local board state from one event snapshot. */
 export function proofStats(board, { since, now = Date.now() } = {}) {
   const boundary = sinceDate(since);
   const history = events(board);
   const counts = countsFrom(history, boundary);
   const verdicts = board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all();
-  return { ...counts, ...actorsFrom(history, boundary), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary), flow: flowStats(history, boundary, now, counts) };
+  return { ...counts, ...actorsFrom(history, boundary), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary), flow: flowStats(history, boundary, now, counts), notesPerSubmit: notesFrom(history, boundary) };
 }

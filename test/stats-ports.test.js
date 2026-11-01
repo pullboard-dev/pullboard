@@ -1,6 +1,7 @@
 /** Explicit statistics ports preserve native snapshot and fallback behavior [R1,R2,CD64,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { appendFact } from '../packages/store/index.js';
 import { addItem } from '../packages/store/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { events } from '../packages/store/index.js';
@@ -16,7 +17,9 @@ function fixture(t) {
   const board = openBoard(':memory:', { now: () => new Date('2026-01-01T00:00:00.000Z') });
   t.after(() => closeBoard(board));
   register(board, { lane: 'coordinator', path: '/fixture/coordinator' });
-  addItem(board, { by: 'coordinator', lane: 'web', title: 'Port parity', criterion: 'native history remains intact' });
+  const id = addItem(board, { by: 'coordinator', lane: 'web', title: 'Port parity', criterion: 'native history remains intact' });
+  const builder = register(board, { lane: 'web', path: '/fixture/builder' });
+  appendFact(board, id, { agentId: builder, kind: 'note', text: 'Native port fixture note.' });
   return board;
 }
 
@@ -24,6 +27,7 @@ test('statistics explicit native counter and fallback ports preserve complete re
   const board = fixture(t);
   const options = { now: Date.parse('2026-01-02T00:00:00.000Z') };
   const expected = legacyProofStats(board, options);
+  assert.deepEqual(expected.notesPerSubmit, [{ seat: 'web-1', notes: 1, submits: 0, notesPerSubmit: null }]);
   let historyReads = 0;
   let fallbacks = 0;
   const reads = {
