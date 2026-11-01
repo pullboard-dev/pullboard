@@ -1,7 +1,7 @@
 /** Submit fails fast: a main conflict is refused before any check, then static problems before the runner gate [V4,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -73,7 +73,7 @@ test('a static failure is refused before the item check and the runner gate, and
   assert.equal(existsSync(clean.markers.staticCheck), true, 'the static check ran');
   assert.equal(existsSync(clean.markers.doctrine), true, 'the doctrine rule ran');
   assert.equal(existsSync(clean.markers.item), true, 'the item check ran');
-  const when = path => Number(/ran (\d+)/u.exec(readFileSync(path, 'utf8'))[1]);
+  const when = path => statSync(path).mtimeMs;
   assert.ok(when(clean.markers.staticCheck) <= when(clean.markers.doctrine), 'static runs before doctrine');
   assert.ok(when(clean.markers.doctrine) <= when(clean.markers.item), 'doctrine runs before the runner gate');
 });
