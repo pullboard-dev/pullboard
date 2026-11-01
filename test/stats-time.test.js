@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runFixtureGit } from './fixture-child.js';
 import { recordTimeCheckpoint } from '../src/stats-time-checkpoint.js';
+import { retainedReceipts } from '../packages/gate/index.js';
+import { events } from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const T0 = Date.parse('2026-10-01T00:00:00.000Z');
@@ -65,7 +67,7 @@ test('medians and totals cover the window and drop items that landed outside it 
 
 test('a checkpoint is one dated JSON line and a weekly one is due only after seven days [R1,C7]', () => {
   const stats = timeStats(HISTORY, { now: NOW, days: 7 });
-  const line = checkpointLine(stats, { reason: 'weekly' });
+  const line = checkpointLine(stats, { reason: 'weekly', retainedReceipts, events });
   assert.equal(JSON.parse(line).landed, 2);
   assert.equal(weeklyDue('', NOW), true);
   assert.equal(weeklyDue(`${line}\n`, NOW + 6 * 86400000), false);
@@ -147,11 +149,11 @@ test('weekly and release checkpoints append without replacing earlier history [R
   runFixtureGit(['init', '-q'], { cwd: root });
   const ctx = { info: { root, commonDir: join(root, '.git') }, clock: { now: () => new Date(NOW) } };
   const board = { db: { prepare: () => ({ all: () => HISTORY }) } };
-  const file = recordTimeCheckpoint(ctx, board, { reason: 'weekly' });
+  const file = recordTimeCheckpoint(ctx, board, { reason: 'weekly', retainedReceipts, events });
   assert.ok(file);
-  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'weekly' }), null);
-  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'release', label: '0.9.4' }), file);
-  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'weekly', now: NOW + 7 * 86400000 }), file);
+  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'weekly', retainedReceipts, events }), null);
+  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'release', label: '0.9.4', retainedReceipts, events }), file);
+  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'weekly', retainedReceipts, events, now: NOW + 7 * 86400000 }), file);
   const rows = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.deepEqual(rows.map(row => row.reason), ['weekly', 'release', 'weekly']);
   assert.equal(rows[1].label, '0.9.4');

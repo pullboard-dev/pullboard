@@ -1,5 +1,6 @@
 /** The pullboard milestone command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
+import { retainedReceipts } from '../../packages/gate/index.js';
 import { recordTimeCheckpoint } from '../stats-time-checkpoint.js';
 import { checkReleaseReferences } from '../../packages/spec/index.js';
 import {
@@ -76,7 +77,7 @@ export async function run(io, { first, second, rest, values }) {
     name = second;
     checkReleaseReferences(ctx.info.root, board, name, mainCheckout(ctx.info.root)?.commit ?? null, store);
     const shipped = await ordered(ctx, board, 'shipMilestone', [name, { agentId: me.id, coordinatorActions: true, commit: mainCheckout(ctx.info.root)?.commit ?? null, ...(values.next === undefined ? {} : { next: values.next }), ...(values.as === 'person' ? { asPerson: true, reason: values.reason, channel: 'terminal' } : {}) }]);
-    recordTimeCheckpoint(ctx, board, { reason: 'release', label: name });
+    recordTimeCheckpoint(ctx, board, { reason: 'release', label: name, retainedReceipts, events: store.events });
     io.result?.(shipped);
     const outcome = shipped.moved.length ? `moved ${shipped.moved.map((id) => `#${id}`).join(', ')} into ${shipped.into}` : 'no local items moved';
     const external = shipped.notMoved.length ? `; not moved across boards: ${shipped.notMoved.join(', ')}` : '';
