@@ -9,16 +9,18 @@ import { commitAll } from './submit-gate-fixture.js';
 import { privateRepo } from './submit-gate-fixture.js';
 import { put } from './submit-gate-fixture.js';
 
-const MARK = path => `node -e "require('node:fs').appendFileSync(${JSON.stringify(path)}, 'ran\\n')"`;
+const MARK = path => `node test/mark.mjs ${path}`;
 
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
 function project(t, { staticFails = false } = {}) {
   const box = privateRepo(t);
   const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
-    staticChecks: `${MARK(markers.staticCheck)} && ${staticFails ? 'node -e "console.error(\'src/a.js:1: a static problem\');process.exit(1)"' : 'true'}`,
+    staticChecks: `${MARK(markers.staticCheck)} && ${staticFails ? 'node test/static-problem.mjs' : 'true'}`,
     shared: ['pullboard.json'] }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
+  put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], 'ran\\n');\n");
+  put(box.root, 'test/static-problem.mjs', "console.error('src/a.js:1: a static problem');\nprocess.exit(1);\n");
   commitAll(box);
   const builder = builderRepo(box);
   assert.equal(builder.coordinator('add', 'build', 'Fail fast fixture', '--check', MARK(markers.item)).code, 0);
