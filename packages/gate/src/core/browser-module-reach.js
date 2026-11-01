@@ -81,7 +81,7 @@ function merge(left, right) {
  */
 export function browserModuleReach(source, selected = null) {
   const lexical = lex(source), { code, strings } = lexical;
-  const opaque = /\b(?:eval|Function)\b|\\u(?:[\da-f]{4}|\{[\da-f]+\})/iu.test(code);
+  const opaque = /\b(?:eval|Function)\b|\\u(?:[\da-fA-F]{4}|\{[\da-fA-F]+\})/u.test(code);
   const rows = clauses(source, code, strings);
   const barrel = rows.length > 0 && rows.every(row => row.kind === 'export' && row.request)
     && !blank(code, rows.map(row => [row.start, row.end])).replace(/[;\s]/gu, '');
