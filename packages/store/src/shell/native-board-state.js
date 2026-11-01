@@ -20,7 +20,7 @@ import { repoInfo } from "../../../../src/git.js";
 import { listApiProjects } from "../../../../src/projects.js";
 import { nativeStateClockWindow } from "../core/native-state-clock.js";
 import { milestoneRoadmap } from "../../../roadmap/index.js";
-import { proofStats } from "../../../../src/stats.js";
+import { proofStats } from "../../../stats/index.js";
 import { readCapacity } from "../../../stats/index.js";
 import { ruleProofCounts } from "../../../verify/index.js";
 import { milestoneNamesByItem } from "../../../items/index.js";

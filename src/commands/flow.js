@@ -5,7 +5,7 @@ import {
   context,
   withBoard,
 } from '../cli.js';
-import { replayFlow } from '../flow-replay.js';
+import { replayFlow } from '../../packages/stats/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 
 /** Read explicit JSON data, never a script, with an actionable refusal for a malformed input. */

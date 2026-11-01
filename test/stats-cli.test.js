@@ -16,7 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
-import { proofStats } from '../src/stats.js';
+import { proofStats } from '../packages/stats/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { fetchFresh } from './http-fixture.js';

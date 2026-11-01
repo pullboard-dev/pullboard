@@ -15,7 +15,7 @@ import { atomic } from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
-import { proofStats } from '../src/stats.js';
+import { proofStats } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
