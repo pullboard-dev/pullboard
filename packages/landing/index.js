@@ -1,3 +1,5 @@
+/** Landing's automatic wake custody behind its cell front door [B35,C7]. */
+export { automaticLandingDirectory, scheduleAutomaticLanding, resumeAutomaticLanding, recoverAutomaticLanding } from './src/shell/automatic-landing-scheduler.js';
 /** Landing, queue and main-red front door [C7] */
 export * from "./src/shell/computed-conflict-receipt.js";
 export * from "./src/shell/computed-conflict-return.js";

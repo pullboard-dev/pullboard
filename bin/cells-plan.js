@@ -499,7 +499,7 @@ function main(argv) {
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
     for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
     return missing.length || stale.length || entries.length ? 1 : 0;
-  });
+  }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--retire') {
     const { file, row } = retirePath(root, rest[0]);
     console.log(`retired ${row[0]} from ${file}`);
@@ -510,7 +510,7 @@ function main(argv) {
     for (const note of notes) console.log(note);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
-  });
+  }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--remove-shims') {
     const laneAt = rest.indexOf('--lane'), lane = laneAt < 0 ? 'core' : rest[laneAt + 1];
     const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
@@ -529,7 +529,7 @@ function main(argv) {
     const problems = checkCuts(root, readPlan(root), rest[0]);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
-  });
+  }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
   throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }

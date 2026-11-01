@@ -155,7 +155,7 @@ test('a named Rigor proof checks the actual old red file and moved green file [C
 test('why on an old name includes work landed at the new name [C7]', () => {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.landing = { publish: 'separate' };
+  config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure private history landing');

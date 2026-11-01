@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { fileURLToPath } from 'node:url';
 /** Report cells migration debt, or explicitly check/initialize/lower its root ratchet [C7,CD64]. */
 import { importsWithCompiler } from '../packages/kernel/index.js';
 import { commonJsWithCompiler } from '../packages/kernel/index.js';
@@ -46,6 +47,6 @@ withCellLintParser(compile => {
       const problems = cellLintGrowth(build(), baseline);
       for (const row of problems) console.error(`${row.advisory ? `advisory item #${row.item} until #${row.until}: ` : ''}${row.metric}:${row.key}: ${row.actual} exceeds ${row.allowed}`);
       return problems.some(row => !row.advisory) ? 1 : 0;
-    });
+    }, { code: [fileURLToPath(import.meta.url)] });
   }
 });
