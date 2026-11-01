@@ -29,7 +29,7 @@ import {
   discoverFormats,
   formatTable,
   writeFormatTable,
-} from '../src/format-registry.js';
+} from '../packages/state/index.js';
 import { discoverMoves } from '../src/move-registry.js';
 import {
   GATE_SLOT_HELD_ENV,

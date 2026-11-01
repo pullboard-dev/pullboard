@@ -3,7 +3,7 @@ import { createMoveTool } from './cells-move-transaction.js';
 import { lex } from '../packages/kernel/index.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
-import { engineFolderViolations } from '../src/engine-folder.js';
+import { engineFolderViolations } from '../packages/state/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { cleanGitEnvironment } from '../src/git.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';

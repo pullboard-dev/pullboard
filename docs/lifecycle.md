@@ -1,6 +1,6 @@
 # The item lifecycle
 
-Generated from src/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node bin/update-docs.js` to refresh all generated documents.
+Generated from packages/state/src/shell/machine.js by `pullboard lifecycle`. Do not edit it by hand: change the declaration, then run `node bin/update-docs.js` to refresh all generated documents.
 
 An item starts open. Its final states, withdrawn, cannot be left. Every move into a guarded state passes the same guards, whatever command gets there. The board file refuses any move not declared here.
 

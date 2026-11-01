@@ -22,7 +22,7 @@ import { personNeedsSummary } from '../src/needs-summary.js';
 import { resumeNeeds } from '../src/resume-needs.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { recordSchemaStamp } from '../packages/store/index.js';
 import { SCHEMA_DIGEST } from '../packages/store/index.js';
 import {

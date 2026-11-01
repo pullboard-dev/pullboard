@@ -2,7 +2,7 @@
 import { assignEngineNumbers } from './engine-numbers.js';
 import { placeLandingHistory } from './landing-history-plan.js';
 import { resolveMechanicalIndex } from '../packages/merge/index.js';
-import { writeFormatTable } from './format-registry.js';
+import { writeFormatTable } from '../packages/state/index.js';
 import { refreshLandingDocs } from './landing-docs.js';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';

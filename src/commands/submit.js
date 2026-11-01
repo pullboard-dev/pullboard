@@ -158,7 +158,7 @@ import {
   claimFreezer,
   withBoard,
 } from '../cli.js';
-import { recordedRecovery } from '../recorded-recovery.js';
+import { recordedRecovery } from '../../packages/state/index.js';
 import { failureSignatures } from '../main-failure-matches.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../main-failure-matches.js';
 import { matchingMainFailures } from '../main-failure-matches.js';

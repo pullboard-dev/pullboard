@@ -9,7 +9,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { configFromSource, defaults } from '../packages/config/index.js';
-import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
 import { saveAgentSession, saveAgentParent } from '../src/seats.js';
@@ -142,9 +142,9 @@ test('[B13,B5] releasing another review cannot cancel the builder reservation', 
 });
 
 test('[B13,B5,H16] a sealed return persists one window and notice across replay and snapshots', async (t) => {
-  const { REOPEN_FIRST_REFUSAL_ENGINE } = await import('../src/machine.js');
+  const { REOPEN_FIRST_REFUSAL_ENGINE } = await import('../packages/state/index.js');
   // A sealed move carries the current engine, which a later feature may raise past this one.
-  const { ENGINE_VERSION } = await import('../src/machine.js');
+  const { ENGINE_VERSION } = await import('../packages/state/index.js');
   assert.ok(ENGINE_VERSION >= REOPEN_FIRST_REFUSAL_ENGINE);
   const { firstRefusalArgs } = await import('../packages/items/index.js');
   const f = fixture(t);

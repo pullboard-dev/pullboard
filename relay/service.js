@@ -27,7 +27,7 @@ import { createPairingHandler } from './pairing-http.js';
 import { createKeyRequestStore } from './key-request-store.js';
 import { createKeyRequestHandler } from './key-request-http.js';
 import { createRelayBrowserHandler } from './browser-page.js';
-import { VERIFIER_STANDING_ENGINE } from '../src/machine.js';
+import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 import {
   SEALED_SNAPSHOT_BYTES,
   SNAPSHOT_BODY_BYTES,

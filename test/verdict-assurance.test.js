@@ -22,7 +22,7 @@ import {
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 
 /** Real Git and SQLite, with one item per independently declared parent pair. */
 function fixture(t) {

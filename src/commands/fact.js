@@ -1,7 +1,7 @@
 /** The pullboard fact command, in its own module so an item adding another command never edits these lines. */
 import {
   parseImplies,
-} from '../implies.js';
+} from '../../packages/state/index.js';
 import {
   requirePersonChannel,
 } from '../person.js';

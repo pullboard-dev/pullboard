@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { readGateReceipt, receiptBinds, receiptBody, receiptFields, receiptStore } from '../src/gate-run-receipt.js';
 import { gateRuns } from '../src/gate-control.js';
 

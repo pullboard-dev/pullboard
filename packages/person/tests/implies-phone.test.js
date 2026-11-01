@@ -10,7 +10,7 @@ import {
   decodeBoardKey,
   seal,
 } from "../../kernel/src/core/seal.js";
-import { ENGINE_VERSION } from "../../../src/machine.js";
+import { ENGINE_VERSION } from "../../state/index.js";
 
 const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../../../src/' + name + '.js')).href;
 

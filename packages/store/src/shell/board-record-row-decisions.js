@@ -2,7 +2,7 @@ import { PERSON } from "./board-query.js";
 import { rowDecisions } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { SPEC_REVISION_ENGINE } from "../../../../src/spec-revision-engine.js";
 import { validRevisionApproval } from "../../../spec/index.js";
 import { Refused } from "../../../kernel/index.js";

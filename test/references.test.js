@@ -9,7 +9,7 @@ import * as store from '../src/board.js';
 import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { REFERENCE_ENGINE } from '../src/reference-engine.js';
-import { prepareEngineMove } from '../src/engine.js';
+import { prepareEngineMove } from '../packages/state/index.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { createE2eHelpers } from './e2e-helpers.js';

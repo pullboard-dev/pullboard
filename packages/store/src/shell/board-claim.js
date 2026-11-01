@@ -18,7 +18,7 @@ import {
   REOPEN_FIRST_REFUSAL_ENGINE,
   VERIFIER_STANDING_ENGINE,
   IN_STATE,
-} from "../../../../src/machine.js";
+} from "../../../state/index.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import {
   pendingRefreeze,

@@ -114,8 +114,8 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
   assert.throws(() => store.editItem(board, historic, { agentId: 'coordinator', checkTiming: true }), { code: 'ENGINE_VERSION' });
 });
 
-import { prepareEngineMove } from '../src/engine.js';
-import { applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove } from '../packages/state/index.js';
+import { applyEngineMove } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 
 test('older ordered edits cannot strip timing from a modern bar while historical receipts replay unchanged [C7,V4,H16]', t => {

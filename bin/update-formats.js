@@ -1,5 +1,5 @@
 /** Refresh the source-discovered format table without changing any format/version declaration [A5,C7]. */
 import { fileURLToPath } from 'node:url';
-import { writeFormatTable } from '../src/format-registry.js';
+import { writeFormatTable } from '../packages/state/index.js';
 
 writeFormatTable(fileURLToPath(new URL('../', import.meta.url)));

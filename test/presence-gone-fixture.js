@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { sentinelCommand } from '../src/sentinel-command.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

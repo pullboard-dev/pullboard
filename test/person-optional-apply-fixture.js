@@ -26,7 +26,7 @@ import { loadConfig } from '../packages/config/index.js';
 import {
   applyRelayMove,
   prepareEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 import {
   receivePersonRequest,
   personRequestRecords,

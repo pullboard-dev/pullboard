@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../src/machine.js';
+import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
 /** Create an actual signed-in account against the loopback GitHub protocol fixture. */
 async function signedPerson(box, auth) {

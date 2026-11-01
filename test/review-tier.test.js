@@ -11,7 +11,7 @@ import { REVIEW_TIER_ENGINE } from '../src/review-tier-engine.js';
 import {
   prepareEngineMove,
   applyEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import {
   exportBoard,

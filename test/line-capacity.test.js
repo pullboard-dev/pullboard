@@ -9,9 +9,9 @@ import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { lineCapacitySnapshot } from '../src/line-capacity.js';
 import { LINE_CAPACITY_ENGINE } from '../src/line-capacity-engine.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { appliedSequence } from '../src/engine.js';
+import { appliedSequence } from '../packages/state/index.js';
 import { replayHistoricalSeatMove } from './pre-grant-seats.js';
 
 const HOUR = 3_600_000;

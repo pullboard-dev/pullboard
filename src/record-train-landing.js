@@ -6,7 +6,7 @@ import { editItem } from '../packages/store/index.js';
 import { landingBatches } from '../packages/store/index.js';
 import { recordLandingBatch } from '../packages/store/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
-import { ENGINE_VERSION } from './machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { receiptBody } from './gate-run-receipt.js';
 import { checkTrainLandingReceipt } from './train-landing-receipt.js';

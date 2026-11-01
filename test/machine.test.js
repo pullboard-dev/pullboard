@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { assertCommitShimRefusals, machineSourceModule } from './commits-machine-fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
-import * as machineRules from '../src/machine.js';
+import * as machineRules from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
