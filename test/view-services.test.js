@@ -17,6 +17,8 @@ import { serveView, projectState as unprovidedProjectState } from '../src/serve.
 import { cockpitPage as unprovidedPage } from '../src/cockpit.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { nativeBoardOpeners } from '../src/cli-context.js';
+import * as nativeBoard from '../src/native-board.js';
+import { projectState } from '../src/cli/view-state.js';
 
 /** Match a required service refusal without accepting unrelated setup or transport failures. */
 function missingService(name) {
@@ -53,7 +55,14 @@ test('a live view refuses missing command or renderer services before listening 
   await assert.rejects(serveView({ runCommand: main, renderPage: cockpitPage }), missingService('refusalDocument'));
   await assert.rejects(serveView({ runCommand: main, renderPage: cockpitPage, refusalDocument }), missingService('openBoard'));
   await assert.rejects(serveView({ runCommand: main, renderPage: cockpitPage, refusalDocument,
-    boardOpeners: { openBoard: nativeBoardOpeners().openBoard } }), missingService('openBoardForRead'));
+    boardOpeners: { openBoard: nativeBoardOpeners({ nativeBoard }).openBoard } }), missingService('openBoardForRead'));
+});
+
+test('standalone view projection opens the real native board [N26,C7]', t => {
+  const box = approvedViewFixture(t);
+  const added = box.run(box.repo, 'add', 'web', 'Projection fixture', '--criterion', 'visible in the view');
+  assert.equal(added.code, 0, added.err || added.out);
+  assert.ok(projectState(box.repo).items.some(item => item.title === 'Projection fixture'));
 });
 
 test('an export refuses missing services before reading a board or writing output [N26,C7]', async t => {
