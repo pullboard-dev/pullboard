@@ -252,6 +252,24 @@ test('moves move retains Strict for each protected body and excludes unrelated s
 });
 
 
+test('flakes move retains Strict for each protected body and excludes unrelated siblings [V4,B26,H16]', t => {
+  const f = fixture(t, { historical: true });
+  for (const name of ['flakes', 'native-flake-cli', 'native-flakes', 'quarantine']) {
+    const moved = `packages/flakes/src/shell/${name}.js`;
+    assert.equal(gateJudgmentPath(`src/${name}.js`), true, name);
+    assert.equal(gateJudgmentPath(moved), true, moved);
+    const item = f.submit(f.add(), [moved]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'strict', moved);
+  }
+  for (const path of ['packages/flakes/src/shell/flake-command.js', 'packages/flakes/src/shell/native-flake-receipts.js',
+    'packages/flakes/src/shell/quarantine-extra.js', 'packages/flakes/index.js']) {
+    assert.equal(gateJudgmentPath(path), false, path);
+    const item = f.submit(f.add(), [path]);
+    assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
+});
+
+
 test('merge move retains Strict for sensitive bodies and excludes unrelated siblings [V4,B26,H16]', t => {
   const f = fixture(t, { historical: true });
   for (const path of ['packages/merge/src/shell/merge-only-verdict.js',

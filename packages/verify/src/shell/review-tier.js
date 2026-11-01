@@ -35,6 +35,9 @@ const SOURCE_FILES = new Set([
   'packages/moves/src/core/moves/reserveReview.js', 'packages/moves/src/core/moves/reserveNextReview.js',
   'packages/moves/src/core/moves/verify.js', 'packages/moves/src/core/moves/submit.js',
   'packages/moves/src/shell/move-registry.js',
+  // Exact moved flake bodies retain their existing Strict classification (#1587).
+  'packages/flakes/src/shell/flakes.js', 'packages/flakes/src/shell/native-flake-cli.js',
+  'packages/flakes/src/shell/native-flakes.js', 'packages/flakes/src/shell/quarantine.js',
   // Exact moved identities retain their existing Strict classification (#1565).
   'packages/items/src/shell/parent-session.js',
   'packages/items/src/shell/item-patches.js',
