@@ -48,7 +48,8 @@ export function inventoryCache(root, key, parsers, onMode = () => {}) {
   }
   /** Update only changed existing files; unsupported structural changes keep the canonical fallback. */
   function candidate(checkout, prior, changed) {
-    const fallback = changed.some(file => file === 'package.json' || !prior.files.has(file)
+    const fallback = changed.some(file => file === 'package.json' || file === 'packages/kernel/index.js'
+      || file.endsWith('/discovery.js') || !prior.files.has(file)
       || !existsSync(join(checkout, file)) || !lstatSync(join(checkout, file)).isFile());
     onMode(fallback ? 'candidate-full-fallback' : 'candidate-incremental');
     return fallback ? cellInventory(checkout, parsers) : updateCellInventory(checkout, parsers, prior, changed);
