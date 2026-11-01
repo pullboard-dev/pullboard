@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { legacyRelayClientFixture as relayClientFixture } from './relay-client-fixture.js';
 
 test('a refused upload never blocks board moves [H16,B26]', async (t) => {

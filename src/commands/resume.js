@@ -43,7 +43,7 @@ import {
 } from '../../packages/commits/index.js';
 import {
   takeDecisionNotices,
-} from '../implies.js';
+} from '../../packages/state/index.js';
 import {
   resumeNeeds,
 } from '../resume-needs.js';

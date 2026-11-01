@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { relayOutboxSetting } from '../src/cli.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { outboxFile, outboxQueueable } from '../packages/outbox/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import { legacyRelayClientFixture, relayClientFixture } from './relay-client-fixture.js';

@@ -15,7 +15,7 @@ import { captureSpecApprovalBaseline, specApprovalState } from '../packages/spec
 import { SPEC_APPROVAL_ENGINE } from '../src/spec-approval-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 
 /** Run the private project's real CLI and require its structured successful response. */
 function document(box, root, ...args) {

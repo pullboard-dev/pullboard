@@ -14,7 +14,7 @@ import {
   sayQueue,
   workQueue,
 } from '../packages/items/index.js';
-import { prepareEngineMove } from '../src/engine.js';
+import { prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { WORK_ORDER_ENGINE } from '../src/work-order-engine.js';
 import { runFixtureGit } from './fixture-child.js';

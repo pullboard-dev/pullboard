@@ -17,7 +17,7 @@ import { submitFixture as submitStoredItem } from './board-submit-fixture.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
 import { frozenCriterion, parseSpec } from '../packages/spec/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';

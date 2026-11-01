@@ -12,7 +12,7 @@ import { gunzipSync } from 'node:zlib';
 import { snapshotState, presentationState } from '../relay/browser-model.js';
 import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
 import { addItem, answerDecision, closeBoard, shout } from '../packages/store/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';

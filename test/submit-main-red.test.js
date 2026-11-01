@@ -98,7 +98,7 @@ test('repair links retain historical receipts and reject closed, stale or ambigu
 test('ordered submit refuses a closed repair and an old-engine linked envelope without changing item history [V4,B3,H16]', async t => {
   const store = await import('../src/board.js');
   const { fixtureBoard } = await import('./board-fixture.js');
-  const { prepareEngineMove, applyEngineMove } = await import('../src/engine.js');
+  const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const at = '2026-10-28T00:00:00.000Z';
   const source = fixtureBoard(t, { clock: { now: () => new Date(at) } });

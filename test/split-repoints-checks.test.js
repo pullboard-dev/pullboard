@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { ENGINE_REGISTRY, ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_REGISTRY, ENGINE_VERSION } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';

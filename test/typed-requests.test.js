@@ -8,13 +8,13 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { orderedMoveCommand } from '../src/relay-command-order.js';
-import { requestedCommandMove } from '../src/recorded-move.js';
+import { requestedCommandMove } from '../packages/state/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

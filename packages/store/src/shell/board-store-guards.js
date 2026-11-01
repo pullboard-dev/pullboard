@@ -10,7 +10,7 @@ import { SCHEMA_DIGEST } from "./board-schema-source.js";
 import { SCHEMA_VERSION } from "./board-schema-source.js";
 import { EVENT_LOG_VERSION } from "./board-schema-source.js";
 import { SIGNED_EVENT_LOG_VERSION } from "./board-schema-source.js";
-import { storeTriggers } from "../../../../src/machine.js";
+import { storeTriggers } from "../../../state/index.js";
 
 const GUARDED = 1;
 

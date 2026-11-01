@@ -4,14 +4,14 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import {
   AUTO_ESCALATE_ENGINE,
   ENGINE_VERSION,
   STRONG_REJECTION_NOTICE_ENGINE,
   VERIFIER_STANDING_ENGINE,
-} from '../src/machine.js';
+} from '../packages/state/index.js';
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
 import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
 import { BOARD_SENTINEL_ENGINE } from '../src/sentinels.js';

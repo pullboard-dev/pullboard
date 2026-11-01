@@ -8,7 +8,7 @@ import { receiptsHelp } from './receipts.js';
 import { specHelp } from './spec.js';
 import { rolesHelp } from './roles.js';
 import { gateHelp } from './gate.js';
-import { lifecycleHelp } from './lifecycle.js';
+import { lifecycleHelp } from '../../packages/state/index.js';
 import { footerHelp } from './footer.js';
 
 export const HELP_SOURCE_SECTIONS = Object.freeze([

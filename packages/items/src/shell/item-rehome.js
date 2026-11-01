@@ -1,8 +1,8 @@
 import { saveCheckTiming } from "../core/check-timing.js";
 /** Durable source tombstones and idempotent destination application for cross-board re-homing [E15,H16]. */
 import { createHash } from 'node:crypto';
-import { IN_STATE } from "../../../../src/machine.js";
-import { MOVES } from "../../../../src/machine.js";
+import { IN_STATE } from "../../../state/index.js";
+import { MOVES } from "../../../state/index.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
 import { handledReferences } from "../../../spec/index.js";
 import { validateReferences } from "../../../spec/index.js";

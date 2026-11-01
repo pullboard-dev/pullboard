@@ -14,7 +14,7 @@ import { heartbeatSeat } from '../packages/store/index.js';
 import { context } from '../src/cli-read-context.js';
 import { waitForSubmissionVerdict } from '../packages/items/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
+import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';
 import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { firstRefusal } from '../packages/store/index.js';

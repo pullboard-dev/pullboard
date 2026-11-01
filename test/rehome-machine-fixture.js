@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import * as machineRules from '../src/machine.js';
+import * as machineRules from '../packages/state/index.js';
 
 /** Keep declaration-derived trigger assertions beside the rehome lifecycle additions. */
 export function assertRehomeTriggerDeclaration() {

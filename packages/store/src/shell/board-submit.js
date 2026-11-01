@@ -23,9 +23,9 @@ import { MERGE_ONLY_VERDICT_ENGINE } from "../../../../src/merge-only-verdict-en
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { acceptedVerdict } from "../../../verify/index.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
-import { IN_STATE } from "../../../../src/machine.js";
-import { MOVES } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
+import { IN_STATE } from "../../../state/index.js";
+import { MOVES } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { retainedVerifierIdentityProblem } from "../../../items/index.js";
 import { KNOWN_MAIN_REWORKS_ENGINE } from "../../../../src/known-main-reworks-engine.js";

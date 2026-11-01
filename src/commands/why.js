@@ -3,7 +3,7 @@ import * as store from '../board.js';
 import {
   decisionsImplying,
   whyLine,
-} from '../implies.js';
+} from '../../packages/state/index.js';
 import { whyFile } from '../../packages/commits/index.js';
 import {
   Refused,

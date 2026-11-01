@@ -13,8 +13,8 @@ import { main } from './native-cli-fixture.js';
 import { relayPresentation, relaySnapshot } from '../src/relay-presentation.js';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { fetchFresh } from './http-fixture.js';
 

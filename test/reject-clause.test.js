@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { REJECT_CLAUSE_ENGINE } from '../src/reject-clause-engine.js';

@@ -12,7 +12,7 @@ import { openBoard, draftSpecRow, nativeBoardPorts } from '../src/native-board.j
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { ACTIVITY_NEWS_ENGINE } from '../src/activity-news-engine.js';
 import { ITEM_SHOUT_ENGINE } from '../src/item-shout-engine.js';
 import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';

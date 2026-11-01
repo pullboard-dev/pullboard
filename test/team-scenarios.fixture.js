@@ -64,7 +64,7 @@ import {
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 import {
   relayClientFixture as sessionRelay,
   relayFixtureChild as sessionChild,
@@ -126,7 +126,7 @@ import {
 } from '../packages/kernel/src/core/seal.js';
 import {
   ENGINE_VERSION as PEOPLE_VERSION,
-} from '../src/machine.js';
+} from '../packages/state/index.js';
 import {
   relayWorkBudgetMs,
 } from './relay-budget.js';

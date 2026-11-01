@@ -11,10 +11,10 @@ import assert from 'node:assert/strict';
 import * as store from '../src/board.js';
 import { openBoard, draftSpecRow, recordRowVerification } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { SPEC_VERDICT_ENGINE } from '../src/spec-verdict-engine.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -28,7 +28,7 @@ import { preCommitProblems } from '../packages/commits/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { requireRelayOnChannel } from '../src/person.js';
-import { RECORDED_GENERIC_NEXT } from '../src/recorded-refusal.js';
+import { RECORDED_GENERIC_NEXT } from '../packages/state/index.js';
 import {
   citedIds,
   deletedIds,

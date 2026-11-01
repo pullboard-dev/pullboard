@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard, restoreRelaySnapshot, semanticBoardDigest } from '../packages/store/index.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
 import { LANDING_LOCAL_PREFIX, localLandingEntry } from '../src/board-landing-local-lease.js';

@@ -19,7 +19,7 @@ import { onBoard } from './land-board-fixture.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
 import { configFromSource } from '../packages/config/index.js';
 import { publishVerificationStatuses } from '../src/pr-verification.js';

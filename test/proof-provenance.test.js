@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { boardReceiptStore, receiptBody, receiptFields } from '../src/gate-run-receipt.js';
 import { proofCounts } from '../packages/verify/index.js';
 import { runShell } from '../src/shell-run.js';

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];

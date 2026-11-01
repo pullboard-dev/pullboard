@@ -10,7 +10,7 @@ import { dispatchWork } from '../packages/store/index.js';
 import { RELEASE_REASONS } from '../src/release-reasons.js';
 import { effectiveAgentParent } from '../src/seat-review-read.js';
 import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
-import { applyEngineMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { crossLaneFixture } from './e2e-helpers.js';
 import { parentSessionDigest } from '../packages/items/index.js';

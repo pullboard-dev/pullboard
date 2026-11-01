@@ -7,7 +7,7 @@ import { listAgents } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { IN_STATE } from "../../../../src/machine.js";
+import { IN_STATE } from "../../../state/index.js";
 import { moveItem } from "./board.js";
 import { onlyCoordinator } from "./board.js";
 

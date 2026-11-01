@@ -21,7 +21,7 @@ import { exitRulesDecision } from '../packages/stats/index.js';
 import { exitClaim, exitClaimDecision, exitedSession, requireExitActive, exitContinuationSummary } from '../src/exit-rules-state.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { EXIT_RULES_ENGINE } from '../src/exit-rules-engine.js';
-import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 

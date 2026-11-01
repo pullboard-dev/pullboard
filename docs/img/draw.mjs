@@ -10,7 +10,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { MACHINE } from '../../src/machine.js';
+import { MACHINE } from '../../packages/state/index.js';
 import { themeVariants } from './theme.mjs';
 
 const SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif";

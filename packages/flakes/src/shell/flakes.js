@@ -13,7 +13,7 @@ import {
 } from "../../../store/index.js";
 import { CI_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
 import { NATIVE_FLAKE_ENGINE } from "../../../../src/flake-engine.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
