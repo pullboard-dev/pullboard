@@ -22,7 +22,7 @@ function label(value, fallback) {
 }
 
 /** Append one bounded line after release; diagnostic I/O must never change a transaction's outcome. */
-export function recordBoardHold({ command, seat, item, durationMs, outcome, acquiredAt }) {
+export function recordBoardHold({ command, seat, item, durationMs, outcome, acquiredAt, phase, phaseMs }) {
   if (!Number.isFinite(durationMs) || durationMs <= BOARD_HOLD_MS) return;
   let fd;
   try {
@@ -32,7 +32,8 @@ export function recordBoardHold({ command, seat, item, durationMs, outcome, acqu
     if (!fstatSync(fd).isFile()) throw new Error('hold log is not a regular file');
     const row = { version: 1, at: new Date(acquiredAt).toISOString(), command: label(command, 'api'),
       seat: label(seat, 'unknown'), item: Number.isSafeInteger(item) && item > 0 ? item : null,
-      heldMs: Math.round(durationMs), outcome: label(outcome, 'released') };
+      heldMs: Math.round(durationMs), outcome: label(outcome, 'released'),
+      phase: label(phase, 'unknown'), phaseMs: Number.isFinite(phaseMs) && phaseMs >= 0 ? Math.round(phaseMs) : null };
     writeSync(fd, JSON.stringify(row) + '\n');
   } catch {
     try { writeSync(2, 'pullboard: board hold log unavailable; original transaction outcome retained\n'); }
@@ -88,14 +89,18 @@ export function boardHoldStats({ since, until = Date.now() } = {}) {
     count++;
     const day = new Date(at).toISOString().slice(0, 10);
     days.set(day, (days.get(day) ?? 0) + 1);
-    const group = commands.get(row.command) ?? { command: row.command, count: 0, slowestMs: 0 };
-    group.count++; group.slowestMs = Math.max(group.slowestMs, row.heldMs); commands.set(row.command, group);
+    const group = commands.get(row.command) ?? { command: row.command, count: 0, totalMs: 0, slowestMs: 0, durations: [] };
+    group.count++; group.totalMs += row.heldMs; group.durations.push(row.heldMs); group.slowestMs = Math.max(group.slowestMs, row.heldMs); commands.set(row.command, group);
   }
   return { since: new Date(start).toISOString(), until: new Date(end).toISOString(), thresholdMs: BOARD_HOLD_MS,
     count: retained.available ? count : null, today, todayCount: retained.available ? todayCount : null,
     available: retained.available, missing: retained.missing ?? false, truncated: retained.truncated, invalidLines,
     days: Object.fromEntries([...days].sort()),
-    commands: [...commands.values()].sort((a, b) => b.slowestMs - a.slowestMs || a.command.localeCompare(b.command)) };
+    commands: [...commands.values()].map(({ durations, ...group }) => {
+      durations.sort((a, b) => a - b);
+      const middle = Math.floor(durations.length / 2);
+      return { ...group, p50Ms: durations.length % 2 ? durations[middle] : (durations[middle - 1] + durations[middle]) / 2 };
+    }).sort((a, b) => b.slowestMs - a.slowestMs || a.command.localeCompare(b.command)) };
 }
 
 /** Keep absent or bounded history explicit instead of presenting an unmeasured total as zero. */
@@ -103,7 +108,7 @@ export function boardHoldLines(stats, baseline) {
   if (!stats.available) return [`board write holds >1s: ${stats.missing ? 'unmeasured (no retained machine log)' : 'log unavailable'}`,
     ...(baseline?.allowancePerDay === null ? ['WARNING: board hold allowance is unmeasured; record the first full UTC day and its fact before setting it.'] : [])];
   return [`board write holds >1s: ${stats.count} recorded${stats.truncated ? ' (bounded log tail; incomplete history)' : ''}`,
-    ...stats.commands.slice(0, 5).map(row => `  ${row.command}: ${row.count} holds; slowest ${row.slowestMs} ms`),
+    ...stats.commands.slice(0, 5).map(row => `  ${row.command}: ${row.count} holds; total ${row.totalMs} ms; p50 ${row.p50Ms} ms; max ${row.slowestMs} ms`),
     ...(baseline?.allowancePerDay === null ? ['WARNING: board hold allowance is unmeasured; record the first full UTC day and its fact before setting it.']
       : baseline && stats.todayCount > baseline.allowancePerDay
         ? [`WARNING: ${stats.todayCount} recorded holds on ${stats.today} exceed the daily allowance ${baseline.allowancePerDay}.`]

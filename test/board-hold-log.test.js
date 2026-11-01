@@ -51,9 +51,11 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   const holds = rows.filter(row => row.command === 'fixture-hold');
   assert.equal(holds.length, 1, 'a nested savepoint never double-counts the same outer hold');
   assert.deepEqual([holds[0].seat, holds[0].item, holds[0].outcome], ['web-1', 42, 'committed']);
+  assert.equal(holds[0].phase, 'work');
+  assert.ok(holds[0].phaseMs >= 1_200);
   assert.ok(holds[0].heldMs >= 1_200, 'the record measures the real held interval');
   assert.equal(rows.some(row => row.command === 'fixture-fast'), false);
-  assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'seat', 'version'],
+  assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'phase', 'phaseMs', 'seat', 'version'],
     'no SQL, notes, CLI arguments, session ids or board data are published');
   appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n'
     + JSON.stringify({ version: 1, at: { toString: null }, heldMs: 1_200, command: 'invalid', seat: 'web-1' }) + '\n');
@@ -63,12 +65,14 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.equal(stats.invalidLines, 3, 'malformed diagnostic rows cannot crash a stats query or count as a hold');
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').count, 1);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').slowestMs, holds[0].heldMs);
+  assert.equal(stats.commands.find(row => row.command === 'fixture-hold').totalMs, holds[0].heldMs);
+  assert.equal(stats.commands.find(row => row.command === 'fixture-hold').p50Ms, holds[0].heldMs);
   const narrow = box.run(box.repo, 'stats', '--since', new Date(Date.now() + 60_000).toISOString(), '--json');
   assert.notEqual(narrow.code, 0, 'invalid future windows do not quietly report an invented zero');
   const shown = box.run(box.repo, 'stats', '--window', '24h');
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /board write holds >1s:/u);
-  assert.match(shown.out, /fixture-hold: 1 holds; slowest \d+ ms/u);
+  assert.match(shown.out, /fixture-hold: 1 holds; total \d+ ms; p50 \d+ ms; max \d+ ms/u);
 });
 
 test('a hold log append observes the actual SQLite writer already released after commit and rollback [B2,C7,P4]', () => {

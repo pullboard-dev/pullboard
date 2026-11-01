@@ -52,21 +52,31 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
     policy?.enter();
   }
   TRANSACTION_DEPTH.set(board, depth + 1);
+  const bookkeepingAt = performance.now();
   const writeRecord = depth ? null : beginBoardWrite(board.db, board.writeContext);
+  if (writeRecord) { writeRecord.phase = 'write-bookkeeping'; writeRecord.phaseMs = performance.now() - bookkeepingAt; }
   // A local-first move records the rows it changed, so the relay's order can take it back later (#1013).
   let capture;
   let released = false;
   let outcome = 'release-failed';
+  /** Measure only synchronous transaction phases; the log is written after release. */
+  const phase = (name, fn) => {
+    const start = performance.now();
+    try { return fn(); } finally {
+      const elapsed = performance.now() - start;
+      if (writeRecord && elapsed > (writeRecord.phaseMs ?? 0)) { writeRecord.phase = name; writeRecord.phaseMs = elapsed; }
+    }
+  };
   const lastEvent = board.lastEvent;
   const reviewDefaultNotice = board.reviewDefaultNotice;
   const emitted = board.emittedEvents?.length ?? 0;
   try {
-    capture = depth ? null : beginCapture(board.db);
-    const result = work();
-    if (reviewPolicy) board.runtimePorts.lifecycle.normalizeReviewDefaults(board);
-    policy?.assertCurrent();
-    capture?.prepare();
-    board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT');
+    capture = depth ? null : phase('capture', () => beginCapture(board.db));
+    const result = phase('work', work);
+    if (reviewPolicy) phase('review-policy', () => board.runtimePorts.lifecycle.normalizeReviewDefaults(board));
+    if (policy) phase('policy-validation', () => policy.assertCurrent());
+    if (capture) phase('capture-prepare', () => capture.prepare());
+    phase('commit', () => board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT'));
     if (writeRecord) writeRecord.releasedAt = performance.now();
     released = true;
     outcome = 'committed';
