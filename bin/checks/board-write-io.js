@@ -4,15 +4,16 @@ import { scanSource } from '../../packages/codemap/index.js';
 import { lex } from '../../packages/kernel/index.js';
 
 const EXTERNAL_IO = /^(?:node:)?(?:fs(?:\/promises)?|child_process)$/u;
-// Exact store relocation identities; permission names and I/O sets remain unchanged.
+// Exact relocation identities; permission names and I/O sets remain unchanged.
 const STORE_WRITE_IDENTITIES = new Map([
   ['packages/store/src/shell/board-write-lock.js', 'src/board-write-lock.js'],
   ['packages/store/src/shell/board-event-log.js', 'src/board-event-log.js'],
   ['packages/store/src/shell/proof-receipts.js', 'src/proof-receipts.js'],
   ['packages/store/src/shell/seat-presence.js', 'src/seat-presence.js'],
+  ['src/gate-run-receipt.js', 'packages/gate/src/shell/gate-run-receipt.js'],
 ]);
 
-/** Retain only the four exact store paths' established function identities after relocation. */
+/** Retain exact established function identities after relocation. */
 function writeIdentity(key) {
   const at = key.lastIndexOf('#');
   return at < 0 ? key : (STORE_WRITE_IDENTITIES.get(key.slice(0, at)) ?? key.slice(0, at)) + key.slice(at);
