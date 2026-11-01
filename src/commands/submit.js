@@ -389,6 +389,7 @@ export async function submitHere(ctx, id, infra) {
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
   const cells = await timedSubmitStage(ctx, 'cells', () => requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)) }));
+  if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   await timedSubmitStage(ctx, 'composition', () => { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); });
