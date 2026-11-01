@@ -1,3 +1,4 @@
+import { checkCommandDefinition } from './check-definition.js';
 /**
  * Each check runs once per tree (#2230). A static, lint or doctrine check that passed records a receipt keyed by the
  * exact git tree it read, a digest of the check's own definition (its command, the rules it holds and the code that
@@ -47,13 +48,16 @@ function receiptDir(root) {
  * @param {string} root
  * @param {{ kind: string, definition: unknown, config: unknown, code?: string[] }} check `code` names the files that run the check
  */
-export function checkReceiptKey(root, { kind, definition, config, code = [] }) {
+export function checkReceiptKey(root, { kind, definition, config, code = [], commands = typeof definition === 'string' ? [definition] : [] }) {
   const tree = cleanTree(root);
   if (!tree) return null;
+  const implementation = checkCommandDefinition(root, commands);
+  if (!implementation) return null;
+  const implementationDigest = receiptDigest(implementation);
   const tool = code.map(file => { try { return receiptDigest(readFileSync(file, 'utf8')); } catch { return 'missing'; } });
-  const checkDigest = receiptDigest({ kind, definition, tool, node: process.version });
+  const checkDigest = receiptDigest({ kind, definition, tool, implementationDigest, node: process.version });
   const configDigest = receiptDigest(config ?? null);
-  return { kind, tree, checkDigest, configDigest, key: receiptDigest({ kind, tree, checkDigest, configDigest }) };
+  return { kind, tree, checkDigest, configDigest, commands, implementationDigest, key: receiptDigest({ kind, tree, checkDigest, configDigest }) };
 }
 
 /** A recorded green receipt for exactly this key, or null. */
@@ -68,7 +72,7 @@ export function readCheckReceipt(root, key) {
 
 /** Record a green run under its key; a failed write only means the next caller runs the check again. */
 export function writeCheckReceipt(root, key, { by = '', result = null } = {}) {
-  if (!key || cleanTree(root) !== key.tree) return null;
+  if (!key || cleanTree(root) !== key.tree || receiptDigest(checkCommandDefinition(root, key.commands ?? [])) !== key.implementationDigest) return null;
   const receipt = { version: 1, id: randomUUID(), kind: key.kind, tree: key.tree, checkDigest: key.checkDigest, configDigest: key.configDigest,
     green: true, by, at: new Date().toISOString(), result };
   try {

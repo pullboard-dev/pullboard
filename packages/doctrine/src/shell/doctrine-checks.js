@@ -159,7 +159,8 @@ function executeRuleCheck(cwd, command, timeoutMs, gateEnvironment) {
 
 /** Reuse a complete successful hold before asking for a runner slot; individual rules remain reusable at landing. */
 export async function cachedDoctrineHold(root, options, execute) {
-  const key = checkReceiptKey(root, { kind: 'doctrine-hold', definition: options, config: { timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }, code: [fileURLToPath(import.meta.url)] });
+  const commands = checkRulesAt(root, options.mainCommit, options.practice).filter(rule => rule.runs === 'submit').map(rule => rule.command);
+  const key = checkReceiptKey(root, { kind: 'doctrine-hold', commands, definition: options, config: { timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }, code: [fileURLToPath(import.meta.url)] });
   const receipt = readCheckReceipt(root, key);
   if (receipt && Array.isArray(receipt.result)) {
     process.stderr.write(`${receiptLine(receipt)}\n`);

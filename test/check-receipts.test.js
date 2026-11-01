@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { runFixtureChild } from './fixture-child.js';
 import { statSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
@@ -21,15 +24,15 @@ function ok(result) { assert.equal(result.code, 0, result.out + result.err); ret
 function runs(file) { return existsSync(file) ? statSync(file).size / 4 : 0; }
 
 /** A web item whose static check and doctrine rule log every run, and whose item check is red until armed. */
-function project(helpers) {
+function project(helpers, { staticCommand = 'node static.cjs', doctrineCommand = 'node doctrine.cjs' } = {}) {
   const box = helpers.project('true');
   const logs = { static: join(box.dir, 'static-runs.log'), doctrine: join(box.dir, 'doctrine-runs.log') };
   const armed = join(box.dir, 'item-check-green');
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: 'true', staticChecks: 'node static.cjs' }, null, 2));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: 'true', staticChecks: staticCommand }, null, 2));
   writeFileSync(join(box.repo, 'static.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(logs.static)}, 'ran\\n');\n`);
   writeFileSync(join(box.repo, 'doctrine.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(logs.doctrine)}, 'ran\\n');\n`);
   writeFileSync(join(box.repo, 'check.cjs'), `process.exit(require('node:fs').existsSync(${JSON.stringify(armed)}) ? 0 : 1);\n`);
-  appendFileSync(join(box.repo, 'DOCTRINE.md'), '\n## Q · Quality\n- Q1 [approved, must] Every doctrine run is counted. | gate: check node doctrine.cjs | count: 0\n');
+  appendFileSync(join(box.repo, 'DOCTRINE.md'), `\n## Q · Quality\n- Q1 [approved, must] Every doctrine run is counted. | gate: check ${doctrineCommand} | count: 0\n`);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: logged static and doctrine checks [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -101,4 +104,59 @@ test('a changed file, check code or config re-runs the check; the same tree in a
   assert.ok(readCheckReceipt(box.web, spec(box.web, { code: [runner] })), 'unchanged runner code reuses');
   writeFileSync(runner, '// runner v2\n');
   assert.equal(readCheckReceipt(box.web, spec(box.web, { code: [runner] })), null, 'changed check code re-runs');
+});
+
+
+test('a configured external checker changing its real implementation invalidates the doctrine receipt [V4,C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const { box } = project(helpers);
+  const outside = mkdtempSync(join(tmpdir(), 'pullboard-check-code-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const script = join(outside, 'check.cjs');
+  const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
+  writeFileSync(script, 'process.exit(0);\n');
+  assert.deepEqual(runRuleCheck(box.web, command).problems, []);
+  writeFileSync(script, "process.stdout.write('new refusal\\n'); process.exit(1);\n");
+  const actual = runFixtureChild(process.execPath, [script], { cwd: box.web, encoding: 'utf8' });
+  assert.equal(actual.status, 1);
+  assert.equal(actual.stdout, 'new refusal\n');
+  assert.deepEqual(runRuleCheck(box.web, command).problems, ['new refusal']);
+});
+
+test('unchanged-tree submits invalidate static and aggregate doctrine receipts when external checker code changes [V4,C7]', t => {
+  for (const stage of ['static', 'doctrine']) {
+    const helpers = createE2eHelpers();
+    t.after(helpers.cleanup);
+    const outside = mkdtempSync(join(tmpdir(), 'pullboard-submit-check-code-'));
+    t.after(() => rmSync(outside, { recursive: true, force: true }));
+    const script = join(outside, 'check.cjs');
+    const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
+    writeFileSync(script, 'process.exit(0);\n');
+    const { box, armed } = project(helpers, { [`${stage}Command`]: command });
+    assert.notEqual(box.run(box.web, 'submit', '1').code, 0, 'the first item check is red after the guards pass');
+    writeFileSync(script, "process.stdout.write('changed checker\\n'); process.exit(1);\n");
+    writeFileSync(armed, 'green\n');
+    const second = box.run(box.web, 'submit', '1');
+    assert.notEqual(second.code, 0, 'changed checker bytes cannot reuse a successful guard');
+    assert.match(second.out + second.err, stage === 'static' ? /GATE_RED/u : /RATCHET_ROSE/u);
+    assert.match(second.out + second.err, /changed checker/u);
+  }
+});
+
+test('external literal module dependencies are part of a checker definition [V4,C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const { box } = project(helpers);
+  const outside = mkdtempSync(join(tmpdir(), 'pullboard-check-dependency-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const script = join(outside, 'check.cjs');
+  const dependency = join(outside, 'rule.cjs');
+  writeFileSync(script, "require('./rule.cjs');\n");
+  writeFileSync(dependency, 'process.exit(0);\n');
+  const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
+  assert.deepEqual(runRuleCheck(box.web, command).problems, []);
+  writeFileSync(dependency, "console.log('changed dependency'); process.exit(1);\n");
+  assert.deepEqual(runRuleCheck(box.web, command).problems, ['changed dependency']);
+  assert.equal(checkReceiptKey(box.web, { kind: 'doctrine', definition: 'node "$CHECKER"', config: {} }), null, 'an opaque command never reuses a receipt');
 });
