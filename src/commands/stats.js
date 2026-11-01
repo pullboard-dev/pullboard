@@ -1,5 +1,6 @@
 import { coordinatorActions } from '../../packages/stats/index.js';
-import { timeStats, timeLines } from '../../packages/stats/index.js';
+import { timeStats } from '../../packages/stats/index.js';
+import { timeLines } from '../../packages/stats/index.js';
 import { criterionCells } from '../../packages/items/index.js';
 import { coordinatorActionLines } from '../../packages/stats/index.js';
 import { pipelineLimit } from '../../packages/stats/index.js';

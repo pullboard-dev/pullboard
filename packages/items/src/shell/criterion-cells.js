@@ -1,5 +1,6 @@
 /** Read only optional project cell metadata, without loading the analyzer or executing project modules [B35,C7]. */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 

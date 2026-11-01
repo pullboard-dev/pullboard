@@ -1,5 +1,6 @@
 import { parseCheckTiming } from '../check-timing.js';
-import { criterionSize, criterionCells } from '../../packages/items/index.js';
+import { criterionSize } from '../../packages/items/index.js';
+import { criterionCells } from '../../packages/items/index.js';
 import { requirePersonChannel } from '../person.js';
 import { githubPullClient } from '../pr-github.js';
 import {

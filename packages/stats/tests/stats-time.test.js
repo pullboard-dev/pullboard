@@ -2,14 +2,18 @@
 /** Private native SQLite histories prove build accounting and the actual CLI report [B35,R1,R2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import * as store from '../../store/index.js';
 import { openBoard } from '../../../src/native-board.js';
 import { main } from '../../../test/native-cli-fixture.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
-import { timeStats, timeLines } from '../index.js';
+import { timeStats } from '../index.js';
+import { timeLines } from '../index.js';
 
 const BASE = Date.parse('2026-11-01T00:00:00Z');
 
