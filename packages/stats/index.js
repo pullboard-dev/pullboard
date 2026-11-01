@@ -139,3 +139,6 @@ export {
   wilson,
   costAnalytics,
 } from './src/shell/cost-analytics.js';
+
+export { coordinatorActionStats, coordinatorActionLines, coordinatorActionRise } from './src/core/coordinator-actions.js';
+export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/shell/coordinator-actions.js';

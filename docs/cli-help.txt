@@ -123,7 +123,7 @@ Work
   pullboard milestone move <name> --before <other>             reorder a milestone
   pullboard milestone edit <name> [--name <new>] [--note <text>] [--target <date and time>|none] [--limit <n>|none]
                                         rename, update a note, or set a shipping target or item limit
-  pullboard milestone ship <name> [--next <name>]              record it shipped at main's commit and move
+  pullboard milestone ship <name> [--next <name>] [--as person --reason "why"]              record it shipped at main's commit and move
                                         its unlanded items into the next milestone (or --next)
   pullboard milestone remove <name>                            remove a milestone without changing its items
   pullboard doctor                     check board integrity without changing it

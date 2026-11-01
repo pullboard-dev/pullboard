@@ -1,3 +1,4 @@
+import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
 import { MILESTONE_LIMIT_ENGINE } from "../../../../src/milestone-limit-engine.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js";
 /**
@@ -471,14 +472,17 @@ export function removeMilestone(board, name, { agentId }, ports) {
  *
  * @param {any} board
  * @param {string} name
- * @param {{ agentId: string, commit: string | null, next?: string }} options
+ * @param {{ agentId: string, commit: string | null, next?: string, asPerson?: boolean, reason?: string, channel?: 'terminal' | 'view' }} options
  * @returns {{ milestone: any, into: string | null, moved: number[], notMoved: string[] }}
  */
-export function shipMilestone(board, name, { agentId, commit, next }, ports) {
+export function shipMilestone(board, name, { agentId, commit, next, asPerson = false, reason, channel = 'terminal' }, ports) {
   const { atomic, itemById, listItems, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "listItems", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   if (typeof commit !== 'string' || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) {
     throw new Refused('MILESTONE_COMMIT', "shipping records main's commit and main has none here; commit to main, then ship from the main checkout");
+  }
+  if ((asPerson || reason !== undefined) && (board.executionEngineVersion ?? ENGINE_VERSION) < COORDINATOR_ACTIONS_ENGINE) {
+    throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording a project release override');
   }
   return atomic(board, () => {
     const entries = milestones(board);
@@ -510,9 +514,11 @@ export function shipMilestone(board, name, { agentId, commit, next }, ports) {
       enforceMilestoneLimit(board, entries[into], nextItems, itemById);
       entries[into] = { ...entries[into], items: nextItems };
     }
+    const coordinatorActions = (board.executionEngineVersion ?? ENGINE_VERSION) >= COORDINATOR_ACTIONS_ENGINE
+      ? milestonePorts(ports, ['coordinatorMilestoneRelease']).coordinatorMilestoneRelease(board, { asPerson, reason, channel, plannedMoves: ['milestone_ship', ...moved.map(() => 'milestone_moved')] }) : null;
     entries[index] = { ...current, items: current.items.filter(stays), shipped: { commit, at, by: agentId } };
     saveMilestones(board, entries);
-    logEvent(board, agentId, 'milestone_ship', null, { name, commit, into: intoName, moved, notMoved });
+    logEvent(board, agentId, 'milestone_ship', null, { name, commit, into: intoName, moved, notMoved, ...(coordinatorActions ? { coordinatorActions } : {}) });
     for (const id of moved) {
       logEvent(board, agentId, 'milestone_moved', id, { from: name, to: intoName, commit,
         note: `moved from ${name} to ${intoName}: ${name} shipped at ${commit.slice(0, 12)} before this item landed` });
