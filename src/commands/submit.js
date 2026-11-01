@@ -84,6 +84,7 @@ import {
 } from '../gate-wait.js';
 import {
   deferredSelectionNote,
+  runStaticChecks,
   runSubmitGate,
   withGateSlot,
 } from '../gate.js';
@@ -295,6 +296,13 @@ export async function submitHere(ctx, id, infra) {
   }
   const policy = itemPolicy(root, held);
   const acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
+  // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
+  if (!isClean(root)) throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
+  const stray = untracked(root);
+  if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
+  const commit = headCommit(root);
+  if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
+  const trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined);
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
   withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id)));
@@ -328,11 +336,6 @@ export async function submitHere(ctx, id, infra) {
     }
     return { me: who, claimHead: item.item_claim_head };
   });
-  if (!isClean(root)) throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
-  const stray = untracked(root);
-  if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
-  const commit = headCommit(root);
-  if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   const pendingHandoff = !isSubmitHandoffWorker(ctx) ? withBoard(ctx, board => pendingSubmitHandoff(board, held)) : null;
   if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
@@ -340,7 +343,6 @@ export async function submitHere(ctx, id, infra) {
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
-  const trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined);
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
@@ -361,6 +363,20 @@ export async function submitHere(ctx, id, infra) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
+  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
+  // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
+  const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
+  const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
+  const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
+  const submissionWait = queuedItemLease(ctx, held, me.id, 'build', admission);
+  const submissionStarted = async () => {
+    // A queued admission already has its native witness; a free slot records it at the real gate start.
+    if (!admission.id) await submissionWait({ admitted: true });
+  };
+  // Static and lint checks run once, all at once, before doctrine and before any runner gate (fail fast).
+  await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
+    onWait: submissionWait, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
+    executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, artifactDirectory: ctx.submitHandoffOutput }));
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   const doctrine = hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
     ? await withGateSlot(root, lease => {
@@ -372,17 +388,7 @@ export async function submitHere(ctx, id, infra) {
       { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) })
     : [];
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
-  // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
-  // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
-  const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
-  const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
-  const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
-  const submissionWait = queuedItemLease(ctx, held, me.id, 'build', admission);
-  const submissionStarted = async () => {
-    // A queued admission already has its native witness; a free slot records it at the real gate start.
-    if (!admission.id) await submissionWait({ admitted: true });
-  };
-  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, staticChecked: true, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
 
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
