@@ -1,3 +1,4 @@
+import { rejectionReturnEnabled } from '../core/rework-family-routing.js';
 import { pipelineCause } from "../../../kernel/index.js";
 import { boardWriteSnapshot } from "./board-write-preparation.js";
 import { requireBoardWriteSnapshot } from "./board-write-preparation.js";
@@ -50,6 +51,7 @@ export function reopen(board, id, { agentId, note = '', conflict, cause, reopenF
       const problem = sourceAdvanceReturnProblem(board, getItem(board, id), { agentId, note, conflict, quotedLandingFailure, sourceAdvanceReturn });
       if (problem) throw problem;
     }
+    if (rejectionReturnEnabled(board) && computedConflict === undefined && sourceAdvanceReturn === undefined && !withdrawVerdict) throw new Refused('BOARD_RETURNS_REJECTED', 'the board returns rejected work');
     let submittedCommit = null;
     const assertedConflict = conflict;
     conflict = board.nativePorts.conflictValue(computedConflict, conflict);

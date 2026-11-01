@@ -12,7 +12,7 @@ import { privateRepo } from './submit-gate-fixture.js';
 import { builderRepo } from './submit-gate-fixture.js';
 import { commitAll } from './submit-gate-fixture.js';
 import { put } from './submit-gate-fixture.js';
-import { cellLintBaseline } from '../packages/codemap/index.js';
+import { planCellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { gitPath } from '../packages/git/index.js';
 import { recordedToolCommits } from '../packages/git/index.js';
@@ -48,11 +48,13 @@ test('the leaf matches accepted main [G1]', () => {
   commitAll(main);
   // The accepted fixture budget includes the temporary bridge shims a move deliberately creates.
   // Measure a real reversible move, then restore the original source before accepting that budget.
+  const original = main.git('rev-parse', 'HEAD');
   const previewCustody = join(main.dir, 'preview-custody');
   mkdirSync(previewCustody);
-  const preview = JSON.parse(tool(main, 'cells-move.js', '--apply', 'src/leaf.js', 'packages/leaf/src/core/leaf.js', 'packages/leaf/index.js', 'Expose the leaf value.', previewCustody));
-  const baseline = cellLintBaseline(JSON.parse(tool(main, 'cell-lints.js', '--report')));
-  tool(main, 'cells-move.js', '--undo', preview.record);
+  tool(main, 'cells-move.js', '--apply', 'src/leaf.js', 'packages/leaf/src/core/leaf.js', 'packages/leaf/index.js', 'Expose the leaf value.', previewCustody);
+  commitAll(main); // The report reads committed path-map identities.
+  const { baseline } = planCellLintBaseline(JSON.parse(tool(main, 'cell-lints.js', '--report')));
+  main.git('reset', '--hard', original); // Only this disposable private fixture checkout.
   writeCellLintBaseline(main.root, baseline, { initialize: true });
   commitAll(main);
   const box = builderRepo(main, ['packages/', 'bin/']);

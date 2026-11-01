@@ -76,7 +76,7 @@ import {
 } from '../lanes.js';
 import {
   hasSubmitRules,
-  holdDoctrine,
+  holdDoctrineAsync,
   ruleLine,
 } from '../../packages/doctrine/index.js';
 import * as gateReceipt from '../gate-receipt.js';
@@ -175,7 +175,7 @@ import { waitForSubmitGate } from '../submit-gate-wait.js';
 
 /** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
 function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
-  if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunner !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
+  if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
   const parent = artifactDirectory ? join(artifactDirectory, 'doctrine') : gitPath(root, 'pullboard-doctrine-output');
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const observations = [];
@@ -183,7 +183,7 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
   lease.tracker?.mark('runAt');
   return {
     /** Execute exactly one approved rule at its candidate or merge-base source; exit 1 is a counted result. */
-    runCheck(commit, command, timeoutMs) {
+    async runCheck(commit, command, timeoutMs) {
       attempts++;
       const started = performance.now();
       const directory = mkdtempSync(join(parent, 'rule-'));
@@ -193,7 +193,7 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
         policyCommit: mainCommit, trunk: { ref: trunkRef(root), commit: mainCommit } });
       let result;
       try {
-        result = lease.executionServices.runners.runOnRunner(root, shell, { runner: lease.runner, source: lease.source,
+        result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
           runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
           metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log') });
       } catch (error) {
@@ -402,9 +402,9 @@ export async function submitHere(ctx, id, infra) {
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, artifactDirectory: ctx.submitHandoffOutput }));
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   const doctrine = hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? await withGateSlot(root, lease => {
+    ? await withGateSlot(root, async lease => {
       const remote = runnerAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
-      try { return holdDoctrine(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
+      try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
         practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remote ? { runCheck: remote.runCheck } : {}) }); }
       finally { remote?.finish(); }
     },
@@ -462,7 +462,9 @@ export async function submitHere(ctx, id, infra) {
       }
     } catch (error) { criterionProblem = `\nknown-main acceptance of the frozen check failed: ${error?.message ?? error}`; /* Unavailable exact-main proof never authorizes a red frozen check. */ }
   }
-  if (criterionMatched) {
+  if (criterionMatched && gate.completedProof) {
+    gate = { ...gate, ...gate.completedProof, log: gate.log, check: gate.check, criterionRed: gate.criterionRed };
+  } else if (criterionMatched) {
     // The known red stands in for the criterion; the selected proof still runs on this commit, without re-running the check.
     const proof = await runGate(undefined);
     for (const proofReceiptId of proof.proofReceiptIds ?? []) {

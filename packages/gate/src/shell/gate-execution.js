@@ -1,3 +1,4 @@
+import { runShellAsync } from './shell-run.js';
 import { gateStages } from './gate-stages.js';
 import { stagedScript } from './gate-stages.js';
 import { readStages } from './gate-stages.js';
@@ -197,7 +198,7 @@ export function safeLog(output) {
  * @param {string} command
  * @param {{ waitMs?: number, artifactDirectory?: string, artifactPrefix?: string, persistLog?: boolean, profileFile?: string, pipefail?: boolean, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, collectAll?: boolean, stages?: boolean, timeoutMs?: number, waivers?: Array<{ kind: string, test: string }> }} [options]
  */
-export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false } = {}) {
+function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, artifactPrefix = 'pullboard-gate', persistLog = false, profileFile, pipefail = false, gateSlotHeld = false, gateLease, landing = false, collectAll = false, releaseRequest, stages = false, waivers = [], timeoutMs, auditCoverage = false } = {}) {
   const proofSource = gateLease?.proof || gateLease?.quarantines?.length ? proofSourceAt(root, null, committedTree) : null;
   const timingSourceBefore = stages ? timingSourceForReceipt(root) : null;
   const directory = artifactDirectory ?? dirname(gitPath(root, LOG));
@@ -224,10 +225,11 @@ export function runProfiledShell(root, command, { waitMs = 0, artifactDirectory,
   // The registered worker returns the same complete stage/component accounting as a local run.
   gateLease?.tracker?.mark('runAt');
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
-  const run = gateLease?.runner ? { ...gateLease.executionServices.runners.runOnRunner(root, remoteCommand, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
+  const run = yield { root, command, remoteCommand, gateLease,
+    remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
     browser: gateLease.browser, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
-      testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } }) }
-    : runShell(root, command, { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) });
+      testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
+    localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) } };
   gateLease?.tracker?.mark('ranAt');
   if (gateLease) {
     gateLease.environment = run.environment ?? null;
@@ -354,94 +356,31 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
   return { ...result, ...(id ? { proofReceiptId: id } : {}) };
 }
 
-/** Run an independent focused comparison without blocking other holders of the machine pool.
- * @param {string} root
- * @param {string} command
- * @param {{ waitMs?: number, gateSlotHeld?: boolean, gateLease?: object, landing?: boolean, stages?: boolean }} [options]
- * @returns {Promise<object>} The unchanged shell verdict and its private timing profile.
- */
-export async function runProfiledShellAsync(root, command, { waitMs = 0, gateSlotHeld = false, gateLease, landing = false, stages = false } = {}) {
-  const started = Date.now();
-  const id = randomUUID();
-  const before = stages ? timingSourceForReceipt(root) : null;
-  /** Apply only the same source-bound protocol projection as the synchronous admitted gate. */
-  const account = run => {
-    if (!stages) return run;
-    const source = run.executionSource && { head: run.executionSource.commit, tree: run.executionSource.tree };
-    const bound = sameTimingSource(before, timingSourceForReceipt(root)) && run.executionSourceUnchanged !== false
-      && (!gateLease?.runner || Boolean(source)) && (!source || sameTimingSource(before, source)) ? before : null;
-    const outcomes = bound && committedTestOutcomes(root, before.head, readTestOutcomes(safeLog(run.output ?? ''), id), tryGit);
-    return { ...run, ...(outcomes ? { testOutcomes: outcomes } : {}), stages: timingAccountingStages(run.stages, id, bound) };
-  };
-  gateLease?.tracker?.mark('runAt');
-  if (gateLease?.runner) {
-    const run = await gateLease.executionServices.runners.runOnRunnerAsync(root, command, { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-      browser: gateLease.browser, stages, metadata: { ...(gateLease.runMetadata ?? {}), landing,
-        testStage: gateLease.receiptKind ?? (landing ? 'land' : 'gate'), ...(stages ? { timingRunId: id } : {}) } });
-    gateLease.environment = run.environment ?? null;
-    gateLease.gui = run.executionCapabilities?.gui ?? null;
-    gateLease.executionAdmission = run.executionAdmission ?? null;
-    gateLease.executionPhases = run.executionPhases ?? null;
-    gateLease.sourcePreparation = sourcePreparationFields(run.sourcePreparation);
-    gateLease.tracker?.mark('ranAt');
-    const wallMs = Math.max(0, Date.now() - started);
-    const profilePath = join(dirname(gitPath(root, LOG)), `pullboard-gate-${randomUUID()}.profile.json`);
-    const sandboxBlocked = run.isGreen ? null : run.sandboxBlocked
-      ?? sandboxBlockedOperation(root, run.output, { includeFilePaths: false });
-    const profile = writeTimingProfile(profilePath, { ...runTiming(run, command, root), waitMs, wallMs, receipt: settleReceipt(gateLease) });
-    return account({ ...run, sandboxBlocked, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null });
-  }
-  const inherited = {
-    ...(stages ? { [TIMING_RUN_ID_ENV]: id } : {}),
-    ...(gateLease ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
-    [LANDING_RUN_ENV]: landing ? '1' : '0',
-    PULLBOARD_TEST_STAGE: gateLease?.receiptKind ?? (landing ? 'land' : 'gate'),
-  };
-  const diagnostics = [];
-  const runtimes = captureTestRuntimes({ ...gitChildEnv(root, { report: diagnostics.push.bind(diagnostics) }), ...inherited });
-  const env = runtimes.env;
-  const environment = executionEnvironment();
-  const split = stages ? gateStages(command) : null;
-  const marker = `PULLBOARD_STAGE_${randomUUID().replaceAll('-', '')}`;
-  const pipes = split?.some(stage => stage.pipeline.length > 1) ? mkdtempSync(join(tmpdir(), 'pullboard-pipes-')) : null;
+/** Execute the shared profiled plan synchronously, preserving every existing receipt field. */
+export function runProfiledShell(root, command, options) {
+  const execution = profiledExecution(root, command, options);
   try {
-    const child = spawn(`(\n${split ? stagedScript(split, marker, pipes) : command}\n) 2>&1`, { cwd: root, env, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
-    const chunks = [...diagnostics];
-    let bytes = 0;
-    let overflow = false;
-    let failure = null;
-    /** Retain merged shell output within the same one-GiB limit as the synchronous gate runner. */
-    const capture = part => {
-      bytes += Buffer.byteLength(part);
-      if (bytes > 2 ** 30) { overflow = true; child.kill(); }
-      else chunks.push(part);
-    };
-    child.stdout.setEncoding('utf8').on('data', capture);
-    child.stderr.setEncoding('utf8').on('data', capture);
-    child.once('error', error => { failure = error; });
-    const status = await new Promise(resolveClose => child.once('close', resolveClose));
-    const testRuntimes = runtimes.finish();
-    gateLease?.tracker?.mark('ranAt');
-    if (gateLease) gateLease.environment = environment;
-    invalidateGitFacts();
-    const raw = chunks.join('') + (overflow ? '\nFocused comparison output exceeded one GiB.\n' : '')
-      + (failure ? `\n${failure.message}\n` : '');
-    const parsed = split ? readStages(raw, marker, split.length) : null;
-    const pipeStatuses = pipes ? readPipes(split, pipes) : null;
-    const output = parsed?.output ?? raw;
-    const stageRows = parsed?.stages.map((stage, index) => pipeStatuses?.[index] ? { ...stage, pipeline: pipeStatuses[index] } : stage) ?? null;
-    const wallMs = Math.max(0, Date.now() - started);
-    const profilePath = join(dirname(gitPath(root, LOG)), `pullboard-gate-${randomUUID()}.profile.json`);
-    const profile = writeTimingProfile(profilePath, { ...timingFromOutput(output, timingRunner(command)),
-      waitMs: Math.max(0, Math.round(waitMs)), wallMs, receipt: settleReceipt(gateLease) });
-    return account({ isGreen: status === 0 && !overflow && !failure, environment, testRuntimes, sandboxBlocked: status === 0 ? null : sandboxBlockedOperation(root, output), output, seconds: Math.round(wallMs / 1000), profile, profilePath, logPath: null, ...(stages ? { stages: stageRows } : {}) });
-  } finally {
-    runtimes.finish();
-    if (pipes) rmSync(pipes, { recursive: true, force: true });
-  }
+    const { value: plan } = execution.next();
+    const { gateLease } = plan;
+    const run = gateLease?.runner
+      ? gateLease.executionServices.runners.runOnRunner(root, plan.remoteCommand, plan.remoteOptions)
+      : runShell(root, command, plan.localOptions);
+    return execution.next(run).value;
+  } finally { execution.return(); }
 }
 
-
+/** Run the same plan concurrently; its source, profiles, quarantine verdict and receipts are unchanged. */
+export async function runProfiledShellAsync(root, command, options) {
+  const execution = profiledExecution(root, command, options);
+  try {
+    const { value: plan } = execution.next();
+    const { gateLease } = plan;
+    const run = gateLease?.runner
+      ? await gateLease.executionServices.runners.runOnRunnerAsync(root, plan.remoteCommand, plan.remoteOptions)
+      : await runShellAsync(root, command, plan.localOptions);
+    return execution.next(run).value;
+  } finally { execution.return(); }
+}
 
 /** Keep raw TAP intact while resolving its measured filenames against the checkout that ran them. */
 function runTiming(run, command, root) {
@@ -631,10 +570,10 @@ function leaveRunReceipt(root, config, run, { before, kind, auditBatchId, auditF
 }
 
 /** Run a full gate while its caller owns the queue lease; only a full run may stamp its tree. */
-export function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate' } = {}) {
+function* fullGateExecution(root, config, trustStamp = false, { waitMs = 0, log = gitPath(root, LOG), gateLease, landing = false, collectAll = false, auditBatchId, auditFiles, auditCoverage = false, releaseRequest, releaseStartedAt, stages = false, waivers = [], kind = 'gate' } = {}) {
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   const before = committedTree(root);
-  const run = runProfiledShell(root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined });
+  const run = yield [root, config.gate, { waitMs, pipefail: true, profileFile: `${log}.profile.json`, gateLease, landing, collectAll, releaseRequest, stages, waivers, auditCoverage, timeoutMs: landing ? config.landing?.timeoutMs : undefined }];
   const { isGreen, output, seconds, profile, profilePath } = run;
   writeFileSync(log, output);
   // The environment refusing a run says nothing about the gate, so only a real result is recorded (U41).
@@ -655,6 +594,24 @@ export function fullGateRun(root, config, trustStamp = false, { waitMs = 0, log 
     ...(run.proofReceiptId ? { proofReceiptId: run.proofReceiptId } : {}), ...(run.timedOut ? { timedOut: true } : {}), ...(run.executionRoot ? { executionRoot: run.executionRoot } : {}),
     // A remote run's host load and pinned main reach the flake diagnostics with it (#925).
     ...(run.executionRunner ? { executionRunner: run.executionRunner, executionMain: run.executionMain ?? null, executionLoad: run.executionLoad ?? null } : {}), ...(stages ? { stages: run.stages } : {}) };
+}
+
+/** Keep full-gate records and stamps identical for synchronous callers. */
+export function fullGateRun(root, config, trustStamp = false, options) {
+  const execution = fullGateExecution(root, config, trustStamp, options);
+  try {
+    const step = execution.next();
+    return step.done ? step.value : execution.next(runProfiledShell(...step.value)).value;
+  } finally { execution.return(); }
+}
+
+/** Await a full gate without serializing another check behind its shell process. */
+export async function fullGateRunAsync(root, config, trustStamp = false, options) {
+  const execution = fullGateExecution(root, config, trustStamp, options);
+  try {
+    const step = execution.next();
+    return step.done ? step.value : execution.next(await runProfiledShellAsync(...step.value)).value;
+  } finally { execution.return(); }
 }
 
 /**

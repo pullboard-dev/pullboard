@@ -1,3 +1,4 @@
+import { lineSettings } from './line-settings-read.js';
 import { Refused } from '../../../kernel/core.js';
 
 /** An outside sandbox verdict carries its bound outside receipt [H16]. */
@@ -22,4 +23,9 @@ export function replayArgs(board, args, { move, store }) {
     throw new Refused('NO_POLICY', 'the frozen verify policy is missing or invalid; ask the coordinator to refreeze this item before verifying it');
   }
   args[1] = { ...options, policy: captured.policy, familyPolicy: captured.family, impliesId: move.id };
+}
+
+/** Seal automatic rejection routing before assigning the move's historical execution floor [B35,H16]. */
+export function prepareBefore(board, values) {
+  if (lineSettings(board).returnRejectedWork === true) values[1] = { ...values[1], returnRejectedWork: true };
 }
