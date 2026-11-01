@@ -653,8 +653,8 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     assert.equal(refrozen.outcome.result.decision, 'ACCEPT');
   }
   assert.deepEqual(outcomes, [
-    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
-    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
+    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'SAME_FAMILY', 'NO_POLICY', 'NO_POLICY'],
+    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'SAME_FAMILY', 'NO_POLICY', 'NO_POLICY'],
   ]);
 });
 
