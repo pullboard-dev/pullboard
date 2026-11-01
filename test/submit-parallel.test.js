@@ -15,17 +15,39 @@ const SLOW_MS = 20_000;
 function project(t, delay) {
   const main = privateRepo(t);
   const observations = join(main.dir, 'observations.jsonl');
-  const command = role => `node test/check.mjs ${role} ${delay} '${observations}'`;
+  const command = role => `PARALLEL_ROLE=${role} PARALLEL_DELAY=${delay} PARALLEL_OBSERVATIONS='${observations}' node --test --test-reporter=./test/reporter.mjs test/check.test.mjs`;
   put(main.root, 'pullboard.json', JSON.stringify({ gate: command('proof'), shared: ['pullboard.json'] }));
   put(main.root, 'src/a.js', 'export const value = 1;\n');
-  put(main.root, 'test/check.mjs', `import { appendFileSync, readFileSync } from 'node:fs';
-const [role, delay, observations] = process.argv.slice(2);
-const start = Date.now();
-await new Promise(resolve => setTimeout(resolve, Number(delay)));
-const failed = readFileSync('src/a.js', 'utf8').includes('fail-' + role);
-appendFileSync(observations, JSON.stringify({ role, start, end: Date.now(), failed }) + '\\n');
-console.log('TAP version 13\\n1..1\\n' + (failed ? 'not ok' : 'ok') + ' 1 - ' + role);
-process.exitCode = failed ? 1 : 0;
+  put(main.root, 'test/check.test.mjs', `import { appendFileSync, readFileSync } from 'node:fs';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+const role = process.env.PARALLEL_ROLE ?? 'proof';
+test(role, async () => {
+  const start = Date.now();
+  await new Promise(resolve => setTimeout(resolve, Number(process.env.PARALLEL_DELAY ?? 0)));
+  const failed = readFileSync('src/a.js', 'utf8').includes('fail-' + role);
+  if (process.env.PARALLEL_OBSERVATIONS) appendFileSync(process.env.PARALLEL_OBSERVATIONS, JSON.stringify({ role, start, end: Date.now(), failed }) + '\\n');
+  assert.equal(failed, false);
+});
+`);
+  put(main.root, 'test/reporter.mjs', `import { tap } from 'node:test/reporters';
+import { relative } from 'node:path';
+export default async function* report(events) {
+  const rows = [];
+  async function* observe() {
+    for await (const event of events) {
+      if (['test:pass', 'test:fail'].includes(event.type) && event.data.file && event.data.details?.type !== 'suite') {
+        rows.push({ file: relative(process.cwd(), event.data.file), name: event.data.name,
+          passed: event.type === 'test:pass', skipped: event.data.skip !== undefined || event.data.todo !== undefined });
+      }
+      yield event;
+    }
+  }
+  yield* tap(observe());
+  if (process.env.PULLBOARD_TIMING_RUN_ID) for (const row of rows) {
+    yield '# pullboard test outcomes ' + JSON.stringify({ version: 1, id: process.env.PULLBOARD_TIMING_RUN_ID, tests: [row] }) + '\\n';
+  }
+}
 `);
   commitAll(main);
   const box = builderRepo(main);
@@ -56,7 +78,7 @@ test('submit overlaps two slow checks within 20% of the slower one and preserves
   assert.ok(wallMs <= slower * 1.2, `submit ${wallMs}ms, slower check ${slower}ms`);
   assert.equal(receipts.length, 2, 'each command retains its own native proof receipt');
   assert.equal(new Set(receipts.map(receipt => receipt.id)).size, 2);
-  assert.ok(receipts.every(receipt => receipt.exitCode === 0 && receipt.environment.node === '22.22.2'));
+  assert.ok(receipts.every(receipt => receipt.exitCode === 0 && receipt.environment?.node === process.versions.node));
 });
 
 for (const role of ['criterion', 'proof']) {

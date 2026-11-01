@@ -546,8 +546,8 @@ test('a submit timing profile records both phases and one queue wait for selecte
       : ['affected proof profile sample [C7]']);
     assert.equal(proofProfile.waitMs, 0, 'the second phase reuses the submission lease instead of queueing again');
     assert.equal(combined.waitMs, checkProfile.waitMs, 'the combined profile records the real queue wait once');
-    assert.ok(combined.wallMs >= checkProfile.wallMs + proofProfile.wallMs - 25, // budget: measured check and proof phase durations; 25ms rounding allowance.
-      'the combined wall time includes both measured phases without adding their queue waits');
+    assert.ok(combined.wallMs >= Math.max(checkProfile.wallMs, proofProfile.wallMs) - 25, // budget: measured check and proof phase durations; 25ms rounding allowance.
+      'the combined wall time covers the slower concurrent phase without adding their queue waits');
     assert.ok(submission.elapsedMs + 50 >= combined.waitMs + combined.wallMs, // budget: measured combined wait/work against the enclosing clock; 50ms rounding allowance.
       `${submission.elapsedMs}ms total vs ${combined.waitMs}ms one wait + ${combined.wallMs}ms combined work`);
     assert.deepEqual(combined.files, []);
