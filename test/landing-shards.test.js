@@ -477,7 +477,7 @@ async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
 const { parseProcessCensus } = await import(${url('../packages/kernel/src/core/process-census.js')});
 const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
-const { Refused } = await import(${url('refused.js')});
+const { Refused } = await import(${url('../packages/kernel/index.js')});
 const { RunnerDropped } = await import(${url('runners.js')});
 const { appendFileSync } = await import('node:fs');
 const answer = ${JSON.stringify(answer)};

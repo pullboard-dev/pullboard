@@ -1,3 +1,7 @@
+import { requireTestTierAccount } from '../../../gate/index.js';
+import { selectTestTiers } from '../../../gate/index.js';
+import { testTierCommand } from '../../../gate/index.js';
+import { VALUE_GATE } from '../../../gate/index.js';
 import { blockingFailures } from '../../../verify/index.js';
 /** Coordinator landing gate step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
@@ -49,6 +53,8 @@ async function recordLandingRun(state, receiptId) {
 function batchAffectedTests(state) {
   const root = state.batch.root;
   const commit = headCommit(root);
+  const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
+  if (testTiers) return { full: false, mandatory: [], testTiers, files: [...new Set([...testTiers.journeys, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
   const selection = state.config.affectedTests
     ? selectAffectedTests(root, { base: state.batch.base, commit })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
@@ -60,6 +66,11 @@ function batchAffectedTests(state) {
 /** Bind each cached result to its exact full-gate or local-trunk guard plan. */
 function batchGatePlan(state, { localTrunk = false } = {}) {
   const selection = batchAffectedTests(state);
+  if (selection.testTiers) {
+    const command = testTierCommand(selection.testTiers, selection.files) || 'true';
+    return { config: { ...state.config, gate: command, [VALUE_GATE]: true }, files: selection.files, subset: false, testTiers: true,
+      affectedGate: createHash('sha256').update(command).digest('hex') };
+  }
   const changed = git(state.batch.root, ['diff', '--no-renames', '--name-only', '-z', state.batch.base, 'HEAD']).split('\0').filter(Boolean);
   // Receipt-enabled publication runs the unchanged full command on its final envelope; this pass is only its floor.
   const receiptFloor = state.config.landing?.requireReceipts === true && Boolean(state.config.affectedTests);
@@ -93,7 +104,7 @@ export function landingRunObserver(state, config, commit) {
 export async function gateGroup(state, label, options) {
   const tree = headTree(state.batch.root);
   const commit = headCommit(state.batch.root);
-  const { config, affectedGate, files, subset } = batchGatePlan(state, options);
+  const { config, affectedGate, files, subset, testTiers } = batchGatePlan(state, options);
   const recorded = state.gates.get(tree);
   if (recorded?.timedOut) throw new Refused('LAND_GATE_TIMEOUT', 'this exact tree has a recorded landing timeout; inspect its log before starting a new batch');
   let cached = recorded?.affectedGate === affectedGate ? recorded : null;
@@ -114,6 +125,7 @@ export async function gateGroup(state, label, options) {
       waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext })
     : await runGate(state.batch.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: false, landing: true, agent: 'coordinator', onWait: state.onWait,
       stages: true, waivers: liveWaiverProjection(state.board, state.landingPorts), onFailure, quarantines, proofContext });
+  if (testTiers) requireTestTierAccount(gate, files);
   if (subset && gate.proofReceiptId) await recordLandingRun(state, gate.proofReceiptId);
   if (gate.blockingVerdict) state.landingPorts.validateQuarantineGate(state.board, { ...gate, tree });
   copyFileSync(gate.log, logPath);
