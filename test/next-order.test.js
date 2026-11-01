@@ -359,7 +359,9 @@ test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t
   box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${first},${second}`, '--json'));
   box.milestone('later', later);
   const ordered = box.runAs(box.session, box.web, 'milestone', 'order', 'current', `${first},${second}`, '--json');
-  assert.equal(ordered.code, 0, `an agent can order the milestone through the real CLI\n${ordered.out}\n${ordered.err}`);
+  assert.notEqual(ordered.code, 0, 'an agent cannot override automatic placement');
+  assert.equal(JSON.parse(ordered.out).error.code, 'MILESTONE_PLACED');
+  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${first},${second}`, '--reason', 'Set fixture priority', '--json'));
   const next = box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
   assert.equal(next.item.item_id, first, 'explicit rank precedes route and age within the seat’s own lane');
   assert.equal(next.item.item_owner, api.agent);
@@ -385,7 +387,7 @@ test('pullboard queue lists releases as breakpoints and items in pull order [N2,
   const loose = box.add('web', 'Work in no release');
   box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${ranked},${claimed},${waiting}`, '--json'));
   box.milestone('later', later);
-  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${ranked}`, '--json'));
+  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${ranked}`, '--reason', 'Set fixture priority', '--json'));
   box.json(box.run(box.repo, 'edit', String(waiting), '--after', String(claimed), '--json'));
   box.json(box.runAs(box.session, holder.root, 'claim', String(claimed), '--json'));
 
@@ -494,11 +496,11 @@ test('milestone order refuses invalid membership and unauthenticated ranking [N2
   addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'release', items: [one] });
   const original = JSON.stringify(store.milestones(board));
   for (const items of [[], [one, one], [other], ['missing#1']]) {
-    assert.throws(() => orderMilestoneItems(board, 'release', { agentId: builder, items }), { code: 'MILESTONE_ITEMS' });
+    assert.throws(() => orderMilestoneItems(board, 'release', { agentId: 'coordinator', items, reason: 'Validate fixture membership' }), { code: 'MILESTONE_ITEMS' });
     assert.equal(JSON.stringify(store.milestones(board)), original);
   }
   for (const agentId of ['person', 'unknown-seat']) {
-    assert.throws(() => orderMilestoneItems(board, 'release', { agentId, items: [one] }), { code: 'NO_AGENT' });
+    assert.throws(() => orderMilestoneItems(board, 'release', { agentId, items: [one] }), { code: 'MILESTONE_PLACED' });
   }
   const forged = prepareEngineMove(board, 'orderMilestoneItems', ['release', { agentId: 'coordinator', items: [one] }]);
   const refusal = applyRelayMove(board, forged, { sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: builder } });

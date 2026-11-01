@@ -179,11 +179,13 @@ test('ordinary milestone ordering preserves coordinator overrides until an expli
   command(box.repo, 'milestone', 'add', 'Now', '--reason', 'Arrange fixture release', '--items', '1,2,3');
   command(box.repo, 'milestone', 'pin', 'Now', '1', '--reason', 'release blocker');
   command(box.repo, 'milestone', 'sink', 'Now', '2', '--reason', 'await the design');
-  const reordered = command(box.web, 'milestone', 'order', 'Now', '2,3').milestone;
+  const denied = box.run(box.web, 'milestone', 'order', 'Now', '2,3', '--json');
+  assert.equal(JSON.parse(denied.out).error.code, 'MILESTONE_PLACED');
+  const reordered = command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority').milestone;
   assert.ok(reordered.order.includes(1), 'an ordinary agent cannot erase a coordinator pin by omission');
   assert.ok(reordered.sunk.includes(2), 'including a sunk item cannot lift it');
   assert.deepEqual(reordered.reasons, { '1': 'release blocker', '2': 'await the design' });
-  const again = command(box.repo, 'milestone', 'order', 'Now', '3,2').milestone;
+  const again = command(box.repo, 'milestone', 'order', 'Now', '3,2', '--reason', 'Set fixture priority').milestone;
   assert.ok(again.order.includes(1), 'even a coordinator ordinary re-rank is not an explicit lift');
   assert.ok(again.sunk.includes(2));
   assert.deepEqual(again.reasons, reordered.reasons);
@@ -192,8 +194,8 @@ test('ordinary milestone ordering preserves coordinator overrides until an expli
   assert.notEqual(refused.code, 0);
   assert.equal(JSON.parse(refused.out).error.code, 'COORDINATOR_ONLY');
   command(box.repo, 'milestone', 'lift', 'Now', '1,2');
-  const lifted = command(box.web, 'milestone', 'order', 'Now', '2,3').milestone;
-  assert.deepEqual(lifted.order, [2, 3], 'ordinary legacy ordering still works once overrides are explicitly lifted');
+  const lifted = command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority').milestone;
+  assert.deepEqual(lifted.order, [2, 3], 'coordinator ordering works once overrides are explicitly lifted');
   assert.equal(lifted.sunk, undefined);
   assert.equal(lifted.reasons, undefined);
 });
