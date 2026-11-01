@@ -223,7 +223,7 @@ export function timeStats(history, { now, days = 7, receipts = [] }) {
     clockMs: items.reduce((sum, item) => sum + item.clockMs, 0) };
 }
 
-/** Human lines: median and total minutes per phase, then the share of clock time that is not building. */
+/** Human lines: median and total minutes for every phase, including phases with no recorded time. */
 export function timeLines(stats) {
   const minutes = ms => (ms / 60000).toFixed(1);
   const lines = [`${stats.landed} items landed ${stats.since} to ${stats.until}; ${minutes(stats.clockMs)} clock minutes`];
@@ -231,7 +231,7 @@ export function timeLines(stats) {
   if (stats.unattributedProofs) lines.push(`${stats.unattributedProofs} submit proof receipts lack phase attribution`);
   for (const phase of TIME_PHASES) {
     const row = stats.phases[phase];
-    if (row.totalMs > 0) lines.push(`${phase === 'unattributedChecks' ? 'unattributed checks' : phase}: median ${minutes(row.medianMs)} min, total ${minutes(row.totalMs)} min`);
+    lines.push(`${phase === 'unattributedChecks' ? 'unattributed checks' : phase}: median ${minutes(row.medianMs)} min, total ${minutes(row.totalMs)} min`);
   }
   return lines;
 }

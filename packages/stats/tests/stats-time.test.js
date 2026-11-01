@@ -100,7 +100,7 @@ test('medians and totals cover the window and drop items that landed outside it 
   assert.equal(stats.phases.queued.totalMs / MIN, 25);
   assert.equal(stats.phases.queued.medianMs / MIN, 12.5);
   assert.equal(timeStats(HISTORY, { now: NOW + 8 * 86400000, days: 7 }).landed, 0);
-  assert.ok(timeLines(stats).length > 3);
+  assert.equal(timeLines(stats).length, TIME_PHASES.length + 1, 'each phase gets a median and total row, including zero');
 });
 
 test('a stalled claim charges idle time through the holder’s next real activity [R1,R2,C7]', () => {
