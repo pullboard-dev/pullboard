@@ -1,17 +1,17 @@
 /** Event statistics attribute only recorded actor-family evidence, never current declarations [R1,R2]. */
-import { events as readStatsEvents } from '../../../src/board.js';
+import { events as readStatsEvents } from '../../store/index.js';
 import { counterProofStats as readStatsCounter } from '../../verify/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addItem } from '../../../src/board.js';
-import { claim } from '../../../src/board.js';
-import { closeBoard } from '../../../src/board.js';
-import { events } from '../../../src/board.js';
-import { register } from '../../../src/board.js';
-import { release } from '../../../src/board.js';
+import { addItem } from '../../store/index.js';
+import { claim } from '../../store/index.js';
+import { closeBoard } from '../../store/index.js';
+import { events } from '../../store/index.js';
+import { register } from '../../store/index.js';
+import { release } from '../../store/index.js';
 import { openBoard } from '../../../src/native-board.js';
-import { exportBoard } from '../../../src/exchange.js';
-import { importBoard } from '../../../src/exchange.js';
+import { exportBoard } from '../../store/index.js';
+import { importBoard } from '../../store/index.js';
 import { eventCounts } from '../src/shell/stats.js';
 import { proofStats } from '../src/shell/stats.js';
 

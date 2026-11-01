@@ -1,10 +1,10 @@
-import { specApprovalBaselineExists } from "../../../../src/board.js";
+import { specApprovalBaselineExists } from "../../../store/index.js";
 import { relayRecovered } from "../../../../src/relay.js";
 import { prepareStaleObservation } from "../../../health/index.js";
 import { planStaleState } from "../../../../src/board-stale-state-maintenance.js";
 import { releaseGoneClaims } from "../core/gone-claims.js";
 /** CLI proposal and exact person decisions for board-owned watches [A6,D3]. */
-import { PERSON } from "../../../../src/board.js";
+import { PERSON } from "../../../store/index.js";
 import {
   requireSignedPerson,
   signsPersonMoves,

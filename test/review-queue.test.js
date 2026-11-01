@@ -28,7 +28,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../src/exchange.js';
+} from '../packages/store/index.js';
 
 const HOUR = 60 * 60 * 1000;
 const REVIEW_LEASE = 1_000;

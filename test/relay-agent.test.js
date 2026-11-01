@@ -11,7 +11,7 @@ import { chmodSync, existsSync, readFileSync, realpathSync, unlinkSync, writeFil
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, test } from 'node:test';
-import { claim as claimStoredItem, closeBoard, register as registerStoredAgent } from '../src/board.js';
+import { claim as claimStoredItem, closeBoard, register as registerStoredAgent } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { submitFixture as submitStoredItem } from './board-submit-fixture.js';
 import { serveApi } from '../src/api.js';

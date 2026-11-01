@@ -1,5 +1,5 @@
-import { logEvent } from '../../../../src/board-event-log.js';
-import { PERSON } from '../../../../src/board-query.js';
+import { logEvent } from '../../../store/index.js';
+import { PERSON } from '../../../store/index.js';
 /** Person-owned machine exclusions carry key-free native provenance [H5,H17,B26]. */
 import { repoInfo } from '../../../../src/git.js';
 import { readRelayMachine } from './relay-machine.js';

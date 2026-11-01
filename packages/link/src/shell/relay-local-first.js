@@ -17,7 +17,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { pullboardHome } from '../../../../src/local-state.js';
+import { pullboardHome } from '../../../store/index.js';
 
 /** Set to 0 to send inside each command instead, as before #1013; the test runner sets it, like the view. */
 export const SENDER_BACKGROUND_ENV = 'PULLBOARD_RELAY_SENDER_BACKGROUND';

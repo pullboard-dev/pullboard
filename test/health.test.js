@@ -21,7 +21,7 @@ import { main } from './native-cli-fixture.js';
 import { boardHealth, healthReport } from '../packages/health/index.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
 import { readDigest } from '../src/digest.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { recurringJobs } from '../src/board-recurring-jobs.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { loadConfig } from '../packages/config/index.js';

@@ -21,7 +21,7 @@ const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 test('a locked presence sidecar retains cached timestamps and next reports its bounded fallback [B3,N2,C7]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { importSeatObservations, withLocalSeatPresence } = await import('../src/seat-presence.js');
+  const { importSeatObservations, withLocalSeatPresence } = await import('../packages/store/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -72,8 +72,8 @@ test('presence fallback does not hide a corrupt private sidecar [B3,C7]', t => {
 
 test('next and status count only live seats as capacity [B3,N2,C7]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { importSeatObservations } = await import('../src/seat-presence.js');
-  const { dispatchWork } = await import('../src/dispatch-eligibility.js');
+  const { importSeatObservations } = await import('../packages/store/index.js');
+  const { dispatchWork } = await import('../packages/store/index.js');
   const { dispatchHealth } = await import('../src/dispatch-health.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
@@ -131,7 +131,7 @@ test('next and status count only live seats as capacity [B3,N2,C7]', async t => 
 
 test('live-only advice never changes authenticated setting or claim replay [B3,N2,H16]', async t => {
   const { fixtureBoard } = await import('./board-fixture.js');
-  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove, prepareEngineMove, appliedSequence } = await import('../src/engine.js');
   const { LIVE_ROUTE_ENGINE } = await import('../src/live-route-engine.js');
   const at = new Date().toISOString();
@@ -189,8 +189,8 @@ test('a seat presence moves live to idle to gone from its heartbeat [B3]', (t) =
 });
 
 test('local heartbeats revive a seat without changing exported history or a remote copy [B3,A7]', async (t) => {
-  const { heartbeatSeat } = await import('../src/seat-presence.js');
-  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const { heartbeatSeat } = await import('../packages/store/index.js');
+  const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-local-'));
   let at = Date.parse('2026-10-24T12:00:00Z');
   const clock = { now: () => new Date(at) };
@@ -214,8 +214,8 @@ test('local heartbeats revive a seat without changing exported history or a remo
 test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', async (t) => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { relaySnapshot } = await import('../src/relay-presentation.js');
-  const { exportBoard, importBoard } = await import('../src/exchange.js');
-  const { heartbeatSeat } = await import('../src/seat-presence.js');
+  const { exportBoard, importBoard } = await import('../packages/store/index.js');
+  const { heartbeatSeat } = await import('../packages/store/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -288,7 +288,7 @@ test('status reads and explicit hooks heartbeat without a shared board write [B3
 
 
 test('an imported board never inherits a same-path coordinator heartbeat [B3,A7]', async (t) => {
-  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-identity-'));
   const clock = { now: () => new Date('2026-10-24T12:00:00Z') };
   const local = openBoard(join(root, 'local.sqlite'), clock);
@@ -309,7 +309,7 @@ test('an imported board never inherits a same-path coordinator heartbeat [B3,A7]
 
 test('plain status counts large seat history and hides gone seats behind --all [B3,C7]', async (t) => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { heartbeatSeat } = await import('../src/seat-presence.js');
+  const { heartbeatSeat } = await import('../packages/store/index.js');
   const { JSON_SHAPES } = await import('../packages/config/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
@@ -344,7 +344,7 @@ test('plain status counts large seat history and hides gone seats behind --all [
 
 
 test('a local heartbeat persists once per minute and refreshes after clock rollback [B3,C7]', async (t) => {
-  const { heartbeatSeat } = await import('../src/seat-presence.js');
+  const { heartbeatSeat } = await import('../packages/store/index.js');
   const { DatabaseSync } = await import('node:sqlite');
   const root = mkdtempSync(join(tmpdir(), 'pullboard-presence-throttle-'));
   let at = Date.parse('2026-10-24T12:00:00.000Z');
@@ -502,8 +502,8 @@ function traceEvidence(result) {
 
 test('checkpoint fingerprints retain hidden-seat heartbeats without treating clock movement as a write [B3,H16]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { heartbeatSeat } = await import('../src/seat-presence.js');
-  const { exportBoard } = await import('../src/exchange.js');
+  const { heartbeatSeat } = await import('../packages/store/index.js');
+  const { exportBoard } = await import('../packages/store/index.js');
   const { relayPresentation, presentationDigest } = await import('../src/relay-presentation.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
@@ -587,12 +587,12 @@ test('a write after a heartbeat uploads once [B3,H16]', {
 
 test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
-  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { applyEngineMove } = await import('../src/engine.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
   const { nativeBoardPorts } = await import('../src/native-board.js');
   const { relaySenderProblem } = nativeBoardPorts().enginePorts;
-  const { heartbeatSeat } = await import('../src/seat-presence.js');
+  const { heartbeatSeat } = await import('../packages/store/index.js');
   const f = goneClaimFixture(t);
   const id = f.claim();
   const lastSeen = store.agentById(f.board, f.owner).heartbeatAt;
@@ -631,7 +631,7 @@ test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t =
 
 test('gone claim maintenance is opt-in and preserves recent seats and ordinary authority [B3,B5,H2]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
-  const { heartbeatSeat } = await import('../src/seat-presence.js');
+  const { heartbeatSeat } = await import('../packages/store/index.js');
   const { defaults, loadConfig, configFromSource } = await import('../packages/config/index.js');
   const f = goneClaimFixture(t);
   const id = f.claim();
@@ -663,7 +663,7 @@ test('gone claim maintenance is opt-in and preserves recent seats and ordinary a
 
 test('gone maintenance leaves unknown imported holders and submitted reviews alone [B3,V1,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
-  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { releaseGoneClaims } = await import('../src/gone-claims.js');
   const { submitFixture } = await import('./board-submit-fixture.js');
   const f = goneClaimFixture(t);

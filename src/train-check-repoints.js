@@ -1,7 +1,7 @@
 /** Plan and apply exact check repairs for test files split by a native train landing [C7,H16]. */
 import { isDefaultTestFile } from './test-selection.js';
-import { listItems } from './board-query.js';
-import { getItem } from './board-query.js';
+import { listItems } from '../packages/store/index.js';
+import { getItem } from '../packages/store/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { git } from './git.js';
 import { Refused } from '../packages/kernel/index.js';

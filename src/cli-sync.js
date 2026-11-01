@@ -21,7 +21,7 @@ import { autoLinkProject } from './relay-setup.js';
 import {
   gitSyncLinked,
   relayLinkFile,
-} from './local-state.js';
+} from '../packages/store/index.js';
 import { repoInfo } from './git.js';
 import { takeConflictNotices } from '../packages/outbox/index.js';
 import {

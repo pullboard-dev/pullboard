@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { fetchFresh } from './http-fixture.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */

@@ -1,6 +1,6 @@
 /** Bind capacity arithmetic to real native events, measured sidecars and committed declarations [C7]. */
 import { testClosures } from './affected-tests.js';
-import { events } from './board.js';
+import { events } from '../packages/store/index.js';
 import { boardReceiptStore } from './gate-run-receipt.js';
 import { receiptFields } from './gate-run-receipt.js';
 import { readTestValueTimings } from './test-value-timing.js';

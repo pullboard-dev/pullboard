@@ -30,7 +30,7 @@ import { COORDINATOR } from '../packages/config/index.js';
 import { machineHome } from '../packages/resources/index.js';
 import { readyItems } from './queue-readiness.js';
 import { Refused } from '../packages/kernel/index.js';
-import { withLocalSeatPresence } from './seat-presence.js';
+import { withLocalSeatPresence } from '../packages/store/index.js';
 
 const HOUR = 3_600_000;
 

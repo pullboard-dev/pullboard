@@ -10,7 +10,7 @@ import {
 } from './git.js';
 import { prepareItemPatchSubmit } from './item-patch-submit.js';
 import { itemPatchDigest } from './item-patch-state.js';
-import { getItem } from './board-query.js';
+import { getItem } from '../packages/store/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 /** A queue captures only this board's clean registered builder head and exact deterministic companions. */

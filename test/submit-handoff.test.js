@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../src/native-board.js';
-import { getItem } from '../src/board-query.js';
+import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { completeSubmitHandoff, startSubmitHandoff } from '../src/submit-handoff-state.js';
 

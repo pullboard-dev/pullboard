@@ -26,8 +26,8 @@ import {
   exportBoard,
   importBoard,
   isInitialBoard,
-} from '../../../src/exchange.js';
-import { SIGNED_EVENT_LOG_VERSION } from '../../../src/board.js';
+} from '../../store/index.js';
+import { SIGNED_EVENT_LOG_VERSION } from '../../store/index.js';
 
 const SHA = 'a'.repeat(40);
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');

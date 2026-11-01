@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import {
   AUTO_ESCALATE_ENGINE,
   ENGINE_VERSION,

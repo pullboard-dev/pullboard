@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { parentSessionDigest } from '../src/parent-session.js';
 import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
 import { PATCH_AUTHOR_IDENTITY_ENGINE } from '../src/patch-author-identity-engine.js';

@@ -22,7 +22,7 @@ import {
   openBoardReadOnly,
   readEventLogVersion,
   SCHEMA_VERSION,
-} from '../../../../src/board.js';
+} from '../../../store/index.js';
 import {
   staleFrozenItems,
   staleItemFinding,

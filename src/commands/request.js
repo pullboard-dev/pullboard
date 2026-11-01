@@ -6,7 +6,7 @@ import { idArg } from '../cli.js';
 import { ordered } from '../cli.js';
 import { whoAmI } from '../cli.js';
 import { withBoardRead } from '../cli.js';
-import { typedRequests } from '../typed-requests.js';
+import { typedRequests } from '../../packages/store/index.js';
 
 /** Reject unrelated global flags instead of silently interpreting a person or execution option. */
 function flags(values, allowed) {

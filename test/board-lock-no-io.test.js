@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 import { boardWriteIoProblems } from '../bin/checks/board-write-io.js';
 import { styleSources } from '../packages/codemap/index.js';
 import { fixtureBoard } from './board-fixture.js';

@@ -11,7 +11,7 @@ import { reworkFamilyRoute } from '../src/rework-family-routing.js';
 import { sealReworkRoutingPolicy } from '../src/rework-family-routing.js';
 import { canTake } from '../src/route-escalation.js';
 import { routeOf } from '../src/seats.js';
-import { SEAT_LIVE_WINDOW_MS } from '../src/seat-presence.js';
+import { SEAT_LIVE_WINDOW_MS } from '../packages/store/index.js';
 import { maintenanceDurations } from '../packages/config/index.js';
 
 const COMMIT = 'a'.repeat(40);

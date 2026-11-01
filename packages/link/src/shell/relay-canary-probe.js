@@ -5,7 +5,7 @@ import { engineReceipt } from '../../../state/index.js';
 import { requireSupportedEngine } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { repoInfo } from '../../../../src/git.js';
-import { relayLinkFile } from '../../../../src/local-state.js';
+import { relayLinkFile } from '../../../store/index.js';
 import { actorTransport } from './relay-seats.js';
 import { localRecords } from './relay.js';
 import { relayMachineContext } from './relay.js';

@@ -18,7 +18,7 @@ import {
   barCorrectionLine,
   barCorrections,
 } from '../bar-corrections.js';
-import * as store from '../board-query.js';
+import * as store from '../../packages/store/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
@@ -43,7 +43,7 @@ import {
   itemLine,
   sayBrief,
 } from '../cli-read-context.js';
-import { relayStateExists } from '../local-state.js';
+import { relayStateExists } from '../../packages/store/index.js';
 import { itemCost } from '../../packages/stats/index.js';
 import { publicUsage } from '../../packages/stats/index.js';
 

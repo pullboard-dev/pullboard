@@ -1,6 +1,6 @@
 /** Status obligations without loading the dashboard projection [N26,A9]. */
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
-import * as store from './board-query.js';
+import * as store from '../packages/store/index.js';
 import { repoInfo } from './git.js';
 import { projectRowDecisions } from '../packages/spec/index.js';
 import { loadSpec } from '../packages/spec/index.js';
@@ -15,7 +15,7 @@ import {
 import {
   sentinelDraftNeeds,
   sentinels,
-} from './board-query.js';
+} from '../packages/store/index.js';
 import { relayCanaryNeeds } from './relay-canary-needs.js';
 
 /** Keep status obligations; reuse its same-call seats and doctrine, otherwise read them freshly. */

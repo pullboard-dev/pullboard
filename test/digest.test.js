@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { DIGEST_MAX_BYTES } from '../src/digest.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 import { registerProject } from '../src/projects.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';

@@ -3,7 +3,7 @@ import { apiBoardOpeners } from './board-fixture.js';
 import { compactItemSummaries } from '../src/view-state-summary.js';
 import { expandItemSummaries } from '../src/view-state-summary.js';
 /** Authenticated native view projections stay bounded at the real board's scale [N26,A2]. */
-import { events as readStatsEvents } from '../src/board.js';
+import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
-import { atomic } from '../src/board-event-log.js';
+import { atomic } from '../packages/store/index.js';
 import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';

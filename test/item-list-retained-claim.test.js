@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { logEvent } from '../src/board-event-log.js';
+import { logEvent } from '../packages/store/index.js';
 import { withListFields } from '../src/item-list.js';
 import { projectItemState } from '../src/api.js';
 import { fixtureBoard } from './board-fixture.js';

@@ -15,7 +15,7 @@ import {
 } from '../../../verify/index.js';
 import {
   getItem,
-} from '../../../../src/board-query.js';
+} from '../../../store/index.js';
 /** Seal only gate-owned receipts on a composition produced by the trusted worker [C7,V4,H16]. */
 import {
   sourceAdvanceReviewEpisode,
@@ -34,7 +34,7 @@ import {
 } from '../../../merge/index.js';
 import {
   itemById,
-} from '../../../../src/board-item-read.js';
+} from '../../../store/index.js';
 import {
   sourceAdvanceCASProblem,
 } from './source-advance.js';

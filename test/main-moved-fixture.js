@@ -16,7 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as pause } from 'node:timers/promises';
 import { runFixtureChild } from './fixture-child.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 import { copyPackageFiles } from '../src/package-files.js';
 
 const SOURCE = new URL('../', import.meta.url);

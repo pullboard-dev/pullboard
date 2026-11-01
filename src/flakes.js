@@ -10,7 +10,7 @@ import {
   getItem,
   listAgents,
   logEvent,
-} from './board.js';
+} from '../packages/store/index.js';
 import { CI_FLAKE_ENGINE } from './flake-engine.js';
 import { NATIVE_FLAKE_ENGINE } from './flake-engine.js';
 import { ENGINE_VERSION } from './machine.js';

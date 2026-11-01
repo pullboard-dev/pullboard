@@ -7,7 +7,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { VERDICT_WITHDRAW_ENGINE } from '../src/verdict-withdraw-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';

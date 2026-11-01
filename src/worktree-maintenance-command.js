@@ -1,12 +1,12 @@
 /** Compose maintenance with native board readers and ordinary archive facts [B3,C7]. */
 import { agentHandoff } from '../packages/state/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
-import { listAgents } from './board.js';
-import { listItems } from './board.js';
+import { listAgents } from '../packages/store/index.js';
+import { listItems } from '../packages/store/index.js';
 import { ordered } from './cli.js';
 import { withBoard } from './cli.js';
 import { withBoardRead } from './cli.js';
-import { withLocalSeatPresence } from './seat-presence.js';
+import { withLocalSeatPresence } from '../packages/store/index.js';
 import { cleanMaintenanceSeat } from './worktree-maintenance.js';
 import { recordMaintenanceRetention } from './worktree-maintenance-retention.js';
 
