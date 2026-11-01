@@ -82,7 +82,10 @@ function origin(box, module, name, depth = 0) {
 function usage(info, literal) {
   const before = info.code.slice(0, literal.start), after = info.code.slice(literal.end);
   if (/\bimport\s*\(\s*$/u.test(before)) return { kind: 'dynamic', names: ALL };
+  // A module URL handed on as .href is imported by a child or loader, so it keeps import semantics, never a byte read.
+  if (/\bnew\s+URL\(\s*$/u.test(before) && /^\s*,\s*import\.meta\.url\s*\)\s*\.\s*href\b/u.test(after)) return { kind: 'dynamic', names: ALL };
   if (/\bnew\s+URL\(\s*$/u.test(before) && /^\s*,\s*import\.meta\.url\s*\)/u.test(after)) return { kind: 'url', names: [] };
+  if (/\bpathToFileURL\(\s*(?:join|resolve)\(\s*import\.meta\.dirname\s*,\s*$/u.test(before)) return { kind: 'dynamic', names: ALL };
   if (/\bimport\.meta\.dirname\s*,\s*$/u.test(before)) return { kind: 'path', names: [] };
   if (/\bimport\s*$/u.test(before)) return { kind: 'static', names: [] };
   const clause = /\b(?:import|export)\s*(\{[^}]*\}|\*(?:\s*as\s+[\w$]+)?|[\w$]+(?:\s*,\s*(?:\{[^}]*\}|\*\s*as\s+[\w$]+))?)\s*from\s*$/u.exec(before)?.[1];

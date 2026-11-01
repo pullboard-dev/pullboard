@@ -158,6 +158,16 @@ function viewRemoval(t, files) {
   return { box, door, result, reason: new Map(result.kept).get('src/stats.js') };
 }
 
+test('a module URL handed to a child as .href keeps import semantics, while a byte read names the moved file [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('test/module.test.js', "import { pathToFileURL } from 'node:url';\nimport { resolve } from 'node:path';\nexport const url = pathToFileURL(resolve(import.meta.dirname, '../src/stats.js')).href;\n");
+  box.put('test/child.test.js', "const source = `import { shell } from ${JSON.stringify(new URL('../src/stats.js', import.meta.url).href)};`;\nexport { source };\n");
+  removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  assert.match(read(box, 'test/module.test.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/index\.js'\)/u, 'a module URL built from a path goes to the front door');
+  assert.match(read(box, 'test/child.test.js'), /new URL\('\.\.\/packages\/stats\/index\.js', import\.meta\.url\)\.href/u, 'a child import goes to the front door');
+  assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/src\/shell\/shell\.js', import\.meta\.url\)/u, 'a byte read still names the moved file');
+});
+
 test('(a) with lane view, a view importer of a core-owned shim leaves that shim in place and reports it [C7,D3]', t => {
   const { box, reason } = viewRemoval(t, { 'src/view/rail.js': "import { shell } from '../stats.js';\nexport { shell };\n" });
   assert.equal(read(box, 'src/view/rail.js'), "import { shell } from '../../packages/stats/index.js';\nexport { shell };\n", 'the view importer the door serves moves');
