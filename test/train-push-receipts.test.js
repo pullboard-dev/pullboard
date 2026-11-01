@@ -119,7 +119,7 @@ function fixture(t, required = true) {
   writeFileSync(join(box.repo, 'web/train.test.js'), "import { test } from 'node:test'; import assert from 'node:assert/strict'; test('the actual train body [C7]',()=>assert.notEqual(process.env.TRAIN_RED,'1'));\n");
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config,
-    landing: { publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
+    landing: { manualOverride: true, publish: 'separate', requireReceipts: required }, pushReceiptCheck: { smoke: 'node -e ""' } }));
   box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/train.test.js');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare native train fixture');
   const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();
