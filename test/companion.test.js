@@ -6,7 +6,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';
 import { COMPANION_ENGINE } from '../src/companion-engine.js';
-import { createdItems } from '../src/relay-created-items.js';
+import { createdItems } from '../packages/link/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();

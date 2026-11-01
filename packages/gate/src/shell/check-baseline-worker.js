@@ -23,7 +23,7 @@ import {
 import {
   relayLinked,
   relayOperation,
-} from '../../../../src/relay.js';
+} from '../../../link/index.js';
 import {
   BASELINE_RECEIPT,
   baselineReceiptDirectory,
