@@ -43,7 +43,8 @@ import { canTake } from "../../../../src/route-escalation.js";
 import * as itemDependencies from "../../../items/index.js";
 import { firstRefusalProblem } from "../../../items/index.js";
 import { firstRefusal } from "../core/board-item-read.js";
-import { rejectionReturnEnabled, reworkFamilyRoute } from "../core/rework-family-routing.js";
+import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
+import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";
 import * as capacity from "../../../../src/line-capacity-board.js";
 import {

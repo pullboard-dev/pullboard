@@ -1,4 +1,5 @@
-import { REJECTION_RETURN_ENGINE, lineSettings } from '../../../../state/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../../../state/index.js';
+import { lineSettings } from '../../../../state/index.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 import { checkTimingEngine } from "../../../../items/core.js";
 import { REJECT_CLAUSE_ENGINE } from "../../../../../src/reject-clause-engine.js";

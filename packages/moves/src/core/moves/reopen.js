@@ -1,4 +1,5 @@
-import { REJECTION_RETURN_ENGINE, lineSettings } from '../../../../state/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../../../state/index.js';
+import { lineSettings } from '../../../../state/index.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../../src/source-advance-engine.js";
 import { MECHANICAL_MERGE_ENGINE } from "../../../../../src/mechanical-merge-engine.js";

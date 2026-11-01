@@ -1,4 +1,5 @@
-import { REJECTION_RETURN_ENGINE, lineSettings } from '../../../../state/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../../../state/index.js';
+import { lineSettings } from '../../../../state/index.js';
 import { PIPELINE_CAUSE_ENGINE } from "../../../../../src/pipeline-cause-engine.js";
 import { EXIT_RULES_ENGINE } from "../../../../../src/exit-rules-engine.js";
 import { checkTimingEngine } from "../../../../items/core.js";

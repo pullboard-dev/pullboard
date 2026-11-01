@@ -40,7 +40,8 @@ import { reviewerChecks } from "./board.js";
 import { buildOrder } from "./board-build-order.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { lineSettings } from "../../../state/index.js";
-import { rejectionReturnEnabled, reworkFamilyRoute } from "../core/rework-family-routing.js";
+import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
+import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
