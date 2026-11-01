@@ -150,6 +150,34 @@ test('submit accepts a real clean move and keeps an existing temporary edge as u
     'the actual reachable named front door and body satisfy the canonical move check');
 });
 
+/** Move the real kernel body through its named front door and a committed per-cell path-map shard. */
+function moveFixtureKernel(box, body) {
+  box.put('packages/kernel/src/core/refused.js', body);
+  box.put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+  box.put('src/refused.js', "export { Refused } from '../packages/kernel/index.js';\n");
+  box.put('apps/cli/index.js', "import '../../src/cli.js';\n");
+  box.put('bin/cells-plan/path-map/kernel.json', JSON.stringify({ 'src/refused.js': 'packages/kernel/src/core/refused.js' }));
+}
+
+test('submit preserves an existing cut across a real importer relocation [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t, box => {
+    box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  });
+  moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
+  const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
+  assert.deepEqual(result.problems, [], 'the same actual dependency is inherited under its committed moved path');
+  assert.ok(result.existingCuts.some(problem => problem.includes('src/refused.js -> src/stats-flow.js')),
+    'the original cut evidence remains readable in its original source namespace');
+});
+
+test('submit still refuses a genuinely new cut after an importer relocation [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  moveFixtureKernel(box, "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item),
+    /kernel --cuts: kernel still imports later stats: packages\/kernel\/src\/core\/refused\.js -> src\/stats-flow\.js/u,
+    'a rename cannot lend an old allowance to a new dependency');
+});
+
 test('submit ignores candidate checker code and refuses a forged overlapping ownership root [C7,D3,CD64]', async t => {
   const box = plannedFixture(t, box => {
     box.put('bin/cells-plan-cuts.js', 'export const fixtureChecker = true;\n');
