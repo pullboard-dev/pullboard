@@ -1,3 +1,7 @@
+import { mainCheckout } from '../../packages/git/index.js';
+import { automaticLandingEnabled } from '../../packages/merge/index.js';
+import { landAcceptedItems } from '../../packages/merge/index.js';
+import { primaryCheckoutRoot } from '../cli/worktree.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { requireManualLanding } from '../../packages/merge/index.js';
 import { flakeLedger } from '../flakes.js';
@@ -84,4 +88,25 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
   for (const blocked of result.blocked ?? []) if (blocked.code === 'STALE_VERDICT') io.say(staleVerdictRefusal({ item_id: blocked.id }, blocked).message);
   if (!result.batch && !result.deferredUntil && !result.cadence) io.say(result.items ? `would land: ${result.items.map((id) => `#${id}`).join(', ') || 'none'}` : 'no verified items ready to land');
   return result;
+}
+
+
+/** Run board-owned landing after acceptance; the caller catches this entire post-verdict effect. */
+export async function landAfterAcceptance(ctx) {
+  if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
+  const root = primaryCheckoutRoot(ctx.info);
+  const io = { ...ctx.io, cwd: root, result: undefined, relayCommand: undefined, requestedCommand: undefined, personRequest: undefined, personRequestMoveId: undefined };
+  await actOn(io, async (landing, board) => {
+    const policy = mainPolicy(root);
+    const items = store.listItems(board, { all: true }).filter(item => item.item_status === 'verified' && !item.item_merged_commit)
+      .map(item => ({ id: item.item_id, commit: store.checkedLandingCommit(board, item) }));
+    return landAcceptedItems({ root, config: policy.config, trunk: policy.commit, items,
+      reopen: (id, conflict, note) => {
+        const item = store.getItem(board, id);
+        if (item.item_status !== 'verified' || item.item_merged_commit) return null;
+        return ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : { withdrawVerdict: true }), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]);
+      },
+      execute: () => executeBoardLanding(landing, board, io) });
+  });
+  return true;
 }
