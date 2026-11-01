@@ -144,7 +144,7 @@ export function claimProgress(board, item, now, { runnerOnly = false } = {}) {
     if (event.event_kind === 'submit') since = null;
     if (event.event_kind === 'accept') failures = 0;
     // From the returns engine on, only the runner stage counts: a fast-stage refusal (conflict, lint, cuts, static) is fixed in minutes [B4,B5].
-    const real = !runnerOnly || RUNNER_STAGE_CODES.has(detail.submitOutcome?.code);
+    const real = !runnerOnly || (RUNNER_STAGE_CODES.has(detail.submitOutcome?.code) && detail.submitOutcome?.stage !== 'fast');
     if ((detail.submitOutcome && real && event.event_by === item.item_owner) || (event.event_kind === 'reject' && holder === item.item_owner)) failures += 1;
     if (['release', 'withdraw', 'merged'].includes(event.event_kind) && !detail.review) { holder = null; since = null; failures = 0; }
   }
