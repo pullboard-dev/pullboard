@@ -43,7 +43,7 @@ import {
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../core/commit-message.js";
 import { outOfLane } from "../../../../src/lanes.js";
-import { importOnlyChange } from "../../../../src/import-only-change.js";
+import { movedImportOnlyChange, movedImportTargets } from "../../../../src/import-only-change.js";
 import { planRowChange } from "../../../../src/plan-row-change.js";
 import {
   citedIds,
@@ -303,11 +303,11 @@ function importFileBlob(root, oid) {
 }
 
 /** Check a staged foreign path against its exact HEAD and index blobs. */
-function stagedImportOnlyChange(root, path) {
+function stagedImportOnlyChange(root, path, moves) {
   const before = importFileEntry(root, 'HEAD', path);
   const after = importFileEntry(root, ':index', path);
   if (!before || !after || before.mode !== after.mode) return false;
-  return importOnlyChange(importFileBlob(root, before.oid), importFileBlob(root, after.oid));
+  return movedImportOnlyChange(importFileBlob(root, before.oid), importFileBlob(root, after.oid), path, moves);
 }
 
 /** Name added source lines when a foreign staged edit is outside the mechanical import allowance. */
@@ -457,7 +457,10 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
       && !git(root, ['ls-tree', '-z', 'HEAD', '--', `:(literal)${path}`])
       && Boolean(importFileEntry(root, ':index', path)),
   })]));
-  const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path) || planChanges.get(path).allowed);
+  const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
+    path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },
+    path => Boolean(importFileEntry(root, ':index', path)));
+  const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path, moves) || planChanges.get(path).allowed);
   for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
     .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
