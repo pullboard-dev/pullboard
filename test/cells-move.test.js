@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../src/package-files.js';
-import { readPathMap } from '../packages/codemap/index.js';
+import { readPathMap, inventoryBuildCount } from '../packages/codemap/index.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
 import { checkMoved } from '../bin/cells-plan.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -98,7 +98,9 @@ test('a move rewrites actual fixture read operands, preserves destinations and u
   assert.ok(rewritten.includes("new URL('../copied/cp.js', import.meta.url)"), 'copy destination is unchanged');
   assert.equal(rewritten.split('export const value = 42;\\n').length, 4, 'every original assertion byte remains');
   const plan = { cells: [{ name: 'leaf', frontDoor: input.frontDoor, paths: [[input.from, input.to]] }] };
+  const inventoriesBefore = inventoryBuildCount();
   assert.deepEqual(checkMoved(root, plan, 'leaf'), []);
+  assert.equal(inventoryBuildCount() - inventoriesBefore, 1, 'the moved check shares one repository inventory');
   const env = { ...process.env }; delete env.NODE_TEST_CONTEXT;
   const child = runFixtureChild(process.execPath, [join(root, file)], { cwd: root, env, encoding: 'utf8' });
   assert.equal(child.status, 0, child.context);
