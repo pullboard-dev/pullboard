@@ -129,18 +129,21 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     && items.some(entry => entry.item_status === 'open' && entry.item_verdict === 'REJECT' && entry.item_built_by === agentId);
   if (held && plannedRelease === null && !ownRejectionFirst) return { item: held, reasons: [] };
   const presenceProblem = liveRouteProblem(board, agentId, { withLocalSeatPresence });
-  if (presenceProblem) return empty('unknown', { item: null, reasons: [presenceProblem] });
+  if (presenceProblem) return ownRejectionFirst ? { item: held, reasons: [presenceProblem] } : empty('unknown', { item: null, reasons: [presenceProblem] });
   const selectedLanes = new Set(lanes ?? [lane]);
   const reasons = allItems.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane) && entry.item_hold_reason)
     .map((entry) => `#${entry.item_id} is held by coordinator: ${entry.item_hold_reason}`);
   const paused = laneHold(board, lane);
-  if (!lanes && paused) return empty('held', { item: null, reasons: [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`, ...reasons] });
+  if (!lanes && paused) {
+    const heldReasons = [`${paused.hold_by} holds the ${lane} lane: ${paused.hold_reason}`, ...reasons];
+    return ownRejectionFirst ? { item: held, reasons: heldReasons } : empty('held', { item: null, reasons: heldReasons });
+  }
   if (lanes) for (const name of selectedLanes) {
     const hold = laneHold(board, name);
     if (hold) { selectedLanes.delete(name); reasons.push(`${hold.hold_by} holds the ${name} lane: ${hold.hold_reason}`); }
   }
   const compare = buildOrder(board, { warm, agentId, tierFirst: true });
-  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease);
+  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease && (!ownRejectionFirst || entry.item_id !== held.item_id));
   const recent = new Set(warm);
   const mainRed = new Set(priority);
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)

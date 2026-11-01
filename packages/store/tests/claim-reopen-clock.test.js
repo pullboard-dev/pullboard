@@ -140,9 +140,11 @@ test('[B35,B5] a new rejection precedes the builder other live claim and retains
   const f = fixture(t); enable(f);
   const id = returned(f, 'reject', 0);
   const active = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'already active', criterion: 'prove',
-    specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/active.js\nTest: proves current work' });
+    specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves current work' });
   claim(f, active, f.builder);
   assert.equal(next(f, f.builder).item.item_id, id);
   store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'stop-reason triage' });
+  assert.equal(next(f, f.builder).item.item_id, active);
+  store.holdLane(f.board, 'core', { agentId: 'coordinator', reason: 'triage' });
   assert.equal(next(f, f.builder).item.item_id, active);
 });
