@@ -1,12 +1,14 @@
 import { tryGit } from './git.js';
 /** Fingerprint literal checker programs and their local module dependencies without executing them [V4,C7]. */
 import { createHash } from 'node:crypto';
+import { accessSync } from 'node:fs';
+import { constants } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { isBuiltin } from 'node:module';
 import { delimiter } from 'node:path';
+import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
@@ -28,8 +30,18 @@ function fileDigest(file, stat) {
 /** Resolve a literal executable using the same checkout and PATH as its shell. */
 function executable(root, word) {
   const paths = isAbsolute(word) || word.includes('/') ? [resolve(root, word)]
-    : String(process.env.PATH ?? '').split(delimiter).map(directory => resolve(directory || root, word));
-  return paths.find(file => { try { return statSync(file).isFile(); } catch { return false; } });
+    : String(process.env.PATH ?? '').split(delimiter).map(directory => resolve(root, directory || '.', word));
+  return paths.find(file => { try { accessSync(file, constants.X_OK); return statSync(file).isFile(); } catch { return false; } });
+}
+
+/** Resolve only literal local module files; directory/package loaders remain uncached rather than guessed. */
+function localModule(file, specifier) {
+  const target = resolve(dirname(file), specifier);
+  const found = [target, `${target}.js`, `${target}.json`, `${target}.node`].find(candidate => {
+    try { return statSync(candidate).isFile(); } catch { return false; }
+  });
+  if (!found) throw new Error('checker module cannot be resolved literally');
+  return found;
 }
 
 /** Collect tracked project code plus literal external dependencies; opaque external loading misses the cache. */
@@ -64,7 +76,7 @@ export function checkCommandDefinition(root, commands) {
         continue;
       }
       if (!value.text.startsWith('.') && !isAbsolute(value.text)) throw new Error('conditional package resolution is not pinned');
-      visit(createRequire(file).resolve(value.text));
+      visit(localModule(file, value.text));
     }
     if (!projectCode && ([...code.matchAll(/\b(?:require|import)\s*\(/gu)].length !== calls || [...code.matchAll(/\brequire\b/gu)].length !== requires || /\b(?:eval|Function)\s*\(/u.test(code))) throw new Error('opaque checker loading');
   }

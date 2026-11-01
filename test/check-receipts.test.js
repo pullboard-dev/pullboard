@@ -1,6 +1,7 @@
 /** Each static and doctrine check runs once per tree; submit, review and landing cite its receipt [V4,C7]. */
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
+import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -115,8 +116,11 @@ test('a configured external checker changing its real implementation invalidates
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   const script = join(outside, 'check.cjs');
   const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
-  writeFileSync(script, 'process.exit(0);\n');
+  const counter = join(outside, 'runs.log');
+  writeFileSync(script, `require('node:fs').appendFileSync(${JSON.stringify(counter)}, 'ran\\n');\n`);
   assert.deepEqual(runRuleCheck(box.web, command).problems, []);
+  assert.deepEqual(runRuleCheck(box.web, command).problems, []);
+  assert.equal(runs(counter), 1, 'an unchanged external checker runs only once');
   writeFileSync(script, "process.stdout.write('new refusal\\n'); process.exit(1);\n");
   const actual = runFixtureChild(process.execPath, [script], { cwd: box.web, encoding: 'utf8' });
   assert.equal(actual.status, 1);
@@ -132,9 +136,12 @@ test('unchanged-tree submits invalidate static and aggregate doctrine receipts w
     t.after(() => rmSync(outside, { recursive: true, force: true }));
     const script = join(outside, 'check.cjs');
     const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
-    writeFileSync(script, 'process.exit(0);\n');
+    const counter = join(outside, 'runs.log');
+    writeFileSync(script, `require('node:fs').appendFileSync(${JSON.stringify(counter)}, 'ran\\n');\n`);
     const { box, armed } = project(helpers, { [`${stage}Command`]: command });
     assert.notEqual(box.run(box.web, 'submit', '1').code, 0, 'the first item check is red after the guards pass');
+    assert.notEqual(box.run(box.web, 'submit', '1').code, 0, 'an unchanged submit still proves its red item check');
+    assert.equal(runs(counter), 1, 'the unchanged external guard is reused');
     writeFileSync(script, "process.stdout.write('changed checker\\n'); process.exit(1);\n");
     writeFileSync(armed, 'green\n');
     const second = box.run(box.web, 'submit', '1');
@@ -159,4 +166,28 @@ test('external literal module dependencies are part of a checker definition [V4,
   writeFileSync(dependency, "console.log('changed dependency'); process.exit(1);\n");
   assert.deepEqual(runRuleCheck(box.web, command).problems, ['changed dependency']);
   assert.equal(checkReceiptKey(box.web, { kind: 'doctrine', definition: 'node "$CHECKER"', config: {} }), null, 'an opaque command never reuses a receipt');
+});
+
+
+test('POSIX PATH checker definitions follow the executable the shell actually selects [V4,C7]', { skip: process.platform === 'win32' }, t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const { box } = project(helpers);
+  const outside = mkdtempSync(join(tmpdir(), 'pullboard-check-path-'));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const skipped = join(outside, 'skipped');
+  const selected = join(outside, 'selected');
+  mkdirSync(skipped);
+  mkdirSync(selected);
+  writeFileSync(join(skipped, 'receipt-probe'), '#!/bin/sh\nexit 0\n');
+  chmodSync(join(skipped, 'receipt-probe'), 0o644);
+  const script = join(selected, 'receipt-probe');
+  writeFileSync(script, '#!/bin/sh\nexit 0\n');
+  chmodSync(script, 0o755);
+  const previous = process.env.PATH;
+  t.after(() => { if (previous === undefined) delete process.env.PATH; else process.env.PATH = previous; });
+  process.env.PATH = `${skipped}:${selected}:${previous ?? ''}`;
+  assert.deepEqual(runRuleCheck(box.web, 'receipt-probe').problems, []);
+  writeFileSync(script, "#!/bin/sh\nprintf 'changed executable\\n'\nexit 1\n");
+  assert.deepEqual(runRuleCheck(box.web, 'receipt-probe').problems, ['changed executable']);
 });
