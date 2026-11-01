@@ -2,11 +2,19 @@
 /** Local landing cleanup preserves dirty, active and unrelated worktrees [R3,C7]. */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { symlinkSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runFixtureGit, startFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
+import { startFixtureChild } from '../../../test/fixture-child.js';
 
 /** Build an isolated real repository; no live board or user Git settings are used. */
 function repository(t) {
@@ -43,9 +51,9 @@ function repository(t) {
 
 /** A missing production helper is an explicit feature assertion, not a fixture import crash. */
 async function pruner() {
-  assert.ok(existsSync(new URL('../src/landing-worktree-prune.js', import.meta.url)),
+  assert.ok(existsSync(new URL('../src/shell/landing-worktree-prune.js', import.meta.url)),
     'landing must provide its guarded worktree prune helper');
-  return import('../src/landing-worktree-prune.js');
+  return import('../src/shell/landing-worktree-prune.js');
 }
 
 /** Retain the complete local attempt receipt before the private repository is cleaned up. */
