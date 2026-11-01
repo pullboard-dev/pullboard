@@ -5,12 +5,12 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import { toolSourcePath } from '../packages/runners/src/shell/package-files.js';
 import {
   assert,
   dirname,
-  join,
   packageFiles,
   relative,
   resolve,
@@ -69,8 +69,8 @@ test('the runner policy exact-leaf exception preserves every worker body byte [C
     delete expected['src/trusted-policy-read.js'];
     assert.deepEqual(after, expected, 'only the transparent shim and its import spelling may differ');
     writeFileSync(file, source.replace(direct, "'../../../sandbox/index.js'"));
-    const barrel = runnerPackage(installed).files;
-    assert.ok(Object.hasOwn(barrel, 'packages/sandbox/index.js'));
-    assert.notDeepEqual(barrel, after, 'the sandbox barrel must fail the unchanged-closure control');
+    assert.throws(() => runnerPackage(installed), error => error.code === 'RUNNER_TOOLING_FILES'
+      && error.message.includes('the import closure exceeds the 1 MiB transfer bound'),
+    'the sandbox barrel expands the closure past the unchanged transfer bound');
   } finally { writeFileSync(file, source); }
 });
