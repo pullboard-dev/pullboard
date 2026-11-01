@@ -3,6 +3,7 @@ import { recordToolCommand } from '../packages/git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
+import { withParseScope } from '../src/module-imports.js';
 import { formatJson } from '../packages/merge/index.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
@@ -516,11 +517,12 @@ function main(argv) {
     const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
     if (cells.length !== 1 || !lane) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>]');
     const plan = readPlan(root), cell = plan.cells.find(row => row.name === cells[0]);
-    const result = recordToolCommand(root, { tool: 'remove-shims', cell: cells[0], lane }, () => {
+    // One parse cache for the whole sweep: unchanged sources are never re-compiled across repoint iterations (#2232).
+    const result = recordToolCommand(root, { tool: 'remove-shims', cell: cells[0], lane }, () => withParseScope(() => {
       const removed = removeShims(root, plan, cells[0], { parsers: { importsIn, commonJsIn }, lane, planFiles: planWrites(root, plan, cells[0]) });
       if (removed.changed) writePlan(root, removed.plan);
       return removed;
-    });
+    }));
     for (const line of shimReport(result)) console.log(line);
     return 0;
   }

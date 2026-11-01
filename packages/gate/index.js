@@ -31,7 +31,7 @@ export { scheduleMainAudit, waitMainAudit } from "./src/shell/main-audit-schedul
 export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/shell/main-audit-state.js";
 export { runMainAudits } from "./src/shell/main-audit-worker.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
-export { importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
+export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";
 export { releaseParticipationFields, releaseParticipationDigest, releaseReceiptProblem, releaseReceiptFields, releaseReceiptBody, readReleaseReceipt, RELEASE_RECEIPT_MAX_BYTES } from "./src/shell/release-gate-receipt.js";
 export { releaseSource, verifyNativeReleaseReceipt, runReleaseGate } from "./src/shell/release-gate.js";
