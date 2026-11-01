@@ -3,6 +3,11 @@
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -31,12 +36,18 @@ test('one owned parser serves import and multiple binding batches, then exits [C
   t.mock.method(childProcess, 'spawnSync', (...args) => { synchronous++; return originalSync(...args); });
   syncBuiltinESMExports();
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
-  const actual = withCellLintParser(compile => ({ imports: importsIn(sources, compile), common: commonJsIn(sources, compile),
-    bindings: bindingReadsForModules(modules) }));
+  let retained;
+  const actual = withCellLintParser(compile => {
+    retained = compile;
+    return { imports: importsIn(sources, compile), common: commonJsIn(sources, compile), bindings: bindingReadsForModules(modules) };
+  });
   assert.deepEqual(actual, expected);
+  assert.throws(() => retained(sources), /compiler setup failed/u, 'a completed command cannot restart its worker through a retained callback');
   assert.equal(starts, 1, 'all parser batches share exactly one actual process');
   assert.equal(synchronous, 0, 'no per-batch compiler process remains inside the command scope');
-  assert.equal((await exited).signal, 'SIGKILL', 'the owned worker really exits when the command completes');
+  const keepAlive = setInterval(() => {}, 100);
+  try { assert.equal((await exited).signal, 'SIGKILL', 'the owned worker really exits when the command completes'); }
+  finally { clearInterval(keepAlive); }
 });
 
 test('the real lint CLI starts exactly one parser per cold run and prints unchanged report bytes [C7,P3]', t => {
@@ -78,4 +89,39 @@ syncBuiltinESMExports();
   assert.equal(checked.stdout, '');
   assert.equal(files.read('starts.jsonl').toString('utf8').trim().split('\n').length, 3,
     'the actual cold --check run also starts exactly one parser');
+});
+
+/** Real worker requests continue when filesystem watch hints are lost [C7,P3]. */
+test('parser drains unhinted atomic requests after startup [C7,P3]', async t => {
+  const files = privateFixtureFiles('pullboard-parser-lost-hint-');
+  const protocol = join(files.root, 'protocol');
+  mkdirSync(protocol);
+  const entry = fileURLToPath(new URL('../packages/codemap/src/shell/cell-parser-worker.js', import.meta.url));
+  files.write('worker.mjs', `import fs from 'node:fs';
+import {syncBuiltinESMExports} from 'node:module';
+const watch=fs.watch; fs.watch=(dir, listener)=>watch(dir,()=>{}); syncBuiltinESMExports();
+await import(${JSON.stringify(pathToFileURL(entry).href)});`);
+  /** Publish a complete request without a watch or IPC hint. */
+  function publish(id, source) {
+    const temporary = join(protocol, `request-${id}.tmp`);
+    writeFileSync(temporary, JSON.stringify({ version: 1, id, sources: [source] }));
+    renameSync(temporary, join(protocol, `request-${id}.json`));
+  }
+  publish(1, "import './first.js';");
+  const worker = childProcess.spawn(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning',
+    join(files.root, 'worker.mjs'), protocol, String(process.pid)], { stdio: 'ignore' });
+  const exited = new Promise(resolve => worker.once('exit', resolve));
+  t.after(async () => { if (worker.exitCode === null && worker.signalCode === null) worker.kill('SIGKILL'); await exited; rmSync(files.root, { recursive: true, force: true }); });
+  /** Wait within the production request deadline for the worker's actual response. */
+  async function reply(id) {
+    const file = join(protocol, `reply-${id}.json`), deadline = Date.now() + 10_000;
+    while (!existsSync(file) && Date.now() < deadline && worker.exitCode === null && worker.signalCode === null)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    assert.ok(existsSync(file), `missing reply ${id}`);
+    return JSON.parse(readFileSync(file, 'utf8'));
+  }
+  assert.deepEqual(await reply(1), { version: 1, id: 1, results: [{ compiles: true, imports: ['./first.js'] }] });
+  rmSync(join(protocol, 'request-1.json')); rmSync(join(protocol, 'reply-1.json'));
+  publish(2, "import './second.js';");
+  assert.deepEqual(await reply(2), { version: 1, id: 2, results: [{ compiles: true, imports: ['./second.js'] }] });
 });

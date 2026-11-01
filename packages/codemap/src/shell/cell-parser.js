@@ -1,7 +1,12 @@
 /** Share one compile-only V8 process across a cell-lint command's bounded batches [C7,P3]. */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { spawn } from 'node:child_process';
-import { lstatSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,16 +32,17 @@ function replyAt(file, id, count) {
 /** Run synchronous cell analysis with one lazy, owned parser; cached checks need no process at all. */
 export function withCellLintParser(work) {
   if (parsers.getStore()) return work(parsers.getStore());
-  let child = null, directory = null, sequence = 0, failed = false;
+  let child = null, directory = null, sequence = 0, failed = false, closed = false;
   const sleeper = new Int32Array(new SharedArrayBuffer(4));
   /** Close only this command's child and private transport on completion, failure or parent exit. */
   function close() {
+    closed = true;
     if (child) { child.kill('SIGKILL'); child.unref(); child = null; }
     if (directory) { rmSync(directory, { recursive: true, force: true }); directory = null; }
   }
   /** Compile the next bounded batch without linking, evaluating or retaining repository modules. */
   function parseBatch(sources) {
-    if (failed || !Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw failure();
+    if (closed || failed || !Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw failure();
     const id = ++sequence;
     const input = JSON.stringify({ version: 1, id, sources });
     if (Buffer.byteLength(input) > MAX_BYTES) throw failure();
@@ -67,7 +73,7 @@ export function withCellLintParser(work) {
   }
   /** Keep the import scanner's expanded variants in bounded requests without changing result order. */
   function parse(sources) {
-    if (!Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw failure();
+    if (closed || !Array.isArray(sources) || sources.some(source => typeof source !== 'string')) throw failure();
     let chunk = [], bytes = 0;
     const results = [];
     for (const source of sources) {

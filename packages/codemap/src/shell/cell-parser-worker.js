@@ -1,5 +1,9 @@
 /** Compile cell-analysis source only; no module linking or evaluation is permitted [C7,P3]. */
-import { lstatSync, readFileSync, renameSync, watch, writeFileSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { watch } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import vm from 'node:vm';
 
@@ -46,6 +50,6 @@ try {
   watcher = watch(directory, scan);
   watcher.on('error', stop);
   // Budget: check parent custody once a second while this private worker is otherwise idle.
-  timer = setInterval(checkParent, 1_000);
+  timer = setInterval(() => { checkParent(); scan(); }, 1_000);
   scan();
 } catch { stop(); }
