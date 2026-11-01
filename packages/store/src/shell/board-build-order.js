@@ -1,5 +1,5 @@
-import { criticalPathEnabled } from "../../../../src/critical-path-order.js";
-import { remainingPaths } from "../../../../src/critical-path-order.js";
+import { criticalPathEnabled } from "../../../items/index.js";
+import { remainingPaths } from "../../../items/index.js";
 import { focusOrder } from "../../../roadmap/index.js";
 import { milestoneFocus } from "../../../roadmap/index.js";
 import { milestones } from "./board-read-auxiliary.js";
@@ -8,10 +8,10 @@ import { lineOrderEnabled } from "../../../../src/line-order.js";
 import { lineBuildOrder } from "../../../../src/line-order.js";
 import { barReadyForOrder } from "../../../../src/line-order.js";
 import { listItems } from "./board-query.js";
-import { itemFiles } from "../../../../src/item-files.js";
+import { itemFiles } from "../../../items/index.js";
 import { ROUTES } from "../../../../src/route-escalation.js";
-import { milestoneRanks } from "../../../../src/work-order.js";
-import { workOrderCompare } from "../../../../src/work-order.js";
+import { milestoneRanks } from "../../../items/index.js";
+import { workOrderCompare } from "../../../items/index.js";
 import { foreignBlockers } from "./board.js";
 
 /** Share milestone policy, primary computed order and equal-score path ties across queue and health. */

@@ -6,7 +6,7 @@ import { prepareNativeTrainLanding } from './train-landing.js';
 import { refreshLandedCodeMap } from './landing-main-notices.js';
 import { postLandSuite } from './post-land-suite.js';
 import { mergeOnlyLandingProblem } from '../packages/merge/index.js';
-import { requireOutsideOwner } from './outside-source.js';
+import { requireOutsideOwner } from '../packages/items/index.js';
 import { existsSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import * as store from './board.js';

@@ -13,7 +13,7 @@ import { openBoard } from '../src/native-board.js';
 import {
   sayQueue,
   workQueue,
-} from '../src/queue.js';
+} from '../packages/items/index.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { WORK_ORDER_ENGINE } from '../src/work-order-engine.js';

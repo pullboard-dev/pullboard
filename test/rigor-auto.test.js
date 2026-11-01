@@ -15,7 +15,7 @@ import { resumeNeeds } from '../src/resume-needs.js';
 import { resumeRigorCounters } from '../packages/rigor/index.js';
 import { RIGOR_COLD_NOTICE } from '../packages/rigor/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';
-import { readDigest } from '../src/digest.js';
+import { readDigest } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
 import { submitFixture } from './board-submit-fixture.js';

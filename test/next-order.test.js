@@ -15,7 +15,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { workQueue } from '../src/queue.js';
+import { workQueue } from '../packages/items/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION, MILESTONE_RANK_ENGINE } from '../src/machine.js';
 import { LINE_ORDER_ENGINE } from '../src/line-order-engine.js';

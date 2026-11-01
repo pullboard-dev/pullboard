@@ -53,9 +53,9 @@ import {
   barReadyProblem,
 } from '../../packages/verify/index.js';
 import { barCheckWarning } from '../../packages/verify/index.js';
-import { requireSubmitComposition } from '../submit-composition.js';
-import { composeAfterProof } from '../submit-composition.js';
-import { trunkMoveFact } from '../submit-composition.js';
+import { requireSubmitComposition } from '../../packages/items/index.js';
+import { composeAfterProof } from '../../packages/items/index.js';
+import { trunkMoveFact } from '../../packages/items/index.js';
 import { judgeTrunkMove } from '../../packages/verify/index.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { explicitCheckFiles } from '../browser-admission.js';
@@ -122,14 +122,14 @@ import * as seatCheckout from '../seat-checkout.js';
 import {
   submitPreflight,
   requirePlannedSource,
-} from '../submit-preflight.js';
+} from '../../packages/items/index.js';
 import {
   refuseUnreviewable,
 } from '../../packages/verify/index.js';
 import {
   changedLines,
   oversizeNote,
-} from '../submit-size.js';
+} from '../../packages/items/index.js';
 import {
   dependencySnapshots,
   frozenCheck,

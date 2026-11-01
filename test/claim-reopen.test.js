@@ -146,7 +146,7 @@ test('[B13,B5,H16] a sealed return persists one window and notice across replay 
   // A sealed move carries the current engine, which a later feature may raise past this one.
   const { ENGINE_VERSION } = await import('../src/machine.js');
   assert.ok(ENGINE_VERSION >= REOPEN_FIRST_REFUSAL_ENGINE);
-  const { firstRefusalArgs } = await import('../src/claims.js');
+  const { firstRefusalArgs } = await import('../packages/items/index.js');
   const f = fixture(t);
   const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'replay', route: 'mid',
     criterion: 'prove', check: 'true', brief: 'Files: src/a.js\nTest: proves replay' });

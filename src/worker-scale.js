@@ -1,8 +1,8 @@
 import { currentProofCounters } from '../packages/verify/index.js';
 import { proofCounter } from '../packages/verify/index.js';
-import { localDependencyIds } from './item-dependencies.js';
-import { dependencyLabel } from './item-dependencies.js';
-import { itemFileCollisions } from './item-files.js';
+import { localDependencyIds } from '../packages/items/index.js';
+import { dependencyLabel } from '../packages/items/index.js';
+import { itemFileCollisions } from '../packages/items/index.js';
 import { exitedSession } from './exit-rules-continuation.js';
 /**
  * `pullboard run --scale` (B26,C7): the board runs as many agents as are worth running, within one budget the

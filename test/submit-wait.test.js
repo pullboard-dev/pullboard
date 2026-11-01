@@ -12,7 +12,7 @@ import { loadConfig } from '../packages/config/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { context } from '../src/cli-read-context.js';
-import { waitForSubmissionVerdict } from '../src/submit-wait.js';
+import { waitForSubmissionVerdict } from '../packages/items/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';

@@ -4,8 +4,8 @@ import {
   mergeOnlyBasis,
   mergeOnlySourceValid,
 } from './merge-only-verdict.js';
-import { retainedVerifierIdentityProblem } from '../../../../src/item-authors.js';
-import { itemPatchDigest } from '../../../../src/item-patch-state.js';
+import { retainedVerifierIdentityProblem } from '../../../items/index.js';
+import { itemPatchDigest } from '../../../items/index.js';
 
 /** Derive the origin’s carry before sealing; caller-supplied carry facts are discarded. */
 export function prepareMergeOnlySubmit(board, id, options, reads) {

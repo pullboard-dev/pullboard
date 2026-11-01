@@ -18,7 +18,7 @@ import { Refused } from '../packages/kernel/core.js';
 import {
   personBlockWords,
   readBlocks,
-} from '../src/blocks.js';
+} from '../packages/items/index.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

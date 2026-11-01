@@ -1,7 +1,7 @@
 /** Coordinator landing parallel step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
-import { localDependencyIds } from './item-dependencies.js';
-import { requireOutsideOwner } from './outside-source.js';
+import { localDependencyIds } from '../packages/items/index.js';
+import { requireOutsideOwner } from '../packages/items/index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -14,8 +14,8 @@ import { tryGit } from './git.js';
 import { untracked } from './git.js';
 import { runLandingCandidateWorker } from './landing-candidates.js';
 import { Refused } from '../packages/kernel/index.js';
-import { validateLandingBatch } from './submit-invariants.js';
-import { validateLandingRevision } from './submit-invariants.js';
+import { validateLandingBatch } from '../packages/items/index.js';
+import { validateLandingRevision } from '../packages/items/index.js';
 import { save } from './landing-step-merge.js';
 import { coveredFailures } from './landing-step-failures.js';
 import { liveWaiverProjection } from './landing-step-failures.js';

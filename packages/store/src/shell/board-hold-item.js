@@ -1,7 +1,7 @@
 import { holdUntilKind } from "../core/board-conditional-holds.js";
 import { forgetHoldMaintenance } from "../core/board-conditional-holds.js";
 import { rememberHoldCondition } from "../core/board-conditional-holds.js";
-import { applyItemHold } from "../../../../src/item-holds.js";
+import { applyItemHold } from "../../../items/index.js";
 import { now } from "./board-query.js";
 import { getItem } from "./board-query.js";
 import { itemHold } from "./board-query.js";

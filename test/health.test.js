@@ -20,7 +20,7 @@ import { addMilestone } from '../src/board-milestones.js';
 import { main } from './native-cli-fixture.js';
 import { boardHealth, healthReport } from '../packages/health/index.js';
 import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixture.js';
-import { readDigest } from '../src/digest.js';
+import { readDigest } from '../packages/items/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { recurringJobs } from '../src/board-recurring-jobs.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';

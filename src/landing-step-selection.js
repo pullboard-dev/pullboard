@@ -1,6 +1,6 @@
 import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js';
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
-import { localDependencyIds } from './item-dependencies.js';
+import { localDependencyIds } from '../packages/items/index.js';
 import { landingChangedFiles } from './land-collisions.js';
 import { deferredLandingPriorities } from './land-collisions.js';
 import { createHash } from 'node:crypto';

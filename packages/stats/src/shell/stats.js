@@ -3,7 +3,7 @@ import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 import { Refused } from '../../../kernel/index.js';
 import { flowStats } from '../core/stats-flow.js';
 import { barStats } from '../core/bar-stats.js';
-import { caughtFrom } from '../../../../src/caught.js';
+import { caughtFrom } from '../../../items/index.js';
 
 /** Parse an inclusive UTC date boundary, refusing malformed or impossible dates. */
 export function sinceDate(value) {

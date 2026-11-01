@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { composeItemPatches, itemPatchSetDigest } from '../src/item-patch-compose.js';
+import { composeItemPatches, itemPatchSetDigest } from '../packages/items/index.js';
 import { contributionSignoffProblem } from '../packages/commits/index.js';
 
 /** Run fixture-only Git, without repository hooks or inherited Git routing. */

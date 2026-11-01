@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { repoInfo } from '../src/git.js';
-import { recordBlock } from '../src/blocks.js';
+import { recordBlock } from '../packages/items/index.js';
 import {
   relayPresentation,
   presentationDigest,

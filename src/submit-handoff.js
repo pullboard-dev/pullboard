@@ -16,7 +16,7 @@ import {
 } from 'node:path';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
-import { itemPatchDigest } from './item-patch-state.js';
+import { itemPatchDigest } from '../packages/items/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */

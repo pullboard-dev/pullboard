@@ -22,9 +22,9 @@ import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { itemReviewPolicy } from '../../packages/verify/index.js';
 import { twoTierReviews } from '../../packages/verify/index.js';
-import { missingCompanionKeys } from '../item-patch-review.js';
-import { prepareItemPatchReview } from '../item-patch-review.js';
-import { outsideVerdict } from '../outside-verify.js';
+import { missingCompanionKeys } from '../../packages/items/index.js';
+import { prepareItemPatchReview } from '../../packages/items/index.js';
+import { outsideVerdict } from '../../packages/items/index.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { loadSpec } from '../../packages/spec/index.js';
@@ -59,8 +59,8 @@ import {
   parseImplies,
 } from '../implies.js';
 import { checkNeedsGui } from '../gui-admission.js';
-import * as itemSessions from '../item-sessions.js';
-import { itemAuthors } from '../item-authors.js';
+import * as itemSessions from '../../packages/items/index.js';
+import { itemAuthors } from '../../packages/items/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   Refused,

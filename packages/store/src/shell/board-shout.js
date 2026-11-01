@@ -1,5 +1,5 @@
 import { routeLaneMessage } from "../../../../src/lane-lead.js";
-import * as itemDecisions from "../../../../src/item-decision-queue.js";
+import * as itemDecisions from "../../../items/index.js";
 import { activityNewsFlag } from "../core/board-activity-news.js";
 import { getShout } from "./board-read-auxiliary.js";
 import { PERSON } from "./board-query.js";
