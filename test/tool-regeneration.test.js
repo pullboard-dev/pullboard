@@ -31,6 +31,8 @@ function project(t) {
   const marker = join(main.dir, 'full-gate.txt');
   put(main.root, 'pullboard.json', JSON.stringify({ gate: `FULL_GATE_MARKER='${marker}' node --test test/work.test.js`,
     submit: { handoff: true }, submitGate: 'landing', submitInvariants: [], registryGuards: [], shared: ['pullboard.json'] }));
+  put(main.root, 'package.json', JSON.stringify({ type: 'module', bin: './apps/fixture/index.js' }));
+  put(main.root, 'apps/fixture/index.js', "import { value } from '../../src/leaf.js';\nconsole.log(value);\n");
   put(main.root, 'src/leaf.js', 'export const value = 1;\n');
   put(main.root, 'test/work.test.js', `import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,8 +43,8 @@ test('the leaf matches accepted main [G1]', () => {
   if (process.env.FULL_GATE_MARKER) appendFileSync(process.env.FULL_GATE_MARKER, 'fresh full proof\\n');
 });
 `);
-  put(main.root, 'bin/cells-plan/seed.json', JSON.stringify({ source: 'fixture', sha256: 'none', order: ['leaf'],
-    cells: { leaf: ['src/leaf.js'] }, tests: {} }));
+  put(main.root, 'bin/cells-plan/seed.json', JSON.stringify({ source: 'fixture', sha256: 'none', order: ['leaf', 'app:fixture'],
+    cells: { leaf: ['src/leaf.js'], 'app:fixture': ['apps/fixture/index.js'] }, tests: {} }));
   commitAll(main);
   tool(main, 'cells-plan.js', '--write');
   commitAll(main);
@@ -57,7 +59,7 @@ test('the leaf matches accepted main [G1]', () => {
   main.git('reset', '--hard', original); // Only this disposable private fixture checkout.
   writeCellLintBaseline(main.root, baseline, { initialize: true });
   commitAll(main);
-  const box = builderRepo(main, ['packages/', 'bin/']);
+  const box = builderRepo(main, ['packages/', 'bin/', 'apps/']);
   assert.equal(box.coordinator('add', 'build', 'Recorded tool change', '--check', 'node --test test/work.test.js').code, 0);
   assert.equal(box.run('claim', '1').code, 0);
   return { main, box, marker };
@@ -79,13 +81,17 @@ function advance(main) {
   return commitAll(main, 'feat(core): advance the accepted leaf [G1]');
 }
 
-test('submit replays a recorded cell move on main, proves the new head fully and attaches no old verdict [C7,V4,V6]', t => {
+for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, t => {
   const { main, box, marker } = project(t);
-  const original = move(box, main.dir);
+  let original = move(box, main.dir);
+  if (command === 'remove-shims') {
+    tool(box, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'core');
+    original = commitAll(box, 'refactor(core): remove the leaf shim [G1]');
+  }
   tool(box, 'cells-plan.js', '--check');
   tool(box, 'cell-lints.js', '--check');
   const before = main.git('rev-parse', 'HEAD');
-  assert.equal(recordedToolCommits(box.root, before, original)[0].commands[0].tool, 'cells-move');
+  assert.equal(recordedToolCommits(box.root, before, original).at(-1).commands[0].tool, command);
   const currentMain = advance(main);
   assert.equal(existsSync(marker), false);
   const submitted = box.run('submit', '1', '--json', '--infra', 'recorded tool regeneration fixture');
@@ -94,7 +100,7 @@ test('submit replays a recorded cell move on main, proves the new head fully and
   const result = JSON.parse(submitted.out);
   const head = box.git('rev-parse', 'HEAD');
   assert.notEqual(head, original);
-  assert.equal(box.git('rev-parse', 'HEAD^'), currentMain);
+  assert.equal(box.git('rev-parse', command === 'remove-shims' ? 'HEAD~2' : 'HEAD^'), currentMain);
   assert.match(readFileSync(join(box.root, 'packages/leaf/src/core/leaf.js'), 'utf8'), /value = 2/u);
   assert.ok(existsSync(marker), 'regeneration runs the full gate even when normal submit defers it');
   assert.equal(result.full, true);
@@ -105,7 +111,7 @@ test('submit replays a recorded cell move on main, proves the new head fully and
   assert.equal(item.item_verified_by, null);
   assert.ok(item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === head), 'the new head has its own proof');
   assert.ok(!item.proofReceipts.some(receipt => receipt.kind === 'submit' && receipt.commit === original));
-  assert.equal(recordedToolCommits(box.root, currentMain, head)[0].commands[0].tool, 'cells-move', 'another main advance can replay this new head too');
+  assert.equal(recordedToolCommits(box.root, currentMain, head).at(-1).commands[0].tool, command, 'another main advance can replay this new head too');
 });
 
 test('a hand edit mixed into a tool result retains the ordinary main-conflict refusal and its source [C7,V6]', t => {
