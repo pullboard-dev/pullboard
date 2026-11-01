@@ -1,4 +1,4 @@
-import { applyRehomeItem as applyRehomeRecord } from "../../../../src/item-rehome.js";
+import { applyRehomeItem as applyRehomeRecord } from "../../../items/index.js";
 import { reviewPolicyChange } from "../../../verify/index.js";
 import { saveItemReviewPolicy } from "../../../verify/index.js";
 import { now } from "./board-query.js";

@@ -6,7 +6,7 @@ import {
   executingBarEffect,
   personBarMode,
 } from '../person-bar-cli.js';
-import { dependencyValues } from '../item-dependencies.js';
+import { dependencyValues } from '../../packages/items/index.js';
 import {
   referenceAuthors,
   referenceAuthority,

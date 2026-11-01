@@ -20,7 +20,7 @@ import { projectState } from '../src/cli/view-state.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
-import { briefFiles } from '../src/brief.js';
+import { briefFiles } from '../packages/items/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../src/machine.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { barCoverageCommand, normalizeBarCoverage, prepareBarCoverage, barTestPath, barCoverageForPolicy } from '../packages/verify/index.js';
-import { requireSubmitComposition } from '../src/submit-composition.js';
+import { requireSubmitComposition } from '../packages/items/index.js';
 import { nativeBarActor } from '../packages/verify/index.js';
 import { baselineTestEvidence } from '../src/check-baseline.js';
 import { configFromSource } from '../packages/config/index.js';

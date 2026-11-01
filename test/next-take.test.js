@@ -21,7 +21,7 @@ import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
 import { Refused } from '../packages/kernel/core.js';
 import { repoInfo } from '../src/git.js';
 import { bindLocalSession } from '../src/agent-session.js';
-import { recordItemSession } from '../src/item-sessions.js';
+import { recordItemSession } from '../packages/items/index.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
 import { deliverHealthNotices } from '../src/board-health-receipts.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';

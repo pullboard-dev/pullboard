@@ -1,4 +1,4 @@
-import { requireOutsideOwner } from "../../../../src/outside-source.js";
+import { requireOutsideOwner } from "../../../items/index.js";
 import { itemById } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";

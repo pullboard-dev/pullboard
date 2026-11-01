@@ -4,7 +4,7 @@ import {
   policyAt,
 } from '../packages/sandbox/index.js';
 import { contains } from './git.js';
-import { itemPatchDigest } from './item-patch-state.js';
+import { itemPatchDigest } from '../packages/items/index.js';
 import { agentById } from '../packages/store/index.js';
 /** Private worker origins retain the queued sender without registering or lending a second seat [E18,V4]. */
 import { realpathSync } from 'node:fs';

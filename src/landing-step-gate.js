@@ -24,7 +24,7 @@ import { placementLandingPlan } from './test-placement.js';
 import { laneOf } from './lanes.js';
 import { Refused } from '../packages/kernel/index.js';
 import { environmentLabel } from '../packages/sandbox/index.js';
-import { landingFileTimes } from './submit-invariants.js';
+import { landingFileTimes } from '../packages/items/index.js';
 import { environmentWarnings } from './landing-step-selection.js';
 import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';

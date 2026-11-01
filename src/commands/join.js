@@ -2,7 +2,7 @@ import {
   parentIdentity,
   parentSessionDigest,
   runtimeSessionIdentity,
-} from '../parent-session.js';
+} from '../../packages/items/index.js';
 /** The pullboard join command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,

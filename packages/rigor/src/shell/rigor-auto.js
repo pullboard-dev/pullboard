@@ -30,7 +30,7 @@ import {
 import { RIGOR_AUTO_ENGINE } from '../../../../src/rigor-auto-engine.js';
 import { REOPEN_CAUSE_ENGINE } from '../../../../src/reopen-cause-engine.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
-import { conflictCause } from '../../../../src/reopen-cause.js';
+import { conflictCause } from '../../../items/index.js';
 
 /** Prefer structured exact-head failures; a coded fallback is a coarse category, never a root-cause finding. */
 export function deriveRigorCause(board, item, { cause, reason, conflict, landingFailure, agentId }) {

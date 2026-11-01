@@ -1,4 +1,4 @@
-import { requireFactKind } from "../../../../src/item-notes.js";
+import { requireFactKind } from "../../../items/index.js";
 import { barCheckFactFields } from "../../../verify/index.js";
 import { PERSON } from "./board-query.js";
 import { isHeld } from "./board-query.js";

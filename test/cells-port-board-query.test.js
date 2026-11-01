@@ -1,6 +1,6 @@
-import { localDependencyIds } from '../src/item-dependencies.js';
-import { dependencyLabel } from '../src/item-dependencies.js';
-import { itemFileCollisions } from '../src/item-files.js';
+import { localDependencyIds } from '../packages/items/index.js';
+import { dependencyLabel } from '../packages/items/index.js';
+import { itemFileCollisions } from '../packages/items/index.js';
 import { withLocalSeatPresence } from '../packages/store/index.js';
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** Native query capabilities preserve actual cell boundaries and fail closed before storage [C7,CD64]. */
@@ -17,7 +17,7 @@ import { nativeBoardPorts, openBoard } from '../src/native-board.js';
 import * as queries from '../packages/store/index.js';
 import * as store from '../src/board.js';
 import { readyItems } from '../src/queue-readiness.js';
-import { workQueue } from '../src/queue.js';
+import { workQueue } from '../packages/items/index.js';
 import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem } from '../packages/verify/index.js';
 import { lineSettings } from '../packages/state/index.js';

@@ -19,7 +19,7 @@ import {
   barStatsLines,
 } from '../bar-corrections.js';
 import * as store from '../board.js';
-import { caughtLines } from '../caught.js';
+import { caughtLines } from '../../packages/items/index.js';
 import * as gateReceipt from '../gate-receipt.js';
 import { readRunnerStage } from '../runner-stage-read.js';
 import {

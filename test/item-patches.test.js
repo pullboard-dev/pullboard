@@ -8,14 +8,14 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { parentSessionDigest } from '../src/parent-session.js';
+import { parentSessionDigest } from '../packages/items/index.js';
 import { ITEM_PATCH_ENGINE } from '../src/item-patch-engine.js';
 import { PATCH_AUTHOR_IDENTITY_ENGINE } from '../src/patch-author-identity-engine.js';
-import { retainedVerifierIdentityProblem } from '../src/item-authors.js';
+import { retainedVerifierIdentityProblem } from '../packages/items/index.js';
 import {
   itemPatches, itemPatchAuthors,
   itemPatchDigest, itemPatchReviewProblem, itemPatchSetDigest,
-} from '../src/item-patches.js';
+} from '../packages/items/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 
 const COMMIT = 'a'.repeat(40);

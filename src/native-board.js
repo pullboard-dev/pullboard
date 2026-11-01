@@ -13,8 +13,8 @@ import { reviewPatchAuthors } from '../packages/verify/index.js';
 import {
   localDependencyIds,
   dependencyLabel,
-} from './item-dependencies.js';
-import { itemFileCollisions } from './item-files.js';
+} from '../packages/items/index.js';
+import { itemFileCollisions } from '../packages/items/index.js';
 import { withLocalSeatPresence } from '../packages/store/index.js';
 import { policyAt } from '../packages/sandbox/index.js';
 import {
@@ -25,8 +25,8 @@ import {
 import { ENGINE_VERSION } from './engine-metadata.js';
 import { PIPELINE_CAUSE_ENGINE } from './pipeline-cause-engine.js';
 import { SUBMIT_HANDOFF_ENGINE } from './submit-handoff-engine.js';
-import { firstRefusalDetail } from './claims.js';
-import { itemPatchDigest } from './item-patch-state.js';
+import { firstRefusalDetail } from '../packages/items/index.js';
+import { itemPatchDigest } from '../packages/items/index.js';
 /** Supply current native engine thresholds without duplicating their values. */
 function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUBMIT_HANDOFF_ENGINE }; }
 

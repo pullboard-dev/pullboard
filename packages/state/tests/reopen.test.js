@@ -33,7 +33,7 @@ import { QUOTED_LANDING_FAILURE_ENGINE } from '../../../src/quoted-landing-failu
 import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { safeFixtureDiagnostic } from '../../../test/fixture-child.js';
-import { correctedNoVerdictReopen } from '../../../src/reopen-history.js';
+import { correctedNoVerdictReopen } from '../../items/index.js';
 import { unpackRelease } from '../../../test/release-archive.js';
 
 const e2e = createE2eHelpers();

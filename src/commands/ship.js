@@ -21,7 +21,7 @@ import { withBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { events } from '../../packages/store/index.js';
 import { verdictsFor } from '../../packages/store/index.js';
-import { waitForSubmissionVerdict } from '../submit-wait.js';
+import { waitForSubmissionVerdict } from '../../packages/items/index.js';
 
 /** Resolve only this seat's claim or its explicit returned-work reservation before any Git mutation. */
 function shippingItem(ctx, requested) {
