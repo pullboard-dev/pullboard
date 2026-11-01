@@ -57,7 +57,7 @@ test('a second submit of an unchanged tree runs no static or doctrine check and 
   assert.equal(runs(logs.static), 1, 'the unchanged tree runs no static check again');
   assert.equal(runs(logs.doctrine), 1, 'the unchanged tree runs no doctrine check again');
   assert.match(second.out + second.err, /static check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the static receipt');
-  assert.match(second.out + second.err, /doctrine check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the doctrine receipt');
+  assert.match(second.out + second.err, /doctrine-hold check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the doctrine receipt');
   // A reviewer checking the same submitted tree from its own worktree cites the same receipt.
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const review = join(box.dir, 'api-review');

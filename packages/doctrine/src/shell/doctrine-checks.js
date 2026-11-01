@@ -157,6 +157,19 @@ function executeRuleCheck(cwd, command, timeoutMs, gateEnvironment) {
   return { problems: output.split(/\r?\n/u).map((line) => line.trimEnd()).filter((line) => line.trim()), broken: '', seconds };
 }
 
+/** Reuse a complete successful hold before asking for a runner slot; individual rules remain reusable at landing. */
+export async function cachedDoctrineHold(root, options, execute) {
+  const key = checkReceiptKey(root, { kind: 'doctrine-hold', definition: options, config: { timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }, code: [fileURLToPath(import.meta.url)] });
+  const receipt = readCheckReceipt(root, key);
+  if (receipt && Array.isArray(receipt.result)) {
+    process.stderr.write(`${receiptLine(receipt)}\n`);
+    return receipt.result;
+  }
+  const result = await execute();
+  writeCheckReceipt(root, key, { result });
+  return result;
+}
+
 /** True when a changed path is one of a rule's watched paths or lies under one. */
 function inScope(scope, path) {
   return !scope.length || scope.some((watched) => path === watched || path.startsWith(`${watched}/`));
