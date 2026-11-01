@@ -28,11 +28,15 @@ function commit(box, root, message) {
 }
 
 /** Submit from a builder and accept from an independent reviewer while trunk stays on main. */
-function fixture(t, manualOverride = false) {
+function fixture(t, manualOverride = false, redStatic = false) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
   const config = { ...helpers.CONFIG, gate: 'true', landing: { publish: 'separate', manualOverride } };
+  if (redStatic) {
+    config.staticChecks = 'node static.cjs';
+    writeFileSync(join(box.repo, 'static.cjs'), `if (require('node:fs').existsSync(${JSON.stringify(join(box.dir, 'red-static'))})) { console.log('automatic static guard is red'); process.exit(1); }\n`);
+  }
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'web/result.txt'), 'base\n');
@@ -89,4 +93,18 @@ test('only an explicit valid trunk override permits manual landing [B35,B3]', ()
   assert.doesNotThrow(() => requireManualLanding(configFromSource('{"landing":{"manualOverride":true}}')));
   assert.throws(() => configFromSource('{"landing":{"manualOverride":"yes"}}'), /BAD_CONFIG/u);
   assert.equal(configFromSource('{"landing":{"manualOverride":true}}').landing.manualOverride, true);
+});
+
+
+test('a red automatic landing returns its accepted item with gate output [B35,B3,R3]', t => {
+  const { box, id, reviewer } = fixture(t, false, true);
+  writeFileSync(join(box.dir, 'red-static'), 'red\n');
+  const accepted = box.run(reviewer, 'verify', String(id), 'accept', '--note', 'The frozen file check passed.');
+  assert.equal(accepted.code, 0, accepted.out + accepted.err);
+  const item = json(box, box.repo, 'show', String(id));
+  assert.equal(item.item_status, 'open', accepted.out + accepted.err);
+  assert.equal(item.item_merged_commit, null);
+  const reopens = onBoard(box, board => store.events(board, { itemId: id }).filter(event => event.event_kind === 'reopen'));
+  assert.equal(reopens.length, 1, 'one red landing returns the item once');
+  assert.match(reopens[0].event_detail, /automatic static guard is red/u);
 });

@@ -306,7 +306,11 @@ export async function verifyHere(ctx, id, { second, values }) {
           .map(item => ({ id: item.item_id, commit: store.checkedLandingCommit(board, item) }));
         const { executeBoardLanding } = await import('./land.js');
         return landAcceptedItems({ root, config: policy.config, trunk: policy.commit, items,
-          reopen: (id, conflict) => ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', conflict, note: `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]),
+          reopen: (id, conflict, note) => {
+            const item = store.getItem(board, id);
+            if (item.item_status !== 'verified' || item.item_merged_commit) return null;
+            return ordered(landing, board, 'reopen', [id, { agentId: 'coordinator', ...(conflict ? { conflict } : {}), note: note ?? `landing conflict: ${conflict.files.join(', ')}; merge current main and resubmit` }]);
+          },
           execute: () => executeBoardLanding(landing, board, io) });
       });
     } catch (error) { ctx.io.err(`automatic landing retained accepted work: ${error.code ?? error.name}: ${error.message}`); }
