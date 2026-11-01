@@ -76,7 +76,10 @@ export async function run(io, { values }) {
     const staleState = { ...observedStaleState,
       holds: observedStaleState.holds.filter(entry => entry.pastHalf),
       claims: observedStaleState.claims.filter(entry => entry.pastHalf),
-      reviews: observedStaleState.reviews.filter(entry => entry.pastHalf) };
+      reviews: observedStaleState.reviews.filter(entry => entry.pastHalf),
+      // Claims not building, from real work signals only (#1225): stalled after 20 idle minutes, or waiting on an unlanded item.
+      claimHealth: observedStaleState.claims.filter(entry => entry.health && entry.health !== 'building')
+        .map(({ id, actor, health, idleMs, waitingOn }) => ({ id, actor, health, idleMs, waitingOn })) };
     const approvalState = personNeedsSummary(ctx.info.root, { board, config: ctx.config, agents, doctrine: ctx.doctrine });
     const person = board.db.prepare("SELECT 1 FROM event WHERE event_kind='person_signing' LIMIT 1").get()
       ? { signed: (await import('../person-signing.js')).personSigning(board).signed } : { signed: false };
@@ -108,6 +111,10 @@ export async function run(io, { values }) {
     const incomplete = entry.evidence?.complete !== true;
     const classification = entry.classificationUnknown ? '; blocker classification unknown; shown at shortest possible half-limit' : '';
     io.say(`past half limit: ${staleStateLine(incomplete ? { ...entry, expired: false } : entry)}${incomplete ? '; inactivity unproven (evidence unknown)' : ''}${classification}`);
+  }
+  for (const entry of summary.staleState.claimHealth ?? []) {
+    io.say(entry.health === 'waiting' ? `waiting: #${entry.id} (${entry.actor}) waits on ${entry.waitingOn.map(id => `#${id}`).join(', ')} to land; the claim is released and the item returns when it lands`
+      : `stalled: #${entry.id} (${entry.actor}) idle ${Math.floor(entry.idleMs / 60_000)}m with no commit, file change, running check or item move; released automatically at 40m`);
   }
   for (const warning of summary.runnerUtilization.warnings) io.say(warning);
   io.say(`seats: ${summary.presenceCounts.live} live, ${summary.presenceCounts.idle} idle, ${summary.presenceCounts.gone} gone`);

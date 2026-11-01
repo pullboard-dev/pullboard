@@ -33,7 +33,7 @@ function observedSeats(board, actors) {
  * heartbeats under that id count, so a seat with no presence reads as absent and a checkout's file activity, which a reused or gone
  * checkout cannot attribute to the seat, is neither required nor read.
  */
-function activity(board, item, actor, anchor, kind, seats, workObservation, now) {
+function activity(board, item, actor, anchor, kind, seats, workObservation, now, episodeAt = null) {
   const unknown = [];
   // Only once the lease has ended; a live claim's checkout work still protects a builder editing without board writes.
   const seatOnly = kind === 'claim' && staleInstant(item.item_lease_until, now) !== null && Date.parse(item.item_lease_until) <= now;
@@ -54,7 +54,37 @@ function activity(board, item, actor, anchor, kind, seats, workObservation, now)
     proof?.event_at, detailOf(proof)?.receipt?.at, shout?.shout_at, native?.event_at];
   const lastActivity = latestStaleActivity(observations, now);
   if (lastActivity === null || staleInstant(anchor, now) === null) unknown.push('activity boundary unavailable or future');
-  return { lastActivity, evidence: { complete: unknown.length === 0, unknown } };
+  // The idle rule (#1225) reads real work only: worktree commits and file changes, board-run proofs and the holder's
+  // own moves on the item. A heartbeat, a shout or a renewal is the agent reporting itself, so none of them counts.
+  if (kind !== 'claim' || seatOnly) return { lastActivity, evidence: { complete: unknown.length === 0, unknown } };
+  const move = board.db.prepare(`SELECT event_at FROM event WHERE event_by=? AND item_id=? AND event_kind NOT IN (${RENEWALS}) ORDER BY event_id DESC LIMIT 1`).get(actor, item.item_id);
+  const workSeen = work?.available === true && (work.at === null || staleInstant(work.at, now) !== null);
+  const workActivity = workSeen && staleInstant(episodeAt, now) !== null
+    ? latestStaleActivity([episodeAt, work.at, proof?.event_at, detailOf(proof)?.receipt?.at, move?.event_at], now) : null;
+  return { lastActivity, workActivity, evidence: { complete: unknown.length === 0, unknown } };
+}
+
+/** Board events that renew or restate a claim; none of them is work on it. */
+const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
+/** A claim shows as stalled after this much idle time, and is released at the second (#1225). */
+export const CLAIM_STALL_MS = 20 * 60_000;
+export const CLAIM_IDLE_RELEASE_MS = 40 * 60_000;
+
+/** When the holder's current claim began: its first claim since the item last left that holder's hands. Renewals do not move it. */
+function claimEpisode(board, item) {
+  const boundary = board.db.prepare("SELECT COALESCE(MAX(event_id),0) AS id FROM event WHERE item_id=? AND event_kind IN ('release','submit','reopen','withdraw','merged','accept','reject','refreeze')")
+    .get(item.item_id).id;
+  return board.db.prepare("SELECT event_id,event_at FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' AND event_id>? ORDER BY event_id LIMIT 1")
+    .get(item.item_id, item.item_owner, boundary) ?? null;
+}
+
+/** The local items a claim still waits on: dependencies not yet landed. */
+function waitingOn(board, item) {
+  const ids = String(item.item_after ?? '').split(',').map(Number).filter(id => Number.isSafeInteger(id) && id > 0);
+  return ids.filter(id => {
+    const row = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(id);
+    return row && row.item_status !== 'withdrawn' && !row.item_merged_commit;
+  });
 }
 
 /** Retain malformed or future hold boundaries as explicit unknown evidence. */
@@ -92,7 +122,8 @@ function laneHoldRow(board, hold, limit, now) {
 function claimRow(board, item, limits, now, seats, options) {
   const event = itemEvent(board, item.item_id, 'claim', item.item_owner);
   const lease = board.db.prepare("SELECT event_id,event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(item.item_id, item.item_owner);
-  const observed = activity(board, item, item.item_owner, event?.event_at, 'claim', seats, options.workObservation, now);
+  const episode = claimEpisode(board, item);
+  const observed = activity(board, item, item.item_owner, event?.event_at, 'claim', seats, options.workObservation, now, episode?.event_at ?? null);
   const blocker = options.blocker(item);
   const classificationUnknown = blocker !== true && blocker !== false;
   if (classificationUnknown) {
@@ -104,7 +135,16 @@ function claimRow(board, item, limits, now, seats, options) {
   const age = staleStateAge('claim', item.item_id, item.item_owner, observed.lastActivity ?? event?.event_at, limit, now);
   return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimEventId: event?.event_id ?? null,
     leaseEventId: lease?.event_id ?? null, leaseStartedAt: lease?.event_at ?? null, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease?.event_at),
-    expiryAuthorized: false };
+    episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
+}
+
+/** Building, stalled (20 idle minutes) or waiting on an unlanded item, from real work signals only (#1225). */
+function claimHealth(board, item, observed, now) {
+  const waiting = waitingOn(board, item);
+  if (waiting.length) return { health: 'waiting', waitingOn: waiting, idleMs: null };
+  const last = observed.workActivity ? staleInstant(observed.workActivity, now) : null;
+  const idleMs = last === null ? null : now - last;
+  return { health: idleMs !== null && idleMs >= CLAIM_STALL_MS ? 'stalled' : 'building', waitingOn: [], idleMs };
 }
 
 /** Bind a review candidate to current head, latest reserve and exact native submission, not lease age alone. */

@@ -42,7 +42,6 @@ function shimmed(t) {
   box.put('src/stats-leaf.js', 'export { leaf } from "../packages/stats/src/shell/leaf.js";\n');
   box.put('src/uses-shell.js', "import { shell } from './stats.js';\nexport { shell };\n");
   box.put('src/uses-extra.js', "import { extra } from './stats.js';\nexport { extra };\n");
-  box.put('src/lazy.js', "export const lazy = () => import('./stats.js');\n");
   box.put('src/reader.js', "import { readFileSync } from 'node:fs';\nexport const text = readFileSync(new URL('./stats.js', import.meta.url), 'utf8');\nimport { resolve } from 'node:path';\nexport const here = resolve(import.meta.dirname, './stats.js');\n");
   box.put('test/pure.test.js', "import { pure } from '../src/stats.js';\nconsole.log(pure);\n");
   box.put('test/declared.test.js', '/** @pullboard-test-input src/stats.js package.json */\nexport const declared = 1;\n');
@@ -70,7 +69,6 @@ test('removal repoints each importer kind, adds a missing binding, deletes the s
   const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
   assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
   assert.equal(read(box, 'test/pure.test.js'), "import { pure } from '../packages/stats/core.js';\nconsole.log(pure);\n");
-  assert.equal(read(box, 'src/lazy.js'), "export const lazy = () => import('../packages/stats/index.js');\n");
   assert.match(read(box, 'src/reader.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/src\/shell\/shell\.js'\)/u, 'a resolved path names the exact moved file');
   assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/src\/shell\/shell\.js', import\.meta\.url\)/u);
   assert.equal(read(box, 'test/declared.test.js').split('\n')[0], '/** @pullboard-test-input packages/stats/src/shell/shell.js package.json */');
@@ -122,6 +120,28 @@ test('a view-lane importer keeps its shim and its file, and a second run changes
   assert.match(again.stdout, /0 deleted, 2 kept, 0 repointed/u);
 });
 
+test('an importer of a name the door binds to a different definition keeps the shim, named and namespace alike [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('packages/stats/src/shell/write.js', 'export const open = "write";\n');
+  box.put('packages/stats/src/shell/read.js', 'export const open = "read";\n');
+  box.put('packages/stats/index.js', read(box, 'packages/stats/index.js') + 'export { open } from "./src/shell/read.js";\nexport { open as write_open } from "./src/shell/write.js";\n');
+  box.put('src/stats-open.js', 'export { write_open as open } from "../packages/stats/index.js";\n');
+  box.put('src/uses-open.js', "import { open } from './stats-open.js';\nexport { open };\n");
+  box.put('src/all-open.js', "import * as all from './stats-open.js';\nexport const keys = Object.keys(all);\n");
+  const plan = readPlan(box.root), stats = plan.cells.find(cell => cell.name === 'stats');
+  stats.paths.push(['src/stats-open.js', 'packages/stats/src/shell/write.js', 'seed']);
+  stats.reexports.push('src/stats-open.js');
+  writePlan(box.root, plan);
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'aliased door');
+  const result = removeShims(box.root, plan, 'stats', { parsers: PARSERS });
+  assert.equal(read(box, 'src/uses-open.js'), "import { open } from './stats-open.js';\nexport { open };\n", 'the read-store open is never swapped in');
+  assert.equal(read(box, 'src/all-open.js'), "import * as all from './stats-open.js';\nexport const keys = Object.keys(all);\n");
+  const reason = new Map(result.kept).get('src/stats-open.js');
+  assert.match(reason, /src\/uses-open\.js imports open from src\/stats-open\.js, which packages\/stats\/index\.js binds to a different definition/u);
+  assert.match(reason, /src\/all-open\.js imports open from src\/stats-open\.js/u);
+});
+
 /** Commit view-lane importers of the core-owned shim src/stats.js and run a view-lane removal on them. */
 function viewRemoval(t, files) {
   const box = shimmed(t);
@@ -135,6 +155,43 @@ function viewRemoval(t, files) {
   assert.deepEqual(result.deleted, []);
   return { box, door, result, reason: new Map(result.kept).get('src/stats.js') };
 }
+
+test('a namespace importer keeps its shim when the door exports more names than the shim, named or dynamic [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('src/all.js', "import * as all from './stats.js';\nexport const keys = Object.keys(all);\n");
+  box.put('src/lazy.js', "export const lazy = () => import('./stats.js');\n");
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  assert.equal(read(box, 'src/all.js'), "import * as all from './stats.js';\nexport const keys = Object.keys(all);\n", 'Object.keys of the namespace never gains late');
+  assert.equal(read(box, 'src/lazy.js'), "export const lazy = () => import('./stats.js');\n");
+  const reason = new Map(result.kept).get('src/stats.js');
+  assert.match(reason, /src\/all\.js takes the whole src\/stats\.js namespace, and packages\/stats\/index\.js also exports late/u);
+  assert.match(reason, /src\/lazy\.js takes the whole src\/stats\.js namespace/u);
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n", 'a named importer still moves');
+});
+
+test('a run that adds a name to the door for one importer leaves a namespace importer of another shim on its shim [C7,D3]', t => {
+  // The reviewer composition case (refs/pullboard/review-evidence/item-2221-composition-core-898).
+  const box = shimmed(t);
+  box.put('packages/stats/index.js', 'export * from "./core.js";\nexport { shell, extra } from "./src/shell/shell.js";\n');
+  box.put('src/all-stats.js', "import * as all from './stats.js';\nexport const names = Object.keys(all);\n");
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  assert.match(read(box, 'packages/stats/index.js'), /export \{ leaf \}/u, 'the run adds leaf to the door for the leaf importer');
+  assert.equal(read(box, 'src/all-stats.js'), "import * as all from './stats.js';\nexport const names = Object.keys(all);\n", 'the namespace never widens to leaf');
+  assert.match(new Map(result.kept).get('src/stats.js'), /src\/all-stats\.js takes a whole namespace, and this run adds leaf to packages\/stats\/index\.js/u);
+});
+
+test('a module URL handed to a child as .href keeps import semantics, while a byte read names the moved file [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('test/module.test.js', "import { pathToFileURL } from 'node:url';\nimport { resolve } from 'node:path';\nexport const url = pathToFileURL(resolve(import.meta.dirname, '../src/stats.js')).href;\n");
+  box.put('test/child.test.js', "const source = `import { shell } from ${JSON.stringify(new URL('../src/stats.js', import.meta.url).href)};`;\nexport { source };\n");
+  // A door with exactly the shim's names, so a whole-namespace child import may move to it.
+  box.put('src/mid.js', 'export const mid = 1;\n'); // no leaf importer, so this run adds nothing to the door
+  box.put('packages/stats/index.js', 'export * from "./core.js";\nexport { shell, extra } from "./src/shell/shell.js";\n');
+  removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  assert.match(read(box, 'test/module.test.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/index\.js'\)/u, 'a module URL built from a path goes to the front door');
+  assert.match(read(box, 'test/child.test.js'), /new URL\('\.\.\/packages\/stats\/index\.js', import\.meta\.url\)\.href/u, 'a child import goes to the front door');
+  assert.match(read(box, 'src/reader.js'), /new URL\('\.\.\/packages\/stats\/src\/shell\/shell\.js', import\.meta\.url\)/u, 'a byte read still names the moved file');
+});
 
 test('(a) with lane view, a view importer of a core-owned shim leaves that shim in place and reports it [C7,D3]', t => {
   const { box, reason } = viewRemoval(t, { 'src/view/rail.js': "import { shell } from '../stats.js';\nexport { shell };\n" });
