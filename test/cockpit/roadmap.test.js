@@ -69,7 +69,7 @@ test('Roadmap references stay inline and rows expand before opening Items [N26,N
   const other = project(box, 'beacon-prose');
   box.run(other.repo, 'add', 'web', 'Remote target', '--specs', 'G1', '--criterion', 'target');
   box.run(other.repo, 'add', 'web', 'Remote title links to #1', '--specs', 'G1', '--criterion', 'title');
-  box.run(demo.repo, 'milestone', 'add', 'Choose #1', '--note', 'Review #1 next.', '--items', '2,beacon-prose#2');
+  box.run(demo.repo, 'milestone', 'add', 'Choose #1', '--note', 'Review #1 next.', '--reason', 'Arrange fixture release', '--items', '2,beacon-prose#2');
   box.run(demo.repo, 'shout', 'person', 'Choose #1 before shipping.', '--decision');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-prose-references-chrome-'));
@@ -186,8 +186,8 @@ test('the Roadmap uses its approved stage words, opens rows, and keeps its own a
   box.run(beacon.repo, 'add', 'web', 'Billing webhook retries', '--specs', 'G1', '--criterion', 'retries');
   build(box, beacon, 1, 'retry.txt');
   sendBack(box, beacon, 1, 'retry twice before failing');
-  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships when the review lands; your call on the name.', '--items', '1,2,3,4,beacon#1');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--note', 'Queued behind Launch.', '--items', '5,6,7');
+  box.run(alpha.repo, 'milestone', 'add', 'Launch', '--note', 'Ships when the review lands; your call on the name.', '--reason', 'Arrange fixture release', '--items', '1,2,3,4,beacon#1');
+  box.run(alpha.repo, 'milestone', 'add', 'Next', '--note', 'Queued behind Launch.', '--reason', 'Arrange fixture release', '--items', '5,6,7');
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Ideas not filed yet.');
   // What the person reads on each row: the approved stage word; rejected work is a separate mark.
   const words = [
@@ -340,8 +340,8 @@ test('a milestone lists work to ship first, shipped below, and no withdrawn item
   }
   for (const id of [1, 3]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
   box.run(alpha.repo, 'withdraw', '4', 'not needed');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--items', '3,2,4,1,5');
-  box.run(alpha.repo, 'milestone', 'add', 'Shipped', '--items', '1,4,3');
+  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '3,2,4,1,5');
+  box.run(alpha.repo, 'milestone', 'add', 'Shipped', '--reason', 'Arrange fixture release', '--items', '1,4,3');
   box.run(alpha.repo, 'milestone', 'ship', 'Shipped', '--next', 'Next');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-shipping-rows-chrome-'));
@@ -407,10 +407,10 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
   box.run(alpha.repo, 'withdraw', '6', 'not needed');
   // In the board's order: two releases shipped (one with a withdrawn item, which does not hold it back), the next one
   // part done, and one queued after it.
-  box.run(alpha.repo, 'milestone', 'add', '0.1', '--note', 'The first page.', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.2', '--note', 'Shipped on Tuesday.\nA second line the shipped row leaves out.', '--items', '2,6');
-  box.run(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--items', '3,4');
-  box.run(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued behind 0.3.', '--items', '5');
+  box.run(alpha.repo, 'milestone', 'add', '0.1', '--note', 'The first page.', '--reason', 'Arrange fixture release', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', '0.2', '--note', 'Shipped on Tuesday.\nA second line the shipped row leaves out.', '--reason', 'Arrange fixture release', '--items', '2,6');
+  box.run(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--reason', 'Arrange fixture release', '--items', '3,4');
+  box.run(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued behind 0.3.', '--reason', 'Arrange fixture release', '--items', '5');
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Work not filed yet.');
   box.run(alpha.repo, 'milestone', 'move', 'Later', '--before', '0.1');
   box.run(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
@@ -418,7 +418,7 @@ test('the roadmap leads with the next release and folds shipped ones [N26]', { t
   const shippedCommit = box.git(alpha.repo, 'rev-parse', 'HEAD');
   const other = project(box, 'other-releases');
   box.run(other.repo, 'add', 'web', 'Other next page', '--specs', 'G1', '--criterion', 'renders');
-  box.run(other.repo, 'milestone', 'add', '0.3', '--items', '1');
+  box.run(other.repo, 'milestone', 'add', '0.3', '--reason', 'Arrange fixture release', '--items', '1');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-releases-chrome-'));
   let chrome;
@@ -547,10 +547,10 @@ test('the roadmap keeps every upcoming release open [N26]', {
   const alpha = project(box, 'all-upcoming-open');
   for (const title of ['Shipped one', 'Shipped two', 'Next release', 'Later release']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   for (const id of [1, 2]) { build(box, alpha, id, `page-${id}.html`); accept(box, alpha, id); landRoadmapItem(box, alpha, id); }
-  box.run(alpha.repo, 'milestone', 'add', '0.1', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.2', '--items', '2');
-  box.run(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--items', '3');
-  box.run(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued next.', '--items', '4');
+  box.run(alpha.repo, 'milestone', 'add', '0.1', '--reason', 'Arrange fixture release', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', '0.2', '--reason', 'Arrange fixture release', '--items', '2');
+  box.run(alpha.repo, 'milestone', 'add', '0.3', '--note', 'Next out.', '--reason', 'Arrange fixture release', '--items', '3');
+  box.run(alpha.repo, 'milestone', 'add', '0.4', '--note', 'Queued next.', '--reason', 'Arrange fixture release', '--items', '4');
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'No work filed yet.');
   box.run(alpha.repo, 'milestone', 'ship', '0.1', '--next', '0.3');
   box.run(alpha.repo, 'milestone', 'ship', '0.2', '--next', '0.3');
@@ -658,8 +658,8 @@ test('the roadmap panel jumps to each release [N26]', {
   const shippedBranch = alpha.itemBranches.get(`${alpha.baseBranch}:1`);
   box.git(alpha.repo, 'merge', '--no-ff', '--no-edit', shippedBranch);
   box.run(alpha.repo, 'merged', '1', box.git(alpha.repo, 'rev-parse', 'HEAD'));
-  box.run(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'Shipped first line.\nThis line stays in the expanded history.', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--items', '2');
+  box.run(alpha.repo, 'milestone', 'add', '0.8.6', '--note', 'Shipped first line.\nThis line stays in the expanded history.', '--reason', 'Arrange fixture release', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--reason', 'Arrange fixture release', '--items', '2');
   box.run(alpha.repo, 'milestone', 'ship', '0.8.6', '--next', '0.8.7');
   for (const name of ['0.8.8', '0.8.9', '0.8.10', '0.8.11', '0.8.12', '0.8.13', '0.8.14', '0.8.15', '0.8.16', '0.8.17', '0.8.18', '0.8.19']) {
     box.run(alpha.repo, 'milestone', 'add', name, '--note', 'Queued after the next release.');
@@ -830,7 +830,7 @@ test('the roadmap chips keep their scroll through a redraw with wide fonts [N26]
   const box = machine();
   const alpha = project(box, 'roadmap-chips-wide');
   box.run(alpha.repo, 'add', 'web', 'Next release item', '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', '0.8.7', '--note', 'The next release.', '--reason', 'Arrange fixture release', '--items', '1');
   for (const name of ['0.8.8', '0.8.9', '0.8.10', '0.8.11', '0.8.12', '0.8.13', '0.8.14', '0.8.15', '0.8.16', '0.8.17', '0.8.18', '0.8.19']) {
     box.run(alpha.repo, 'milestone', 'add', name, '--note', 'Queued after the next release.');
   }
@@ -884,15 +884,15 @@ test('the roadmap shows landed, accepted and past target [N26]', { timeout: 90_0
   box.run(alpha.repo,'withdraw','11','Removed from this release');
   // A release that finished, every item landed or withdrawn, without milestone ship.
   build(box,alpha,12,'item-12.txt');accept(box,alpha,12);land(12);box.run(alpha.repo,'withdraw','13','Not needed after all');
-  box.run(alpha.repo,'milestone','add','Finished unshipped','--items','12,13');
+  box.run(alpha.repo,'milestone','add','Finished unshipped','--reason', 'Arrange fixture release', '--items','12,13');
   box.run(alpha.repo,'milestone','add','Empty plan','--note','Nothing filed yet.');
   build(box,alpha,7,'item-7.txt');box.run(alpha.web,'claim','8');box.run(alpha.repo,'hold','ops','--reason','Waiting for the person');
   box.run(alpha.repo,'shout','person','#9 Approve the release','--decision');
-  box.run(alpha.repo,'milestone','add','Past target','--items','1,2,3');
+  box.run(alpha.repo,'milestone','add','Past target','--reason', 'Arrange fixture release', '--items','1,2,3');
   box.run(alpha.repo,'milestone','edit','Past target','--target',new Date(Date.now()-86_400_000).toISOString());
-  box.run(alpha.repo,'milestone','add','Shipped release','--items','4');
+  box.run(alpha.repo,'milestone','add','Shipped release','--reason', 'Arrange fixture release', '--items','4');
   // Deliberately shuffle the six states; display grouping must not inherit this order.
-  box.run(alpha.repo,'milestone','add','State summary','--items','10,5,9,8,7,6,11');
+  box.run(alpha.repo,'milestone','add','State summary','--reason', 'Arrange fixture release', '--items','10,5,9,8,7,6,11');
   box.run(alpha.repo,'milestone','ship','Shipped release','--next','State summary');
   box.run(alpha.repo,'milestone','add','Empty shipped');
   box.run(alpha.repo,'milestone','ship','Empty shipped','--next','State summary');
@@ -1008,7 +1008,7 @@ test('a blocked roadmap item shows its dot and expands to say why [N26]', { time
   build(box, other, 2, 'remote.html'); sendBack(box, other, 2, 'Remote latest finding\nMore detail stays in Items');
   box.run(other.repo, 'edit', '2', '--after', '1', '--reason', 'Waits on remote base.');
   box.run(other.repo, 'hold', 'web', '--reason', 'Review the remote dependency');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2,3,4,5,6,blocked-roadmap-other#2');
+  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3,4,5,6,blocked-roadmap-other#2');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-blocked-roadmap-chrome-'));
   let chrome;
   const row = id => `[...document.querySelectorAll('#roadmap .milestone-item')].find(x=>x.querySelector('.id')?.textContent===${JSON.stringify(id)})`;
@@ -1115,7 +1115,7 @@ test('the expanded row keeps send-backs short and names agents plainly [N26]', {
   sendBack(box, alpha, 1, 'The heading is missing. The footer link is also broken.\nMore evidence stays in Items.');
   box.run(alpha.repo, 'add', 'web', 'One long sentence', '--specs', 'G1', '--criterion', 'Ready.');
   build(box, alpha, 2, 'long.html'); sendBack(box, alpha, 2, long);
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2');
+  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2');
   const view = await startView(box), profile = mkdtempSync(join(tmpdir(), 'pullboard-short-roadmap-chrome-'));
   let chrome;
   const row = id => `[...document.querySelectorAll('#roadmap .milestone-item')].find(x=>x.querySelector('.id')?.textContent===${JSON.stringify(id)})`;
@@ -1156,8 +1156,8 @@ test('a release jump on a phone leaves its heading below the top bar [N26]', { t
   const box = machine();
   const alpha = project(box, 'roadmap-phone-release-jump');
   for (const title of ['First release item', 'Second release item']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.0', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.9.1', '--items', '2');
+  box.run(alpha.repo, 'milestone', 'add', '0.9.0', '--reason', 'Arrange fixture release', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', '0.9.1', '--reason', 'Arrange fixture release', '--items', '2');
   for (const name of ['0.9.2', '0.9.3', '0.9.4', '0.9.5', '0.9.6', '0.9.7', '0.9.8', '0.9.9', '0.9.10', '0.9.11']) {
     box.run(alpha.repo, 'milestone', 'add', name, '--note', 'Later release.');
   }
@@ -1226,8 +1226,8 @@ test('the release chevron lines up with its title [N26]', { timeout: 90_000 }, a
   for (const title of ['Shipped work', 'Open work', 'More open work']) box.run(alpha.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', 'renders');
   build(box, alpha, 1, 'shipped.html');
   accept(box, alpha, 1);
-  box.run(alpha.repo, 'milestone', 'add', 'Old release', '--items', '1');
-  box.run(alpha.repo, 'milestone', 'add', 'Next release with a longer name', '--items', '2,3');
+  box.run(alpha.repo, 'milestone', 'add', 'Old release', '--reason', 'Arrange fixture release', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', 'Next release with a longer name', '--reason', 'Arrange fixture release', '--items', '2,3');
   box.run(alpha.repo, 'milestone', 'ship', 'Old release', '--next', 'Next release with a longer name');
   box.run(alpha.repo, 'milestone', 'add', 'Later', '--note', 'Nothing filed yet.');
   const view = await startView(box);

@@ -37,7 +37,7 @@ test('a board opens on Dashboard with API-backed work, shared pace and existing 
   box.run(alpha.repo, 'add', 'web', 'A task in flight', '--specs', 'G1',
     '--criterion', 'The fixture project remains present.', '--check', 'test -f pullboard.json', '--wait');
   box.run(alpha.web, 'claim', '1');
-  box.run(alpha.repo, 'milestone', 'add', '0.1.0', '--items', '1');
+  box.run(alpha.repo, 'milestone', 'add', '0.1.0', '--reason', 'Arrange fixture release', '--items', '1');
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-dashboard-chrome-'));
   let chrome;

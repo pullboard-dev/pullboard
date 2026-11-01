@@ -28,7 +28,7 @@ import {
   cacheSeatToken,
   nameNextSeat,
   seatReceipt,
-} from '../../../../src/relay-seats.js';
+} from '../../../link/index.js';
 
 /**
  * Build catch-up and send over relay.js's helpers.
