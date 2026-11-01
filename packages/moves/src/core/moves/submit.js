@@ -50,6 +50,11 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "TEST_SELECTION_SOURCE": "restore Git history and retry the selected test run",
+  "TEST_TIER_MANIFEST": "regenerate and commit the testing tier manifest",
+  "TEST_SELECTION_INCOMPLETE": "derive test selection from the complete committed diff",
+  "TEST_SELECTION_UNVERIFIED": "make the focused runner execute and report the selected tests",
+
   "B26_PERSON_CHANNEL": "record it as the person through pullboard view or the person's own terminal",
   "BAD_CHECK": "ask your coordinator to set the check: pullboard edit <id> --check \"<command>\"",
   "BAD_CHECK_BASELINE": "the coordinator sets the check again: pullboard edit <id> --check \"<command>\"",

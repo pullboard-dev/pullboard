@@ -1,3 +1,4 @@
+import { testTierReport } from './test-tier-selection.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import {
   join,
@@ -17,6 +18,7 @@ export function deferredSelectionNote(files) {
 export function submitGateReport(gate) {
   const registry = gate.registryGuards?.length ? `; registry guards: ${gate.registryGuards.join(', ')}` : '';
   const check = (gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'} in ${gate.check.seconds}s` : 'no item check') + registry;
+  if (gate.testTiers) return `${check}; ${testTierReport(gate.testTiers)}; ${gate.isGreen ? 'unit proof green' : gateReport(gate)}`;
   if (gate.deferred) {
     const reason = gate.reason ? `: ${gate.reason}` : '';
     const timings = timingDigest(gate.profile);
