@@ -1,5 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
+import { assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
@@ -154,8 +155,8 @@ const CAUGHT = {
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
   'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
-  // observeNativeFailure catches its optional pair/recording errors; they cannot become lifecycle refusals.
-  'commands/verify.js#verifyHere': ['cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
+  // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
+  'commands/verify.js#verifyHere': ['commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
   '../packages/spec/src/shell/spec-approval.js#approvalEvidence': ['../packages/spec/src/shell/spec.js#readSignoffs'],
   '../packages/spec/src/shell/spec-approval.js#confirmedDecision': ['../packages/spec/src/shell/signature.js#verifyRowDecision'],
@@ -1495,3 +1496,5 @@ test('native store setup keeps the exact event-log callback refusal reachable [C
     "export function unrelatedStoreProbe() { throw new Refused('STORE_ADJACENT_PROBE', 'unbound function'); }\n$&");
   assert.ok(!codeWalk(beside).refusalsOf(entry).has('STORE_ADJACENT_PROBE'));
 });
+
+test('post-verdict landing catches do not hide verification guards [B35,M1,M4]', () => assertPostVerdictLandingAudit(editedSource, codeProblems, machineRules.MACHINE));

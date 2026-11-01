@@ -1,5 +1,6 @@
 /** General CLI recovery text; operation-owned codes live in src/moves/ [P4,C7]. */
 export const DEFAULT_NEXT_STEPS = Object.freeze({
+  BOARD_LANDS_ACCEPTED: 'wait for automatic landing; a person can enable landing.manualOverride in accepted trunk policy',
   TOOL_BUILD_UNAVAILABLE: 'restore the published build Git objects or ask the coordinator to promote a gated build',
   TOOL_BUILD_REQUIRED: 'ask the coordinator to run pullboard tool-build promote <commit> --gate-receipt <gate-id>',
   TOOL_BUILD_NOT_GATED: 'ask the coordinator to promote an accepted commit with its native green full landing receipt',
