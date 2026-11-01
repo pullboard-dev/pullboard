@@ -436,7 +436,7 @@ test('a silent claim on a blocker can be released by the coordinator after 15 mi
   const path = join(f.box.dir, 'builder');
   f.worktree(path, 'private-stale-builder');
   const id = f.add('A release-blocking private claim');
-  addMilestone(f.board, { agentId: 'coordinator', name: 'Private release', items: [id] });
+  addMilestone(f.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Private release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
   f.advance(15 * MINUTE - 1);
   const early = await f.cli('release', String(id), '--stale', '--reason', 'BLOCKED', '--note', 'The release waits on this silent claim', '--json');
@@ -473,7 +473,7 @@ test('actual private worktree activity prevents an otherwise stale blocker relea
   const path = join(f.box.dir, 'builder');
   f.worktree(path, 'private-active-builder');
   const id = f.add('Active release blocker');
-  addMilestone(f.board, { agentId: 'coordinator', name: 'Private active release', items: [id] });
+  addMilestone(f.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Private active release', items: [id] });
   store.claim(f.board, id, { agentId: f.builder, lane: 'web', leaseMs: 120 * MINUTE, freeze: f.freeze });
   f.advance(13 * MINUTE);
   const changed = join(path, 'actual-private-edit.txt');

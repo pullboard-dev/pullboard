@@ -1,4 +1,4 @@
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import { nextTake } from '../../packages/sandbox/index.js';
 import { mainRedReviewItems } from '../main-red.js';
 import { mainRedReworkItems } from '../main-red.js';

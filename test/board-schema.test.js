@@ -24,9 +24,9 @@ import { runFixtureChild } from './fixture-child.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { undoQueued } from '../packages/outbox/index.js';
-import { pinAuthority } from '../src/person-signing.js';
-import { setPersonSigning } from '../src/person-signing.js';
-import { localAuthority } from '../src/person-signing.js';
+import { pinAuthority } from '../packages/person/index.js';
+import { setPersonSigning } from '../packages/person/index.js';
+import { localAuthority } from '../packages/person/index.js';
 import { restoreRelaySnapshot } from '../packages/store/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 

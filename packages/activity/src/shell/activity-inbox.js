@@ -8,7 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { gitPath } from '../../../../src/git.js';
-import { agentSessionDigest } from '../../../../src/person.js';
+import { agentSessionDigest } from '../../../person/index.js';
 import { parseSpec } from '../../../spec/index.js';
 
 /** Damaged or foreign local cursors replay activity instead of discarding unseen obligations. */
