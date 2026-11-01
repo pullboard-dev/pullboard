@@ -34,7 +34,7 @@ import {
 import { captureSpecApprovalBaseline } from '../../packages/spec/index.js';
 import {
   agentSessionDigest,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   projectBoardIdentity,
   registerProjectAndLink,
