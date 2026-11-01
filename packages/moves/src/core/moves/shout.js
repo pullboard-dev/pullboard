@@ -1,4 +1,3 @@
-import { BOARD_PROGRESS_ENGINE } from '../../../../../src/board-progress-engine.js';
 import { RULING_OWNER_ENGINE } from "../../../../../src/ruling-owner-engine.js";
 import { laneMessageFloor } from "../../../../../src/lane-lead.js";
 import { DECISION_QUEUE_ENGINE } from "../../../../../src/decision-queue-engine.js";
@@ -19,7 +18,7 @@ function historicalMinimumEngine(args, board, at) {
 }
 
 /** News combines every applicable floor; old arguments retain their historical replay condition order. */
-function existingMinimumEngineHistorical(args, board, at) {
+function existingMinimumEngine(args, board, at) {
   const laneFloor = laneMessageFloor(board, args[0]);
   const optionsFloor = Math.max(args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1,
     args[0]?.effects !== undefined ? RULING_OWNER_ENGINE : 1);
@@ -29,12 +28,6 @@ function existingMinimumEngineHistorical(args, board, at) {
     args[0]?.item !== undefined ? ITEM_SHOUT_ENGINE : 1,
     args[0]?.landingFence !== undefined ? LANDING_LEASE_ENGINE : 1,
     typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:') ? BOARD_SENTINEL_ENGINE : 1);
-}
-
-/** New native writers bind automatic notices and state-only refusals to their replay engine. */
-function existingMinimumEngine(args, board, at) {
-  const floor = board?.db && (board.executionEngineVersion ?? BOARD_PROGRESS_ENGINE) >= BOARD_PROGRESS_ENGINE ? BOARD_PROGRESS_ENGINE : 1;
-  return Math.max(floor, existingMinimumEngineHistorical(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

@@ -1,4 +1,3 @@
-import { BOARD_PROGRESS_ENGINE } from '../../../../../src/board-progress-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 import { quarantineBatchGates } from "../../../../verify/src/core/quarantine-verdict.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
@@ -34,16 +33,10 @@ function existingEngine(args, board, at) {
 }
 
 /** A computed batch cannot be finished by a receiver that would ignore its event-bound authority. */
-function minimumEngineHistorical(args, board, at) {
+function minimumEngine(args, board, at) {
   const batch = board && landingBatches(board).find(row => row.id === args[0]?.id);
   return Math.max(existingEngine(args, board, at), batch && (quarantineBatchGates(batch).length
     || Object.hasOwn(batch.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
-}
-
-/** New native writers bind automatic notices and state-only refusals to their replay engine. */
-function minimumEngine(args, board, at) {
-  const floor = board?.db && (board.executionEngineVersion ?? BOARD_PROGRESS_ENGINE) >= BOARD_PROGRESS_ENGINE ? BOARD_PROGRESS_ENGINE : 1;
-  return Math.max(floor, minimumEngineHistorical(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */
