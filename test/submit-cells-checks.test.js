@@ -416,6 +416,10 @@ test('shared cell inventory updates changed modules and reports structural fallb
   const restored = second.base(box.root, main);
   assert.equal(modes.at(-1), 'base-cache');
   assert.deepEqual(restored.edges, baseline.edges);
+  const changedPreload = inventoryCache(box.root, { ...key, config: { preloads: [{ token: 'fixture', digest: 'changed' }] } },
+    { importsIn, commonJsIn }, mode => modes.push(mode));
+  changedPreload.base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full', 'different preload bytes do not borrow a cached inventory');
   box.put('src/refused.js', 'export class Refused extends Error { value = 1; }\n');
   const updated = second.candidate(box.root, restored, ['src/refused.js']);
   assert.equal(modes.at(-1), 'candidate-incremental');
