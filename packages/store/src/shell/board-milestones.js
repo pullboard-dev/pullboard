@@ -1,3 +1,4 @@
+import { coordinatorMilestoneRelease } from '../../../stats/index.js';
 /** Canonical store composition for roadmap operations; the public board facade retains historical signatures [N26,H16]. */
 import * as roadmapMoves from "../../../roadmap/index.js";
 import { atomic } from "./board-event-log.js";
@@ -7,7 +8,7 @@ import { listItems } from "./board-query.js";
 import { PERSON } from "./board-query.js";
 import { milestones } from "./board-read-auxiliary.js";
 
-const ports = Object.freeze({ atomic, itemById, listItems, logEvent, milestones, PERSON });
+const ports = Object.freeze({ atomic, itemById, listItems, logEvent, milestones, PERSON, coordinatorMilestoneRelease });
 
 /** Bind canonical store operations for addMilestone without changing its public arguments or result. */
 export function addMilestone(board, options) {

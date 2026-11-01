@@ -1,5 +1,4 @@
 import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
-import { coordinatorMilestoneRelease } from '../../../stats/index.js';
 import { MILESTONE_LIMIT_ENGINE } from "../../../../src/milestone-limit-engine.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js";
 /**
@@ -439,7 +438,7 @@ export function shipMilestone(board, name, { agentId, commit, next, asPerson = f
       entries[into] = { ...entries[into], items: nextItems };
     }
     const coordinatorActions = (board.executionEngineVersion ?? ENGINE_VERSION) >= COORDINATOR_ACTIONS_ENGINE
-      ? coordinatorMilestoneRelease(board, { asPerson, reason, channel, plannedMoves: ['milestone_ship', ...moved.map(() => 'milestone_moved')] }) : null;
+      ? milestonePorts(ports, ['coordinatorMilestoneRelease']).coordinatorMilestoneRelease(board, { asPerson, reason, channel, plannedMoves: ['milestone_ship', ...moved.map(() => 'milestone_moved')] }) : null;
     entries[index] = { ...current, items: current.items.filter(stays), shipped: { commit, at, by: agentId } };
     saveMilestones(board, entries);
     logEvent(board, agentId, 'milestone_ship', null, { name, commit, into: intoName, moved, notMoved, ...(coordinatorActions ? { coordinatorActions } : {}) });
