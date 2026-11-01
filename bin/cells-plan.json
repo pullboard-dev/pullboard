@@ -1122,6 +1122,14 @@
     {
       "path": "src/move-history/192.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/milestone-placement-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/193.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

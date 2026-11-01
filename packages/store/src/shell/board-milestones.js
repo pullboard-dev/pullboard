@@ -19,6 +19,11 @@ export function editMilestone(board, name, options) {
   return roadmapMoves.editMilestone(board, name, options, ports);
 }
 
+/** Bind canonical store operations for placing a new item by rule inside its add transaction. */
+export function placeNewItem(board, id, item) {
+  return roadmapMoves.placeNewItem(board, id, item, ports);
+}
+
 /** Bind canonical store operations for editMilestoneItems without changing its public arguments or result. */
 export function editMilestoneItems(board, name, options) {
   return roadmapMoves.editMilestoneItems(board, name, options, ports);

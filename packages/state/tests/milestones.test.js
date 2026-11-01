@@ -61,8 +61,9 @@ function fixture(t) {
   execFileSync('git', ['init', '-q', '-b', 'main', repo], { env });
   /** Run Git inside the fixture repo with its private identity. */
   const git = (...args) => execFileSync('git', args, { cwd: repo, env, encoding: 'utf8', stdio: 'pipe' }).trim();
-  /** Run pullboard from the main checkout, where it acts as the coordinator. */
+  /** Run as coordinator; fixture membership changes explicitly override automatic placement [B35]. */
   const run = (...args) => {
+    if (args[0] === 'milestone' && !args.includes('--reason') && (args[1] === 'order' || args[1] === 'add' && args.includes('--items') || args[1] === 'items' && args.includes('--add'))) args.push('--reason', 'fixture release setup');
     const result = spawnSync(process.execPath, [BIN, ...args], { cwd: repo, env, encoding: 'utf8' });
     return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
   };
