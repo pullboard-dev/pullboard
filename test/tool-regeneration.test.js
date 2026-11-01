@@ -87,6 +87,7 @@ function move(box, dir) {
 /** Main changes the exact file the tool replaced, and its corresponding accepted expectation. */
 function advance(main) {
   put(main.root, 'src/leaf.js', 'export const value = 2;\n');
+  put(main.root, 'apps/fixture/index.js', "import { value as acceptedValue } from '../../src/leaf.js';\nconsole.log(acceptedValue);\n");
   const before = readFileSync(join(main.root, 'test/work.test.js'), 'utf8');
   put(main.root, 'test/work.test.js', before.replace('assert.equal(value, 1)', 'assert.equal(value, 2)'));
   return commitAll(main, 'feat(core): advance the accepted leaf [G1]');
