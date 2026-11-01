@@ -149,6 +149,29 @@ test('a worktree change and a running board-started check keep a claim active [B
   assert.equal(store.getItem(f.board, a).item_status, 'open', 'once the check ends, the idle claim is released');
 });
 
+test('a large or unreadable claim still releases at 40 minutes, naming what it kept [B4,B5,B13]', t => {
+  const f = fixture(t);
+  const a = f.add(), b = f.add();
+  f.claim(a, f.first);
+  // More changed files than a handoff lists: the release still happens and counts the rest.
+  for (let file = 0; file < 205; file += 1) f.touch(f.first, `many-${file}.txt`);
+  f.advance(41);
+  f.maintain();
+  assert.equal(store.getItem(f.board, a).item_status, 'open', 'a large change never keeps a claim stalled');
+  const large = JSON.parse(kinds(f, a, 'release').at(-1).event_detail);
+  assert.equal(large.idleClaim.handoff.changedCount, 205);
+  assert.equal(large.idleClaim.handoff.changedFiles.length, 200);
+  assert.match(large.reason, /205 file\(s\): .*, \+197 more/u, 'the note counts what it does not list');
+  // A worktree that is gone still releases, saying nothing could be pinned.
+  f.claim(b, f.second);
+  f.touch(f.second, 'gone.txt');
+  rmSync(f.worktrees[f.second], { recursive: true, force: true });
+  f.advance(41);
+  f.maintain();
+  assert.equal(store.getItem(f.board, b).item_status, 'open', 'a seat whose worktree is gone is released too');
+  assert.match(JSON.parse(kinds(f, b, 'release').at(-1).event_detail).reason, /no work could be pinned/u, 'and says nothing could be pinned');
+});
+
 test('an exiting seat releases its claim at once and the next builder sees its handoff [B4,B5,B13,I6]', async t => {
   const dispatched = [];
   await work('SessionEnd', { heartbeat: () => {}, dispatch: async args => { dispatched.push(args); return 0; }, inspect: async () => {} });

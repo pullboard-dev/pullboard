@@ -48,8 +48,11 @@ export async function run(io, { first }) {
     const released = events(board, { itemId: id }).filter(event => event.event_kind === 'release').at(-1);
     const detail = released ? JSON.parse(released.event_detail) : null;
     const handoff = detail?.idleClaim?.handoff;
-    if (handoff) {
-      io.say(`handoff from ${detail.idleClaim.holder}: last commit ${handoff.head.slice(0, 12)} kept at ${handoff.pin}; changed ${handoff.changedFiles.join(', ') || 'no files'}; merge it with git merge ${handoff.pin}`);
+    if (handoff?.pin) {
+      const more = (handoff.changedCount ?? handoff.changedFiles.length) - handoff.changedFiles.length;
+      io.say(`handoff from ${detail.idleClaim.holder}: last commit ${handoff.head.slice(0, 12)} kept at ${handoff.pin}; changed ${handoff.changedFiles.join(', ') || 'no files'}${more > 0 ? `, +${more} more` : ''}; merge it with git merge ${handoff.pin}`);
+    } else if (handoff) {
+      io.say(`handoff from ${detail.idleClaim.holder}: no work could be pinned (${handoff.unpinned}); start from the item facts`);
     } else if (/refs\/pullboard\/handoffs\//u.test(detail?.reason ?? '')) {
       io.say(`handoff from ${released.event_by}: ${detail.reason}`);
     }

@@ -61,6 +61,14 @@ function observedExpiry(row, limit, observedAt) {
   if (row.evidence?.complete !== true || at === null || row.limitMs !== limit || now - at < limit) invalid();
 }
 
+/** One line naming the kept work: the pinned ref and changed files (bounded, with the rest counted), or why nothing was pinned. */
+export function handoffText(handoff) {
+  if (!handoff.pin) return `no work could be pinned: ${handoff.unpinned}`;
+  const shown = handoff.changedFiles.slice(0, 8);
+  const more = handoff.changedCount - shown.length;
+  return `work kept at ${handoff.pin} (${handoff.changedCount} file(s): ${shown.join(', ')}${more > 0 ? `, +${more} more` : ''})`;
+}
+
 /** The lane's lead seat, or the coordinator when the lane has none. */
 function laneLead(board, lane) {
   let leads = {};
@@ -94,8 +102,10 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   const last = staleInstant(row.workActivity, observed);
   const limit = row.idle === 'release' ? CLAIM_IDLE_RELEASE_MS : CLAIM_STALL_MS;
   if (last === null || row.idleMs !== observed - last || row.idleMs < limit) invalid();
-  if (row.idle === 'release' && (!row.handoff || !/^[0-9a-f]{40,64}$/u.test(row.handoff.head ?? '') || typeof row.handoff.pin !== 'string'
-    || !row.handoff.pin.startsWith(`refs/pullboard/handoffs/${row.id}/`) || !Array.isArray(row.handoff.changedFiles))) invalid();
+  if (row.idle === 'release' && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
+    || !Number.isSafeInteger(row.handoff.changedCount) || row.handoff.changedCount < row.handoff.changedFiles.length
+    || (row.handoff.pin === null ? typeof row.handoff.unpinned !== 'string' || !row.handoff.unpinned
+      : !/^[0-9a-f]{40,64}$/u.test(row.handoff.head ?? '') || typeof row.handoff.pin !== 'string' || !row.handoff.pin.startsWith(`refs/pullboard/handoffs/${row.id}/`)))) invalid();
   return { row, item };
 }
 
@@ -206,7 +216,7 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         }
         const reason = row.idle === 'waiting'
           ? `Waiting on ${row.waitingOn.map(id => `#${id}`).join(', ')}, which has not landed; the item returns to the queue when it lands.`
-          : `Idle ${Math.floor(row.idleMs / 60_000)} minutes: no commit, file change, running check or item move since ${row.workActivity}; work kept at ${row.handoff.pin} (${row.handoff.changedFiles.length} file(s): ${row.handoff.changedFiles.slice(0, 8).join(', ')}${row.handoff.changedFiles.length > 8 ? `, +${row.handoff.changedFiles.length - 8} more` : ''}).`;
+          : `Idle ${Math.floor(row.idleMs / 60_000)} minutes: no commit, file change, running check or item move since ${row.workActivity}; ${handoffText(row.handoff)}.`;
         moveItem(board, row.id, 'release', {
           checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
           set: () => ({ item_owner: null, item_lease_until: null }),

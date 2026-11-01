@@ -28,7 +28,9 @@ async function releaseOnSessionEnd(io) {
     const released = [];
     for (const item of held) {
       const handoff = pinClaimHandoff(board, { id: item.item_id, actor: me.id }, item);
-      const note = `session ended; ${handoff ? `work kept at ${handoff.pin} (${handoff.changedFiles.length} file(s): ${handoff.changedFiles.slice(0, 8).join(', ')}${handoff.changedFiles.length > 8 ? `, +${handoff.changedFiles.length - 8} more` : ''})` : 'no worktree commit could be pinned'}`;
+      const shown = handoff.changedFiles.slice(0, 8);
+      const more = handoff.changedCount - shown.length;
+      const note = `session ended; ${handoff.pin ? `work kept at ${handoff.pin} (${handoff.changedCount} file(s): ${shown.join(', ')}${more > 0 ? `, +${more} more` : ''})` : `no work could be pinned: ${handoff.unpinned}`}`;
       await ordered(ctx, board, 'release', [item.item_id, me.id, note, 'OTHER']);
       released.push(item.item_id);
     }
