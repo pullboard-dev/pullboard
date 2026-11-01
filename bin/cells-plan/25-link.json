@@ -59,7 +59,6 @@
   ["test/relay-sync.test.js","packages/link/tests/relay-sync.test.js","seed"]
  ],
  "reexports": [
-  "src/command-phase.js",
   "src/relay-canary-command.js",
   "src/relay-canary-health.js",
   "src/relay-canary-probe.js",

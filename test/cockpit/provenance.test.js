@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import { addItem, closeBoard } from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
-import { beginCommandPhase } from '../../src/command-phase.js';
+import { beginCommandPhase } from '../../packages/link/index.js';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';
 
 /** Copy the actual candidate into a private primary repo and linked source checkout. */
