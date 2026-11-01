@@ -9,12 +9,13 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
+import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone, orderMilestoneItems } from '../src/board-milestones.js';
 import { proofStats } from '../packages/stats/index.js';
 import { flowStats } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
@@ -77,6 +78,7 @@ test('an older writer cannot make retained report capability look current [R1,R2
   const board = fixture(t);
   const reportKeys = 'local:proof-stats:v2:report-*';
   const retained = board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ?').all(reportKeys);
+  const previousEvents = store.events(board);
   store.addItem(board, { by: 'coordinator', lane: 'api', title: 'An older writer advances native history' });
   // Emulate an older writer's exact derived-state boundary: ordinary counters advance; report shards do not.
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(reportKeys);
@@ -91,7 +93,8 @@ test('an older writer cannot make retained report capability look current [R1,R2
   ensureProofCounters(board);
   assert.equal(proofStats(board, {}, statsReadPorts).flow.report.items.length, 2);
   assert.deepEqual(proofEvents, [], 'report catch-up never rebuilds or recounts the existing proof statistics');
-  assert.deepEqual(reportEvents, [before.at(-1).event_id], 'only the one missed native event is folded into the report');
+  assert.deepEqual(reportEvents, before.slice(previousEvents.length).map(event => event.event_id),
+    'only the missed native events are folded into the report');
   assert.deepEqual(store.events(board), before, 'repair changes derived counters only');
 });
 
@@ -147,6 +150,8 @@ test('cached flow retains every native milestone membership through edits remova
   const base = Date.parse('2026-10-10T00:00:00Z');
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
+  // Multiple manual memberships were legal before automatic placement; retain that history.
+  board.executionEngineVersion = MILESTONE_PLACEMENT_ENGINE - 1;
   const who = { agentId: 'coordinator' };
   addMilestone(board, { ...who, name: 'A', items: [1] });
   addMilestone(board, { ...who, name: 'B', items: [1] });
@@ -195,6 +200,33 @@ test('cached flow retains every native milestone membership through edits remova
   assert.deepEqual(report.items[0].stages.later, { minutes: 30, unknown: 0 });
   assert.equal(report.items[0].milestone, null);
   assert.deepEqual(report.milestones.map(row => row.milestone), [null]);
+});
+
+test('automatic placement overrides agree in cached and replayed flow after shipping [R1,R2]', t => {
+  const board = fixture(t);
+  const who = { agentId: 'coordinator' };
+  const id = 1;
+  addMilestone(board, { ...who, name: 'A', items: [id], reason: 'place in A' });
+  for (const name of ['B', 'C']) addMilestone(board, { ...who, name });
+  const observe = expected => {
+    const now = Date.now() + 60_000;
+    const stats = proofStats(board, { now }, statsReadPorts);
+    const replay = flowStats(store.events(board), null, now, stats).report;
+    const live = store.milestones(board).filter(row => row.items.includes(id)).map(row => row.name);
+    assert.deepEqual(live, expected);
+    assert.deepEqual(stats.flow.report, replay);
+    assert.deepEqual(replay.items.find(row => row.id === id).milestones, expected);
+  };
+  observe(['A']);
+  editMilestoneItems(board, 'B', { ...who, add: [id], reason: 'move to B' });
+  observe(['B']);
+  orderMilestoneItems(board, 'B', { ...who, items: [id], reason: 'rank within B' });
+  observe(['B']);
+  shipMilestone(board, 'A', { ...who, commit: 'a'.repeat(40), next: 'C' });
+  observe(['B']);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:report-summary');
+  ensureProofCounters(board);
+  observe(['B']);
 });
 
 test('repeated native landing receipts preserve the first measured landing interval [R1,R2]', t => {
