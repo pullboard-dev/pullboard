@@ -1106,7 +1106,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
   fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, otherRequired, 'any'));
   assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'reserve'), 'ok']);
-  assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
+  assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'SAME_FAMILY', 'REVIEW_HELD', 'ok']);
 });
 
 test('a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', t => {

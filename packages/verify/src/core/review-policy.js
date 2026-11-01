@@ -55,6 +55,7 @@ function routingPolicyEngine(board) {
 }
 
 /** Keep historical refusal codes for recorded moves while identifying current same-vendor conflicts. */
-export function sameFamilyCode(board) {
-  return (board.executionEngineVersion ?? ENGINE_VERSION) >= SAME_FAMILY_REFUSAL_ENGINE ? 'SAME_FAMILY' : 'O2_FAMILY_MATCH';
+export function sameFamilyProblem(board, message, next) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SAME_FAMILY_REFUSAL_ENGINE) return new Refused('SAME_FAMILY', message, next);
+  return new Refused('O2_FAMILY_MATCH', message, next);
 }
