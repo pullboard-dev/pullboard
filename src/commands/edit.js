@@ -22,7 +22,7 @@ import {
 import {
   relayCommandReceipt,
   relayCommandReceiptReported,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   actOn,
   personMode,

@@ -11,7 +11,7 @@ import * as store from '../src/board.js';
 import { closeBoard } from '../packages/store/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../src/known-main-autofile-engine.js';
-import { rememberCreatedItems } from '../src/relay-created-items.js';
+import { rememberCreatedItems } from '../packages/link/index.js';
 import { bindRefs, resolveMove } from '../packages/outbox/index.js';
 import { readGateReceipt } from '../src/gate-run-receipt.js';
 import { sealKnownMainAutofile } from '../src/known-main-autofile-receipts.js';

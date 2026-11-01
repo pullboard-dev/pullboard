@@ -12,7 +12,7 @@ import { refusalDocument } from '../src/next-step-words.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { Refused } from '../packages/kernel/core.js';
-import { personRequestRecords, personRequestStatuses, receivePersonRequest, requestIntentDigest, requestStageText } from '../src/relay-requests.js';
+import { personRequestRecords, personRequestStatuses, receivePersonRequest, requestIntentDigest, requestStageText } from '../packages/link/index.js';
 
 const at = '2026-10-08T12:34:56.000Z';
 const person = { kind: 'person', userId: 'github-person-1' };

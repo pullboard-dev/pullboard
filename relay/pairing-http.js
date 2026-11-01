@@ -2,7 +2,7 @@
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../packages/kernel/index.js';
-import { PAIR_PACKAGE_BODY_BYTES } from '../src/relay-limits.js';
+import { PAIR_PACKAGE_BODY_BYTES } from '../packages/link/index.js';
 
 const PAIR_BODY = PAIR_PACKAGE_BODY_BYTES;
 const ROUTE = /^\/api\/v1\/pairings\/([0-9a-f]{32})\/([A-Za-z0-9_-]{22})(\/consume)?$/;

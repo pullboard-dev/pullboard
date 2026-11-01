@@ -15,27 +15,27 @@ import {
 import * as relayOutput from '../relay-output.js';
 import { describeMove } from '../../packages/outbox/index.js';
 import { refusalLine } from '../../packages/outbox/index.js';
-import { DEFAULT_RELAY } from '../relay.js';
-import { originRepository } from '../relay.js';
-import { relayPersonCoordinator } from '../relay.js';
-import { updateRelayMachine } from '../relay-machine.js';
-import { prepareBoardMembers } from '../relay-membership.js';
-import { githubKeys } from '../relay-handover.js';
+import { DEFAULT_RELAY } from '../../packages/link/index.js';
+import { originRepository } from '../../packages/link/index.js';
+import { relayPersonCoordinator } from '../../packages/link/index.js';
+import { updateRelayMachine } from '../../packages/link/index.js';
+import { prepareBoardMembers } from '../../packages/link/index.js';
+import { githubKeys } from '../../packages/link/index.js';
 import {
   relayJoin,
   relayPair,
 } from '../../packages/keys/index.js';
 import {
   executePersonRequests,
-} from '../relay-request-execution.js';
+} from '../../packages/link/index.js';
 import {
   relayRoster,
   rosterLines,
-} from '../relay-roster.js';
+} from '../../packages/link/index.js';
 import {
   relayOnAllCommand,
   revokeRelayDevice,
-} from '../relay-setup.js';
+} from '../../packages/link/index.js';
 import {
   relayOff,
   relayOn,
@@ -45,7 +45,7 @@ import {
   relayStatus,
   relayTokens,
   syncRelay,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   basename,
 } from 'node:path';

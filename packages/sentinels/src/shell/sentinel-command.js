@@ -1,5 +1,5 @@
 import { specApprovalBaselineExists } from "../../../store/index.js";
-import { relayRecovered } from "../../../../src/relay.js";
+import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
 import { planStaleState } from "../../../../src/board-stale-state-maintenance.js";
 import { releaseGoneClaims } from "../core/gone-claims.js";

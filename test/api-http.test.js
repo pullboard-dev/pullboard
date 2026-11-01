@@ -22,7 +22,7 @@ import { registryFile, registerProject, forgetProject } from '../src/projects.js
 import { Refused } from '../packages/kernel/core.js';
 import { board as store } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';
-import { receivePersonRequest } from '../src/relay-requests.js';
+import { receivePersonRequest } from '../packages/link/index.js';
 import { apiHttpFixture as fixture } from './api-fixture.js';
 import { apiHttpBox as httpBox } from './api-fixture.js';
 import { shellWord } from './api-fixture.js';

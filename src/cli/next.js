@@ -25,7 +25,7 @@ import { mainRedReworkItems } from '../main-red.js';
 import { nextReview } from '../../packages/verify/index.js';
 import { ownSessionReviews } from '../../packages/verify/index.js';
 import { trunkMerge } from '../../packages/sandbox/index.js';
-import { relayLinked } from '../relay.js';
+import { relayLinked } from '../../packages/link/index.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
 import { claimOrdered } from './claim.js';

@@ -1,4 +1,4 @@
-import { relayRecovered } from '../relay.js';
+import { relayRecovered } from '../../packages/link/index.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { prepareStaleObservation } from '../../packages/health/index.js';
 import { pinClaimHandoff } from '../../packages/health/index.js';

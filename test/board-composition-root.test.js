@@ -19,7 +19,7 @@ import { verifiedPasskeyRowDecision as presentation_verifiedPasskeyRowDecision }
 import { pendingFit as presentation_pendingFit } from '../packages/blueprints/index.js';
 import { projectFit as presentation_projectFit } from '../packages/blueprints/index.js';
 import { projectState as presentation_projectState } from '../src/serve.js';
-import { personRequestStatuses as presentation_personRequestStatuses } from '../src/relay-requests.js';
+import { personRequestStatuses as presentation_personRequestStatuses } from '../packages/link/index.js';
 import { personSigningPresentation as presentation_personSigningPresentation } from '../src/person-signing-presentation.js';
 import { activeViewAgents as presentation_activeViewAgents } from '../src/view-state-summary.js';
 import { viewProofSummary as presentation_viewProofSummary } from '../src/view-state-summary.js';
