@@ -37,6 +37,9 @@ export function checkCoordinatorRelease(root, { now = new Date(), personOverride
   if (personOverride !== undefined && (typeof personOverride !== 'string' || !personOverride.trim() || personOverride.length > 1000)) {
     throw new Refused('GATE_RUN_EVIDENCE', 'a person override needs a nonempty reason of at most 1000 characters');
   }
+  if (personOverride !== undefined && !repoInfo(root).isMain) {
+    throw new Refused('GATE_RUN_EVIDENCE', 'a person records a release override from the primary checkout; run the release gate there with --person-override \"reason\"');
+  }
   const board = openBoardForRead(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
   let gauge;
   try { gauge = board ? coordinatorActions(board, { until: now.toISOString() }) : { available: false, perLanding: null, reason: 'no native board exists' }; }

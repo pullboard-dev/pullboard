@@ -4,8 +4,7 @@ const KINDS = ['shout', 'fact', 'placement', 'landing', 'holdOrRelease', 'reject
 /** Keep real judgements separate from mechanical notes; retain unclassified native actions explicitly. */
 function actionKind(event, detail) {
   const kind = event.event_kind;
-  if (['pass', 'answer'].includes(kind)) return detail.decision ? 'ruling' : 'shout';
-  if (['shout', 'shout_news'].includes(kind)) return 'shout';
+  if (['shout', 'shout_news', 'pass', 'answer'].includes(kind)) return detail.decision ? 'ruling' : 'shout';
   if (kind === 'fact') return ['decision', 'ruling', 'root-cause', 'rejection', 'supersession'].includes(detail.kind) ? 'ruling' : 'fact';
   if (['merged', 'main-moved', 'train_landing'].includes(kind) || kind.startsWith('landing_') || kind.startsWith('landing-')) return 'landing';
   if (['hold', 'unhold', 'hold_item', 'unhold_item', 'release', 'release_lane'].includes(kind)) return 'holdOrRelease';

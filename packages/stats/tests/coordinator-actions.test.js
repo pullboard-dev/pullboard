@@ -86,6 +86,10 @@ test('coordinator actions name the window, distinct landing population and every
   assert.deepEqual(Object.fromEntries(Object.entries(report.byKind).map(([key, row]) => [key, row.count])),
     { shout: 1, fact: 1, placement: 1, landing: 3, holdOrRelease: 2, rejectReturn: 1, ruling: 1, other: 1 });
   assert.match(coordinatorActionLines(report).join('\n'), /2026-10-31T00:00:00.000Z.*2026-10-31T01:00:00.000Z/u);
+  const decision = { event_at: at(20).toISOString(), event_by: 'coordinator', event_kind: 'shout', item_id: null, event_detail: '{\"decision\":true}' };
+  const decided = coordinatorActionStats([...store.events(f.board), decision], { since: at(0).toISOString(), until: at(60).toISOString() });
+  assert.equal(decided.byKind.ruling.count, 2, 'an explicit judgement flag is a ruling even when sent as a shout');
+  assert.equal(decided.byKind.shout.count, 1);
   const history = store.events(f.board);
   history.push({ event_at: at(-1).toISOString(), event_by: 'coordinator', event_kind: 'merged', item_id: 1, event_detail: '{}' });
   assert.deepEqual(coordinatorActionStats(history, { since: at(0).toISOString(), until: at(60).toISOString() }).landedItems, [2],
@@ -115,4 +119,12 @@ test('zero landings never invent a rate or erase the previous measured release [
   assert.equal(report.gauge.perLanding, null);
   keepBaseline(f, SECOND, report);
   assert.throws(() => checkCoordinatorRelease(f.root, { now: at(3001) }), /unmeasured/u);
+});
+
+
+test('a builder worktree cannot declare the person release override [B35,R2,I15]', t => {
+  const f = fixture(t);
+  const worker = join(f.root, 'worker');
+  runFixtureGit(['worktree', 'add', '--detach', worker, 'HEAD'], { cwd: f.root });
+  assert.throws(() => checkCoordinatorRelease(worker, { now: at(60), personOverride: 'Agent attempting an override.' }), /person.*primary checkout/u);
 });
