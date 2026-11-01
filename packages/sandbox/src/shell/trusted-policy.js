@@ -26,7 +26,8 @@ import {
   specGateMoveOnly,
 } from '../../../spec/index.js';
 import {
-  movedImportOnlyChange, movedImportTargets,
+  movedImportOnlyChange,
+  movedImportTargets,
 } from '../../../../src/import-only-change.js';
 import {
   planRowChange,

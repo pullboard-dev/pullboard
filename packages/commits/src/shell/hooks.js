@@ -43,7 +43,8 @@ import {
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../core/commit-message.js";
 import { outOfLane } from "../../../../src/lanes.js";
-import { movedImportOnlyChange, movedImportTargets } from "../../../../src/import-only-change.js";
+import { movedImportOnlyChange } from "../../../../src/import-only-change.js";
+import { movedImportTargets } from "../../../../src/import-only-change.js";
 import { planRowChange } from "../../../../src/plan-row-change.js";
 import {
   citedIds,
