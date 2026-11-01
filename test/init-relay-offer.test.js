@@ -111,7 +111,7 @@ function personEnvironment(box) {
  * nothing in these tests reaches the real relay or GitHub.
  */
 function useLoopbackRelay(box) {
-  const machine = resolve(import.meta.dirname, '../src/relay-machine.js');
+  const machine = resolve(import.meta.dirname, '../packages/link/src/shell/relay-machine.js');
   const source = `import { updateRelayMachine } from ${JSON.stringify(machine)};
 updateRelayMachine((state) => { state.owner = { account: 'fixture-owner', url: ${JSON.stringify(box.origin)} }; });`;
   assert.equal(runFixtureChild(process.execPath, ['--input-type=module', '-e', source], { cwd: box.root, env: box.env, encoding: 'utf8' }).status, 0);

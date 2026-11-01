@@ -6,9 +6,9 @@ import { delimiter, dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { repoInfo } from '../src/git.js';
-import { probeRelayCanary } from '../src/relay-canary-probe.js';
-import { pendingRelayCanaryNotices } from '../src/relay-canary-health.js';
-import { startRelayCanaryWatch, RELAY_CANARY_INTERVAL_MS, runRelayCanary } from '../src/relay-canary-watch.js';
+import { probeRelayCanary } from '../packages/link/index.js';
+import { pendingRelayCanaryNotices } from '../packages/link/index.js';
+import { startRelayCanaryWatch, RELAY_CANARY_INTERVAL_MS, runRelayCanary } from '../packages/link/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 

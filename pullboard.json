@@ -77,7 +77,7 @@
     }
   ],
   "spec": "SPEC.md",
-  "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true },
+  "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true, "family": "require" },
   "check": { "timeout": "60m" },
   "lease": "2h",
   "lanes": {

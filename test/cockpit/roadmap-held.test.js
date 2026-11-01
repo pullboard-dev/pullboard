@@ -18,7 +18,10 @@ test('a held item shows held with its reason in the roadmap list, matching the h
   box.run(alpha.repo, 'add', 'docs', 'Held with its lane', '--specs', 'G1', '--criterion', 'renders');
   box.run(alpha.repo, 'hold', '1', 'waits on the vendor reply');
   box.run(alpha.repo, 'hold', 'docs', '--reason', 'docs frozen for the release');
-  box.run(alpha.repo, 'milestone', 'add', 'Next', '--items', '1,2,3');
+  box.run(alpha.repo, 'milestone', 'add', 'Next', '--reason', 'Arrange fixture release', '--items', '1,2,3');
+  // The board orders the release by its placement rule, so the held rows follow the real roadmap API's order.
+  const heldOrder = JSON.parse(box.run(alpha.repo, 'roadmap', '--json')).milestones.find((m) => m.name === 'Next').items
+    .map((item) => `#${item.id}`).filter((id) => ['#1', '#3'].includes(id));
   const view = await startView(box);
   const profile = mkdtempSync(join(tmpdir(), 'pullboard-held-rows-chrome-'));
   let chrome;
@@ -55,7 +58,8 @@ test('a held item shows held with its reason in the roadmap list, matching the h
       // The count opens the held items alone, and shows them all again on a second press.
       await press(chrome, "document.querySelector('#roadmap-list > [data-key=\"m:Next\"] [data-summary-state=held]').closest('button, a')");
       await chrome.waitFor("[...document.querySelectorAll('#roadmap-list > [data-key=\"m:Next\"] > .milestone-body > ul > li')].filter((li) => !li.hidden).length === 2");
-      assert.deepEqual((await read()).rows.map((row) => row.id), ['#1', '#3'], `${width}: the held count lists exactly the held items`);
+      assert.equal(heldOrder.length, 2, 'the real roadmap API lists both held items');
+      assert.deepEqual((await read()).rows.map((row) => row.id), heldOrder, `${width}: the held count lists exactly the held items`);
       await press(chrome, "document.querySelector('#roadmap-list > [data-key=\"m:Next\"] [data-summary-state=held]').closest('button, a')");
       await chrome.waitFor("[...document.querySelectorAll('#roadmap-list > [data-key=\"m:Next\"] > .milestone-body > ul > li')].filter((li) => !li.hidden).length === 3");
       // A tap opens the row in place, and its detail says why it is held.

@@ -1,0 +1,10 @@
+{
+  "kind": "milestone_placed",
+  "entries": [
+    {
+      "order": 5,
+      "actor": "item creator or override actor",
+      "detail": "`milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason`"
+    }
+  ]
+}
