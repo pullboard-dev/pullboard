@@ -363,6 +363,7 @@ async function runMain(argv, streams) {
   let auditAfterCommand = false;
   let advanceAfterCommand = false;
   let maintenanceAfterCommand;
+  let automaticLandingAfterCommand;
   let toolBuildGateAfterCommand;
   try {
     parsed = parseCommandArgs(argv);
@@ -445,6 +446,7 @@ async function runMain(argv, streams) {
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'maintenance') {
       // The foreground command already read this configuration; disabled maintenance adds no second context read.
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
+      automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
     if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
@@ -455,6 +457,10 @@ async function runMain(argv, streams) {
     CHECKOUT_LEASES.delete(io);
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
+    if (automaticLandingAfterCommand) {
+      try { await (await import('../packages/landing/index.js')).recoverAutomaticLanding(automaticLandingAfterCommand.info.root, new URL('../bin/automatic-landing.js', import.meta.url)); }
+      catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
+    }
     if (maintenanceAfterCommand) {
       try { await (await import('./worktree-maintenance-scheduler.js')).scheduleWorktreeMaintenance(maintenanceAfterCommand); }
       catch (error) { io.err(maintenanceTimerWarning(error)); }
