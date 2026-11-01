@@ -162,8 +162,9 @@ test('external literal module dependencies are part of a checker definition [V4,
   const outside = mkdtempSync(join(tmpdir(), 'pullboard-check-dependency-'));
   t.after(() => rmSync(outside, { recursive: true, force: true }));
   const script = join(outside, 'check.cjs');
-  const dependency = join(outside, 'rule.jsx');
-  writeFileSync(script, "require('./rule.jsx');\n");
+  const dependency = join(outside, 'rule.cjs');
+  writeFileSync(script, "require('./loader.jsx');\n");
+  writeFileSync(join(outside, 'loader.jsx'), "require('./rule.cjs');\n");
   writeFileSync(dependency, 'process.exit(0);\n');
   const command = `${JSON.stringify(process.execPath)} ${JSON.stringify(script)}`;
   assert.deepEqual(runRuleCheck(box.web, command).problems, []);
