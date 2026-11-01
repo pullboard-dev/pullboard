@@ -12,7 +12,7 @@ import { gunzipSync } from 'node:zlib';
 import { cellInventory } from '../packages/codemap/index.js';
 import { updateCellInventory } from '../packages/codemap/index.js';
 import { receiptDigest } from '../packages/git/index.js';
-import { gitPath } from '../src/git.js';
+import { repoInfo } from '../src/git.js';
 
 /** Share only complete immutable inventories under their exact commit and checker identity. */
 export function inventoryCache(root, key, parsers, onMode = () => {}) {
@@ -20,7 +20,7 @@ export function inventoryCache(root, key, parsers, onMode = () => {}) {
   /** Read or construct the pinned base once; a malformed cache is never evidence. */
   function base(checkout, commit) {
     if (memory.has(commit)) return memory.get(commit);
-    const directory = gitPath(root, 'pullboard/cells-inventory');
+    const directory = join(repoInfo(root).commonDir, 'pullboard', 'cells-inventory');
     const file = key ? join(directory, `${receiptDigest({ commit, checker: key.checkDigest })}.json.gz`) : null;
     let inventory;
     if (file) try {
