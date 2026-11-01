@@ -28,7 +28,7 @@ export function strictReviewProblem(board, item, agentId) {
   const family = familyName(seatFamily(board, agentId), familyAliasesOf(board));
   const fallback = compositionFamilyFallback(board, item);
   const built = fallback?.family ?? familyName(item.item_builder_family, familyAliasesOf(board));
-  if (!(family && built && family !== built)) return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict; ask a verifier from another declared vendor family`);
+  if (!(family && built && family !== built)) return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict; ask a verifier from another declared vendor family${!family || !built ? '; declare missing families with pullboard join --family <vendor>' : ''}`);
   return fallback ? null : companionFamilyProblem(board, item, family);
 }
 

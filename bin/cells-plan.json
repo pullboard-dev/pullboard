@@ -1106,6 +1106,10 @@
     {
       "path": "src/move-history/190.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/vendor-family-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

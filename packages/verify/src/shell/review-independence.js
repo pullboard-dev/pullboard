@@ -92,12 +92,12 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
   const family = familyName(declared, familyAliasesOf(board));
   const builder = familyName(item.item_builder_family, familyAliasesOf(board));
   if (lineSettings(board).requireReviewFamilies === true && (!family || !builder)) {
-    return new Refused('O2_FAMILY_MATCH', 'this board requires declared vendor families for fresh reviews; declare --family when starting each seat, then resubmit if the submitted builder family was unknown');
+    return new Refused('O2_FAMILY_MATCH', 'this board requires declared vendor families for fresh reviews; declare it with pullboard join --family <vendor> when starting each seat, then resubmit if the submitted builder family was unknown');
   }
   // One canonical family per declared spelling [#1762]; the comparison stays case-insensitive.
   const fallback = compositionFamilyFallback(board, item);
   if (familyPolicy === 'require' && !(fallback ? family && family !== fallback.family : familiesDiffer(board, declared, item.item_builder_family))) {
-    return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`);
+    return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one${!family || !builder ? '; declare missing families with pullboard join --family <vendor>' : ''}`);
   }
   if (policy.reviewFamily && family !== familyName(policy.reviewFamily, familyAliasesOf(board))) {
     return new Refused('O2_FAMILY_MATCH', `Strict review requires declared vendor family ${policy.reviewFamily}; ask a reviewer from that family`);
