@@ -441,6 +441,8 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 
 The computed-grant engine adds `grantEngine` to new join, claim and renewal events as a version marker only. It stores no grant or scope: permission is computed from the seat lane, current claim and lease, or the current review reservation. Older event bytes remain unchanged. A new marker prevents an older engine from reinterpreting a narrowed claim; shout, release and review reservation keep their existing engine floors. Reopen still checks the marked seat and target version floor, while its own authority guards decide permission: direct current conflict requests are coordinator-only; automatic review preflight records native-computed evidence bound to the board, actor, item, submitted head, trunk and conflicting files, verified at origin and replay by merging the recorded immutable commits, never the replica current trunk; missing objects refuse without advancing the replay cursor until fetched. The exact accepting reviewer can withdraw its current verdict independently of a build claim. Older recorded submitted-conflict moves retain their joined-seat authority.
 
+Automatic milestone placement records its chosen release, order position, rule and prerequisite, spec-row and lane inputs on the item. A coordinator or person override records its reason and actor; an unavailable release remains explicit in the placement note.
+
 <!-- events:start -->
 | Kind | Actor | Detail fields |
 | --- | --- | --- |
@@ -449,6 +451,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
+| `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |
