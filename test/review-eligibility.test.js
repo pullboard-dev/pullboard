@@ -938,3 +938,21 @@ test('[V4,B26,H16] the vendor table is explicit, configuration cannot split know
   assert.equal(canonicalFamily(f.board, 'codex'), 'custom');
   assert.equal(canonicalFamily(f.board, 'Claude'), 'claude');
 });
+
+for (const [builderFamily, reviewerFamily] of [['openai', 'OpenAI'], ['codex', 'openai'], ['claude', 'Claude'], ['OpenAI', 'openai']]) {
+  for (const requireFamilies of [true, false]) {
+    test(`[V4,B26,H16] ${builderFamily} builder and ${reviewerFamily} reviewer are one vendor on every eligibility path (require ${requireFamilies})`, t => {
+      const f = fixture(t, { requireFamilies });
+      joinSeat(f.board, 'core-6', builderFamily, '6');
+      joinSeat(f.board, 'core-7', reviewerFamily, '7');
+      const id = f.add(), item = f.submit(id, 'core-6');
+      const view = reviewEligibility(f.board, item, { familyPolicy: 'require' });
+      assert.equal(view.eligible.includes('core-7'), false, 'show lists no same-vendor reviewer');
+      assert.ok(view.ineligible.some(row => row.agent === 'core-7' && row.code === 'O2_FAMILY_MATCH'));
+      assert.throws(() => f.reserve(id, 'core-7'), { code: 'O2_FAMILY_MATCH' });
+      assert.equal(store.nextFor(f.board, { agentId: 'core-7', lane: 'core', verify: true, familyPolicy: 'require' }).item, null);
+      assert.throws(() => store.verify(f.board, id, { agentId: 'core-7', decision: 'ACCEPT', note: 'Synthetic family comparison.',
+        head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'require', check: 'none' }), { code: 'O2_FAMILY_MATCH' });
+    });
+  }
+}
