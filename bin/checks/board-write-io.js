@@ -19,30 +19,26 @@ function writeIdentity(key) {
   return at < 0 ? key : (STORE_WRITE_IDENTITIES.get(key.slice(0, at)) ?? key.slice(0, at)) + key.slice(at);
 }
 
+/** The only approved in-transaction I/O boundaries: holder accuracy and live policy races. */
+export const BOARD_WRITE_IO_EXCEPTIONS = Object.freeze({
+  holder: 'src/board-write-lock.js#beginBoardWrite',
+  policy: 'src/cli-read-context.js#writePolicySignature',
+});
+
 const WRITE_PUBLICATION = new Map([
   ['src/board-write-lock.js#beginBoardWrite', new Set(['node:fs#mkdirSync', 'node:fs#lstatSync', 'node:fs#writeFileSync'])],
   ['src/board-write-lock.js#boardFile', new Set(['node:fs#realpathSync'])],
+]);
+// Only the transaction kernel can call these after release; callers inside work are not exempt.
+const POST_RELEASE = new Map([
   ['src/board-write-lock.js#finishBoardWrite', new Set(['node:fs#writeSync', 'node:fs#unlinkSync'])],
   // Coordinator 29 Oct 06:39: finishBoardWrite refuses !released before this bounded post-release log append.
   ['src/board-hold-log.js#recordBoardHold', new Set([
     'node:fs#mkdirSync', 'node:fs#openSync', 'node:fs#fstatSync', 'node:fs#writeSync', 'node:fs#closeSync',
   ])],
 ]);
-// Coordinator44559: these independently owned repairs are composed before the final guard proof.
-export const PENDING_WRITE_REPAIRS = Object.freeze({
-  // Coordinator44727: after1863, only the exact remaining merge-only preparation belongs to1878.
-  'packages/merge/src/shell/merge-only-submit.js#prepareMergeOnlySubmit': 1878,
-  'packages/stats/src/shell/cost-checkpoint.js#publishUsage': 1867,
-  // Coordinator44638, follow-up1878: these exact old I/O providers remain visible and temporary.
-  'packages/verify/src/shell/rule-proof-index.js#appendRuleProof': 1878,
-  'src/proof-receipts.js#proofRunReceipt': 1878,
-  'src/seat-presence.js#persistedObservation': 1878,
-  'src/seat-presence.js#observationRows': 1878,
-  // Coordinator44644: source-advance sealing and the train writer's receipt read are follow-up1878.
-  'packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn': 1878,
-  'packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvance': 1878,
-  'packages/gate/src/shell/gate-run-receipt.js#readGateReceipt': Object.freeze({ item: 1878, via: 'src/record-train-landing.js#recordTrainLanding' }),
-});
+// No deferred provider is exempt from the native writer audit.
+export const PENDING_WRITE_REPAIRS = Object.freeze({});
 
 /** Match nested source delimiters in lexed code, never interpreting string or comment contents. */
 function closing(code, at) {
@@ -185,7 +181,15 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
     for (const call of calls(body, model.source.slice(start, end))) for (const target of targets(file, call.name)) {
       const key = target.file + '#' + target.name;
       if (target.builtin && EXTERNAL_IO.test(target.builtin)) {
-        if (WRITE_PUBLICATION.get(writeIdentity(chain.at(-1)))?.has(target.builtin + '#' + target.name)) continue;
+        const owner = writeIdentity(chain.at(-1));
+        const marker = owner === 'src/board-write-lock.js#beginBoardWrite'
+          || owner === 'src/board-write-lock.js#boardFile' && chain.some(value => writeIdentity(value) === BOARD_WRITE_IO_EXCEPTIONS.holder);
+        if (marker && WRITE_PUBLICATION.get(owner)?.has(target.builtin + '#' + target.name)) continue;
+        if (writeIdentity(chain[0]) === 'src/board-event-log.js#atomic'
+          && chain.some(value => writeIdentity(value) === 'src/board-write-lock.js#finishBoardWrite')
+          && POST_RELEASE.get(owner)?.has(target.builtin + '#' + target.name)) continue;
+        if (chain[0] === BOARD_WRITE_IO_EXCEPTIONS.policy && chain.at(-1) === 'src/cli-read-context.js#policyRefBytes'
+          && target.builtin === 'node:fs' && target.name === 'readFileSync') continue;
         const firstArgument = argumentsAt(model.code, start + call.open)?.[0];
         if (writeIdentity(chain.at(-1)) === 'src/board-event-log.js#atomic' && target.builtin === 'node:fs'
             && target.name === 'writeSync' && firstArgument
@@ -239,5 +243,10 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
       }
     }
   }
+  // The policy provider is installed dynamically, so audit its exact named witness explicitly.
+  const policy = modules.get('src/cli-read-context.js');
+  const witness = policy?.functions.get('writePolicySignature');
+  if (witness) inspect(policy.file, witness.bodyStart, witness.end,
+    [BOARD_WRITE_IO_EXCEPTIONS.policy], new Set([BOARD_WRITE_IO_EXCEPTIONS.policy]));
   return [...problems.values()].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.call.localeCompare(b.call));
 }

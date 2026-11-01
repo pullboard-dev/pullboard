@@ -3,6 +3,7 @@
 /** Criterion preparation must not occupy the actual SQLite writer lease [B2,C7,V2]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -12,6 +13,7 @@ import { exportBoard } from '../packages/store/index.js';
 import { boardWriteIoProblems } from '../bin/checks/board-write-io.js';
 import { styleSources } from '../packages/codemap/index.js';
 import { fixtureBoard } from './board-fixture.js';
+import { afterBoardWrite } from '../packages/store/src/shell/board-event-log.js';
 
 /** Set up only native fixture operations; file storage is necessary to observe the writer lock. */
 function setup(t) {
@@ -39,6 +41,29 @@ function unlockedFreeze(peer, observed) {
       policy: { version: 1, commit: 'a'.repeat(40), verify: { policy: 'any', family: 'off' } } }), digest: 'prepared-lock-fixture' };
   };
 }
+
+test('registration heartbeat and nested sidecars wait for the outer commit [B2,C7]', t => {
+  const board = fixtureBoard(t, { storage: 'file', purpose: 'locking' });
+  const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main').file;
+  const peer = new DatabaseSync(file);
+  peer.exec('PRAGMA busy_timeout=0');
+  t.after(() => peer.close());
+  const observed = [];
+  store.atomic(board, () => {
+    store.register(board, { lane: 'coordinator', path: '/new-coordinator' });
+    assert.equal(existsSync(`${file}.presence.sqlite`), false, 'registration has not touched its sidecar under the outer writer');
+    try {
+      store.atomic(board, () => { afterBoardWrite(board, () => observed.push('rolled back')); throw new Error('cancel savepoint'); });
+    } catch (error) { assert.equal(error.message, 'cancel savepoint'); }
+    afterBoardWrite(board, () => {
+      peer.exec('BEGIN IMMEDIATE');
+      try { observed.push('released'); } finally { peer.exec('ROLLBACK'); }
+    });
+    assert.deepEqual(observed, []);
+  });
+  assert.equal(existsSync(`${file}.presence.sqlite`), true);
+  assert.deepEqual(observed, ['released'], 'rolled-back callbacks never run and committed callbacks see a free writer');
+});
 
 test('claim prepares its criterion before the real SQLite write lock [B2,C7,V2]', t => {
   const { board, agentId, id, peer } = setup(t);
@@ -163,25 +188,33 @@ test('the native write publication exception cannot hide a new process call [C7,
   assert.ok(!problems.some(row => row.call === 'node:fs#writeFileSync'));
 });
 
-test('the named post-release hold append does not exempt unrelated reads or process calls [C7,CD39]', () => {
+test('the named policy witness cannot hide unrelated reads or a child process [C7,CD39]', () => {
+  const policy = { file: 'src/cli-read-context.js', source:
+    "import {readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; function policyRefBytes() { return readFileSync('ref'); } function writePolicySignature() { policyRefBytes(); readFileSync('unrelated'); execFileSync('git'); }" };
+  const problems = boardWriteIoProblems(guardSources('', [policy]));
+  assert.equal(problems.filter(row => row.call === 'node:fs#readFileSync').length, 1, 'only the exact ref helper is exempt');
+  assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
+});
+
+test('calling the hold append inside a writer exempts no I/O [C7,CD39]', () => {
   const source = "import {atomic} from './board-event-log.js'; import {recordBoardHold} from './board-hold-log.js'; atomic(board, () => recordBoardHold());";
   const writer = "import {writeSync, readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function recordBoardHold() { writeSync(1, 'line'); readFileSync('unrelated'); execFileSync('git'); }";
   const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-hold-log.js', source: writer }]), { pending: {} });
-  assert.ok(!problems.some(row => row.call === 'node:fs#writeSync'));
+  assert.ok(problems.some(row => row.call === 'node:fs#writeSync'));
   assert.ok(problems.some(row => row.call === 'node:fs#readFileSync'));
   assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
 });
 
-test('a named deferred receipt read is allowed only through its assigned train writer [C7,CD39]', () => {
+test('receipt reads are refused in every writer, including the train writer [C7,CD39]', () => {
   const receipt = { file: 'src/gate-run-receipt.js', source:
     "import {readFileSync} from 'node:fs'; export function readGateReceipt() { return readFileSync('receipt'); }" };
   const train = { file: 'src/record-train-landing.js', source:
     "import {atomic} from './board-event-log.js'; import {readGateReceipt} from './gate-run-receipt.js'; export function recordTrainLanding(board) { return atomic(board, () => readGateReceipt()); }" };
   const other = "import {atomic} from './board-event-log.js'; import {readGateReceipt} from './gate-run-receipt.js'; atomic(board, () => readGateReceipt());";
   const assigned = guardSources('', [receipt, train]);
-  assert.deepEqual(boardWriteIoProblems(assigned), []);
+  assert.ok(boardWriteIoProblems(assigned).some(row => row.call === 'node:fs#readFileSync'));
   assert.ok(boardWriteIoProblems(guardSources(other, [receipt, train])).some(row => row.call === 'node:fs#readFileSync'),
-    'a pending train repair does not waive another transaction reading the same receipt');
+    'another transaction cannot read the receipt either');
   assert.ok(boardWriteIoProblems(assigned, { pending: {} }).some(row => row.call === 'node:fs#readFileSync'),
     'removing the named repair exposes the actual deferred read');
 });
@@ -208,10 +241,10 @@ test('exact moved store writer identities preserve guard coverage and reject adj
     const writer = { file: 'packages/store/src/shell/board-write-lock.js', source: `import {writeSync} from 'node:fs'; export function ${name}() { writeSync(2, 'message'); }` };
     const caller = { file: 'src/fixture-writer.js', source: `import {atomic} from './board-event-log.js'; import {${name}} from '../packages/store/src/shell/board-write-lock.js'; export function write(board) { return atomic(board, () => ${name}()); }` };
     const problems = boardWriteIoProblems(guardSources('', [writer, caller]), { pending: {} });
-    assert.equal(problems.some(row => row.call === 'node:fs#writeSync'), name !== 'finishBoardWrite', name);
+    assert.ok(problems.some(row => row.call === 'node:fs#writeSync'), name);
   }
   const receipt = { file: 'packages/store/src/shell/proof-receipts.js', source: "import {readFileSync} from 'node:fs'; export function proofRunReceipt() { return readFileSync('receipt'); }" };
   const caller = { file: 'src/fixture-writer.js', source: "import {atomic} from './board-event-log.js'; import {proofRunReceipt} from '../packages/store/src/shell/proof-receipts.js'; export function write(board) { return atomic(board, () => proofRunReceipt()); }" };
-  assert.deepEqual(boardWriteIoProblems(guardSources('', [receipt, caller])), [], 'the same assigned repair retains its exact identity');
+  assert.ok(boardWriteIoProblems(guardSources('', [receipt, caller])).some(row => row.call === 'node:fs#readFileSync'), 'relocation cannot exempt the receipt read');
   assert.ok(boardWriteIoProblems(guardSources('', [receipt, caller]), { pending: {} }).some(row => row.call === 'node:fs#readFileSync'), 'no pending permission means the same mapped I/O is refused');
 });

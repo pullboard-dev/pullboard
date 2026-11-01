@@ -1,11 +1,10 @@
 import { EXIT_RULES_ENGINE } from "../../../state/index.js";
-import { proofReceipts } from "./board-query.js";
+import { proofReceipts, hasAgent } from "./board-query.js";
 export { proofReceipts };
 /** Stamp the gate's own immutable receipt with the board's seat and recorded parent [C7,H16]. */
 import {
   atomic,
   getItem,
-  listAgents,
   logEvent,
 } from "./board.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
@@ -28,7 +27,7 @@ export function boundProofReceipt(board, request) {
 
 /** Validate native facts against current board-owned identities without changing the board. */
 export function proofRunReceipt(board, request) {
-  if (!listAgents(board).some(agent => agent.agent_id === request?.agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
+  if (!hasAgent(board, request?.agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
   const run = board.executionEngineVersion === undefined ? boundProofReceipt(board, request) : board.runtimePorts.sourceAdvanceReceipts.receiptFields(request.receipt);
   return proofReceiptFields(board, request, run);
 }
@@ -36,7 +35,7 @@ export function proofRunReceipt(board, request) {
 /** Check board state again under the atomic boundary using only origin-sealed immutable receipt bytes. */
 function proofReceiptFields(board, request, run) {
   const { agentId, itemId } = request;
-  if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
+  if (!hasAgent(board, agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
   if (!run || run.version !== 2 || run.proof.item !== itemId) throw new Refused('PROOF_RUN_UNBOUND', 'the native receipt must name this item; run its check and read pullboard show <id>');
   if (run.proof.seat !== agentId) throw new Refused('PROOF_RUN_ACTOR', 'the native receipt belongs to another seat; use the receipts from your own check');
   const item = getItem(board, itemId);
@@ -71,7 +70,7 @@ export function recordProofRun(board, request) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < PROOF_RUN_ENGINE) {
     throw new Refused('ENGINE_VERSION', `proof receipts require engine ${PROOF_RUN_ENGINE}; upgrade Pullboard`);
   }
-  if (!listAgents(board).some(agent => agent.agent_id === request?.agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
+  if (!hasAgent(board, request?.agentId)) throw new Refused('NOT_JOINED', 'join before recording a proof run');
   const run = board.executionEngineVersion === undefined ? boundProofReceipt(board, request) : board.runtimePorts.sourceAdvanceReceipts.receiptFields(request.receipt);
   return atomic(board, () => {
     const { receipt, existing } = proofReceiptFields(board, request, run);

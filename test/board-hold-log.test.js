@@ -41,6 +41,18 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
         // The contrasting real hold stays below the threshold; no polling or product deadline is changed.
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
       });
+      board.writeContext.command = 'fixture-policy';
+      let attempts = 0;
+      board.prepareWritePolicy = () => ({
+        current() {
+          if (attempts++ > 0) return true;
+          // Exercise a slow policy admission after BEGIN, including the rolled-back retry.
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_200);
+          return false;
+        },
+        enter() {}, leave() {}, assertCurrent() {},
+      });
+      atomic(board, () => {});
     } finally { closeBoard(board); }
   `;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file], {
@@ -56,6 +68,11 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   assert.ok(holds[0].phaseMs >= 1_200);
   assert.ok(holds[0].heldMs >= 1_200, 'the record measures the real held interval');
   assert.equal(rows.some(row => row.command === 'fixture-fast'), false);
+  const admission = rows.filter(row => row.command === 'fixture-policy');
+  assert.equal(admission.length, 1, 'a rejected slow admission is recorded even when a retry succeeds');
+  assert.equal(admission[0].outcome, 'rolled-back');
+  assert.equal(admission[0].phase, 'policy-admission');
+  assert.ok(admission[0].heldMs >= 1_200);
   assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'phase', 'phaseMs', 'seat', 'version'],
     'no SQL, notes, CLI arguments, session ids or board data are published');
   appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n'

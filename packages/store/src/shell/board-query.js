@@ -325,6 +325,11 @@ export function agentAt(board, path) {
   return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
 }
 
+/** Check membership without reading display-only presence sidecars inside a writer. */
+export function hasAgent(board, id) {
+  return typeof id === 'string' && Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id=?').get(id));
+}
+
 /** Read one seat and its model without loading every registered seat and model on the board. */
 export function agentById(board, id) {
   return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_id = ?').get(id));
