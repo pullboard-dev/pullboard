@@ -8,8 +8,8 @@ import { PERSON } from "../../../store/index.js";
 import {
   requireSignedPerson,
   signsPersonMoves,
-} from "../../../../src/person-signing-cli.js";
-import { requirePersonChannel } from "../../../../src/person.js";
+} from "../../../person/index.js";
+import { requirePersonChannel } from "../../../person/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { dueSentinels } from "./sentinels.js";
 import { sentinels } from "./sentinels.js";

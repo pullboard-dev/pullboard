@@ -27,10 +27,10 @@ import {
 import {
   agentSessionDigest,
   requirePersonChannel,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   requireSignedPerson,
-} from '../person-signing-cli.js';
+} from '../../packages/person/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

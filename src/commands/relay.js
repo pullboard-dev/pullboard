@@ -5,7 +5,7 @@ import * as store from '../board.js';
 import { gitSyncLinked } from '../../packages/store/index.js';
 import {
   requirePersonChannel,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   listApiProjects,
 } from '../projects.js';

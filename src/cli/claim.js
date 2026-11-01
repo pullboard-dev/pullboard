@@ -6,7 +6,7 @@ import { captureLapsedClaims } from '../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../../packages/store/index.js';
 import { writeBoardCommand } from '../board-command-write.js';
-import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import { laneSeatContext } from '../seat-checkout.js';
 import { nextSessionSeats } from '../seat-checkout.js';
 import { seatRoutingPorts } from './seat-ports.js';
@@ -34,7 +34,7 @@ import { COORDINATOR } from '../../packages/config/index.js';
 import { configFromSource } from '../../packages/config/index.js';
 import { loadDoctrine } from '../doctrine.js';
 import { agentDoctrine } from '../../packages/doctrine/index.js';
-import { signedMoveProblem } from '../person-signing.js';
+import { signedMoveProblem } from '../../packages/person/index.js';
 import { bindLocalSession } from '../agent-session.js';
 import { localSessionMatches } from '../agent-session.js';
 import { headCommit } from '../git.js';

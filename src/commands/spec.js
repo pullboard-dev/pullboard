@@ -3,7 +3,7 @@ import { answerQuestion } from '../../packages/spec/index.js';
 import { rowDrafts } from '../../packages/store/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { loadDoctrine } from '../doctrine.js';
-import { verifiedPasskeyRowDecision } from '../person-signing.js';
+import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import {
   planRowVerificationApply,
   rowVerificationFindings,
@@ -49,19 +49,19 @@ import {
 import {
   personCommand,
   requirePersonChannel,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   productProblems,
 } from '../../packages/spec/index.js';
 import {
   personSigning,
-} from '../person-signing.js';
+} from '../../packages/person/index.js';
 import {
   refuseNamedSigners,
   requireShownRows,
   requireSignedPerson,
   signsPersonMoves,
-} from '../person-signing-cli.js';
+} from '../../packages/person/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
