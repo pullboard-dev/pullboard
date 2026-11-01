@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Report cells migration debt, or explicitly check/initialize/lower its root ratchet [C7,CD64]. */
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
+import { importsWithCompiler } from '../packages/kernel/index.js';
+import { commonJsWithCompiler } from '../packages/kernel/index.js';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { readCellLintBaseline } from '../packages/codemap/index.js';
@@ -18,7 +18,7 @@ import { withCellLintParser } from '../packages/codemap/index.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 
 withCellLintParser(compile => {
-  const parsers = { importsIn: sources => importsIn(sources, compile), commonJsIn: sources => commonJsIn(sources, compile) };
+  const parsers = { importsIn: sources => importsWithCompiler(sources, compile), commonJsIn: sources => commonJsWithCompiler(sources, compile) };
   const [mode = '--report', directory = '.'] = process.argv.slice(2);
   if (!['--report', '--check', '--init', '--update'].includes(mode) || process.argv.length > 4) {
     throw new Error('use node bin/cell-lints.js --report|--check|--init|--update [root]');

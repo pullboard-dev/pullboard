@@ -18,6 +18,7 @@ test('one owned parser serves import and multiple binding batches, then exits [C
   const modules = Array.from({ length: 300 }, (_, index) => ({ file: `leaf-${index}.js`,
     source: `import { value } from './leaf.js';\nexport const result = value + ${index};\n`,
     body: `                                \nexport const result = value + ${index};\n`, bindings: [{ local: 'value' }] }));
+  modules.push({ file: 'invalid.js', source: 'export const value = ;', body: 'export const value = ;', bindings: [{ local: 'value' }] });
   const expected = { imports: importsIn(sources), common: commonJsIn(sources), bindings: bindingReadsForModules(modules) };
   const originalSpawn = childProcess.spawn, originalSync = childProcess.spawnSync;
   let starts = 0, synchronous = 0, exited;
@@ -69,4 +70,12 @@ syncBuiltinESMExports();
     assert.equal(starts.length, run, 'each actual CLI invocation starts exactly one V8 parser process');
     assert.ok(starts.every(start => start.name === 'spawn' && Number.isSafeInteger(start.pid)));
   }
+  const initialized = runFixtureChild(process.execPath, [executable, '--init'], { cwd: box.root, encoding: 'utf8' });
+  assert.equal(initialized.status, 0, initialized.stderr);
+  const checked = runFixtureChild(process.execPath, [executable, '--check'], { cwd: box.root, encoding: 'utf8',
+    env: { ...process.env, NODE_OPTIONS: `--import=${pathToFileURL(join(files.root, 'count.mjs')).href}` } });
+  assert.equal(checked.status, 0, checked.stderr);
+  assert.equal(checked.stdout, '');
+  assert.equal(files.read('starts.jsonl').toString('utf8').trim().split('\n').length, 3,
+    'the actual cold --check run also starts exactly one parser');
 });
