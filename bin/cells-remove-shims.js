@@ -177,9 +177,33 @@ function planShim(box, shim, hits) {
     if (foreign.length) { held.push(`${file} needs ${foreign.map(add => add.name).join(', ')} added to ${foreign[0].file} (${laneOf(box.settings, foreign[0].file)} lane)`); continue; }
     edits.push(doc ? { file, start: doc.start, end: doc.end, text: choice.path, from: shim, adds: [] }
       : comment ? { file, ...comment(choice.path), adds: choice.adds }
-        : { file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds });
+        : { file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds,
+          namespace: use.names === ALL ? { target: choice.path, names: new Set(exportsOf(box, shim).keys()) } : null });
   }
   return { edits, held, cited: [...new Set(cited)] };
+}
+
+/**
+ * Second pass, after the cut and closure checks settle: a namespace importer sees the target's final surface, so any export another
+ * planned edit adds to that target and the shim lacks holds it. Holding one edit drops its additions, so repeat until stable.
+ */
+function composeNamespaces(plans, excluded) {
+  let held = 0;
+  for (let changed = true; changed;) {
+    changed = false;
+    const added = new Map();
+    for (const made of plans.values()) for (const edit of made.edits) if (!excluded.has(edit)) for (const add of edit.adds) added.set(add.file, new Set([...added.get(add.file) ?? [], add.name]));
+    for (const made of plans.values()) for (const edit of made.edits) {
+      if (!edit.namespace || excluded.has(edit)) continue;
+      const wider = [...added.get(edit.namespace.target) ?? []].filter(name => !edit.namespace.names.has(name));
+      if (!wider.length) continue;
+      excluded.add(edit);
+      made.held.push(`${edit.file} takes a whole namespace, and this run adds ${wider.join(', ')} to ${edit.namespace.target}`);
+      changed = true;
+      held += 1;
+    }
+  }
+  return held;
 }
 
 /** Find the declared-input tokens in a header comment that name one of the shims. */
@@ -348,6 +372,11 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
       }
       if (fresh.length && !blamed.length) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing exposed an upward cut no shim edit explains: ${fresh.map(row => row[1]).join('; ')}`);
       for (const edit of blamed) excluded.add(edit);
+    }
+    // Only now is each door's final surface known; holding a namespace edit just restores its shim import.
+    if (composeNamespaces(plans, excluded)) {
+      applyToDisk(box, materialize(box, plans, excluded), touched);
+      after = cellInventory(root, parsers);
     }
   } catch (error) {
     applyToDisk(box, new Map(), touched);

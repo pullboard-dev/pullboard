@@ -169,11 +169,23 @@ test('a namespace importer keeps its shim when the door exports more names than 
   assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n", 'a named importer still moves');
 });
 
+test('a run that adds a name to the door for one importer leaves a namespace importer of another shim on its shim [C7,D3]', t => {
+  // The reviewer composition case (refs/pullboard/review-evidence/item-2221-composition-core-898).
+  const box = shimmed(t);
+  box.put('packages/stats/index.js', 'export * from "./core.js";\nexport { shell, extra } from "./src/shell/shell.js";\n');
+  box.put('src/all-stats.js', "import * as all from './stats.js';\nexport const names = Object.keys(all);\n");
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  assert.match(read(box, 'packages/stats/index.js'), /export \{ leaf \}/u, 'the run adds leaf to the door for the leaf importer');
+  assert.equal(read(box, 'src/all-stats.js'), "import * as all from './stats.js';\nexport const names = Object.keys(all);\n", 'the namespace never widens to leaf');
+  assert.match(new Map(result.kept).get('src/stats.js'), /src\/all-stats\.js takes a whole namespace, and this run adds leaf to packages\/stats\/index\.js/u);
+});
+
 test('a module URL handed to a child as .href keeps import semantics, while a byte read names the moved file [C7,D3]', t => {
   const box = shimmed(t);
   box.put('test/module.test.js', "import { pathToFileURL } from 'node:url';\nimport { resolve } from 'node:path';\nexport const url = pathToFileURL(resolve(import.meta.dirname, '../src/stats.js')).href;\n");
   box.put('test/child.test.js', "const source = `import { shell } from ${JSON.stringify(new URL('../src/stats.js', import.meta.url).href)};`;\nexport { source };\n");
   // A door with exactly the shim's names, so a whole-namespace child import may move to it.
+  box.put('src/mid.js', 'export const mid = 1;\n'); // no leaf importer, so this run adds nothing to the door
   box.put('packages/stats/index.js', 'export * from "./core.js";\nexport { shell, extra } from "./src/shell/shell.js";\n');
   removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
   assert.match(read(box, 'test/module.test.js'), /resolve\(import\.meta\.dirname, '\.\.\/packages\/stats\/index\.js'\)/u, 'a module URL built from a path goes to the front door');
