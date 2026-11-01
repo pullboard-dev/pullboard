@@ -1138,6 +1138,10 @@
     {
       "path": "src/move-history/194.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/automatic-landing.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -1577,6 +1581,10 @@
     },
     {
       "path": "bin/verify-release-receipt.js",
+      "cell": "app:cli"
+    },
+    {
+      "path": "bin/automatic-landing.js",
       "cell": "app:cli"
     }
   ],

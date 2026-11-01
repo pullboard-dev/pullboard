@@ -34,11 +34,13 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
   const submitted = box.run(builder, 'submit', String(item), '--json');
   assert.equal(submitted.code, 0, submitted.err);
   const head = JSON.parse(submitted.out).commit;
-  box.git(repo, 'switch', '-q', '--detach', head);
-  try { assert.equal(box.run(repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'The actual local result exists.').code, 0); }
-  finally { box.git(repo, 'switch', '-q', 'main'); }
+  const reviewer = join(box.dir, 'local-reviewer');
+  box.git(repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
+  assert.equal(box.run(reviewer, 'join', 'web', '--model', 'local-reviewer').code, 0);
+  const accepted = box.run(reviewer, 'verify', String(item), 'accept', '--note', 'The actual local result exists.');
+  assert.equal(accepted.code, 0, accepted.out + accepted.err);
 
-  const machine = new URL('../src/relay-machine.js', import.meta.url).href;
+  const machine = new URL('../packages/link/index.js', import.meta.url).href;
   const enabled = runFixtureChild(process.execPath, ['--input-type=module', '-e', `import { updateRelayMachine } from ${JSON.stringify(machine)}; updateRelayMachine(state => { state.autoLink = true; });`], { cwd: repo, env: box.env, encoding: 'utf8' });
   assert.equal(enabled.status, 0, enabled.stderr);
   const status = box.run(repo, 'status');
@@ -49,16 +51,12 @@ export function assertNoRemoteLanding(sandbox, commitFile) {
   observe(() => assert.equal(explicit.code, 1, 'an explicit link still requires a GitHub origin'));
   observe(() => assert.match(explicit.out + explicit.err, /RELAY_ORIGIN/u));
   const landed = box.run(repo, 'land', '--json');
-  observe(() => assert.equal(landed.code, 0, landed.err));
-  if (landed.code === 0) {
-    const receipt = JSON.parse(landed.out);
-    observe(() => assert.deepEqual(receipt.landed, [item]));
-    observe(() => assert.equal(receipt.batch.state, 'landed'));
-    observe(() => assert.equal(box.git(repo, 'rev-parse', 'main'), receipt.batch.tip));
-    const recorded = JSON.parse(box.run(repo, 'show', String(item), '--json').out);
-    observe(() => assert.equal(recorded.item_merged_commit, receipt.batch.tip, 'normal land records the merge; no manual merged command'));
-    observe(() => assert.equal(readFileSync(join(repo, 'web/result.txt'), 'utf8'), 'local result\n'));
-  }
+  observe(() => assert.equal(landed.code, 1, landed.err));
+  observe(() => assert.match(landed.out + landed.err, /the board lands accepted items/u));
+  const recorded = JSON.parse(box.run(repo, 'show', String(item), '--json').out);
+  observe(() => assert.ok(recorded.item_merged_commit, 'acceptance automatically records the landing'));
+  observe(() => assert.equal(box.git(repo, 'rev-parse', 'main'), recorded.item_merged_commit));
+  observe(() => assert.equal(readFileSync(join(repo, 'web/result.txt'), 'utf8'), 'local result\n'));
   assert.equal(box.git(repo, 'remote'), '', 'the whole workflow retains no remote');
   for (const origin of ['https://github.com/example/local-proof.git', join(box.dir, 'private-origin.git')]) {
     const remoteRepo = join(box.dir, origin.startsWith('https:') ? 'github-repo' : 'bare-repo');

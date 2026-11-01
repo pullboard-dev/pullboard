@@ -20,7 +20,7 @@ export function landingTimeoutFixture({ landProject, itemWorktree, submitItem, a
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.gate = `node '${gate.replaceAll("'", "'\\''")}'`;
-  config.landing = { timeout: '2s', cadence: '1m' };
+  config.landing = { ...config.landing, manualOverride: true, timeout: '2s', cadence: '1m' };
   writeFileSync(configFile, JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure timed landing');

@@ -51,7 +51,7 @@ function project(parallel = false) {
   config.lanes.web.owns.push('src/');
   config.affectedTests = 'true';
   if (parallel) {
-    config.landing = { parallel: true };
+    config.landing = { ...config.landing, manualOverride: true, parallel: true };
     for (const key of [GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV]) delete box.env[key];
   }
   writeFileSync(path, JSON.stringify(config, null, 2));
