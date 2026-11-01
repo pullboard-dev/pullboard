@@ -17,7 +17,7 @@ import {
   resolve,
 } from 'node:path';
 import { displayAgentName } from './agent-names.js';
-import * as store from './board-query.js';
+import * as store from '../packages/store/index.js';
 import {
   CONFIG_FILE,
   COORDINATOR,

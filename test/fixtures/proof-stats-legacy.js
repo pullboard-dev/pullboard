@@ -1,5 +1,5 @@
 /** Public proof numbers derived from the append-only event log [R1,R2]. */
-import { events } from '../../src/board.js';
+import { events } from '../../packages/store/index.js';
 import { Refused } from '../../packages/kernel/core.js';
 import { flowStats } from '../../src/stats-flow.js';
 import { barStats } from '../../packages/stats/src/core/bar-stats.js';

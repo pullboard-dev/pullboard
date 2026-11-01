@@ -15,7 +15,7 @@ import {
   dependencyLabel,
 } from './item-dependencies.js';
 import { itemFileCollisions } from './item-files.js';
-import { withLocalSeatPresence } from './seat-presence.js';
+import { withLocalSeatPresence } from '../packages/store/index.js';
 import { policyAt } from '../packages/sandbox/index.js';
 import {
   frozenCheck,
@@ -168,14 +168,14 @@ import {
 import {
   guardStore,
   refreshStoreDeclarations,
-} from './board-store-guards.js';
+} from '../packages/store/index.js';
 import {
   storeTriggers,
 } from './machine.js';
 import {
   atomic,
   logEvent,
-} from './board-event-log.js';
+} from '../packages/store/index.js';
 import {
   ensureProofCounters,
   currentProofCounters,
@@ -189,7 +189,7 @@ import {
 import {
   configureBoardJournal,
   closeBoardWrites,
-} from './board-write-lock.js';
+} from '../packages/store/index.js';
 import {
   sharedSchemaOwner,
   expectedBoardSchema,
@@ -201,20 +201,20 @@ import {
   migrate,
   recordSchemaStamp,
   reportDrift,
-} from './board-migrate.js';
+} from '../packages/store/index.js';
 import {
   openBoardReadOnly,
   openBoardForRead as readBoard,
   readEventLogVersion,
   systemClock,
-} from './board-read-open.js';
+} from '../packages/store/index.js';
 import {
   migrateEventLogVersion,
 } from './board-event-log-migrate.js';
 import {
   boardNotWritable,
   boardBusyError,
-} from './board-access.js';
+} from '../packages/store/index.js';
 import {
   now,
   agentAt,
@@ -228,7 +228,7 @@ import {
   acceptedVerdict,
   verdictReviewProblem,
   boardId,
-} from './board-query.js';
+} from '../packages/store/index.js';
 import {
   appendRigorCounter,
   ensureRigorCounters,
@@ -250,7 +250,7 @@ import {
 } from './stale-state-engine.js';
 import {
   readReceivedBoardState,
-} from './board-link-state.js';
+} from '../packages/store/index.js';
 import {
   verdictWithdrawalTarget,
 } from '../packages/verify/index.js';
@@ -259,7 +259,7 @@ import {
 } from './computed-conflict-receipt.js';
 import {
   firstRefusal,
-} from './board-item-read.js';
+} from '../packages/store/index.js';
 import {
   itemReviewPolicy,
 } from '../packages/verify/index.js';
@@ -279,7 +279,7 @@ for (const name of Reflect.ownKeys(store)) if (typeof name === 'string') library
 for (const name of NATIVE_BOARD_NAMES) libraryExport(name, () => self[name]);
 for (const name of MILESTONE_NAMES) libraryExport(name, () => milestoneOperations[name]);
 export const board = Object.freeze(libraryBoard);
-export { closeBoard } from './board-read-open.js';
+export { closeBoard } from '../packages/store/index.js';
 
 /** Build immutable native capabilities once per connection, without a registry or cross-connection defaults. */
 export function nativeBoardPorts() {

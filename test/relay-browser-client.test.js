@@ -12,7 +12,7 @@ import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 
 /** The hosted page's real secure origin, answered from memory: no network is used. */
 const ORIGIN = 'https://app.pullboard.dev/';
-import { closeBoard } from '../src/board.js';
+import { closeBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { ENGINE_VERSION } from '../src/machine.js';

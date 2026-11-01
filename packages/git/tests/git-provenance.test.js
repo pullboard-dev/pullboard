@@ -22,7 +22,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
   closeBoard,
   SCHEMA_VERSION,
-} from "../../../src/board.js";
+} from "../../store/index.js";
 import { openBoard } from "../../../src/native-board.js";
 import {
   codeIsFromMain,

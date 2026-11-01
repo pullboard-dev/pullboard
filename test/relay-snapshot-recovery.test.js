@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { closeBoard } from '../src/board.js';
+import { closeBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { relaySnapshot } from '../src/relay-presentation.js';

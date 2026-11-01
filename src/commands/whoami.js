@@ -1,4 +1,4 @@
-import { boardId } from '../board.js';
+import { boardId } from '../../packages/store/index.js';
 import { seatAddress } from '../seat-address.js';
 /** The pullboard whoami command, in its own module so an item adding another command never edits these lines. */
 import {

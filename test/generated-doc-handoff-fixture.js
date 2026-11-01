@@ -8,7 +8,7 @@ import {
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../src/native-board.js';
-import { events } from '../src/board-query.js';
+import { events } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 
 /** Require a real ordinary CLI acknowledgement before reading its document. */

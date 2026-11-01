@@ -11,7 +11,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 
 const e2e = createE2eHelpers();
 

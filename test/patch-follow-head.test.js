@@ -12,8 +12,8 @@ import { itemPatchRecords } from '../src/item-patch-state.js';
 import { itemPatchAuthors } from '../src/item-patch-state.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { applyEngineMove } from '../src/engine.js';
-import { exportBoard } from '../src/exchange.js';
-import { importBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
+import { importBoard } from '../packages/store/index.js';
 import { PATCH_FOLLOW_ENGINE } from '../src/patch-follow-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

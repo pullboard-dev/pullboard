@@ -7,7 +7,7 @@ import { openBoard } from '../../../src/native-board.js';
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 import {
   applyEngineMove,
   prepareEngineMove,

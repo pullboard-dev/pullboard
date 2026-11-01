@@ -73,7 +73,7 @@ test('a real SQLite export blocked by a private writer names local export work [
   const file = join(box.root, 'private.sqlite');
   const db = new DatabaseSync(file);
   db.exec('PRAGMA journal_mode=DELETE; CREATE TABLE kept(value TEXT); INSERT INTO kept VALUES (\'retained\'); BEGIN EXCLUSIVE;');
-  const module = new URL('../../../src/exchange.js', import.meta.url).href;
+  const module = new URL('../../store/index.js', import.meta.url).href;
   // Budget: private SQLite waits 60s so the unchanged 25s child watchdog captures the actual blocked export.
   const script = `import { DatabaseSync } from 'node:sqlite';
 import { exportBoard } from ${JSON.stringify(module)};

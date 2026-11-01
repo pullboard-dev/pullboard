@@ -27,7 +27,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';
 import { QUOTED_LANDING_FAILURE_ENGINE } from '../../../src/quoted-landing-failure-engine.js';
 import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';

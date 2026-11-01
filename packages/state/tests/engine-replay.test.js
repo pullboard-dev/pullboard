@@ -21,7 +21,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 import { unpackRelease } from '../../../test/release-archive.js';
 
 // The immutable v0.8.6 release, rather than current source with an old engine tag.

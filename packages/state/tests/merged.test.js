@@ -30,7 +30,7 @@ import {
   applyEngineMove,
   prepareEngineMove,
 } from '../src/shell/engine.js';
-import { exportBoard } from '../../../src/exchange.js';
+import { exportBoard } from '../../store/index.js';
 import { unpackRelease } from '../../../test/release-archive.js';
 
 const TEMP_DIRS = [];

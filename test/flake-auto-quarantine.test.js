@@ -13,7 +13,7 @@ import * as store from '../src/board.js';
 import { recordGateRun, requireSubmitDiagnosticAdmission, submitFlakePairs } from '../src/quarantine.js';
 import recordGateRunMove from '../src/moves/recordGateRun.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
-import { proofRunReceipt } from '../src/proof-receipts.js';
+import { proofRunReceipt } from '../packages/store/index.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
 
 /** Build genuine private package source and an ordinary joined/claimed builder; no receipt is fabricated. */

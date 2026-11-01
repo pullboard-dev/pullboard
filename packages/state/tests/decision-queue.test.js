@@ -16,7 +16,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 import { DECISION_QUEUE_ENGINE } from '../../../src/decision-queue-engine.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 

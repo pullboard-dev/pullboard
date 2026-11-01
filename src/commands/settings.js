@@ -36,7 +36,7 @@ import {
   withBoard,
   withBoardRead,
 } from '../cli.js';
-import { boardId } from '../board.js';
+import { boardId } from '../../packages/store/index.js';
 import { describeSetting } from '../../packages/config/index.js';
 
 const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget'];

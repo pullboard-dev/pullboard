@@ -23,7 +23,7 @@ import { after, test } from 'node:test';
 import { main } from './native-cli-fixture.js';
 import { resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../src/api.js';
-import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../src/board.js';
+import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
 import { JSON_SHAPES } from '../packages/config/index.js';

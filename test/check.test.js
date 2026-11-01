@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after, test } from 'node:test';
-import { addItem, closeBoard, validateItemAddition } from '../src/board.js';
+import { addItem, closeBoard, validateItemAddition } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { prepareCheckBaseline } from '../src/check-baseline.js';
 import { removeFixtureDirectory } from './cleanup-diagnostics.js';

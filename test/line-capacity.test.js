@@ -10,7 +10,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import { lineCapacitySnapshot } from '../src/line-capacity.js';
 import { LINE_CAPACITY_ENGINE } from '../src/line-capacity-engine.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence } from '../src/engine.js';
 import { replayHistoricalSeatMove } from './pre-grant-seats.js';
 

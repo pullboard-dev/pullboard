@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { ITEM_NOTES_ENGINE } from '../src/item-notes-engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { fixtureBoard } from './board-fixture.js';

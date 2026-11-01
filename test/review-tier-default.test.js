@@ -12,11 +12,11 @@ import { REVIEW_TIER_ENGINE } from '../src/review-tier-engine.js';
 import { REVIEW_DEFAULT_ENGINE } from '../src/review-default-engine.js';
 import { prepareEngineMove } from '../src/engine.js';
 import { applyEngineMove } from '../src/engine.js';
-import { exportBoard } from '../src/exchange.js';
-import { importBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
+import { importBoard } from '../packages/store/index.js';
 import { healthLines } from '../packages/health/index.js';
 import { withOpenedBoard } from '../src/cli-read-context.js';
-import { atomic } from '../src/board-event-log.js';
+import { atomic } from '../packages/store/index.js';
 
 const LEASE = 3_600_000;
 

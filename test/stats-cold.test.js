@@ -1,5 +1,5 @@
 /** Counter availability selects the real proof-statistics path without changing historical results [R1,R2,C7]. */
-import { events as readStatsEvents } from '../src/board.js';
+import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { addItem, closeBoard, register } from '../src/board.js';
+import { addItem, closeBoard, register } from '../packages/store/index.js';
 import { openBoard, openBoardForRead } from '../src/native-board.js';
 import { clearProofCounters, currentProofCounters, proofCounter } from '../packages/verify/index.js';
 import { proofStats } from '../src/stats.js';

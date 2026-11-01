@@ -11,8 +11,8 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { applyEngineMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
-import { exportBoard } from '../src/exchange.js';
-import { importBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
+import { importBoard } from '../packages/store/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { LANE_LEAD_ENGINE } from '../src/lane-lead-engine.js';
 

@@ -2,8 +2,8 @@ import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../landing-waivers.js';
 import { quarantineWaivers } from '../quarantine.js';
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
-import { boardBusyError } from '../board-access.js';
-import { openBoardReadOnly } from '../board-read-open.js';
+import { boardBusyError } from '../../packages/store/index.js';
+import { openBoardReadOnly } from '../../packages/store/index.js';
 import { rowDecisions } from '../../packages/spec/index.js';
 import { checkLoosening } from '../../packages/doctrine/index.js';
 import { runnerExecutionServices } from '../runners.js';

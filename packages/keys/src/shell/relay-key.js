@@ -16,7 +16,7 @@ import {
   decodeBoardKey,
   encodeBoardKey,
 } from '../../../kernel/src/core/seal.js';
-import { relayKeyDirectory } from '../../../../src/local-state.js';
+import { relayKeyDirectory } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Validate a persistent board identity before using it as a file or credential name. */

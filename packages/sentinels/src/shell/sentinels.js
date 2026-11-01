@@ -1,14 +1,14 @@
 import {
   sentinelDraftNeeds,
   sentinels,
-} from "../../../../src/board-query.js";
+} from "../../../store/index.js";
 /** Person-approved board watches and their append-only run history [A6,D1,D3]. */
 import { createHash } from 'node:crypto';
-import { atomic } from "../../../../src/board.js";
-import { listAgents } from "../../../../src/board-query.js";
-import { logEvent } from "../../../../src/board.js";
-import { PERSON } from "../../../../src/board.js";
-import { shout } from "../../../../src/board.js";
+import { atomic } from "../../../store/index.js";
+import { listAgents } from "../../../store/index.js";
+import { logEvent } from "../../../store/index.js";
+import { PERSON } from "../../../store/index.js";
+import { shout } from "../../../store/index.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/index.js";
 
@@ -67,14 +67,14 @@ export function rigorSentinelName(key) {
   return ('rigor-' + slug).slice(0, 64).replace(/[-._]+$/u, '');
 }
 
-export { sentinelDraftNeeds } from "../../../../src/board-query.js";
+export { sentinelDraftNeeds } from "../../../store/index.js";
 
 /** Bind approval to every execution and notification field, including schedule and timeout. */
 export function sentinelDigest(value) {
   return createHash('sha256').update(JSON.stringify(sentinelDefinition(value))).digest('hex');
 }
 
-export { sentinels } from "../../../../src/board-query.js";
+export { sentinels } from "../../../store/index.js";
 
 /** All mutations retain their allocated replay minimum and require a registered actor. */
 function requireSentinelActor(board, agentId, person = false) {

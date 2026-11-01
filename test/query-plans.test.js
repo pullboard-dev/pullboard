@@ -23,8 +23,8 @@ import { resumeNeeds } from '../src/resume-needs.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { recordSchemaStamp } from '../src/board-migrate.js';
-import { SCHEMA_DIGEST } from '../src/board-schema-source.js';
+import { recordSchemaStamp } from '../packages/store/index.js';
+import { SCHEMA_DIGEST } from '../packages/store/index.js';
 import {
   ensureFactIdentityIndexes,
   factIdentityExists,

@@ -6,12 +6,12 @@ import {
 } from 'node:perf_hooks';
 import {
   mainRedBuildRouting,
-} from '../../../../src/main-red-build-routing.js';
+} from '../../../store/index.js';
 /** Current-seat dispatch shares board eligibility with the heartbeat warning [N2,V1,B3]. */
 import * as store from '../../../../src/board.js';
 import {
   dispatchWork,
-} from '../../../../src/dispatch-eligibility.js';
+} from '../../../store/index.js';
 import {
   nextReview,
   ownSessionReviews,
