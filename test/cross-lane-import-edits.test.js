@@ -59,6 +59,7 @@ test('only valid static import bindings and module specifiers may change [L3,C7]
 test('a core commit may repoint a view import, while a changed assertion is refused by line [L3,C7]', t => {
   const box = nativeFixture(t);
   const file = join(box.lane, 'view', 'test.js');
+  assert.equal(box.git(box.lane, 'mv', 'core/file.js', 'core/renamed.js').status, 0);
   writeFileSync(file, "import { value } from '../core/renamed.js';\nassert.equal(value, 1);\n");
   assert.equal(box.git(box.lane, 'add', 'view/test.js').status, 0);
   const allowed = box.git(box.lane, 'commit', '-m', 'test: repoint view import [L3]');
