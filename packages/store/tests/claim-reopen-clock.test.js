@@ -159,3 +159,13 @@ test('[B35,B5] a claimed rejection remains next ahead of an older live claim', t
   claim(f, id, f.builder);
   assert.equal(next(f, f.builder).item.item_id, id);
 });
+
+test('[B35,B5] the builder own claimed rejection precedes an older returned item from another builder', t => {
+  const f = fixture(t); enable(f);
+  const older = returned({ ...f, builder: f.other, other: f.builder }, 'reject', 0);
+  const own = returned(f, 'reject', 0);
+  f.advance(30);
+  claim(f, older, f.builder);
+  claim(f, own, f.builder);
+  assert.equal(next(f, f.builder).item.item_id, own);
+});

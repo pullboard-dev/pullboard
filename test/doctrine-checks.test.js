@@ -1,3 +1,5 @@
+import { holdDoctrine } from '../packages/doctrine/index.js';
+import { holdDoctrineAsync } from '../packages/doctrine/index.js';
 /** A doctrine rule can carry a check whose count only falls, held at submit [D1,D3]. */
 import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -157,4 +159,15 @@ test("a doctrine rule's check holds its count when its row is demoted [D1,D3]", 
   assert.equal(rose.code, 1, rose.out);
   assert.match(rose.err, /RATCHET_ROSE/);
   assert.match(rose.err, /Q1 Web pages carry no TODO markers\. rose to 3, was 2/);
+});
+
+
+test('the asynchronous doctrine hold preserves candidate and base ratchet decisions [D1,D3,C7]', async () => {
+  const box = checkedProject('count: 2');
+  commitWeb(box, { 'a.html': 'TODO retained\n' }, 'feat(web): lower the count [G1]');
+  const options = { mainCommit: box.git(box.repo, 'rev-parse', 'HEAD'), commit: box.git(box.web, 'rev-parse', 'HEAD') };
+  assert.deepEqual(await holdDoctrineAsync(box.web, options), holdDoctrine(box.web, options));
+  commitWeb(box, { 'a.html': 'TODO one\nTODO two\nTODO three\n' }, 'feat(web): expose a new problem [G1]');
+  options.commit = box.git(box.web, 'rev-parse', 'HEAD');
+  await assert.rejects(holdDoctrineAsync(box.web, options), error => error.code === 'RATCHET_ROSE' && error.message.includes('rose to 3'));
 });

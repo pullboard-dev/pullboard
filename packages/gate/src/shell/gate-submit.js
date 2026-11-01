@@ -1,3 +1,4 @@
+import { startReceipt } from './gate-receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
 import { testOutcomeFields } from './test-outcomes.js';
@@ -53,11 +54,11 @@ import {
   writeTimingProfile,
 } from './gate-output.js';
 import {
-  fullGateRun,
+  fullGateRunAsync,
   pinRunMain,
   recordRun,
   refuseSandboxBlocked,
-  runProfiledShell,
+  runProfiledShellAsync,
   safeLog,
 } from './gate-execution.js';
 import {
@@ -170,9 +171,40 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const log = outputLog ?? gitPath(outputRoot, 'pullboard-submit.log');
     const checkLog = `${log}.check.log`;
     const proofLog = `${log}.proof.log`;
-    const criterion = check ? runProfiledShell(root, check, {
-      waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: lease, stages: true,
-    }) : { isGreen: true, output: '', seconds: 0 };
+    /** Isolate each concurrently executing phase's source context, tracker and receipt list. */
+    const phaseLease = role => ({ ...lease, executionServices: lease.executionServices, tracker: startReceipt(),
+      proofReceiptIds: [], ...(lease.proof ? { proof: { ...lease.proof,
+        ...(proofContext?.companion ? { submitPhase: role } : {}),
+        ...(role === 'proof' && hasFinalProof && proofContext?.admission?.id ? { submitAdmission: proofContext.admission.id } : {}) } } : {}) });
+    const criterionLease = phaseLease('criterion');
+    const proofLease = phaseLease('proof');
+    const proofWait = check ? 0 : lease.waitMs;
+    /** Launch final proof under its own phase context while preserving its full-gate stamping rules. */
+    const prove = async () => {
+      if (!deferFullFallback && selection.full) return fullGateRunAsync(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: proofLease, stages: true, kind: 'submit' });
+      if (!proofFiles.length) return { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
+      const command = `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`;
+      const run = { ...await runProfiledShellAsync(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true }), isCached: false, log: proofLog };
+      writeFileSync(proofLog, run.output);
+      return run;
+    };
+    lease.tracker?.mark('runAt');
+    // Drain both children even when one throws: receipts and the admission lease outlive their actual work.
+    const outcomes = await Promise.allSettled([
+      check ? runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
+        : Promise.resolve({ isGreen: true, output: '', seconds: 0 }),
+      prove(),
+    ]);
+    lease.tracker?.mark('ranAt');
+    lease.proofReceiptIds = [...(lease.proofReceiptIds ?? []), ...criterionLease.proofReceiptIds, ...proofLease.proofReceiptIds];
+    const active = [criterionLease, proofLease].filter(value => value.environment);
+    lease.environment = active.length && active.every(value => JSON.stringify(value.environment) === JSON.stringify(active[0].environment)) ? active[0].environment : null;
+    // Two overlapping remote intervals have no single authenticated aggregate admission or phase record.
+    lease.executionAdmission = active.length === 1 ? active[0].executionAdmission : null;
+    lease.executionPhases = active.length === 1 ? active[0].executionPhases : null;
+    const failure = outcomes.find(outcome => outcome.status === 'rejected');
+    if (failure) throw failure.reason;
+    const [criterion, proof] = outcomes.map(outcome => outcome.value);
     if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
     await recordRun(onFailure, criterion);
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
@@ -193,7 +225,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: criterion.seconds + proof.seconds, ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
+      return { ...proof, executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: Math.round((Date.now() - startedAt) / 1000), ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
         ...(criterion.blockingVerdict || proof.blockingVerdict ? { phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{
@@ -202,36 +234,20 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
         proofReceiptIds: [...(check ? [criterion.proofReceiptId ?? null] : []),
           ...(proof.profile ? [proof.proofReceiptId ?? null] : [])] };
     };
-    if (!criterion.isGreen) {
-      writeFileSync(log, criterion.output);
-      if (onFailure) await onFailure({ ...criterion, log: checkLog }, { root, command: check, lease });
-      // The red criterion's stage accounting travels with the refusal so submit can compare its cases with main (#1917).
-      const red = finish({ isGreen: false, sandboxBlocked: criterion.sandboxBlocked, isCached: false, output: criterion.output, seconds: 0, log: '' });
-      return { ...red, criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
-        ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
-        executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
-    }
-    // The proof already owns this lease: its phase profile has no additional queue wait.
-    if (hasFinalProof && proofContext?.admission?.id) lease.proof.submitAdmission = proofContext.admission.id;
-    const proofWait = check ? 0 : lease.waitMs;
-    if (proofContext?.companion) lease.proof.submitPhase = 'proof';
-    let proof;
-    // The proof keeps each stage's status, so a person's waiver can only ever explain named test failures.
-    if (!deferFullFallback && selection.full) proof = fullGateRun(root, fullConfig, false, { waitMs: proofWait, log: proofLog, gateLease: lease, stages: true, kind: 'submit' });
-    else if (!proofFiles.length) proof = { isGreen: true, output: '', seconds: 0, isCached: false, log: '' };
-    else {
-      const command = `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`;
-      proof = { ...runProfiledShell(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: lease, stages: true }), isCached: false, log: proofLog };
-      writeFileSync(proofLog, proof.output);
-    }
+    if (!criterion.isGreen && onFailure) await onFailure({ ...criterion, log: checkLog }, { root, command: check, lease: criterionLease });
     const phase = deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
     writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
     if (!proof.isGreen && onFailure) await onFailure(proof, { root,
-      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease });
+      command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease });
     await recordRun(onFailure, proof);
-    return finish(proof);
+    refuseSandboxBlocked(criterion);
+    const result = finish(proof);
+    return criterion.isGreen ? result : { ...result, isGreen: false, completedProof: proof,
+      criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
+        ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
+        executionRoot: criterion.executionRoot ?? root, executionRunner: criterion.executionRunner, environment: criterion.environment, profile: criterion.profile } };
   }, { executionServices, browser, gui, agent, item, kind, itemCheck: true, timing, onWait, ...runnerAdmission });
 }
 
