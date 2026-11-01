@@ -316,13 +316,14 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
   const preloads = preloadFingerprint();
   const inputs = { acceptedMain, source, criterion, cuts: cutRows, preloads };
-  const canReuse = cacheEligible() && preloads !== null && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
+  const samePreloads = () => cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
+  const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
     config: inputs, code: [fileURLToPath(import.meta.url)], commands: [] }) : null;
   const cached = readCheckReceipt(root, receiptKey);
   if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
-    && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
-  const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory);
+    && samePreloads() && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
+  const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory, samePreloads);
   commit = cellsComposition(root, acceptedMain, source);
   const cutBase = git(root, ['merge-base', acceptedMain, source]);
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
@@ -346,6 +347,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
     return { ...result, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };
   }));
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);
+  if (receiptKey && !samePreloads()) throw new Refused('CELLS_SUBMIT', 'Node preload changed during cell analysis; restore it and retry');
   if (receiptKey && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) writeCheckReceipt(root, receiptKey, { result });
   return result;
 }
