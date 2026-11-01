@@ -2,9 +2,8 @@
 /** A lint run starts one real compile-only parser and retains the original report bytes [C7,P3]. */
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -41,9 +40,8 @@ test('one owned parser serves import and multiple binding batches, then exits [C
 
 test('the real lint CLI starts exactly one parser per cold run and prints unchanged report bytes [C7,P3]', t => {
   const box = fixture(t);
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-parser-count-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const files = privateFixtureFiles(directory);
+  const files = privateFixtureFiles('pullboard-parser-count-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
   files.write('starts.jsonl', '');
   files.write('count.mjs', `import cp from 'node:child_process';
 import {syncBuiltinESMExports} from 'node:module';
