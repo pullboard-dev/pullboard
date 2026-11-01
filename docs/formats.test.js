@@ -517,6 +517,7 @@ function placementEventContract() {
     const item = addItem(board, { by: COORDINATOR, lane: 'core', title: 'Placement event format' });
     editMilestoneItems(board, 'M', { agentId: COORDINATOR, add: [item], reason: 'format coordinator override' });
     editMilestoneItems(board, 'N', { agentId: PERSON, add: [item], reason: 'format person override' });
+    console.log('placement fixture diagnostic ' + JSON.stringify({ currentEngine: ENGINE_VERSION, executionEngine: board.executionEngineVersion, kinds: events(board).map(row => row.event_kind) }));
     return events(board).filter(row => row.event_kind === 'milestone_placed')
       .map(row => ({ ...row, detail: JSON.parse(row.event_detail) }));
   } finally { closeBoard(board); }
