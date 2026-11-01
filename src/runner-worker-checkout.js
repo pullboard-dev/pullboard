@@ -10,8 +10,10 @@ import { tagObjectBodies } from './runner-overhead.js';
 import { RUNNER_POLICY_FILE } from './runner-policy.js';
 import { runnerPolicyRecord } from './runner-policy.js';
 import { pruneSourceCache } from './runner-source-cache.js';
-import { restoreSourceTree } from './runner-source-cache.js';
-import { rememberSourceTree } from './runner-source-cache.js';
+import { borrowWarmCheckout } from '../packages/runners/index.js';
+import { snapshotWarmCheckout } from '../packages/runners/index.js';
+import { recycleWarmCheckout } from '../packages/runners/index.js';
+import { discardWarmCheckout } from '../packages/runners/index.js';
 import { checkSourceTagNames } from './runner-source-cache.js';
 import { chmodSync } from 'node:fs';
 import { createReadStream } from 'node:fs';
@@ -59,6 +61,28 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
   });
   mark('cacheWaitMs');
   const deliveryRefs = [];
+  const warmPool = join(repositories, `${spec.repoId}.checkouts`);
+  let warm = null;
+  /** Recycle under the same cache admission only after the command's descendants have drained. */
+  S.recycleSource = async () => {
+    S.recycleSource = null;
+    if (!warm) return;
+    let admission;
+    try {
+      if (S.transportLost || S.cleanupTimedOut) throw new Error('source cache return cancelled');
+      admission = await acquireResourceApi(api, {
+        name: `repo-${spec.repoId}`, capacity: 1, scope: 'machine', root: runnerRoot,
+        repo: runnerRoot, agent: `pullboard-ssh-return-${spec.id}`, kind: 'source-cache',
+        onWait: () => { assertTransportLive(S); if (Date.now() >= S.cleanupDeadline) throw new Error('source cache return deadline'); },
+      }, join(runnerRoot, 'cache', 'resource-pool'));
+      await recycleWarmCheckout(warm, { lease: admission, git: (...args) => git(S, ...args), env });
+    } catch (error) {
+      const code = /^[A-Z_]+$/u.test(error?.code ?? '') ? error.code : 'unavailable';
+      process.stderr.write(`PULLBOARD_RUNNER_WARM_CACHE_DROP ${spec.id} ${JSON.stringify({ step: error?.runnerSetup?.step ?? 'pool return', code })}\n`);
+      discardWarmCheckout(warm);
+    }
+    finally { admission?.release(); }
+  };
   try {
     if (!existsSync(cache)) {
       const build = mkdtempSync(join(repositories, `.repo-${spec.repoId}-`));
@@ -184,15 +208,15 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     await git(S, cache, ['update-ref', '--stdin'], env, roots.map(commit => `update refs/pullboard/candidates/${commit} ${commit}\n`).join(''));
     await pruneSourceCache({ cache, runnerRoot, repoId: spec.repoId, roots, lease: cacheLease, git: (...args) => git(S, ...args), env, log: logPrune, proven });
     mark('validateMs');
-    const sourceTree = join(repositories, `${spec.repoId}.checkout`);
-    measured.reusedCommit = await restoreSourceTree({ directory: sourceTree, root, commit: spec.commit,
+    warm = await borrowWarmCheckout({ directory: warmPool, legacy: join(repositories, `${spec.repoId}.checkout`), root, commit: spec.commit,
       history: candidateHistory, lease: cacheLease, git: (...args) => git(S, ...args), env });
+    measured.reusedCommit = warm?.reusedCommit ?? null;
     if (!measured.reusedCommit) await git(S, root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     if (measured.reusedCommit !== spec.commit) {
       await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
       await git(S, root, ['checkout', '--detach', 'FETCH_HEAD'], env);
-      rememberSourceTree({ directory: sourceTree, root, commit: spec.commit, tree: spec.tree, lease: cacheLease });
     }
+    warm = snapshotWarmCheckout({ directory: warmPool, root, commit: spec.commit, tree: spec.tree, lease: cacheLease, borrowed: warm });
     if (spec.trunk) {
       await git(S, root, ['check-ref-format', spec.trunk.ref], env);
       if (candidateHistory.has(spec.trunk.commit)) await git(S, root, ['update-ref', spec.trunk.ref, spec.trunk.commit], env);
