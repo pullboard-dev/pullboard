@@ -37,7 +37,7 @@ export async function runStaticChecks(root, config, { agent, item = '', onWait, 
   if (!command) return null;
   // A green run on this exact tree, command, runner code and config is cited, not repeated (#2230).
   // The tree carries the project config file itself; the key adds the settings that come from accepted main.
-  const key = checkReceiptKey(root, { kind: 'static', definition: command, config, code: [fileURLToPath(import.meta.url)] });
+  const key = checkReceiptKey(root, { kind: 'static', definition: command, config: { staticChecks: command, timeoutMs: config.check?.timeoutMs ?? null }, code: [fileURLToPath(import.meta.url)] });
   const recorded = readCheckReceipt(root, key);
   if (recorded) {
     onReceipt?.(recorded, true);
