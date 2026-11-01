@@ -1,12 +1,13 @@
 /** Reload one committed CLI generation after an infrastructure refusal [C7,P3,V4]. */
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
+import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RETRIED = 'PULLBOARD_SUBMIT_TOOLING_RETRY';
-const ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** Read source identity without inheriting the submitting project's Git selectors. */
 function sourceGit(root, args) {
