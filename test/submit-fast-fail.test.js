@@ -11,6 +11,8 @@ import { commitAll } from './submit-gate-fixture.js';
 import { privateRepo } from './submit-gate-fixture.js';
 import { put } from './submit-gate-fixture.js';
 
+// Budget: the criterion's ten-second bound for a main conflict, which needs only a local merge-tree.
+const CONFLICT_REFUSAL_BOUND_MS = 10_000;
 const MARK = path => `node test/mark.mjs ${path}`;
 
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
@@ -43,10 +45,10 @@ test('a change that conflicts with main is refused in seconds, before any static
   commitAll(box, 'feat(core): the branch moves the same line [G1]');
   const started = Date.now();
   const refused = box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
-  const seconds = (Date.now() - started) / 1000;
+  const elapsed = Date.now() - started;
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /MERGE_CONFLICT/u);
-  assert.ok(seconds < 10, `refused in ${seconds}s`);
+  assert.ok(elapsed < CONFLICT_REFUSAL_BOUND_MS, `refused in ${elapsed}ms`); // budget: the criterion's bound, not a measured margin.
   for (const [name, path] of Object.entries(markers)) assert.equal(existsSync(path), false, `${name} did not run`);
   assert.equal(JSON.parse(box.run('show', '1', '--json').out).item_status, 'claimed');
 });
