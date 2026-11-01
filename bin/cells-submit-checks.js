@@ -314,7 +314,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const source = commit;
   const cutRows = services.readCutItems?.(acceptedMain, root);
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
-  const preloads = preloadFingerprint();
+  const preloads = cacheEligible() ? preloadFingerprint() : null;
   const inputs = { acceptedMain, source, criterion, cuts: cutRows, preloads };
   const samePreloads = () => cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
   const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
