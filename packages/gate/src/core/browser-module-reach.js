@@ -81,6 +81,7 @@ function merge(left, right) {
  */
 export function browserModuleReach(source, selected = null) {
   const lexical = lex(source), { code, strings } = lexical;
+  const syntax = delimiters(code);
   const opaque = /\b(?:eval|Function)\b|\\u(?:[\da-fA-F]{4}|\{[\da-fA-F]+\})/u.test(code);
   const rows = clauses(source, code, strings);
   const barrel = rows.length > 0 && rows.every(row => row.kind === 'export' && row.request)
@@ -88,7 +89,6 @@ export function browserModuleReach(source, selected = null) {
   let projected = source;
   const proofs = [];
   if (selected !== null) {
-    const syntax = delimiters(code);
     // Dynamic scope can observe declarations that are not lexically referenced.
     if (!syntax || opaque || source.length > 1024 * 1024) selected = null;
     else {
@@ -154,5 +154,5 @@ export function browserModuleReach(source, selected = null) {
     if (opaque) demand = null;
     requests.set(row.request, requests.has(row.request) ? merge(requests.get(row.request), demand) : demand);
   }
-  return { source: projected, requests, barrel, proofs };
+  return { source: projected, requests, barrel, proofs, uncertain: syntax === null };
 }

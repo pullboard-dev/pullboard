@@ -600,14 +600,15 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         return cache?.get(key) ?? (selected === null ? initial : browserModuleReach(source, selected));
       });
       const probes = reaches.flatMap(row => row.proofs ?? []);
+      const uncertain = reaches.findIndex(row => row.uncertain);
+      if (uncertain >= 0) return browserFallback(onFallback, paths[uncertain], 'callable source has an unproven lexical structure');
       const compiled = probes.length ? moduleCompiles(probes.map(row => row.source)) : [];
       let probe = 0;
       for (let index = 0; index < reaches.length; index++) {
         const proofs = reaches[index].proofs ?? [];
         const proven = proofs.map(row => compiled[probe++] === row.compiles).every(Boolean);
         if (!proven) {
-          const full = browserModuleReach(sources[index]);
-          reaches[index] = { ...full, requests: new Map([...full.requests.keys()].map(request => [request, null])) };
+          return browserFallback(onFallback, paths[index], 'callable declarations could not be proven safely');
         }
         if (byLaunch) {
           const { proofs: _proofs, ...provenReach } = reaches[index];
