@@ -65,7 +65,7 @@ import {
   activeViewAgents,
   viewProofSummary,
 } from '../../../../src/view-state-summary.js';
-import { personSigningPresentation } from '../../../../src/person-signing-presentation.js';
+import { personSigningPresentation } from '../../../../packages/person/index.js';
 import {
   personRequestStatuses,
   requestMoveProblem,
@@ -79,7 +79,7 @@ import {
   pendingFit,
   fitFile,
 } from '../../../../packages/blueprints/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../src/person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../../../../packages/person/index.js';
 import {
   advanceItemSource,
   sourceAdvanceCASProblem,
@@ -102,7 +102,7 @@ import {
   signedMoveProblem,
   exportedMeta,
   guardRestore,
-} from '../../../../src/person-signing.js';
+} from '../../../../packages/person/index.js';
 import { recordPublishFinding } from '../../../../src/pr-findings.js';
 import {
   landingWaivers,
@@ -127,7 +127,7 @@ import {
   preflightComputedConflict,
   conflictValue,
 } from '../../../../src/computed-conflict-receipt.js';
-import { validPresence } from '../../../../src/person-presence.js';
+import { validPresence } from '../../../../packages/person/index.js';
 import { recordTrainLanding } from '../../../../src/record-train-landing.js';
 import {
   newRigorNotices,
@@ -369,7 +369,7 @@ export { advanceItemSource } from '../../../../packages/sandbox/index.js';
 export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } from '../../../../src/sentinels.js';
 export { flakeLedger, recordFlakeObservation } from '../../../../src/flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from '../../../../src/quarantine.js';
-export { personProposals, personSigning, proposePersonMove, setPersonSigning } from '../../../../src/person-signing.js';
+export { personProposals, personSigning, proposePersonMove, setPersonSigning } from '../../../../packages/person/index.js';
 export { recordPublishFinding } from '../../../../src/pr-findings.js';
 export { landingWaivers, landingWaiverFor, waivedLandingProof } from '../../../../src/landing-waivers.js';
 

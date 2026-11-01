@@ -68,11 +68,11 @@ test('reference point 21: shipping checks only the selected release and every la
     `Reference: ${shared}\nReference: ${first}\nReference: PRIVATE-RELEASE-SENTINEL`,
     `Reference: ${shared}\nReference: ${second}`,
   ] });
-  assert.equal(box.run(box.repo, 'milestone', 'add', '0.9.3', '--items', entries.map(entry => entry.id).join(',')).code, 0);
+  assert.equal(box.run(box.repo, 'milestone', 'add', '0.9.3', '--reason', 'Arrange fixture release', '--items', entries.map(entry => entry.id).join(',')).code, 0);
   assert.equal(box.run(box.repo, 'milestone', 'add', '0.9.4').code, 0);
   const future = box.run(box.repo, 'add', 'web', 'Unlanded acknowledgement', '--brief', 'Reference: https://example.com/unlanded @LaterReporter', '--json');
   assert.equal(future.code, 0, future.err || future.out);
-  assert.equal(box.run(box.repo, 'milestone', 'items', '0.9.3', '--add', String(JSON.parse(future.out).item.item_id)).code, 0);
+  assert.equal(box.run(box.repo, 'milestone', 'items', '0.9.3', '--reason', 'Arrange fixture release', '--add', String(JSON.parse(future.out).item.item_id)).code, 0);
   /** Commit the actual release section so the check cannot read unrelated working-tree edits. */
   const changelog = lines => {
     writeFileSync(join(box.repo, 'CHANGELOG.md'), `# Changelog\n\n## [0.9.3]\n${lines.join('\n')}\n\n## [0.9.2]\n- ${shared}\n- ${first}\n- ${second}\n`);

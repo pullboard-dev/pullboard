@@ -9,7 +9,7 @@ import { barReadiness } from '../packages/verify/index.js';
 import { revisionReference } from '../packages/spec/index.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
-import { preparePersonRequest } from '../src/person-request.js';
+import { preparePersonRequest } from '../packages/person/core.js';
 
 /** Outside metadata is synthetic fixture input; these calls make no GitHub or owner-authentication assurance claim. */
 export async function seedOutside(context) {

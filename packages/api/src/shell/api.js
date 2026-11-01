@@ -1,12 +1,12 @@
 import { workQueue } from '../../../items/index.js';
 import { costAnalytics } from '../../../stats/index.js';
-import { personSigningPresentation } from '../../../../src/person-signing-presentation.js';
+import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
 import { pendingFit } from '../../../blueprints/index.js';
 import { fitFile } from '../../../blueprints/index.js';
 import { lifecycleEvent } from '../../../items/index.js';
 import { withdrawnFrom } from '../../../items/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../src/person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 import { counterProofStats } from '../../../verify/index.js';
 import { proofStats } from '../../../stats/index.js';
