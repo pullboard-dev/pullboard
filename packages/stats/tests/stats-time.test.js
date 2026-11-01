@@ -14,6 +14,7 @@ import { main } from '../../../test/native-cli-fixture.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 import { timeStats } from '../index.js';
 import { timeLines } from '../index.js';
+import { criterionSize } from '../../items/index.js';
 
 const BASE = Date.parse('2026-11-01T00:00:00Z');
 
@@ -42,7 +43,7 @@ function fixture(t) {
 
 test('landed build minutes use the last claim, ignore renewals and retain unmeasured evidence [B35,R1,R2,C7]', t => {
   const { board } = fixture(t);
-  const report = timeStats(store.events(board), store.listItems(board, { all: true }));
+  const report = timeStats(store.events(board), store.listItems(board, { all: true }), [], criterionSize);
   assert.equal(report.items.find(row => row.item === 1).buildMinutes, 20);
   assert.equal(report.items.find(row => row.item === 2).buildMinutes, 15);
   assert.equal(report.items.find(row => row.item === 3).buildMinutes, null);

@@ -1,9 +1,8 @@
 /** Project build intervals from recorded claim/submit boundaries, retaining missing evidence [B35,R1,R2,C7]. */
-import { criterionSize } from '../../../items/core.js';
 import { proofEventDetail } from '../../../kernel/index.js';
 
-/** Show each item's latest landed build; renewals never reset the last actual claim. */
-export function timeStats(history, items, catalog = []) {
+/** Show each item's latest landed build; the caller supplies the item scorer through its front door. */
+export function timeStats(history, items, catalog, scoreCriterion) {
   const current = new Map(items.map(item => [item.item_id, item]));
   const traces = new Map(), landed = new Map();
   for (const event of [...history].sort((a, b) => a.event_id - b.event_id)) {
@@ -21,7 +20,7 @@ export function timeStats(history, items, catalog = []) {
         ? (submit.at - submit.claim) / 60_000 : null;
       const item = current.get(id);
       landed.set(id, { item: id, title: item?.item_title ?? '', landedAt: event.event_at, buildMinutes,
-        size: criterionSize(item?.item_criterion ?? '', catalog), sizeBasis: 'current criterion' });
+        size: scoreCriterion(item?.item_criterion ?? '', catalog), sizeBasis: 'current criterion' });
     }
   }
   const rows = [...landed.values()].reverse();

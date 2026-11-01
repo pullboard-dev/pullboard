@@ -2,6 +2,7 @@ import { coordinatorActions } from '../../packages/stats/index.js';
 import { timeStats } from '../../packages/stats/index.js';
 import { timeLines } from '../../packages/stats/index.js';
 import { criterionCells } from '../../packages/items/index.js';
+import { criterionSize } from '../../packages/items/index.js';
 import { coordinatorActionLines } from '../../packages/stats/index.js';
 import { pipelineLimit } from '../../packages/stats/index.js';
 import { pipelineStats } from '../../packages/stats/index.js';
@@ -57,7 +58,7 @@ export function run(io, { first, second, rest, values }) {
   if (first === 'time') {
     if (second !== undefined || rest?.length || ['since', 'window', 'compare', 'limit', 'transcripts'].some(key => values[key] !== undefined)) throw new Refused('USAGE', 'use pullboard stats time to report every landed item');
     const catalog = criterionCells(ctx.info.root);
-    const time = withBoard(ctx, board => timeStats(store.events(board), store.listItems(board, { all: true }), catalog));
+    const time = withBoard(ctx, board => timeStats(store.events(board), store.listItems(board, { all: true }), catalog, criterionSize));
     io.result?.({ time });
     for (const line of timeLines(time)) io.say(line);
     return 0;
