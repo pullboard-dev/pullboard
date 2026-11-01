@@ -92,7 +92,7 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
         continue;
       }
       if (!value.text.startsWith('.') && !isAbsolute(value.text)) throw new Error('conditional package resolution is not pinned');
-      visit(localModule(file, value.text), strict);
+      visit(localModule(file, value.text), strict, 'js');
     }
     for (const match of (strict ? code : '').matchAll(/\b(require|import)\s*\(\s*([A-Za-z_$][\w$]*)\s*\)/gu)) {
       const specifier = constants.get(match[2]);
@@ -100,14 +100,14 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
       if (!specifier || [...code.matchAll(new RegExp(`\\b${match[2]}\\b`, 'gu'))].length !== 2) throw new Error('opaque checker loading');
       calls++;
       if (match[1] === 'require') requires++;
-      if (!isBuiltin(specifier)) visit(localModule(file, specifier));
+      if (!isBuiltin(specifier)) visit(localModule(file, specifier), strict, 'js');
       else if (/^(?:node:)?(?:module|vm|child_process)$/u.test(specifier)) throw new Error('opaque checker loader');
     }
     if (strict && ([...code.matchAll(/\b(?:require|import)\s*\(/gu)].length !== calls || [...code.matchAll(/\brequire\b/gu)].length !== requires || /\b(?:eval|Function|getBuiltinModule|createRequire)\s*\(/u.test(code))) throw new Error('opaque checker loading');
   }
   /** Follow the program, its interpreter, and every literal file operand of a wrapper command. */
   function commandFiles(words) {
-    if (!words?.length || words.some(word => ['-e', '--eval', '-p', '--print', '-c', '--command', '--require', '-r', '--import', '--loader'].includes(word))) throw new Error('opaque checker command');
+    if (!words?.length || words.some(word => ['-e', '--eval', '-p', '--print', '-c', '--command', '--require', '-r', '--import', '--loader', '--preserve-symlinks', '--preserve-symlinks-main'].includes(word))) throw new Error('opaque checker command');
     const program = executable(root, words[0]);
     if (!program) throw new Error('checker executable not found');
     visit(program);
