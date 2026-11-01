@@ -252,20 +252,32 @@ function hitsByShim(box, shims) {
 }
 
 /**
+ * Whether a string names `path` as a whole module path: bare or relative, absolute, a file: URL, or after a template root
+ * such as `${ROOT}/src/x.js`. A longer repository path that only ends the same way, like packages/a/src/x.js, is another module.
+ */
+function namesPath(text, path) {
+  for (let at = text.indexOf(path); at >= 0; at = text.indexOf(path, at + 1)) {
+    if (/^(?:[\w/-]|\.\w)/u.test(text.slice(at + path.length))) continue;
+    const prefix = /[^\s'"`(),=;]*$/u.exec(text.slice(0, at))[0].replace(/^file:\/\//u, '');
+    if (/^(?:\.{1,2}\/)*$/u.test(prefix) || prefix.startsWith('/') || prefix.includes('}')) return true;
+  }
+  return false;
+}
+
+/**
  * Every place a test source names one of `paths` inside a string literal, such as a generated child script importing
- * `./src/x.js` or `${ROOT}/src/x.js`. Import checks cannot see these, so deleting a named path turns main red. A literal
- * that `resolve` maps to the path is an ordinary import the repoint already handles; comments are never strings, and a
- * path after a space inside a string is prose, not a use.
+ * `./src/x.js`, `/abs/root/src/x.js` or `file:///abs/root/src/x.js`. Import checks cannot see these, so deleting a named
+ * path turns main red. A literal that `resolve` maps to the path is an ordinary import the repoint already handles;
+ * comments are never strings, so a comment mention never holds a path.
  */
 export function scriptMentions(files, paths, resolve = () => null) {
   const rows = [], wanted = [...new Set(paths)];
-  const patterns = wanted.map(path => [path, new RegExp(`(?:^|(?<=['"\`(,=]|\\}/|^/))(?:\\.{1,2}/)*${path.replace(/[.*+?^$()|[\]\\{}]/gu, '\\$&')}(?![\\w/-]|\\.\\w)`, 'u')]);
   for (const [file, bytes] of files) {
     if (!testFile(file) || !/\.[cm]?js$/u.test(file)) continue;
     const source = bytes.toString('utf8');
     if (!wanted.some(path => source.includes(path))) continue;
-    for (const literal of lex(source).strings) for (const [path, pattern] of patterns) {
-      if (!literal.text.includes(path) || resolve(file, literal.text) === path || !pattern.test(literal.text)) continue;
+    for (const literal of lex(source).strings) for (const path of wanted) {
+      if (!literal.text.includes(path) || resolve(file, literal.text) === path || !namesPath(literal.text, path)) continue;
       rows.push({ file, line: source.slice(0, literal.start).split('\n').length, path });
     }
   }

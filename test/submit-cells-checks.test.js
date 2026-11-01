@@ -3,6 +3,8 @@ import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { fixture } from './cells-plan-fixture.js';
@@ -391,16 +393,20 @@ async function refusal(promise) {
 }
 
 test('submit refuses deleting a module a test names inside a generated script, never for a comment mention [C7,D3]', async t => {
-  const box = plannedFixture(t, fixture => {
-    fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
-    fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
-    fixture.put('test/child.test.js', "const script = `import { doomed } from ${JSON.stringify(ROOT)}/src/doomed.js;`;\n// src/quiet.js once held the quiet value\nexport { script };\n");
-  });
-  git(box.root, 'rm', '-q', '--', 'src/doomed.js');
-  const named = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
-  assert.match(named, /test\/child\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
-  git(box.root, 'checkout', '-q', box.main, '--', 'src/doomed.js');
-  git(box.root, 'rm', '-q', '--', 'src/quiet.js');
-  const quiet = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
-  assert.doesNotMatch(quiet, /names deleted/u, 'a comment mention never holds a deletion');
+  for (const form of [() => '${ROOT}/src/doomed.js', root => join(root, 'src/doomed.js'), root => pathToFileURL(join(root, 'src/doomed.js')).href]) {
+    const box = plannedFixture(t, fixture => {
+      fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
+      fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
+      fixture.put('test/child.test.js', `const script = \`import { doomed } from '${form(fixture.root)}';\`;\n// src/quiet.js once held the quiet value\nexport { script };\n`);
+    });
+    const remove = file => { git(box.root, 'rm', '-q', '--', file); writePlan(box.root, computePlan(box.root)); };
+    remove('src/doomed.js');
+    const named = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
+    assert.match(named, /test\/child\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
+    assert.doesNotMatch(named, /stale/u, 'the plan follows the deletion, so the string mention alone refuses');
+    git(box.root, 'checkout', '-q', box.main, '--', 'src/doomed.js', 'bin');
+    remove('src/quiet.js');
+    assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)), /names deleted/u,
+      'a comment mention never holds a deletion');
+  }
 });
