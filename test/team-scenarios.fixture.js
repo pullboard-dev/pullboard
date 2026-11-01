@@ -95,7 +95,7 @@ import {
 } from './person-first-pin-fixture.js';
 import {
   refuseNamedSigners,
-} from '../src/person-signing-cli.js';
+} from '../packages/person/index.js';
 import {
   createE2eHelpers,
 } from './e2e-helpers.js';

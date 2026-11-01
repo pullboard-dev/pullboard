@@ -1,5 +1,5 @@
 /** Status obligations without loading the dashboard projection [N26,A9]. */
-import { verifiedPasskeyRowDecision } from './person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import * as store from '../packages/store/index.js';
 import { repoInfo } from './git.js';
 import { projectRowDecisions } from '../packages/spec/index.js';

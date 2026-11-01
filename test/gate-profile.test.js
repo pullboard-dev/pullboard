@@ -260,7 +260,7 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.match(accepted.stdout, /timing \(node\): wall/);
   const verifyPath = /timing profile: ([^\n]+)/.exec(accepted.stdout)?.[1];
   assert.ok(verifyPath, accepted.stdout);
-  assert.ok(verifyPath.endsWith('.log.profile.json'));
+  assert.ok(verifyPath.endsWith('.log.profile.json'), accepted.stdout);
   assert.equal(statSync(verifyPath).mode & 0o777, 0o600);
   assert.equal(statSync(verifyPath.slice(0, -'.profile.json'.length)).mode & 0o777, 0o600);
   const verified = JSON.parse(readFileSync(verifyPath, 'utf8'));

@@ -26,7 +26,7 @@ import {
   verifyAssertion,
   verifyRegistration,
 } from './passkeys.js';
-import { presenceAttestation } from '../src/person-presence.js';
+import { presenceAttestation } from '../packages/person/index.js';
 
 export const ACCESS_WINDOW_MS = 10 * 60_000;
 const MAX_TTL = 30 * 24 * 3600_000;

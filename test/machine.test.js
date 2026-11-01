@@ -196,7 +196,8 @@ const ITEM_CALLBACK_SOURCES = {
 };
 
 /** Exact relocated provider identities for the existing caller-specific audit metadata. */
-const STORE_AUDIT_IDENTITIES = {
+const SOURCE_AUDIT_IDENTITIES = {
+  "../packages/link/src/shell/relay.js": "relay.js",
   "../packages/gate/src/shell/gate-execution.js": "gate-execution.js",
   "../packages/gate/src/shell/gate-submit.js": "gate-submit.js",
   "../packages/gate/src/shell/gate.js": "gate.js",
@@ -225,7 +226,7 @@ const STORE_AUDIT_IDENTITIES = {
 function auditKey(key) {
   const [file, name] = key.split('#');
   const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
-  return `${STORE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
+  return `${SOURCE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
 }
 
 /**

@@ -44,7 +44,7 @@ test('review dispatch takes the oldest eligible submission ahead of a newer mile
   box.advance(60_000);
   const newer = box.add('Newer pinned review');
   box.submit(newer);
-  addMilestone(box.board, { agentId: 'coordinator', name: 'Pinned current', items: [newer] });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Pinned current', items: [newer] });
   const offered = await cli(box, box.seats.actor.path, ['next', '--take']);
   assert.equal(offered.code, 0, offered.out + offered.err);
   assert.equal(offered.document.item.item_id, oldest);

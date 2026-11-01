@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { preparePersonRequest } from '../src/person-request.js';
+import { preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../packages/link/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
