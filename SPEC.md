@@ -47,6 +47,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B32 [draft, must] A fact binds code by full sha; show prints an item's moves and facts as one timeline. | gate: test/board.test.js | serves: B29
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
 - B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: packages/sandbox/tests/trunk.test.js | serves: P2
+- B35 [draft, must] Anything that can be code is code: the coordinator turns intent into items, rules new cases and sharpens criteria. | gate: test/board.test.js | serves: B25
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
