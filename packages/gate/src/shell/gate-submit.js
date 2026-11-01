@@ -189,12 +189,15 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return run;
     };
     lease.tracker?.mark('runAt');
-    // Drain both children even when one throws: receipts and the admission lease outlive their actual work.
-    const outcomes = await Promise.allSettled([
-      check ? runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
-        : Promise.resolve({ isGreen: true, output: '', seconds: 0 }),
-      prove(),
-    ]);
+    /** Run the criterion with its own source context and receipt. */
+    const criterionRun = () => check
+      ? runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
+      : Promise.resolve({ isGreen: true, output: '', seconds: 0 });
+    // One remote lease holds one controller at a time. Local phases can still overlap; either way,
+    // drain both phases even on rejection so their receipts and the admission lease stay accurate.
+    const outcomes = lease.runner
+      ? [...await Promise.allSettled([criterionRun()]), ...await Promise.allSettled([prove()])]
+      : await Promise.allSettled([criterionRun(), prove()]);
     lease.tracker?.mark('ranAt');
     lease.proofReceiptIds = [...(lease.proofReceiptIds ?? []), ...criterionLease.proofReceiptIds, ...proofLease.proofReceiptIds];
     const active = [criterionLease, proofLease].filter(value => value.environment);
