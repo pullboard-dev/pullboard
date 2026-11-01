@@ -11,7 +11,7 @@ import {
   resolve,
 } from 'node:path';
 import { Refused } from '../packages/kernel/index.js';
-import { SEALED_SNAPSHOT_BYTES } from '../src/relay-limits.js';
+import { SEALED_SNAPSHOT_BYTES } from '../packages/link/index.js';
 import { createRelayPages } from './page-store.js';
 
 const FORMAT = 4;

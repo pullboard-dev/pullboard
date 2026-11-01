@@ -31,7 +31,7 @@ test('the lifecycle page versions fresh and historical family matching and expla
   const page = machineRules.lifecycleMarkdown();
   assert.match(page, /^\| O2_FAMILY_MATCH \| strict reviews require different declared vendor families; the existing vendor policy and explicit board or item family requirements also apply, when the item is strict, verify\.family is require, an item requires a family, or requireReviewFamilies is on for unknown families \| ask the coordinator for a verifier from another declared family \|$/m);
   for (const verb of ['reserve', 'accept', 'reject']) {
-    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(O2_FAMILY_MATCH or LINE_SETTING_RANGE\\)`, 'm'));
+    assert.match(page, new RegExp(`^\\| ${verb} \\| .*familyAllows \\(SAME_FAMILY or LINE_SETTING_RANGE or O2_FAMILY_MATCH\\)`, 'm'));
   }
 });
 

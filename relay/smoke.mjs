@@ -7,7 +7,7 @@ import { gunzipSync } from 'node:zlib';
 import { Refused } from '../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { readBoardKey } from '../packages/keys/index.js';
-import { request } from '../src/relay.js';
+import { request } from '../packages/link/index.js';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 
 const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '..');

@@ -72,7 +72,7 @@ import {
   recordRequestMove,
   relayPerson,
   requestPerson,
-} from '../../../../src/relay-requests.js';
+} from '../../../../packages/link/index.js';
 import { projectState } from '../../../../src/serve.js';
 import {
   projectFit,

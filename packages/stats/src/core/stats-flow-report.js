@@ -1,11 +1,11 @@
 /** Optional indexed flow-report accounting around the canonical lifecycle reducer [R1,R2]. */
 const STAGES = ['ready', 'later', 'build', 'reviewWait', 'review', 'mergeWait', 'rework'];
 const BUCKETS = ['under100', '100to300', '300to800', '800plus', 'unknown'];
-export const FLOW_REPORT_VERSION = 2;
+export const FLOW_REPORT_VERSION = 3;
 
 /** Only lifecycle and recorded policy moves can change report accounting. */
 export function reportEvent(event, detail) {
-  return ['add', 'edit', 'claim', 'renew', 'submit', 'reserve', 'release', 'accept', 'reject', 'merged', 'reopen', 'refreeze', 'escalate', 'lapse', 'withdraw', 'hold_item', 'unhold_item', 'hold', 'unhold', 'milestone_add', 'milestone_items', 'milestone_moved', 'milestone_edit', 'milestone_remove'].includes(event.event_kind) || event.event_kind === 'line_setting' && detail.key === 'focusMilestone';
+  return ['add', 'edit', 'claim', 'renew', 'submit', 'reserve', 'release', 'accept', 'reject', 'merged', 'reopen', 'refreeze', 'escalate', 'lapse', 'withdraw', 'hold_item', 'unhold_item', 'hold', 'unhold', 'milestone_add', 'milestone_items', 'milestone_moved', 'milestone_placed', 'milestone_edit', 'milestone_remove'].includes(event.event_kind) || event.event_kind === 'line_setting' && detail.key === 'focusMilestone';
 }
 
 /** Restore prototype-free maps after JSON decoding so valid names are never inherited keys. */
@@ -128,7 +128,7 @@ export function affectedReportItems(policy, event, detail) {
   else if (kind === 'line_setting' && detail.key === 'focusMilestone') ids = Object.keys(policy.open).map(Number);
   else if (kind === 'milestone_add') ids = detail.items ?? [];
   else if (kind === 'milestone_items') ids = [...(detail.add ?? []), ...(detail.remove ?? [])];
-  else if (kind === 'milestone_moved') ids = [event.item_id];
+  else if (['milestone_moved', 'milestone_placed'].includes(kind)) ids = [event.item_id];
   else if (['milestone_edit', 'milestone_remove'].includes(kind)) ids = policy.members[detail.before ?? detail.name] ?? [];
   return [...new Set(ids)].filter(id => policy.open[id]);
 }
@@ -172,6 +172,12 @@ export function recordReportPolicy(policy, event, detail, item) {
   if (kind === 'milestone_moved') {
     removeMembership(policy, event.item_id, detail.from);
     addMembership(policy, event.item_id, detail.to);
+  }
+  if (kind === 'milestone_placed' && !String(detail.note ?? '').startsWith('ordered in ')) {
+    // Placement and move overrides replace the board's prior assignments. A rank-only
+    // override emits the same event kind but leaves memberships intact.
+    for (const name of [...(policy.memberships[event.item_id] ?? [])]) removeMembership(policy, event.item_id, name);
+    if (typeof detail.milestone === 'string' && detail.milestone) addMembership(policy, event.item_id, detail.milestone);
   }
   if (kind === 'milestone_edit' && detail.before !== detail.after) {
     for (const id of [...(policy.members[detail.before] ?? [])]) {

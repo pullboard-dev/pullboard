@@ -4,7 +4,7 @@ import { appliedDoctrine } from '../doctrine.js';
 import { doctrineFromSource } from '../doctrine.js';
 import { loadDoctrine } from '../doctrine.js';
 import { primaryCheckoutRoot } from '../cli.js';
-import { relayRecovered } from '../relay.js';
+import { relayRecovered } from '../../packages/link/index.js';
 import { proposeLanes } from '../init.js';
 import { counterProofStats } from '../../packages/verify/index.js';
 import { localDependencyIds } from '../../packages/items/index.js';
@@ -53,7 +53,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   unlinkedRelayProjects,
-} from '../relay-setup.js';
+} from '../../packages/link/index.js';
 import {
   commitFirst,
   commitOwnerLines,
