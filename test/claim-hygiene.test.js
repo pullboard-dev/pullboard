@@ -159,8 +159,9 @@ test('a large or unreadable claim still releases at 40 minutes, naming what it k
   f.maintain();
   assert.equal(store.getItem(f.board, a).item_status, 'open', 'a large change never keeps a claim stalled');
   const large = JSON.parse(kinds(f, a, 'release').at(-1).event_detail);
-  assert.equal(large.idleClaim.handoff.changedCount, 205);
-  assert.equal(large.idleClaim.handoff.changedFiles.length, 200);
+  const kept = large.idleClaim.handoff;
+  assert.equal(kept.changedCount, 205);
+  assert.equal(kept.changedFiles.length, 200);
   assert.match(large.reason, /205 file\(s\): .*, \+197 more/u, 'the note counts what it does not list');
   // A worktree that is gone still releases, saying nothing could be pinned.
   f.claim(b, f.second);
