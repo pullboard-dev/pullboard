@@ -168,12 +168,14 @@ test('the coordinator follows the main checkout when the repo moves', () => {
 test('[N26,A2] milestones stay ordered and only the coordinator can edit them', () => {
   const first = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Build' });
   const second = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Publish' });
-  addMilestone(board, { agentId: 'coordinator', name: 'Release', note: 'Ship it', items: [first] });
-  addMilestone(board, { agentId: 'coordinator', name: 'Aftercare', items: [second] });
-  editMilestoneItems(board, 'Release', { agentId: 'coordinator', add: [second] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Release', note: 'Ship it', items: [first] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Aftercare', items: [second] });
+  editMilestoneItems(board, 'Release', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [second] });
   assert.deepEqual(store.milestones(board).find(({ name }) => name === 'Release').items, [first, second], 'adding preserves item order');
   editMilestoneItems(board, 'Release', { agentId: 'coordinator', remove: [second] });
   assert.deepEqual(store.milestones(board).find(({ name }) => name === 'Release').items, [first], 'removing preserves the remaining order');
+  // Adding to Release moves the item, so return it for the roadmap lifecycle checks.
+  editMilestoneItems(board, 'Aftercare', { agentId: 'coordinator', add: [second], reason: 'Restore fixture release' });
   moveMilestone(board, 'Aftercare', { agentId: 'coordinator', before: 'Release' });
   editMilestone(board, 'Aftercare', { agentId: 'coordinator', newName: 'Maintenance', note: 'Keep watching' });
   assert.deepEqual(store.milestones(board).map(({ name }) => name), ['Maintenance', 'Release']);
@@ -215,9 +217,9 @@ test('[H3,H16] captured milestone operations replay identically on SQLite replic
     replica.db.prepare('UPDATE board_meta SET meta_value = ? WHERE meta_key = ?').run('a'.repeat(32), 'board_id');
   }
   const operations = [
-    ['addMilestone', [{ agentId: 'coordinator', name: 'Release', note: 'Ship', items: [1] }]],
-    ['addMilestone', [{ agentId: 'coordinator', name: 'Aftercare', items: [2] }]],
-    ['editMilestoneItems', ['Aftercare', { agentId: 'coordinator', add: [1] }]],
+    ['addMilestone', [{ agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Release', note: 'Ship', items: [1] }]],
+    ['addMilestone', [{ agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Aftercare', items: [2] }]],
+    ['editMilestoneItems', ['Aftercare', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [1] }]],
     ['moveMilestone', ['Aftercare', { agentId: 'coordinator', before: 'Release' }]],
     ['editMilestone', ['Release', { agentId: 'coordinator', newName: 'Launch', note: 'Ready' }]],
     ['claim', [2, { agentId: 'app-1', lane: 'app', leaseMs: HOUR, freeze: () => ({ text: 'Publish', digest: 'digest:Publish' }) }]],

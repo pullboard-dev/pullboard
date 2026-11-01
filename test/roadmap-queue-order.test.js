@@ -15,7 +15,7 @@ test('roadmap lists open items in queue order with pins applied and agrees with 
   store.register(board, { lane: 'core', path: '/strong', route: 'strong' });
   const add = (title) => store.addItem(board, { by: 'coordinator', lane: 'core', title, route: 'strong' });
   const ids = ['First added', 'Second added', 'Third added', 'Fourth added'].map(add);
-  addMilestone(board, { agentId: 'coordinator', name: 'now', items: ids });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'now', items: ids });
   orderMilestoneItems(board, 'now', { agentId: 'coordinator', items: [ids[3]], place: 'pin', reason: 'needed first' });
   orderMilestoneItems(board, 'now', { agentId: 'coordinator', items: [ids[0]], place: 'sink', reason: 'waits on a design answer' });
   const queue = workQueue(board, { buildOrder: store.buildOrder, canTake: store.canTake, listItems: store.listItems, milestonePriorities: store.milestonePriorities,

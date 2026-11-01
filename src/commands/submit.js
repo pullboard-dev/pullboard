@@ -2,6 +2,7 @@ import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
+import { runnerPhaseFields } from '../timing.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -174,6 +175,14 @@ import { ambiguousMainReds } from '../../packages/store/index.js';
 import { submitReferenceReminders } from '../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 
+/** Sum sequential worker intervals only when every attempted run has complete measurements. */
+export function doctrineExecutionPhases(observations, attempts) {
+  const phases = observations.map(row => runnerPhaseFields(row.executionPhases));
+  const fields = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs', 'totalMs'];
+  return attempts && attempts === observations.length && phases.every(Boolean)
+    ? runnerPhaseFields({ version: 1, ...Object.fromEntries(fields.map(field => [field, phases.reduce((sum, phase) => sum + phase[field], 0)])) }) : null;
+}
+
 /** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
 function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
   if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
@@ -228,13 +237,13 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
       }
       return { problems: bytes.toString('utf8').split(/\r?\n/u).map(line => line.trimEnd()).filter(line => line.trim()), broken: '', seconds };
     },
-    /** A multi-check hold has no measured aggregate runner interval; individual actual phases stay in its observations. */
+    /** Sum the disjoint worker intervals for sequential rule runs when all were measured. */
     finish() {
       lease.tracker?.mark('ranAt');
       const single = attempts === 1 && observations.length === 1 ? observations[0] : null;
       lease.environment = observations.length && attempts === observations.length && observations.every(row => JSON.stringify(row.environment) === JSON.stringify(observations[0].environment)) ? observations[0].environment : null;
       lease.executionAdmission = single?.executionAdmission ?? null;
-      lease.executionPhases = single?.executionPhases ?? null;
+      lease.executionPhases = doctrineExecutionPhases(observations, attempts);
     },
   };
 }
