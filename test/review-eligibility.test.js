@@ -442,7 +442,7 @@ test('a companion patch author of another spelling blocks that vendor from revie
   const author = { agentId: 'core-1', parentSession: null, session: null };
   f.board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`item_patches:${id}`,
     JSON.stringify({ version: 1, patches: [{ key: 'companion', commit: 'c'.repeat(40), digest: 'd'.repeat(64), active: true, author }] }));
-  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'without an alias, OpenAI is not the codex companion family');
+  assert.equal(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), false, 'the built-in vendor table excludes the codex companion vendor without project configuration');
   f.board.familyAliases = familyIndex({ openai: ['codex'] });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(projected.eligible.includes('core-6'), false, 'the companion author is codex, which the alias list says is OpenAI');
