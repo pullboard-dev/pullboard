@@ -35,6 +35,6 @@ test('a 300-file out-of-lane commit is refused for exactly those paths, with git
   // Bound: the hook costs about 27 git calls on any commit (spec-file shows, repo probes, one diff, batched
   // ls-tree/ls-files/cat-file). 40 leaves headroom for new probes and sits far below the 900+ the per-file path
   // ran, so a per-file regression fails it. The ruling on #2232 proves the time bar by this bound, not a clock.
-  assert.ok(calls <= 40, `git ran ${calls} times for 300 files; the old path ran several per file`);
+  assert.ok(calls <= 40, `git ran ${calls} times for 300 files; trace:\n${traced}`);
   console.log(`# precommit-seconds ${seconds.toFixed(2)} diffs ${diffs.length} gitcalls ${traced.split('\n').filter(Boolean).length}`);
 });
