@@ -50,7 +50,7 @@ function fixture(t, { historical = false } = {}) {
 }
 
 test('ruled judgment areas and named guard tests are Strict while broad product families are Standard [V4,B26]', () => {
-  for (const path of ['src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'src/test-result-store.js',
+  for (const path of ['src/quarantine.js', 'src/flakes.js', 'src/ci-flakes.js', 'packages/github/src/shell/ci-flakes.js', 'src/test-result-store.js',
     'src/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js', 'src/known-main-reworks.js',
     'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js', 'src/runner-worker.js',
     'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js',
@@ -65,6 +65,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'packages/gate/src/core/test-selection.js', 'packages/gate/src/shell/gate-run-receipt.js', 'packages/gate/src/shell/test-selection.js',
     'packages/gate/tests/check.test.js', 'packages/gate/tests/gui-admission.test.js', 'packages/gate/tests/landing-stage-composition.test.js', 'bin/run-tests.js', 'bin/checks/test-names.js',
     '.github/workflows/ci.yml', 'pullboard.json']) assert.equal(gateJudgmentPath(path), true, path);
+  assert.equal(gateJudgmentPath('packages/github/src/shell/pr-github.js'), false, 'no widening to the other github modules');
   for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md',
     'packages/sandbox/src/shell/trusted-policy.js', 'packages/sandbox/src/shell/source-advance-origin.js',
     'packages/seats/src/core/seat-address.js', 'packages/seats/src/shell/lanes.js', 'packages/seats/src/core/verdict-rows.js', 'src/view/projector.js', 'src/help/gate.js', 'src/gateway-display.js', 'test/cockpit/detail-model.test.js',

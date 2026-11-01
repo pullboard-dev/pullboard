@@ -1,3 +1,6 @@
+import { recordedToolCommits } from '../../packages/git/index.js';
+import { toolRegenerationSource } from '../../packages/git/index.js';
+import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -73,7 +76,7 @@ import {
 } from '../lanes.js';
 import {
   hasSubmitRules,
-  holdDoctrine,
+  holdDoctrineAsync,
   ruleLine,
 } from '../../packages/doctrine/index.js';
 import * as gateReceipt from '../gate-receipt.js';
@@ -172,7 +175,7 @@ import { waitForSubmitGate } from '../submit-gate-wait.js';
 
 /** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
 function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
-  if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunner !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
+  if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
   const parent = artifactDirectory ? join(artifactDirectory, 'doctrine') : gitPath(root, 'pullboard-doctrine-output');
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const observations = [];
@@ -180,7 +183,7 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
   lease.tracker?.mark('runAt');
   return {
     /** Execute exactly one approved rule at its candidate or merge-base source; exit 1 is a counted result. */
-    runCheck(commit, command, timeoutMs) {
+    async runCheck(commit, command, timeoutMs) {
       attempts++;
       const started = performance.now();
       const directory = mkdtempSync(join(parent, 'rule-'));
@@ -190,7 +193,7 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
         policyCommit: mainCommit, trunk: { ref: trunkRef(root), commit: mainCommit } });
       let result;
       try {
-        result = lease.executionServices.runners.runOnRunner(root, shell, { runner: lease.runner, source: lease.source,
+        result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
           runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
           metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log') });
       } catch (error) {
@@ -295,14 +298,30 @@ export async function submitHere(ctx, id, infra) {
     ctx.io.say(`bar.check warning: ${barWarning}`);
   }
   const policy = itemPolicy(root, held);
-  const acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
+  let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
   // Fail fast, cheapest first: a dirty tree or a change that conflicts with main is refused before any other work, check or test.
   if (!isClean(root)) throw new Refused('DIRTY', 'commit your changes first; the gate must check what you submit');
   const stray = untracked(root);
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
-  const commit = headCommit(root);
+  let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
-  const trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined);
+  let trunk;
+  let regenerated = null;
+  try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
+  catch (error) {
+    if (error?.code !== 'MERGE_CONFLICT') throw error;
+    if (!isSubmitHandoffWorker(ctx)) {
+      acceptedMain = mainPolicy(root);
+      const queued = withBoard(ctx, board => pendingSubmitHandoff(board, held));
+      if (queued && recordedToolCommits(root, acceptedMain.commit, commit)) throw new Refused('SUBMIT_HANDOFF_PENDING',
+        'the original immutable source is already queued; read its result before submitting another source');
+    }
+    regenerated = regenerateToolChange(root, commit, acceptedMain.commit, { item: id });
+    if (!regenerated) throw error;
+    commit = regenerated.commit;
+    trunk = requireTrunkMerge(root, commit, acceptedMain.commit);
+    ctx.io.say(`Regenerated recorded board tools on main ${acceptedMain.commit.slice(0, 12)}; new head ${commit.slice(0, 12)} needs fresh full proof and review.`);
+  }
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
   withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id)));
@@ -359,13 +378,17 @@ export async function submitHere(ctx, id, infra) {
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
-  if (handoffEnabled || pendingHandoff) {
+  const regeneratedFrom = toolRegenerationSource(root, commit);
+  const recordedTools = recordedToolCommits(root, acceptedMain.commit, commit);
+  // A replay may replace HEAD: new recorded-tool work stays at its origin instead of rewriting a sealed queued source.
+  if (pendingHandoff || handoffEnabled && !recordedTools && !regeneratedFrom) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
-  const submitConfig = submitGateConfig(companion ? policyAt(root, companion.commit).config : ctx.config, acceptedMain.config);
+  const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
+  const submitConfig = regenerated || regeneratedFrom ? { ...configuredSubmit, affectedTests: '', submitGate: 'full' } : configuredSubmit;
   const admission = { commit: companion?.commit ?? commit, tree: companion?.tree ?? headTree(root) };
   const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
   const submissionWait = queuedItemLease(ctx, held, me.id, 'build', admission);
@@ -379,9 +402,9 @@ export async function submitHere(ctx, id, infra) {
     executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, artifactDirectory: ctx.submitHandoffOutput }));
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
   const doctrine = hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? await withGateSlot(root, lease => {
+    ? await withGateSlot(root, async lease => {
       const remote = runnerAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
-      try { return holdDoctrine(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
+      try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
         practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remote ? { runCheck: remote.runCheck } : {}) }); }
       finally { remote?.finish(); }
     },
@@ -439,7 +462,9 @@ export async function submitHere(ctx, id, infra) {
       }
     } catch (error) { criterionProblem = `\nknown-main acceptance of the frozen check failed: ${error?.message ?? error}`; /* Unavailable exact-main proof never authorizes a red frozen check. */ }
   }
-  if (criterionMatched) {
+  if (criterionMatched && gate.completedProof) {
+    gate = { ...gate, ...gate.completedProof, log: gate.log, check: gate.check, criterionRed: gate.criterionRed };
+  } else if (criterionMatched) {
     // The known red stands in for the criterion; the selected proof still runs on this commit, without re-running the check.
     const proof = await runGate(undefined);
     for (const proofReceiptId of proof.proofReceiptIds ?? []) {

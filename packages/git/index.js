@@ -12,3 +12,4 @@ export * from "./src/shell/trunk-revision.js";
 export * from "./src/shell/worktree.js";
 export * from "./core.js";
 export * from "./src/shell/git-trunk-ref.js";
+export { canonicalToolCommand, recordToolCommand, recordedToolCommits, toolRegenerationSource } from './src/shell/tool-commands.js';

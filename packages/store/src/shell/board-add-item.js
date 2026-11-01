@@ -14,6 +14,7 @@ import { saveCheckBaseline } from "./item-check-baseline.js";
 import { now } from "./board-query.js";
 import { itemById } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
+import { placeNewItem } from "./board-milestones.js";
 import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
@@ -33,7 +34,9 @@ import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming }) {
   return atomic(board, () => {
     const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming };
-    return insertItem(board, item, validateItemAddition(board, item));
+    const id = insertItem(board, item, validateItemAddition(board, item));
+    placeNewItem(board, id, item);
+    return id;
   });
 }
 

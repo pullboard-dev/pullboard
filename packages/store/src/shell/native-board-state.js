@@ -19,6 +19,7 @@ import { loadConfig } from "../../../config/index.js";
 import { repoInfo } from "../../../../src/git.js";
 import { listApiProjects } from "../../../../src/projects.js";
 import { nativeStateClockWindow } from "../core/native-state-clock.js";
+import { workProgress } from '../../../roadmap/index.js';
 import { milestoneRoadmap } from "../../../roadmap/index.js";
 import { proofStats } from "../../../stats/index.js";
 import { readCapacity } from "../../../stats/index.js";
@@ -85,6 +86,8 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       }
       return previous.items.get(item.item_id);
     } });
+    const progressById = workProgress(board);
+    state.items = state.items.map(item => ({ ...item, progress: progressById.get(item.id) }));
     const allAgents = state.agents;
     state.agents = activeViewAgents(state.agents, observedAt).map((agent) => ({ ...agent, model: agent.agent_model ?? 'unknown', displayName: displayAgentName(agent, config.agents.names) }));
     state.board = boardId;

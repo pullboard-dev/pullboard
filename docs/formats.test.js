@@ -29,6 +29,7 @@ import { pipelineEventContract } from '../test/generated-doc-pipeline-fixture.js
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
 import { recordFlakeObservation, openBoard, draftSpecRow } from '../src/native-board.js';
 import { recordNextIdle } from '../src/board.js';
+import { addMilestone, editMilestoneItems } from '../packages/store/index.js';
 import { proposeSentinel } from '../src/sentinels.js';
 import { decideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun } from '../src/sentinels.js';
@@ -506,6 +507,21 @@ function recordEventContract() {
   return { rows, actors: { [coordinator]: 'coordinator', [builder]: 'builder', [returnedBuilder]: 'builder', [widener]: 'builder', [unattendedBuilder]: 'builder', [reviewer]: 'reviewer', [PERSON]: 'person', board: 'board', rigor: 'rigor' } };
 }
 
+/** Exercise automatic placement and both authorized override actors for the event manifest [A5,B35,N26]. */
+function placementEventContract() {
+  const board = openBoard(':memory:');
+  try {
+    ensureCoordinator(board, '/format-placement-coordinator');
+    addMilestone(board, { agentId: COORDINATOR, name: 'N' });
+    addMilestone(board, { agentId: COORDINATOR, name: 'M' });
+    const item = addItem(board, { by: COORDINATOR, lane: 'core', title: 'Placement event format' });
+    editMilestoneItems(board, 'M', { agentId: COORDINATOR, add: [item], reason: 'format coordinator override' });
+    editMilestoneItems(board, 'N', { agentId: PERSON, add: [item], reason: 'format person override' });
+    return events(board).filter(row => row.event_kind === 'milestone_placed')
+      .map(row => ({ ...row, detail: JSON.parse(row.event_detail) }));
+  } finally { closeBoard(board); }
+}
+
 /** Reopen a file after removing old-format objects and report the repaired guard event. */
 function exerciseUpgrade() {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-formats-'));
@@ -782,7 +798,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
 
   const { rows, actors } = recordEventContract();
   const repairedRows = exerciseUpgrade();
-  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...await submitHandoffEventContract(t), ...pipelineEventContract()];
+  const actualRows = [...rows, ...repairedRows, ...await sourceAdvanceEventContract(t), ...reviewDefaultEventContract(), ...await submitHandoffEventContract(t), ...pipelineEventContract(), ...placementEventContract()];
   const actual = {};
   const actorByKind = {
     join: 'joining agent',
@@ -791,6 +807,7 @@ test('[A5] schema, versions, event kinds and event detail fields match live beha
     moved: 'coordinator',
     'lane-lead': 'coordinator',
     add: 'item creator',
+    milestone_placed: 'item creator or override actor',
     companion: 'requesting agent',
     edit: 'editor',
     attempt: 'reporting agent',

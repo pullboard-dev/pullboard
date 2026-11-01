@@ -1,8 +1,9 @@
+import { COORDINATOR_ACTIONS_ENGINE } from '../../../state/index.js';
 import { MILESTONE_LIMIT_ENGINE } from "../../../../src/milestone-limit-engine.js";
 import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js";
 /**
  * The roadmap's milestones: ordered names, notes, targets and item references kept in one
- * board_meta value, and the moves that change them (N26). Only the coordinator changes them.
+ * board_meta value, with automatic placement and reasoned coordinator or person overrides (N26,B35).
  *
  * An item counts toward a milestone only once it has landed on main: it is verified and its merge
  * commit is recorded. Shipping a milestone records main's commit and carries every unlanded item
@@ -16,6 +17,9 @@ import {
 } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/core.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
+import { MILESTONE_PLACEMENT_ENGINE } from "../../../../src/milestone-placement-engine.js";
+import { placementFor } from "./placement.js";
+import { placementNote } from "./placement.js";
 
 /** Require real store operations before a roadmap operation can read or mutate its board. */
 function milestonePorts(ports, names) {
@@ -135,6 +139,29 @@ function validateLocalMilestoneItems(board, items, itemById) {
   for (const id of items) if (typeof id === 'number') itemById(board, id);
 }
 
+/** Permit the coordinator, or a person explicitly giving the reason for an override [B35,H16]. */
+function placementActor(board, agentId, person, reason) {
+  const why = typeof reason === 'string' ? reason.trim() : '';
+  if (engineOf(board) >= MILESTONE_PLACEMENT_ENGINE && agentId === person) {
+    if (!why) throw new Refused('MILESTONE_PLACED', 'the board places items; a person override needs --reason "<why>"');
+    return why;
+  }
+  requireCoordinator(agentId);
+  return why;
+}
+
+/** Remove an overridden automatic assignment from other open releases, retaining shipment history and surviving ranks. */
+function movePlacedItems(entries, target, placed) {
+  for (let other = 0; other < entries.length; other++) {
+    if (other === target || entries[other].shipped) continue;
+    const previous = entries[other];
+    const remaining = previous.items.filter(id => !placed.includes(id));
+    if (remaining.length === previous.items.length) continue;
+    entries[other] = { ...previous, items: remaining, ...(previous.order ? { order: previous.order.filter(id => remaining.includes(id)) } : {}) };
+    if (previous.sunk || previous.reasons) entries[other] = withOverrides(entries[other], entries[other].order ?? [], (previous.sunk ?? []).filter(id => remaining.includes(id)));
+  }
+}
+
 /** Validate a milestone name and note before storing them. */
 function normalizeMilestoneText(name, note = null) {
   if (typeof name !== 'string' || !name.trim()) throw new Refused('MILESTONE_NAME', 'a milestone needs a name; use pullboard milestone add <name>');
@@ -172,17 +199,22 @@ function shippedRefusal(entry) {
 }
 
 /** Add an ordered milestone without changing any referenced board items. */
-export function addMilestone(board, { agentId, name, note = null, items = [] }, ports) {
-  const { atomic, itemById, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones"]);
-  requireCoordinator(agentId);
+export function addMilestone(board, { agentId, name, note = null, items = [], reason }, ports) {
+  const { atomic, itemById, logEvent, milestones, PERSON } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones", "PERSON"]);
+  const why = placementActor(board, agentId, PERSON, reason);
   const text = normalizeMilestoneText(name, note);
   const normalized = normalizeMilestoneItems(items);
   validateLocalMilestoneItems(board, normalized, itemById);
+  const placed = placedItems(board, normalized);
+  if (placed.length && !why) throw new Refused('MILESTONE_PLACED', 'the board places items; creating a release with new work needs an override --reason "<why>"');
   return atomic(board, () => {
     const entries = milestones(board);
     if (entries.some((entry) => entry.name === text.name)) throw new Refused('MILESTONE_EXISTS', `milestone ${text.name} already exists; edit it or choose another name`);
-    saveMilestones(board, [...entries, { ...text, items: normalized }]);
-    logEvent(board, agentId, 'milestone_add', null, { name: text.name, items: normalized });
+    entries.push({ ...text, items: normalized });
+    movePlacedItems(entries, entries.length - 1, placed);
+    saveMilestones(board, entries);
+    logEvent(board, agentId, 'milestone_add', null, { name: text.name, items: normalized, ...(why ? { reason: why } : {}) });
+    for (const id of placed) logEvent(board, agentId, 'milestone_placed', id, { milestone: text.name, rule: 'override', reason: why, note: `placed in ${text.name} by override: ${why}` });
     return text.name;
   });
 }
@@ -207,9 +239,9 @@ function enforceMilestoneLimit(board, milestone, items, itemById) {
  * Edit membership atomically. A swap removes and adds in one receiver transaction, checked against
  * the final count; historical add/remove moves retain their recorded meaning [N26,H16].
  */
-export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [] }, ports) {
-  const { atomic, itemById, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones"]);
-  requireCoordinator(agentId);
+export function editMilestoneItems(board, name, { agentId, add = [], remove = [], swap = [], reason }, ports) {
+  const { atomic, itemById, logEvent, milestones, PERSON } = milestonePorts(ports, ["atomic", "itemById", "logEvent", "milestones", "PERSON"]);
+  const why = placementActor(board, agentId, PERSON, reason);
   const additions = normalizeMilestoneItems(add);
   const removals = normalizeMilestoneItems(remove);
   const swaps = normalizeMilestoneItems(swap);
@@ -218,6 +250,8 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
   if (additions.length && removals.length) throw new Refused('MILESTONE_ITEMS', 'add or remove milestone items in separate commands');
   if (swaps.length && (!additions.length || removals.length || swaps.length !== 1 || additions.length !== 1)) throw new Refused('MILESTONE_ITEMS', 'swap one item out with --add <id> --swap <id>; use --remove separately');
   if (!additions.length && !removals.length) throw new Refused('MILESTONE_ITEMS', 'name ids with --add or --remove');
+  const placed = placedItems(board, additions);
+  if (placed.length && !why) throw new Refused('MILESTONE_PLACED', `the board places items: ${placed.map(id => `#${id}`).join(', ')} ${placed.length === 1 ? 'was' : 'were'} placed by rule; override with --reason "<why>"`);
   return atomic(board, () => {
     const entries = milestones(board);
     const index = entries.findIndex((entry) => entry.name === name);
@@ -237,10 +271,49 @@ export function editMilestoneItems(board, name, { agentId, add = [], remove = []
     if (engineOf(board) >= WORK_ORDER_ENGINE && (current.sunk || current.reasons)) {
       entries[index] = withOverrides(entries[index], entries[index].order ?? [], (current.sunk ?? []).filter(id => nextItems.includes(id)));
     }
+    movePlacedItems(entries, index, placed);
     saveMilestones(board, entries);
-    logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals, ...(swaps.length ? { swap: swaps } : {}) });
+    logEvent(board, agentId, 'milestone_items', null, { name, add: additions, remove: removals, ...(swaps.length ? { swap: swaps } : {}), ...(why ? { reason: why } : {}) });
+    for (const id of placed) logEvent(board, agentId, 'milestone_placed', id, { milestone: name, rule: 'override', reason: why, note: `placed in ${name} by override: ${why}` });
     return nextItems;
   });
+}
+
+/** Local items the board placed by rule, which a plain manual add may not move. */
+function placedItems(board, additions) {
+  if (engineOf(board) < MILESTONE_PLACEMENT_ENGINE) return [];
+  const placed = board.db.prepare("SELECT 1 FROM event WHERE item_id = ? AND event_kind = 'milestone_placed' LIMIT 1");
+  return additions.filter(id => typeof id === 'number' && placed.get(id));
+}
+
+/**
+ * Place a new item by the board's rule inside its add transaction and record the rule and its inputs on the item
+ * [N26,B35]. A milestone at its --limit passes the item on to the next unshipped milestone with room.
+ */
+export function placeNewItem(board, id, item, ports) {
+  const { itemById, logEvent, milestones } = milestonePorts(ports, ["itemById", "logEvent", "milestones"]);
+  if (engineOf(board) < MILESTONE_PLACEMENT_ENGINE) return null;
+  const entries = milestones(board);
+  /** The row for a local id, or null when it is not on this board. */
+  const itemOf = ref => { try { return ref === null ? null : itemById(board, ref) ?? null; } catch { return null; } };
+  let placed = placementFor(entries, item, itemOf);
+  if (placed.index >= 0) {
+    const full = [];
+    let index = placed.index;
+    while (index < entries.length && (entries[index].shipped || (entries[index].limit != null && entries[index].items.length >= entries[index].limit))) {
+      if (!entries[index].shipped) full.push(entries[index].name);
+      index += 1;
+    }
+    placed = { ...placed, index: index < entries.length ? index : -1, milestone: entries[index]?.name ?? null, ...(full.length ? { full } : {}) };
+  }
+  if (placed.index >= 0) {
+    const current = entries[placed.index];
+    entries[placed.index] = { ...current, items: [...current.items, id], order: [...(current.order ?? []), ...current.items.filter(member => !(current.order ?? []).includes(member)), id] };
+    placed.position = entries[placed.index].items.length;
+    saveMilestones(board, entries);
+  }
+  logEvent(board, item.by, 'milestone_placed', id, { milestone: placed?.milestone ?? null, rule: placed?.rule ?? null, position: placed?.position ?? null, inputs: placed?.inputs ?? null, note: placementNote(placed) });
+  return placed?.milestone ?? null;
 }
 
 /**
@@ -251,7 +324,11 @@ export function orderMilestoneItems(board, name, { agentId, items, place, reason
   const { atomic, logEvent, milestones, PERSON } = milestonePorts(ports, ["atomic", "logEvent", "milestones", "PERSON"]);
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < MILESTONE_RANK_ENGINE) throw new Refused('ENGINE_VERSION', 'milestone order requires engine 34; upgrade Pullboard before ranking work');
   if (place !== undefined) return overrideMilestoneItems(board, name, { agentId, items, place, reason }, ports);
-  if (agentId !== COORDINATOR && (agentId === PERSON || !board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId))) {
+  const automatic = placedItems(board, normalizeMilestoneItems(items));
+  const why = typeof reason === 'string' ? reason.trim() : '';
+  if (automatic.length && !why) throw new Refused('MILESTONE_PLACED', 'the board places items; order overrides need --reason "<why>"');
+  if (automatic.length) placementActor(board, agentId, PERSON, reason);
+  if (!automatic.length && agentId !== COORDINATOR && (agentId === PERSON || !board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId))) {
     throw new Refused('NO_AGENT', 'milestone order is an agent or coordinator move; join an agent worktree or ask the coordinator');
   }
   const order = normalizeMilestoneItems(items);
@@ -270,7 +347,8 @@ export function orderMilestoneItems(board, name, { agentId, items, place, reason
     entries[index] = { ...current, order: ranked };
     if (engineOf(board) >= WORK_ORDER_ENGINE) entries[index] = withOverrides(current, ranked, sunk);
     saveMilestones(board, entries);
-    logEvent(board, agentId, 'milestone_order', null, { name, items: order });
+    logEvent(board, agentId, 'milestone_order', null, { name, items: order, ...(why ? { reason: why } : {}) });
+    for (const id of automatic) logEvent(board, agentId, 'milestone_placed', id, { milestone: name, rule: 'override', reason: why, note: `ordered in ${name} by override: ${why}` });
     return ranked;
   });
 }
@@ -394,14 +472,17 @@ export function removeMilestone(board, name, { agentId }, ports) {
  *
  * @param {any} board
  * @param {string} name
- * @param {{ agentId: string, commit: string | null, next?: string }} options
+ * @param {{ agentId: string, commit: string | null, next?: string, asPerson?: boolean, reason?: string, channel?: 'terminal' | 'view' }} options
  * @returns {{ milestone: any, into: string | null, moved: number[], notMoved: string[] }}
  */
-export function shipMilestone(board, name, { agentId, commit, next }, ports) {
+export function shipMilestone(board, name, { agentId, commit, next, asPerson = false, reason, channel = 'terminal' }, ports) {
   const { atomic, itemById, listItems, logEvent, milestones } = milestonePorts(ports, ["atomic", "itemById", "listItems", "logEvent", "milestones"]);
   requireCoordinator(agentId);
   if (typeof commit !== 'string' || !/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/.test(commit)) {
     throw new Refused('MILESTONE_COMMIT', "shipping records main's commit and main has none here; commit to main, then ship from the main checkout");
+  }
+  if ((asPerson || reason !== undefined) && (board.executionEngineVersion ?? ENGINE_VERSION) < COORDINATOR_ACTIONS_ENGINE) {
+    throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before recording a project release override');
   }
   return atomic(board, () => {
     const entries = milestones(board);
@@ -433,9 +514,11 @@ export function shipMilestone(board, name, { agentId, commit, next }, ports) {
       enforceMilestoneLimit(board, entries[into], nextItems, itemById);
       entries[into] = { ...entries[into], items: nextItems };
     }
+    const coordinatorActions = (board.executionEngineVersion ?? ENGINE_VERSION) >= COORDINATOR_ACTIONS_ENGINE
+      ? milestonePorts(ports, ['coordinatorMilestoneRelease']).coordinatorMilestoneRelease(board, { asPerson, reason, channel, plannedMoves: ['milestone_ship', ...moved.map(() => 'milestone_moved')] }) : null;
     entries[index] = { ...current, items: current.items.filter(stays), shipped: { commit, at, by: agentId } };
     saveMilestones(board, entries);
-    logEvent(board, agentId, 'milestone_ship', null, { name, commit, into: intoName, moved, notMoved });
+    logEvent(board, agentId, 'milestone_ship', null, { name, commit, into: intoName, moved, notMoved, ...(coordinatorActions ? { coordinatorActions } : {}) });
     for (const id of moved) {
       logEvent(board, agentId, 'milestone_moved', id, { from: name, to: intoName, commit,
         note: `moved from ${name} to ${intoName}: ${name} shipped at ${commit.slice(0, 12)} before this item landed` });

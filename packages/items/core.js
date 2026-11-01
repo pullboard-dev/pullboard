@@ -1,3 +1,5 @@
+import { VENDOR_FAMILY_ENGINE } from '../../src/vendor-family-engine.js';
+import { vendorFamilyAliases } from './src/core/vendor-families.js';
 import { ENGINE_VERSION } from '../../src/engine-metadata.js';
 import { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
 
@@ -17,13 +19,16 @@ export function aliasEngineOn(board) {
 
 /** The explicit alias index, or null below its engine so older recorded moves compare as they did [#1762]. */
 export function familyAliasesOf(board) {
-  return aliasEngineOn(board) ? board.familyAliases ?? null : null;
+  if (!aliasEngineOn(board)) return null;
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= VENDOR_FAMILY_ENGINE
+    ? vendorFamilyAliases(board.familyAliases) : board.familyAliases ?? null;
 }
 
 /** Both families are declared and differ; below the alias engine this is the original raw-label comparison, byte for byte [#1762]. */
 export function familiesDiffer(board, first, second) {
   if (!aliasEngineOn(board)) return Boolean(first && second && first !== second);
-  const left = familyName(first, board.familyAliases), right = familyName(second, board.familyAliases);
+  const aliases = familyAliasesOf(board);
+  const left = familyName(first, aliases), right = familyName(second, aliases);
   return Boolean(left && right && left !== right);
 }
 

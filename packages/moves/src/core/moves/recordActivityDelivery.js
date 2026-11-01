@@ -1,7 +1,11 @@
 /** Recipient-owned interrupt receipts use the existing authenticated ordered move protocol [H2,H16,N26]. */
+import { BOARD_PROGRESS_ENGINE } from '../../../../../src/board-progress-engine.js';
 import { ACTIVITY_DELIVERY_ENGINE } from "../../../../../src/activity-delivery-engine.js";
 /** Never let an older replica silently omit a delivery or acknowledgement. */
-function minimumEngine() { return ACTIVITY_DELIVERY_ENGINE; }
+function minimumEngine(args) {
+  return args[0]?.interrupts?.some?.(entry => ['stalled', 'unblocked'].includes(entry?.reason))
+    ? BOARD_PROGRESS_ENGINE : ACTIVITY_DELIVERY_ENGINE;
+}
 /** Use the actual recipient argument, never a transport-selected alias. */
 function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: 'recordActivityDelivery', order: 1000, engine: ACTIVITY_DELIVERY_ENGINE,

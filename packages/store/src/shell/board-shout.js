@@ -1,3 +1,5 @@
+import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
+import { restatesBoardState } from '../../../roadmap/index.js';
 import { routeLaneMessage } from "../../../../src/lane-lead.js";
 import * as itemDecisions from "../../../items/index.js";
 import { activityNewsFlag } from "../core/board-activity-news.js";
@@ -101,6 +103,9 @@ export function persistShout(board, { from, to, text, decision = false, answers 
  */
 export function shout(board, message) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= PROOF_RUN_ENGINE) refuseLongShout(message.text);
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && restatesBoardState(board, message)) {
+    throw new Refused('BOARD_SHOWS_THIS', 'the board shows this; read pullboard show <id> or pullboard roadmap for progress, waits, holders and idle time');
+  }
   return atomic(board, () => insertShout(board, routeLaneMessage(board, { ...message,
     news: activityNewsFlag(message, board.executionEngineVersion ?? ENGINE_VERSION) }, board.executionEngineVersion ?? ENGINE_VERSION)));
 }

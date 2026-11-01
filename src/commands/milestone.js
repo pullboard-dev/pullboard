@@ -24,10 +24,10 @@ export async function run(io, { first, second, rest, values }) {
     if (!second || rest.length || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.name !== undefined) {
       throw new Refused('USAGE', 'pullboard milestone add <name> [--note ...] [--items 1,2,3]');
     }
-    name = await ordered(ctx, board, 'addMilestone', [{ agentId: me.id, name: second, note: values.note ?? null, items: ids(values.items) }]);
+    name = await ordered(ctx, board, 'addMilestone', [{ agentId: me.id, name: second, note: values.note ?? null, items: ids(values.items), ...(values.reason === undefined ? {} : { reason: values.reason }) }]);
   } else if (first === 'items') {
     if (!second || rest.length || Boolean(values.add) === Boolean(values.remove) || (values.swap !== undefined && (!values.add || values.remove)) || values.items !== undefined || values.note !== undefined || values.before !== undefined || values.name !== undefined) {
-      throw new Refused('USAGE', 'pullboard milestone items <name> --add ids [--swap id] or --remove ids');
+      throw new Refused('USAGE', 'pullboard milestone items <name> --add ids [--swap id] [--reason "<why>"] or --remove ids');
     }
     name = second;
     const next = await ordered(ctx, board, 'editMilestoneItems', [name, {
@@ -35,6 +35,7 @@ export async function run(io, { first, second, rest, values }) {
       add: values.add === undefined ? [] : ids(values.add),
       remove: values.remove === undefined ? [] : ids(values.remove),
       ...(values.swap === undefined ? {} : { swap: ids(values.swap) }),
+      ...(values.reason === undefined ? {} : { reason: values.reason }),
     }]);
     entry = { ...store.milestones(board).find((value) => value.name === name), items: next };
   } else if (first === 'order') {
@@ -42,7 +43,7 @@ export async function run(io, { first, second, rest, values }) {
       throw new Refused('USAGE', 'pullboard milestone order <name> <ids>');
     }
     name = second;
-    await ordered(ctx, board, 'orderMilestoneItems', [name, { agentId: me.id, items: ids(rest[0]) }]);
+    await ordered(ctx, board, 'orderMilestoneItems', [name, { agentId: me.id, items: ids(rest[0]), ...(values.reason === undefined ? {} : { reason: values.reason }) }]);
   } else if (['pin', 'sink', 'lift'].includes(first)) {
     if (!second || rest.length !== 1 || !rest[0].trim() || ['items', 'note', 'before', 'name', 'add', 'remove', 'target'].some((key) => values[key] !== undefined)
       || (first === 'lift') !== (values.reason === undefined)) {
@@ -68,9 +69,12 @@ export async function run(io, { first, second, rest, values }) {
     if (!second || rest.length || ['items', 'note', 'before', 'name', 'add', 'remove', 'target'].some((key) => values[key] !== undefined)) {
       throw new Refused('USAGE', 'pullboard milestone ship <name> [--next <name>]');
     }
+    if (values.as !== undefined && values.as !== 'person' || values.as === 'person' && !ctx.info.isMain || values.reason !== undefined && values.as !== 'person') {
+      throw new Refused('USAGE', 'a release override belongs to the person in the primary checkout: milestone ship <name> --as person --reason \"why\"');
+    }
     name = second;
     checkReleaseReferences(ctx.info.root, board, name, mainCheckout(ctx.info.root)?.commit ?? null, store);
-    const shipped = await ordered(ctx, board, 'shipMilestone', [name, { agentId: me.id, commit: mainCheckout(ctx.info.root)?.commit ?? null, ...(values.next === undefined ? {} : { next: values.next }) }]);
+    const shipped = await ordered(ctx, board, 'shipMilestone', [name, { agentId: me.id, coordinatorActions: true, commit: mainCheckout(ctx.info.root)?.commit ?? null, ...(values.next === undefined ? {} : { next: values.next }), ...(values.as === 'person' ? { asPerson: true, reason: values.reason, channel: 'terminal' } : {}) }]);
     io.result?.(shipped);
     const outcome = shipped.moved.length ? `moved ${shipped.moved.map((id) => `#${id}`).join(', ')} into ${shipped.into}` : 'no local items moved';
     const external = shipped.notMoved.length ? `; not moved across boards: ${shipped.notMoved.join(', ')}` : '';

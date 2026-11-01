@@ -69,3 +69,5 @@ export {
   frozenCheck,
   trunkMerge,
 } from './src/shell/trusted-policy.js';
+export { regenerateToolChange } from './src/shell/tool-regeneration.js';
+export { spawnCaptured } from './src/shell/captured-child.js';

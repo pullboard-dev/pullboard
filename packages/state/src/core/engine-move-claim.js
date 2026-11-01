@@ -7,6 +7,7 @@ import { restoreFreeze } from './engine-move-freeze.js';
 export function prepareBefore(board, values) {
   const settings = lineSettings(board);
   const markers = {
+    ...(settings.returnRejectedWork === true ? { returnRejectedWork: true } : {}),
     ...(['wipPerReviewer', 'takeoverMinutes'].some(key => typeof settings[key] === 'number') ? { lineCapacity: true } : {}),
     ...(values[1]?.reworkRoutingPolicy ? { reworkSameFamily: true } : {}),
   };

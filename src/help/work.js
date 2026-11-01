@@ -36,16 +36,16 @@ export const workHelp = `Work
                                         and each item's unblock count, effort and why it sits there
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
-  pullboard milestone add <name> [--note ...] [--items 1,2,3]   create a milestone and optionally add items
-  pullboard milestone items <name> --add ids [--swap id]   add items; --swap replaces an existing item
+  pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
+  pullboard milestone items <name> --add ids [--swap id] --reason "<why>"   override the board placement, recording why
   pullboard milestone items <name> --remove ids            remove items from the milestone
-  pullboard milestone order <name> <ids>                       rank these items within their milestone (agents)
+  pullboard milestone order <name> <ids> --reason "<why>"   override computed order (coordinator or person)
   pullboard milestone pin|sink <name> <ids> --reason "<why>"   hold items above or below the queue's own order
   pullboard milestone lift <name> <ids>                        return pinned or sunk items to the queue's order
   pullboard milestone move <name> --before <other>             reorder a milestone
   pullboard milestone edit <name> [--name <new>] [--note <text>] [--target <date and time>|none] [--limit <n>|none]
                                         rename, update a note, or set a shipping target or item limit
-  pullboard milestone ship <name> [--next <name>]              record it shipped at main's commit and move
+  pullboard milestone ship <name> [--next <name>] [--as person --reason "why"]              record it shipped at main's commit and move
                                         its unlanded items into the next milestone (or --next)
   pullboard milestone remove <name>                            remove a milestone without changing its items
   pullboard doctor                     check board integrity without changing it

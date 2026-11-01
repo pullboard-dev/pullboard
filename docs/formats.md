@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/shell/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/shell/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `189` | `ENGINE_VERSION` in `packages/state/src/shell/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `194` | `ENGINE_VERSION` in `packages/state/src/shell/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -441,6 +441,8 @@ The `event` table is a SQLite schema object governed by `SCHEMA_VERSION`; its ap
 
 The computed-grant engine adds `grantEngine` to new join, claim and renewal events as a version marker only. It stores no grant or scope: permission is computed from the seat lane, current claim and lease, or the current review reservation. Older event bytes remain unchanged. A new marker prevents an older engine from reinterpreting a narrowed claim; shout, release and review reservation keep their existing engine floors. Reopen still checks the marked seat and target version floor, while its own authority guards decide permission: direct current conflict requests are coordinator-only; automatic review preflight records native-computed evidence bound to the board, actor, item, submitted head, trunk and conflicting files, verified at origin and replay by merging the recorded immutable commits, never the replica current trunk; missing objects refuse without advancing the replay cursor until fetched. The exact accepting reviewer can withdraw its current verdict independently of a build claim. Older recorded submitted-conflict moves retain their joined-seat authority.
 
+Automatic milestone placement records its chosen release, order position, rule and prerequisite, spec-row and lane inputs on the item. A coordinator or person override records its reason and actor; an unavailable release remains explicit in the placement note.
+
 <!-- events:start -->
 | Kind | Actor | Detail fields |
 | --- | --- | --- |
@@ -449,6 +451,7 @@ The computed-grant engine adds `grantEngine` to new join, claim and renewal even
 | `model` | agent | — |
 | `moved` | coordinator | `path` |
 | `add` | item creator | `lane`, `specIds`, `after`, `route`, optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
+| `milestone_placed` | item creator or override actor | `milestone`, `rule`, `note`, automatic `position`, `inputs`, override `reason` |
 | `companion` | requesting agent | `item`, `lane`, `key` (event item id names the parent) |
 | `edit` | editor | `brief`, `route`, `criterion`, `check`, `unfrozen`, optional `after`, optional `pendingRefreeze`, engine-19 `reason`, `barCorrection`, optional `widenedCheck` (present only when a claim holder widens its own check: the test files added), optional `correctedFrozen` (digest of the bar frozen atomically with a correction), optional `reviewFamily`, optional `reviewPolicy`, optional `checkTiming` (coordinator boolean, frozen with the criterion) |
 | `escalate` | builder | `from`, `to`, `note`, `attempt` |

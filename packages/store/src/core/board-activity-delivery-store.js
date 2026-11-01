@@ -63,6 +63,10 @@ function canonicalInterrupt(board, agentId, input, observedThrough) {
   let text;
   if (input.reason === 'rejected' && event?.event_kind === 'reject' && rejectionRecipient(board, event, detail) === agentId) {
     text = `#${event.item_id} was rejected; read its verdict and repair or release it`;
+  } else if (input.reason === 'stalled' && event?.event_kind === 'claim_stalled' && detail.holder === agentId) {
+    text = `#${event.item_id} is stalled; resume real work or release it with notes`;
+  } else if (input.reason === 'unblocked' && event?.event_kind === 'work_notice' && detail.kind === 'unblocked' && detail.holder === agentId) {
+    text = `#${event.item_id} is unblocked; read its board progress and resume or claim it`;
   } else if (input.reason === 'answered' && event?.event_kind === 'answer') {
     const answer = board.db.prepare('SELECT * FROM shout WHERE shout_id=?').get(detail.shout);
     const question = answer && board.db.prepare('SELECT * FROM shout WHERE shout_id=?').get(answer.shout_answers);

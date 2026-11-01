@@ -10,6 +10,10 @@ export function nativeStateClockWindow(state, history, items, observedAt) {
   function consider(at) {
     if (Number.isFinite(at) && at > observedAt && (nextChange === null || at < nextChange)) nextChange = at;
   }
+  for (const item of state.items ?? []) {
+    const lastActivity = Date.parse(item.progress?.lastActivity);
+    if (Number.isFinite(lastActivity)) consider(lastActivity + (Math.floor((observedAt - lastActivity) / 60_000) + 1) * 60_000);
+  }
   for (const agent of state.agents ?? []) {
     const at = Date.parse(agent.lastMoveAt);
     // The activity window includes the exact four-hour boundary.

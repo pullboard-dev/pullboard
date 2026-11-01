@@ -1,3 +1,4 @@
+import { MILESTONE_PLACEMENT_ENGINE } from '../../../../../src/milestone-placement-engine.js';
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by orderMilestoneItems, discovered without a shared registry edit [C7,V4,H16]. */
 import { MILESTONE_RANK_ENGINE } from "../../../../../src/engine-metadata.js";
@@ -7,6 +8,7 @@ import { WORK_ORDER_ENGINE } from "../../../../../src/work-order-engine.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {
+  if (args[1]?.reason !== undefined && args[1]?.place === undefined) return MILESTONE_PLACEMENT_ENGINE;
   if (args[1]?.place !== undefined) return WORK_ORDER_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;

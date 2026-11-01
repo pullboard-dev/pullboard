@@ -24,4 +24,4 @@ export const COMMANDS = Object.fromEntries(discovered(readdirSync(FOLDER), COMMA
   .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0));
 
 /** Commands that run but stay out of help and the result-command list. */
-export const UNLISTED_COMMANDS = ['mcp'];
+export const UNLISTED_COMMANDS = ['check-baseline', 'mcp'];
