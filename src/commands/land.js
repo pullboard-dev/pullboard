@@ -19,7 +19,7 @@ import { postLandSuitePorts } from '../post-land-suite-ports.js';
 import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../git.js';
-import { syncRelay } from '../relay.js';
+import { syncRelay } from '../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {

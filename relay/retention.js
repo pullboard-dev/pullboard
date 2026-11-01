@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { closeSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { Refused } from '../packages/kernel/index.js';
-import { SEALED_SNAPSHOT_BYTES } from '../src/relay-limits.js';
+import { SEALED_SNAPSHOT_BYTES } from '../packages/link/index.js';
 import { createRelayJournal } from './journal.js';
 
 const DAY = 86_400_000;

@@ -3,7 +3,7 @@ import { Worker } from 'node:worker_threads';
 import { channel } from 'node:diagnostics_channel';
 import { setImmediate as turn } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
-import { request } from '../src/relay.js';
+import { request } from '../packages/link/index.js';
 
 const serverSource = String.raw`
 import { parentPort, workerData } from 'node:worker_threads';

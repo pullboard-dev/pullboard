@@ -16,7 +16,7 @@ import {
   sentinelDraftNeeds,
   sentinels,
 } from '../packages/store/index.js';
-import { relayCanaryNeeds } from './relay-canary-needs.js';
+import { relayCanaryNeeds } from '../packages/link/index.js';
 
 /** Keep status obligations; reuse its same-call seats and doctrine, otherwise read them freshly. */
 export function personNeedsSummary(root, { board, config, agents, doctrine }) {

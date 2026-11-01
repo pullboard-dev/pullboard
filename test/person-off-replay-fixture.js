@@ -21,7 +21,7 @@ import {
   personRequestRecords,
   requestIntentDigest,
   requestStageText,
-} from '../src/relay-requests.js';
+} from '../packages/link/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { relayStampKey } from './person-relay-stamp.js';
 

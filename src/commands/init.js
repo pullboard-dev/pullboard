@@ -45,10 +45,10 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   offerRelayAtInit,
-} from '../relay-setup.js';
+} from '../../packages/link/index.js';
 import {
   relayLinked,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   join,
 } from 'node:path';
