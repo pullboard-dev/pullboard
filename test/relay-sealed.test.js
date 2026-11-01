@@ -25,7 +25,7 @@ import { exportBoard, restoreRelaySnapshot, semanticBoardDigest } from '../packa
 import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine } from '../packages/state/index.js';
 import { seal as sealMove, unseal as openSealed } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
-import { relayRecover, syncRelay } from '../src/relay.js';
+import { relayRecover, syncRelay } from '../packages/link/index.js';
 import { createRelayPageCache, snapshotSourceId } from '../src/relay-page-cache.js';
 
 after(cleanupFixtureChildren);

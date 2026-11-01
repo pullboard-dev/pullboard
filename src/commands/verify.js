@@ -72,7 +72,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   relayRecovered,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,

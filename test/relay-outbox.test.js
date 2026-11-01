@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
-import { rememberCreatedItems } from '../src/relay-created-items.js';
+import { rememberCreatedItems } from '../packages/link/index.js';
 import {
   ITEM_SLOTS,
   bindRefs,

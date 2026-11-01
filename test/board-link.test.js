@@ -1,4 +1,4 @@
-import { request as boardLinkRequest } from '../src/relay.js';
+import { request as boardLinkRequest } from '../packages/link/index.js';
 import { signedBoard, consent, linkRelay } from './board-link-fixture.js';
 /** Bilateral board links disclose only authorized state and retain real SSH consent [E32,H16,H17]. */
 import assert from 'node:assert/strict';
