@@ -1140,6 +1140,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/stats-time-checkpoint.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/automatic-landing.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }
