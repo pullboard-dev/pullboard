@@ -1,3 +1,4 @@
+import { lineSettings } from './line-settings-read.js';
 import { manualLandingFailureQuoted } from './manual-landing-failure-quoted.js';
 import { Refused } from '../../../kernel/core.js';
 
@@ -8,8 +9,9 @@ export function prepareArgs(board, args, { ports }) { return ports.computedRetur
 export function prepareBefore(board, values, { args, ports }) {
   if (values[1] && typeof values[1] === 'object'
     && manualLandingFailureQuoted(values[1].note)) values[1].quotedLandingFailure = true;
+  if (lineSettings(board).returnRejectedWork === true) values[1] = { ...values[1], returnRejectedWork: true };
   // Seal native stored facts at origin; replicas replay these bytes without the origin file.
-  if (args[1]?.sourceAdvanceReturn !== undefined) values[1] = ports.sealSourceAdvanceReturn(board, values[0], args[1]);
+  if (args[1]?.sourceAdvanceReturn !== undefined) values[1] = { ...ports.sealSourceAdvanceReturn(board, values[0], args[1]), ...(values[1]?.returnRejectedWork ? { returnRejectedWork: true } : {}) };
 }
 
 /** Automatic conflict evidence must be the prepared receipt, never a caller's own assertion. */

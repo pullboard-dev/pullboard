@@ -1108,6 +1108,14 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/rejection-return-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/191.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/vendor-family-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     }

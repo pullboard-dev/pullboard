@@ -25,7 +25,7 @@ function replayPolicy(input, observations) {
   const settings = source.settings ?? {};
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Refused('USAGE', 'replay settings must be a board line-settings object');
   for (const [key, value] of Object.entries(settings)) {
-    if (['barReady', 'takeoverMinutes', 'reworkSameFamily'].includes(key)) throw new Refused('USAGE', `${key} is not modelled by replay`);
+    if (['barReady', 'takeoverMinutes', 'reworkSameFamily', 'returnRejectedWork'].includes(key)) throw new Refused('USAGE', `${key} is not modelled by replay`);
     if (key === 'reviewsFirst' && typeof value === 'boolean') continue;
     const range = RANGES[key];
     if (!range || value !== false && (typeof value !== 'number' || !Number.isFinite(value)
