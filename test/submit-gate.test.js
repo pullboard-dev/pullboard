@@ -8,14 +8,18 @@ import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFi
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { after, test } from 'node:test';
+import { test } from 'node:test';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { configFromSource } from '../packages/config/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { refuseSandboxBlocked, sandboxBlockedOperation } from '../src/gate.js';
 import { fileDenialWatcher } from '../packages/sandbox/index.js';
-
-
+import { SPEC } from './submit-gate-fixture.js';
+import { privateRepo } from './submit-gate-fixture.js';
+import { builderRepo } from './submit-gate-fixture.js';
+import { put } from './submit-gate-fixture.js';
+import { commitAll } from './submit-gate-fixture.js';
+import { seedGraph } from './submit-gate-fixture.js';
 
 /** Copy the real module graph in bounded commits while retaining every installed hook and secret scan. */
 function copyRepositoryFixture(box, repository, tracked) {
