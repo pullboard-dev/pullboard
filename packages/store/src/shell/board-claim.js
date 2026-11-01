@@ -116,6 +116,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       builderFirstRefusal: (found) => {
         const continuation = exitContinuationProblem(board, id, agentId);
         if (continuation) return continuation;
+        if (firstRefusal(board, id)?.otherSeatFirst) return firstRefusalProblem(board, id, agentId, { firstRefusal });
         if (reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
           reworkRouting = reworkFamilyRoute(board, found, { agentId, listAgents: board.nativePorts.listAgents,
             routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,

@@ -14,6 +14,8 @@ export function firstRefusalReason(board, id, agentId, { firstRefusal, exitConti
   const continuation = exitContinuationProblem?.(board, id, agentId);
   if (continuation) return continuation.message;
   const window = firstRefusal(board, id);
+  if (window?.otherSeatFirst) return window.builder === agentId
+    ? `item #${id} returned for lack of progress; another seat gets first refusal until ${window.until}; take another item` : null;
   return window && window.builder !== agentId && !takeoverReady(board, id)
     ? `item #${id} waits for ${window.builder} until ${window.until}; claim it after that time, or ask its builder to release it`
     : null;
@@ -115,3 +117,25 @@ export function manualLandingFailure(note, { quoted = false } = {}) {
   return { tests, mergeCommit: evidence.groups.mergeCommit };
 }
 
+
+/** Derive progress from native moves: renewals and notes never restart the two-hour submit clock [B4,B5]. */
+export function claimProgress(board, item, now) {
+  const history = board.db.prepare('SELECT event_id,event_at,event_by,event_kind,event_detail FROM event WHERE item_id=? ORDER BY event_id').all(item.item_id);
+  let holder = null, since = null, failures = 0;
+  const notes = [];
+  for (const event of history) {
+    const detail = JSON.parse(event.event_detail);
+    if (event.event_kind === 'claim') {
+      if (holder !== event.event_by) { holder = event.event_by; since = event.event_at; failures = 0; }
+      since ??= event.event_at;
+    }
+    if (event.event_kind === 'fact' && event.event_by === item.item_owner && detail.kind === 'note') notes.push(detail.id);
+    if (event.event_kind === 'submit') since = null;
+    if (event.event_kind === 'accept') failures = 0;
+    if ((detail.submitOutcome && event.event_by === item.item_owner) || (event.event_kind === 'reject' && holder === item.item_owner)) failures += 1;
+    if (['release', 'withdraw', 'merged'].includes(event.event_kind) && !detail.review) { holder = null; since = null; failures = 0; }
+  }
+  const elapsed = now - Date.parse(since);
+  const trigger = failures >= 3 ? 'three failed submits in a row' : Number.isFinite(elapsed) && elapsed >= 7_200_000 ? 'two hours without a new submit' : null;
+  return { trigger, since, failures, notes };
+}

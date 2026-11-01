@@ -38,7 +38,7 @@ export function firstRefusal(board, id, at = board.clock.now()) {
       if ((board.executionEngineVersion ?? ENGINE_VERSION) >= REJECTED_WORK_RETURN_ENGINE && detail.engine >= REJECTED_WORK_RETURN_ENGINE) returned.add(detail.rejection);
       continue;
     }
-    if (event.event_kind === 'release' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= LEASE_LAPSE_ENGINE && detail.expiredClaim)) { releases.push(event); continue; }
+    if (event.event_kind === 'release' && !detail.reopenFirstRefusal?.otherSeatFirst && !((board.executionEngineVersion ?? ENGINE_VERSION) >= LEASE_LAPSE_ENGINE && detail.expiredClaim)) { releases.push(event); continue; }
     if (event.event_kind === 'submit') return null;
     if (event.event_kind === 'reject' && returned.has(event.event_id)) return null;
     const window = detail.reopenFirstRefusal;

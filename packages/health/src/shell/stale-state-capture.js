@@ -1,3 +1,5 @@
+import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
 import { staleInstant } from '../../../../src/board-stale-state-policy.js';
 import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
 /** Native maintenance captures local inputs once, before sending a replay-independent observation [B4,H16]. */
@@ -50,8 +52,8 @@ export function pinClaimHandoff(board, row, item) {
  * Each costs one row and one worktree read; only a measured pass over 1 s would justify a cursor that advances
  * every pass, never a time-based window.
  */
-function liveClaims(board, actor, at) {
-  return board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until>? ORDER BY item_id").all(actor, at.toISOString());
+function liveClaims(board, actor) {
+  return board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? ORDER BY item_id").all(actor);
 }
 
 /**
@@ -68,7 +70,7 @@ export function captureLapsedClaims(ctx, board, actor) {
   const items = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id>? ORDER BY item_id LIMIT 32").all(actor, cutoff, cursor);
   if (items.length < 32) items.push(...board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id<=? ORDER BY item_id LIMIT ?").all(actor, cutoff, cursor, 32 - items.length));
   const lapsed = new Set(items.map(item => item.item_id));
-  items.push(...liveClaims(board, actor, at));
+  items.push(...liveClaims(board, actor).filter(item => !lapsed.has(item.item_id)));
   if (!items.length) return null;
   // A seat whose worktree no longer exists can do no work there, so it reads as idle rather than unknown (#1225 row 7).
   const gone = holder => { const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(holder)?.agent_path; return Boolean(path) && !existsSync(path); };
@@ -78,6 +80,10 @@ export function captureLapsedClaims(ctx, board, actor) {
   snapshot.claimScan = { previous: cursor, next: lapsedItems.length ? lapsedItems.at(-1).item_id : Math.max(cursor, 1) };
   const byId = new Map(items.map(item => [item.item_id, item]));
   snapshot.claims = snapshot.claims.flatMap(row => {
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
+      && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)) {
+      return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
+    }
     if (lapsed.has(row.id)) {
       return row.evidence.complete && row.expired && staleInstant(row.leaseUntil, at.getTime()) !== null
         && Number.isSafeInteger(row.leaseMs) && row.leaseMs > 0 ? [row] : [];

@@ -1,3 +1,5 @@
+import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
+import { claimProgress } from '../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../kernel/core.js";
 import { IN_STATE } from "../../../../src/machine.js";
@@ -87,7 +89,7 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   const item = itemById(board, row.id);
   const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
   if (item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId || claim?.event_id !== row.claimEventId) changed();
-  if (!['stall', 'release', 'waiting'].includes(row.idle)) invalid();
+  if (!['stall', 'release', 'waiting', 'progress'].includes(row.idle)) invalid();
   if (row.idle === 'waiting') {
     if (!Array.isArray(row.waitingOn) || !row.waitingOn.length) invalid();
     const after = String(item.item_after ?? '').split(',').map(Number);
@@ -99,10 +101,13 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
     return { row, item };
   }
   const observed = Date.parse(snapshot.observedAt);
+  if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
+  const progress = row.idle === 'progress' ? claimProgress(board, item, observed) : null;
+  if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
   const last = staleInstant(row.workActivity, observed);
   const limit = row.idle === 'release' ? CLAIM_IDLE_RELEASE_MS : CLAIM_STALL_MS;
-  if (last === null || row.idleMs !== observed - last || row.idleMs < limit) invalid();
-  if (row.idle === 'release' && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
+  if (!progress && (last === null || row.idleMs !== observed - last || row.idleMs < limit)) invalid();
+  if (['release', 'progress'].includes(row.idle) && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
     || !Number.isSafeInteger(row.handoff.changedCount) || row.handoff.changedCount < row.handoff.changedFiles.length
     || (row.handoff.pin === null ? typeof row.handoff.unpinned !== 'string' || !row.handoff.unpinned
       : !/^[0-9a-f]{40,64}$/u.test(row.handoff.head ?? '') || typeof row.handoff.pin !== 'string' || !row.handoff.pin.startsWith(`refs/pullboard/handoffs/${row.id}/`)))) invalid();
@@ -214,14 +219,19 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
           (result.stalled ??= []).push(row.id);
           continue;
         }
-        const reason = row.idle === 'waiting'
+        const reason = row.idle === 'progress'
+          ? `Returned after ${row.progress.trigger}; holder ${row.actor}'s notes: ${row.progress.notes.join(', ') || 'none recorded'} (pullboard show ${row.id} --detail); ${handoffText(row.handoff)}.`
+          : row.idle === 'waiting'
           ? `Waiting on ${row.waitingOn.map(id => `#${id}`).join(', ')}, which has not landed; the item returns to the queue when it lands.`
           : `Idle ${Math.floor(row.idleMs / 60_000)} minutes: no commit, file change, running check or item move since ${row.workActivity}; ${handoffText(row.handoff)}.`;
         moveItem(board, row.id, 'release', {
           checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
           set: () => ({ item_owner: null, item_lease_until: null }),
         });
-        logEvent(board, agentId, 'release', row.id, { reason, reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
+        if (row.idle === 'progress') logEvent(board, 'board', 'fact', row.id, {
+          id: `progress-return-${row.id}-${row.claimEventId}`, kind: 'note', text: reason, ref: null, supersedes: null });
+        logEvent(board, agentId, 'release', row.id, { reason,
+          ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
           idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
             ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
         board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`claim_stalled:${row.id}`);

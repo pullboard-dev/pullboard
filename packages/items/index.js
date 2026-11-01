@@ -51,3 +51,5 @@ export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, seal
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/core/lifecycle-move.js';
 export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies } from './src/shell/family-declaration.js';
 export { auditFailureItem } from './src/core/audit-failure-item.js';
+
+export { claimProgress } from './src/core/claims.js';

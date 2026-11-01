@@ -1,3 +1,4 @@
+import { claimProgress } from '../../../items/index.js';
 /** Indexed read-only stale-state observations; no Git scanner or write-board import on status [B4,C7]. */
 import { withSeatPresence } from '../../../../src/seat-presence.js';
 import {
@@ -135,7 +136,7 @@ function claimRow(board, item, limits, now, seats, options) {
   const age = staleStateAge('claim', item.item_id, item.item_owner, observed.lastActivity ?? event?.event_at, limit, now);
   return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimEventId: event?.event_id ?? null,
     leaseEventId: lease?.event_id ?? null, leaseStartedAt: lease?.event_at ?? null, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease?.event_at),
-    episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
+    progress: claimProgress(board, item, now), episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
 }
 
 /** Building, stalled (20 idle minutes) or waiting on an unlanded item, from real work signals only (#1225). */
