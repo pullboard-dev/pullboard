@@ -15,7 +15,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../src/exchange.js';
+} from '../packages/store/index.js';
 import { LANE_LEAD_ENGINE } from '../src/lane-lead-engine.js';
 import { DECISION_ORIGIN_ENGINE } from '../src/decision-origin-engine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';

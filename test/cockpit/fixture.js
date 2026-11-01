@@ -18,7 +18,7 @@ import {
 import { after, test } from 'node:test';
 import vm from 'node:vm';
 import { stableChrome, press, tapTouch } from './stable.js';
-import { closeBoard } from '../../src/board.js';
+import { closeBoard } from '../../packages/store/index.js';
 import { openBoard } from '../../src/native-board.js';
 import { fetchFresh } from '../http-fixture.js';
 import { guardChromeGroup, requireBrowserSlot } from '../chrome-fixture.js';

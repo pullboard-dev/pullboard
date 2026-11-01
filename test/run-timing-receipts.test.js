@@ -13,7 +13,7 @@ import { readGateReceipt, receiptFields, receiptStore } from '../src/gate-run-re
 import { formatSuiteTiming, suiteTimingFromOutput, SUITE_TIMING_PREFIX, timingAccountingStages } from '../src/run-timing.js';
 import { RUN_TIMING_ENGINE } from '../src/run-timing-engine.js';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { eventMetrics } from '../bin/case-study/events.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';

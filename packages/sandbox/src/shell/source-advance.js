@@ -10,13 +10,13 @@ import {
 } from '../../../verify/index.js';
 import {
   atomic,
-} from '../../../../src/board-event-log.js';
+} from '../../../store/index.js';
 import {
   logEvent,
-} from '../../../../src/board-event-log.js';
+} from '../../../store/index.js';
 import {
   itemById,
-} from '../../../../src/board-item-read.js';
+} from '../../../store/index.js';
 import {
   itemPatchDigest,
 } from '../../../../src/item-patch-state.js';

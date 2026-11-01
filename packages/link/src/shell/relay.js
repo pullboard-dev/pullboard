@@ -55,10 +55,10 @@ import {
   gzipSync,
 } from 'node:zlib';
 import * as store from '../../../../src/board.js';
-import { exportBoard } from '../../../../src/exchange.js';
-import { importBoard } from '../../../../src/exchange.js';
-import { restoreRelaySnapshot } from '../../../../src/exchange.js';
-import { semanticBoardDigest } from '../../../../src/exchange.js';
+import { exportBoard } from '../../../store/index.js';
+import { importBoard } from '../../../store/index.js';
+import { restoreRelaySnapshot } from '../../../store/index.js';
+import { semanticBoardDigest } from '../../../store/index.js';
 import { appliedSequence } from '../../../state/index.js';
 import { applyEngineMove } from '../../../state/index.js';
 import { applyRelayMove } from '../../../state/index.js';
@@ -99,7 +99,7 @@ import { outboxFile } from './relay-outbox-summary.js';
 import { readOutboxSummary } from './relay-outbox-summary.js';
 import { stampCoordinatorHolder } from '../../../seats/index.js';
 import { computerName } from '../../../seats/index.js';
-import { relayFiles } from '../../../../src/local-state.js';
+import { relayFiles } from '../../../store/index.js';
 import { archiveRelinkOutbox } from './relay-relink.js';
 import { finishRelink } from './relay-relink.js';
 import { plannedRelayBoard } from './relay-relink.js';

@@ -16,11 +16,11 @@ import { appliedSequence } from '../src/shell/engine.js';
 import { applyEngineMove } from '../src/shell/engine.js';
 import { prepareEngineMove } from '../src/shell/engine.js';
 import { startRelayEpoch } from '../src/shell/engine.js';
-import { exportBoard } from '../../../src/exchange.js';
-import { importBoard } from '../../../src/exchange.js';
-import { restoreRelaySnapshot } from '../../../src/exchange.js';
-import { recordSchemaStamp } from '../../../src/board-migrate.js';
-import { SCHEMA_DIGEST } from '../../../src/board-schema-source.js';
+import { exportBoard } from '../../store/index.js';
+import { importBoard } from '../../store/index.js';
+import { restoreRelaySnapshot } from '../../store/index.js';
+import { recordSchemaStamp } from '../../store/index.js';
+import { SCHEMA_DIGEST } from '../../store/index.js';
 
 const AT = '2026-10-01T12:00:00.000Z';
 const LEGACY = AGENT_GRANT_ENGINE - 1;

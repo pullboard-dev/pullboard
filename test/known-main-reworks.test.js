@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ownersOf, linkKnownMainReworks, requireKnownMainReworks } from '../src/known-main-reworks.js';
+import { ownersOf, linkKnownMainReworks, requireKnownMainReworks } from '../packages/store/index.js';
 
 const failure = { file: 'test/example.test.js', name: 'other case [C7]', signature: 'a'.repeat(64) };
 /** Build a synthetic repair row; this fixture asserts ownership rules, not an executed gate. */

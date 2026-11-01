@@ -1,5 +1,5 @@
 /** Derived landing waiver reads; ordered waiver receipts retain their released shape [B3,R3,H16]. */
-import { PERSON } from './board.js';
+import { PERSON } from '../packages/store/index.js';
 import { landingBatches } from './landing-batch-history.js';
 import { landingWaiverCovers } from './board-landing-exceptions.js';
 import { landingWaiverKind } from './board-landing-exceptions.js';

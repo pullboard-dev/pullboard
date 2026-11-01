@@ -174,7 +174,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   // A target means one instant on every replica: the move carries UTC, and a bare local time
   // in an ordered envelope is refused alike in every zone instead of read in each one's own.
   const { prepareEngineMove, applyEngineMove } = await import('../src/shell/engine.js');
-  const { exportBoard, importBoard } = await import('../../../src/exchange.js');
+  const { exportBoard, importBoard } = await import('../../store/index.js');
   addMilestone(box.board, { agentId: 'coordinator', name: 'Z' });
   const snapshot = exportBoard(box.board);
   const prepared = prepareEngineMove(box.board, 'editMilestone', ['Z', { agentId: 'coordinator', target: '2026-10-20T18:00' }], { id: 'zone-target', actor: 'coordinator' });
@@ -238,7 +238,7 @@ test('[N26,H16] engine 44 cannot ship a milestone or set its target', async (t) 
   box.json('milestone', 'add', 'A');
   box.json('milestone', 'add', 'B');
   const { applyEngineMove, appliedSequence, engineReceipt, prepareEngineMove } = await import('../src/shell/engine.js');
-  const { exportBoard } = await import('../../../src/exchange.js');
+  const { exportBoard } = await import('../../store/index.js');
   const main = box.git('rev-parse', 'main');
   const moves = [
     prepareEngineMove(box.board, 'shipMilestone', ['A', { agentId: 'coordinator', commit: main, next: 'B' }],

@@ -1,9 +1,9 @@
 /** Move one item between this repo's team and device-local boards [E14,E15]. */
 import { randomUUID } from 'node:crypto';
 import * as store from '../board.js';
-import { localBoardInventory } from '../board-inventory.js';
-import { resolveLocalBoard } from '../board-inventory.js';
-import { resolveLocalItemReference } from '../board-inventory.js';
+import { localBoardInventory } from '../../packages/store/index.js';
+import { resolveLocalBoard } from '../../packages/store/index.js';
+import { resolveLocalItemReference } from '../../packages/store/index.js';
 import { runPrivateBoard } from '../private-board.js';
 import { nativeBoardOpeners } from '../cli-context.js';
 import { projectBoardIdentity } from '../projects.js';

@@ -7,7 +7,7 @@ import { openBoard } from '../src/native-board.js';
 import { COORDINATOR, loadConfig } from '../packages/config/index.js';
 import { AUTOMATIC_DISPATCH_ENGINE } from '../src/automatic-dispatch-engine.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { planRowApply, prepareRowDecisions, writeRowApply } from '../packages/spec/index.js';
 import { rowDecisions } from '../packages/spec/index.js';

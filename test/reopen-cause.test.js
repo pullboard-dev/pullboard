@@ -17,7 +17,7 @@ import { REOPEN_CAUSE_ENGINE } from '../src/reopen-cause-engine.js';
 import {
   exportBoard,
   importBoard,
-} from '../src/exchange.js';
+} from '../packages/store/index.js';
 import {
   ensureRigorCounters,
   resumeRigorCounters,

@@ -2,7 +2,7 @@
 import { nativeBoardOpeners } from '../cli-context.js';
 import { nativePersonRequestPorts } from '../cli-context.js';
 import * as store from '../board.js';
-import { gitSyncLinked } from '../local-state.js';
+import { gitSyncLinked } from '../../packages/store/index.js';
 import {
   requirePersonChannel,
 } from '../person.js';

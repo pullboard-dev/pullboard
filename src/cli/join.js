@@ -1,7 +1,7 @@
 /** Helpers for `pullboard join` and `pullboard whoami`: session binding and model identity. Split from src/cli.js, which re-exports it [C7]. */
 import * as personIdentity from '../person.js';
 import { identifyCaller } from '../cli-identity.js';
-import { gitSyncLinked } from '../local-state.js';
+import { gitSyncLinked } from '../../packages/store/index.js';
 import { environmentAgent } from '../relay-environment.js';
 import * as seatCheckout from '../seat-checkout.js';
 import * as store from '../board.js';

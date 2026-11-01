@@ -22,7 +22,7 @@ import {
   prepareEngineMove,
 } from '../src/engine.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { machineSettingsFile } from '../packages/config/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';

@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { reserveReview } from '../../../src/board.js';
+import { reserveReview } from '../../store/index.js';
 import { openBoard } from '../../../src/native-board.js';
 import { followBoard } from '../../shouts/index.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';

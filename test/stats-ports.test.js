@@ -1,11 +1,11 @@
 /** Explicit statistics ports preserve native snapshot and fallback behavior [R1,R2,CD64,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addItem } from '../src/board.js';
-import { closeBoard } from '../src/board.js';
-import { events } from '../src/board.js';
+import { addItem } from '../packages/store/index.js';
+import { closeBoard } from '../packages/store/index.js';
+import { events } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
-import { register } from '../src/board.js';
+import { register } from '../packages/store/index.js';
 import { counterProofStats } from '../packages/verify/index.js';
 import { eventCounts } from '../src/stats.js';
 import { proofStats } from '../src/stats.js';

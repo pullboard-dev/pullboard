@@ -7,7 +7,7 @@ import {
   LEGACY_DOCTRINE_FILE,
   doctrineFile,
 } from '../../../config/index.js';
-import { committedIds } from '../../../../src/history.js';
+import { committedIds } from '../../../store/index.js';
 import {
   loadSpec,
   parseSpec,

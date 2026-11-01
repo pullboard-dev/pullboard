@@ -22,7 +22,7 @@ import { LINE_ORDER_ENGINE } from '../src/line-order-engine.js';
 import { setLineSetting } from '../src/board-line-settings.js';
 import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';

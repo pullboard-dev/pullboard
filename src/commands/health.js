@@ -16,7 +16,7 @@ import {
 import {
   context,
 } from '../cli.js';
-import { openBoardReadOnly } from '../board.js';
+import { openBoardReadOnly } from '../../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../board-health-receipts.js';
 import { readBlocks } from '../blocks.js';
 import { rigorReport } from '../board-rigor.js';

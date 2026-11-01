@@ -18,7 +18,7 @@ import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../src/agent-names.js';
 import { projectState } from '../src/cli/view-state.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../src/brief.js';
 import { JSON_SHAPES } from '../packages/config/index.js';

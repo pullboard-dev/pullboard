@@ -10,7 +10,7 @@ import {
   appliedSequence,
   engineReceipt,
 } from '../../../../src/engine.js';
-import { restoreRelaySnapshot } from '../../../../src/exchange.js';
+import { restoreRelaySnapshot } from '../../../store/index.js';
 import {
   codeIsFromMain,
   repoInfo,

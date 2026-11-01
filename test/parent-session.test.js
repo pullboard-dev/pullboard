@@ -30,7 +30,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../src/exchange.js';
+} from '../packages/store/index.js';
 import { effectiveAgentParent } from '../src/seats.js';
 
 test('[V1,B3] parent discovery reads only matching own runtime metadata and agrees with --parent', (t) => {

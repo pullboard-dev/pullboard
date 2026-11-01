@@ -2,7 +2,7 @@
 import {
   join,
 } from 'node:path';
-import * as store from '../board-query.js';
+import * as store from '../../packages/store/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {
   context,

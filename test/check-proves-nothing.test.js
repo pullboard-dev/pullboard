@@ -1,7 +1,7 @@
 /** A check that already passes on main names the check that would prove the work, and a hold leaves the agent a step [V2,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { closeBoard } from '../src/board.js';
+import { closeBoard } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { refuseProvesNothing } from '../packages/verify/index.js';
 import { sayCheckBaseline } from '../src/check-baseline.js';

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { failureSignatures } from '../src/main-failure-matches.js';
 import { matchingMainFailures } from '../src/main-failure-matches.js';
-import { ownersOf } from '../src/known-main-reworks.js';
+import { ownersOf } from '../packages/store/index.js';
 import { fixture } from './known-main-affected.fixture.js';
 import { cli } from './known-main-affected.fixture.js';
 

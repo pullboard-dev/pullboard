@@ -8,13 +8,13 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { isolateTestMachine } from '../src/test-isolation.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { boardReceiptStore, readGateReceipt } from '../src/gate-run-receipt.js';
-import { proofRunReceipt } from '../src/proof-receipts.js';
+import { proofRunReceipt } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import * as store from '../src/board.js';
-import { itemById } from '../src/board-item-read.js';
+import { itemById } from '../packages/store/index.js';
 import { exitRulesDefaults, exitRulesConfigProblems } from '../packages/config/index.js';
 import { nativeToolCallIds } from '../packages/stats/index.js';
 import { exitRulesDecision } from '../packages/stats/index.js';

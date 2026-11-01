@@ -2,8 +2,8 @@
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../../../../src/board.js';
-import { importBoard } from '../../../../src/exchange.js';
-import { isInitialBoard } from '../../../../src/exchange.js';
+import { importBoard } from '../../../store/index.js';
+import { isInitialBoard } from '../../../store/index.js';
 import { appliedSequence } from '../../../state/index.js';
 import { codeIsFromMain } from '../../../../src/git.js';
 import { repoInfo } from '../../../../src/git.js';

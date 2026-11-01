@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
 import { MAIN_AUDIT_ENGINE } from '../src/main-audit-engine.js';
-import { getItem } from '../src/board.js';
+import { getItem } from '../packages/store/index.js';
 import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
 import { gateRuns, recordGateRun } from '../src/quarantine.js';
 

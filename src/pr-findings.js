@@ -7,7 +7,7 @@ import {
   getItem,
   linkPublishRepair,
   logEvent,
-} from './board.js';
+} from '../packages/store/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { Refused } from '../packages/kernel/index.js';
 

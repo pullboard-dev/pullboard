@@ -17,7 +17,7 @@ import {
 import { runProfiledShell } from "../../../../src/gate.js";
 import { runFrozenProof } from "../../../../src/gate.js";
 import { recordNativeProof } from "../../../verify/index.js";
-import { proofRunReceipt } from "../../../../src/proof-receipts.js";
+import { proofRunReceipt } from "../../../store/index.js";
 import { quarantineVerdictSnapshot } from "./quarantine.js";
 import {
   diagnosticUnavailable,

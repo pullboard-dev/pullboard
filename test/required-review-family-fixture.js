@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 
 /** Exercise the real add/edit parser, shared eligibility and exact-seat dispatch without fabricating stored rows. */
 export async function proveRequiredReviewFamily(t, { fixture, cli }) {
