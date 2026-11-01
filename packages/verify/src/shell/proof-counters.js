@@ -58,9 +58,19 @@ export function proofCounterRows(board, kind) {
     .map(row => decode(row.meta_value));
 }
 
-/** Remove local projections without modifying any native event or verdict. */
+/** Whether a newer writer stored the flow report, so this older code must leave it alone. */
+function reportIsNewer(board) {
+  const summary = proofCounter(board, 'report-summary');
+  return Boolean(summary && summary.version > FLOW_REPORT_VERSION);
+}
+
+/**
+ * Remove local projections without modifying any native event or verdict. A flow report that a newer writer stored
+ * survives: deleting it only to rebuild an older version made mixed-version writers replay all history in turn.
+ */
 export function clearProofCounters(board) {
-  board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(`${PROOF_COUNTER_PREFIX}*`);
+  const keep = reportIsNewer(board) ? ` AND meta_key NOT GLOB '${PREFIX}report-*'` : '';
+  board.db.prepare(`DELETE FROM board_meta WHERE meta_key GLOB ?${keep}`).run(`${PROOF_COUNTER_PREFIX}*`);
 }
 
 /** Start a bounded all-time aggregate; window-specific contributions live in separate event shards. */
@@ -250,10 +260,11 @@ function ensureReportCounters(board, until) {
 /** Rebuild from authoritative history inside the caller's existing write transaction. */
 export function rebuildProofCounters(board) {
   const { ensureRigorCounters } = board.runtimePorts.verification;
+  const keepNewer = reportIsNewer(board);
   clearProofCounters(board);
   ensureRigorCounters(board);
   put(board, 'summary', emptySummary());
-  resetReportCounters(board);
+  if (!keepNewer) resetReportCounters(board);
   replayProofTail(board, 0);
   ensureCapacityCounters(board, proofCounter(board, 'summary').last);
   refreshCapacityCache(board, { force: true });
