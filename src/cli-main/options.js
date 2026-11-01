@@ -184,3 +184,11 @@ export function asksGitNothing(argv) {
     return Boolean(values.help || values.version || command === 'help' || command === 'version');
   } catch { return true; }
 }
+
+/** Whether a command line only prints the version, which selects no pinned tool build and asks Git nothing. */
+export function asksVersion(argv) {
+  try {
+    const { values, positionals: [command] } = parseCommandArgs(argv);
+    return Boolean((values.version || command === 'version') && !values.help);
+  } catch { return false; }
+}
