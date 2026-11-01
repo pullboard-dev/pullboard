@@ -1,6 +1,7 @@
 /** Submit fails fast: a main conflict is refused before any check, then static problems before the runner gate [V4,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -15,13 +16,14 @@ const MARK = path => `node test/mark.mjs ${path}`;
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
 function project(t, { staticFails = false } = {}) {
   const box = privateRepo(t);
-  const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log') };
+  const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log'), doctrine: join(box.dir, 'doctrine.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
     staticChecks: `${MARK(markers.staticCheck)} && ${staticFails ? 'node test/static-problem.mjs' : 'true'}`,
     shared: ['pullboard.json'] }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
-  put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], 'ran\\n');\n");
+  put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], `ran ${Date.now()}\\n`);\n");
   put(box.root, 'test/static-problem.mjs', "console.error('src/a.js:1: a static problem');\nprocess.exit(1);\n");
+  put(box.root, 'DOCTRINE.md', `# Doctrine\n\n## D · Fail fast\n- D1 [approved, must] The fixture rule leaves a marker when it runs. | gate: check ${MARK(markers.doctrine)} | count: 0\n`);
   commitAll(box);
   const builder = builderRepo(box);
   assert.equal(builder.coordinator('add', 'build', 'Fail fast fixture', '--check', MARK(markers.item)).code, 0);
@@ -57,6 +59,7 @@ test('a static failure is refused before the item check and the runner gate, and
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /a static problem/u);
   assert.equal(existsSync(failing.markers.staticCheck), true, 'the static check ran');
+  assert.equal(existsSync(failing.markers.doctrine), false, 'the doctrine rule did not run');
   assert.equal(existsSync(failing.markers.item), false, 'the item check did not run');
   assert.equal(existsSync(failing.markers.gate), false, 'the runner gate did not run');
 
@@ -66,5 +69,9 @@ test('a static failure is refused before the item check and the runner gate, and
   const accepted = clean.box.run('submit', '1', '--json', '--infra', 'the fail-fast fixture');
   assert.equal(accepted.code, 0, accepted.err + accepted.out);
   assert.equal(existsSync(clean.markers.staticCheck), true, 'the static check ran');
+  assert.equal(existsSync(clean.markers.doctrine), true, 'the doctrine rule ran');
   assert.equal(existsSync(clean.markers.item), true, 'the item check ran');
+  const when = path => Number(/ran (\d+)/u.exec(readFileSync(path, 'utf8'))[1]);
+  assert.ok(when(clean.markers.staticCheck) <= when(clean.markers.doctrine), 'static runs before doctrine');
+  assert.ok(when(clean.markers.doctrine) <= when(clean.markers.item), 'doctrine runs before the runner gate');
 });
