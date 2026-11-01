@@ -78,6 +78,8 @@ const SOURCE_FILES = new Set([
 const STANDARD_MOVED = new Set(['packages/link/src/shell/command-phase.js']);
 const GUARD_TESTS = new Set([
   'packages/store/tests/verdict-check.test.js',
+  // Exact moved gate guard tests retain their Strict classification (#1577).
+  'packages/gate/tests/check.test.js', 'packages/gate/tests/gui-admission.test.js', 'packages/gate/tests/landing-stage-composition.test.js',
   'test/flakes.test.js', 'test/flakes-ledger.test.js', 'test/affected-tests.test.js', 'test/affected-source-loads.test.js',
   'test/selection-fallbacks.test.js', 'test/run-tests.test.js', 'test/run-tests-worker-identity.test.js',
   'test/gate.test.js', 'test/gate-admission.test.js', 'test/gui-admission.test.js',

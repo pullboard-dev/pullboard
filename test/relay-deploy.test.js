@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { releaseHeadlinesBetween } from '../packages/config/index.js';
-import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../src/machine.js';
+import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
 import { createRelayBrowserHandler } from '../relay/browser-page.js';

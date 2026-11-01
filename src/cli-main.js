@@ -1,6 +1,6 @@
 export { selectedToolEntry } from './pinned-tool-build.js';
 import { maintenanceTimerWarning } from './worktree-maintenance-diagnostics.js';
-import { recordedMoveRefusal } from './recorded-move.js';
+import { recordedMoveRefusal } from '../packages/state/index.js';
 /**
  * The command line's entry: parse the arguments, bind the checkout, run the relay and baseline work around the
  * command when there is any, and dispatch through the lazy command table. It loads a module only when the command

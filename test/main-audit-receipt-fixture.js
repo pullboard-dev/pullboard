@@ -1,6 +1,6 @@
 /** Exercise native binding and replay only with a real runGate receipt supplied by the actual audit fixture [C7,H16]. */
 import assert from 'node:assert/strict';
-import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove, appliedSequence } from '../packages/state/index.js';
 import { MAIN_AUDIT_ENGINE } from '../src/main-audit-engine.js';
 import { getItem } from '../packages/store/index.js';
 import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';

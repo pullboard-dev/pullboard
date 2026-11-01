@@ -1,7 +1,7 @@
 /** The pullboard lifecycle command, in its own module so an item adding another command never edits these lines. */
 import {
   lifecycleMarkdown,
-} from '../machine.js';
+} from '../../packages/state/index.js';
 
 /** Run `pullboard lifecycle` and return its exit code. */
 export function run(io) {

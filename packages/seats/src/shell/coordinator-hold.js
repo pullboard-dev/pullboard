@@ -15,7 +15,7 @@ import { COORDINATOR_HOLD_ENGINE } from '../../../../src/coordinator-hold-engine
 import { Refused } from '../../../kernel/index.js';
 import { computerName } from '../core/computer-name.js';
 import { COMPUTER_NAME_ENGINE } from '../../../../src/computer-name-engine.js';
-import { ENGINE_VERSION } from '../../../../src/machine.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
 
 const HOLDER_KEY = 'coordinator_holder';
 const MACHINE = /^[A-Za-z0-9_.-]{1,128}$/u;

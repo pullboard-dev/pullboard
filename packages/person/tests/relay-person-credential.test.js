@@ -23,7 +23,7 @@ import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from "../../kernel/src/core/discovery.js";
-import { ENGINE_VERSION } from "../../../src/machine.js";
+import { ENGINE_VERSION } from "../../state/index.js";
 import { relayClientFixture } from "../../../test/relay-client-fixture.js";
 import { enrollProtocolPhone } from "../../../test/relay-device-enrollment-fixture.js";
 import {

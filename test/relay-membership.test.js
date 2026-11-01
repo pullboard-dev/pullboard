@@ -7,13 +7,13 @@ import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { prepareBoardMembers, authorizeMember } from '../src/relay-membership.js';
 import { createDeviceKeys, unwrapDeviceBoardKey } from '../packages/keys/index.js';
 import { handOverBoardKeys, statementBytes } from '../src/relay-handover.js';
 import { signSshVouch } from '../src/relay-ssh-proof.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

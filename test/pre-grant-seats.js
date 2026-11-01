@@ -2,8 +2,8 @@
 import * as store from '../src/board.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 import assert from 'node:assert/strict';
-import { applyEngineMove } from '../src/engine.js';
-import { appliedSequence } from '../src/engine.js';
+import { applyEngineMove } from '../packages/state/index.js';
+import { appliedSequence } from '../packages/state/index.js';
 
 /** Replay a real historical join/claim prefix, retaining its receipts and cursor instead of erasing modern grant markers. */
 export function replayHistoricalSeatMove(board, engine, operation, args) {

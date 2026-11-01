@@ -171,7 +171,7 @@ import {
 } from '../packages/store/index.js';
 import {
   storeTriggers,
-} from './machine.js';
+} from '../packages/state/index.js';
 import {
   atomic,
   logEvent,

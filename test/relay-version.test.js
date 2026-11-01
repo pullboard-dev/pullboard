@@ -8,7 +8,7 @@ import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { serveRelay } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../src/machine.js';
+import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
 const A = 'a'.repeat(32); // no board credential has ever existed
 const B = 'b'.repeat(32); // historical board credential, even after revocation

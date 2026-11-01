@@ -9,13 +9,13 @@ import * as conflictRecords from './relay-conflict-record.js';
 import {
   appliedSequence,
   engineReceipt,
-} from '../../../../src/engine.js';
+} from '../../../state/index.js';
 import { restoreRelaySnapshot } from '../../../store/index.js';
 import {
   codeIsFromMain,
   repoInfo,
 } from '../../../../src/git.js';
-import { refusalFromReceipt } from '../../../../src/recorded-refusal.js';
+import { refusalFromReceipt } from '../../../state/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { readBoardKey } from '../../../keys/index.js';
 import {

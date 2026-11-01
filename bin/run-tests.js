@@ -311,8 +311,8 @@ async function runTests(args, env, concurrency) {
   if (legacyFileMode(args)) return legacyNativeFileRun(args, env, concurrency, { runner, knownNodeOption, optionTakesValue });
   const normalized = nativeFileArguments(args, concurrency, knownNodeOption, optionTakesValue);
   const { options } = await landingTestOptions(normalized.args, env, normalized.concurrency);
-  if (env.PULLBOARD_TEST_ACTIONS) options.reporters.push({ reporter: fileURLToPath(new URL('../src/test-action-reporter.js', import.meta.url)), destination: devNull });
-  if (env.PULLBOARD_TEST_SELECTION) options.reporters.push({ reporter: fileURLToPath(new URL('../src/test-selection.js', import.meta.url)), destination: devNull });
+  if (env.PULLBOARD_TEST_ACTIONS) options.reporters.push({ reporter: fileURLToPath(new URL('../packages/gate/src/shell/test-action-reporter.js', import.meta.url)), destination: devNull });
+  if (env.PULLBOARD_TEST_SELECTION) options.reporters.push({ reporter: fileURLToPath(new URL('../packages/gate/src/shell/test-selection.js', import.meta.url)), destination: devNull });
   return reportDispatchedTests(options, env, loadCustomReporter);
 }
 
@@ -762,8 +762,8 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     options.reporters.push({ reporter: env.PULLBOARD_AUDIT_COVERAGE_REPORTER, destination: 'stdout' });
   }
   const reporterEntries = options.reporters;
-  if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('../src/test-action-reporter.js', import.meta.url)), destination: devNull });
-  if (testEnv.PULLBOARD_TEST_SELECTION) reporterEntries.push({ reporter: fileURLToPath(new URL('../src/test-selection.js', import.meta.url)), destination: devNull });
+  if (process.env.PULLBOARD_TEST_ACTIONS) reporterEntries.push({ reporter: fileURLToPath(new URL('../packages/gate/src/shell/test-action-reporter.js', import.meta.url)), destination: devNull });
+  if (testEnv.PULLBOARD_TEST_SELECTION) reporterEntries.push({ reporter: fileURLToPath(new URL('../packages/gate/src/shell/test-selection.js', import.meta.url)), destination: devNull });
   delete options.reporters;
   const loadedReporters = [];
   for (const entry of reporterEntries) {
@@ -1460,7 +1460,7 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
     } else if (byLaunch) {
       // Any browser spawn from this file or a Node child it starts is refused by name (BROWSER_SLOT_REQUIRED).
       process.env.PULLBOARD_TEST_BROWSER_SLOT = 'none';
-      const guard = new URL('../src/browser-slot-guard.js', import.meta.url);
+      const guard = new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url);
       await import(guard.href);
       process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--import=${guard.href}`].filter(Boolean).join(' ');
     }

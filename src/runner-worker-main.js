@@ -139,7 +139,7 @@ export async function main(S) {
     const commandEnv = { ...env, ...(spec.testResults ? { [TEST_RESULT_STORE_ENV]: resultStore,
       [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, [TEST_RESULT_REQUEST_ENV]: spec.id, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
       // An audit-coverage run always executes every file, whatever the exchange holds.
-      ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('./audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
+      ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('../packages/gate/src/core/audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
       ...(spec.timingRunId ? { PULLBOARD_TIMING_RUN_ID: spec.timingRunId } : {}),
       PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };

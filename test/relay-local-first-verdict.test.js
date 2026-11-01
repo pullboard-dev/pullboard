@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { captureBoardChanges } from '../packages/store/index.js';
-import { applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { leaveConflictNotice, takeConflictNotices } from '../packages/outbox/index.js';
 import { earlierMoves, refusalLine } from '../packages/outbox/index.js';

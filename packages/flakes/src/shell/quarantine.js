@@ -28,7 +28,7 @@ import {
 } from "../../../../src/gate-run-receipt.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { flakeLedger } from "./flakes.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { QUARANTINE_CORE_ENGINE } from "../../../../src/quarantine-core-engine.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";

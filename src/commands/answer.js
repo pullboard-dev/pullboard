@@ -7,7 +7,7 @@ import {
 } from '../../packages/spec/index.js';
 import {
   parseImplies,
-} from '../implies.js';
+} from '../../packages/state/index.js';
 import {
   laneNames,
 } from '../lanes.js';

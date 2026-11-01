@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords, personRequestStatuses, requestIntentDigest } from '../src/relay-requests.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 

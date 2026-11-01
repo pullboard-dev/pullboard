@@ -4,7 +4,7 @@ import { versionedRefusal } from '../packages/config/index.js';
 import { withMoveNextSteps } from './move-registry.js';
 import { DEFAULT_NEXT_STEPS } from './next-step-defaults.js';
 /** Pure refusal guidance shared by JSON and CLI output without loading ledger or Git [P4,W4,C7]. */
-import { RECORDED_GENERIC_NEXT } from './recorded-refusal.js';
+import { RECORDED_GENERIC_NEXT } from '../packages/state/index.js';
 
 import {
   COORDINATOR_PERSON_REQUEST,

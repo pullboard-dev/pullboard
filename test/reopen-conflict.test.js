@@ -7,9 +7,9 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { moveArgs } from '../packages/person/index.js';
-import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

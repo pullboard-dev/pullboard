@@ -20,7 +20,7 @@ import {
   seal,
   unseal,
 } from "../../kernel/src/core/seal.js";
-import { ENGINE_VERSION } from "../../../src/machine.js";
+import { ENGINE_VERSION } from "../../state/index.js";
 import {
   findChromeExecutable,
   relayWorkBudgetMs,

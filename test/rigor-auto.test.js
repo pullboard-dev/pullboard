@@ -24,7 +24,7 @@ import { planAutomaticRigorApply } from '../packages/rigor/index.js';
 import { planRowApply, prepareRowDecisions, writeRowApply } from '../packages/spec/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { RIGOR_AUTO_ENGINE } from '../src/rigor-auto-engine.js';
-import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';
 import { automaticDecisionSource, rigorDecisionKey } from '../src/board-rigor-auto-source.js';
 

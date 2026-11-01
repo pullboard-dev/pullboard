@@ -7,7 +7,7 @@ import {
   decodeBoardKey,
   unseal,
 } from "../../kernel/src/core/seal.js";
-import { ENGINE_VERSION } from "../../../src/machine.js";
+import { ENGINE_VERSION } from "../../state/index.js";
 
 test('a real refused upload produces only board-scoped sealed status and accepted data clears it [H5,H15,H17]', async t => {
   const box = await relayClientFixture(t);

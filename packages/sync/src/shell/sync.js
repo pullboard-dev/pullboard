@@ -1,5 +1,5 @@
 import { requirePreparedComputedConflict } from "../../../../src/computed-conflict-receipt.js";
-import { withRecordedConflictContext } from "../../../../src/recorded-conflict-context.js";
+import { withRecordedConflictContext } from "../../../state/index.js";
 /** Account-free ordered moves on the repository's own Git remote [H11,H10]. */
 import { spawn } from 'node:child_process';
 import { AsyncLocalStorage } from 'node:async_hooks';
@@ -23,7 +23,7 @@ import {
   applyEngineMove,
   engineReceipt,
   prepareEngineMove,
-} from "../../../../src/engine.js";
+} from "../../../state/index.js";
 import {
   gitChildEnv,
   repoInfo,

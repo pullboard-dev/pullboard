@@ -39,10 +39,10 @@ import { exportView } from '../src/commands/view.js';
 import { main as nativeTestMain } from '../test/native-cli-fixture.js';
 import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from '../src/native-board.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';
-import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { ACCEPT_REASON, actOnActivity, recordActivityDelivery, answerDecision, addItem, requestCompanion, appendFact, claim, closeBoard, editItem, EVENT_LOG_VERSION, ensureCoordinator, escalate, events, holdLane, holdItem, merged, recordLandingBatch, recordLandingWaiver, recordLandingFlake, recordHealthFindings, boardId, setBoardMembers, passDecision, PERSON, recordAttempt, recordUsage, recordSharedUsage, recordRowDecisions, applyRowDecisions, refreeze, register, release, releaseLane, releaseItemHold, reopen, reserveReview, SCHEMA_VERSION, setLaneLead, shout, verify, withdraw } from '../src/board.js';
 import {
   ID_RE,

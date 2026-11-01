@@ -7,8 +7,8 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 
 const RECORDED_AT = '2026-10-08T18:00:00.000Z';

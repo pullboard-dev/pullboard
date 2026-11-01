@@ -8,7 +8,7 @@ import {
   listAgents,
   logEvent,
 } from "./board.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
 import { Refused } from "../../../kernel/index.js";
 import * as seats from "../../../../src/seats.js";

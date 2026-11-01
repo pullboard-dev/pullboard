@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 
 /** Read native gzip snapshots while retaining checks against historical uncompressed records. */
 function snapshotDocument(plain) {

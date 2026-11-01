@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { preparePersonRequest } from '../src/person-request.js';
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestStageText } from '../src/relay-requests.js';
 

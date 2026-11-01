@@ -7,7 +7,7 @@ import { commandOutput, refusalDocument } from '../src/next-step-words.js';
 import { NEXT_STEPS } from '../src/next-steps.js';
 import { agentsBlock } from '../src/doctrine.js';
 import { Refused } from '../packages/kernel/core.js';
-import { recordedRefusal } from '../src/recorded-refusal.js';
+import { recordedRefusal } from '../packages/state/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const e2e = createE2eHelpers();

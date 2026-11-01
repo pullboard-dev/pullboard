@@ -17,7 +17,7 @@ import {
 } from '../relay/auth.js';
 import { createRelayHandler } from '../relay/service.js';
 import { Refused } from '../packages/kernel/core.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import {
   authenticateDeviceEnrollment,
   createDeviceKeys,

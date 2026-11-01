@@ -13,8 +13,8 @@ import { runFixtureChild } from '../../../test/fixture-child.js';
 import { storedSeatUsage } from '../src/shell/cost.js';
 import { USAGE_BATCH_LIMIT } from '../src/shell/cost-read.js';
 import { USAGE_BATCH_ENGINE } from '../../../src/usage-batch-engine.js';
-import { prepareEngineMove } from '../../../src/engine.js';
-import { applyEngineMove } from '../../../src/engine.js';
+import { prepareEngineMove } from '../../state/index.js';
+import { applyEngineMove } from '../../state/index.js';
 import { declaredMoveActor } from '../../../src/move-registry.js';
 import { minimumMoveEngine } from '../../../src/move-registry.js';
 

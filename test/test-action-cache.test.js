@@ -1,10 +1,11 @@
 /** @pullboard-test-input source-tree */
 /** A test file whose inputs did not change reuses its green result; a changed import, a red result or a bad entry runs it [C7]. */
 import { copyPackageFiles } from '../src/package-files.js';
+import { toolSourcePath } from '../src/package-files.js';
 import assert from 'node:assert/strict';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, join, resolve } from 'node:path';
+import { delimiter, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
@@ -266,8 +267,9 @@ test('a harness dependency edit changes every key, and a test edit stays local t
   runFixtureGit(['add', '-f', 'bin', 'src'], { cwd: fixture.root, env: fixture.env });
   runFixtureGit(['commit', '-q', '-m', 'commit the harness'], { cwd: fixture.root, env: fixture.env });
   const before = await testActionKeys(fixture.root);
-  const isolation = readFileSync(join(fixture.root, 'src', 'test-isolation.js'), 'utf8');
-  fixture.change('src/test-isolation.js', `${isolation}\n// A harness-only edit that no test imports.\n`);
+  const isolationFile = toolSourcePath(fixture.root, 'src/test-isolation.js');
+  const isolation = readFileSync(isolationFile, 'utf8');
+  fixture.change(relative(fixture.root, isolationFile), `${isolation}\n// A harness-only edit that no test imports.\n`);
   const harnessEdit = await testActionKeys(fixture.root);
   for (const name of ['a', 'b', 'c']) {
     assert.notEqual(harnessEdit.get(`test/${name}.test.js`).inputKey, before.get(`test/${name}.test.js`).inputKey,

@@ -24,7 +24,7 @@ import {
   appliedSequence,
   applyEngineMove,
   prepareEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 import {
   exportBoard,
   importBoard,

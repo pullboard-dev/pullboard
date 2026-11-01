@@ -25,7 +25,7 @@ import {
   engineReceipt,
   executableArgs,
   prepareEngineMove,
-} from '../../../../src/engine.js';
+} from '../../../state/index.js';
 import {
   exportBoard,
   restoreRelaySnapshot,

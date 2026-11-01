@@ -1,7 +1,7 @@
 import { hasPendingDispatchNotices } from "../core/board-health-receipts.js";
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
 /** Health mutation extracted without changing its transaction or notice order [A6]. */
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import {
   itemById,
   listAgents,

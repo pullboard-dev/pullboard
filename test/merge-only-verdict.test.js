@@ -17,7 +17,7 @@ import { captureMergeOnly } from '../packages/merge/index.js';
 import { mergeOnlyBasis } from '../packages/merge/index.js';
 import { runFixtureGit, runFixtureChild } from './fixture-child.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { prepareEngineMove, applyEngineMove, applyRelayMove } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove, applyRelayMove } from '../packages/state/index.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../src/merge-only-verdict-engine.js';
 import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
 import { capturePrProof } from '../src/pr-proof-snapshot.js';

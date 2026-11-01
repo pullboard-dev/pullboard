@@ -7,7 +7,7 @@ import { hostname, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { createGitHubClient } from '../relay/github.js';
 import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
 import { serveRelay } from '../relay/service.js';
@@ -16,7 +16,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { serveView } from '../src/commands/view.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../src/machine.js';
+import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 

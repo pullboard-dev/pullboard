@@ -13,7 +13,7 @@ import {
   unwrapDeviceBoardKey,
 } from '../packages/keys/index.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 
 test('a native key holder verifies a pinned person root before delivering each granted board [H15]',
   { timeout: 180_000 }, async t => { // budget: hang ceiling for three private CLI board setups and real HTTP delivery/refusal controls.

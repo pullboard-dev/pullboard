@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { assertCommitShimRefusals, machineSourceModule } from './commits-machine-fixture.js';
 import { assertMachineWalkMemo } from './machine-walk-memo.fixture.js';
 import * as fs from 'node:fs';
-import * as machineRules from '../src/machine.js';
+import * as machineRules from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
@@ -191,10 +191,14 @@ const ITEM_CALLBACK_SOURCES = {
   '../packages/items/src/core/reopen-authority.js': 'reopen-authority.js',
   '../packages/items/src/shell/outside-verify.js': 'outside-verify.js',
   '../packages/items/src/shell/item-authors.js': 'item-authors.js',
+  '../packages/gate/src/shell/gate-execution.js': 'gate-execution.js',
 };
 
 /** Exact relocated provider identities for the existing caller-specific audit metadata. */
 const STORE_AUDIT_IDENTITIES = {
+  "../packages/gate/src/shell/gate-execution.js": "gate-execution.js",
+  "../packages/gate/src/shell/gate-submit.js": "gate-submit.js",
+  "../packages/gate/src/shell/gate.js": "gate.js",
   "../packages/store/src/core/exit-rules-continuation.js": "exit-rules-continuation.js",
   "../packages/store/src/shell/board-access.js": "board-access.js",
   "../packages/store/src/shell/board-health.js": "board-health.js",

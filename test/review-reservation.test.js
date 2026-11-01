@@ -10,7 +10,7 @@ import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { itemPatchDigest } from '../packages/items/index.js';
 import { PATCH_REVIEW_CUSTODY_ENGINE } from '../src/patch-review-custody-engine.js';
 import { submitFixture } from './board-submit-fixture.js';

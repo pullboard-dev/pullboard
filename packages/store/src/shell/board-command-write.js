@@ -2,7 +2,7 @@ import { requireExitActive } from "../core/exit-rules-state.js";
 /** The native command prepares external work before its final ordered writer [B2,C7]. */
 import * as store from "./board.js";
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
-import { requireAgentGrant } from "../../../../src/agent-grant.js";
+import { requireAgentGrant } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { Refused } from "../../../kernel/index.js";
 

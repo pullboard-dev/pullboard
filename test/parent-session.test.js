@@ -26,7 +26,7 @@ import { workQueue } from '../packages/items/index.js';
 import {
   prepareEngineMove,
   applyEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 import {
   exportBoard,
   importBoard,

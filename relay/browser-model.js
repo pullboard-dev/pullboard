@@ -1,6 +1,6 @@
 /** Read-only projection of older native snapshots; new uploads carry the actual API state [H5]. */
 import { Refused } from '../packages/kernel/index.js';
-import { MACHINE } from '../src/machine.js';
+import { MACHINE } from '../packages/state/index.js';
 import { lifecycleEvent } from '../src/lifecycle-move.js';
 import { recordedWithdrawalFrom } from '../src/lifecycle-move.js';
 

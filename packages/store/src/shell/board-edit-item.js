@@ -24,7 +24,7 @@ import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { barCorrectionFields } from "../../../../src/bar-corrections.js";
 import * as checkWiden from "../../../verify/src/shell/check-widen.js";

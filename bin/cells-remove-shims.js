@@ -46,8 +46,10 @@ function literalAfter(info, at) {
 
 /** Every name a module exports with the module and name that define it, following export-star chains. */
 function exportsOf(box, file, seen = new Set()) {
+  if (!seen.size && box.exportCache?.has(file)) return box.exportCache.get(file);
   const names = new Map(), bytes = box.files.get(file);
   if (!bytes || seen.has(file)) return names;
+  if (!seen.size) box.exportCache?.set(file, names);
   const info = scan(bytes.toString('utf8')), chain = new Set(seen).add(file);
   for (const match of info.code.matchAll(/\bexport\s*\{([^}]*)\}\s*(from\s*)?/gu)) {
     const literal = match[2] ? literalAfter(info, match.index + match[0].length) : null;
@@ -69,11 +71,21 @@ function exportsOf(box, file, seen = new Set()) {
   return names;
 }
 
+/** The module and local name that finally define one export, following re-export chains, or null. */
+function origin(box, module, name, depth = 0) {
+  const row = exportsOf(box, module).get(name);
+  if (!row || depth > 64) return null;
+  return row.module === module ? `${module}#${row.name}` : origin(box, row.module, row.name, depth + 1);
+}
+
 /** What an importer takes at one literal: its kind and binding names (or ALL), or null when the site is not understood. */
 function usage(info, literal) {
   const before = info.code.slice(0, literal.start), after = info.code.slice(literal.end);
   if (/\bimport\s*\(\s*$/u.test(before)) return { kind: 'dynamic', names: ALL };
+  // A module URL handed on as .href is imported by a child or loader, so it keeps import semantics, never a byte read.
+  if (/\bnew\s+URL\(\s*$/u.test(before) && /^\s*,\s*import\.meta\.url\s*\)\s*\.\s*href\b/u.test(after)) return { kind: 'dynamic', names: ALL };
   if (/\bnew\s+URL\(\s*$/u.test(before) && /^\s*,\s*import\.meta\.url\s*\)/u.test(after)) return { kind: 'url', names: [] };
+  if (/\bpathToFileURL\(\s*(?:join|resolve)\(\s*import\.meta\.dirname\s*,\s*$/u.test(before)) return { kind: 'dynamic', names: ALL };
   if (/\bimport\.meta\.dirname\s*,\s*$/u.test(before)) return { kind: 'path', names: [] };
   if (/\bimport\s*$/u.test(before)) return { kind: 'static', names: [] };
   const clause = /\b(?:import|export)\s*(\{[^}]*\}|\*(?:\s*as\s+[\w$]+)?|[\w$]+(?:\s*,\s*(?:\{[^}]*\}|\*\s*as\s+[\w$]+))?)\s*from\s*$/u.exec(before)?.[1];
@@ -116,7 +128,12 @@ function choose(box, shim, file, use) {
   const lost = names.filter(name => !have.has(name));
   if (lost.length) return { refuse: `${file} imports ${lost.join(', ')}, which ${shim} does not export` };
   /** Whether a module already exports every wanted name. */
-  const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name)); };
+  // A target covers a use only when each name resolves to the same definition the shim gives it: a door can bind one
+  // name to a different body than the shim does (src/board.js gives ensureCoordinator the write-store one).
+  const same = (module, name) => origin(box, module, name) === origin(box, shim, name);
+  // A namespace (import * as, import(), a module URL) also sees every key the target exports, so it needs no extra one.
+  const extra = module => use.names === ALL ? [...exportsOf(box, module).keys()].filter(name => !have.has(name)) : [];
+  const covers = module => { const present = exportsOf(box, module); return names.every(name => present.has(name) && same(module, name)) && !extra(module).length; };
   const core = cell.pureFrontDoor && box.files.has(cell.pureFrontDoor) ? cell.pureFrontDoor : null;
   const pure = pureReason(box, file);
   if (pure) {
@@ -128,6 +145,10 @@ function choose(box, shim, file, use) {
   if (core && testFile(file) && use.kind === 'static' && use.names !== ALL && names.length && covers(core)) return { path: core, adds: [] };
   if (file.startsWith(`${cell.root}/`)) return leaf && covers(leaf) ? { path: leaf, adds: [] } : { refuse: `${file} inside ${cell.name} needs names its own ${shim} leaf lacks` };
   const door = cell.frontDoor, present = exportsOf(box, door), adds = [];
+  const differ = names.filter(name => present.has(name) && !same(door, name));
+  if (differ.length) return { refuse: `${file} imports ${differ.join(', ')} from ${shim}, which ${door} binds to a different definition` };
+  const more = extra(door);
+  if (more.length) return { refuse: `${file} takes the whole ${shim} namespace, and ${door} also exports ${more.slice(0, 8).join(', ')}${more.length > 8 ? ` +${more.length - 8} more` : ''}` };
   for (const name of names.filter(value => !present.has(value))) {
     const row = have.get(name);
     adds.push({ file: door, name, line: `export { ${row.name === name ? name : `${row.name} as ${name}`} } from ${JSON.stringify(specifier(door, row.module))};` });
@@ -156,9 +177,33 @@ function planShim(box, shim, hits) {
     if (foreign.length) { held.push(`${file} needs ${foreign.map(add => add.name).join(', ')} added to ${foreign[0].file} (${laneOf(box.settings, foreign[0].file)} lane)`); continue; }
     edits.push(doc ? { file, start: doc.start, end: doc.end, text: choice.path, from: shim, adds: [] }
       : comment ? { file, ...comment(choice.path), adds: choice.adds }
-        : { file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds });
+        : { file, start: literal.start + 1, end: literal.end - 1, text: specifier(file, choice.path), from: literal.text, adds: choice.adds,
+          namespace: use.names === ALL ? { target: choice.path, names: new Set(exportsOf(box, shim).keys()) } : null });
   }
   return { edits, held, cited: [...new Set(cited)] };
+}
+
+/**
+ * Second pass, after the cut and closure checks settle: a namespace importer sees the target's final surface, so any export another
+ * planned edit adds to that target and the shim lacks holds it. Holding one edit drops its additions, so repeat until stable.
+ */
+function composeNamespaces(plans, excluded) {
+  let held = 0;
+  for (let changed = true; changed;) {
+    changed = false;
+    const added = new Map();
+    for (const made of plans.values()) for (const edit of made.edits) if (!excluded.has(edit)) for (const add of edit.adds) added.set(add.file, new Set([...added.get(add.file) ?? [], add.name]));
+    for (const made of plans.values()) for (const edit of made.edits) {
+      if (!edit.namespace || excluded.has(edit)) continue;
+      const wider = [...added.get(edit.namespace.target) ?? []].filter(name => !edit.namespace.names.has(name));
+      if (!wider.length) continue;
+      excluded.add(edit);
+      made.held.push(`${edit.file} takes a whole namespace, and this run adds ${wider.join(', ')} to ${edit.namespace.target}`);
+      changed = true;
+      held += 1;
+    }
+  }
+  return held;
 }
 
 /** Find the declared-input tokens in a header comment that name one of the shims. */
@@ -283,7 +328,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   const config = inventory.files.has('package.json') ? JSON.parse(inventory.files.get('package.json').toString('utf8')) : {};
   const settings = loadConfig(root);
   if (!Object.hasOwn(settings.lanes ?? {}, lane)) throw new Refused('CELLS_PLAN_MODE', `no lane ${lane} in pullboard.json; use one of ${Object.keys(settings.lanes ?? {}).join(', ')}`);
-  const box = { root, plan, cell, files: inventory.files, imports: config.imports, settings, lane };
+  const box = { root, plan, cell, files: inventory.files, imports: config.imports, settings, lane, exportCache: new Map() };
   // A deletion or a dropped row rewrites these plan files, so a lane that does not own every one of them changes neither.
   const foreignPlan = planFiles.filter(file => outOfLane(settings, lane, [file]).length).map(file => `${file} (${laneOf(settings, file)} lane)`);
   const entries = runnerEntries(box, parsers);
@@ -327,6 +372,11 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
       }
       if (fresh.length && !blamed.length) throw new Refused('CELLS_SHIMS_EXPOSED', `repointing exposed an upward cut no shim edit explains: ${fresh.map(row => row[1]).join('; ')}`);
       for (const edit of blamed) excluded.add(edit);
+    }
+    // Only now is each door's final surface known; holding a namespace edit just restores its shim import.
+    if (composeNamespaces(plans, excluded)) {
+      applyToDisk(box, materialize(box, plans, excluded), touched);
+      after = cellInventory(root, parsers);
     }
   } catch (error) {
     applyToDisk(box, new Map(), touched);

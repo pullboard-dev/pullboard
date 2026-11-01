@@ -1,6 +1,6 @@
 /** Computed-conflict evidence at the authenticated relay replay and sending boundaries [V4,H16]. */
 import { createHash } from 'node:crypto';
-import { withRecordedConflictContext } from '../../../../src/recorded-conflict-context.js';
+import { withRecordedConflictContext } from '../../../state/index.js';
 
 /** Apply an already decrypted, engine-checked relay record inside its exact synchronous position. */
 export function replay(board, move, record, apply) {
