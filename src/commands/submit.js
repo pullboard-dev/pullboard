@@ -297,7 +297,8 @@ export async function submitHere(ctx, id, infra) {
     }
     return item;
   });
-  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest, stage: 'fast' };
+  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
+  ctx.submitAttempt.stage = 'fast';
   const barWarning = await withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
