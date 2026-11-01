@@ -69,3 +69,5 @@ export {
   frozenCheck,
   trunkMerge,
 } from './src/shell/trusted-policy.js';
+
+export { spawnCaptured } from './src/shell/captured-child.js';
