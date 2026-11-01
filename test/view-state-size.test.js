@@ -36,7 +36,7 @@ function generatedTitle(index) {
 /** Seed varied native lifecycle data; synthetic submissions describe state, not an executed gate. */
 function seedVariedItems(board, ids, agents, now, setAt) {
   for (let group = 0; group < 12; group += 1) addMilestone(board, {
-    agentId: 'coordinator', name: `Generated milestone ${group}`, note: 'Generated size fixture only',
+    agentId: 'coordinator', reason: 'Arrange fixture release', name: `Generated milestone ${group}`, note: 'Generated size fixture only',
     items: ids.filter((id, index) => index % 7 !== 0 && index % 12 === group),
   });
   ids.forEach((id, index) => {

@@ -1,6 +1,6 @@
 /** The CLI's explicit ports into the seats cell's checkout routing, so seats never load the CLI, board or person cells [C7,B13]. */
 import * as store from '../board.js';
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 
 /** Open a fresh lane seat only when no matching seat is free, loading the worktree command on demand as before. */
 async function openWorktree(...args) {

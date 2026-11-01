@@ -3,7 +3,7 @@ import {
   confirmBarEffect,
   executingBarEffect,
   personBarMode,
-} from '../person-bar-cli.js';
+} from '../../packages/person/index.js';
 import {
   barCoverageForPolicy,
   prepareBarCoverage,

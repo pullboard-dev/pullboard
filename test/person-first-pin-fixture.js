@@ -1,5 +1,5 @@
-import { personSigning as nativePersonSigning } from '../src/person-signing.js';
-import { setPersonSigning as nativeSetPersonSigning } from '../src/person-signing.js';
+import { personSigning as nativePersonSigning } from '../packages/person/index.js';
+import { setPersonSigning as nativeSetPersonSigning } from '../packages/person/index.js';
 /** Initial unpaired authority insertion uses only an owned private board, never shared SQLite [E22,B26,H16]. */
 import assert from 'node:assert/strict';
 import {
@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { presenceAttestation } from '../src/person-presence.js';
+import { presenceAttestation } from '../packages/person/index.js';
 import {
   relayClientFixture,
   relayFixtureChild,

@@ -1,8 +1,9 @@
 /** @pullboard-test-input source-tree */
 /** One command removes a cell's shims: repoint, delete, keep what would cut upward, and change nothing the second time [C7,D3]. */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -17,6 +18,7 @@ import { fixture } from './cells-plan-fixture.js';
 import { CONFIG } from './cells-remove-shims-read.js';
 import { readFixture } from './cells-remove-shims-read.js';
 import { git } from './cells-plan-fixture.js';
+import { inventoryBuildCount } from '../packages/codemap/index.js';
 
 const PARSERS = { importsIn, commonJsIn };
 const TOOL = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
@@ -318,4 +320,41 @@ test('a shim a test names inside a generated script stays, and a comment mention
     assert.deepEqual(result.deleted, []);
     assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /test\/child\.test\.js:1 names src\/stats\.js inside a string/u);
   }
+});
+
+test('one removal builds exactly one inventory, however many repoint passes it takes [C7,D3]', t => {
+  const box = shimmed(t);
+  const before = inventoryBuildCount();
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  assert.ok(result.rewritten.length > 0, 'the fixture repoints importers, so the loop ran at least once');
+  assert.equal(inventoryBuildCount() - before, 1, 'the sweep reuses one inventory and updates only the files it edited');
+});
+
+/** Count the git commands git itself traced into a file while `work` ran. */
+function gitCalls(t, work) {
+  const trace = join(mkdtempSync(join(tmpdir(), 'pullboard-shim-trace-')), 'trace.log');
+  const had = process.env.GIT_TRACE;
+  process.env.GIT_TRACE = trace;
+  try { work(); } finally { if (had === undefined) delete process.env.GIT_TRACE; else process.env.GIT_TRACE = had; }
+  let traced = '';
+  try { traced = readFileSync(trace, 'utf8'); } catch { /* git never ran */ }
+  t.after(() => rmSync(dirname(trace), { recursive: true, force: true }));
+  return traced.split('\n').filter(line => /trace: (built-in|run_command): git /u.test(line)).length;
+}
+
+test('removal on a largest-cell-shaped fixture builds one inventory and spawns git a bounded number of times, not once per importer [C7,D3]', t => {
+  const box = shimmed(t);
+  const importers = 120;
+  for (let i = 0; i < importers; i++) box.put(`src/many-${i}.js`, `import { shell } from './stats.js';\nexport const v${i} = shell;\n`);
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'many importers');
+  const before = inventoryBuildCount();
+  let result;
+  const calls = gitCalls(t, () => { result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS }); });
+  assert.ok(result.rewritten.length >= importers, 'every generated importer was repointed');
+  assert.equal(inventoryBuildCount() - before, 1, 'one inventory for the whole run');
+  // Time is proved by bounded work, not a clock (wall-clock policy). The run reads the repository in batches, so
+  // git spawns stay far below the importer count; one per importer would have been 120 or more.
+  assert.ok(calls <= 20, `git ran ${calls} times for ${importers} importers`);
+  console.log(`# remove-shims importers ${importers} gitcalls ${calls}`);
 });

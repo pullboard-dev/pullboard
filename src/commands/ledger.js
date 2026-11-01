@@ -1,5 +1,5 @@
 /** The pullboard ledger command, in its own module so an item adding another command never edits these lines. */
-import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import * as store from '../board.js';
 import {
   agentApprovalLine,
