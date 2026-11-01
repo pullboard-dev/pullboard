@@ -292,6 +292,19 @@ function cellsComposition(root, acceptedMain, commit) {
     '-m', 'chore(cells): inspect immutable submit composition [C7,D3]'], { env });
 }
 
+/** Bind every approved Node preload to its actual bytes; uncertainty disables persistent reuse. */
+function preloadFingerprint() {
+  try {
+    return String(process.env.NODE_OPTIONS ?? '').split(/\s+/u).filter(Boolean).map(token => {
+      const match = /^--(?:import|require)=(.+)$/u.exec(token);
+      if (!match) throw new Error('unrecognized preload');
+      const value = match[1].startsWith('"') ? JSON.parse(match[1]) : match[1];
+      const file = value.startsWith('file:') ? fileURLToPath(value) : value;
+      return { token, digest: receiptDigest(readFileSync(file).toString('base64')) };
+    });
+  } catch { return null; }
+}
+
 /** Controller structural preflight: exact immutable commits, canonical finally-cleaned snapshots, no candidate execution. */
 export async function requireSubmitCells(root, acceptedMain, commit, item, services) {
   if (typeof services?.withImportParseCache !== 'function' || typeof services?.cacheEligible !== 'function' || typeof services?.withMainCheckout !== 'function' || typeof services?.parsers?.importsIn !== 'function' || typeof services?.parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical checkout and parser services are required');
@@ -301,8 +314,9 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const source = commit;
   const cutRows = services.readCutItems?.(acceptedMain, root);
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
-  const inputs = { acceptedMain, source, criterion, cuts: cutRows };
-  const canReuse = cacheEligible() && !process.env.NODE_OPTIONS && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
+  const preloads = preloadFingerprint();
+  const inputs = { acceptedMain, source, criterion, cuts: cutRows, preloads };
+  const canReuse = cacheEligible() && preloads !== null && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
     config: inputs, code: [fileURLToPath(import.meta.url)], commands: [] }) : null;
   const cached = readCheckReceipt(root, receiptKey);
