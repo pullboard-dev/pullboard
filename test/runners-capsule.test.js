@@ -1,5 +1,12 @@
 /** Registered SSH runner execution stays inside a committed, secret-free worker checkout [C7]. */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
+import { toolSourcePath } from '../packages/runners/src/shell/package-files.js';
 import {
   assert,
   dirname,
@@ -37,4 +44,33 @@ test('the moved runner load shim keeps unrelated front-door modules out of the w
   assert.ok(Object.hasOwn(files, 'packages/runners/src/shell/runner-source-cache.js'));
   assert.equal(Object.hasOwn(files, 'packages/runners/index.js'), false);
   assert.equal(Object.hasOwn(files, 'packages/runners/src/core/runner-stage-model.js'), false);
+});
+
+/** Compare real manifest-derived closures, allowing only the removed transparent compatibility hop. */
+test('the runner policy exact-leaf exception preserves every worker body byte [C7]', t => {
+  const installed = mkdtempSync(join(tmpdir(), 'pullboard-policy-closure-'));
+  t.after(() => rmSync(installed, { recursive: true, force: true }));
+  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
+  const policy = 'packages/runners/src/shell/runner-policy.js';
+  const leaf = 'packages/sandbox/src/shell/trusted-policy-read.js';
+  const file = toolSourcePath(installed, policy);
+  const source = readFileSync(file, 'utf8');
+  const direct = "'../../../sandbox/src/shell/trusted-policy-read.js'";
+  assert.ok(source.includes(direct));
+  const after = runnerPackage(installed).files;
+  assert.equal(Object.hasOwn(after, 'src/trusted-policy-read.js'), false);
+  assert.equal(Object.hasOwn(after, 'packages/sandbox/index.js'), false);
+  assert.equal(after[leaf], readFileSync(toolSourcePath(installed, leaf), 'utf8'));
+  try {
+    writeFileSync(file, source.replace(direct, "'../../../../src/trusted-policy-read.js'"));
+    const before = runnerPackage(installed).files;
+    assert.ok(Object.hasOwn(before, 'src/trusted-policy-read.js'));
+    const expected = { ...before, [policy]: source };
+    delete expected['src/trusted-policy-read.js'];
+    assert.deepEqual(after, expected, 'only the transparent shim and its import spelling may differ');
+    writeFileSync(file, source.replace(direct, "'../../../sandbox/index.js'"));
+    const barrel = runnerPackage(installed).files;
+    assert.ok(Object.hasOwn(barrel, 'packages/sandbox/index.js'));
+    assert.notDeepEqual(barrel, after, 'the sandbox barrel must fail the unchanged-closure control');
+  } finally { writeFileSync(file, source); }
 });
