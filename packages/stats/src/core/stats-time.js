@@ -2,9 +2,9 @@
 import { Refused } from '../../../kernel/core.js';
 import { proofEventDetail } from '../../../kernel/index.js';
 
-export const TIME_PHASES = ['queued', 'building', 'tool', 'thinking', 'static', 'doctrine', 'check', 'test', 'conflict',
+export const TIME_PHASES = ['queued', 'building', 'tool', 'thinking', 'static', 'doctrine', 'check', 'test', 'conflict', 'unattributedChecks',
   'reviewWait', 'reviewing', 'rejectWaitingBuilder', 'rejectRebuilding', 'idleHold', 'landing'];
-const GATE = ['static', 'doctrine', 'check', 'test', 'conflict'];
+const GATE = ['static', 'doctrine', 'check', 'test', 'conflict', 'unattributedChecks'];
 
 /**
  * Validate the public window: a positive number of days, default 7.
@@ -61,8 +61,11 @@ function breakdown(events, receipts = []) {
     const receipt = event.event_kind === 'proof-run' ? detail.receipt : null;
     if (receipt && Number.isSafeInteger(receipt.durationMs) && receipt.durationMs >= 0) {
       // Production proof receipts carry the run's duration; a check run is the check phase, a submit gate run is the test phase.
-      const name = receipt.kind === 'check' || receipt.kind === 'submit' && receipt.submitPhase === 'criterion'
-        ? 'check' : receipt.kind === 'submit' && receipt.submitPhase === 'proof' ? 'test' : null;
+      const identified = typeof receipt.commit === 'string' && /^[a-f0-9]{40,64}$/u.test(receipt.commit);
+      const name = !identified && ['check', 'submit'].includes(receipt.kind) ? 'unattributedChecks'
+        : receipt.kind === 'check' || receipt.kind === 'submit' && receipt.submitPhase === 'criterion'
+          ? 'check' : receipt.kind === 'submit' && receipt.submitPhase === 'proof' ? 'test'
+            : receipt.kind === 'submit' ? 'unattributedChecks' : null;
       if (name) { gate ??= {}; gate[name] = (gate[name] ?? 0) + receipt.durationMs; }
       continue;
     }
@@ -152,14 +155,17 @@ export function timeStats(history, { now, days = 7, receipts = [] }) {
     const values = items.map(item => item.phases[phase]);
     return [phase, { medianMs: median(values), totalMs: values.reduce((sum, value) => sum + value, 0) }];
   }));
-  const unattributedReceipts = attributed.filter(receipt => ['static', 'doctrine', 'conflict'].includes(receipt.kind)
-    && !Number.isSafeInteger(receipt.item)).length;
+  const unassigned = attributed.filter(receipt => ['static', 'doctrine', 'conflict'].includes(receipt.kind)
+    && !Number.isSafeInteger(receipt.item) && Date.parse(receipt.at) >= now - window && Date.parse(receipt.at) <= now);
+  const unattributedReceipts = unassigned.length;
+  const unattributedGateMs = unassigned.reduce((total, receipt) => total + ['waitMs', 'admissionMs', 'setupMs', 'runMs', 'evidenceMs']
+      .reduce((sum, key) => sum + (Number.isFinite(receipt[key]) && receipt[key] >= 0 ? receipt[key] : 0), 0), 0);
   const unattributedProofs = items.reduce((count, item) => count + byItem.get(item.id).filter(event => {
     if (event.event_kind !== 'proof-run') return false;
     const receipt = proofEventDetail(event).receipt;
     return receipt?.kind === 'submit' && !['criterion', 'proof'].includes(receipt.submitPhase);
   }).length, 0);
-  return { since: new Date(now - window).toISOString(), until: new Date(now).toISOString(), landed: items.length, items, phases, unattributedReceipts, unattributedProofs,
+  return { since: new Date(now - window).toISOString(), until: new Date(now).toISOString(), landed: items.length, items, phases, unattributedReceipts, unattributedGateMs, unattributedProofs,
     clockMs: items.reduce((sum, item) => sum + item.clockMs, 0) };
 }
 
@@ -167,11 +173,11 @@ export function timeStats(history, { now, days = 7, receipts = [] }) {
 export function timeLines(stats) {
   const minutes = ms => (ms / 60000).toFixed(1);
   const lines = [`${stats.landed} items landed ${stats.since} to ${stats.until}; ${minutes(stats.clockMs)} clock minutes`];
-  if (stats.unattributedReceipts) lines.push(`${stats.unattributedReceipts} older phase receipts lack item attribution`);
+  if (stats.unattributedReceipts) lines.push(`unattributed checks: ${minutes(stats.unattributedGateMs)} min across ${stats.unattributedReceipts} receipts without item attribution (outside item totals)`);
   if (stats.unattributedProofs) lines.push(`${stats.unattributedProofs} submit proof receipts lack phase attribution`);
   for (const phase of TIME_PHASES) {
     const row = stats.phases[phase];
-    if (row.totalMs > 0) lines.push(`${phase}: median ${minutes(row.medianMs)} min, total ${minutes(row.totalMs)} min`);
+    if (row.totalMs > 0) lines.push(`${phase === 'unattributedChecks' ? 'unattributed checks' : phase}: median ${minutes(row.medianMs)} min, total ${minutes(row.totalMs)} min`);
   }
   return lines;
 }
@@ -186,7 +192,7 @@ export function timeLines(stats) {
 export function checkpointLine(stats, { reason, label }) {
   const phases = Object.fromEntries(TIME_PHASES.map(phase => [phase, stats.phases[phase]]));
   return JSON.stringify({ version: 1, at: stats.until, reason, ...(label ? { label } : {}), since: stats.since, landed: stats.landed, clockMs: stats.clockMs,
-    unattributedReceipts: stats.unattributedReceipts, unattributedProofs: stats.unattributedProofs, phases });
+    unattributedReceipts: stats.unattributedReceipts, unattributedGateMs: stats.unattributedGateMs, unattributedProofs: stats.unattributedProofs, phases });
 }
 
 /** Whether a weekly checkpoint is due: none yet, or the last one is at least seven days old. */

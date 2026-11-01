@@ -77,7 +77,7 @@ test('a production check receipt of 60000 ms shows as 60000 ms of check time, no
   const proof = { item: 3, frozenDigest: null, environment: null, seat: 'core-1', runner: null, exitCode: 0,
     counts: { passed: 1, failed: 0, skipped: 0 }, durationMs: 60000, sourceClean: true };
   assert.ok(proofFields(proof), 'the production validator accepts these receipt fields');
-  const receipt = { id: '11111111-1111-4111-8111-111111111111', kind: 'check', at: new Date(T0 + 8 * MIN).toISOString(), ...proof };
+  const receipt = { id: '11111111-1111-4111-8111-111111111111', kind: 'check', commit: 'a'.repeat(40), at: new Date(T0 + 8 * MIN).toISOString(), ...proof };
   const history = [ev(3, 0, 'add'), ev(3, 1, 'claim'), ev(3, 8, 'proof-run', { receipt }), ev(3, 10, 'submit'),
     ev(3, 12, 'reserve'), ev(3, 14, 'accept'), ev(3, 15, 'merged')];
   const stats = timeStats(history, { now: T0 + 200 * MIN, days: 7 });
@@ -91,11 +91,19 @@ test('a native submit criterion receipt contributes check time [R1,R2,C7]', () =
     exitCode: 0, counts: { passed: 1, failed: 0, skipped: 0 }, durationMs: MIN, sourceClean: true,
     submitPhase: 'criterion', submitAdmission: '11111111-1111-4111-8111-111111111111' });
   assert.ok(proof);
-  const history = [ev(4, 0, 'add'), ev(4, 1, 'claim'), ev(4, 3, 'proof-run', { receipt: { id: '22222222-2222-4222-8222-222222222222', kind: 'submit', ...proof } }),
+  const history = [ev(4, 0, 'add'), ev(4, 1, 'claim'), ev(4, 3, 'proof-run', { receipt: { id: '22222222-2222-4222-8222-222222222222', kind: 'submit', commit: 'b'.repeat(40), ...proof } }),
     ev(4, 4, 'submit'), ev(4, 5, 'reserve'), ev(4, 6, 'accept'), ev(4, 7, 'merged')];
   const stats = timeStats(history, { now: NOW, days: 7 });
   assert.equal(stats.phases.check.totalMs, MIN);
   assert.equal(stats.items[0].clockMs, 7 * MIN);
+});
+
+test('a receipt without a commit is an unattributed check without changing the item clock [R1,R2,C7]', () => {
+  const history = [ev(10, 0, 'add'), ev(10, 1, 'claim'), ev(10, 3, 'proof-run', { receipt: { kind: 'check', durationMs: MIN } }),
+    ev(10, 4, 'submit'), ev(10, 5, 'accept'), ev(10, 6, 'merged')];
+  const stats = timeStats(history, { now: NOW });
+  assert.equal(stats.phases.unattributedChecks.totalMs, MIN);
+  assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 6 * MIN);
 });
 
 test('only item-attributed gate receipts contribute static and doctrine time [R1,R2,C7]', () => {
