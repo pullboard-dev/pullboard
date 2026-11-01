@@ -1,6 +1,6 @@
 /** Project build intervals from recorded claim/submit boundaries, retaining missing evidence [B35,R1,R2,C7]. */
 import { criterionSize } from '../../../items/core.js';
-import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
+import { proofEventDetail } from '../../../kernel/index.js';
 
 /** Show each item's latest landed build; renewals never reset the last actual claim. */
 export function timeStats(history, items, catalog = []) {
