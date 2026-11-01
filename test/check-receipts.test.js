@@ -170,6 +170,16 @@ test('external literal module dependencies are part of a checker definition [V4,
   writeFileSync(dependency, "console.log('changed dependency'); process.exit(1);\n");
   assert.deepEqual(runRuleCheck(box.web, command).problems, ['changed dependency']);
   assert.equal(checkReceiptKey(box.web, { kind: 'doctrine', definition: 'node "$CHECKER"', config: {} }), null, 'an opaque command never reuses a receipt');
+  const directory = join(outside, 'rules');
+  mkdirSync(directory);
+  writeFileSync(join(directory, 'package.json'), '{"main":"actual.cjs"}\n');
+  writeFileSync(join(directory, 'index.js'), 'process.exit(0);\n');
+  writeFileSync(join(directory, 'actual.cjs'), 'process.exit(0);\n');
+  writeFileSync(script, "require('./rules');\n");
+  assert.deepEqual(runRuleCheck(box.web, command).problems, []);
+  assert.equal(checkReceiptKey(box.web, { kind: 'doctrine', definition: command, config: {} }), null, 'package directory loaders stay uncached rather than guessing index.js');
+  writeFileSync(join(directory, 'actual.cjs'), "console.log('changed package entry'); process.exit(1);\n");
+  assert.deepEqual(runRuleCheck(box.web, command).problems, ['changed package entry']);
 });
 
 
@@ -245,8 +255,8 @@ test('configuration receipts cover both files and report changed parts [V4,C7]',
   assert.match(lines.join(''), /tree changed; config changed/u);
   writeCheckReceipt(box.repo, changed);
   const config = JSON.parse(helpers.CONFIG ? JSON.stringify(helpers.CONFIG) : '{}');
-  config.check = { timeoutMs: 1234 };
+  config.staticChecks = 'node static.cjs --strict';
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
-  box.git(box.repo, 'commit', '-q', '-am', 'test: checker config change [V4,C7]');
+  box.git(box.repo, 'commit', '-q', '-am', 'test: checker config change [G1]');
   assert.notEqual(spec().configDigest, changed.configDigest, 'pullboard config is independently fingerprinted');
 });

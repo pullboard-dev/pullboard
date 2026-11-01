@@ -49,6 +49,15 @@ function projectConfig(root) {
   }));
 }
 
+/** Explain why an earlier receipt cannot even be addressed by the current inputs. */
+function unavailableReceipt(root, kind, part) {
+  try {
+    readFileSync(join(receiptDir(root), `${receiptDigest(kind)}-latest.json`));
+    process.stderr.write(`${kind} receipt not reused: ${part} changed or cannot be fingerprinted\n`);
+  } catch { /* First runs have no receipt to refuse. */ }
+  return null;
+}
+
 /**
  * The key a check run is filed under, or null when no receipt may be read or written for it.
  *
@@ -57,12 +66,12 @@ function projectConfig(root) {
  */
 export function checkReceiptKey(root, { kind, definition, config, code = [], commands = typeof definition === 'string' ? [definition] : [] }) {
   const tree = cleanTree(root);
-  if (!tree) return null;
+  if (!tree) return unavailableReceipt(root, kind, 'tree');
   const implementation = checkCommandDefinition(root, commands);
-  if (!implementation) return null;
+  if (!implementation) return unavailableReceipt(root, kind, 'check command or import closure');
   const implementationDigest = receiptDigest(implementation);
   const tool = checkCommandDefinition(root, [], code);
-  if (!tool) return null;
+  if (!tool) return unavailableReceipt(root, kind, 'runner import closure');
   const checkDigest = receiptDigest({ kind, definition, tool, implementationDigest, node: process.version });
   const configDigest = receiptDigest({ effective: config ?? null, files: projectConfig(root) });
   const parts = { tree, command: receiptDigest(definition), implementation: implementationDigest, runner: receiptDigest(tool), config: configDigest };
