@@ -13,6 +13,15 @@ import { cellInventory } from '../packages/codemap/index.js';
 import { updateCellInventory } from '../packages/codemap/index.js';
 import { receiptDigest } from '../packages/git/index.js';
 import { repoInfo } from '../src/git.js';
+import { git } from '../src/git.js';
+import { Refused } from '../packages/kernel/index.js';
+
+/** A cache is never evidence for a moved or dirty immutable source. */
+function unchanged(checkout, commit) {
+  if (git(checkout, ['rev-parse', 'HEAD']) !== commit || git(checkout, ['status', '--porcelain', '--untracked-files=all'])) {
+    throw new Refused('CELLS_SUBMIT', 'immutable analysis snapshot changed during inspection');
+  }
+}
 
 /** Share only complete immutable inventories under their exact commit and checker identity. */
 export function inventoryCache(root, key, parsers, onMode = () => {}, eligible = () => true) {
@@ -20,6 +29,7 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
   const checker = key ? receiptDigest({ definition: key.checkDigest, preloads: key.config?.preloads }) : null;
   /** Read or construct the pinned base once; a malformed cache is never evidence. */
   function base(checkout, commit) {
+    unchanged(checkout, commit);
     if (memory.has(commit)) return memory.get(commit);
     const directory = join(repoInfo(root).commonDir, 'pullboard', 'cells-inventory');
     const file = key ? join(directory, `${receiptDigest({ commit, checker })}.json.gz`) : null;
@@ -31,11 +41,13 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
         edges: new Map(data.payload.edges), unknown: data.payload.unknown };
       if (!Array.isArray(data.payload.files) || !Array.isArray(data.payload.edges) || !Array.isArray(inventory.unknown)) throw new Error('invalid inventory cache');
       if (!eligible()) throw new Error('preload changed');
+      unchanged(checkout, commit);
       onMode('base-cache');
     } catch { /* Missing or damaged evidence requires a fresh immutable census. */ }
     if (!inventory) {
       onMode('base-full');
       inventory = cellInventory(checkout, parsers);
+      unchanged(checkout, commit);
       if (file && eligible()) try {
         const payload = { files: [...inventory.files].map(([path, bytes]) => [path, bytes.toString('base64')]), edges: [...inventory.edges], unknown: inventory.unknown };
         const data = { version: 1, commit, checker, digest: receiptDigest(payload), payload };

@@ -438,3 +438,19 @@ test('one changed cell selects its importers without unrelated cells [C7,D3,CD64
   const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
   assert.deepEqual(result.cells.sort(), ['app:cli', 'stats']);
 });
+
+test('changed immutable source cannot poison the shared cell inventory [C7,D3]', t => {
+  const box = fixture(t), main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const key = { checkDigest: 'snapshot-custody' };
+  const changing = { commonJsIn, importsIn(sources) {
+    const result = importsIn(sources);
+    box.put('src/refused.js', 'export const changed = true;\n');
+    return result;
+  } };
+  const first = inventoryCache(box.root, key, changing);
+  assert.throws(() => first.base(box.root, main), /immutable analysis snapshot changed/u);
+  git(box.root, 'checkout', '--', 'src/refused.js');
+  const modes = [];
+  inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full', 'the interrupted census did not publish cache evidence');
+});
