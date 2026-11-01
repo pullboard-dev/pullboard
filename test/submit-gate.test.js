@@ -8,95 +8,18 @@ import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFi
 import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { after, test } from 'node:test';
+import { test } from 'node:test';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { configFromSource } from '../packages/config/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { refuseSandboxBlocked, sandboxBlockedOperation } from '../src/gate.js';
 import { fileDenialWatcher } from '../packages/sandbox/index.js';
-
-const BIN = resolveBin();
-const dirs = [];
-const SPEC = '# Submit proof fixture\n\n## G · Goals\n- G1 [approved, must] The selected test proves the change. | gate: test\n';
-
-after(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-});
-
-/** Resolve the real CLI relative to this test without importing any project dependencies. */
-function resolveBin() {
-  return join(import.meta.dirname, '../bin/pullboard.js');
-}
-
-/** Create a private Git repository with a deterministic identity and isolated Pullboard home. */
-function privateRepo(t) {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-submit-gate-')));
-  dirs.push(dir);
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const root = join(dir, 'repo');
-  mkdirSync(root);
-  const env = {
-    ...process.env,
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Test Agent',
-    GIT_AUTHOR_EMAIL: 'agent@example.com',
-    GIT_COMMITTER_NAME: 'Test Agent',
-    GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_HOME: join(dir, 'home'),
-    PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
-  };
-  delete env.PULLBOARD_RELAY_TOKEN;
-  delete env.NODE_TEST_CONTEXT;
-  /** Run real Git in this fixture with only the fixture's configured identity. */
-  const git = (...args) => runFixtureGit(args, { cwd: root, env });
-  /** Run the real local CLI, retaining JSON stdout and refusal stderr separately. */
-  const run = (...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
-  };
-  git('init', '-q', '-b', 'main');
-  assert.equal(run('init').code, 0);
-  mkdirSync(join(root, 'node_modules/.bin'), { recursive: true });
-  symlinkSync(BIN, join(root, 'node_modules/.bin/pullboard'));
-  appendFileSync(join(root, '.git/info/exclude'), '\nnode_modules/\n');
-  put(root, 'SPEC.md', SPEC);
-  put(root, 'package.json', '{"type":"module"}\n');
-  return { dir, root, env, git, run };
-}
-
-/** Create a real joined builder with its accepted fixture ownership before any claim. */
-function builderRepo(box, additionalOwned = []) {
-  const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
-  config.lanes = { build: { owns: ['src/', 'test/', ...additionalOwned], specs: ['G'] } };
-  put(box.root, 'pullboard.json', JSON.stringify(config));
-  commitAll(box);
-  const made = box.run('worktree', 'build', '--json');
-  assert.equal(made.code, 0, made.err);
-  const root = JSON.parse(made.out).path;
-  /** Run Git only in the joined builder. */
-  const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
-  /** Run the real CLI with the joined builder identity. */
-  const run = (...args) => {
-    const result = runFixtureChild(process.execPath, [BIN, ...args], { cwd: root, env: box.env, encoding: 'utf8' });
-    return { code: result.status, out: result.stdout ?? '', err: result.failure ?? result.stderr ?? '', failure: result.failure };
-  };
-  return { ...box, root, git, run, coordinator: box.run };
-}
-
-/** Write a fixture file, creating its parent directory when needed. */
-function put(root, path, text) {
-  const file = join(root, path);
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, text);
-}
-
-/** Commit the fixture state using a valid Pullboard message. */
-function commitAll(box, message = 'chore: fixture state') {
-  box.git('add', '-A');
-  box.git('commit', '-q', '-m', message);
-  return box.git('rev-parse', 'HEAD');
-}
+import { SPEC } from './submit-gate-fixture.js';
+import { privateRepo } from './submit-gate-fixture.js';
+import { builderRepo } from './submit-gate-fixture.js';
+import { put } from './submit-gate-fixture.js';
+import { commitAll } from './submit-gate-fixture.js';
+import { seedGraph } from './submit-gate-fixture.js';
 
 /** Copy the real module graph in bounded commits while retaining every installed hook and secret scan. */
 function copyRepositoryFixture(box, repository, tracked) {
@@ -375,18 +298,6 @@ test('an ordinary failure stays gate red [C7,B26]', (t) => {
   assert.match(output, /GATE_RED/u);
   assert.doesNotMatch(output, /SANDBOX_BLOCKED/u);
 });
-
-/** Seed a small import graph with three independently discoverable test files. */
-function seedGraph(box) {
-  put(box.root, 'src/a.js', 'export const value = 1;\n');
-  put(box.root, 'src/middle.js', "export { value } from './a.js';\n");
-  put(box.root, 'src/entry.js', "export const load = () => import('./middle.js');\n");
-  put(box.root, 'src/other.js', 'export const other = true;\n');
-  put(box.root, 'test/a.test.js', "import '../src/entry.js';\n");
-  put(box.root, 'test/b.test.js', "import '../src/other.js';\n");
-  put(box.root, 'test/c.test.js', "import assert from 'node:assert/strict';\nassert.ok(true);\n");
-  return commitAll(box);
-}
 
 test('one source change selects its direct and transitive static, re-export and literal dynamic importers [V4,C7]', (t) => {
   const box = privateRepo(t);
