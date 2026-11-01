@@ -265,3 +265,27 @@ test('active claims return with notes after two hours or three refused submits; 
   assert.deepEqual(stats.notesPerSubmit.find(row => row.seat === f.first), { seat: f.first, notes: 1, submits: 0, notesPerSubmit: null });
   assert.deepEqual(stats.notesPerSubmit.find(row => row.seat === f.second), { seat: f.second, notes: 0, submits: 1, notesPerSubmit: 0 });
 });
+
+
+test('three rejected submits return the claim to another seat, including after a lease lapses [B4,B5]', t => {
+  const f = fixture(t);
+  const id = f.add();
+  for (let n = 0; n < 3; n++) {
+    f.claim(id, f.first);
+    f.git(f.worktrees[f.first], 'commit', '--allow-empty', '-qm', `attempt ${n}`);
+    const head = f.git(f.worktrees[f.first], 'rev-parse', 'HEAD');
+    submitFixture(f.board, id, { agentId: f.first, commit: head, tree: head });
+    store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs the edge case.' });
+    if (n === 1) store.releaseItemHold(f.board, id, { agentId: 'coordinator' });
+  }
+  f.claim(id, f.first);
+  f.maintain();
+  assert.equal(store.getItem(f.board, id).item_status, 'open');
+  assert.match(JSON.parse(kinds(f, id, 'fact').at(-1).event_detail).text, /three failed submits/u);
+  f.claim(id, f.second);
+  // A claim with no renewal must not disappear between the live and long-lapsed scans.
+  f.advance(120);
+  f.maintain();
+  assert.equal(store.getItem(f.board, id).item_status, 'open');
+  assert.match(JSON.parse(kinds(f, id, 'fact').at(-1).event_detail).text, /two hours/u);
+});
