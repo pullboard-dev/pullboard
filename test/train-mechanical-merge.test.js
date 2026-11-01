@@ -172,7 +172,7 @@ test('new format declarations and move files are discovered without a shared reg
   mkdirSync(join(root, 'src'));
   copyPackageSubset(resolve(import.meta.dirname, '..'), root,
     [...packageFiles(resolve(import.meta.dirname, '..')).filter(file => file.startsWith('packages/state/src/shell/formats/')),
-      'packages/config/src/core/json.js', 'packages/spec/src/shell/spec.js', 'src/board-schema-source.js'].map(path => ({ path, as: path })));
+      'packages/config/src/core/json.js', 'packages/spec/src/shell/spec.js', 'packages/store/src/shell/board-schema-source.js'].map(path => ({ path, as: path })));
   writeFileSync(join(root, 'src', 'fixture-engine.js'), 'export const FIXTURE_ENGINE = 110;\n');
   const original = discoverFormats(root);
   assert.equal(original.length, 5);
@@ -180,6 +180,9 @@ test('new format declarations and move files are discovered without a shared reg
     version: { kind: 'constant', file: 'src/fixture.js', constant: 'FIXTURE_VERSION' }, source: '`FIXTURE_VERSION`', upgrade: 'preserve' }));
   writeFileSync(join(root, 'src', 'fixture.js'), 'export const FIXTURE_VERSION = 7;\n');
   assert.equal(discoverFormats(root).find(entry => entry.name === 'fixture').version, 7);
+  rmSync(join(root, 'src', 'fixture.js'));
+  assert.throws(() => discoverFormats(root), /ENOENT.*fixture\.js/u, 'a descriptor cannot name a missing source');
+  writeFileSync(join(root, 'src', 'fixture.js'), 'export const FIXTURE_VERSION = 7;\n');
   mkdirSync(join(root, 'docs'));
   const guide = 'before\n<!-- format-versions:start -->\nstale\n<!-- format-versions:end -->\nafter\n';
   writeFileSync(join(root, 'docs', 'formats.md'), guide);
