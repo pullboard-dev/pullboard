@@ -1,3 +1,4 @@
+import { spawnCaptured } from '../../../sandbox/index.js';
 /**
  * Doctrine checks with a count that only falls (D1, D3). A rule row may carry
  * `| gate: check <command> | count: N`, and `| files: <paths>` to narrow it; the command prints one
@@ -116,12 +117,12 @@ export function checkRulesAt(root, revision, name = DOCTRINE_FILE) {
  * @param {NodeJS.ProcessEnv} [gateEnvironment] Child markers supplied by an actual acquired gate lease.
  * @returns {{ problems: string[], broken: string, seconds: number }}
  */
-export function runRuleCheck(cwd, command, timeoutMs = DEFAULT_TIMEOUT_MS, gateEnvironment = {}) {
+function* ruleCheckExecution(cwd, command, timeoutMs = DEFAULT_TIMEOUT_MS, gateEnvironment = {}) {
   const started = Date.now();
-  const result = spawnSync(`(\n${command}\n) 2>&1`, {
+  const result = yield { command: `(\n${command}\n) 2>&1`, options: {
     cwd, env: { ...gitChildEnv(cwd), ...gateEnvironment }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8',
     timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 * 1024,
-  });
+  } };
   invalidateGitFacts();
   const seconds = Math.round((Date.now() - started) / 1000);
   if (result.error) {
@@ -132,6 +133,20 @@ export function runRuleCheck(cwd, command, timeoutMs = DEFAULT_TIMEOUT_MS, gateE
   if (result.status !== 0 && result.status !== 1) return { problems: [], broken: `exited ${result.status}`, seconds };
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
   return { problems: output.split(/\r?\n/u).map((line) => line.trimEnd()).filter((line) => line.trim()), broken: '', seconds };
+}
+
+/** Run a rule synchronously without changing the established counted-exit contract. */
+export function runRuleCheck(cwd, command, timeoutMs, gateEnvironment) {
+  const execution = ruleCheckExecution(cwd, command, timeoutMs, gateEnvironment);
+  const step = execution.next();
+  return execution.next(spawnSync(step.value.command, step.value.options)).value;
+}
+
+/** Await a bounded rule child while preserving exactly the same ratchet result fields. */
+export async function runRuleCheckAsync(cwd, command, timeoutMs, gateEnvironment) {
+  const execution = ruleCheckExecution(cwd, command, timeoutMs, gateEnvironment);
+  const step = execution.next();
+  return execution.next(await spawnCaptured(step.value.command, [], step.value.options)).value;
 }
 
 /** True when a changed path is one of a rule's watched paths or lies under one. */
@@ -245,7 +260,7 @@ export function hasSubmitRules(root, mainCommit, practice) {
 }
 
 /** Run a check at an exact commit in a private shared clone, leaving every live worktree alone. */
-function runAtCommit(root, commit, command, timeoutMs) {
+function* checkAtCommitExecution(root, commit, command, timeoutMs) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-doctrine-base-'));
   const checkout = join(directory, 'checkout');
   const env = gitChildEnv(root);
@@ -253,10 +268,28 @@ function runAtCommit(root, commit, command, timeoutMs) {
     const clone = spawnSync('git', ['clone', '--quiet', '--shared', '--no-checkout', '--', root, checkout], { env, stdio: 'ignore' });
     const selected = clone.status === 0 && spawnSync('git', ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', commit], { cwd: checkout, env, stdio: 'ignore' });
     if (!selected || selected.status !== 0) return { problems: [], broken: 'could not check out the base commit', seconds: 0 };
-    return runRuleCheck(checkout, command, timeoutMs);
+    return yield { checkout, command, timeoutMs };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+}
+
+/** Preserve synchronous base comparisons for existing doctrine commands. */
+function runAtCommit(root, commit, command, timeoutMs) {
+  const execution = checkAtCommitExecution(root, commit, command, timeoutMs);
+  try {
+    const step = execution.next();
+    return step.done ? step.value : execution.next(runRuleCheck(step.value.checkout, command, timeoutMs)).value;
+  } finally { execution.return(); }
+}
+
+/** Retain the private base checkout until its asynchronous rule has fully exited. */
+async function runAtCommitAsync(root, commit, command, timeoutMs) {
+  const execution = checkAtCommitExecution(root, commit, command, timeoutMs);
+  try {
+    const step = execution.next();
+    return step.done ? step.value : execution.next(await runRuleCheckAsync(step.value.checkout, command, timeoutMs)).value;
+  } finally { execution.return(); }
 }
 
 /**
@@ -269,7 +302,7 @@ function runAtCommit(root, commit, command, timeoutMs) {
  * @param {{ mainCommit: string, commit: string, practice?: string, timeoutMs?: number, runCheck?: (commit:string, command:string, timeoutMs:number) => ReturnType<typeof runRuleCheck> }} options
  * @returns {ReturnType<typeof doctrineReport>}
  */
-export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FILE, timeoutMs = DEFAULT_TIMEOUT_MS, runCheck }) {
+function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_FILE, timeoutMs = DEFAULT_TIMEOUT_MS, runCheck }) {
   const rules = checkRulesAt(root, mainCommit, practice).filter((rule) => rule.runs === 'submit');
   if (!rules.length) return [];
   const lowered = new Map(checkRulesAt(root, commit, practice).map((rule) => [rule.id, rule.count]));
@@ -282,7 +315,7 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
   for (const rule of rules) {
     if (!changed.some((path) => inScope(rule.files, path))) continue;
     const committed = Math.min(rule.count, lowered.get(rule.id) ?? rule.count);
-    const run = runCheck ? runCheck(commit, rule.command, timeoutMs) : runRuleCheck(root, rule.command, timeoutMs);
+    const run = yield { commit, command: rule.command, timeoutMs, candidate: true };
     const count = run.problems.length;
     const state = ruleState(rule, count, committed, run.broken);
     const result = { id: rule.id, text: rule.text, command: rule.command, count, committed,
@@ -296,7 +329,7 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
     }
     if (rule.mode === 'watch') continue;
     const touched = changed.filter((path) => run.problems.some((line) => namesFile(line, path)));
-    const ran = touched.length ? (runCheck ? runCheck(base, rule.command, timeoutMs) : runAtCommit(root, base, rule.command, timeoutMs)) : { problems: [], broken: '' };
+    const ran = touched.length ? yield { commit: base, command: rule.command, timeoutMs, candidate: false } : { problems: [], broken: '' };
     // A renamed file is compared with its origin: the origin's problems are carried to the new path.
     const before = { ...ran, problems: ran.problems.map((line) => carryRename(line, origins)) };
     if (count > committed) {
@@ -324,4 +357,35 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
     throw new Refused('RATCHET_ROSE', `${refusals.join('\n')}\nthe doctrine holds these counts; fix the new problems, commit, and submit again; only the person's signature raises count:`);
   }
   return results;
+}
+
+
+/** Drive the unchanged doctrine ratchet with the synchronous command API. */
+export function holdDoctrine(root, options) {
+  const execution = doctrineHoldExecution(root, options);
+  try {
+    let step = execution.next();
+    while (!step.done) {
+      const request = step.value;
+      const run = options.runCheck ? options.runCheck(request.commit, request.command, request.timeoutMs)
+        : request.candidate ? runRuleCheck(root, request.command, request.timeoutMs) : runAtCommit(root, request.commit, request.command, request.timeoutMs);
+      step = execution.next(run);
+    }
+    return step.value;
+  } finally { execution.return(); }
+}
+
+/** Await each actual rule and base comparison without blocking other admitted work or changing ratchet decisions. */
+export async function holdDoctrineAsync(root, options) {
+  const execution = doctrineHoldExecution(root, options);
+  try {
+    let step = execution.next();
+    while (!step.done) {
+      const request = step.value;
+      const run = options.runCheck ? await options.runCheck(request.commit, request.command, request.timeoutMs)
+        : request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
+      step = execution.next(run);
+    }
+    return step.value;
+  } finally { execution.return(); }
 }
