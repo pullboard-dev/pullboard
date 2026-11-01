@@ -173,3 +173,4 @@ export { DECISION_QUEUE_ENGINE } from '../../src/decision-queue-engine.js';
 export { CLAIM_PROGRESS_ENGINE } from '../../src/claim-progress-engine.js';
 
 export { REJECTION_RETURN_ENGINE } from '../../src/rejection-return-engine.js';
+export { BOARD_PROGRESS_ENGINE } from '../../src/board-progress-engine.js';

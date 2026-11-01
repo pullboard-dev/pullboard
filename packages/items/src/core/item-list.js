@@ -19,7 +19,7 @@ export function milestoneNamesByItem(milestones) {
 
 /** What a board-state item summary keeps: what the lists and the roadmap read (A2, N26). */
 const SUMMARY_FIELDS = Object.freeze(['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy',
-  'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'imported', 'verdict', 'verdictState', 'withdrawnReason', 'withdrawnFrom']);
+  'blockedBy', 'progress', 'updatedAt', 'stage', 'since', 'counts', 'imported', 'verdict', 'verdictState', 'withdrawnReason', 'withdrawnFrom']);
 export const SUMMARY_KEYS = new Set(SUMMARY_FIELDS);
 
 /** Derive the withdrawal origin through the same canonical lifecycle used by list stages. */

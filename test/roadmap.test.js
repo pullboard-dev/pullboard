@@ -224,7 +224,12 @@ test('withdraw leaves every milestone and the roadmap lists work to ship first [
   assert.deepEqual([roadmap.Elsewhere.total, roadmap.Elsewhere.items], [0, []], 'a milestone whose only item was withdrawn is empty');
 
   const text = run('roadmap');
-  const itemText = text.replace(/^ {2}\d+ left of \d+: [^\n]*\n/gm, '');
+  assert.ok(roadmap.Now.items.every(item => item.progress?.stage), 'each item exposes computed progress [B35]');
+  assert.deepEqual(roadmap.Now.progress.holders, [], 'the milestone exposes its holders [B35]');
+  assert.ok(roadmap.Now.progress.waits.includes('landing on main'), 'the milestone aggregates native waits [B35]');
+  assert.match(text, /holders: none; waits: landing on main; idle: \d+m/, 'the text view shows milestone progress [B35]');
+  const itemText = text.replace(/^ {2}\d+ left of \d+: [^\n]*\n/gm, '')
+    .replace(/^ {2}holders: [^\n]*\n/gm, '').replace(/^ {4}progress: [^\n]*\n/gm, '');
   assert.match(itemText, /^Now: 1\/4 landed\n {2}1. #3 First open page — open\n {2}2. #5 Second open page — open\n {2}#1 Landed page — landed\n {2}#4 Accepted page — accepted$/m, 'the text roadmap lists the same order and count');
   assert.match(itemText, /^Old: 1\/1 landed\n {2}#1 Landed page — landed$/m, 'and leaves the withdrawn item out of the text');
   assert.doesNotMatch(text, /Stale withdrawn page|Dropped idea/, 'no withdrawn item appears anywhere in the text roadmap');

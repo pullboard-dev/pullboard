@@ -27,6 +27,16 @@ export function readActivityDelivery(board, agentId, options = {}) {
       const detail = activityEventDetail(event);
       if (detail && rejectionRecipient(board, event, detail) === agentId) entries.set(event.event_id, rejectionEntry(event, agentId));
     }
+    const notices = board.db.prepare(`SELECT * FROM event WHERE event_kind IN ('claim_stalled','work_notice') AND event_id>? AND event_id<=? ORDER BY event_id`)
+      .all(state.through, activity.cursor);
+    for (const event of notices) {
+      const detail = activityEventDetail(event);
+      if (detail?.holder !== agentId) continue;
+      const kind = event.event_kind === 'claim_stalled' ? 'stalled' : detail.kind;
+      if (!['stalled', 'unblocked'].includes(kind)) continue;
+      entries.set(event.event_id, { id: `event:${event.event_id}`, eventId: event.event_id, at: event.event_at, by: event.event_by,
+        kind, item: event.item_id, recipient: agentId, text: `#${event.item_id} is ${kind}; read its board progress and act` });
+    }
     const messages = new Map();
     for (const entry of entries.values()) if (entry.shout) {
       const message = board.db.prepare('SELECT * FROM shout WHERE shout_id=?').get(entry.shout);

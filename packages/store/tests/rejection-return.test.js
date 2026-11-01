@@ -57,7 +57,7 @@ function next(f, agentId) { return store.nextFor(f.board, { agentId, lane: 'core
 
 test('[B35,B13] rejection is the builder next work with its clause, verdict and handoff', t => {
   const f = fixture(t); enable(f);
-  const older = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'older', criterion: 'prove', specIds: ['B35'], route: 'mid' });
+  const older = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'older', criterion: 'prove', specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/older.js\nTest: proves older work' });
   const id = returned(f, 'reject', 0);
   const picked = next(f, f.builder);
   assert.equal(picked.item.item_id, id);
