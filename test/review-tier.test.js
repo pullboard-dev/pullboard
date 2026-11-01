@@ -163,7 +163,7 @@ test('coordinator strengthening of submitted work retains frozen proof and reser
   assert.equal(after.item_frozen, submitted.item_frozen);
   assert.equal(after.item_review_by, before.item_review_by);
   assert.throws(() => store.verify(f.board, id, { agentId: 'core-2', decision: 'ACCEPT', note: 'Synthetic guard control only.',
-    head: after.item_commit, digest: after.item_frozen_digest, policy: 'any', familyPolicy: 'off', check: 'none' }), { code: 'O2_FAMILY_MATCH' });
+    head: after.item_commit, digest: after.item_frozen_digest, policy: 'any', familyPolicy: 'off', check: 'none' }), { code: 'SAME_FAMILY' });
   const replica = fixtureBoard(t);
   importBoard(replica, exportBoard(f.board));
   assert.deepEqual(itemReviewPolicy(replica, id), itemReviewPolicy(f.board, id));
