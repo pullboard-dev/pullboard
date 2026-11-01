@@ -87,6 +87,7 @@
         "bin/",
         "test/",
         "packages/",
+        "apps/",
         "package.json",
         ".github/workflows/",
         "relay/",
