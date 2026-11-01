@@ -62,7 +62,7 @@ test('strict review dispatch requires a different vendor even with family policy
   assert.equal(store.getItem(box.board, strict).item_review_by, null);
   const direct = await cli(box, box.seats.sameFamily.path, ['next', '--verify', String(strict)]);
   assert.equal(direct.code, 1, direct.out + direct.err);
-  assert.equal(direct.document.error.code, 'O2_FAMILY_MATCH');
+  assert.equal(direct.document.error.code, 'SAME_FAMILY');
   assert.match(direct.document.error.message, /another declared vendor family/u);
   assert.equal(store.getItem(box.board, strict).item_review_by, null);
   assert.equal(store.getItem(box.board, build).item_status, 'open');
@@ -159,7 +159,7 @@ test('sensitive reviews without a required family refuse same-vendor offers and 
   }
   const refused = await cli(box, box.seats.sameFamily.path, ['next', '--verify', String(strict)]);
   assert.equal(refused.code, 1, refused.out + refused.err);
-  assert.equal(refused.document.error.code, 'O2_FAMILY_MATCH');
+  assert.equal(refused.document.error.code, 'SAME_FAMILY');
   assert.match(refused.document.error.message, /another declared vendor family/u);
   assert.equal(store.getItem(box.board, build).item_status, 'open');
   const outside = await cli(box, box.seats.outside.path, ['next', '--take']);
