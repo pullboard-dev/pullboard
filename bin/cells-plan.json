@@ -1138,6 +1138,10 @@
     {
       "path": "src/move-history/194.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/test-tiers.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
