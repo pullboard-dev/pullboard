@@ -1,3 +1,4 @@
+import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
@@ -291,7 +292,12 @@ export async function verifyHere(ctx, id, { second, values }) {
   ctx.io.say(result.decision === 'ACCEPT'
     ? `verified #${id}: ${result.reason}${result.check === 'none' ? '; no frozen check ran' : ''}${approvalRows.length ? `; ${agentApprovalLine(approvalRows)}` : ''}${verificationQuarantine ? `; computed quarantine verdict; raw exit ${verificationQuarantine.rawExitCode}; ${verificationQuarantine.coveredCases} covered case(s), proof ${verificationQuarantine.proofReceiptId}` : ''}${verificationOutput ? '\n' + renderTestSummary(verificationOutput) : ''}${verifiedTiming}`
     : `rejected #${id}: ${result.reason}${result.clause ? `; clause: ${result.clause}` : ''}; ${result.held ? 'held until its bar is sharpened' : 'it is open again for rework'}`);
-  if (accepted) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
+  if (accepted) {
+    let automatic = true;
+    try { automatic = await landAfterAcceptance(ctx); }
+    catch (error) { ctx.io.err(`automatic landing retained accepted work: ${error.code ?? error.name}: ${error.message}`); }
+    if (!automatic) ctx.io.say(landNext(ctx.info, accepted, acceptedLandingCommit, { spec: loadSpec(ctx.info.root, ctx.config) }));
+  }
   if (ctx.verdictResult) ctx.verdictResult.value = primary;
   return 0;
 }

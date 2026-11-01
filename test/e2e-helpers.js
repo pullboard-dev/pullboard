@@ -77,6 +77,7 @@ const CONFIG = {
   spec: 'SPEC.md',
   verify: 'any',
   lease: '2h',
+  landing: { manualOverride: true },
   lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
   shared: ['docs/'],
 };

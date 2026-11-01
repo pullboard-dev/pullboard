@@ -18,7 +18,7 @@ after(e2e.cleanup);
 function fixture() {
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  config.landing = { publish: 'separate' };
+  config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   const seed = e2e.commitFile(box, box.repo, 'web/shared.txt', 'one\ntwo\nthree\n', 'chore: configure private why landing');
   assert.equal(seed.status, 0, seed.stderr);
