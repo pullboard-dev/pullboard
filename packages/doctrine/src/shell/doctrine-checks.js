@@ -152,14 +152,14 @@ function* ruleCheckExecution(cwd, command, timeoutMs = DEFAULT_TIMEOUT_MS, gateE
 export function runRuleCheck(cwd, command, timeoutMs, gateEnvironment) {
   const execution = ruleCheckExecution(cwd, command, timeoutMs, gateEnvironment);
   const step = execution.next();
-  return execution.next(spawnSync(step.value.command, step.value.options)).value;
+  return step.done ? step.value : execution.next(spawnSync(step.value.command, step.value.options)).value;
 }
 
 /** Await a bounded rule child while preserving exactly the same ratchet result fields. */
 export async function runRuleCheckAsync(cwd, command, timeoutMs, gateEnvironment) {
   const execution = ruleCheckExecution(cwd, command, timeoutMs, gateEnvironment);
   const step = execution.next();
-  return execution.next(await spawnCaptured(step.value.command, [], step.value.options)).value;
+  return step.done ? step.value : execution.next(await spawnCaptured(step.value.command, [], step.value.options)).value;
 }
 
 /** True when a changed path is one of a rule's watched paths or lies under one. */

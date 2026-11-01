@@ -99,7 +99,7 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
       if (!isBuiltin(specifier)) visit(localModule(file, specifier));
       else if (/^(?:node:)?(?:module|vm|child_process)$/u.test(specifier)) throw new Error('opaque checker loader');
     }
-    if (strict && ([...code.matchAll(/\b(?:require|import)\s*\(/gu)].length !== calls || [...code.matchAll(/\brequire\b/gu)].length !== requires || /\b(?:eval|Function)\s*\(/u.test(code))) throw new Error('opaque checker loading');
+    if (strict && ([...code.matchAll(/\b(?:require|import)\s*\(/gu)].length !== calls || [...code.matchAll(/\brequire\b/gu)].length !== requires || /\b(?:eval|Function|getBuiltinModule|createRequire)\s*\(/u.test(code))) throw new Error('opaque checker loading');
   }
   /** Follow the program, its interpreter, and every literal file operand of a wrapper command. */
   function commandFiles(words) {

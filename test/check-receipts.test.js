@@ -99,11 +99,15 @@ test('a changed file, check code or config re-runs the check; the same tree in a
   assert.equal(readCheckReceipt(box.web, spec(box.web)), null, 'a changed tree re-runs');
   // The code that runs a check is part of its definition: changing it re-runs the check on the same tree.
   const runner = join(box.dir, 'runner-code.js');
-  writeFileSync(runner, '// runner v1\n');
+  const helper = join(box.dir, 'runner-helper.js');
+  writeFileSync(helper, '// helper v1\n');
+  writeFileSync(runner, "import './runner-helper.js'; // runner v1\n");
   const before = spec(box.web, { code: [runner] });
   writeCheckReceipt(box.web, before, { by: 'web-1' });
   assert.ok(readCheckReceipt(box.web, spec(box.web, { code: [runner] })), 'unchanged runner code reuses');
-  writeFileSync(runner, '// runner v2\n');
+  writeFileSync(helper, '// helper v2\n');
+  assert.equal(readCheckReceipt(box.web, spec(box.web, { code: [runner] })), null, 'a transitive runner helper change re-runs');
+  writeFileSync(runner, "import './runner-helper.js'; // runner v2\n");
   assert.equal(readCheckReceipt(box.web, spec(box.web, { code: [runner] })), null, 'changed check code re-runs');
 });
 
@@ -207,10 +211,10 @@ test('shell wrappers and tracked constant loaders include changed external helpe
       writeFileSync(shell, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)}\n`);
       command = `/bin/sh ${JSON.stringify(shell)}`;
     } else {
-      writeFileSync(join(box.web, 'loader.cjs'), `const checker = ${JSON.stringify(script)}; require(checker);\n`);
-      box.git(box.web, 'add', 'loader.cjs');
+      writeFileSync(join(box.web, 'web/loader.cjs'), `const checker = ${JSON.stringify(script)}; require(checker);\n`);
+      box.git(box.web, 'add', 'web/loader.cjs');
       box.git(box.web, 'commit', '-q', '-m', 'test: tracked loader [V4,C7]');
-      command = 'node loader.cjs';
+      command = 'node web/loader.cjs';
     }
     assert.deepEqual(runRuleCheck(box.web, command).problems, []);
     assert.deepEqual(runRuleCheck(box.web, command).problems, []);
@@ -224,25 +228,25 @@ test('configuration receipts cover both files and report changed parts [V4,C7]',
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const { box } = project(helpers);
-  const spec = () => checkReceiptKey(box.web, { kind: 'config-proof', definition: 'node static.cjs', config: {} });
+  const spec = () => checkReceiptKey(box.repo, { kind: 'config-proof', definition: 'node static.cjs', config: {} });
   const first = spec();
-  writeCheckReceipt(box.web, first);
-  assert.ok(readCheckReceipt(box.web, spec()));
-  writeFileSync(join(box.web, 'package.json'), '{"type":"commonjs","checkerMode":"strict"}\n');
-  box.git(box.web, 'add', 'package.json');
-  box.git(box.web, 'commit', '-q', '-m', 'test: config change [V4,C7]');
+  writeCheckReceipt(box.repo, first);
+  assert.ok(readCheckReceipt(box.repo, spec()));
+  writeFileSync(join(box.repo, 'package.json'), '{"type":"commonjs","checkerMode":"strict"}\n');
+  box.git(box.repo, 'add', 'package.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: config change [V4,C7]');
   const changed = spec();
   assert.notEqual(changed.configDigest, first.configDigest, 'package config is fingerprinted independently of the tree');
   const lines = [];
   const previous = process.stderr.write;
   process.stderr.write = value => { lines.push(String(value)); return true; };
-  try { assert.equal(readCheckReceipt(box.web, changed), null); }
+  try { assert.equal(readCheckReceipt(box.repo, changed), null); }
   finally { process.stderr.write = previous; }
   assert.match(lines.join(''), /tree changed; config changed/u);
-  writeCheckReceipt(box.web, changed);
+  writeCheckReceipt(box.repo, changed);
   const config = JSON.parse(helpers.CONFIG ? JSON.stringify(helpers.CONFIG) : '{}');
   config.check = { timeoutMs: 1234 };
-  writeFileSync(join(box.web, 'pullboard.json'), JSON.stringify(config));
-  box.git(box.web, 'commit', '-q', '-am', 'test: checker config change [V4,C7]');
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
+  box.git(box.repo, 'commit', '-q', '-am', 'test: checker config change [V4,C7]');
   assert.notEqual(spec().configDigest, changed.configDigest, 'pullboard config is independently fingerprinted');
 });

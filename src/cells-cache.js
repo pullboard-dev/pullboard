@@ -98,7 +98,7 @@ export function cachedCellsRun(root, label, fn, options = {}) {
   }
   const state = enabled ? cellsStateKey(root) : null, dir = state ? cacheDir(root) : null;
   if (!state || !dir) return fn();
-  const file = join(dir, `${createHash('sha256').update(JSON.stringify([state, label])).digest('hex')}.json`);
+  const file = join(dir, `${createHash('sha256').update(JSON.stringify([state, label, key?.checkDigest, key?.configDigest])).digest('hex')}.json`);
   try {
     const saved = JSON.parse(readFileSync(file, 'utf8'));
     if (Number.isInteger(saved.code) && Array.isArray(saved.lines)) {
