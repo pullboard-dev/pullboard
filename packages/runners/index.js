@@ -24,3 +24,5 @@ export { runnerPackageReader, runnerPackage } from "./src/shell/runner-package.j
 export { captureRunnerTooling, currentRunnerTooling } from "./src/shell/runner-tooling-snapshot.js";
 export { validateRunner, runnerSource, RunnerDropped, runOnRunner, runOnRunnerAsync, serveRunnerController, probeRunnerHealth, probeRunnerJob, runnerExecutionServices } from "./src/shell/runners.js";
 export { packText, commitWork, runItems } from "./src/shell/run.js";
+/** Private runner checkout reuse behind the runner cell's front door [C7,P3]. */
+export { borrowWarmCheckout, snapshotWarmCheckout, recycleWarmCheckout, discardWarmCheckout } from './src/shell/warm-checkouts.js';

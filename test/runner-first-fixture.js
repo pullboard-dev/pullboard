@@ -135,7 +135,7 @@ export async function runnerFirstPolicyCase(e2e) {
     assert.equal(setting.code, 0, `${key} ${value}: ${setting.err}`);
   }
   const added = integrated.run(integrated.repo, 'add', 'web', 'Runner-first public submit', '--specs', 'G1',
-    '--criterion', 'the runner executes the submitted gate', '--check', 'true', '--json');
+    '--criterion', 'the runner executes the submitted gate', '--check', `${process.execPath} -e "setTimeout(() => {}, 1000)"`, '--json');
   assert.equal(added.code, 0, added.err);
   const id = JSON.parse(added.out).item.item_id;
   assert.equal(integrated.run(integrated.web, 'claim', String(id)).code, 0);
