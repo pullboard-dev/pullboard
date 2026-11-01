@@ -30,7 +30,7 @@ function project(t, remove = false) {
   const main = privateRepo(t);
   const marker = join(main.dir, 'full-gate.txt');
   put(main.root, 'pullboard.json', JSON.stringify({ gate: `FULL_GATE_MARKER='${marker}' node --test test/work.test.js`,
-    lanes: { build: { owns: ['src/', 'test/', 'packages/', 'bin/', 'apps/'], specs: ['G'] } },
+    lanes: { build: { owns: ['src/', 'test/', 'packages/', 'apps/', 'bin/'], specs: ['G'] } },
     submit: { handoff: true }, submitGate: 'landing', submitInvariants: [], registryGuards: [], shared: ['pullboard.json'] }));
   put(main.root, 'package.json', JSON.stringify({ type: 'module', bin: './apps/fixture/index.js' }));
   put(main.root, 'apps/fixture/index.js', "import { value } from '../../src/leaf.js';\nconsole.log(value);\n");
