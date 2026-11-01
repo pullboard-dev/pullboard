@@ -40,7 +40,7 @@ import { dueSentinels } from '../src/sentinels.js';
 import { sentinels } from '../src/sentinels.js';
 import { executeMove } from '../packages/api/index.js';
 import { moveArgs } from '../packages/person/index.js';
-import { personRequestMove, preparePersonRequest } from '../src/person-request.js';
+import { personRequestMove, preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestMoveProblem, requestStageText } from '../src/relay-requests.js';
 import { PEOPLE_ENGINE } from '../src/people-engine.js';
 import { sentinelDraftNeeds } from '../src/sentinels.js';

@@ -1,6 +1,8 @@
 import { spawnCaptured } from '../../../sandbox/index.js';
 import { fileURLToPath } from 'node:url';
 import { checkReceiptKey } from '../../../git/index.js';
+import { checkCommandDefinition } from '../../../git/index.js';
+import { cleanTree } from '../../../git/index.js';
 import { readCheckReceipt } from '../../../git/index.js';
 import { writeCheckReceipt } from '../../../git/index.js';
 import { receiptLine } from '../../../git/index.js';
@@ -320,13 +322,23 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
   if (!rules.length) return [];
   const lowered = new Map(checkRulesAt(root, commit, practice).map((rule) => [rule.id, rule.count]));
   const base = (gitOut(root, ['merge-base', mainCommit, commit]) ?? '').trim() || mainCommit;
-  const changed = (gitOut(root, ['diff', '-z', '--no-renames', '--name-only', base, commit, '--']) ?? '').split('\0').filter(Boolean);
+  const diff = gitOut(root, ['diff', '-z', '--no-renames', '--name-only', base, commit, '--']);
+  if (diff === null) throw new Refused('RATCHET_UNCOUNTED', 'cannot determine changed paths for the doctrine hold');
+  const changed = diff.split('\0').filter(Boolean);
+  const candidateTree = (gitOut(root, ['rev-parse', `${commit}^{tree}`]) ?? '').trim();
+  const canFingerprint = cleanTree(root) === candidateTree;
   const origins = renamedOrigins(root, base, commit);
   const results = [];
   const refusals = [];
   const uncounted = [];
   for (const rule of rules) {
-    if (!changed.some((path) => inScope(rule.files, path))) continue;
+    if (!changed.some((path) => inScope(rule.files, path))) {
+      // Only skip when the check's own inputs can be identified and have not changed.
+      // An opaque command is evaluated rather than making assumptions about its dependencies.
+      const inputs = canFingerprint ? checkCommandDefinition(root, [rule.command]) : null;
+      const globalInputs = [practice, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, 'pullboard.json', 'package.json'];
+      if (inputs && !changed.some(path => globalInputs.includes(path) || inputs.some(input => input.path === `project:${path}`))) continue;
+    }
     const committed = Math.min(rule.count, lowered.get(rule.id) ?? rule.count);
     const run = yield { commit, command: rule.command, timeoutMs, candidate: true };
     const count = run.problems.length;
@@ -395,8 +407,22 @@ export async function holdDoctrineAsync(root, options) {
     let step = execution.next();
     while (!step.done) {
       const request = step.value;
-      const run = options.runCheck ? await options.runCheck(request.commit, request.command, request.timeoutMs)
-        : request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
+      let run;
+      if (options.runCheck) {
+        // Remote checks share the same per-tree receipts as local rule checks, but only when
+        // this clean checkout describes the exact tree requested from the runner.
+        const key = checkReceiptKey(root, { kind: 'doctrine', definition: request.command, config: { timeoutMs: request.timeoutMs }, code: [fileURLToPath(import.meta.url)] });
+        const requestedTree = (gitOut(root, ['rev-parse', `${request.commit}^{tree}`]) ?? '').trim();
+        const matching = key?.tree === requestedTree ? key : null;
+        const receipt = readCheckReceipt(root, matching);
+        if (receipt && Array.isArray(receipt.result?.problems) && receipt.result.broken === '') {
+          process.stderr.write(`${receiptLine(receipt)}\n`);
+          run = receipt.result;
+        } else {
+          run = await options.runCheck(request.commit, request.command, request.timeoutMs);
+          if (!run.broken) writeCheckReceipt(root, matching, { result: run });
+        }
+      } else run = request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
       step = execution.next(run);
     }
     return step.value;

@@ -113,7 +113,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   submitFixture(box.board, first, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'fixture-tree' });
   store.verify(box.board, first, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE',
     note: 'The upload test fails on an empty file', clause: 'A person uploads a file and sees it listed', head: 'a'.repeat(40), digest: 'digest:briefing', policy: 'any' });
-  addMilestone(box.board, { agentId: 'coordinator', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
 
   const before = snapshot(box);
   const markdown = cli(box, 'digest');

@@ -347,7 +347,7 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
     ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId), tryGit) : null;
   if (testOutcomes) {
     result.testOutcomes = testOutcomes;
-    if (result.profilePath) result.profile = writeTimingProfile(result.profilePath, { ...result.profile, testOutcomes });
+    if (result.profilePath) result.profile = { ...writeTimingProfile(result.profilePath, { ...result.profile, testOutcomes }), profilePath: result.profilePath };
   }
   result = quarantineRunVerdict(result, gateLease?.quarantines, { root,
     sourceClean: cleanProofSource(root, before, result, gateLease, true), privateCommand: frozenCheck(item), outcomeId,

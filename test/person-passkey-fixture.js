@@ -8,8 +8,8 @@ import {
 import {
   proposePersonMove,
   setPersonSigning,
-} from '../src/person-signing.js';
-import { validatePersonRequest } from '../src/person-request.js';
+} from '../packages/person/index.js';
+import { validatePersonRequest } from '../packages/person/core.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
 
 /** SHA-256 bytes of a value. */

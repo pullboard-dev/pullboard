@@ -1,4 +1,4 @@
-import { verifiedPasskeyRowDecision } from './person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import { resumeRigorCounters } from '../packages/rigor/index.js';
 /** Read the existing shared board projection with current unapplied person decisions [N26,A9]. */
 import { join } from 'node:path';

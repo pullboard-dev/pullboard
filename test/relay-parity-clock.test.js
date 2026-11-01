@@ -87,7 +87,7 @@ function seedLandingPace(box) {
     store.merged(box.board, id, { agentId: 'coordinator', commit: head });
   }
   const pending = store.addItem(box.board, { by: 'coordinator', lane: box.lane, title: 'Pace forecast input', criterion: 'A pending item observes the current landing window' });
-  addMilestone(box.board, { agentId: 'coordinator', name: 'Clock pace', items: [pending] });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Clock pace', items: [pending] });
 }
 
 test('native and relay readers cross a landing pace window at the same observedAt without a write [H5,H16,A2]', { timeout: 60_000 }, async t => { // budget: real fixture startup, native lifecycle inputs, HTTP and cleanup; no timed wait.
