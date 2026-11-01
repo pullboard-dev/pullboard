@@ -61,4 +61,3 @@ export { timingSource, sameTimingSource, suiteTimingFields, formatSuiteTiming, s
 export { testOutputSummary, retainTestOutput, renderTestSummary, summaryProfile, withTestOutput } from "./src/shell/test-output-summary.js";
 export { cachedAffectedGraph } from "./src/shell/affected-graph-cache.js";
 
-export { refuseManualCheckBaseline } from './src/core/check-baseline-automatic.js';
