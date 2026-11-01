@@ -1,5 +1,5 @@
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from './auto-submit-quarantine-engine.js';
-import { proofReceipts } from './board-query.js';
+import { proofReceipts } from '../packages/store/index.js';
 import { nativeProofBlockingGreen } from '../packages/verify/index.js';
 import { landingGateRecords } from '../packages/verify/index.js';
 import { MAIN_AUDIT_ENGINE } from './main-audit-engine.js';
@@ -17,7 +17,7 @@ import {
   getItem,
   listAgents,
   logEvent,
-} from './board.js';
+} from '../packages/store/index.js';
 import { GATE_RUN_ENGINE } from './gate-run-engine.js';
 import { LANDING_ENVIRONMENT_ENGINE } from './landing-environment-engine.js';
 import { RUN_TIMING_ENGINE } from './run-timing-engine.js';

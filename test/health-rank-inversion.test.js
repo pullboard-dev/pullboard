@@ -4,7 +4,7 @@ import * as store from '../src/board.js';
 import { healthReport } from '../packages/health/index.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
 import { fixture, cli } from './next-take-fixture.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 
 /** Observe the native SQLite board with its real queue and private fixture clock. */
 function findings(box) {

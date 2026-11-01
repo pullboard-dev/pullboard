@@ -18,7 +18,7 @@ import { undraftedRigor } from '../packages/rigor/index.js';
 import { rigorSource } from '../src/board-rigor-source.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { coordinatorDecisionSections } from '../src/cli.js';
-import { agentParent } from '../src/board-query.js';
+import { agentParent } from '../packages/store/index.js';
 
 const PREFIX = 'local:proof-stats:rigor:v1:';
 

@@ -10,14 +10,14 @@ import * as nativeBoard from '../src/native-board.js';
 import { openBoard } from '../src/native-board.js';
 import { loadConfig } from '../packages/config/index.js';
 import { healthReport } from '../packages/health/index.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { context } from '../src/cli-read-context.js';
 import { waitForSubmissionVerdict } from '../src/submit-wait.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../src/engine.js';
 import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
-import { firstRefusal } from '../src/board-item-read.js';
+import { firstRefusal } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const waitPorts = { withBoardRead, retrySync, events: store.events, verdictsFor: store.verdictsFor, getItem: store.getItem };

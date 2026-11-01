@@ -5,12 +5,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { submitPreflight } from '../src/submit-preflight.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 
 const COMMIT = 'a'.repeat(40), TREE = 'b'.repeat(40);
 const PATCH = 'diff --git a/x.txt b/x.txt\nnew file mode 100644\n--- /dev/null\n+++ b/x.txt\n@@ -0,0 +1,4 @@\n+a\n+b\n+c\n+d\n';

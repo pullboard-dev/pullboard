@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { closeBoard } from './board.js';
+import { closeBoard } from '../packages/store/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { lifecycleMarkdown } from './machine.js';
 import { formatTable } from './format-registry.js';

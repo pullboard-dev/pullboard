@@ -17,7 +17,7 @@ import {
   exportBoard,
   importBoard,
   semanticBoardDigest,
-} from "../../../../src/exchange.js";
+} from "../../../store/index.js";
 import {
   appliedSequence,
   applyEngineMove,

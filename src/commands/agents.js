@@ -7,7 +7,7 @@ import {
   boardId,
   listAgents,
   listItems,
-} from '../board.js';
+} from '../../packages/store/index.js';
 import {
   context,
   withBoard,

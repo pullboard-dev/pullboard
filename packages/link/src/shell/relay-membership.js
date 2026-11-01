@@ -1,8 +1,8 @@
 /** Membership authority comes from committed policy or exact local SSH proofs, never a relay assertion [E17]. */
 import { mainPolicy } from '../../../sandbox/index.js';
 import { Refused } from '../../../kernel/core.js';
-import { boardMembersBytes } from '../../../../src/board-members.js';
-import { boardMembersDocument } from '../../../../src/board-members.js';
+import { boardMembersBytes } from '../../../store/index.js';
+import { boardMembersDocument } from '../../../store/index.js';
 import { signSshVouch } from './relay-ssh-proof.js';
 import { verifySshVouch } from './relay-ssh-proof.js';
 

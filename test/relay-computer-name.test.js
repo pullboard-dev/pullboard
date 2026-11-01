@@ -9,7 +9,7 @@ import { computerName } from '../src/computer-name.js';
 import { requireCoordinatorHold } from '../src/coordinator-hold.js';
 import { coordinatorHolder } from '../src/coordinator-hold.js';
 import { COMPUTER_NAME_ENGINE } from '../src/computer-name-engine.js';
-import { closeBoard } from '../src/board.js';
+import { closeBoard } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { readFileSync } from 'node:fs';
 

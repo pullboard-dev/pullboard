@@ -2,7 +2,7 @@ import { viewApiPorts } from '../src/view-api-ports.js';
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
-import { events as readStatsEvents } from '../src/board.js';
+import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';

@@ -29,7 +29,7 @@ import {
 import {
   exportBoard,
   restoreRelaySnapshot,
-} from '../../../../src/exchange.js';
+} from '../../../store/index.js';
 import { readBoardKey } from '../../../keys/index.js';
 import { leaveConflictNotice } from './relay-conflicts.js';
 import { withOutboxGuard } from './relay-outbox-guard.js';
@@ -43,7 +43,7 @@ import {
   seal,
   unseal,
 } from '../../../kernel/src/core/seal.js';
-import { captureBoardChanges } from '../../../../src/board-capture.js';
+import { captureBoardChanges } from '../../../store/index.js';
 import { undoQueued } from '../core/relay-outbox-undo.js';
 import { stampCoordinatorHolder } from '../../../../src/coordinator-hold.js';
 import { Refused } from '../../../kernel/index.js';

@@ -6,7 +6,7 @@ import {
   events,
   getItem,
   listItems,
-} from '../board.js';
+} from '../../packages/store/index.js';
 import { itemFileCollisions } from '../item-files.js';
 import { sayMapSlice } from '../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';

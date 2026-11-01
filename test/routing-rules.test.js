@@ -6,7 +6,7 @@ import { board as store } from '../src/native-board.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { dispatchWork } from '../src/dispatch-eligibility.js';
+import { dispatchWork } from '../packages/store/index.js';
 import { RELEASE_REASONS } from '../src/release-reasons.js';
 import { effectiveAgentParent } from '../src/seat-review-read.js';
 import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';

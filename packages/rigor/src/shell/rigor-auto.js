@@ -1,13 +1,13 @@
 /** A failure move creates a durable, unproved proposal without writing a repository file [D1,H16]. */
-import { atomic } from '../../../../src/board-event-log.js';
+import { atomic } from '../../../store/index.js';
 import {
   events,
   logEvent,
   PERSON,
   rowDecisions,
-} from '../../../../src/board.js';
+} from '../../../store/index.js';
 import { recordRowDraft } from '../../../spec/index.js';
-import { rowDrafts } from '../../../../src/board-query.js';
+import { rowDrafts } from '../../../store/index.js';
 import {
   causeProblem,
   eventCauses,

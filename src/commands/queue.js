@@ -1,11 +1,11 @@
 import { localDependencyIds } from '../item-dependencies.js';
 import { dependencyLabel } from '../item-dependencies.js';
 import { itemFileCollisions } from '../item-files.js';
-import { withLocalSeatPresence } from '../seat-presence.js';
+import { withLocalSeatPresence } from '../../packages/store/index.js';
 import * as store from '../board.js';
 import { roadmap } from '../board-milestones.js';
 import { eligibilityProblem } from '../../packages/verify/index.js';
-import { agentAt } from '../board-query.js';
+import { agentAt } from '../../packages/store/index.js';
 /** The pullboard queue command, in its own module so an item adding another command never edits these lines. */
 import * as queueView from '../queue.js';
 import {

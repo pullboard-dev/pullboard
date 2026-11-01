@@ -1,8 +1,8 @@
 /**
  * The commit-message rules (C1, C2) and the pre-commit pattern checks on real staged changes.
  */
-import { boardBusyError } from '../src/board-access.js';
-import { openBoardReadOnly } from '../src/board-read-open.js';
+import { boardBusyError } from '../packages/store/index.js';
+import { openBoardReadOnly } from '../packages/store/index.js';
 import { rowDecisions } from '../packages/spec/index.js';
 import { checkLoosening } from '../packages/doctrine/index.js';
 

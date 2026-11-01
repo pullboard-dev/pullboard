@@ -5,10 +5,10 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { closeBoard, getItem } from '../src/board.js';
+import { closeBoard, getItem } from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { checkBaseline, prepareCheckBaseline } from '../src/check-baseline.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { CHECK_ACCEPT_ENGINE, acceptCheck, checkDigest } from '../packages/verify/index.js';

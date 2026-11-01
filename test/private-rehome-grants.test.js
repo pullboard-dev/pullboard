@@ -10,8 +10,8 @@ import { openBoard } from '../src/native-board.js';
 import { appliedSequence } from '../src/engine.js';
 import { applyEngineMove } from '../src/engine.js';
 import { prepareEngineMove } from '../src/engine.js';
-import { exportBoard } from '../src/exchange.js';
-import { importBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
+import { importBoard } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();

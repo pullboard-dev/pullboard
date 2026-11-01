@@ -2,9 +2,9 @@
 import { buildCommitMessage } from '../../packages/commits/index.js';
 import { landingMessage } from '../landing-message.js';
 import { loadSpec } from '../../packages/spec/index.js';
-import { firstRefusal } from '../board-item-read.js';
-import { listItems } from '../board.js';
-import { getItem } from '../board.js';
+import { firstRefusal } from '../../packages/store/index.js';
+import { listItems } from '../../packages/store/index.js';
+import { getItem } from '../../packages/store/index.js';
 import { context } from '../cli.js';
 import { withBoard } from '../cli.js';
 import { whoAmI } from '../cli.js';
@@ -19,8 +19,8 @@ import { run as claim } from './claim.js';
 import { run as submit } from './submit.js';
 import { withBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
-import { events } from '../board.js';
-import { verdictsFor } from '../board.js';
+import { events } from '../../packages/store/index.js';
+import { verdictsFor } from '../../packages/store/index.js';
 import { waitForSubmissionVerdict } from '../submit-wait.js';
 
 /** Resolve only this seat's claim or its explicit returned-work reservation before any Git mutation. */

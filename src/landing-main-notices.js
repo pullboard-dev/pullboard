@@ -1,5 +1,5 @@
 /** Post-landing observations share the exact adopted tip [N2,B3]. */
-import * as store from './board-query.js';
+import * as store from '../packages/store/index.js';
 import { warnMainMoved } from '../packages/merge/index.js';
 
 /** Refresh the derived source map after the landing receipt and main fast-forward have completed. */

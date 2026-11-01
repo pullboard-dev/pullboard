@@ -1,9 +1,9 @@
 /** Native board routing assertions; no gate or current-main result is fabricated [C7,N2]. */
 import assert from 'node:assert/strict';
 import * as store from '../src/board.js';
-import { exportBoard } from '../src/exchange.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
-import { mainRedBuildRouting } from '../src/main-red-build-routing.js';
+import { exportBoard } from '../packages/store/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
+import { mainRedBuildRouting } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Build real registered seats with an injected clock and ordinary claims, without executing a gate. */

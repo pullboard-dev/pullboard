@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { SPEC_DRAFT_REFREEZE_ENGINE } from '../src/spec-draft-refreeze-engine.js';
 import { rowDecisions } from '../packages/spec/index.js';
 import { prepareSpecRefreezes, specRefreezeSkips } from '../packages/spec/index.js';

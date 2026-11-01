@@ -9,7 +9,7 @@ import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
 import { registerProject } from '../src/projects.js';

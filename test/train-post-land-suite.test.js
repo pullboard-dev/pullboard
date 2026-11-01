@@ -13,7 +13,7 @@ import { finishTrunk } from '../src/landing-step-publish.js';
 import { openBoard } from '../src/native-board.js';
 import { postLandSuite } from '../src/post-land-suite.js';
 import { laneOf } from '../src/lanes.js';
-import { unownedMainReds } from '../src/known-main-reworks.js';
+import { unownedMainReds } from '../packages/store/index.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';

@@ -1,5 +1,5 @@
 /** Hand-computed flow reporting uses real Git/SQLite and immutable native history [R1,R2]. */
-import { events as readStatsEvents } from '../../../src/board.js';
+import { events as readStatsEvents } from '../../store/index.js';
 import { counterProofStats as readStatsCounter } from '../../verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
-import { exportBoard } from '../../../src/exchange.js';
-import { importBoard } from '../../../src/exchange.js';
+import { exportBoard } from '../../store/index.js';
+import { importBoard } from '../../store/index.js';
 import { proofStats } from '../src/shell/stats.js';
 import { runFixtureGit } from '../../../test/fixture-child.js';
 

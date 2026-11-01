@@ -1,5 +1,5 @@
 /** Board-state fixtures supply the receipt required by modern submits [C7,V4]. */
-import { submit } from '../src/board.js';
+import { submit } from '../packages/store/index.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 

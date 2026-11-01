@@ -1,11 +1,11 @@
 /** Capture one board's release priority before joining the machine resource transaction [C7,V4]. */
-import { openBoardReadOnly } from './board-read-open.js';
+import { openBoardReadOnly } from '../packages/store/index.js';
 import { runnerBoardFile } from '../packages/resources/index.js';
 import {
   boardId,
   listItems,
-} from './board-query.js';
-import { milestones } from './board-read-auxiliary.js';
+} from '../packages/store/index.js';
+import { milestones } from '../packages/store/index.js';
 
 /**
  * Capture the item's roadmap rank once, without opening or migrating a board for writing.

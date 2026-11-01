@@ -1,4 +1,4 @@
-import { itemCheckBaseline } from '../board-query.js';
+import { itemCheckBaseline } from '../../packages/store/index.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -10,7 +10,7 @@ import {
 } from '../../packages/verify/index.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 /** Inspect, enable and independently sign acceptance bars [B4,V1,V2,H16]. */
-import { getItem } from '../board.js';
+import { getItem } from '../../packages/store/index.js';
 import {
   barReadiness,
   barReadySetting,
