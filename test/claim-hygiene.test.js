@@ -14,6 +14,8 @@ import { openBoard } from '../src/native-board.js';
 import { saveAgentSession } from '../src/seats.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
+import { proofStats } from '../packages/stats/index.js';
+import { counterProofStats } from '../packages/verify/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { staleStateSnapshot } from '../packages/health/index.js';
 import { takeResource } from '../packages/resources/index.js';
@@ -58,7 +60,7 @@ function fixture(t) {
   };
   const first = seat('first', '1'), second = seat('second', '3'), helper = seat('helper', '2');
   const add = (after = []) => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Work', criterion: 'Real proof', specIds: ['B5'], route: 'strong', check: 'true', after });
-  const claim = (id, agentId) => store.claim(board, id, { agentId, lane: 'core', leaseMs: 7_200_000, head: base,
+  const claim = (id, agentId, submitOutcome = null) => store.claim(board, id, { agentId, lane: 'core', leaseMs: 7_200_000, head: base, submitOutcome,
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, rows: [], policy: { version: 1, commit: base, verify: { policy: 'any', family: 'off' } } }), digest: 'bar' }) });
   const ctx = { clock: { now: () => new Date(at) }, config: {} };
   /** One ordinary write by another seat runs the same maintenance every board write runs. */
@@ -224,4 +226,42 @@ test('every pass reads every live claim, so writes in any minute release an idle
   f.maintain();
   assert.equal(store.getItem(f.board, ids[skipped]).item_status, 'open', 'one pass releases the idle claim');
   assert.ok(ids.filter((id, index) => index !== skipped).every(id => store.getItem(f.board, id).item_status === 'claimed'), 'the active claims stay claimed');
+});
+
+
+test('active claims return with notes after two hours or three refused submits; a timely submit is untouched [B4,B5,R1]', t => {
+  const f = fixture(t);
+  const overdue = f.add(), failures = f.add(), timely = f.add();
+  f.claim(overdue, f.first);
+  store.appendFact(f.board, overdue, { agentId: f.first, kind: 'note', text: 'Work remaining: finish the edge case.', factId: 'builder-note' });
+  f.advance(119);
+  f.touch(f.first, 'overdue.txt');
+  f.claim(overdue, f.first);
+  f.maintain();
+  assert.equal(store.getItem(f.board, overdue).item_status, 'claimed');
+  f.claim(timely, f.second);
+  submitFixture(f.board, timely, { agentId: f.second, commit: f.base, tree: f.base });
+  f.advance(1);
+  f.touch(f.first, 'overdue.txt');
+  f.maintain();
+  assert.equal(store.getItem(f.board, overdue).item_status, 'open');
+  assert.match(JSON.parse(kinds(f, overdue, 'fact').at(-1).event_detail).text, /two hours.*builder-note/u);
+  assert.match(JSON.parse(kinds(f, overdue, 'release').at(-1).event_detail).idleClaim.handoff.pin, /handoffs/u);
+  assert.equal(store.getItem(f.board, timely).item_status, 'submitted');
+  assert.throws(() => f.claim(overdue, f.first), { code: 'REOPEN_HELD_FOR_BUILDER' });
+  assert.notEqual(store.nextFor(f.board, { agentId: f.first, lane: 'core' }).item?.item_id, overdue);
+  f.claim(overdue, f.second);
+  assert.equal(store.getItem(f.board, overdue).item_owner, f.second);
+
+  f.claim(failures, f.first);
+  for (let n = 0; n < 2; n++) f.claim(failures, f.first, { code: 'CHECK_RED', text: 'fixture red', digest: 'bar' });
+  f.maintain();
+  assert.equal(store.getItem(f.board, failures).item_status, 'claimed');
+  f.claim(failures, f.first, { code: 'CHECK_RED', text: 'fixture red', digest: 'bar' });
+  f.maintain();
+  assert.equal(store.getItem(f.board, failures).item_status, 'open');
+  assert.match(JSON.parse(kinds(f, failures, 'fact').at(-1).event_detail).text, /three failed submits/u);
+  const stats = proofStats(f.board, {}, { events: store.events, counterProofStats });
+  assert.deepEqual(stats.notesPerSubmit.find(row => row.seat === f.first), { seat: f.first, notes: 1, submits: 0, notesPerSubmit: null });
+  assert.deepEqual(stats.notesPerSubmit.find(row => row.seat === f.second), { seat: f.second, notes: 0, submits: 1, notesPerSubmit: 0 });
 });
