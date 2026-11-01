@@ -27,9 +27,11 @@ export function run(io, { first, second, rest }) {
       const estimate = roadmapView.roadmapEstimate(summary);
       io.say(`  ${summary.left} left of ${summary.total}: ${summary.landed} landed, ${summary.landing} landing, ${summary.review} in review, ${summary.building} building, ${summary.waiting} waiting, ${summary.held} held${estimate}`);
     }
+    io.say(`  holders: ${milestone.progress.holders.join(', ') || 'none'}; waits: ${milestone.progress.waits.join(', ') || 'none'}; idle: ${milestone.progress.idleMinutes ?? 'unknown'}m (${milestone.progress.idleBasis})`);
     if (milestone.note) io.say(`  ${milestone.note}`);
     for (const item of milestone.items) {
       const id = typeof item.id === 'number' ? `#${item.id}` : item.id;
+      if (item.progress) io.say(`    ${roadmapView.progressLine(item.progress)}`);
       io.say(`  ${item.position ? `${item.position}. ` : ''}${id} ${item.title} — ${item.state}`);
     }
   }

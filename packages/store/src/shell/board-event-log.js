@@ -19,6 +19,9 @@ import {
   prepareBoardWriteIdentity,
 } from "./board-write-lock.js";
 
+import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
+import { notifyUnblocked } from '../core/board-progress-notices.js';
+
 const TRANSACTION_DEPTH = new WeakMap();
 
 /**
@@ -128,6 +131,10 @@ export function logEvent(board, by, kind, itemId, detail = {}, at) {
     board.lastEvent = event;
     (board.emittedEvents ??= []).push(event);
     liftConditionalHold(board, event, logEvent, setItem);
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= BOARD_PROGRESS_ENGINE && ['merged', 'withdraw', 'unhold_item', 'unhold'].includes(kind)) {
+      notifyUnblocked(board, event, logEvent);
+      board.lastEvent = event;
+    }
     board.db.exec('RELEASE proof_event_append');
     return event;
   } catch (error) {
