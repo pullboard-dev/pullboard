@@ -10,7 +10,7 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { grantChallenge, softwarePasskey } from './person-passkey-fixture.js';
 import { refuseNamedSigners } from '../src/person-signing-cli.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
-import { executeMove } from '../src/api.js';
+import { executeMove } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';
 
 /** Reuse the original test's paths, process helpers and request/credential assertions. */

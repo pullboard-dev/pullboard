@@ -14,7 +14,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { main } from './native-cli-fixture.js';
 import { refusalDocument } from '../src/next-step-words.js';

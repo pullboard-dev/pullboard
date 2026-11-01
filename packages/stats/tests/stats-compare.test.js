@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
 import { main } from '../../../test/native-cli-fixture.js';
-import { serveApi } from '../../../src/api.js';
+import { serveApi } from '../../api/index.js';
 import { fetchFresh } from '../../../test/http-fixture.js';
 import { exportBoard } from '../../store/index.js';
 import { importBoard } from '../../store/index.js';

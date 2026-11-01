@@ -20,7 +20,7 @@ import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from '
 import { githubFixture } from './relay-fixture.js';
 import { board as store } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove } from '../src/engine.js';

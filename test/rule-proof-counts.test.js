@@ -8,7 +8,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';

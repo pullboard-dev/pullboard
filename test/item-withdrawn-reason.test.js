@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { projectItemState } from '../src/api.js';
+import { projectItemState } from '../packages/api/index.js';
 import { itemSummary } from '../packages/items/index.js';
 import { withdrawnFrom } from '../packages/items/index.js';
 import { fixtureBoard } from './board-fixture.js';

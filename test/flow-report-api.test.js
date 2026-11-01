@@ -8,7 +8,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
-import { createLocalApiHandler } from '../src/api.js';
+import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';

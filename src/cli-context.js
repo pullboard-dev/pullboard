@@ -7,7 +7,7 @@ import {
   syncRelay,
 } from './relay.js';
 import { executePersonRequests } from './relay-request-execution.js';
-import { executeMove } from './api.js';
+import { executeMove } from '../packages/api/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { refusalDocument } from './next-step-words.js';
 import {

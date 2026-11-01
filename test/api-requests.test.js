@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { createLocalApiHandler } from '../src/api.js';
+import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';

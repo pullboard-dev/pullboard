@@ -3,7 +3,7 @@ import { nativeBoardOpeners } from '../cli-context.js';
 /** The pullboard serve command, in its own module so an item adding another command never edits these lines. */
 import {
   serveApi,
-} from '../api.js';
+} from '../../packages/api/index.js';
 import { performanceCores } from '../gate.js';
 import { refusalDocument } from '../next-step-words.js';
 import {

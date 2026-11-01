@@ -17,7 +17,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { proofStats } from '../src/stats.js';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { fetchFresh } from './http-fixture.js';
 import { boardHoldLog } from '../src/board-hold-log.js';

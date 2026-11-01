@@ -60,7 +60,7 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
   assert.deepEqual(JSON.parse(typed.out).tables.shout.slice(count).map(row => row.shout_to),
     Array(5).fill('coordinator'), 'every declared kind reaches the coordinator');
 
-  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../src/api.js')).href;
+  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../packages/api/src/shell/api.js')).href;
   const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const person = runFixtureChild(process.execPath, ['--input-type=module', '-e', `
     const { executeMove } = await import(${JSON.stringify(apiModule)});

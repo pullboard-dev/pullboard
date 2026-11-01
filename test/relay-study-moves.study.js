@@ -19,7 +19,7 @@ import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { presentationState } from '../relay/browser-model.js';
