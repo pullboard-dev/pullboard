@@ -17,7 +17,7 @@ import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { checkRouted } from "../../../items/index.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 

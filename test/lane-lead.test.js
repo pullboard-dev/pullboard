@@ -11,7 +11,7 @@ import { openBoard } from '../src/native-board.js';
 import {
   applyEngineMove,
   prepareEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 import {
   exportBoard,
   importBoard,

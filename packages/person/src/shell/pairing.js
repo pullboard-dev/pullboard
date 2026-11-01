@@ -3,7 +3,7 @@ import {
   randomBytes,
   webcrypto,
 } from 'node:crypto';
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 import { PAIR_PACKAGE_BYTES } from "./person-pairing-limit.js";

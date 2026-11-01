@@ -13,7 +13,7 @@ import { createRelayJournal } from '../relay/journal.js';
 import { createRelayRetention } from '../relay/retention.js';
 import { serveRelay } from '../relay/service.js';
 import { githubFixture } from './relay-fixture.js';
-import { VERIFIER_STANDING_ENGINE } from '../src/machine.js';
+import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 
 const DAY = 86_400_000;
 const A = 'a'.repeat(32);

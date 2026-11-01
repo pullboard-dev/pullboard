@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { performance } from 'node:perf_hooks';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
 

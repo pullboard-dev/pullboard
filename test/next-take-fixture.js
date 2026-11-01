@@ -20,7 +20,7 @@ import {
   applyRelayMove,
   appliedSequence,
   prepareEngineMove,
-} from '../src/engine.js';
+} from '../packages/state/index.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { machineSettingsFile } from '../packages/config/index.js';

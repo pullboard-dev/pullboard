@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createPairingCode, openPairingBundle, parsePairingCode, sealPairingBundle } from '../src/pairing.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { createPairingStore } from '../relay/pairing-store.js';
 import { createPairingHandler } from '../relay/pairing-http.js';
 import { createRelayHandler } from '../relay/service.js';

@@ -1,5 +1,5 @@
 import { effectiveItemHead } from '../packages/verify/index.js';
-import { isRecordedConflictContext } from './recorded-conflict-context.js';
+import { isRecordedConflictContext } from '../packages/state/index.js';
 /** Board-bound computed conflict evidence is verified against immutable Git commits before sealing and on replay [V4,H16]. */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';

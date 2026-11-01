@@ -11,7 +11,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { gunzipSync } from 'node:zlib';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { legacyRelayClientFixture } from './relay-client-fixture.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
@@ -132,7 +132,7 @@ test('next and status count only live seats as capacity [B3,N2,C7]', async t => 
 test('live-only advice never changes authenticated setting or claim replay [B3,N2,H16]', async t => {
   const { fixtureBoard } = await import('./board-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
-  const { applyEngineMove, prepareEngineMove, appliedSequence } = await import('../src/engine.js');
+  const { applyEngineMove, prepareEngineMove, appliedSequence } = await import('../packages/state/index.js');
   const { LIVE_ROUTE_ENGINE } = await import('../src/live-route-engine.js');
   const at = new Date().toISOString();
   const clock = { now: () => new Date(at) };
@@ -588,7 +588,7 @@ test('a write after a heartbeat uploads once [B3,H16]', {
 test('a gone seat claim returns to the queue with a note [B3,B5,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
-  const { applyEngineMove } = await import('../src/engine.js');
+  const { applyEngineMove } = await import('../packages/state/index.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
   const { nativeBoardPorts } = await import('../src/native-board.js');
   const { relaySenderProblem } = nativeBoardPorts().enginePorts;
@@ -689,7 +689,7 @@ test('gone maintenance leaves unknown imported holders and submitted reviews alo
 
 test('native and ordered gone releases retain coded evidence and historical event shape [B3,C7,H16]', async t => {
   const { goneClaimFixture } = await import('./presence-gone-fixture.js');
-  const { applyEngineMove, prepareEngineMove } = await import('../src/engine.js');
+  const { applyEngineMove, prepareEngineMove } = await import('../packages/state/index.js');
   const { GONE_CLAIM_ENGINE } = await import('../src/gone-claim-engine.js');
   const { RELEASE_REASONS_ENGINE } = await import('../src/release-reasons-engine.js');
   for (const mode of ['native', 'ordered', 'historical']) {

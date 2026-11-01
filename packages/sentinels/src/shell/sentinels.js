@@ -9,7 +9,7 @@ import { listAgents } from "../../../store/index.js";
 import { logEvent } from "../../../store/index.js";
 import { PERSON } from "../../../store/index.js";
 import { shout } from "../../../store/index.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 /** Coordinator allocation, 18 Oct: all new board-watch moves begin here [H16]. */

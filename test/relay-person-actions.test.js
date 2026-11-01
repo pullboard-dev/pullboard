@@ -7,13 +7,13 @@ import { loadavg } from 'node:os';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
-import { prepareEngineMove } from '../src/engine.js';
+import { prepareEngineMove } from '../packages/state/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { executeMove } from '../src/api.js';
 import { main } from './native-cli-fixture.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { assertSnapshotCheckpoints, cliChildDeadlineMs, relayClientFixture, legacyRelayClientFixture } from './relay-client-fixture.js';
 

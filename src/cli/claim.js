@@ -13,7 +13,7 @@ import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
 import * as personIdentity from '../person.js';
 import { requireHandoffActive } from '../../packages/state/src/core/handoff-state.js';
-import { requestedCommandMove } from '../recorded-move.js';
+import { requestedCommandMove } from '../../packages/state/index.js';
 import { barReadinessRequired } from '../../packages/verify/index.js';
 import { barReadiness } from '../../packages/verify/index.js';
 import { barCoverageCommand } from '../../packages/verify/index.js';

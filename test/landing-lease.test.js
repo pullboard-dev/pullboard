@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { assertLandingLease, guardLandingWrite, LANDING_LEASE_MS } from '../src/board-landing-lease.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { landingRelayCallbacks } from '../packages/link/src/core/landing-relay.js';
 

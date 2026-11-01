@@ -48,7 +48,7 @@ export async function linkRelay(t, boards, authority) {
   const { request } = await import('../src/relay.js');
   const { generateBoardKey, seal } = await import('../packages/kernel/src/core/seal.js');
   const { exportBoard } = await import('../packages/store/index.js');
-  const { ENGINE_VERSION } = await import('../src/machine.js');
+  const { ENGINE_VERSION } = await import('../packages/state/index.js');
   const provider = await githubFixture(t);
   // Each private board belongs to its own repository, as the native one-team-board contract requires.
   provider.state.repositories = boards.map(box => box.reference.handle);

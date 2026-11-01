@@ -14,7 +14,7 @@ import {
   BLANKS,
   STATES,
   storeTriggers,
-} from '../../../../src/machine.js';
+} from '../../../state/index.js';
 
 import {
   boardBusyError,

@@ -15,7 +15,7 @@ import { planStaleState } from '../src/board-stale-state-maintenance.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { run as statusRun } from '../src/commands/status.js';
 import { fixtureBoard } from './board-fixture.js';
 import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';

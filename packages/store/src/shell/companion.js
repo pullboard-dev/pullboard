@@ -4,7 +4,7 @@ import { itemById } from "./board-query.js";
 import { listAgents } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { COMPANION_ENGINE } from "../../../../src/companion-engine.js";
 import { Refused } from "../../../kernel/index.js";
 

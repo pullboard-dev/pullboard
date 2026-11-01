@@ -15,7 +15,7 @@ import { createRelayPages } from '../relay/page-store.js';
 import { createRelayHandler } from '../relay/service.js';
 import { noticeLines } from '../relay/browser-notice.js';
 import { boardStorageBytes, createStorageQuota } from '../relay/storage-quota.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { request as relayRequest } from '../src/relay.js';
 import { githubFixture } from './relay-fixture.js';
 

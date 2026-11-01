@@ -10,7 +10,7 @@ import { runFixtureGit } from './fixture-child.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { CPU_SENTINEL_ENGINE } from '../src/cpu-sentinel-engine.js';
 import { HEALTH_SHOUT_CAP } from '../src/board-health-receipts.js';
-import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 
 // CPU time is observed, not burned: the native utility port supplies an exact ps/lsof transcript.
 test('the sentinel names an agent process past 20 CPU minutes once [A6,H16]', async t => {

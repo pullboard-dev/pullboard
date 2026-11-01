@@ -16,7 +16,7 @@ import {
  */
 import { createHash } from 'node:crypto';
 import { Refused } from "../../../kernel/index.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import {
   EVENT_LOG_VERSION,
   SIGNED_EVENT_LOG_VERSION,

@@ -15,7 +15,7 @@ import { FAMILY_DECLARE_ENGINE } from "../../../../src/family-declare-engine.js"
 import { derivedFamily } from "./family-declaration.js";
 import { familyAliasesOf } from "../../core.js";
 import { familyName } from "../../core.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import {
   saveAgentParent,
   saveAgentSession,

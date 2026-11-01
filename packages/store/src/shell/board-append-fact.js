@@ -15,7 +15,7 @@ import { Refused } from "../../../kernel/index.js";
 import { requireNeverAgain } from "../core/board-rigor.js";
 import { factReference } from "../../../spec/index.js";
 import { factFromEvent } from "../../../state/src/core/fact-projection.js";
-import { tellFactImplications } from "../../../../src/implies.js";
+import { tellFactImplications } from "../../../state/index.js";
 import { postRigorNotices } from "./board.js";
 
 const FACT_JUDGEMENTS = new Set(['decision', 'rejection', 'supersession', 'root-cause']);

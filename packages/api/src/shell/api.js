@@ -57,7 +57,7 @@ import {
   relayTokens,
 } from '../../../../src/relay.js';
 import { laneNames } from '../../../../src/lanes.js';
-import { MACHINE } from '../../../../src/machine.js';
+import { MACHINE } from '../../../state/index.js';
 import {
   listApiProjects,
   registryFile,

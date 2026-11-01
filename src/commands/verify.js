@@ -57,7 +57,7 @@ import {
 import {
   checkImplies,
   parseImplies,
-} from '../implies.js';
+} from '../../packages/state/index.js';
 import { checkNeedsGui } from '../gui-admission.js';
 import * as itemSessions from '../../packages/items/index.js';
 import { itemAuthors } from '../../packages/items/index.js';
@@ -110,7 +110,7 @@ import {
   whoAmI,
   withBoard,
 } from '../cli.js';
-import { recordedRecovery } from '../recorded-recovery.js';
+import { recordedRecovery } from '../../packages/state/index.js';
 import { retryReviewCommit } from '../../packages/verify/index.js';
 
 /** Preserve policy refusals while representing unusable cited criteria as a changed digest. */

@@ -17,12 +17,12 @@ import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap
 import { registerPreGrant } from './pre-grant-seats.js';
 import { displayAgentName } from '../src/agent-names.js';
 import { projectState } from '../src/cli/view-state.js';
-import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { briefFiles } from '../packages/items/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
-import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../src/machine.js';
+import { AUTO_ESCALATE_ENGINE, ENGINE_VERSION, STRONG_REJECTION_NOTICE_ENGINE } from '../packages/state/index.js';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { unpackRelease } from './release-archive.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../src/review-independence-engine.js';

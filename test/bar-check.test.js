@@ -7,7 +7,7 @@ import { openBoard } from '../src/native-board.js';
 import { barCheckState, barCheckWarning } from '../packages/verify/index.js';
 import { parentSessionDigest } from '../packages/items/index.js';
 import { saveAgentSession } from '../src/seats.js';
-import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';
 import { ENGINE_VERSION } from '../src/engine-metadata.js';
 import { createE2eHelpers } from './e2e-helpers.js';

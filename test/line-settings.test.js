@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { configFromSource } from '../packages/config/index.js';
-import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
+import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { settingsInventory } from '../packages/config/index.js';
 import { describeSetting } from '../packages/config/index.js';
 import { performanceCores } from '../src/gate.js';

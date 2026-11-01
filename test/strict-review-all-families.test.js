@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { recordItemSession, refuseSelfSession } from '../packages/items/index.js';
 import { compositionSessionOptions } from '../packages/verify/index.js';
-import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
+import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 /** Real native SQLite moves prove current-composition authority and the bounded vendor fallback [V4,H16]. */
 import assert from 'node:assert/strict';

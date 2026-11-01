@@ -2,7 +2,7 @@ import { current } from "./board-query.js";
 import { getItem } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { IN_STATE } from "../../../../src/machine.js";
+import { IN_STATE } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { moveItem } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";

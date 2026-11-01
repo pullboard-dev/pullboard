@@ -1,6 +1,6 @@
 # File formats
 
-This page describes the text files people edit and the SQLite board kept inside `.git`. The row parser is in `packages/spec/src/shell/spec.js`; board declarations and migrations are in `packages/store/src/shell/board.js`; lifecycle guards are generated from `src/machine.js`.
+This page describes the text files people edit and the SQLite board kept inside `.git`. The row parser is in `packages/spec/src/shell/spec.js`; board declarations and migrations are in `packages/store/src/shell/board.js`; lifecycle guards are generated from `packages/state/src/shell/machine.js`.
 
 Run `node bin/update-docs.js` to refresh the marked tables, API shapes, lifecycle page and full CLI help. `--check` reports stale copies without writing. Change source declarations rather than these tables; normal landing regenerates outputs after every merge and engine allocation. Add a command's help and required JSON fields in its own `src/command-docs/<name>.json`, beside its independently discovered command implementation. Source-owned event descriptions live in separate `src/documentation/events/<kind>.json` files; authored prose outside tables is retained.
 
@@ -125,7 +125,7 @@ The version table is generated from the source-owned declarations in `src/format
 | `row grammar` | `1` | `SPEC_GRAMMAR_VERSION` in `packages/spec/src/shell/spec.js`; optional `<!-- pullboard-grammar N -->` line in either file (absence means the current grammar) | Both files share the version. A declared version must match; an incompatible grammar change requires a coordinated version bump and compatible files. No automatic conversion occurs. |
 | `board schema` | `3` | `SCHEMA_VERSION` in `packages/store/src/shell/board.js`, persisted as `PRAGMA user_version` | On a write open of a board whose version is behind: create missing tables and indexes (version 3 adds the hot-path indexes), add missing columns in place with declared defaults, restore missing or changed triggers, and remove stale machine triggers without replacing rows. Read opens never migrate; a board at the current version whose shape differs is reported once on stderr and left as it is. |
 | `event log` | `1` | `EVENT_LOG_VERSION` in `packages/store/src/shell/board.js`, persisted in `board_meta` as `event_log_version` | Older event-log versions upgrade in place; newer versions are refused with `EVENT_LOG_VERSION`. Preserve event rows when the board schema changes. |
-| `move engine` | `187` | `ENGINE_VERSION` in `src/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
+| `move engine` | `187` | `ENGINE_VERSION` in `packages/state/src/shell/machine.js`, carried as `engine` in every sealed executable move | Bump when a move's meaning changes, independently of the event log and sealed envelope. A newer engine is refused with `ENGINE_VERSION`, naming both versions and asking you to upgrade Pullboard. |
 <!-- format-versions:end -->
 
 A signed board uses event-log format 2; older tools refuse it.
@@ -399,7 +399,7 @@ The following live SQLite declarations include nullability, defaults, primary an
 
 For `board_meta_grant_activation_v2`, the expression is `CASE WHEN json_valid(meta_value, 10) THEN json_extract(meta_value, '$.sequence') END`. Its partial predicate includes only `relay_receipt_*` keys whose nested move engine is at least `AGENT_GRANT_ENGINE` (currently 127), with both the envelope and nested move guarded for JSON5/JSONB readability. `board_meta_grant_activation_unsafe_v1` indexes the receipt keys whose envelope or nested move is unreadable; the exact guarded expressions are in `src/relay-activation.js`. Owning writable opens install these derived indexes and restamp the board, including already-current boards; read and non-owner opens do not install them. An indexless writer retains the literal legacy query with one `RELAY_ACTIVATION_INDEX_MISSING` notice per process, rather than refusing the write. Unsafe legacy receipts also retain that query and its original errors and short-circuit behavior; this compatibility path remains unbounded. Neither index changes native receipt bytes or the schema or engine version.
 
-`src/machine.js` declares the lifecycle and retained records. `packages/store/src/shell/board.js` installs these persistent triggers in the board file:
+`packages/state/src/shell/machine.js` declares the lifecycle and retained records. `packages/store/src/shell/board.js` installs these persistent triggers in the board file:
 
 <!-- board-triggers:start -->
 | Trigger | Table |

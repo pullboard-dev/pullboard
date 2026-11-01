@@ -9,7 +9,7 @@ import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.j
 import { relayClientFixture } from './relay-client-fixture.js';
 import { assertPersonUnlinkHistory } from './relay-exclusion-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 
 test('a relink after relay off seals moves with the new key [H15,H17]', async t => {
   const box = await relayClientFixture(t);

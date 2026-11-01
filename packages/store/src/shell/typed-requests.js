@@ -3,7 +3,7 @@ import { atomic } from "./board.js";
 import { getItem as itemById } from "./board.js";
 import { listAgents } from "./board.js";
 import { logEvent } from "./board.js";
-import { ENGINE_VERSION } from "../../../../src/machine.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
 import { TYPED_REQUESTS_ENGINE } from "../../../../src/typed-requests-engine.js";
 import { Refused } from "../../../kernel/index.js";
 

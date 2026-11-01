@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { cockpitPage } from '../src/cli/cockpit-renderer.js';
-import { ENGINE_VERSION } from '../src/machine.js';
+import { ENGINE_VERSION } from '../packages/state/index.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { createRelayBrowserHandler } from '../relay/browser-page.js';
