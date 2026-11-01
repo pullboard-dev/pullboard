@@ -1,3 +1,5 @@
+import { hasTestTiers } from '../../../gate/index.js';
+import { requireTestTierAccount } from '../../../gate/index.js';
 /** Coordinator landing diagnose step; source-preserving partition of land.js [B3,R3,C7]. */
 import { runnerExecutionServices } from '../../../../src/runners.js';
 import { landingExecutionServices } from './landing-shards.js';
@@ -39,9 +41,13 @@ export async function diagnose(state, failures, gate) {
     if (!runner) throw new Refused('LAND_DIAGNOSTIC', `no runner can isolate ${file}; configure affectedTests for the project’s test runner`);
     const commit = headCommit(state.batch.root);
     const tree = headTree(state.batch.root);
-    const result = await withLandingGateSlot(state.batch.root, (lease) => runProfiledShell(state.batch.root, `${runner} ${quote(file)}`, {
+    const tiered = hasTestTiers(state.batch.root);
+    const result = await withLandingGateSlot(state.batch.root, (lease) => {
+      lease.testTiers = tiered;
+      return runProfiledShell(state.batch.root, `${runner} ${quote(file)}`, {
       waitMs: lease.waitMs, artifactDirectory: dirname(state.batch.logPath), artifactPrefix: 'diagnostic', persistLog: true, pipefail: true, gateLease: lease,
-    }), { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
+    }); }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing: true, browser: true, agent: 'coordinator', kind: 'land-diagnostic', onWait: state.onWait });
+    if (tiered) requireTestTierAccount(result, [file]);
     if (headCommit(state.batch.root) !== commit || headTree(state.batch.root) !== tree || !isClean(state.batch.root)) {
       throw new Refused('LAND_SOURCE_CHANGED', `the landing source changed during its whole-file diagnostic; inspect ${result.logPath} before adopting`);
     }
