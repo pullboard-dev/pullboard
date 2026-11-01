@@ -37,7 +37,7 @@ const run = spawnSync(process.execPath, ['--test', '--test-reporter=./test/outco
 process.stdout.write(run.stdout ?? ''); process.stderr.write(run.stderr ?? ''); process.exitCode = run.status ?? 1;
 `);
     }
-    put(box.root, 'test/native-outcomes.js', readFileSync(new URL('../src/test-outcomes.js', import.meta.url), 'utf8'));
+    put(box.root, 'test/native-outcomes.js', readFileSync(new URL("../packages/gate/src/shell/test-outcomes.js", import.meta.url), 'utf8'));
     put(box.root, 'test/outcome-reporter.js', `import { tap } from 'node:test/reporters';
 import { testOutcomeCollector, formatTestOutcomes } from './native-outcomes.js';
 export default async function* report(events) {
