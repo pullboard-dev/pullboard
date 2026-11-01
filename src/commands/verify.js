@@ -12,7 +12,7 @@ import {
 } from '../test-output-summary.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { committedItemAuthors } from '../../packages/verify/index.js';

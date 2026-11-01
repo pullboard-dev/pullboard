@@ -1,5 +1,5 @@
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
-import { waivedLandingProof as nativeWaivedLandingProof } from '../landing-waivers.js';
+import { waivedLandingProof as nativeWaivedLandingProof } from '../../packages/landing/index.js';
 import { quarantineWaivers } from '../quarantine.js';
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { boardBusyError } from '../../packages/store/index.js';
@@ -7,14 +7,14 @@ import { openBoardReadOnly } from '../../packages/store/index.js';
 import { rowDecisions } from '../../packages/spec/index.js';
 import { checkLoosening } from '../../packages/doctrine/index.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import { gitBoardDataPush } from '../../packages/commits/src/core/board-format.js';
 import * as store from '../board.js';
 import { pendingCommitSignoffProblem } from '../../packages/commits/index.js';
 import { prepareCommitMetadata } from '../../packages/commits/index.js';
-import { landingBatchOwnsRoot } from '../landing-candidates.js';
+import { landingBatchOwnsRoot } from '../../packages/landing/index.js';
 import { landingRows } from '../../packages/commits/src/core/landing-rows.js';
 import {
   hookRead,
