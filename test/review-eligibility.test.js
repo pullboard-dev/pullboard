@@ -1,4 +1,6 @@
 /** @pullboard-test-input source-tree */
+import { VENDOR_FAMILY_ENGINE } from '../src/vendor-family-engine.js';
+import { canonicalFamily } from '../packages/verify/index.js';
 import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
 import * as queueStore from '../src/board.js';
 import { roadmap } from '../src/board-milestones.js';
@@ -397,10 +399,10 @@ test('routing activation fences vendor-rule downgrades while genuine historical 
 
 test('an explicit alias makes one vendor one family, while a true cross-family reviewer stays eligible [V4,B26,H16]', t => {
   const f = fixture(t), id = f.add();
-  store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/core-6', family: 'OpenAI', parentDigest: 'f'.repeat(64), model: 'Synthetic fixture model' });
+  store.register(f.board, { id: 'core-6', lane: 'core', path: '/fixture/core-6', family: 'OpenAI Inc', parentDigest: 'f'.repeat(64), model: 'Synthetic fixture model' });
   const item = f.submit(id);
-  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'without an alias, OpenAI and codex are distinct spellings');
-  f.board.familyAliases = familyIndex({ openai: ['codex'] });
+  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'without an alias, an unlisted OpenAI Inc spelling remains distinct');
+  f.board.familyAliases = familyIndex({ openai: ['codex', 'OpenAI Inc'] });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(projected.eligible.includes('core-6'), false, 'an aliased spelling of the builder family is the same vendor');
   assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
@@ -440,7 +442,7 @@ test('a companion patch author of another spelling blocks that vendor from revie
   const author = { agentId: 'core-1', parentSession: null, session: null };
   f.board.db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)').run(`item_patches:${id}`,
     JSON.stringify({ version: 1, patches: [{ key: 'companion', commit: 'c'.repeat(40), digest: 'd'.repeat(64), active: true, author }] }));
-  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'without an alias, OpenAI is not the codex companion family');
+  assert.equal(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), false, 'the built-in vendor table excludes the codex companion vendor without project configuration');
   f.board.familyAliases = familyIndex({ openai: ['codex'] });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(projected.eligible.includes('core-6'), false, 'the companion author is codex, which the alias list says is OpenAI');
@@ -454,12 +456,12 @@ test('the real withOpenedBoard installs the alias list from accepted main and th
   const e2e = createE2eHelpers(); t.after(e2e.cleanup);
   const box = e2e.project('true');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
-  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, families: { openai: ['codex'] } }, null, 2));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...config, families: { openai: ['codex', 'OpenAI Inc'] } }, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: declare vendor aliases');
   // The opener closes its board, so this one is not also closed by a test hook.
   const f = fixture({ after() {} }), id = f.add();
-  joinSeat(f.board, 'core-6', 'OpenAI', '6');
+  joinSeat(f.board, 'core-6', 'OpenAI Inc', '6');
   const item = f.submit(id);
   assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-6'), 'before opening, no alias index exists');
   const eligible = withOpenedBoard({ info: { root: box.repo, isMain: true }, io: {} }, board => reviewEligibility(board, item, { familyPolicy: 'require' }), f.board);
@@ -893,4 +895,46 @@ test('counterexample: every public agent-row reader returns the derived family a
   assert.equal(store.agentAt(f.board, seat.path).agent_family, 'OpenAI', 'view-215: agentAt returns the derived family, not the cleared column');
   assert.equal(store.agentById(f.board, id).agent_family, 'OpenAI', 'agentById returns it');
   assert.equal(store.listAgents(f.board).find(agent => agent.agent_id === id).agent_family, 'OpenAI', 'listAgents returns it');
+});
+
+test('[V4,B26,H16] default vendor aliases refuse codex and openai reviewers in both directions', t => {
+  for (const [builder, reviewer] of [['core-1', 'core-6'], ['core-6', 'core-4']]) {
+    const f = fixture(t);
+    joinSeat(f.board, 'core-6', ' OpenAI ', '6');
+    const id = f.add(), item = f.submit(id, builder);
+    assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).ineligible.some(row => row.agent === reviewer && row.code === 'O2_FAMILY_MATCH'));
+    assert.throws(() => f.reserve(id, reviewer), { code: 'O2_FAMILY_MATCH' });
+    assert.equal(store.nextFor(f.board, { agentId: reviewer, lane: 'core', verify: true, familyPolicy: 'require' }).item, null);
+    assert.throws(() => store.verify(f.board, id, { agentId: reviewer, decision: 'ACCEPT', note: 'Synthetic family comparison.',
+      head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'require', check: 'none' }), { code: 'O2_FAMILY_MATCH' });
+  }
+});
+
+test('[V4,B26] unknown declared families remain distinct and missing families name the join recovery', t => {
+  const f = fixture(t);
+  joinSeat(f.board, 'core-6', ' Future Vendor A ', '6');
+  joinSeat(f.board, 'core-7', 'Future Vendor B', '7');
+  const id = f.add(), item = f.submit(id, 'core-6');
+  assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).eligible.includes('core-7'));
+  assert.equal(f.reserve(id, 'core-7').item_review_by, 'core-7');
+  for (const sensitive of [false, true]) {
+    const g = fixture(t);
+    joinSeat(g.board, 'core-6', null, '6');
+    const missing = g.add({ sensitive }); g.submit(missing);
+    assert.throws(() => g.reserve(missing, 'core-6'), error => error.code === 'O2_FAMILY_MATCH' && /pullboard join --family/u.test(error.message) && /pullboard join --family/u.test(error.next));
+  }
+});
+
+test('[V4,B26,H16] the vendor table is explicit, configuration cannot split known vendors, and old engines retain their aliases', t => {
+  const f = fixture(t);
+  for (const [label, vendor] of [[' GPT ', 'openai'], ['Sonnet', 'anthropic'], ['OPUS', 'anthropic'], ['haiku', 'anthropic'],
+    ['Claude', 'anthropic'], ['Gemini', 'google'], ['Grok', 'xai'], ['Unknown X', 'unknown x']]) {
+    assert.equal(canonicalFamily(f.board, label), vendor);
+  }
+  f.board.familyAliases = familyIndex({ custom: ['codex'], claude: ['custom-claude'] });
+  assert.equal(canonicalFamily(f.board, 'codex'), 'openai');
+  assert.equal(canonicalFamily(f.board, 'custom-claude'), 'anthropic');
+  f.board.executionEngineVersion = VENDOR_FAMILY_ENGINE - 1;
+  assert.equal(canonicalFamily(f.board, 'codex'), 'custom');
+  assert.equal(canonicalFamily(f.board, 'Claude'), 'claude');
 });
