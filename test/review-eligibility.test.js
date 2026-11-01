@@ -212,7 +212,7 @@ test('unknown-family refusal is opt-in and known vendors retain off prefer requi
   assert.equal(reserve(unknownReviewer, 'core-6').item_review_by, 'core-6', 'off retains an optional unknown reviewer');
   assert.equal(reserve(sameVendor, 'core-4', 'prefer').item_review_by, 'core-4', 'prefer retains known same-vendor eligibility');
   assert.equal(reserve(unknownBuilder, 'core-5').item_review_by, 'core-5', 'off retains an optional unknown builder');
-  assert.throws(() => reserve(required, 'core-4', 'require'), { code: 'O2_FAMILY_MATCH' });
+  assert.throws(() => reserve(required, 'core-4', 'require'), { code: 'SAME_FAMILY' });
   assert.throws(() => reserve(required, 'core-6', 'require'), { code: 'O2_FAMILY_MATCH' });
   store.setLineSetting(f.board, { agentId: 'coordinator', key: 'requireReviewFamilies', value: true,
     reason: 'Private setting-on contract requires an explicit vendor pair.', window: { syntheticSeats: 7 } });
@@ -347,9 +347,9 @@ test('strict vendor eligibility and native reservation agree while historical re
     const options = { agentId: 'core-4', leaseMs: LEASE, policy: 'any', familyPolicy: 'off' };
     if (historical) assert.equal(store.reserveReview(f.board, id, options).item_review_by, 'core-4');
     else {
-      assert.equal(eligibility.ineligible.find(entry => entry.agent === 'core-4').code, 'O2_FAMILY_MATCH');
+      assert.equal(eligibility.ineligible.find(entry => entry.agent === 'core-4').code, 'SAME_FAMILY');
       const before = exportBoard(f.board);
-      assert.throws(() => store.reserveReview(f.board, id, options), { code: 'O2_FAMILY_MATCH' });
+      assert.throws(() => store.reserveReview(f.board, id, options), { code: 'SAME_FAMILY' });
       assert.deepEqual(exportBoard(f.board), before, 'refusal changes no native state');
       assert.equal(store.reserveReview(f.board, id, { ...options, agentId: 'core-5' }).item_review_by, 'core-5');
     }
@@ -389,7 +389,7 @@ test('routing activation fences vendor-rule downgrades while genuine historical 
     assert.deepEqual(exportBoard(f.board), before, 'downgrade refusal changes no state or cursor');
     const current = applyEngineMove(f.board, fresh, { sequence: 3, at: '2026-10-27T01:04:00.000Z' });
     assert.equal(operation === 'reserveNextReview' ? current.result?.item ?? null : current.error?.code,
-      operation === 'reserveNextReview' ? null : 'O2_FAMILY_MATCH');
+      operation === 'reserveNextReview' ? null : 'SAME_FAMILY');
     const replayBefore = exportBoard(f.board);
     assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-27T00:01:00.000Z' }), first);
     assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
@@ -405,7 +405,7 @@ test('an explicit alias makes one vendor one family, while a true cross-family r
   f.board.familyAliases = familyIndex({ openai: ['codex', 'OpenAI Inc'] });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(projected.eligible.includes('core-6'), false, 'an aliased spelling of the builder family is the same vendor');
-  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
+  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'SAME_FAMILY'));
   assert.ok(projected.eligible.includes('core-2'), 'a reviewer from a different vendor remains eligible');
 });
 
@@ -426,7 +426,7 @@ test('aliases installed by the production accessor reach the review projection, 
   Object.defineProperty(f.board, 'familyAliases', { configurable: true, get: () => aliases ??= familyIndex({ openai: ['codex'] }) });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(projected.eligible.includes('core-6'), false, 'an OpenAI reviewer of a codex builder is the same vendor on the production path');
-  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
+  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'SAME_FAMILY'));
 });
 
 /** Register one extra seat with a declared vendor family and its own persisted parent session. */
@@ -446,10 +446,10 @@ test('a companion patch author of another spelling blocks that vendor from revie
   f.board.familyAliases = familyIndex({ openai: ['codex'] });
   const projected = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(projected.eligible.includes('core-6'), false, 'the companion author is codex, which the alias list says is OpenAI');
-  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'O2_FAMILY_MATCH'));
+  assert.ok(projected.ineligible.some(row => row.agent === 'core-6' && row.code === 'SAME_FAMILY'));
   assert.ok(projected.ineligible.some(row => row.agent === 'core-1'), 'the companion author is itself excluded');
   assert.ok(projected.eligible.includes('core-7'), 'a third vendor remains eligible');
-  assert.throws(() => f.reserve(id, 'core-6'), { code: 'O2_FAMILY_MATCH' });
+  assert.throws(() => f.reserve(id, 'core-6'), { code: 'SAME_FAMILY' });
 });
 
 test('the real withOpenedBoard installs the alias list from accepted main and the projection keeps it [V4,B26]', t => {
@@ -485,7 +485,7 @@ test('aliases and the strict builder rule apply only from their engine; an older
   store.release(f.board, id, 'core-6', 'Release the historical review before the alias engine applies.', 'OTHER');
   f.board.clock = { now: () => new Date('2026-10-28T01:03:00.000Z') };
   const fresh = prepareEngineMove(f.board, 'reserveReview', [id, options]);
-  assert.equal(applyEngineMove(f.board, fresh, { sequence: 2, at: '2026-10-28T01:04:00.000Z' }).error?.code, 'O2_FAMILY_MATCH', 'the current engine applies the alias');
+  assert.equal(applyEngineMove(f.board, fresh, { sequence: 2, at: '2026-10-28T01:04:00.000Z' }).error?.code, 'SAME_FAMILY', 'the current engine applies the alias');
   const after = exportBoard(f.board);
   assert.deepEqual(applyEngineMove(f.board, old, { sequence: 1, at: '2026-10-28T00:01:00.000Z' }), first);
   assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`relay_receipt_${old.id}`).meta_value, receipt);
@@ -508,8 +508,8 @@ test('at engine 148 a differently cased family is another vendor; only the alias
   delete f.board.executionEngineVersion;
   const current = reviewEligibility(f.board, item, { familyPolicy: 'require' });
   assert.equal(current.eligible.includes('core-9'), false, 'the current engine folds case into one family');
-  assert.ok(current.ineligible.some(row => row.agent === 'core-9' && row.code === 'O2_FAMILY_MATCH'));
-  assert.throws(() => store.reserveReview(f.board, id, options), { code: 'O2_FAMILY_MATCH' });
+  assert.ok(current.ineligible.some(row => row.agent === 'core-9' && row.code === 'SAME_FAMILY'));
+  assert.throws(() => store.reserveReview(f.board, id, options), { code: 'SAME_FAMILY' });
   f.board.executionEngineVersion = REVIEW_INDEPENDENCE_ENGINE;
   assert.equal(store.reserveReview(f.board, id, options).item_review_by, 'core-9', 'the same reservation still records under engine 148');
   const waiting = fixture(t, { requireFamilies: false }), same = waiting.add();
@@ -547,7 +547,7 @@ test('a declared alias spelling is the builder\'s vendor, so that seat still can
   store.register(f.board, { ...seat, parentDigest: '7'.repeat(64) });
   f.submit(id, 'core-2');
   store.register(f.board, { ...seat, family: 'claude-family', parentDigest: '9'.repeat(64) });
-  assert.throws(() => f.reserve(id, 'core-9'), error => error.code === 'O2_FAMILY_MATCH', 'the declared name goes through the alias list');
+  assert.throws(() => f.reserve(id, 'core-9'), error => error.code === 'SAME_FAMILY', 'the declared name goes through the alias list');
 });
 
 test('a declared seat rejoining from the SAME session cannot change vendor, and another spelling of it is the same declaration [V4,B26,H16]', t => {
@@ -850,7 +850,7 @@ test('the derived family decides eligibility: a historically cleared seat still 
   store.register(f.board, { ...seat, family: null });
   delete f.board.executionEngineVersion;
   f.submit(id, 'core-1');
-  assert.throws(() => f.reserve(id, 'core-30'), error => error.code === 'O2_FAMILY_MATCH',
+  assert.throws(() => f.reserve(id, 'core-30'), error => error.code === 'SAME_FAMILY',
     'the cleared column does not make core-30 an independent vendor of codex-built work');
 });
 
@@ -902,11 +902,11 @@ test('[V4,B26,H16] default vendor aliases refuse codex and openai reviewers in b
     const f = fixture(t);
     joinSeat(f.board, 'core-6', ' OpenAI ', '6');
     const id = f.add(), item = f.submit(id, builder);
-    assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).ineligible.some(row => row.agent === reviewer && row.code === 'O2_FAMILY_MATCH'));
-    assert.throws(() => f.reserve(id, reviewer), { code: 'O2_FAMILY_MATCH' });
+    assert.ok(reviewEligibility(f.board, item, { familyPolicy: 'require' }).ineligible.some(row => row.agent === reviewer && row.code === 'SAME_FAMILY'));
+    assert.throws(() => f.reserve(id, reviewer), { code: 'SAME_FAMILY' });
     assert.equal(store.nextFor(f.board, { agentId: reviewer, lane: 'core', verify: true, familyPolicy: 'require' }).item, null);
     assert.throws(() => store.verify(f.board, id, { agentId: reviewer, decision: 'ACCEPT', note: 'Synthetic family comparison.',
-      head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'require', check: 'none' }), { code: 'O2_FAMILY_MATCH' });
+      head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'require', check: 'none' }), { code: 'SAME_FAMILY' });
   }
 });
 
@@ -948,11 +948,21 @@ for (const [builderFamily, reviewerFamily] of [['openai', 'OpenAI'], ['codex', '
       const id = f.add(), item = f.submit(id, 'core-6');
       const view = reviewEligibility(f.board, item, { familyPolicy: 'require' });
       assert.equal(view.eligible.includes('core-7'), false, 'show lists no same-vendor reviewer');
-      assert.ok(view.ineligible.some(row => row.agent === 'core-7' && row.code === 'O2_FAMILY_MATCH'));
-      assert.throws(() => f.reserve(id, 'core-7'), { code: 'O2_FAMILY_MATCH' });
+      assert.ok(view.ineligible.some(row => row.agent === 'core-7' && row.code === 'SAME_FAMILY'));
+      assert.throws(() => f.reserve(id, 'core-7'), { code: 'SAME_FAMILY' });
       assert.equal(store.nextFor(f.board, { agentId: 'core-7', lane: 'core', verify: true, familyPolicy: 'require' }).item, null);
       assert.throws(() => store.verify(f.board, id, { agentId: 'core-7', decision: 'ACCEPT', note: 'Synthetic family comparison.',
-        head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'require', check: 'none' }), { code: 'O2_FAMILY_MATCH' });
+        head: item.item_commit, digest: item.item_frozen_digest, policy: 'any', familyPolicy: 'require', check: 'none' }), { code: 'SAME_FAMILY' });
     });
   }
 }
+
+test('same-vendor refusal keeps its historical code before the new engine [V4,B26,H16]', async t => {
+  const { SAME_FAMILY_REFUSAL_ENGINE } = await import('../src/same-family-refusal-engine.js');
+  const f = fixture(t);
+  joinSeat(f.board, 'core-6', 'OpenAI', '6');
+  const id = f.add();
+  f.submit(id, 'core-1');
+  f.board.executionEngineVersion = SAME_FAMILY_REFUSAL_ENGINE - 1;
+  assert.throws(() => f.reserve(id, 'core-6'), { code: 'O2_FAMILY_MATCH' });
+});

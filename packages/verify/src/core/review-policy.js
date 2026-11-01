@@ -1,3 +1,5 @@
+import { SAME_FAMILY_REFUSAL_ENGINE } from '../../../../src/same-family-refusal-engine.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { STRICT_COMPOSITION_ENGINE } from '../../../../src/strict-composition-engine.js';
 import { classifiedStrict } from '../shell/review-tier.js';
 import { reviewTierFloor } from '../shell/review-tier.js';
@@ -50,4 +52,9 @@ export function anyItemReviewPolicyEngine(board) {
 /** A committed routing prefix fences fresh envelopes without changing genuine old receipts. */
 function routingPolicyEngine(board) {
   return board?.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_routing:active'").get() ? REVIEW_ROUTING_ENGINE : 1;
+}
+
+/** Keep historical refusal codes for recorded moves while identifying current same-vendor conflicts. */
+export function sameFamilyCode(board) {
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= SAME_FAMILY_REFUSAL_ENGINE ? 'SAME_FAMILY' : 'O2_FAMILY_MATCH';
 }

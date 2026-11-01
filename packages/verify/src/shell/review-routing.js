@@ -9,6 +9,7 @@ import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { FAMILY_ALIAS_ENGINE } from '../../../../src/family-alias-engine.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
 import { familyName } from '../core/review-policy.js';
+import { sameFamilyCode } from '../core/review-policy.js';
 import { familyAliasesOf } from '../core/review-policy.js';
 
 export { familiesDiffer } from '../core/review-policy.js';
@@ -30,7 +31,7 @@ export function strictReviewProblem(board, item, agentId) {
   const fallback = compositionFamilyFallback(board, item);
   const built = fallback?.family ?? familyName(item.item_builder_family, familyAliasesOf(board));
   const join = (!family || !built) && (board.executionEngineVersion ?? ENGINE_VERSION) >= VENDOR_FAMILY_ENGINE ? 'pullboard join --family <vendor>' : undefined;
-  if (!(family && built && family !== built)) return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict; ask a verifier from another declared vendor family${join ? `; declare missing families with ${join}` : ''}`, join);
+  if (!(family && built && family !== built)) return new Refused(family && built && family === built ? sameFamilyCode(board) : 'O2_FAMILY_MATCH', `#${item.item_id} is strict; ask a verifier from another declared vendor family${join ? `; declare missing families with ${join}` : ''}`, join);
   return fallback ? null : companionFamilyProblem(board, item, family);
 }
 
@@ -81,7 +82,7 @@ function companionFamilyProblem(board, item, family) {
   for (const author of reviewPatchAuthors(board, item)) {
     const declared = seatFamily(board, author.agentId);
     if (familyName(declared, aliases) === family) {
-      return new Refused('O2_FAMILY_MATCH', `#${item.item_id} is strict and companion author ${author.agentId} shares your vendor family; ask a verifier from another declared vendor family`);
+      return new Refused(sameFamilyCode(board), `#${item.item_id} is strict and companion author ${author.agentId} shares your vendor family; ask a verifier from another declared vendor family`);
     }
   }
   return null;
