@@ -150,7 +150,7 @@ test('person sessions delegate native agent moves under the shared sender policy
 test('authenticated coordinator milestones replay and reject foreign sender identity [H2,H9,H3,H16]', (t) => {
   const { copies, item } = engineCopies(t);
   const [one, two] = copies;
-  const move = prepareEngineMove(one, 'addMilestone', [{ agentId: 'coordinator', name: 'Fixture milestone', items: [item] }], { id: 'coordinator-milestone', actor: 'coordinator' });
+  const move = prepareEngineMove(one, 'addMilestone', [{ agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Fixture milestone', items: [item] }], { id: 'coordinator-milestone', actor: 'coordinator' });
   for (const board of copies) {
     const before = store.milestones(board);
     const refused = applyRelayMove(board, move, { sequence: 1, at: CLAIM_AT, kind: 'move', sender: { kind: 'agent', userId: 'fixture-user', agent: 'web-1' } });

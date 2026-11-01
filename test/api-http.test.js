@@ -21,7 +21,7 @@ import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';
 import { registryFile, registerProject, forgetProject } from '../src/projects.js';
 import { Refused } from '../packages/kernel/core.js';
 import { board as store } from '../src/native-board.js';
-import { preparePersonRequest } from '../src/person-request.js';
+import { preparePersonRequest } from '../packages/person/core.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
 import { apiHttpFixture as fixture } from './api-fixture.js';
 import { apiHttpBox as httpBox } from './api-fixture.js';
@@ -608,7 +608,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   const claimed = (await move({ verb: 'add', args: { lane: 'app', title: 'Claimed summary item', criterion: 'stays claimed', specs: 'G1' } })).item.item_id;
   await move({ verb: 'claim', item: claimed, agent: builder.agent });
   const open = (await move({ verb: 'add', args: { lane: 'app', title: 'Open summary item', criterion: 'waits for a builder', specs: 'G1' } })).item.item_id;
-  box.cli(box.root, 'milestone', 'add', 'Delivery', '--items', String(accepted));
+  box.cli(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(accepted));
   const board = store.openBoard(join(box.root, '.git', 'pullboard', 'board.sqlite'));
   let leaseUntil;
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }
@@ -907,7 +907,7 @@ test('[A2, N26] local milestone item status refreshes after an item event', asyn
   });
   assert.equal(added.status, 200);
   const itemId = added.document.result.item.item_id;
-  box.cli(box.root, 'milestone', 'add', 'Delivery', '--items', String(itemId));
+  box.cli(box.root, 'milestone', 'add', 'Delivery', '--reason', 'Arrange fixture release', '--items', String(itemId));
 
   const before = await box.call(box.path + '/state');
   assert.equal(builds, 1);
@@ -1240,7 +1240,7 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   const configPath = join(box.root, 'pullboard.json');
   const specPath = join(box.root, 'SPEC.md');
   const doctrinePath = join(box.root, 'DOCTRINE.md');
-  box.cli(box.root, 'milestone', 'add', 'External work', '--items', `Roadmap fixture#${externalAdded.item.item_id}`);
+  box.cli(box.root, 'milestone', 'add', 'External work', '--reason', 'Arrange fixture release', '--items', `Roadmap fixture#${externalAdded.item.item_id}`);
   box.cli(box.root, 'shout', 'all', 'mark this after the stream starts');
   const agent = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-agent');
   const leaseItem = box.cli(box.root, 'add', 'app', 'Expiring stream claim', '--criterion', 'becomes open', '--specs', 'G1').item;

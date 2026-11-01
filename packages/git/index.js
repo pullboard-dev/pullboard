@@ -14,3 +14,4 @@ export * from "./core.js";
 export * from "./src/shell/git-trunk-ref.js";
 export { canonicalToolCommand, recordToolCommand, recordedToolCommits, toolRegenerationSource } from './src/shell/tool-commands.js';
 export * from "./src/shell/check-receipts.js";
+export { checkCommandDefinition } from './src/shell/check-definition.js';

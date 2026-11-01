@@ -17,7 +17,7 @@ import { headCommit } from '../../../../src/git.js';
 import {
   agentSessionDigest,
   requirePersonChannel,
-} from '../../../../src/person.js';
+} from '../../../person/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { prepareRowDecisions } from '../../../spec/index.js';
 import { loadSpec } from '../../../spec/index.js';

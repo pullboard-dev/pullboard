@@ -9,6 +9,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lex } from '../../../kernel/index.js';
+import { currentCellLintParser } from './cell-parser.js';
 
 const COMPILER = `import vm from 'node:vm'; import {readFileSync} from 'node:fs';
 const sources=JSON.parse(readFileSync(process.argv[1],'utf8'));
@@ -16,6 +17,8 @@ process.stdout.write(JSON.stringify(sources.map(source=>{try{new vm.SourceTextMo
 
 /** Ask V8 only whether each source compiles; module linking, evaluation and candidate effects are forbidden. */
 function compiles(sources) {
+  const parser = currentCellLintParser();
+  if (parser) return parser(sources).map(row => row.compiles);
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-cell-bindings-'));
   try {
     const file = join(directory, 'sources.json');
