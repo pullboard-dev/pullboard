@@ -14,7 +14,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
-import { locked } from './relay-lock.js';
+import { locked } from '../packages/link/index.js';
 import {
   checkpointInBackground,
   scheduleCheckpoint,
@@ -23,7 +23,7 @@ import {
   checkpointQuietMs,
   publisherHolding,
 } from '../packages/outbox/index.js';
-import { publishLatestCheckpoint } from './relay.js';
+import { publishLatestCheckpoint } from '../packages/link/index.js';
 import {
   openBoard,
   nativeBoardPorts,

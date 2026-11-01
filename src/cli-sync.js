@@ -15,9 +15,9 @@ import {
   DEFAULT_RELAY,
   relayStatus,
   syncRelay,
-} from './relay.js';
-import { executePersonRequests } from './relay-request-execution.js';
-import { autoLinkProject } from './relay-setup.js';
+} from '../packages/link/index.js';
+import { executePersonRequests } from '../packages/link/index.js';
+import { autoLinkProject } from '../packages/link/index.js';
 import {
   gitSyncLinked,
   relayLinkFile,
@@ -28,7 +28,7 @@ import {
   localFirstBoard,
   nudgeRelaySender,
   senderInBackground,
-} from './relay-local-first.js';
+} from '../packages/link/index.js';
 import {
   context,
   withBoard,

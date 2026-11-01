@@ -8,7 +8,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
-import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestStageText } from '../src/relay-requests.js';
+import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestStageText } from '../packages/link/index.js';
 
 const at = '2026-10-09T21:00:00.000Z';
 const phone = { kind: 'person', userId: 'private-person' };
