@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
+import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone, orderMilestoneItems } from '../src/board-milestones.js';
 import { proofStats } from '../packages/stats/index.js';
 import { flowStats } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
@@ -195,6 +195,33 @@ test('cached flow retains every native milestone membership through edits remova
   assert.deepEqual(report.items[0].stages.later, { minutes: 30, unknown: 0 });
   assert.equal(report.items[0].milestone, null);
   assert.deepEqual(report.milestones.map(row => row.milestone), [null]);
+});
+
+test('automatic placement overrides agree in cached and replayed flow after shipping [R1,R2]', t => {
+  const board = fixture(t);
+  const who = { agentId: 'coordinator' };
+  const id = 1;
+  addMilestone(board, { ...who, name: 'A', items: [id], reason: 'place in A' });
+  for (const name of ['B', 'C']) addMilestone(board, { ...who, name });
+  const observe = expected => {
+    const now = Date.now() + 60_000;
+    const stats = proofStats(board, { now }, statsReadPorts);
+    const replay = flowStats(store.events(board), null, now, stats).report;
+    const live = store.milestones(board).filter(row => row.items.includes(id)).map(row => row.name);
+    assert.deepEqual(live, expected);
+    assert.deepEqual(stats.flow.report, replay);
+    assert.deepEqual(replay.items.find(row => row.id === id).milestones, expected);
+  };
+  observe(['A']);
+  editMilestoneItems(board, 'B', { ...who, add: [id], reason: 'move to B' });
+  observe(['B']);
+  orderMilestoneItems(board, 'B', { ...who, items: [id], reason: 'rank within B' });
+  observe(['B']);
+  shipMilestone(board, 'A', { ...who, commit: 'a'.repeat(40), next: 'C' });
+  observe(['B']);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:report-summary');
+  ensureProofCounters(board);
+  observe(['B']);
 });
 
 test('repeated native landing receipts preserve the first measured landing interval [R1,R2]', t => {
