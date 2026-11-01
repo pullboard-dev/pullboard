@@ -1466,7 +1466,7 @@ test('lifecycle audit follows extracted package guards and catches a new refusal
 
 /** The exact native guard binding remains audited after the canonical root supplies it. */
 test('native landing ports retain guard refusals without trusting unrelated chains [M1,M4]', () => {
-  const planted = editedSource('landing-environment-guards.js', /^export function requireVerdict\([^\n]+\) \{$/m,
+  const planted = editedSource('../packages/landing/src/core/landing-environment-guards.js', /^export function requireVerdict\([^\n]+\) \{$/m,
     "$&\n  throw new Refused('NATIVE_PORT_PROBE', 'planted native guard');");
   const reaches = codeProblems(machineRules.MACHINE, planted);
   assert.ok(reaches.includes('NATIVE_PORT_PROBE is raised by accept and reject but not declared there'), 'the actual bound guard reaches its lifecycle caller');

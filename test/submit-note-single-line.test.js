@@ -30,7 +30,6 @@ test('deferred suite and cross-lane mechanical edit submit both notices on one l
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   for (const dir of ['web', 'api', 'test']) mkdirSync(join(box.repo, dir), { recursive: true });
   writeFileSync(join(box.repo, 'web/old.js'), 'export const value = 1;\n');
-  writeFileSync(join(box.repo, 'web/new.js'), 'export const value = 1;\n');
   writeFileSync(join(box.repo, 'api/consumer.js'), "import { value } from '../web/old.js';\nexport const result = value;\n");
   writeFileSync(join(box.repo, 'test/import.test.js'), "import assert from 'node:assert/strict';\nimport { result } from '../api/consumer.js';\nassert.equal(result, 1);\n");
   commit(box, box.repo, 'chore: seed deferred mechanical fixture [G1]');
@@ -39,6 +38,7 @@ test('deferred suite and cross-lane mechanical edit submit both notices on one l
   json(box, builder, 'join', 'web');
   const item = json(box, box.repo, 'add', 'web', 'Repoint the consumer import', '--specs', 'G1', '--check', 'node --test test/import.test.js').item.item_id;
   json(box, builder, 'claim', String(item));
+  box.git(builder, 'mv', 'web/old.js', 'web/new.js');
   writeFileSync(join(builder, 'api/consumer.js'), "import { value } from '../web/new.js';\nexport const result = value;\n");
   commit(box, builder, 'refactor(web): repoint consumer import [G1]');
   const submitted = json(box, builder, 'submit', String(item), '--no-next');

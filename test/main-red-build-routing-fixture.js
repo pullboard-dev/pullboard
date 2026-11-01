@@ -1,5 +1,7 @@
 /** Native board routing assertions; no gate or current-main result is fabricated [C7,N2]. */
 import assert from 'node:assert/strict';
+import { compareMainFailures } from '../packages/landing/index.js';
+import { mainRedReworkItems } from '../packages/landing/index.js';
 import * as store from '../src/board.js';
 import { exportBoard } from '../packages/store/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
@@ -72,7 +74,6 @@ export function assertNewestMainRedRouting(t) {
 
 /** Exercise default next and next --take against an actually measured red private main. */
 export async function assertMainRedCLI(t, { fixture, cli }) {
-  const { compareMainFailures, mainRedReworkItems } = await import('../src/main-red.js');
   const box = await fixture(t, { mainRed: true });
   const old = box.add('Older half-built item', { specIds: ['G2'], brief: 'Files: web/older.js' });
   box.claim(old, box.seats.actor);
