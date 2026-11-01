@@ -36,7 +36,7 @@ export function assertRunnerControllerReachability({ codeProblems, codeWalk, edi
   for (const entry of ['runProfiledShell', 'runProfiledShellAsync']) {
     assert.ok(walk.refusalsOf(`gate-execution.js#${entry}`).has('RUNNER_CHILD_PROBE'), `${entry} follows its canonical runner lease port`);
   }
-  const otherPort = file => file === 'gate-execution.js'
+  const otherPort = file => ['gate-execution.js', '../packages/gate/src/shell/gate-execution.js'].includes(file)
     ? childGuard(file).replaceAll('gateLease.executionServices.runners.', 'gateLease.unrelated.runners.')
     : childGuard(file);
   for (const entry of ['runProfiledShell', 'runProfiledShellAsync']) {

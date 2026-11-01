@@ -61,7 +61,8 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'packages/seats/src/shell/coordinator-hold.js', 'packages/seats/src/core/seat-review-read.js', 'src/check-mask.js', 'src/person-presence.js', 'src/person-signing.js', 'src/discovery.js', 'src/machine.js',
     'test/person.test.js', 'test/check.test.js', 'test/flakes-ledger.test.js', 'test/review-tier.test.js', 'test/selection-fallbacks.test.js',
     'test/relay-auth-expired.test.js', 'test/engine.test.js', 'test/landing-shards.test.js',
-    'packages/gate/src/core/test-selection.js', 'bin/run-tests.js', 'bin/checks/test-names.js',
+    'packages/gate/src/core/test-selection.js', 'packages/gate/src/shell/gate-run-receipt.js', 'packages/gate/src/shell/test-selection.js',
+    'packages/gate/tests/check.test.js', 'packages/gate/tests/gui-admission.test.js', 'packages/gate/tests/landing-stage-composition.test.js', 'bin/run-tests.js', 'bin/checks/test-names.js',
     '.github/workflows/ci.yml', 'pullboard.json']) assert.equal(gateJudgmentPath(path), true, path);
   for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md',
     'packages/sandbox/src/shell/trusted-policy.js', 'packages/sandbox/src/shell/source-advance-origin.js',
@@ -72,7 +73,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/spec.js', 'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
     'packages/spec/src/shell/spec.js',
     'test/board.test.js', 'test/review-queue.test.js', 'test/person-trusted-cli.js', 'test/test-value.test.js',
-    'test/runner-new-unlisted.test.js', 'test/project.test.js', 'packages/gate/tests/new-unlisted.test.js']) {
+    'test/runner-new-unlisted.test.js', 'test/project.test.js', 'packages/gate/tests/new-unlisted.test.js', 'packages/gate/tests/resources.test.js', 'packages/gate/tests/gate-resource.test.js']) {
     assert.equal(gateJudgmentPath(path), false, path);
   }
 });
