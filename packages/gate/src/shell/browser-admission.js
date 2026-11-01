@@ -539,7 +539,7 @@ function parsedSources(sources, memo) {
  * @param {Map<string, {commonJs:boolean, imports:string[]}>} [memo] - parses shared across one census of many files
  * @param {Map<string, boolean>} [launchFree] - Chrome fixture import verdicts shared the same way
  * @param {Map<string, boolean>} [safeChildImports] - exact-byte fixed-Git import parses within this census only
- * @param {Map<string, string>} [sourceMemo] - one source read per file in this immutable census
+ * @param {Map<string, string>} [sourceMemo] - one source read per file within this census
  * @param {Map<string, Map<string, object>>} [reachMemo] - verified projections shared by source bytes and demanded exports
  * @returns {Promise<boolean>}
  */
@@ -591,7 +591,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       const reachKeys = [];
       const reaches = sources.map((source, index) => {
         if (!byLaunch) return { source, requests: new Map(), barrel: false };
-        const cache = !process.env.NODE_OPTIONS && reachMemo.get(source);
+        const cache = process.env.NODE_OPTIONS ? undefined : reachMemo.get(source);
         const initial = cache?.get('all') ?? browserModuleReach(source);
         const value = demands.get(paths[index]);
         const selected = value.narrow || initial.barrel ? value.names : null;

@@ -104,6 +104,7 @@ export function browserModuleReach(source, selected = null) {
         if (code[body] !== '{' || !syntax.pairs.has(body)) continue;
         functions.push({ name: match[1], nameAt: match.index + match[0].lastIndexOf(match[1]), start: match.index, end: syntax.pairs.get(body) + 1,
           parameters: [open + 1, close], body: [body + 1, syntax.pairs.get(body)] });
+        if (functions.length > 64) return browserModuleReach(source);
       }
       const probe = blank(code, [...rows.map(row => [row.start, row.end]), ...functions.map(row => [row.start, row.end])]);
       const active = new Set();
