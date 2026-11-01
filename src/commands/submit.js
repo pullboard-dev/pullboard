@@ -652,6 +652,7 @@ export async function run(io, { first, values }) {
           if (error.code === 'RUNNER_TOOLING_CHANGED') {
             await ordered(ctx, board, 'appendFact', [id, { agentId: attempt.agentId, kind: 'note',
               text: `Submit infrastructure refusal [RUNNER_TOOLING_CHANGED]: ${error.message.slice(0, 4000)}. No failed submit is recorded.` }]);
+            if (ctx.io.submitToolingAttempt) ctx.io.submitToolingAttempt.owned = true;
           } else {
             await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
               freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),

@@ -251,7 +251,7 @@ async function runCommand(argv, io) {
     return await commandModule.run(io, args);
   } catch (error) {
     error = recordedMoveRefusal(io, error);
-    if (error instanceof Refused && error.code === 'RUNNER_TOOLING_CHANGED' && io.submitToolingAttempt) {
+    if (error instanceof Refused && error.code === 'RUNNER_TOOLING_CHANGED' && io.submitToolingAttempt?.owned) {
       const { prepareSubmitToolingRetry } = await import('../packages/runners/index.js');
       const selection = prepareSubmitToolingRetry(io.submitToolingAttempt.snapshot, io.submitToolingAttempt);
       if (selection) {
