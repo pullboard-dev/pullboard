@@ -1,7 +1,7 @@
 /** Prepare exact native train evidence at origin; replicas consume only the sealed request [C7,H16]. */
-import { checkedLandingCommit } from './board.js';
-import { getItem } from './board.js';
-import { landingBatches } from './board.js';
+import { checkedLandingCommit } from '../packages/store/index.js';
+import { getItem } from '../packages/store/index.js';
+import { landingBatches } from '../packages/store/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { contains } from './git.js';
 import { git } from './git.js';

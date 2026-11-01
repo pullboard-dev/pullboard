@@ -1,7 +1,7 @@
 /** Explicit machine-local canary commands; all messages retain the caller's ordinary authority [H5,H17]. */
 import { realpathSync } from 'node:fs';
 import { COORDINATOR } from '../../../config/index.js';
-import { PERSON } from '../../../../src/board.js';
+import { PERSON } from '../../../store/index.js';
 import { laneNames } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/core.js';
 import { relayMachineContext } from './relay.js';

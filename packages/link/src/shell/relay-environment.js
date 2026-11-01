@@ -21,7 +21,7 @@ import { restoreCheckpoint } from './relay.js';
 import { saveLink } from './relay.js';
 import { readBoardKey } from '../../../keys/index.js';
 import { appliedSequence } from '../../../state/index.js';
-import { importBoard } from '../../../../src/exchange.js';
+import { importBoard } from '../../../store/index.js';
 
 const TOKEN = /^pa_[A-Za-z0-9_-]{43}$/u;
 /** Link files this process has already matched to the environment's board, so each command asks the relay once. */

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { prepareEngineMove } from '../src/engine.js';
-import { closeBoard } from '../src/board.js';
+import { closeBoard } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { executeMove } from '../src/api.js';
 import { main } from './native-cli-fixture.js';

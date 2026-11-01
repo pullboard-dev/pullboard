@@ -17,7 +17,7 @@ import { minimumMoveEngine } from '../src/move-registry.js';
 import {
   exportBoard,
   importBoard,
-} from '../src/exchange.js';
+} from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runCliInProcess } from './cli-in-process-fixture.js';
 

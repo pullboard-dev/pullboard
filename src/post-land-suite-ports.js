@@ -2,8 +2,8 @@
 import { join } from 'node:path';
 import { git } from './git.js';
 import { laneOf } from './lanes.js';
-import { listItems } from './board-query.js';
-import { unownedMainReds } from './known-main-reworks.js';
+import { listItems } from '../packages/store/index.js';
+import { unownedMainReds } from '../packages/store/index.js';
 import { postLandSuiteEnabled } from '../packages/config/index.js';
 import { runFullSuite } from './test-run.js';
 import { failureSignatures } from './main-failure-matches.js';

@@ -41,7 +41,7 @@ import {
   policyAt,
 } from '../packages/sandbox/index.js';
 import { parseSpec } from '../packages/spec/index.js';
-import { listItems } from './board.js';
+import { listItems } from '../packages/store/index.js';
 import {
   takeResource,
   requiredExecutorOf,
@@ -54,7 +54,7 @@ import {
   cachedFailureSignatures,
   MAIN_FAILURE_SIGNATURE_VERSION,
 } from './main-failure-matches.js';
-import { linkKnownMainReworks } from './known-main-reworks.js';
+import { linkKnownMainReworks } from '../packages/store/index.js';
 import { testsNeedBrowser } from './browser-admission.js';
 import { testsNeedGui } from './gui-admission.js';
 import { browserFreeChecksEnabled } from '../packages/config/index.js';

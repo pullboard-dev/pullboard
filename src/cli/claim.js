@@ -4,7 +4,7 @@ import {
 } from '../submit-handoff-origin.js';
 import { captureLapsedClaims } from '../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
-import { itemCheckBaseline } from '../board-query.js';
+import { itemCheckBaseline } from '../../packages/store/index.js';
 import { writeBoardCommand } from '../board-command-write.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
 import { laneSeatContext } from '../seat-checkout.js';
@@ -18,7 +18,7 @@ import { barReadinessRequired } from '../../packages/verify/index.js';
 import { barReadiness } from '../../packages/verify/index.js';
 import { barCoverageCommand } from '../../packages/verify/index.js';
 import { barCoverageForPolicy } from '../../packages/verify/index.js';
-import { gitSyncLinked } from '../local-state.js';
+import { gitSyncLinked } from '../../packages/store/index.js';
 import { gitSyncRecoveryNeeded } from '../../packages/config/index.js';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
@@ -58,7 +58,7 @@ import { relayRecovered } from '../relay.js';
 import { coordinatorFile } from './spec.js';
 import { isReturnedRework } from '../rework-family-routing.js';
 import { sealReworkRoutingPolicy } from '../rework-family-routing.js';
-import { SEAT_LIVE_WINDOW_MS } from '../seat-presence.js';
+import { SEAT_LIVE_WINDOW_MS } from '../../packages/store/index.js';
 import { maintenanceDurations } from '../../packages/config/index.js';
 
 /** Capture accepted coordinator retirement grace beside the native line takeover window. */

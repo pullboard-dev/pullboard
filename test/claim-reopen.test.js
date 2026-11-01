@@ -10,7 +10,7 @@ import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { configFromSource, defaults } from '../packages/config/index.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
 import { saveAgentSession, saveAgentParent } from '../src/seats.js';
 

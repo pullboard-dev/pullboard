@@ -11,7 +11,7 @@ import { shoutMatchesAudience } from '../../../../src/board-shout-audience.js';
 import { setTimeout as pause } from 'node:timers/promises';
 import { basename } from 'node:path';
 import { serveApi } from '../../../../src/api.js';
-import { openBoardReadOnly } from '../../../../src/board.js';
+import { openBoardReadOnly } from '../../../store/index.js';
 import {
   headCommit,
   withGitFacts,

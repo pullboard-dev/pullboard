@@ -15,7 +15,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { fileURLToPath } from 'node:url';
 import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
 import { recordNativeProof } from '../packages/verify/index.js';
-import { proofRunReceipt } from '../src/proof-receipts.js';
+import { proofRunReceipt } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 test('a real failed native check records its exit without invented runtime or counters [C7,H16]', (t) => {

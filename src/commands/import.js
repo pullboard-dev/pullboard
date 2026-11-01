@@ -1,7 +1,7 @@
 /** The pullboard import command, in its own module so an item adding another command never edits these lines. */
 import {
   importBoard,
-} from '../exchange.js';
+} from '../../packages/store/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

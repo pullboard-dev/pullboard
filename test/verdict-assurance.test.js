@@ -18,7 +18,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import {
   exportBoard,
   importBoard,
-} from '../src/exchange.js';
+} from '../packages/store/index.js';
 import {
   applyEngineMove,
   prepareEngineMove,

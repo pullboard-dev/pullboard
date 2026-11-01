@@ -12,7 +12,7 @@ import {
   engineReceipt,
   prepareEngineMove,
 } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { SUBMISSION_PROOF_ENGINE } from '../src/move-engine-constants.js';
 import { landingFileTimes } from '../src/submit-invariants.js';
 import { submitInvariantProposals } from '../src/submit-invariants.js';

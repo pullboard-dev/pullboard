@@ -27,7 +27,7 @@ import {
 import {
   BASELINE_RECEIPT,
   baselineReceiptDirectory,
-} from './local-state.js';
+} from '../packages/store/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 const WORKER = resolve(import.meta.dirname, '../bin/check-baseline.js');

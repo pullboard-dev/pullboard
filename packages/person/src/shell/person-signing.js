@@ -12,7 +12,7 @@ import {
   logEvent,
   PERSON,
   SIGNED_EVENT_LOG_VERSION,
-} from "../../../../src/board.js";
+} from "../../../store/index.js";
 import { createHash } from 'node:crypto';
 import { Refused } from "../../../kernel/index.js";
 import { validatePersonRequest } from "../core/person-request.js";
@@ -25,10 +25,10 @@ import {
   rememberAttested,
 } from "../core/person-attested.js";
 
-import { boardStanding } from "../../../../src/board-migrate.js";
-import { recordSchemaStamp } from "../../../../src/board-migrate.js";
-import { SCHEMA_DIGEST } from "../../../../src/board-schema-source.js";
-import { SCHEMA_VERSION } from "../../../../src/board-schema-source.js";
+import { boardStanding } from "../../../store/index.js";
+import { recordSchemaStamp } from "../../../store/index.js";
+import { SCHEMA_DIGEST } from "../../../store/index.js";
+import { SCHEMA_VERSION } from "../../../store/index.js";
 
 import { AUTHORITY } from "../../../../src/board-person-authority-schema.js";
 import { AUTHORITY_TRIGGERS } from "../../../../src/board-person-authority-schema.js";

@@ -9,7 +9,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';

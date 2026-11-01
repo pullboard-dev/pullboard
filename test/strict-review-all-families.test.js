@@ -6,13 +6,13 @@ import { join } from 'node:path';
 import { recordItemSession, refuseSelfSession } from '../src/item-sessions.js';
 import { compositionSessionOptions } from '../packages/verify/index.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 /** Real native SQLite moves prove current-composition authority and the bounded vendor fallback [V4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { compositionOwner } from '../packages/verify/index.js';
 import { refuseUnreviewable } from '../packages/verify/index.js';

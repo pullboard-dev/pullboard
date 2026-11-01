@@ -17,7 +17,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 import { FLOW_SIZE_ENGINE } from '../../../src/flow-size-engine.js';
 import { appliedSequence } from '../src/shell/engine.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';

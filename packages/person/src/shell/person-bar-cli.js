@@ -1,6 +1,6 @@
-import { itemCheckBaseline } from "../../../../src/board-query.js";
+import { itemCheckBaseline } from "../../../store/index.js";
 /** Native signed bar commands reuse sealed normalized values and recheck their displayed revision [E22,V1]. */
-import { getItem } from "../../../../src/board.js";
+import { getItem } from "../../../store/index.js";
 import {
   barDigest,
   barReadiness,

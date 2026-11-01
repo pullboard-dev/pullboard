@@ -19,7 +19,7 @@ import {
   exportBoard,
   importBoard,
   isInitialBoard,
-} from '../../../../src/exchange.js';
+} from '../../../store/index.js';
 import {
   codeIsFromMain,
   repoInfo,

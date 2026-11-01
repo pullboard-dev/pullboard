@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
 import { seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { prepareBoardMembers, authorizeMember } from '../src/relay-membership.js';

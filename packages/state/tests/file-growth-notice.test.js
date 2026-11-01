@@ -15,7 +15,7 @@ import { FILE_GROWTH_NOTICE_ENGINE } from '../../../src/file-growth-notice-engin
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 
 const HOUR = 60 * 60 * 1000;

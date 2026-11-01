@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitPreflight } from '../src/submit-preflight.js';
-import { heartbeatSeat } from '../src/seat-presence.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { refuseLiveAttach } from '../src/item-patches.js';
 import { healthReport } from '../packages/health/index.js';

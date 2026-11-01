@@ -6,7 +6,7 @@
  * approves or applies a row.
  */
 import { loadDoctrine } from '../../../../src/doctrine.js';
-import { PERSON } from '../../../../src/board.js';
+import { PERSON } from '../../../store/index.js';
 import {
   historyPathMap,
   mappedCause,

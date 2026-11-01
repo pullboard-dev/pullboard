@@ -5,7 +5,7 @@ import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { join, resolve } from 'node:path';
 import { writeFileSync } from 'node:fs';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 import { beginCommandPhase } from '../src/command-phase.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync, startFixtureChild } from './fixture-child.js';

@@ -1,6 +1,6 @@
 /** The pullboard spec command, in its own module so an item adding another command never edits these lines. */
 import { answerQuestion } from '../../packages/spec/index.js';
-import { rowDrafts } from '../board-query.js';
+import { rowDrafts } from '../../packages/store/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { loadDoctrine } from '../doctrine.js';
 import { verifiedPasskeyRowDecision } from '../person-signing.js';
@@ -45,7 +45,7 @@ import {
 } from '../git.js';
 import {
   committedIds,
-} from '../history.js';
+} from '../../packages/store/index.js';
 import {
   personCommand,
   requirePersonChannel,

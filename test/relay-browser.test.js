@@ -14,7 +14,7 @@ import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.j
 import { relaySnapshot } from '../src/relay-presentation.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { openPagedSnapshot } from '../src/relay-page-layout.js';
-import { addItem, answerDecision, closeBoard, shout } from '../src/board.js';
+import { addItem, answerDecision, closeBoard, shout } from '../packages/store/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from './relay-browser-fixture.js';
 import { pairStudioPhone, phoneExpiry, readApprovalCard, studioCommand, studioProject } from './relay-studio-fixture.js';

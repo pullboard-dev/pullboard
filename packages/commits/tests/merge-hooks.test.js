@@ -1,6 +1,6 @@
 /** Real merge hooks prove main integration without weakening lane ownership [L3,H16,B26]. */
-import { boardBusyError } from "../../../src/board-access.js";
-import { openBoardReadOnly } from "../../../src/board-read-open.js";
+import { boardBusyError } from "../../store/index.js";
+import { openBoardReadOnly } from "../../store/index.js";
 import { rowDecisions } from "../../spec/index.js";
 import { checkLoosening } from "../../doctrine/index.js";
 

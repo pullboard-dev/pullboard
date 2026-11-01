@@ -14,7 +14,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../../../src/exchange.js';
+} from '../../store/index.js';
 import { submitFixture } from '../../../test/board-submit-fixture.js';
 
 /** Seed only a private in-memory board, using ordinary registration operations and a controlled clock. */
