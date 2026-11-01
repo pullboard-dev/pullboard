@@ -1138,6 +1138,10 @@
     {
       "path": "src/move-history/194.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/same-family-refusal-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
