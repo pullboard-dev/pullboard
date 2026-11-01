@@ -650,9 +650,15 @@ export async function run(io, { first, values }) {
           const item = store.getItem(board, id), attempt = ctx.submitAttempt;
           if (item.item_status !== 'claimed' || item.item_owner !== attempt.agentId || item.item_frozen_digest !== attempt.digest
             || !(item.item_lease_until > ctx.clock.now().toISOString())) return;
-          await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
-            freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
-            submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+          if (error.code === 'RUNNER_TOOLING_CHANGED') {
+            await ordered(ctx, board, 'appendFact', [id, { agentId: attempt.agentId, kind: 'note',
+              text: `Submit infrastructure refusal [RUNNER_TOOLING_CHANGED]: ${error.message.slice(0, 4000)}. No failed submit is recorded.` }]);
+            if (ctx.io.submitToolingAttempt) ctx.io.submitToolingAttempt.owned = true;
+          } else {
+            await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
+              freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
+              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+          }
         });
       } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
     }
