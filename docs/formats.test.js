@@ -35,6 +35,7 @@ import { decideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun } from '../src/sentinels.js';
 import { finishSentinelRun } from '../src/sentinels.js';
 import { COORDINATOR } from '../packages/config/index.js';
+import { declarationDocBlocks } from '../src/generated-doc-declarations.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { exportView } from '../src/commands/view.js';
 import { main as nativeTestMain } from '../test/native-cli-fixture.js';
@@ -574,6 +575,13 @@ function documentedEvents() {
   }
   return result;
 }
+
+test('[A5] the generated event table names exactly the documented event kinds', () => {
+  // The other [A5] case proves the documented kinds equal the kinds the board writes; regenerating must keep them.
+  const rows = declarationDocBlocks(join(import.meta.dirname, '..')).events.matchAll(/^\| `([^`]+)` \|/gmu);
+  const generated = [...new Set([...rows].map(match => match[1]))];
+  assert.deepEqual(generated.sort(), Object.keys(documentedEvents()).sort());
+});
 
 test('[A5] the grammar table describes values the parser actually reads', () => {
   assert.equal(ID_RE.source, '^[A-Za-z]+\\d+(?:\\.\\d+)*$');
