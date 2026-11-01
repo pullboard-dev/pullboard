@@ -131,3 +131,24 @@ test('a builder worktree cannot declare the person release override [B35,R2,I15]
   runFixtureGit(['worktree', 'add', '--detach', worker, 'HEAD'], { cwd: f.root });
   assert.throws(() => checkCoordinatorRelease(worker, { now: at(60), personOverride: 'Agent attempting an override.' }), /person.*primary checkout/u);
 });
+
+test('project milestone shipping enforces and records the ratchet in the shared board log [B35,R2,I15]', t => {
+  const f = fixture(t);
+  store.addMilestone(f.board, { agentId: 'coordinator', name: 'First release', items: [] });
+  store.addMilestone(f.board, { agentId: 'coordinator', name: 'Next release', items: [] });
+  store.shipMilestone(f.board, 'First release', { agentId: 'coordinator', commit: f.head });
+  store.shout(f.board, { from: 'coordinator', to: 'all', text: 'Another mechanical nudge', lanes: ['core'] });
+  assert.throws(() => store.shipMilestone(f.board, 'Next release', { agentId: 'coordinator', commit: f.head }),
+    error => error.code === 'COORDINATOR_ACTIONS_ROSE' && /shout/u.test(error.message));
+  assert.equal(Boolean(store.milestones(f.board).find(entry => entry.name === 'Next release').shipped), false, 'a refusal leaves the release unshipped');
+  store.shipMilestone(f.board, 'Next release', { agentId: 'coordinator', commit: f.head, asPerson: true, reason: 'Person approved this migration.', channel: 'terminal' });
+  const event = store.events(f.board).findLast(entry => entry.event_kind === 'milestone_ship');
+  const audit = JSON.parse(event.event_detail).coordinatorActions;
+  assert.deepEqual(audit.override, { by: 'person', reason: 'Person approved this migration.', channel: 'terminal' });
+  assert.equal(audit.previous, 'First release');
+  assert.equal(audit.gauge.actions, coordinatorActions(f.board).actions, 'the recorded baseline includes the release move itself');
+  assert.doesNotThrow(() => checkCoordinatorRelease(f.root, { now: at(60) }));
+  store.shout(f.board, { from: 'coordinator', to: 'all', text: 'A later manual nudge', lanes: ['core'] });
+  assert.throws(() => checkCoordinatorRelease(f.root, { now: at(60) }), /rose.*shout/u,
+    'the native full-gate path also sees the project release baseline without any host audit files');
+});

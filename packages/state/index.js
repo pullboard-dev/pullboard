@@ -171,3 +171,5 @@ export { RULING_OWNER_ENGINE } from '../../src/ruling-owner-engine.js';
 export { DECISION_QUEUE_ENGINE } from '../../src/decision-queue-engine.js';
 
 export { CLAIM_PROGRESS_ENGINE } from '../../src/claim-progress-engine.js';
+
+export { COORDINATOR_ACTIONS_ENGINE } from '../../src/coordinator-actions-engine.js';

@@ -9,6 +9,7 @@ import { repoInfo } from '../../../git/index.js';
 import { openBoardForRead } from '../../../store/index.js';
 import { closeBoard } from '../../../store/index.js';
 import { Refused } from '../../../kernel/index.js';
+import { previousCoordinatorMilestone } from '../../../stats/index.js';
 import { coordinatorActions } from '../../../stats/index.js';
 import { coordinatorActionRise } from '../../../stats/index.js';
 
@@ -47,12 +48,17 @@ export function checkCoordinatorRelease(root, { now = new Date(), personOverride
   }
   const board = openBoardForRead(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
   let gauge;
-  try { gauge = board ? coordinatorActions(board, { until: now.toISOString() }) : { available: false, perLanding: null, reason: 'no native board exists' }; }
+  let projectRelease;
+  try {
+    projectRelease = board ? previousCoordinatorMilestone(board) : null;
+    gauge = board ? coordinatorActions(board, { until: now.toISOString() }) : { available: false, perLanding: null, reason: 'no native board exists' };
+  }
   finally { if (board) closeBoard(board); }
   const previous = previousRelease(root);
-  const problem = previous && !gauge.available ? 'coordinator actions are unavailable for a previously measured release' : coordinatorActionRise(gauge, previous?.gauge);
+  const projectProblem = projectRelease ? coordinatorActionRise(gauge, projectRelease.coordinatorActions.gauge) : null;
+  const problem = projectProblem ?? (previous && !gauge.available ? 'coordinator actions are unavailable for a previously measured release' : coordinatorActionRise(gauge, previous?.gauge));
   if (problem && personOverride === undefined) throw new Refused('GATE_RUN_EVIDENCE', `${problem}; reduce the actions or have a person use --person-override "reason"`);
-  return { gauge, previous: previous?.id ?? null, problem, ...(personOverride === undefined ? {} : { override: { by: 'person', reason: personOverride.trim() } }) };
+  return { gauge, previous: previous?.id ?? null, previousMilestone: projectRelease?.name ?? null, problem, ...(personOverride === undefined ? {} : { override: { by: 'person', reason: personOverride.trim() } }) };
 }
 
 /** Record only a completed native release's measurement and explicit override, with immutable per-release custody. */

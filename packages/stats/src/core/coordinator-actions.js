@@ -7,7 +7,7 @@ function actionKind(event, detail) {
   if (kind === 'answer') return 'ruling';
   if (['shout', 'shout_news', 'pass'].includes(kind)) return 'shout';
   if (kind === 'fact') return ['decision', 'ruling', 'root-cause', 'rejection', 'supersession'].includes(detail.kind) ? 'ruling' : 'fact';
-  if (['merged', 'main-moved', 'train_landing'].includes(kind) || kind.startsWith('landing_') || kind.startsWith('landing-')) return 'landing';
+  if (['merged', 'milestone_ship', 'main-moved', 'train_landing'].includes(kind) || kind.startsWith('landing_') || kind.startsWith('landing-')) return 'landing';
   if (['hold', 'unhold', 'hold_item', 'unhold_item', 'release', 'release_lane'].includes(kind)) return 'holdOrRelease';
   if (['reject_returned', 'submit_handoff_returned'].includes(kind)) return 'rejectReturn';
   if (['add', 'edit', 'reroute', 'placement'].includes(kind) || kind.startsWith('milestone_')) return 'placement';
