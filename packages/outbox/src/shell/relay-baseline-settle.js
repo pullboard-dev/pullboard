@@ -1,6 +1,6 @@
 /** Decide a first board upload whose outcome was lost, before any move may commit outside relay order (#919). */
 import { Refused } from '../../../kernel/index.js';
-import { transientRelayFailure } from '../../../../src/relay-move-fallback.js';
+import { transientRelayFailure } from '../../../link/index.js';
 
 /**
  * How long an undecided upload is probed, how often the waiting command says so, and the pause between probes.

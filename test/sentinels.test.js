@@ -41,7 +41,7 @@ import { sentinels } from '../src/sentinels.js';
 import { executeMove } from '../packages/api/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { personRequestMove, preparePersonRequest } from '../packages/person/core.js';
-import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestMoveProblem, requestStageText } from '../src/relay-requests.js';
+import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestMoveProblem, requestStageText } from '../packages/link/index.js';
 import { PEOPLE_ENGINE } from '../src/people-engine.js';
 import { sentinelDraftNeeds } from '../src/sentinels.js';
 import { machineSettingsFile } from '../packages/config/index.js';

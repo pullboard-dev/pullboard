@@ -64,7 +64,7 @@ test('the item panel presents native verdicts, checks, files and newest-first hi
   box.git(demo.web, 'merge', '--ff-only', 'main');
   const id = seedPanelItems(box, demo);
   assert.equal(id, 1, 'the private native fixture creates its identified primary item');
-  box.run(demo.repo, 'milestone', 'add', 'Panel release', '--items', String(id));
+  box.run(demo.repo, 'milestone', 'add', 'Panel release', '--reason', 'Arrange fixture release', '--items', String(id));
   build(box, demo, id, 'item-panel.js');
   const reviewer = JSON.parse(box.run(demo.repo, 'worktree', 'web', '--model', 'Item panel reviewer fixture', '--json'));
   let head = box.git(demo.web, 'rev-parse', 'HEAD');
