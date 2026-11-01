@@ -1,3 +1,4 @@
+import { scheduleAutomaticLanding } from '../../packages/landing/index.js';
 import { mainCheckout } from '../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../packages/merge/index.js';
 import { landAcceptedItems } from '../../packages/merge/index.js';
@@ -92,11 +93,11 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
 
 
 /** Run board-owned landing after acceptance; the caller catches this entire post-verdict effect. */
-export async function landAfterAcceptance(ctx) {
+export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLanding } = {}) {
   if (!mainCheckout(ctx.info.root)?.branch || !automaticLandingEnabled(mainPolicy(ctx.info.root).config)) return false;
   const root = primaryCheckoutRoot(ctx.info);
   const io = { ...ctx.io, cwd: root, result: undefined, relayCommand: undefined, requestedCommand: undefined, personRequest: undefined, personRequestMoveId: undefined };
-  await actOn(io, async (landing, board) => {
+  const result = await actOn(io, async (landing, board) => {
     const policy = mainPolicy(root);
     const items = store.listItems(board, { all: true }).filter(item => item.item_status === 'verified' && !item.item_merged_commit)
       .map(item => ({ id: item.item_id, commit: store.checkedLandingCommit(board, item) }));
@@ -108,5 +109,8 @@ export async function landAfterAcceptance(ctx) {
       },
       execute: () => executeBoardLanding(landing, board, io) });
   });
+  if (result?.deferredUntil) {
+    await schedule(root, result.deferredUntil, new URL('../../bin/automatic-landing.js', import.meta.url));
+  }
   return true;
 }

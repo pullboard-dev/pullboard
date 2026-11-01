@@ -1,3 +1,4 @@
+/** @pullboard-test-loads test/automatic-landing-cadence.fixture.js */
 /** Real acceptance, landing and conflict rework through the native engine [B35,B3,R3]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -5,6 +6,8 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { runFixtureChildAsync } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../packages/store/index.js';
@@ -28,11 +31,11 @@ function commit(box, root, message) {
 }
 
 /** Submit from a builder and accept from an independent reviewer while trunk stays on main. */
-function fixture(t, manualOverride = false, redStatic = false) {
+function fixture(t, manualOverride = false, redStatic = false, cadence) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const config = { ...helpers.CONFIG, gate: 'true', landing: { publish: 'separate', manualOverride } };
+  const config = { ...helpers.CONFIG, gate: 'true', landing: { publish: 'separate', manualOverride, ...(cadence ? { cadence } : {}) } };
   if (redStatic) {
     config.staticChecks = 'node static.cjs';
     writeFileSync(join(box.repo, 'static.cjs'), `if (require('node:fs').existsSync(${JSON.stringify(join(box.dir, 'red-static'))})) { console.log('automatic static guard is red'); process.exit(1); }\n`);
@@ -108,4 +111,30 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
   const reopens = onBoard(box, board => store.events(board, { itemId: id }).filter(event => event.event_kind === 'reopen'));
   assert.equal(reopens.length, 1, 'one red landing returns the item once');
   assert.match(reopens[0].event_detail, /automatic static guard is red/u);
+});
+
+
+test('a second clean acceptance inside cadence lands from its wake without another acceptance [B35,B3,R3]', async t => {
+  const { box, config, id, reviewer } = fixture(t, false, false, '10m');
+  json(box, reviewer, 'verify', String(id), 'accept', '--note', 'First clean result frozen check passed.');
+  assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit);
+  config.landing.manualOverride = true;
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
+  commit(box, box.repo, 'chore: hold automatic trigger for the captured clock fixture');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const second = json(box, box.repo, 'add', 'web', 'Second clean result', '--specs', 'G1', '--criterion', 'second file exists', '--check', 'test -f web/second.txt').item.item_id;
+  json(box, box.web, 'claim', String(second));
+  writeFileSync(join(box.web, 'web/second.txt'), 'second\n');
+  const head = commit(box, box.web, 'feat(web): second clean result [G1]');
+  json(box, box.web, 'submit', String(second));
+  box.git(reviewer, 'checkout', '-q', '--detach', head);
+  json(box, reviewer, 'verify', String(second), 'accept', '--note', 'Second clean result frozen check passed.');
+  config.landing.manualOverride = false;
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
+  commit(box, box.repo, 'chore: restore ordinary automatic landing policy');
+  const result = await runFixtureChildAsync(process.execPath,
+    [fileURLToPath(new URL('./automatic-landing-cadence.fixture.js', import.meta.url)), box.repo, String(second)],
+    { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.equal(result.status, 0, result.stdout + result.stderr + result.context);
+  assert.ok(json(box, box.repo, 'show', String(second)).item_merged_commit);
 });
