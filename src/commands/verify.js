@@ -1,5 +1,5 @@
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
-import { boundProofReceipt } from '../proof-receipts.js';
+import { boundProofReceipt } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';

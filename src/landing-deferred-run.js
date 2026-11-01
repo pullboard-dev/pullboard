@@ -1,4 +1,4 @@
-import { getItem } from './board.js';
+import { getItem } from '../packages/store/index.js';
 import { readGateReceipt } from './gate-run-receipt.js';
 import { receiptStore } from './gate-run-receipt.js';
 import {

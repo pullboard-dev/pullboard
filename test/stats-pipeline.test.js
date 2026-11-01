@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { pipelineStats, pipelineLimit, pipelineLines } from '../packages/stats/index.js';
 import { serveApi } from '../src/api.js';

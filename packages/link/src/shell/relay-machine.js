@@ -21,7 +21,7 @@ import { wrapDeviceBoardKey } from '../../../keys/index.js';
 import { scrubLegacyPersonSessions } from '../../../keys/index.js';
 import { approvalContext } from '../core/relay-approval.js';
 import { createPairingCode } from '../../../person/index.js';
-import { relayMachineDirectory } from '../../../../src/local-state.js';
+import { relayMachineDirectory } from '../../../store/index.js';
 import { Refused } from '../../../kernel/core.js';
 
 const DEVICE = /^device-[0-9a-f]{32}$/u;

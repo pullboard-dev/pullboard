@@ -1,4 +1,4 @@
-import { getItem } from "../../../../src/board.js";
+import { getItem } from "../../../store/index.js";
 /** Wait for one passkey-confirmed terminal request to finish through the ordinary native executor [E22,H16]. */
 import { setTimeout as delay } from 'node:timers/promises';
 import { personRequestRecords } from "../core/person-request.js";

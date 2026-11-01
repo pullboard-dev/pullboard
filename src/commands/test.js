@@ -3,11 +3,11 @@ import { failureSignatures } from '../main-failure-matches.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
 import { mainFailureNotices } from '../main-red.js';
-import { listItems } from '../board-query.js';
+import { listItems } from '../../packages/store/index.js';
 import { compareMainFailures } from '../main-red.js';
 import { withMainCheckout } from '../main-red.js';
 import { runTestFiles } from '../test-run.js';
-import { itemsInStatus } from '../board-query.js';
+import { itemsInStatus } from '../../packages/store/index.js';
 import {
   context,
   gateWaitReporter,

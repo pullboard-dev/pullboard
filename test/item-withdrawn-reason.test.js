@@ -12,7 +12,7 @@ import { closeBoard } from '../src/native-board.js';
 import { projectState } from '../src/cli/view-state.js';
 import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 import { snapshotState } from '../relay/browser-model.js';
 import { presentationState } from '../relay/browser-model.js';
 

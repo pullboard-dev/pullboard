@@ -60,7 +60,7 @@ import {
 import {
   exportBoard,
   importBoard,
-} from '../src/exchange.js';
+} from '../packages/store/index.js';
 import {
   applyEngineMove,
   prepareEngineMove,

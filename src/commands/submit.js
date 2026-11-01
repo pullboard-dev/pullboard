@@ -9,7 +9,7 @@ import {
   requireSubmitHandoffExecution,
 } from '../submit-handoff-origin.js';
 import { blockingFailures } from '../../packages/verify/index.js';
-import { boundProofReceipt } from '../proof-receipts.js';
+import { boundProofReceipt } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { withImportParseCache } from '../module-import-cache.js';
 import { foreignNodeOptions } from '../test-isolation.js';
@@ -78,7 +78,7 @@ import {
 } from '../../packages/doctrine/index.js';
 import * as gateReceipt from '../gate-receipt.js';
 import { recordNativeProof } from '../../packages/verify/index.js';
-import { proofRunReceipt } from '../proof-receipts.js';
+import { proofRunReceipt } from '../../packages/store/index.js';
 import {
   gateWaitReporter,
 } from '../gate-wait.js';
@@ -163,9 +163,9 @@ import { failureSignatures } from '../main-failure-matches.js';
 import { MAIN_FAILURE_SIGNATURE_VERSION } from '../main-failure-matches.js';
 import { matchingMainFailures } from '../main-failure-matches.js';
 import { mainFailureNotices } from '../main-red.js';
-import { linkKnownMainReworks } from '../known-main-reworks.js';
-import { unownedMainReds } from '../known-main-reworks.js';
-import { ambiguousMainReds } from '../known-main-reworks.js';
+import { linkKnownMainReworks } from '../../packages/store/index.js';
+import { unownedMainReds } from '../../packages/store/index.js';
+import { ambiguousMainReds } from '../../packages/store/index.js';
 import { submitReferenceReminders } from '../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 

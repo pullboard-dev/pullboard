@@ -2,8 +2,8 @@ import { dispatchHealth } from "./dispatch-health.js";
 import { rejectedWorkReturns } from "../core/rejected-work-return.js";
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
 import { existsSync } from 'node:fs';
-import { openBoardReadOnly } from "../../../../src/board.js";
-import { readBoardSnapshot } from "../../../../src/board.js";
+import { openBoardReadOnly } from "../../../store/index.js";
+import { readBoardSnapshot } from "../../../store/index.js";
 import { healthReport } from "../../../health/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
 import { loadMachineSettings } from "../../../config/index.js";

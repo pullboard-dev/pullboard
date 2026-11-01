@@ -1,6 +1,7 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { openBoard } from '../src/native-board.js';
+import * as linkStore from '../packages/store/index.js';
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
@@ -68,10 +69,10 @@ test('an item waits across repos [B24,H16]', async t => {
   blocked(dependent, 'service#1');
   const missing = store.addItem(local, { by: 'coordinator', lane: 'web', title: 'Missing board', after: ['missing#999'] });
   blocked(missing, 'missing#999');
-  const api = await import('../src/board-link.js');
-  const transportApi = await import('../src/board-link-relay.js');
-  const { createSshBoardLinkAuthority } = await import('../src/board-link-ssh.js');
-  const { createBoardLinkCapability } = await import('../src/board-link-envelope.js');
+  const api = linkStore;
+  const transportApi = linkStore;
+  const { createSshBoardLinkAuthority } = linkStore;
+  const { createBoardLinkCapability } = linkStore;
   const { generateBoardKey } = await import('../packages/kernel/src/core/seal.js');
   const authority = createSshBoardLinkAuthority([parent, child]);
   const record = await consent(api, authority, parent, child, 'dependency');

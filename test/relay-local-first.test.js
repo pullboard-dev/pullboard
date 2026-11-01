@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { ACCESS_WINDOW_MS } from '../relay/auth.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { captureBoardChanges } from '../src/board-capture.js';
+import { captureBoardChanges } from '../packages/store/index.js';
 import { SENDER_WORKER } from '../src/relay-sender-main.js';
 import { outboxGuardFile } from '../packages/outbox/index.js';
 import { undoQueued } from '../packages/outbox/index.js';

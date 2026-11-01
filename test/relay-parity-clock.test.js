@@ -12,7 +12,7 @@ import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { recordBlock } from '../src/blocks.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 import { resolveCommit, tryGit } from '../src/git.js';
 import { relayPresentation } from '../src/relay-presentation.js';
 import { snapshotState } from '../relay/browser-model.js';

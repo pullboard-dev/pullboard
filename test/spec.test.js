@@ -1,8 +1,8 @@
 /**
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
-import { boardBusyError } from '../src/board-access.js';
-import { openBoardReadOnly } from '../src/board-read-open.js';
+import { boardBusyError } from '../packages/store/index.js';
+import { openBoardReadOnly } from '../packages/store/index.js';
 import { rowDecisions } from '../packages/spec/index.js';
 import { checkLoosening } from '../packages/doctrine/index.js';
 
@@ -12,7 +12,7 @@ import * as store from '../src/board.js';
 import { openBoard, draftSpecRow, recordRowVerification } from '../src/native-board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../src/engine.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { SPEC_VERDICT_ENGINE } from '../src/spec-verdict-engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { minimumMoveEngine } from '../src/move-registry.js';

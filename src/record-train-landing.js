@@ -1,10 +1,10 @@
 /** Record an exact native green train envelope through the existing atomic landing writer [B3,R3,C7]. */
-import { atomic } from './board.js';
-import { finishLandingBatch } from './board.js';
-import { getItem } from './board.js';
-import { editItem } from './board.js';
-import { landingBatches } from './board.js';
-import { recordLandingBatch } from './board.js';
+import { atomic } from '../packages/store/index.js';
+import { finishLandingBatch } from '../packages/store/index.js';
+import { getItem } from '../packages/store/index.js';
+import { editItem } from '../packages/store/index.js';
+import { landingBatches } from '../packages/store/index.js';
+import { recordLandingBatch } from '../packages/store/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from '../packages/kernel/index.js';

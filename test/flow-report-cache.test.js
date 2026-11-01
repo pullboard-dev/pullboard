@@ -1,5 +1,5 @@
 /** Report capability migration preserves existing indexed read-only statistics [R1,R2]. */
-import { events as readStatsEvents } from '../src/board.js';
+import { events as readStatsEvents } from '../packages/store/index.js';
 import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';

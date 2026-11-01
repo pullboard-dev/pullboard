@@ -10,7 +10,7 @@ import { main } from './native-cli-fixture.js';
 import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { eventCauses, rigorReport } from '../src/board-rigor.js';

@@ -3,8 +3,8 @@ import { context } from './cli-read-context.js';
 import {
   closeBoard,
   openBoardForRead,
-} from './board-query.js';
-import { heartbeatSeat } from './seat-presence.js';
+} from '../packages/store/index.js';
+import { heartbeatSeat } from '../packages/store/index.js';
 
 const recorded = new WeakSet();
 

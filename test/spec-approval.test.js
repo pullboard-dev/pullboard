@@ -14,7 +14,7 @@ import { openBoard } from '../src/native-board.js';
 import { captureSpecApprovalBaseline, specApprovalState } from '../packages/spec/index.js';
 import { SPEC_APPROVAL_ENGINE } from '../src/spec-approval-engine.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { exportBoard, importBoard } from '../src/exchange.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 
 /** Run the private project's real CLI and require its structured successful response. */

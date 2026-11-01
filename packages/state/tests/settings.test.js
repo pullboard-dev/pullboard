@@ -105,7 +105,7 @@ test('a line setting change is a recorded move with its reason and its range [R1
   const { createE2eHelpers } = await import('../../../test/e2e-helpers.js');
   const store = await import('../../../src/board.js');
   const nativeBoard = await import('../../../src/native-board.js');
-  const { exportBoard, importBoard } = await import('../../../src/exchange.js');
+  const { exportBoard, importBoard } = await import('../../store/index.js');
   const { prepareEngineMove, applyRelayMove, appliedSequence } = await import('../src/shell/engine.js');
   const fixtures = createE2eHelpers();
   let board, replica;

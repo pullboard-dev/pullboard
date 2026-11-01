@@ -2,7 +2,7 @@
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import * as store from "../../../../src/board.js";
-import { exportBoard } from "../../../../src/exchange.js";
+import { exportBoard } from "../../../store/index.js";
 import {
   codeIsFromMain,
   repoInfo,
@@ -10,9 +10,9 @@ import {
 } from "../../../../src/git.js";
 import { Refused } from "../../../kernel/index.js";
 import { loadConfig } from "../../../config/index.js";
-import { buildLocalBoardState } from "../../../../src/native-board-state.js";
-import { stateFileInputs } from "../../../../src/native-board-state.js";
-import { fileRevision } from "../../../../src/native-board-state.js";
+import { buildLocalBoardState } from "../../../store/index.js";
+import { stateFileInputs } from "../../../store/index.js";
+import { fileRevision } from "../../../store/index.js";
 import { resolveCommit } from "../../../../src/git.js";
 import { trunkRevisionReader } from "../../../git/index.js";
 import { cachedVerdictStates } from "../../../verify/index.js";

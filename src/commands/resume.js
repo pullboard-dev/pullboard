@@ -20,7 +20,7 @@ import {
   backgroundViewLine,
 } from '../background-view.js';
 import * as store from '../board.js';
-import { requireBoardWriteAccess } from '../board-access.js';
+import { requireBoardWriteAccess } from '../../packages/store/index.js';
 import {
   briefFiles,
 } from '../brief.js';

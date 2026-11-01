@@ -75,7 +75,7 @@ test('known main receipts preserve exact identities and refuse unsupported histo
 
 test('repair links retain historical receipts and reject closed, stale or ambiguous repairs [V4,B3,H16]', async () => {
   const { KNOWN_MAIN_REWORKS_ENGINE } = await import('../src/known-main-reworks-engine.js');
-  const { linkKnownMainReworks, requireKnownMainReworks } = await import('../src/known-main-reworks.js');
+  const { linkKnownMainReworks, requireKnownMainReworks } = await import('../packages/store/index.js');
   const row = { file: 'test/one.test.js', name: 'one failure [V4]', signature: 'a'.repeat(64) };
   const known = { main: 'b'.repeat(40), failures: [row] };
   const repair = { item_id: 7, item_status: 'claimed', item_title: 'Main red: one assertion',
@@ -99,7 +99,7 @@ test('ordered submit refuses a closed repair and an old-engine linked envelope w
   const store = await import('../src/board.js');
   const { fixtureBoard } = await import('./board-fixture.js');
   const { prepareEngineMove, applyEngineMove } = await import('../src/engine.js');
-  const { exportBoard, importBoard } = await import('../src/exchange.js');
+  const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const at = '2026-10-28T00:00:00.000Z';
   const source = fixtureBoard(t, { clock: { now: () => new Date(at) } });
   source.executionEngineVersion = KNOWN_MAIN_FAILURES_ENGINE;

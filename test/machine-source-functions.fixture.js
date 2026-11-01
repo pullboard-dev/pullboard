@@ -71,7 +71,7 @@ export const MACHINE_CALLBACKS = {
   'outside-verify.js': { verifyOutsideSandbox: '../packages/sandbox/src/shell/sandbox-verify.js#verifyOutsideSandbox' },
   'item-authors.js': { strictReviewProblem: '../packages/verify/src/shell/review-independence.js#strictReviewProblem' },
   // Native verification ports retain these exact receipt and projection guards.
-  '../packages/verify/src/core/proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
+  '../packages/verify/src/core/proof-cli.js': { proofRunReceipt: '../packages/store/src/shell/proof-receipts.js#proofRunReceipt' },
   '../packages/verify/src/shell/proof-counters.js': {
     appendRigorCounter: '../packages/rigor/src/shell/rigor-counters.js#appendRigorCounter',
     ensureRigorCounters: '../packages/rigor/src/shell/rigor-counters.js#ensureRigorCounters',
@@ -79,8 +79,8 @@ export const MACHINE_CALLBACKS = {
   // The native root supplies these setup guards through the physical store's explicit ports.
   'board-store.js': {
     readEventLogVersion: '../packages/store/src/shell/board-read-open.js#readEventLogVersion',
-    boardNotWritable: 'board-access.js#boardNotWritable',
-    boardBusyError: 'board-access.js#boardBusyError',
+    boardNotWritable: '../packages/store/src/shell/board-access.js#boardNotWritable',
+    boardBusyError: '../packages/store/src/shell/board-access.js#boardBusyError',
   },
   'board.js': {
     freeze: 'cli.js#freezer',

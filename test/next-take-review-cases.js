@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { main } from './native-cli-fixture.js';
 import { addMilestone } from '../src/board-milestones.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 
 test('an eleven-minute submission interrupts a free builder before the queue ratio [C7,N2,V1]', async t => {
   const box = await fixture(t, { family: 'off' });

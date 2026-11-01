@@ -73,7 +73,7 @@ import { parseSpec } from '../packages/spec/index.js';
 import { parseCheckTiming } from '../src/check-timing.js';
 import { frozenCheckTiming } from '../src/check-timing.js';
 import { CHECK_TIMING_ENGINE } from '../src/check-timing-engine.js';
-import { exportBoard } from '../src/exchange.js';
+import { exportBoard } from '../packages/store/index.js';
 
 /** Freeze actual production fields against a deliberately row-free domain criterion fixture. */
 function freeze(item) {

@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
-import { logEvent } from '../../../src/board-event-log.js';
+import { logEvent } from '../../store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { storedSeatUsage } from '../src/shell/cost.js';

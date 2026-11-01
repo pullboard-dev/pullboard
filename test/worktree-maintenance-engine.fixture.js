@@ -9,7 +9,7 @@ import { join, relative, resolve } from 'node:path';
 import * as store from '../src/board.js';
 import { closeBoard, openBoard } from '../src/native-board.js';
 import { repoInfo } from '../src/git.js';
-import { heartbeatSeat, withLocalSeatPresence } from '../src/seat-presence.js';
+import { heartbeatSeat, withLocalSeatPresence } from '../packages/store/index.js';
 import { agentHandoff } from '../packages/state/index.js';
 import { cleanMaintenanceSeat, maintenanceHealth, runWorktreeMaintenance } from '../src/worktree-maintenance.js';
 import { maintenanceGit, maintenanceSnapshot } from '../src/worktree-maintenance-archive.js';

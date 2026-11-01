@@ -10,12 +10,12 @@ import { verifiedPasskeyRowDecision } from '../../../../src/person-row-proof.js'
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 import { counterProofStats } from '../../../verify/index.js';
 import { proofStats } from '../../../../src/stats.js';
-import { buildLocalBoardState } from '../../../../src/native-board-state.js';
-import { stateFileInputs } from '../../../../src/native-board-state.js';
-import { fileRevision } from '../../../../src/native-board-state.js';
+import { buildLocalBoardState } from '../../../store/index.js';
+import { stateFileInputs } from '../../../store/index.js';
+import { fileRevision } from '../../../store/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../core/api-delta-fields.js';
 import { capacityAtRead } from '../../../stats/index.js';
-import { nativeStateClockMatches } from '../../../../src/native-state-clock.js';
+import { nativeStateClockMatches } from '../../../store/index.js';
 import {
   dependencyValues,
   localDependencyIds,
@@ -88,7 +88,7 @@ import { createApiHandler } from './api-http.js';
 import { settingsInventory } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../../src/relay-requests.js';
 import { relayCanaryNeeds } from '../../../../src/relay-canary-needs.js';
-import { relayFiles } from '../../../../src/local-state.js';
+import { relayFiles } from '../../../store/index.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */
 const STATE_REVISION_INPUTS = Object.freeze([

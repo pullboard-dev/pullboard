@@ -8,8 +8,8 @@ import { signSshVouch } from './relay-ssh-proof.js';
 import { verifySshVouch } from './relay-ssh-proof.js';
 import { authorizeMember } from './relay-membership.js';
 import { memberAuthorityStamp } from './relay-membership.js';
-import { boardId } from '../../../../src/board-query.js';
-import { readBoardMembers } from '../../../../src/board-members.js';
+import { boardId } from '../../../store/index.js';
+import { readBoardMembers } from '../../../store/index.js';
 import { localRecords } from './relay.js';
 
 const NAMESPACE = 'pullboard-device-key';

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
-import { SCHEMA_VERSION } from '../src/board.js';
+import { SCHEMA_VERSION } from '../packages/store/index.js';
 import { hookScript } from '../packages/commits/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
