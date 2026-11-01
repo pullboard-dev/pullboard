@@ -8,7 +8,7 @@ import { itemShoutReader } from "../core/board-shout-audience.js";
 import { shoutItemId } from "../../../kernel/src/core/registry-guards.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { requestAnswerRefusal } from "../../../../src/implies.js";
 import { tellAnswerImplications } from "../../../../src/implies.js";

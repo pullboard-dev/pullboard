@@ -1,6 +1,6 @@
 /** Scan the exact committed source and its history paths before any byte leaves the controller [C7]. */
-import { configFromSource } from '../../../../src/config.js';
-import { defaults } from '../../../../src/config.js';
+import { configFromSource } from '../../../config/index.js';
+import { defaults } from '../../../config/index.js';
 import { cleanGitEnvironment } from '../../../../src/git.js';
 import { blockedPaths } from '../../../commits/index.js';
 import { secretsIn } from '../../../commits/index.js';

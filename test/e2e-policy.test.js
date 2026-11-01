@@ -22,12 +22,12 @@ import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
-import { parseSpec } from '../src/spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import {
   dependencySnapshots,
   submissionPaths,
-} from '../src/trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 

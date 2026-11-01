@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard, openBoardForRead } from '../src/native-board.js';
 import { refreshLandedCodeMap } from '../src/landing-main-notices.js';
-import { mainMovedWarnings } from '../src/main-moved-warning.js';
+import { mainMovedWarnings } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 

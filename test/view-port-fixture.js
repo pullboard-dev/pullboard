@@ -1,7 +1,7 @@
 /** Coordinate tests that must bind the same physical loopback port [N26,C7]. */
 import { createServer } from 'node:net';
 import { takeResource } from '../packages/resources/index.js';
-import { DEFAULT_VIEW_PORT } from '../src/config.js';
+import { DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 
 /** Ask the OS for a currently unused loopback port, excluding the user's fixed default. */
 export async function chooseViewPort() {

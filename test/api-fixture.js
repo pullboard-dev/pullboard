@@ -18,7 +18,7 @@ import { serveApi } from '../src/api.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { main } from './native-cli-fixture.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { JSON_SHAPES } from '../src/json.js';
+import { JSON_SHAPES } from '../packages/config/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
 

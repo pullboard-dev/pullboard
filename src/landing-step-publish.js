@@ -1,11 +1,11 @@
-import { quarantineBatchGates } from './quarantine-verdict.js';
+import { quarantineBatchGates } from '../packages/verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
 import { finalizeLandingEnvelope } from './land-envelope.js';
 import { prepareNativeTrainLanding } from './train-landing.js';
 import { refreshLandedCodeMap } from './landing-main-notices.js';
 import { postLandSuite } from './post-land-suite.js';
-import { mergeOnlyLandingProblem } from './merge-only-verdict.js';
+import { mergeOnlyLandingProblem } from '../packages/merge/index.js';
 import { requireOutsideOwner } from './outside-source.js';
 import { existsSync } from 'node:fs';
 import { realpathSync } from 'node:fs';

@@ -11,15 +11,15 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
-import { settingsInventory } from '../src/settings-inventory.js';
-import { describeSetting } from '../src/settings-descriptions.js';
+import { settingsInventory } from '../packages/config/index.js';
+import { describeSetting } from '../packages/config/index.js';
 import { performanceCores } from '../src/gate.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from '../src/config.js';
+} from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { LAND_COLLISION_ENGINE } from '../src/landing-collision-engine.js';
 import { BAR_CHECK_ENGINE } from '../src/bar-check-engine.js';

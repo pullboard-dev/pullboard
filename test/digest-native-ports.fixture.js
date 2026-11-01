@@ -5,7 +5,7 @@ import { readCapacity as readCapacityWithPorts } from '../packages/stats/index.j
 const readCapacity = (board, now) => readCapacityWithPorts(board, now, { currentProofCounters, proofCounter });
 import { capacityLines } from '../packages/stats/index.js';
 /** Native read-only digest ports for private fixtures; no substitute proof or authority [C7,A2]. */
-import { counterCaught } from '../src/proof-counter-read.js';
+import { counterCaught } from '../packages/verify/index.js';
 import { milestones } from '../src/board.js';
 import { openBoardReadOnly } from '../src/board.js';
 import { rowDrafts } from '../src/board-query.js';

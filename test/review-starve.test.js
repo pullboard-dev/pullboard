@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
 import * as store from '../src/board.js';
 import { healthReport } from '../packages/health/index.js';
-import { defaults, configProblems } from '../src/config.js';
+import { defaults, configProblems } from '../packages/config/index.js';
 
 /** Observe actual health against the fixture's immutable source and injected native clock. */
 function health(box, config = box.config) {

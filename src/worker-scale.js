@@ -26,7 +26,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from './board.js';
 import { readCapacity } from '../packages/stats/index.js';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { machineHome } from '../packages/resources/index.js';
 import { readyItems } from './queue-readiness.js';
 import { Refused } from '../packages/kernel/index.js';

@@ -6,8 +6,8 @@
  * terminal and the local API use, with its arguments as distinct argv entries after --, the form the
  * API's moveArgs builds, so a refusal reaches the client with the CLI's own code and next step.
  */
-import { COORDINATOR } from "../../../../src/config.js";
-import { VERSION } from "../../../../src/release-version.js";
+import { COORDINATOR } from "../../../config/index.js";
+import { VERSION } from "../../../config/index.js";
 import { Refused } from "../../../kernel/core.js";
 
 /** MCP revisions this server speaks; the first is offered when a client asks for one it does not know. */

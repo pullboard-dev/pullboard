@@ -1,6 +1,6 @@
 /** Event statistics attribute only recorded actor-family evidence, never current declarations [R1,R2]. */
 import { events as readStatsEvents } from '../../../src/board.js';
-import { counterProofStats as readStatsCounter } from '../../../src/proof-counter-read.js';
+import { counterProofStats as readStatsCounter } from '../../verify/index.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { addItem } from '../../../src/board.js';

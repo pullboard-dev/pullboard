@@ -1,14 +1,14 @@
-import { reviewPolicyChange } from "../../../../src/review-independence.js";
-import { saveItemReviewPolicy } from "../../../../src/review-independence.js";
-import { twoTierReviews } from "../../../../src/review-independence.js";
+import { reviewPolicyChange } from "../../../verify/index.js";
+import { saveItemReviewPolicy } from "../../../verify/index.js";
+import { twoTierReviews } from "../../../verify/index.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
-import { validateReferences } from "../../../../src/reference-authors.js";
-import * as reviewFamilies from "../../../../src/required-review-family.js";
+import { validateReferences } from "../../../spec/index.js";
+import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
 import { saveCheckTiming } from "../../../../src/check-timing.js";
 import { validateCheckTiming } from "../../../../src/check-timing.js";
 import { validateItemDependencies } from "./board-item-dependencies.js";
 import { validateRehomeCheck } from "./board-rehome.js";
-import { recordBarRevision } from "../../../../src/bar-readiness.js";
+import { recordBarRevision } from "../../../verify/index.js";
 import { normalizeCheckBaseline } from "./item-check-baseline.js";
 import { saveCheckBaseline } from "./item-check-baseline.js";
 import { now } from "./board-query.js";
@@ -19,7 +19,7 @@ import { checkRoute } from "../../../../src/item-routing.js";
 import { checkRouted } from "../../../../src/item-routing.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/index.js";
-import * as checkWiden from "../../../../src/check-widen.js";
+import * as checkWiden from "../../../verify/src/shell/check-widen.js";
 
 /**
  * Add an item to a lane, optionally under a parent in the same lane, with a brief for whoever

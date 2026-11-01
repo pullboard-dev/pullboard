@@ -17,7 +17,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { openBoardForRead } from '../src/native-board.js';
 import { healthReport } from '../packages/health/index.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { personNeedsSummary } from '../src/needs-summary.js';
 import { resumeNeeds } from '../src/resume-needs.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
@@ -28,7 +28,7 @@ import { SCHEMA_DIGEST } from '../src/board-schema-source.js';
 import {
   ensureFactIdentityIndexes,
   factIdentityExists,
-} from '../src/fact-identity.js';
+} from '../packages/spec/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const SERVE = pathToFileURL(resolve(import.meta.dirname, '../src/cli/view-state.js')).href;

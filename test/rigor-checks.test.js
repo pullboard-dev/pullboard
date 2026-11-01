@@ -22,7 +22,7 @@ import { openBoard, draftSpecRow } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { loadDoctrine } from '../src/doctrine.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { draftConflictSplits } from '../packages/rigor/index.js';
 import { proposeDoctrine } from '../packages/doctrine/index.js';
 import { conflictNote } from '../packages/kernel/src/core/registry-guards.js';

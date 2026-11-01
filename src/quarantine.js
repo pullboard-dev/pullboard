@@ -1,7 +1,7 @@
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from './auto-submit-quarantine-engine.js';
 import { proofReceipts } from './board-query.js';
-import { nativeProofBlockingGreen } from './quarantine-verdict.js';
-import { landingGateRecords } from './quarantine-verdict.js';
+import { nativeProofBlockingGreen } from '../packages/verify/index.js';
+import { landingGateRecords } from '../packages/verify/index.js';
 import { MAIN_AUDIT_ENGINE } from './main-audit-engine.js';
 import { landingBatches } from './landing-batch-history.js';
 /**
@@ -26,13 +26,13 @@ import {
   receiptBinds,
   receiptFields,
 } from './gate-run-receipt.js';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { flakeLedger } from './flakes.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from '../packages/kernel/index.js';
 import { QUARANTINE_CORE_ENGINE } from './quarantine-core-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from './quarantine-verdict-engine.js';
-import { quarantineVerdictFields } from './quarantine-verdict.js';
+import { quarantineVerdictFields } from '../packages/verify/index.js';
 
 const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
 

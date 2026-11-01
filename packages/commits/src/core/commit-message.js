@@ -1,7 +1,7 @@
 /** The one builder and parser for generated commit messages: header, ids that fit, then +N, and the Pullboard trailers (RFC 0005) [C7]. */
 
 /** A commit header's length limit, which the commit hook also enforces by default. */
-import { headerRows } from "../../../../src/spec.js";
+import { headerRows } from "../../../spec/index.js";
 export const HEADER_LIMIT = 72;
 
 /** Trailer keys this format writes, in the order they appear. */

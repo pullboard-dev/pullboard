@@ -2,8 +2,8 @@ import { recordTrainLanding } from '../src/record-train-landing.js';
 /** @pullboard-test-input source-tree */
 import { receiptBinds } from '../src/gate-run-receipt.js';
 import { gateRuns } from '../src/quarantine.js';
-import { COORDINATOR } from '../src/config.js';
-import { policyAt } from '../src/trusted-policy-read.js';
+import { COORDINATOR } from '../packages/config/index.js';
+import { policyAt } from '../packages/sandbox/index.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 /** Exercise the native train producer, ordered landing writer and additive push check [C7]. */
 import assert from 'node:assert/strict';
@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard, recordGateRun } from '../src/native-board.js';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { boardReceiptStore } from '../src/gate-run-receipt.js';
 import { readGateReceipt } from '../src/gate-run-receipt.js';
 import { receiptStore } from '../src/gate-run-receipt.js';

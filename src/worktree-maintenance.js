@@ -9,7 +9,7 @@ import { sep } from 'node:path';
 import { repoInfo } from './git.js';
 import { maintenanceProtectedPath } from './worktree-maintenance-protection.js';
 import { retainedMaintenanceHealth } from './worktree-maintenance-retention.js';
-import { maintenanceDurations } from './worktree-maintenance-config.js';
+import { maintenanceDurations } from '../packages/config/index.js';
 import { classifyMaintenanceTree } from './worktree-maintenance-classify.js';
 import { archiveMaintenanceWorktree } from './worktree-maintenance-archive.js';
 import { maintenanceArchiveMatches } from './worktree-maintenance-archive.js';

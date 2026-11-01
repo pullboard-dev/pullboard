@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-input package.json */
-/** The exact conflict shim exception preserves accepted move discovery dependencies [C7,CD60,H16]. */
+/** Move discovery reads the exact moved conflict body, keeping the accepted dependencies [C7,CD60,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -14,7 +14,6 @@ import { packageFiles } from '../src/package-files.js';
 import { sourceDirectories } from './machine-source-functions.fixture.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const ORIGINAL = 'src/trunk-conflict.js';
 const MOVED = 'packages/merge/src/shell/trunk-conflict.js';
 
 /** Read the real relative closure, retaining native imports and a canonical identity for moved bodies. */
@@ -64,12 +63,14 @@ test('conflict shim preserves the accepted main move closure and the broad index
   const acceptedBody = original.replace(canonicalExport, 'export { CONFLICT_ENGINE };');
   assert.equal(createHash('sha256').update(acceptedBody).digest('hex'), 'bc4ef60283c22fda3a2c5cf43fc9b8017e4ff4fa86826d58c420683584b8ca63',
     'the unchanged conflict implementation is the accepted 4417733 main body');
-  const before = closure(file => file === ORIGINAL ? acceptedBody : read(file), identities);
+  const movedExport = "export { CONFLICT_ENGINE } from '../../../../src/trunk-conflict-engine.js';";
+  assert.ok(read(MOVED).includes(movedExport), 'the moved body re-exports the same engine leaf');
+  const before = closure(file => file === MOVED ? read(MOVED).replace(movedExport, 'export { CONFLICT_ENGINE };') : read(file), identities);
   const after = closure(read, identities);
-  assert.deepEqual(after, before, 'the exact moved-body shim adds no dependency or native capability');
+  assert.deepEqual(after, before, 'the exact moved body adds no dependency or native capability');
   assert.ok(!after.native.includes('node:child_process'));
-  const broad = closure(file => file === ORIGINAL
-    ? "export * from '../packages/merge/index.js';\n" : read(file), identities);
-  assert.notDeepEqual(broad, before, 'the broad index cannot substitute for the approved narrow shim');
+  const broad = closure(file => file === MOVED
+    ? "export * from '../../index.js';\n" : read(file), identities);
+  assert.notDeepEqual(broad, before, 'the broad index cannot substitute for the exact moved body');
   assert.ok(broad.native.includes('node:child_process'), 'the negative control reaches actual process launchers');
 });

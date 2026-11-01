@@ -4,7 +4,7 @@ import { loadDoctrine } from '../../../../src/doctrine.js';
 import {
   loadSpec,
   insertSectionRows,
-} from '../../../../src/spec.js';
+} from '../../../spec/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {
   automaticDecisionSource,
@@ -14,7 +14,7 @@ import {
 import {
   rowDecisionContext,
   staleRowDecision,
-} from '../../../../src/row-decision-state.js';
+} from '../../../spec/index.js';
 
 /** Preflight every definition and both id namespaces before returning even the first file write. */
 export function planAutomaticRigorApply(root, config, drafts, decisions = []) {

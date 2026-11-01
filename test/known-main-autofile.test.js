@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHash } from 'node:crypto';
-import { frozenCheck, policyAt } from '../src/trusted-policy.js';
+import { frozenCheck, policyAt } from '../packages/sandbox/index.js';
 import { submitGatePlan, submitGateConfig } from '../src/gate-submit.js';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

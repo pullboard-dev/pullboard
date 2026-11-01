@@ -1,5 +1,5 @@
 import { frozenCheckTiming } from "../core/check-timing.js";
-import { browserFreeChecksEnabled } from "../../../../src/settings.js";
+import { browserFreeChecksEnabled } from "../../../config/index.js";
 import { requireOutsideReceipt } from "./outside-proof.js";
 /** Outside verification uses the ordinary native verdict authority but never checks out its executable tree. */
 import {

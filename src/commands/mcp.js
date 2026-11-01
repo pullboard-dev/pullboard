@@ -16,7 +16,7 @@ import { selectAffectedTests } from '../affected-tests.js';
 import { scanSource } from '../../packages/codemap/index.js';
 import { repositoryImport } from '../../packages/codemap/index.js';
 import { readPlan } from '../../bin/cells-plan.js';
-import { personNeeds } from '../row-decision-text.js';
+import { personNeeds } from '../../packages/spec/index.js';
 import { personNeedsState } from '../needs-state.js';
 import { refusalDocument } from '../next-step-words.js';
 

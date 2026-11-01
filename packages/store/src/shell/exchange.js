@@ -1,9 +1,9 @@
 import { suspendStoreGuards } from "./board-store-guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import { LANDING_LOCAL_PREFIX } from "../core/board-landing-local-lease.js";
-import { PROOF_COUNTER_PREFIX } from "../../../../src/proof-counters.js";
+import { PROOF_COUNTER_PREFIX } from "../../../verify/index.js";
 import { exportedMeta } from "../core/board-person-authority-schema.js";
-import { rebuildProofCounters } from "../../../../src/proof-counters.js";
+import { rebuildProofCounters } from "../../../verify/index.js";
 import { importSeatObservations } from "./seat-presence.js";
 import {
   beginBoardWrite,

@@ -1,7 +1,7 @@
 /** Frozen edit planning, shared without moving the native transaction or lifecycle writer [C7,V4,H16]. */
 import { correctedBar } from "../../../../src/corrected-bar.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 
 /** Plan pending corrections from the exact before/after fields; the caller applies all writes atomically. */
 export function itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder }) {

@@ -11,7 +11,7 @@ import {
   join,
 } from 'node:path';
 import { tryGit } from './git.js';
-import { receiptFields } from './proof-provenance.js';
+import { receiptFields } from '../packages/verify/index.js';
 export { receiptFields };
 
 /** The folder beside the board that holds gate run receipts. */

@@ -4,24 +4,24 @@ import { resumeRigorCounters } from '../packages/rigor/index.js';
 import { join } from 'node:path';
 import * as store from './board.js';
 import { repoInfo } from './git.js';
-import { projectRowDecisions } from './row-decisions.js';
-import { projectSpecRevisions } from './spec-revisions.js';
+import { projectRowDecisions } from '../packages/spec/index.js';
+import { projectSpecRevisions } from '../packages/spec/index.js';
 import {
   pendingFit,
   projectFit,
 } from '../packages/blueprints/index.js';
 import { projectState } from './serve.js';
-import { loadConfig } from './config.js';
-import { loadSpec } from './spec.js';
+import { loadConfig } from '../packages/config/index.js';
+import { loadSpec } from '../packages/spec/index.js';
 import { loadDoctrine } from './doctrine.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
-import { personNeeds } from './row-decision-text.js';
+import { personNeeds } from '../packages/spec/index.js';
 import { recentBlocks } from './needs-summary.js';
 export { personNeedsSummary, recentBlocks } from './needs-summary.js';
 import {
   projectSpecApprovals,
   specApprovalState,
-} from './spec-approval.js';
+} from '../packages/spec/index.js';
 import {
   sentinelDraftNeeds,
   sentinels,

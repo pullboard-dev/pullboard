@@ -1,6 +1,6 @@
 import { applyRehomeItem as applyRehomeRecord } from "../../../../src/item-rehome.js";
-import { reviewPolicyChange } from "../../../../src/review-independence.js";
-import { saveItemReviewPolicy } from "../../../../src/review-independence.js";
+import { reviewPolicyChange } from "../../../verify/index.js";
+import { saveItemReviewPolicy } from "../../../verify/index.js";
 import { now } from "./board-query.js";
 import { boardId } from "./board-query.js";
 import { atomic } from "./board-event-log.js";

@@ -1,4 +1,4 @@
-import { blockingFailures } from './quarantine-verdict.js';
+import { blockingFailures } from '../packages/verify/index.js';
 /** Match completely accounted test failures without granting a file-wide main-red exemption [V4,B3]. */
 import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';

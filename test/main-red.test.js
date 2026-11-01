@@ -21,7 +21,7 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
   const driver = join(box.directory, 'pinned-comparison.mjs');
   writeFileSync(driver, [
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/main-red.js')).href)};`,
-    `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/execution-environment.js')).href)};`,
+    `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/sandbox/src/shell/execution-environment.js')).href)};`,
     'const [root, mode] = process.argv.slice(2);',
     "const profile = {tests:[{file:'test/inherited.test.js',passed:false}]};",
     'const environment = executionEnvironment();',

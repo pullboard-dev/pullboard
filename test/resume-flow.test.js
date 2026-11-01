@@ -1,6 +1,6 @@
 /** Coordinator flow alerts reuse the real Git/SQLite statistics and documented thresholds [N32,R1,R2]. */
 import { events as readStatsEvents } from '../src/board.js';
-import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
+import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';

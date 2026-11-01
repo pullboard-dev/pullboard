@@ -1,4 +1,4 @@
-import { renderAgentsBlock } from '../../../../src/templates.js';
+import { renderAgentsBlock } from '../../../config/index.js';
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** The shared house rules (D1–D4): one packaged standard and a repo's explicit changes to it. */
 import { readFileSync } from 'node:fs';
@@ -6,12 +6,12 @@ import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
   doctrineFile,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import { committedIds } from '../../../../src/history.js';
 import {
   loadSpec,
   parseSpec,
-} from '../../../../src/spec.js';
+} from '../../../spec/index.js';
 
 export const STANDARD_VERSION = 1;
 

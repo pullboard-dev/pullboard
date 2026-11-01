@@ -10,10 +10,10 @@ import { main } from './native-cli-fixture.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { HANDOFF_ENGINE } from '../src/handoff-engine.js';
-import { machineSettingsFile } from '../src/settings.js';
-import { loadConfig } from '../src/config.js';
+import { machineSettingsFile } from '../packages/config/index.js';
+import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
-import { frozenCriterion, loadSpec } from '../src/spec.js';
+import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Keep fixture identity, settings, Git and SQLite separate from the invoking agent. */

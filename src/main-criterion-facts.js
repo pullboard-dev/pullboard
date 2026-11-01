@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import { gitSpawnSync } from './git-adapter.js';
 import { readFileSync } from 'node:fs';
 import { Refused } from '../packages/kernel/index.js';
-import { CONFIG_FILE } from './config.js';
-import { DOCTRINE_FILE } from './config.js';
-import { LEGACY_DOCTRINE_FILE } from './config.js';
+import { CONFIG_FILE } from '../packages/config/index.js';
+import { DOCTRINE_FILE } from '../packages/config/index.js';
+import { LEGACY_DOCTRINE_FILE } from '../packages/config/index.js';
 import { doctrineFromSource } from './doctrine.js';
 import { standardDoctrine } from './doctrine.js';
 import { mainCheckout } from './git.js';
@@ -13,9 +13,9 @@ import { tryGit } from './git.js';
 import { cleanGitEnvironment } from './git.js';
 import { cachedMainFact } from './main-facts-cache.js';
 import { mainFactToolIdentity } from './main-facts-cache.js';
-import { parseSpec } from './spec.js';
-import { policyAt } from './trusted-policy.js';
-import { trunkRef } from './trusted-policy.js';
+import { parseSpec } from '../packages/spec/index.js';
+import { policyAt } from '../packages/sandbox/index.js';
+import { trunkRef } from '../packages/sandbox/index.js';
 
 /** Validate the portable parsed row collections before taking a local cache hit. */
 function validFacts(value) {

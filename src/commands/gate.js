@@ -1,4 +1,4 @@
-import { blockingFailures } from '../quarantine-verdict.js';
+import { blockingFailures } from '../../packages/verify/index.js';
 import { quarantineWaivers } from '../quarantine.js';
 import { quarantineVerdictSnapshot } from '../quarantine.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
@@ -10,7 +10,7 @@ import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
 import {
   CONFIG_FILE,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import * as gateConfig from '../gate-config.js';
 import {
   gateWaitReporter,
@@ -31,7 +31,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   mainPolicy,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   existsSync,
 } from 'node:fs';

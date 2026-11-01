@@ -1,4 +1,4 @@
-import { recordRunnerMeasurement } from '../settings.js';
+import { recordRunnerMeasurement } from '../../packages/config/index.js';
 /** The pullboard runner command, in its own module so an item adding another command never edits these lines. */
 import {
   Refused,
@@ -7,12 +7,12 @@ import {
   addRunner,
   loadMachineSettings,
   removeRunner,
-} from '../settings.js';
+} from '../../packages/config/index.js';
 import {
   recordRunnerGui,
   runnerResourceStatus,
 } from '../../packages/resources/index.js';
-import { validateRunner } from '../settings-read.js';
+import { validateRunner } from '../../packages/config/index.js';
 import { probeRunnerTransport } from '../runner-transport.js';
 import {
   computeRunnerSlots,

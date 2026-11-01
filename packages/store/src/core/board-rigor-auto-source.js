@@ -1,12 +1,12 @@
 /** Evidence-only proposals are deliberately distinct from executed rigor: proofs [D1,S1]. */
 import { causeProblem } from "./board-rigor.js";
-import { parseSpec } from "../../../../src/spec.js";
+import { parseSpec } from "../../../spec/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { readRigorSource } from "./board-rigor-source.js";
 import {
   rowDecisionContext,
   staleRowDecision,
-} from "../../../../src/row-decision-state.js";
+} from "../../../spec/index.js";
 
 /** Preserve exact repeat evidence in a portable one-line ordinary draft. */
 export function automaticRigorSource(cause, eventIds) {

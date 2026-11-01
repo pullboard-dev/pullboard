@@ -16,7 +16,7 @@ import {
 import { testsNeedBrowser } from './browser-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from '../packages/kernel/index.js';
-import { mainPolicy } from './trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import {
   runProfiledShellAsync,
   withGateSlot,
@@ -45,7 +45,7 @@ import {
   gateRunnersFirstEnabled,
   gateRunnerAdmission,
   loadMachineSettings,
-} from './settings.js';
+} from '../packages/config/index.js';
 
 /** Give a direct full suite the same admitted execution and immutable receipt writer as a gate. */
 export async function runFullSuite(root, runner, executionServices) {

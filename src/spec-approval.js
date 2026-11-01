@@ -1,1 +1,0 @@
-export { captureSpecApprovalBaseline, specApprovalState, itemAgentApprovals, agentApprovalLine, projectItemSpecApprovals, projectSpecApprovals, refuseAgentApprovedRows } from "../packages/spec/index.js";

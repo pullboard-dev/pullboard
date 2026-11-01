@@ -6,11 +6,11 @@ import {
   executingBarEffect,
   personBarMode,
 } from '../person-bar-cli.js';
-import { barReadySetting } from '../bar-readiness.js';
+import { barReadySetting } from '../../packages/verify/index.js';
 import {
   referenceAuthors,
   referenceAuthority,
-} from '../reference-authors.js';
+} from '../../packages/spec/index.js';
 /** The pullboard edit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {

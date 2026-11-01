@@ -21,7 +21,7 @@ import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { publishVerificationStatuses } from '../src/pr-verification.js';
 import { withGitFacts } from '../src/git.js';
 

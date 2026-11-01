@@ -1,8 +1,8 @@
 /** Opt-in queue triggers and the existing manual start-to-start landing interval [E30,E29]. */
 import { landingBatches } from './landing-batch-history.js';
-import { acceptedVerdict } from './verdict-reviews.js';
+import { acceptedVerdict } from '../packages/verify/index.js';
 
-import { cadenceMilliseconds } from './config.js';
+import { cadenceMilliseconds } from '../packages/config/index.js';
 
 /** Observe pending native acceptances using their recorded verdict time, never a mutable item update time. */
 export function landingCadenceStatus(board, config, now = board.clock.now()) {

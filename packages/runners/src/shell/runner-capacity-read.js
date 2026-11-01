@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../../../resources/index.js';
-import { loadMachineSettings } from '../../../../src/settings-read.js';
-import { validateRunner } from '../../../../src/settings-read.js';
+import { loadMachineSettings } from '../../../config/index.js';
+import { validateRunner } from '../../../config/index.js';
 import { localRunnerDescriptor } from './runner-load.js';
 
 /** Missing optional tables are historical absence, never an instruction to migrate a read. */

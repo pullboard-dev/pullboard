@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { packText } from '../src/run.js';
 import { doctrineText, loadDoctrine, standardDoctrine, STANDARD_VERSION } from '../src/doctrine.js';
-import { lintSpec, parseSpec } from '../src/spec.js';
+import { lintSpec, parseSpec } from '../packages/spec/index.js';
 import { renderSpecView } from '../src/view.js';
 
 // RFC 0005 extends PB9; its 26 Oct amendment is the approved 20-word text, so the row lints clean.

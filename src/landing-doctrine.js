@@ -8,7 +8,7 @@ import {
 import { join } from 'node:path';
 import {
   doctrineFile,
-} from './config.js';
+} from '../packages/config/index.js';
 import {
   checkRulesAt,
   runRuleCheck,
@@ -23,7 +23,7 @@ import {
   untracked,
 } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { parseSpec } from './spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 
 /** Count held submit rules, refuse increases atomically, and commit only measured lower count fields. */
 export async function tightenLandingDoctrine(root, config, { onWait } = {}) {

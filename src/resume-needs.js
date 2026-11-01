@@ -4,7 +4,7 @@ import { pendingFit } from '../packages/blueprints/index.js';
 import { projectFit } from '../packages/blueprints/index.js';
 import { repoInfo } from './git.js';
 import { personNeedsSummary } from './needs-summary.js';
-import { personNeeds } from './row-decision-text.js';
+import { personNeeds } from '../packages/spec/index.js';
 import { resumeRigorCounters } from '../packages/rigor/index.js';
 
 /** Extend the indexed summary only for resume; retain exact row decisions, fit and coordinator Rigor. */

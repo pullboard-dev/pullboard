@@ -6,7 +6,7 @@ import {
   itemById,
   logEvent,
 } from "./board.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 import { coordinatorCheck } from "../../../verify/core.js";

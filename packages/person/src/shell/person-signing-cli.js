@@ -18,7 +18,7 @@ import { preparePersonRequest } from "../core/person-request.js";
 import { personRequestRecords } from "../core/person-request.js";
 import { Refused } from "../../../kernel/index.js";
 import { awaitPersonConfirmation } from "./person-confirmation.js";
-import { loadMachineSettings } from "../../../../src/settings.js";
+import { loadMachineSettings } from "../../../config/index.js";
 import { repoInfo } from "../../../../src/git.js";
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';

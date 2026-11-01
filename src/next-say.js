@@ -6,7 +6,7 @@ import {
   whoAmI,
 } from './cli.js';
 import { withBoardRead } from './cli-context.js';
-import { reviewQueueLine } from './review-queue-line.js';
+import { reviewQueueLine } from '../packages/verify/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 /** Print an unreserved review first, then the build available through an explicit opt-out. */

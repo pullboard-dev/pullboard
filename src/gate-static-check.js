@@ -10,7 +10,7 @@ import {
 } from '../packages/kernel/index.js';
 import {
   browserFreeChecksEnabled,
-} from './settings.js';
+} from '../packages/config/index.js';
 import {
   checkNeedsBrowser,
 } from './browser-admission.js';

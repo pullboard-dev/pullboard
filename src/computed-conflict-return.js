@@ -1,11 +1,11 @@
-import { effectiveItemHead } from './source-advance-state.js';
+import { effectiveItemHead } from '../packages/verify/index.js';
 /** Native computation of automatic submitted-head returns; callers supply no conflict assertion [V4,H16]. */
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
-import { trunkMerge } from './trunk-merge.js';
+import { trunkMerge } from '../packages/merge/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 /** Compute evidence only for this exact native board and current submitted head. */

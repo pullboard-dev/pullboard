@@ -1,7 +1,7 @@
 /** Ship staged work through ordinary hooks, claim guards, submission and verdict waiting [V4,B3,C7]. */
 import { buildCommitMessage } from '../../packages/commits/index.js';
 import { landingMessage } from '../landing-message.js';
-import { loadSpec } from '../spec.js';
+import { loadSpec } from '../../packages/spec/index.js';
 import { firstRefusal } from '../board-item-read.js';
 import { listItems } from '../board.js';
 import { getItem } from '../board.js';

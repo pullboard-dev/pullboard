@@ -21,7 +21,7 @@ import {
 import { fileURLToPath } from 'node:url';
 import { CHECKOUT_SESSION_TOKEN_ENV } from './agent-session.js';
 import { displayAgentName } from './agent-names.js';
-import { loadConfig } from './config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { AGENT_SESSION_IDS } from '../packages/kernel/src/core/discovery.js';
 import {
