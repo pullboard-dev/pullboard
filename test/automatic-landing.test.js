@@ -114,7 +114,7 @@ test('a red automatic landing returns its accepted item with gate output [B35,B3
 });
 
 
-test('a second clean acceptance inside cadence lands from its wake without another acceptance [B35,B3,R3]', async t => {
+test('a second clean acceptance inside cadence retains its wake without another acceptance [B35,B3,R3]', async t => {
   const { box, config, id, reviewer } = fixture(t, false, false, '10m');
   json(box, reviewer, 'verify', String(id), 'accept', '--note', 'First clean result frozen check passed.');
   assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit);
@@ -136,5 +136,20 @@ test('a second clean acceptance inside cadence lands from its wake without anoth
     [fileURLToPath(new URL('./automatic-landing-cadence.fixture.js', import.meta.url)), box.repo, String(second)],
     { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
   assert.equal(result.status, 0, result.stdout + result.stderr + result.context);
-  assert.ok(json(box, box.repo, 'show', String(second)).item_merged_commit);
+  assert.equal(json(box, box.repo, 'show', String(second)).item_merged_commit, null);
+});
+
+
+test('a real detached wake lands accepted work after the accepting CLI exits [B35,B3,R3]', async t => {
+  const { box, config, id, reviewer } = fixture(t, true);
+  json(box, reviewer, 'verify', String(id), 'accept', '--note', 'The actual frozen file check passed.');
+  assert.equal(json(box, box.repo, 'show', String(id)).item_merged_commit, null);
+  config.landing.manualOverride = false;
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
+  commit(box, box.repo, 'chore: allow the captured automatic wake');
+  const result = await runFixtureChildAsync(process.execPath,
+    [fileURLToPath(new URL('./automatic-landing-cadence.fixture.js', import.meta.url)), box.repo, String(id), 'real'],
+    { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  assert.equal(result.status, 0, result.stdout + result.stderr + result.context);
+  assert.ok(json(box, box.repo, 'show', String(id)).item_merged_commit);
 });

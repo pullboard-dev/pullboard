@@ -6,15 +6,40 @@ import * as outbox from '../packages/outbox/index.js';
 import { repoInfo } from '../packages/git/index.js';
 import { landAfterAcceptance } from '../src/commands/land.js';
 import { scheduleAutomaticLanding, resumeAutomaticLanding, automaticLandingDirectory } from '../packages/landing/index.js';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, watch } from 'node:fs';
 import { join } from 'node:path';
 
-const [root, item] = process.argv.slice(2);
+const [root, item, mode] = process.argv.slice(2);
 /** Observe the same private native board without retaining a connection across native landing work. */
 function observe(read) {
   const board = nativeBoard.openBoard(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite'));
   try { return read(board); } finally { store.closeBoard(board); }
 }
+if (mode === 'real') {
+  const directory = automaticLandingDirectory(root);
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const file = join(directory, 'pending.json'), watcher = watch(directory);
+  let queued = false, check;
+  const completed = new Promise((resolve, reject) => {
+    /** Observe completion or a retained native error through file events, never a timing assertion. */
+    check = () => {
+      if (!queued) return;
+      if (!existsSync(file)) return resolve();
+      const job = JSON.parse(readFileSync(file, 'utf8'));
+      if (job.error) reject(new Error(job.error));
+    };
+    watcher.on('change', check);
+    watcher.on('error', reject);
+  });
+  try {
+    await scheduleAutomaticLanding(root, new Date().toISOString(), new URL('../bin/automatic-landing.js', import.meta.url));
+    queued = true;
+    check();
+    await completed;
+    assert.ok(observe(board => store.getItem(board, Number(item))).item_merged_commit, 'the real detached worker runs the native landing gate');
+    assert.equal(observe(board => store.events(board, { itemId: Number(item) }).filter(event => event.event_kind === 'merged').length), 1);
+  } finally { watcher.close(); }
+} else {
 let now = Date.parse(observe(board => store.landingBatches(board).at(-1).startedAt));
 const io = { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: process.stderr,
   clock: { now: () => new Date(now) }, replayConflictRecord: outbox.replay,
@@ -37,6 +62,8 @@ await resumeAutomaticLanding(root, 'fixture-authenticated-wake', job.dueAt, asyn
   wait: async () => { authentications++; return true; },
 });
 assert.equal(authentications, 1);
-assert.equal(wakes, 1, 'the mature wake needs no additional acceptance or timer');
-assert.ok(observe(board => store.getItem(board, Number(item))).item_merged_commit, 'the ordinary native gate records the second landing');
-assert.equal(existsSync(file), false);
+assert.equal(wakes, 2, 'the isolated native worker rechecks its own real cadence and queues the still-deferred work');
+assert.notEqual(JSON.parse(readFileSync(file, 'utf8')).id, job.id);
+assert.equal(observe(board => store.getItem(board, Number(item))).item_merged_commit, null);
+
+}
