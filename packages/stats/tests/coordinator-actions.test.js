@@ -87,9 +87,10 @@ test('coordinator actions name the window, distinct landing population and every
     { shout: 1, fact: 1, placement: 1, landing: 3, holdOrRelease: 2, rejectReturn: 1, ruling: 1, other: 1 });
   assert.match(coordinatorActionLines(report).join('\n'), /2026-10-31T00:00:00.000Z.*2026-10-31T01:00:00.000Z/u);
   const decision = { event_at: at(20).toISOString(), event_by: 'coordinator', event_kind: 'shout', item_id: null, event_detail: '{\"decision\":true}' };
-  const decided = coordinatorActionStats([...store.events(f.board), decision], { since: at(0).toISOString(), until: at(60).toISOString() });
-  assert.equal(decided.byKind.ruling.count, 2, 'an explicit judgement flag is a ruling even when sent as a shout');
-  assert.equal(decided.byKind.shout.count, 1);
+  const answer = { ...decision, event_kind: 'answer', event_detail: '{\"answers\":1}' };
+  const decided = coordinatorActionStats([...store.events(f.board), decision, answer], { since: at(0).toISOString(), until: at(60).toISOString() });
+  assert.equal(decided.byKind.ruling.count, 2, 'an answer is a ruling; a decision request is a shout');
+  assert.equal(decided.byKind.shout.count, 2);
   const history = store.events(f.board);
   history.push({ event_at: at(-1).toISOString(), event_by: 'coordinator', event_kind: 'merged', item_id: 1, event_detail: '{}' });
   assert.deepEqual(coordinatorActionStats(history, { since: at(0).toISOString(), until: at(60).toISOString() }).landedItems, [2],
@@ -109,6 +110,8 @@ test('a release with a higher coordinator rate is refused before its gate, namin
   keepBaseline(f, SECOND, report);
   assert.deepEqual(readCoordinatorRelease(f.root, SECOND).override, { by: 'person', reason: 'Person approved the one-time migration.' });
   assert.equal(readCoordinatorRelease(f.root, SECOND).previous, FIRST);
+  assert.equal(readCoordinatorRelease(f.root, SECOND).sequence, 2);
+  assert.doesNotThrow(() => checkCoordinatorRelease(f.root, { now: at(60) }), 'the latest override becomes the previous release even when both audit clocks tie');
 });
 
 test('zero landings never invent a rate or erase the previous measured release [B35,R2,I15]', t => {

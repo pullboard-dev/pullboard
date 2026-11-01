@@ -22,14 +22,19 @@ export function readCoordinatorRelease(root, id) {
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : null;
 }
 
-/** Compare against the most recent successful measured release, keeping an unmeasured release from erasing it. */
-function previousRelease(root) {
+/** Read only audits with a privately stored native release envelope. */
+function releaseAudits(root) {
   const folder = directory(root);
-  if (!existsSync(folder)) return null;
+  if (!existsSync(folder)) return [];
   return readdirSync(folder).filter(file => /^[a-f0-9-]{36}\.json$/u.test(file))
     .map(file => JSON.parse(readFileSync(join(folder, file), 'utf8')))
-    .filter(row => row.gauge?.perLanding != null && existsSync(join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${row.id}.json`)))
-    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0] ?? null;
+    .filter(row => existsSync(join(repoInfo(root).commonDir, 'pullboard', 'release-receipts', `${row.id}.json`)));
+}
+
+/** Keep release order independent of clock ties or rollback; unmeasured releases retain the measured ratchet. */
+function previousRelease(root) {
+  return releaseAudits(root).filter(row => row.gauge?.perLanding != null)
+    .sort((a, b) => (b.sequence ?? 0) - (a.sequence ?? 0) || Date.parse(b.at) - Date.parse(a.at))[0] ?? null;
 }
 
 /** Refuse a rise before spending runner time; the fixed trailing 24-hour window is comparable across releases. */
@@ -55,7 +60,8 @@ export function recordCoordinatorRelease(root, id, head, report, at = new Date()
   if (!/^[a-f0-9-]{36}$/u.test(id ?? '') || !/^[a-f0-9]{40,64}$/u.test(head ?? '')) throw new TypeError('a release audit needs its native receipt identity and source');
   const folder = directory(root);
   mkdirSync(folder, { recursive: true, mode: 0o700 });
-  const record = { version: 1, id, head, at: at.toISOString(), ...report };
+  const sequence = Math.max(0, ...releaseAudits(root).map(row => row.sequence ?? 0)) + 1;
+  const record = { version: 1, id, head, sequence, at: at.toISOString(), ...report };
   writeFileSync(join(folder, `${id}.json`), JSON.stringify(record) + '\n', { flag: 'wx', mode: 0o600 });
   return record;
 }
