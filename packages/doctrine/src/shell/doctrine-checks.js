@@ -1,4 +1,9 @@
 import { spawnCaptured } from '../../../sandbox/index.js';
+import { fileURLToPath } from 'node:url';
+import { checkReceiptKey } from '../../../git/index.js';
+import { readCheckReceipt } from '../../../git/index.js';
+import { writeCheckReceipt } from '../../../git/index.js';
+import { receiptLine } from '../../../git/index.js';
 /**
  * Doctrine checks with a count that only falls (D1, D3). A rule row may carry
  * `| gate: check <command> | count: N`, and `| files: <paths>` to narrow it; the command prints one
@@ -118,6 +123,12 @@ export function checkRulesAt(root, revision, name = DOCTRINE_FILE) {
  * @returns {{ problems: string[], broken: string, seconds: number }}
  */
 function* ruleCheckExecution(cwd, command, timeoutMs = DEFAULT_TIMEOUT_MS, gateEnvironment = {}) {
+  const key = checkReceiptKey(cwd, { kind: 'doctrine', definition: command, config: { timeoutMs }, code: [fileURLToPath(import.meta.url)] });
+  const receipt = readCheckReceipt(cwd, key);
+  if (receipt && Array.isArray(receipt.result?.problems) && receipt.result.broken === '') {
+    process.stderr.write(`${receiptLine(receipt)}\n`);
+    return receipt.result;
+  }
   const started = Date.now();
   const result = yield { command: `(\n${command}\n) 2>&1`, options: {
     cwd, env: { ...gitChildEnv(cwd), ...gateEnvironment }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8',
@@ -132,7 +143,9 @@ function* ruleCheckExecution(cwd, command, timeoutMs = DEFAULT_TIMEOUT_MS, gateE
   if (result.signal) return { problems: [], broken: `was killed by ${result.signal}`, seconds };
   if (result.status !== 0 && result.status !== 1) return { problems: [], broken: `exited ${result.status}`, seconds };
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-  return { problems: output.split(/\r?\n/u).map((line) => line.trimEnd()).filter((line) => line.trim()), broken: '', seconds };
+  const counted = { problems: output.split(/\r?\n/u).map((line) => line.trimEnd()).filter((line) => line.trim()), broken: '', seconds };
+  writeCheckReceipt(cwd, key, { result: counted });
+  return counted;
 }
 
 /** Run a rule synchronously without changing the established counted-exit contract. */
@@ -388,4 +401,18 @@ export async function holdDoctrineAsync(root, options) {
     }
     return step.value;
   } finally { execution.return(); }
+}
+
+/** Reuse a complete successful hold before admitting any runner work. */
+export async function cachedDoctrineHold(root, options, execute) {
+  const commands = checkRulesAt(root, options.mainCommit, options.practice).filter(rule => rule.runs === 'submit').map(rule => rule.command);
+  const key = checkReceiptKey(root, { kind: 'doctrine-hold', commands, definition: options, config: { timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }, code: [fileURLToPath(import.meta.url)] });
+  const receipt = readCheckReceipt(root, key);
+  if (receipt && Array.isArray(receipt.result)) {
+    process.stderr.write(`${receiptLine(receipt)}\n`);
+    return receipt.result;
+  }
+  const result = await execute();
+  writeCheckReceipt(root, key, { result });
+  return result;
 }

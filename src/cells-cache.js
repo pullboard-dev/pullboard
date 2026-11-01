@@ -1,3 +1,8 @@
+import { fileURLToPath } from 'node:url';
+import { checkReceiptKey } from '../packages/git/index.js';
+import { readCheckReceipt } from '../packages/git/index.js';
+import { writeCheckReceipt } from '../packages/git/index.js';
+import { receiptLine } from '../packages/git/index.js';
 /** Cache the cells checks per exact repository state so a repeat on unchanged inputs replays in well under a second [C7]. */
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -84,14 +89,25 @@ function prune(dir) {
  */
 export function cachedCellsRun(root, label, fn, options = {}) {
   const enabled = options.enabled ?? cellsCacheEnabled(root);
+  const key = enabled ? checkReceiptKey(root, { kind: 'lint', definition: label, config: {}, code: [fileURLToPath(import.meta.url)] }) : null;
+  const receipt = readCheckReceipt(root, key);
+  if (receipt?.result?.code === 0 && Array.isArray(receipt.result.lines)) {
+    replay(receipt.result.lines);
+    console.error(receiptLine(receipt));
+    return 0;
+  }
   const state = enabled ? cellsStateKey(root) : null, dir = state ? cacheDir(root) : null;
   if (!state || !dir) return fn();
   const file = join(dir, `${createHash('sha256').update(JSON.stringify([state, label])).digest('hex')}.json`);
   try {
     const saved = JSON.parse(readFileSync(file, 'utf8'));
-    if (Number.isInteger(saved.code) && Array.isArray(saved.lines)) { replay(saved.lines); return saved.code; }
+    if (Number.isInteger(saved.code) && Array.isArray(saved.lines)) {
+      if (saved.code === 0) writeCheckReceipt(root, key, { result: saved });
+      replay(saved.lines); return saved.code;
+    }
   } catch { /* A missing or damaged entry is a miss. */ }
   const { code, lines } = capture(fn);
+  if (code === 0) writeCheckReceipt(root, key, { result: { code, lines } });
   replay(lines);
   try {
     mkdirSync(dir, { recursive: true });
