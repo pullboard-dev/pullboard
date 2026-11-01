@@ -1,0 +1,104 @@
+/** Each static and doctrine check runs once per tree; submit, review and landing cite its receipt [V4,C7]. */
+import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { runRuleCheck } from '../packages/doctrine/index.js';
+import { checkReceiptKey } from '../packages/git/index.js';
+import { readCheckReceipt } from '../packages/git/index.js';
+import { writeCheckReceipt } from '../packages/git/index.js';
+
+/** Demand real command success and its versioned result. */
+function ok(result) { assert.equal(result.code, 0, result.out + result.err); return JSON.parse(result.out); }
+
+/** How many times a logged check ran: each run appends one four-byte line. */
+function runs(file) { return existsSync(file) ? statSync(file).size / 4 : 0; }
+
+/** A web item whose static check and doctrine rule log every run, and whose item check is red until armed. */
+function project(helpers) {
+  const box = helpers.project('true');
+  const logs = { static: join(box.dir, 'static-runs.log'), doctrine: join(box.dir, 'doctrine-runs.log') };
+  const armed = join(box.dir, 'item-check-green');
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG, gate: 'true', staticChecks: 'node static.cjs' }, null, 2));
+  writeFileSync(join(box.repo, 'static.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(logs.static)}, 'ran\\n');\n`);
+  writeFileSync(join(box.repo, 'doctrine.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(logs.doctrine)}, 'ran\\n');\n`);
+  writeFileSync(join(box.repo, 'check.cjs'), `process.exit(require('node:fs').existsSync(${JSON.stringify(armed)}) ? 0 : 1);\n`);
+  appendFileSync(join(box.repo, 'DOCTRINE.md'), '\n## Q · Quality\n- Q1 [approved, must] Every doctrine run is counted. | gate: check node doctrine.cjs | count: 0\n');
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: logged static and doctrine checks [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  ok(box.run(box.repo, 'add', 'web', 'Build the page', '--criterion', 'the page is built', '--check', 'node check.cjs', '--json'));
+  ok(box.run(box.web, 'claim', '1', '--json'));
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web/page.txt'), 'built\n');
+  box.git(box.web, 'add', '-A');
+  box.git(box.web, 'commit', '-q', '-m', 'feat(web): build the page [G1]');
+  return { box, logs, armed };
+}
+
+test('a second submit of an unchanged tree runs no static or doctrine check and cites the receipts [V4,C7]', { timeout: 240_000 }, (t) => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const { box, logs, armed } = project(helpers);
+  rmSync(armed, { force: true });
+  const red = box.run(box.web, 'submit', '1', '--json');
+  assert.notEqual(red.code, 0, 'the item check is red on the first submit');
+  assert.equal(runs(logs.static), 1, 'the static check ran once');
+  assert.equal(runs(logs.doctrine), 1, 'the doctrine check ran once');
+  writeFileSync(armed, 'green\n');
+  const second = box.run(box.web, 'submit', '1');
+  assert.equal(second.code, 0, second.out + second.err);
+  assert.equal(runs(logs.static), 1, 'the unchanged tree runs no static check again');
+  assert.equal(runs(logs.doctrine), 1, 'the unchanged tree runs no doctrine check again');
+  assert.match(second.out + second.err, /static check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the static receipt');
+  assert.match(second.out + second.err, /doctrine check reused receipt [0-9a-f-]{36} for tree [0-9a-f]{12}/u, 'submit cites the doctrine receipt');
+  // A reviewer checking the same submitted tree from its own worktree cites the same receipt.
+  const commit = box.git(box.web, 'rev-parse', 'HEAD');
+  const review = join(box.dir, 'api-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
+  ok(box.run(review, 'join', 'api', '--json'));
+  const checked = box.run(review, 'check', '1', '--yes');
+  assert.equal(checked.code, 0, checked.out + checked.err);
+  assert.equal(runs(logs.static), 1, 'review on the same tree runs no static check');
+  assert.match(checked.out + checked.err, /static check reused receipt/u, 'review cites the receipt');
+});
+
+test('a changed file, check code or config re-runs the check; the same tree in another worktree reuses it [V4,C7]', { timeout: 240_000 }, (t) => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const { box, logs } = project(helpers);
+  const config = { staticChecks: 'node static.cjs', gate: 'true' };
+  const spec = (root, extra = {}) => checkReceiptKey(root, { kind: 'static', definition: config.staticChecks, config, ...extra });
+  const first = spec(box.web);
+  assert.ok(first, 'a clean checkout has a key');
+  writeCheckReceipt(box.web, first, { by: 'web-1' });
+  assert.ok(readCheckReceipt(box.web, first), 'the receipt is read back for the same tree');
+  // A landing worktree at the same composed tree reads the receipt the submit wrote.
+  const landing = join(box.dir, 'landing');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', landing, box.git(box.web, 'rev-parse', 'HEAD'));
+  assert.equal(readCheckReceipt(landing, spec(landing))?.id, readCheckReceipt(box.web, first).id, 'the same tree in another worktree reuses the receipt');
+  assert.equal(runRuleCheck(box.web, 'node doctrine.cjs').broken, '');
+  assert.equal(runRuleCheck(landing, 'node doctrine.cjs').broken, '');
+  assert.equal(runs(logs.doctrine), 1, 'landing reuses the submit tree doctrine observation');
+  // Negative controls: a changed config, a changed check definition, a dirty file and a changed tree each miss.
+  assert.equal(readCheckReceipt(box.web, checkReceiptKey(box.web, { kind: 'static', definition: config.staticChecks, config: { ...config, gate: 'npm test' } })), null, 'a changed config re-runs');
+  assert.equal(readCheckReceipt(box.web, checkReceiptKey(box.web, { kind: 'static', definition: 'node static.cjs --strict', config })), null, 'a changed check re-runs');
+  writeFileSync(join(box.web, 'web/page.txt'), 'changed\n');
+  assert.equal(spec(box.web), null, 'an uncommitted change never reads or writes a receipt');
+  box.git(box.web, 'commit', '-q', '-am', 'feat(web): change the page [G1]');
+  assert.equal(readCheckReceipt(box.web, spec(box.web)), null, 'a changed tree re-runs');
+  // The code that runs a check is part of its definition: changing it re-runs the check on the same tree.
+  const runner = join(box.dir, 'runner-code.js');
+  writeFileSync(runner, '// runner v1\n');
+  const before = spec(box.web, { code: [runner] });
+  writeCheckReceipt(box.web, before, { by: 'web-1' });
+  assert.ok(readCheckReceipt(box.web, spec(box.web, { code: [runner] })), 'unchanged runner code reuses');
+  writeFileSync(runner, '// runner v2\n');
+  assert.equal(readCheckReceipt(box.web, spec(box.web, { code: [runner] })), null, 'changed check code re-runs');
+});

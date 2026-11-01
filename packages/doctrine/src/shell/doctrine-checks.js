@@ -1,3 +1,8 @@
+import { fileURLToPath } from 'node:url';
+import { checkReceiptKey } from '../../../git/index.js';
+import { readCheckReceipt } from '../../../git/index.js';
+import { writeCheckReceipt } from '../../../git/index.js';
+import { receiptLine } from '../../../git/index.js';
 /**
  * Doctrine checks with a count that only falls (D1, D3). A rule row may carry
  * `| gate: check <command> | count: N`, and `| files: <paths>` to narrow it; the command prints one
@@ -117,6 +122,24 @@ export function checkRulesAt(root, revision, name = DOCTRINE_FILE) {
  * @returns {{ problems: string[], broken: string, seconds: number }}
  */
 export function runRuleCheck(cwd, command, timeoutMs = DEFAULT_TIMEOUT_MS, gateEnvironment = {}) {
+  return cachedRuleCheck(cwd, command, timeoutMs, () => executeRuleCheck(cwd, command, timeoutMs, gateEnvironment));
+}
+
+/** Reuse a counted observation on the exact tree; callers still enforce their own rule counts and scopes. */
+export function cachedRuleCheck(root, command, timeoutMs, execute) {
+  const key = checkReceiptKey(root, { kind: 'doctrine', definition: command, config: { timeoutMs }, code: [fileURLToPath(import.meta.url)] });
+  const receipt = readCheckReceipt(root, key);
+  if (receipt && Array.isArray(receipt.result?.problems) && receipt.result.broken === '') {
+    process.stderr.write(`${receiptLine(receipt)}\n`);
+    return receipt.result;
+  }
+  const result = execute();
+  if (!result.broken) writeCheckReceipt(root, key, { result });
+  return result;
+}
+
+/** Execute one doctrine command; only completed exit-zero-or-one observations can be counted. */
+function executeRuleCheck(cwd, command, timeoutMs, gateEnvironment) {
   const started = Date.now();
   const result = spawnSync(`(\n${command}\n) 2>&1`, {
     cwd, env: { ...gitChildEnv(cwd), ...gateEnvironment }, shell: true, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8',
@@ -282,7 +305,11 @@ export function holdDoctrine(root, { mainCommit, commit, practice = DOCTRINE_FIL
   for (const rule of rules) {
     if (!changed.some((path) => inScope(rule.files, path))) continue;
     const committed = Math.min(rule.count, lowered.get(rule.id) ?? rule.count);
-    const run = runCheck ? runCheck(commit, rule.command, timeoutMs) : runRuleCheck(root, rule.command, timeoutMs);
+    const run = runCheck
+      ? (gitOut(root, ['rev-parse', 'HEAD^{tree}']) === gitOut(root, ['rev-parse', `${commit}^{tree}`])
+        ? cachedRuleCheck(root, rule.command, timeoutMs, () => runCheck(commit, rule.command, timeoutMs))
+        : runCheck(commit, rule.command, timeoutMs))
+      : runRuleCheck(root, rule.command, timeoutMs);
     const count = run.problems.length;
     const state = ruleState(rule, count, committed, run.broken);
     const result = { id: rule.id, text: rule.text, command: rule.command, count, committed,
