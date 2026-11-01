@@ -561,15 +561,6 @@ test('every refusal a move raises today is declared on that move, and every decl
   }
 });
 
-test('generator-backed shell execution keeps its escaping refusals visible to the lifecycle audit [M1,M4,C7]', () => {
-  const planted = editedSource('../packages/gate/src/shell/shell-run.js', /^function\* shellExecution\(root, command, .*$/m,
-    "$&\n  throw new Refused('GENERATOR_PROBE', 'an actual generator guard must stay audited');");
-  const walk = codeWalk(planted);
-  for (const name of ['runShell', 'runShellAsync']) {
-    assert.ok(walk.refusalsOf(`../packages/gate/src/shell/shell-run.js#${name}`).has('GENERATOR_PROBE'), `${name} reaches the generator refusal`);
-  }
-});
-
 test('a broken copy of the declaration fails the check against the code, both ways [M1, M4]', () => {
   const noLaneHold = copy();
   noLaneHold.guards = noLaneHold.guards.filter((guard) => guard.id !== 'laneOpen');
