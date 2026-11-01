@@ -376,3 +376,32 @@ test('lane hook permits only an owned rename and its exact foreign import repoin
   assert.ok(submissionPaths(box.web, { item_lane: 'web', item_claim_head: base,
     item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('api/view.js'));
 });
+
+test('lane hook accepts a deleted shim repoint only to its exact body [L3]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  mkdirSync(join(box.repo, 'web'), { recursive: true });
+  mkdirSync(join(box.repo, 'api'), { recursive: true });
+  writeFileSync(join(box.repo, 'web/body.js'), 'export const value = 1;\n');
+  writeFileSync(join(box.repo, 'web/shim.js'), "export { value } from './body.js';\n");
+  const before = "import { value } from '../web/shim.js';\nexport const result = value;\n";
+  writeFileSync(join(box.repo, 'api/view.js'), before);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: seed shim fixture');
+  box.git(box.web, 'merge', '--ff-only', 'main');
+  box.git(box.web, 'rm', 'web/shim.js');
+  const view = join(box.web, 'api/view.js');
+  writeFileSync(view, before.replace('shim.js', 'body.js').replace('result = value', 'result = 2'));
+  box.git(box.web, 'add', 'api/view.js');
+  assert.equal(box.run(box.web, 'hook', 'pre-commit').code, 1, 'additional logic edit refuses');
+  writeFileSync(view, before.replace('shim.js', 'body.js'));
+  box.git(box.web, 'add', 'api/view.js');
+  const accepted = box.run(box.web, 'hook', 'pre-commit');
+  assert.equal(accepted.code, 0, accepted.out + accepted.err);
+  const base = box.git(box.web, 'rev-parse', 'HEAD');
+  box.git(box.web, 'commit', '-q', '-m', 'test: remove shim');
+  const commit = box.git(box.web, 'rev-parse', 'HEAD');
+  assert.ok(submissionPaths(box.web, { item_lane: 'web', item_claim_head: base,
+    item_frozen: JSON.stringify({ policy: { commit: base } }) }, commit, { mainCommit: base }).includes('api/view.js'));
+});
