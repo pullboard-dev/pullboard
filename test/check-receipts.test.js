@@ -198,7 +198,7 @@ test('POSIX PATH checker definitions follow the executable the shell actually se
 
 
 test('shell wrappers and tracked constant loaders include changed external helpers [V4,C7]', t => {
-  for (const wrapper of ['shell', 'tracked-loader']) {
+  for (const wrapper of ['shell', 'shell-without-extension', 'tracked-loader']) {
     const helpers = createE2eHelpers();
     t.after(helpers.cleanup);
     const { box } = project(helpers);
@@ -206,14 +206,14 @@ test('shell wrappers and tracked constant loaders include changed external helpe
     const counter = join(box.dir, 'wrapped-runs.log');
     writeFileSync(script, `require('node:fs').appendFileSync(${JSON.stringify(counter)}, 'ran\\n');\n`);
     let command;
-    if (wrapper === 'shell') {
-      const shell = join(box.dir, 'wrapper.sh');
-      writeFileSync(shell, `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)}\n`);
+    if (wrapper.startsWith('shell')) {
+      const shell = join(box.dir, wrapper === 'shell' ? 'wrapper.sh' : 'wrapper');
+      writeFileSync(shell, `${wrapper === 'shell' ? '#!/bin/sh\n' : ''}exec ${JSON.stringify(process.execPath)} ${JSON.stringify(script)}\n`);
       command = `/bin/sh ${JSON.stringify(shell)}`;
     } else {
       writeFileSync(join(box.web, 'web/loader.cjs'), `const checker = ${JSON.stringify(script)}; require(checker);\n`);
       box.git(box.web, 'add', 'web/loader.cjs');
-      box.git(box.web, 'commit', '-q', '-m', 'test: tracked loader [V4,C7]');
+      box.git(box.web, 'commit', '-q', '-m', 'test: tracked loader [G1]');
       command = 'node web/loader.cjs';
     }
     assert.deepEqual(runRuleCheck(box.web, command).problems, []);
@@ -234,7 +234,7 @@ test('configuration receipts cover both files and report changed parts [V4,C7]',
   assert.ok(readCheckReceipt(box.repo, spec()));
   writeFileSync(join(box.repo, 'package.json'), '{"type":"commonjs","checkerMode":"strict"}\n');
   box.git(box.repo, 'add', 'package.json');
-  box.git(box.repo, 'commit', '-q', '-m', 'test: config change [V4,C7]');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: config change [G1]');
   const changed = spec();
   assert.notEqual(changed.configDigest, first.configDigest, 'package config is fingerprinted independently of the tree');
   const lines = [];

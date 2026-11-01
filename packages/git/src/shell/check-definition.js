@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { realpathSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
+import { basename } from 'node:path';
 import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { isAbsolute } from 'node:path';
@@ -48,7 +49,7 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
   const files = new Map();
   const project = realpathSync(root);
   /** Include actual bytes even for symlinks or files outside the checked Git tree. */
-  function visit(input, strict = true) {
+  function visit(input, strict = true, language = '') {
     const file = realpathSync(input);
     if (files.has(file)) return;
     if (files.size >= 8192) throw new Error('checker dependency closure is unbounded');
@@ -57,7 +58,7 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
     const path = relative(project, file);
     files.set(file, { path: path.startsWith('..') || isAbsolute(path) ? file : `project:${path}`, mode: String(stat.mode), digest: fileDigest(file, stat) });
     const source = readFileSync(file, 'utf8');
-    if (/\.sh$/u.test(file) || /^#![^\n]*\b(?:ba|da|z)?sh\b/u.test(source)) {
+    if (language === 'sh' || /\.sh$/u.test(file) || /^#![^\n]*\b(?:ba|da|z)?sh\b/u.test(source)) {
       for (const line of source.split(/\r?\n/u)) {
         const text = line.trim();
         if (!text || text.startsWith('#')) continue;
@@ -68,7 +69,10 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
       }
       return;
     }
-    if (!/\.[cm]?js$/u.test(file)) return;
+    if (language !== 'js' && !/\.[cm]?js$/u.test(file) && !/^#![^\n]*\bnode\b/u.test(source)) {
+      if (/^#!/u.test(source) || /\.(?:py|rb|pl|php|ts|mjscript)$/u.test(file)) throw new Error('unsupported checker loader');
+      return;
+    }
     const { code, strings } = lex(source);
     const constants = new Map();
     for (const value of strings) {
@@ -107,11 +111,14 @@ export function checkCommandDefinition(root, commands, codeFiles = []) {
     const program = executable(root, words[0]);
     if (!program) throw new Error('checker executable not found');
     visit(program);
+    const interpreter = basename(program);
+    const language = /^(?:ba|da|z)?sh$/u.test(interpreter) ? 'sh' : /^node(?:\.exe)?$/u.test(interpreter) ? 'js' : '';
+    let script = true;
     for (const word of words.slice(1)) {
       const operand = word.startsWith('-') ? word.includes('=') ? word.slice(word.indexOf('=') + 1) : '' : word;
       if (!operand) continue;
       const path = resolve(root, operand);
-      try { if (statSync(path).isFile()) visit(path); }
+      try { if (statSync(path).isFile()) { visit(path, true, script ? language : ''); if (!word.startsWith('-')) script = false; } }
       catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
     }
   }
