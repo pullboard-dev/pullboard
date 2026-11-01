@@ -6,7 +6,7 @@
  "frontDoor": "packages/state/index.js",
  "paths": [
   ["src/agent-grant.js","packages/state/src/core/agent-grant.js","seed"],
-  ["src/corrected-bar.js","packages/state/src/shell/corrected-bar.js","imports"],
+  ["src/corrected-bar.js","packages/state/src/core/corrected-bar.js","imports"],
   ["src/engine-folder.js","packages/state/src/shell/engine-folder.js","rule"],
   ["src/engine.js","packages/state/src/shell/engine.js","seed"],
   ["src/format-registry.js","packages/state/src/shell/format-registry.js","seed"],
@@ -90,7 +90,7 @@
   ["src/engine-move-queue-submit-handoff.js","packages/state/src/shell/engine-move-queue-submit-handoff.js","rule"],
   ["src/plan-merge-engine.js","packages/state/src/shell/plan-merge-engine.js","rule"]
  ],
- "reexports": ["src/corrected-bar.js","src/engine.js","src/machine.js"],
+ "reexports": ["src/engine.js","src/machine.js"],
  "imports": [
   {"cell":"kernel","imports":8,"before":true},
   {"cell":"config","imports":2,"before":true},

@@ -1130,6 +1130,10 @@
     {
       "path": "src/move-history/193.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/milestone-rank-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
