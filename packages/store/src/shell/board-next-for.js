@@ -40,7 +40,7 @@ import { reviewerChecks } from "./board.js";
 import { buildOrder } from "./board-build-order.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { lineSettings } from "../../../state/index.js";
-import { reworkFamilyRoute } from "../core/rework-family-routing.js";
+import { rejectionReturnEnabled, reworkFamilyRoute } from "../core/rework-family-routing.js";
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
@@ -146,7 +146,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
-  if (familyRework) for (const candidate of mine) {
+  if (familyRework || rejectionReturnEnabled(board)) for (const candidate of mine) {
     if (firstRefusal(board, candidate.entry.item_id)?.otherSeatFirst) continue;
     const routing = reworkFamilyRoute(board, candidate.entry, { listAgents, routeOf, canTake,
       seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily, policy: reworkRoutingPolicy });
@@ -171,6 +171,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }
   }
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
   for (const { entry, shared, reworkRouting: rework } of mine) {
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
@@ -194,7 +195,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const heldFor = claimWaitingOn(board, entry.item_id);
     if (heldFor.length) { reasons.push(`#${entry.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land`); continue; }
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
-      [...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
+      [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));

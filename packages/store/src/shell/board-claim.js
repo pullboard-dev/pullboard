@@ -43,7 +43,7 @@ import { canTake } from "../../../../src/route-escalation.js";
 import * as itemDependencies from "../../../items/index.js";
 import { firstRefusalProblem } from "../../../items/index.js";
 import { firstRefusal } from "../core/board-item-read.js";
-import { reworkFamilyRoute } from "../core/rework-family-routing.js";
+import { rejectionReturnEnabled, reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";
 import * as capacity from "../../../../src/line-capacity-board.js";
 import {
@@ -117,7 +117,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         const continuation = exitContinuationProblem(board, id, agentId);
         if (continuation) return continuation;
         if (firstRefusal(board, id)?.otherSeatFirst) return firstRefusalProblem(board, id, agentId, { firstRefusal });
-        if (reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
+        if (rejectionReturnEnabled(board) || reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
           reworkRouting = reworkFamilyRoute(board, found, { agentId, listAgents: board.nativePorts.listAgents,
             routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,
             policy: reworkRoutingPolicy, now: board.clock.now().getTime() });

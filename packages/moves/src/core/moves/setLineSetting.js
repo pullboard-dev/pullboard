@@ -1,3 +1,4 @@
+import { REJECTION_RETURN_ENGINE } from '../../../../state/index.js';
 import { REJECT_CLAUSE_ENGINE } from "../../../../../src/reject-clause-engine.js";
 import { FOCUS_MILESTONE_ENGINE } from "../../../../../src/focus-milestone-engine.js";
 import { LAND_COLLISION_ENGINE } from "../../../../../src/landing-collision-engine.js";
@@ -30,7 +31,7 @@ function minimumEngine(args, board, at) {
     args[0]?.key === 'bar.check' ? BAR_CHECK_ENGINE : 1,
     args[0]?.key === 'bar.sharpenToPerson' ? REJECT_CLAUSE_ENGINE : 1,
     args[0]?.key === 'requireReviewFamilies' ? REVIEW_INDEPENDENCE_ENGINE : args[0]?.key === 'route.liveOnly' ? LIVE_ROUTE_ENGINE : 1,
-    args[0]?.key === 'reworkSameFamily' ? REWORK_SAME_FAMILY_ENGINE : 1,
+    args[0]?.key === 'returnRejectedWork' ? REJECTION_RETURN_ENGINE : args[0]?.key === 'reworkSameFamily' ? REWORK_SAME_FAMILY_ENGINE : 1,
   );
 }
 

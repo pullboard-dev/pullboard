@@ -1,4 +1,4 @@
-import { agentHandoff } from "../../../state/index.js";
+import { lineSettings, ENGINE_VERSION, REJECTION_RETURN_ENGINE, agentHandoff } from "../../../state/index.js";
 import { staleInstant } from "./board-stale-state-policy.js";
 import { randomUUID } from 'node:crypto';
 const ACTIVITY_KINDS = "'claim','renew','submit','accept','reject','release'";
@@ -38,7 +38,7 @@ export function nativeSeatRouteState(board, agentId, { takeoverMs, graceMs, now 
 /** Find the current rejected or reopened episode without relying on display projections. */
 function returnedEpisode(board, item) {
   if (item.item_status !== 'open' || !item.item_built_by) return null;
-  const event = board.db.prepare("SELECT event_id,event_kind FROM event WHERE item_id=? AND event_kind IN ('submit','reject','reopen') ORDER BY event_id DESC LIMIT 1")
+  const event = board.db.prepare("SELECT event_id,event_kind,event_at,event_detail FROM event WHERE item_id=? AND event_kind IN ('submit','reject','reopen') ORDER BY event_id DESC LIMIT 1")
     .get(item.item_id);
   return event && ['reject', 'reopen'].includes(event.event_kind) ? event : null;
 }
@@ -47,6 +47,15 @@ function returnedEpisode(board, item) {
 export function reworkFamilyRoute(board, item, { listAgents, routeOf, canTake, seatFamily, canonicalFamily, policy, now = board.clock.now().getTime() } = {}) {
   const episode = returnedEpisode(board, item);
   if (!episode) return { applies: false, allowed: null };
+  if (rejectionReturnEnabled(board) && episode.event_kind === 'reject') {
+    const builder = item.item_built_by;
+    const beforeDeadline = now < Date.parse(episode.event_at) + 30 * 60_000;
+    const verdict = board.db.prepare("SELECT verdict_note FROM verdict WHERE item_id=? ORDER BY verdict_id DESC LIMIT 1").get(item.item_id);
+    const detail = JSON.parse(episode.event_detail);
+    return { applies: true, mode: beforeDeadline ? 'builder' : 'rejected-open', builder, episode: episode.event_id,
+      allowed: beforeDeadline ? [builder] : null, rejection: { clause: detail.clause, note: verdict?.verdict_note ?? '', commit: item.item_commit } };
+  }
+  if (rejectionReturnEnabled(board) && !lineSettings(board).reworkSameFamily) return { applies: false, allowed: null };
   if (!policy || !Number.isSafeInteger(policy.takeoverMs) || !Number.isSafeInteger(policy.graceMs)) {
     return { applies: true, mode: 'policy-unknown', allowed: [] };
   }
@@ -77,4 +86,9 @@ export function sealReworkRoutingPolicy(windows) {
 export function isReturnedRework(board, id) {
   const item = board.db.prepare('SELECT * FROM item WHERE item_id=?').get(id);
   return Boolean(item && returnedEpisode(board, item));
+}
+
+/** Keep new boards and historical replay on the prior rework policy until explicitly enabled [B35,H16]. */
+export function rejectionReturnEnabled(board) {
+  return (board.executionEngineVersion ?? ENGINE_VERSION) >= REJECTION_RETURN_ENGINE && lineSettings(board).returnRejectedWork === true;
 }
