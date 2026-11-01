@@ -8,7 +8,10 @@ import { resumeAutomaticLanding } from '../packages/landing/index.js';
 import { AGENT_SESSION_IDS } from '../packages/kernel/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
 import { isAbsolute } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+const FILE = fileURLToPath(import.meta.url);
+if (process.argv[1] === FILE) {
 const [root, token, scheduled, wakeFlag, dueAt] = process.argv.slice(2);
 if (!isAbsolute(root ?? '') || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(token ?? '')
   || scheduled !== '--scheduled' || wakeFlag !== '--wake-at' || !Number.isFinite(Date.parse(dueAt)) || process.argv.length !== 7) {
@@ -20,3 +23,5 @@ const io = { ...outbox, cwd: root, nativeBoard, stdout: process.stdout, stderr: 
   outboxPolicy: () => ({ acknowledgedOperations: outbox.ACKNOWLEDGED_OPERATIONS, outboxQueueable: outbox.outboxQueueable }),
   say: console.log, err: console.error };
 await resumeAutomaticLanding(root, token, dueAt, async () => landAfterAcceptance(context(io)));
+
+}

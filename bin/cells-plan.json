@@ -1582,6 +1582,10 @@
     {
       "path": "bin/verify-release-receipt.js",
       "cell": "app:cli"
+    },
+    {
+      "path": "bin/automatic-landing.js",
+      "cell": "app:cli"
     }
   ],
   "engineStays": [
