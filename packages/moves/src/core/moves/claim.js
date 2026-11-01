@@ -1,5 +1,4 @@
-import { REJECTION_RETURN_ENGINE } from '../../../../state/index.js';
-import { lineSettings } from '../../../../state/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
 import { PIPELINE_CAUSE_ENGINE } from "../../../../../src/pipeline-cause-engine.js";
 import { EXIT_RULES_ENGINE } from "../../../../../src/exit-rules-engine.js";
 import { checkTimingEngine } from "../../../../items/core.js";
@@ -37,7 +36,7 @@ function minimumEngine(args, board, at) {
   const validId = ['number', 'string'].includes(typeof id) && Number.isSafeInteger(Number(id)) && Number(id) > 0;
   const item = board && validId ? board.db.prepare('SELECT item_after FROM item WHERE item_id=?').get(id) : null;
   const foreign = item && hasForeignDependencies(item);
-  return Math.max((args[1]?.returnRejectedWork === true || board && lineSettings(board).returnRejectedWork === true) ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
+  return Math.max(args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
     foreign ? CROSS_REPO_DEPENDENCY_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 

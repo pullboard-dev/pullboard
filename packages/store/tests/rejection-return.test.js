@@ -1,3 +1,6 @@
+import { prepareEngineMove } from '../../state/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../state/index.js';
+import { MOVE_REGISTRY } from '../../moves/index.js';
 import { requireFixtureReviewFamilies } from "../../../test/review-family-fixture.js";
 /** @pullboard-test-loads src/board.js src/claims.js */
 /** Advancing clocks preserve the entire opt-in builder window [B13,B5]. */
@@ -96,4 +99,18 @@ test('[B35,H16] rejection routing remains opt-in and respects item holds', t => 
   store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'stop-reason triage' });
   assert.equal(next(f, f.builder).item, null);
   assert.throws(() => claim(f, id, f.builder), error => error.code === 'ITEM_HELD');
+});
+
+test('[B35,H16] automatic rejection routing is sealed into claim and verdict replay floors', t => {
+  const f = fixture(t); enable(f);
+  const id = returned(f, 'reject', 0);
+  const options = { agentId: f.builder, lane: 'core', leaseMs: 7_200_000,
+    freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'fixture-bar' }) };
+  const claimMove = prepareEngineMove(f.board, 'claim', [id, options]);
+  const verdictMove = prepareEngineMove(f.board, 'verify', [id, { agentId: f.other, decision: 'REJECT' }]);
+  assert.equal(claimMove.args[1].returnRejectedWork, true);
+  assert.equal(verdictMove.args[1].returnRejectedWork, true);
+  for (const operation of ['claim', 'verify', 'reopen']) {
+    assert.ok(MOVE_REGISTRY[operation].minimumEngine([id, { returnRejectedWork: true }], f.board) >= REJECTION_RETURN_ENGINE);
+  }
 });

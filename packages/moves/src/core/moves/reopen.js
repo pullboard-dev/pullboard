@@ -1,5 +1,4 @@
-import { REJECTION_RETURN_ENGINE } from '../../../../state/index.js';
-import { lineSettings } from '../../../../state/index.js';
+import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../../src/source-advance-engine.js";
 import { MECHANICAL_MERGE_ENGINE } from "../../../../../src/mechanical-merge-engine.js";
@@ -39,7 +38,7 @@ function existingEngine(args, board, at) {
 /** Keep verdict withdrawal as an independent maximum over every prior first-match floor [H16]. */
 function minimumEngine(args, board, at) {
   const carried = board && board.db.prepare("SELECT 1 FROM item i JOIN event e ON e.item_id = i.item_id WHERE i.item_id = ? AND e.event_kind = 'merge-only-accept' AND json_extract(e.event_detail,'$.commit') = i.item_commit LIMIT 1").get(args[0]);
-  return Math.max(board && lineSettings(board).returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.sourceAdvanceReturn?.phases?.some(phase => Object.hasOwn(phase.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1, args[1]?.sourceAdvanceReturn !== undefined ? SOURCE_ADVANCE_ENGINE : 1, args[1]?.computedConflict?.version === 4 ? PLAN_MERGE_ENGINE : 1,
+  return Math.max(args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.sourceAdvanceReturn?.phases?.some(phase => Object.hasOwn(phase.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1, args[1]?.sourceAdvanceReturn !== undefined ? SOURCE_ADVANCE_ENGINE : 1, args[1]?.computedConflict?.version === 4 ? PLAN_MERGE_ENGINE : 1,
     args[1]?.computedConflict?.version === 3 ? GENERATED_DOCS_ENGINE : 1,
     args[1]?.computedConflict?.version === 2 ? MECHANICAL_MERGE_ENGINE : 1,
     carried ? MERGE_ONLY_VERDICT_ENGINE : 1,
