@@ -4,10 +4,9 @@ import { isLane } from '../lanes.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { idProblems } from '../../packages/spec/index.js';
 import { loadSpec } from '../../packages/spec/index.js';
-import { checkBaseline } from '../check-baseline.js';
-import { prepareCheckBaseline } from '../check-baseline.js';
-import { refuseCheckSyntax } from '../check-baseline.js';
-import { sayCheckBaseline } from '../check-baseline.js';
+import { checkBaseline } from '../../packages/gate/index.js';
+import { refuseCheckSyntax } from '../../packages/gate/index.js';
+import { sayCheckBaseline } from '../../packages/gate/index.js';
 import { relayCommandReceipt } from '../relay.js';
 import { relayCommandReceiptReported } from '../relay.js';
 import { actOn } from '../cli.js';
@@ -16,7 +15,6 @@ import { briefArg } from '../cli.js';
 import { briefInLane } from '../cli.js';
 import { idArg } from '../cli.js';
 import { idList } from '../cli.js';
-import { launchBaseline } from '../cli.js';
 import { ordered } from '../cli.js';
 import { buildInFilelessLane } from '../cli.js';
 
@@ -42,11 +40,9 @@ export async function run(io, { first, second, rest, values }) {
       const plan = store.planCompanion(board, request);
       if (!plan.existing && plan.validated.command) {
         refuseCheckSyntax(plan.validated.command);
-        request.checkBaseline = values.wait ? checkBaseline(ctx.info.root, plan.validated.command)
-          : prepareCheckBaseline(ctx.info.root, plan.validated.command);
+        request.checkBaseline = checkBaseline(ctx.info.root, plan.validated.command);
       }
       result = await ordered(ctx, board, 'requestCompanion', [request]);
-      if (result.created && request.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, result.item, request.checkBaseline);
     }
     const item = store.getItem(board, result.item);
     io.result?.({ item, created: result.created });

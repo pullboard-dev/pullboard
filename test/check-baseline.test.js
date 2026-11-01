@@ -131,7 +131,7 @@ function fileCheck(expected, marker = 'check-marker.txt', observations = null) {
 
 /** Add a check-bearing item as coordinator and return its JSON result and item id. */
 function addChecked(box, title, check) {
-  const result = box.run(box.repo, ['add', 'web', title, '--specs', 'G1', '--criterion', 'the check is measured on main', '--check', check, '--wait', '--json']);
+  const result = box.run(box.repo, ['add', 'web', title, '--specs', 'G1', '--criterion', 'the check is measured on main', '--check', check, '--json']);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(result.stderr, '', 'add writes no baseline diagnostics to stderr');
   return { result, item: JSON.parse(result.stdout).item };
@@ -165,29 +165,23 @@ function heldCheck(box, name) {
   return { started, finished, release, command: `${shellWord(process.execPath)} -e ${shellWord(script)}` };
 }
 
-test('[V2,H16] add and edit return while isolated background checks are held, then publish their results', async (t) => {
+test('[B35,V2,H16] add records the isolated trunk baseline before returning while edits can finish in background', async (t) => {
   const box = project({ content: 'committed' });
   const originalMain = box.git(box.repo, 'rev-parse', 'main');
   writeFileSync(join(box.repo, 'web/result.txt'), 'dirty live checkout\n');
-  const addition = heldCheck(box, 'add-background');
+  const observations = join(box.dir, 'add-baseline-locations');
+  const command = fileCheck('committed', 'add-baseline-marker', observations);
   const edit = heldCheck(box, 'edit-background');
-  t.after(() => {
-    writeFileSync(addition.release, 'release');
-    writeFileSync(edit.release, 'release');
-  });
-  const added = box.run(box.repo, ['add', 'web', 'Background check', '--check', addition.command, '--json']);
+  t.after(() => writeFileSync(edit.release, 'release'));
+  const added = box.run(box.repo, ['add', 'web', 'Automatic baseline', '--check', command, '--json']);
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
-  assert.equal(existsSync(addition.finished), false, 'add returns before its baseline finishes');
   const item = JSON.parse(added.stdout).item;
-  assert.equal(item.item_check_baseline.result, 'pending');
+  assert.equal(item.item_check_baseline.result, 'green');
   assert.equal(item.item_check_baseline.main, originalMain);
-  await waitForState(() => existsSync(addition.started), 'the detached add worker runs after the caller exits');
-  const observed = JSON.parse(readFileSync(addition.started, 'utf8'));
-  assert.notEqual(observed.cwd, box.repo);
-  assert.equal(observed.content, 'committed', 'the baseline sees committed main, never dirty live content');
-  writeFileSync(addition.release, 'release');
-  await waitForState(() => withBoard(join(box.repo, BOARD_FILE), (board) => getItem(board, item.item_id).item_check_baseline?.result === 'green'), 'the background add result is recorded');
-  assert.equal(existsSync(observed.cwd), false, 'the isolated checkout is removed after its check');
+  const locations = readFileSync(observations, 'utf8').trim().split('\n');
+  assert.equal(locations.length, 1, 'add runs exactly one baseline');
+  assert.notEqual(locations[0], box.repo);
+  assert.equal(existsSync(locations[0]), false, 'the isolated checkout is removed before add returns');
   assert.match(box.run(box.repo, ['show', String(item.item_id)]).stdout, /CRITERION_PROVES_NOTHING/u);
   const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
@@ -273,7 +267,7 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   const shown = box.run(box.repo, ['show', String(item.item_id)]);
   assert.equal(shown.status, 0, shown.stderr);
   assert.match(shown.stdout, /CRITERION_PROVES_NOTHING/u);
-  const textAdded = box.run(box.repo, ['add', 'web', 'Text baseline warning', '--check', check, '--wait']);
+  const textAdded = box.run(box.repo, ['add', 'web', 'Text baseline warning', '--check', check]);
   assert.equal(textAdded.status, 0, textAdded.stderr);
   assert.match(textAdded.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
   const textEdited = box.run(box.repo, ['edit', String(item.item_id), '--check', `${changedCheck}\n# a distinct command`, '--wait']);
@@ -620,4 +614,21 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   plain.git(plain.web, 'commit', '-q', '-m', 'test: submit the unheld fixture');
   const plainSubmit = plain.run(plain.web, ['submit', String(open.item_id), '--json']);
   assert.equal(plainSubmit.status, 0, `a board with no setting submits the green check: ${plainSubmit.stdout}${plainSubmit.stderr}`);
+});
+
+test('[B35,V2] default add records a red baseline and immediately flags an already-green check', () => {
+  const box = project({ content: 'before' });
+  const red = addChecked(box, 'Red baseline', fileCheck('after'));
+  assert.equal(red.item.item_check_baseline.result, 'red');
+  assert.equal(red.item.item_check_baseline.main, box.git(box.repo, 'rev-parse', 'main'));
+  const green = box.run(box.repo, ['add', 'web', 'Already green', '--check', fileCheck('before')]);
+  assert.equal(green.status, 0, `${green.stdout}${green.stderr}`);
+  assert.match(green.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
+});
+
+test('[B35,V2] manual check-baseline is refused because creation owns the observation', () => {
+  const box = project();
+  const refused = box.run(box.repo, ['check-baseline', '1']);
+  assert.notEqual(refused.status, 0);
+  assert.match(`${refused.stdout}${refused.stderr}`, /CHECK_BASELINE_AUTOMATIC.*the board baselines checks on add/u);
 });
