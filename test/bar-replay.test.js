@@ -7,7 +7,7 @@ import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../src/engine.js';
 import { BAR_READY_ENGINE } from '../src/bar-ready-engine.js';
-import { barReadiness } from '../src/bar-readiness.js';
+import { barReadiness } from '../packages/verify/index.js';
 
 const SHA='a'.repeat(40);
 const ACTORS={coordinator:{session:'a'.repeat(64),parent:'a'.repeat(64)},'core-1':{session:'b'.repeat(64),parent:'a'.repeat(64)},'core-2':{session:'c'.repeat(64),parent:'c'.repeat(64)}};

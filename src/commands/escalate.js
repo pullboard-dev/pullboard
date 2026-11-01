@@ -1,7 +1,7 @@
 /** The pullboard escalate command, in its own module so an item adding another command never edits these lines. */
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   laneNames,
 } from '../lanes.js';

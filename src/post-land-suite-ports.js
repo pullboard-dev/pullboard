@@ -4,7 +4,7 @@ import { git } from './git.js';
 import { laneOf } from './lanes.js';
 import { listItems } from './board-query.js';
 import { unownedMainReds } from './known-main-reworks.js';
-import { postLandSuiteEnabled } from './settings.js';
+import { postLandSuiteEnabled } from '../packages/config/index.js';
 import { runFullSuite } from './test-run.js';
 import { failureSignatures } from './main-failure-matches.js';
 import { runnerExecutionServices } from './runners.js';

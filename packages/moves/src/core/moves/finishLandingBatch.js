@@ -1,9 +1,9 @@
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
-import { quarantineBatchGates } from "../../../../../src/quarantine-verdict.js";
+import { quarantineBatchGates } from "../../../../verify/src/core/quarantine-verdict.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by finishLandingBatch, discovered without a shared registry edit [C7,V4,H16]. */
 import { VERDICT_REVIEW_ENGINE } from "../../../../../src/engine-metadata.js";
-import { carriesLandingEnvironment } from "../../../../../src/execution-environment.js";
+import { carriesLandingEnvironment } from "../../../../sandbox/src/shell/execution-environment.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../../src/land-engine.js";
 import { landingBatches } from "../../../../../src/landing-batch-history.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../../src/landing-environment-engine.js";

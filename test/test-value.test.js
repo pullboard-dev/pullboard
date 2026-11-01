@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
-import { defaults, configFromSource } from '../src/config.js';
+import { defaults, configFromSource } from '../packages/config/index.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 import { boardReceiptStore } from '../src/gate-run-receipt.js';
 import { readTestValueTimings, retainTestValueTimings } from '../src/test-value-timing.js';

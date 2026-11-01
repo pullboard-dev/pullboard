@@ -1,7 +1,7 @@
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from './engine-numbers.js';
 import { placeLandingHistory } from './landing-history-plan.js';
-import { resolveMechanicalIndex } from './mechanical-merge.js';
+import { resolveMechanicalIndex } from '../packages/merge/index.js';
 import { writeFormatTable } from './format-registry.js';
 import { refreshLandingDocs } from './landing-docs.js';
 import { existsSync } from 'node:fs';
@@ -16,8 +16,8 @@ import { Refused } from '../packages/kernel/index.js';
 import { checkLandingMessages } from './landing-message.js';
 import { landingContext } from './landing-message.js';
 import { tightenLandingDoctrine } from './landing-doctrine.js';
-import { staleVerdictRefusal } from './verdict-freshness.js';
-import { verdictProjector } from './verdict-freshness.js';
+import { staleVerdictRefusal } from '../packages/verify/index.js';
+import { verdictProjector } from '../packages/verify/index.js';
 
 /** Append a durable snapshot before or after each external side effect. */
 export async function save(state, patch) {

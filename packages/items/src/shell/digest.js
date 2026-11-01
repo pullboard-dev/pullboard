@@ -46,8 +46,8 @@ import { Refused } from "../../../kernel/index.js";
 import {
   rowDecisionContext,
   staleRowDecision,
-} from "../../../../src/row-decision-state.js";
-import { loadConfig } from "../../../../src/config.js";
+} from "../../../spec/index.js";
+import { loadConfig } from "../../../config/index.js";
 
 /** The briefing stays under 50 KB, counted in UTF-8 bytes. */
 export const DIGEST_MAX_BYTES = 50_000;

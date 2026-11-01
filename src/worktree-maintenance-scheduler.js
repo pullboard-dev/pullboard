@@ -25,11 +25,11 @@ import { git } from './git.js';
 import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
 import { withGitFacts } from './git.js';
-import { mainPolicy } from './trusted-policy.js';
-import { withFileLock } from './relay-outbox-guard.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
+import { withFileLock } from '../packages/outbox/index.js';
 import { maintenanceTimerWarning } from './worktree-maintenance-diagnostics.js';
 import { readMaintenanceLastRun } from './worktree-maintenance-diagnostics.js';
-import { maintenanceDurations } from './worktree-maintenance-config.js';
+import { maintenanceDurations } from '../packages/config/index.js';
 
 const TOKEN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 const NOFOLLOW = constants.O_NOFOLLOW;

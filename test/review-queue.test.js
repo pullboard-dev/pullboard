@@ -16,7 +16,7 @@ import { unpackRelease } from './release-archive.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { nextReview } from '../src/next-review.js';
+import { nextReview } from '../packages/verify/index.js';
 import { mainRedReviewItems } from '../src/main-red.js';
 import { Refused } from '../packages/kernel/core.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';

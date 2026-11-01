@@ -290,7 +290,7 @@ function usesDynamicBuiltinLoader(source) {
  * Loaded on demand: callers that pass byLaunch (the runner's per-file admission) never open settings.
  */
 async function browserByLaunchSetting() {
-  try { return (await import('./settings.js')).browserByLaunchEnabled(); } catch { return false; }
+  try { return (await import('../packages/config/src/shell/settings.js')).browserByLaunchEnabled(); } catch { return false; }
 }
 
 /** Report a one-line explanation when uncertainty reserves browser capacity.
@@ -327,7 +327,7 @@ async function regularCheckSource(root, file, committed) {
 /** Read the exact executable doctrine rules without running them; only the fixed readers qualify. */
 async function sourceOnlyDoctrine(root, committed, commit, env) {
   const [{ configFromSource, loadConfig }, { parseSpec }, { checkRule }] = await Promise.all([
-    import('./config.js'), import('./spec.js'), import('../packages/doctrine/index.js'),
+    import('../packages/config/src/shell/config.js'), import('../packages/spec/src/shell/spec.js'), import('../packages/doctrine/index.js'),
   ]);
   const config = commit ? configFromSource(committedSource(root, committed, 'pullboard.json')) : loadConfig(root);
   let file = config.practice;

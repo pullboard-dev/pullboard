@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { parseSpec } from '../src/spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 
 const RFC = new URL('./rfcs/0006-cells.md', import.meta.url);
 const UNDECIDED = new Set(['R3', 'R8', 'R41', 'R43', 'R46']);

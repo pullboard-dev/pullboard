@@ -1,5 +1,5 @@
 /** Shared elapsed-time policy for coordinator maintenance and read-only status [B4,C7]. */
-import { durationMs } from "../../../../src/config.js";
+import { durationMs } from "../../../config/index.js";
 import { Refused } from "../../../kernel/core.js";
 
 const MINUTE = 60_000;

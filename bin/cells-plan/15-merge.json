@@ -17,17 +17,7 @@
   ["src/trunk-merge.js","packages/merge/src/shell/trunk-merge.js","seed"],
   ["src/generated-doc-conflicts.js","packages/merge/src/core/generated-doc-conflicts.js","imports"]
  ],
- "reexports": [
-  "src/main-moved-warning.js",
-  "src/mechanical-merge.js",
-  "src/merge-only-source.js",
-  "src/merge-only-submit.js",
-  "src/merge-only-verdict.js",
-  "src/source-advance-compose.js",
-  "src/train-mechanical-merge.js",
-  "src/trunk-conflict.js",
-  "src/trunk-merge.js"
- ],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":4,"before":true},
   {"cell":"git","imports":5,"before":true},

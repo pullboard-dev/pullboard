@@ -36,7 +36,7 @@ import { MACHINE } from '../machine.js';
 import { STAR_KEY } from './star.js';
 import { starMarkup } from './star.js';
 import { starRepository } from './star.js';
-import { personNeeds } from '../row-decision-text.js';
+import { personNeeds } from '../../packages/spec/index.js';
 import { homeCapacity } from './home.js';
 import { homeRules } from './home.js';
 import { drawHosted } from './hosted.js';

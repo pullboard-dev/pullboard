@@ -19,7 +19,7 @@ import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';
 import shoutMove from '../src/moves/shout.js';
 import { ACTIVITY_DELIVERY_ENGINE } from '../src/activity-delivery-engine.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
-import { prepareSpecRefreezes } from '../src/spec-refreeze.js';
+import { prepareSpecRefreezes } from '../packages/spec/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
 import { DatabaseSync } from 'node:sqlite';

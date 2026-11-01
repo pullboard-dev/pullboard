@@ -5,7 +5,7 @@ import { SPEC_DRAFT_REFREEZE_ENGINE } from "../../../../../src/spec-draft-refree
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
 import { SPEC_REVISION_ENGINE } from "../../../../../src/spec-revision-engine.js";
-import { rowDecisions } from "../../../../../src/row-decisions-query.js";
+import { rowDecisions } from "../../../../spec/src/core/row-decisions-query.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {

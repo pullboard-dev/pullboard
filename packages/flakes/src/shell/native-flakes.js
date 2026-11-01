@@ -33,7 +33,7 @@ import {
 } from "../../../../src/git.js";
 import {
   mainPolicy,
-} from "../../../../src/trusted-policy.js";
+} from "../../../sandbox/index.js";
 import { fileURLToPath } from 'node:url';
 import { runProfiledShell } from "../../../../src/gate.js";
 import { runFrozenProof } from "../../../../src/gate.js";
@@ -94,7 +94,7 @@ function nodePrefix(command, config, root, pin) {
 /** Recognize the bundled runner by committed bytes, never by a conventional filename in an end-user repo. */
 function knownRunner(root, pin) {
   try {
-    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL('../../../../bin/run-tests.js', import.meta.url))]);
+    const bundled = tryGit(root, ['hash-object', '--no-filters', fileURLToPath(new URL("../../../../bin/run-tests.js", import.meta.url))]);
     if (bundled.status !== 0) return false;
     return [...new Set([pin.head, pin.main].filter(Boolean))].every(commit => {
       if (!committedTest(root, commit, 'bin/run-tests.js')) return false;

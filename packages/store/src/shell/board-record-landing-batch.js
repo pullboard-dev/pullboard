@@ -1,4 +1,4 @@
-import { quarantineBatchGates } from "../../../../src/quarantine-verdict.js";
+import { quarantineBatchGates } from "../../../verify/index.js";
 import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";

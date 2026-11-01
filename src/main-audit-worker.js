@@ -46,7 +46,7 @@ import {
 } from './git.js';
 import {
   policyAt,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import {
   runGate,
 } from './gate.js';
@@ -61,7 +61,7 @@ import {
 } from './lanes.js';
 import {
   withFileLock,
-} from './relay-outbox-guard.js';
+} from '../packages/outbox/index.js';
 import {
   mainAuditDirectory,
 } from './main-audit-state.js';

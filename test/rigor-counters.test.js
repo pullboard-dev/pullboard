@@ -8,15 +8,15 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { clearProofCounters } from '../src/proof-counters.js';
-import { rebuildProofCounters } from '../src/proof-counters.js';
+import { clearProofCounters } from '../packages/verify/index.js';
+import { rebuildProofCounters } from '../packages/verify/index.js';
 import { ensureRigorCounters } from '../packages/rigor/index.js';
 import { resumeRigorCounters } from '../packages/rigor/index.js';
 import { RIGOR_COLD_NOTICE } from '../packages/rigor/index.js';
 import { RIGOR_TAIL_LIMIT } from '../packages/rigor/index.js';
 import { undraftedRigor } from '../packages/rigor/index.js';
 import { rigorSource } from '../src/board-rigor-source.js';
-import { parseSpec } from '../src/spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { coordinatorDecisionSections } from '../src/cli.js';
 import { agentParent } from '../src/board-query.js';
 

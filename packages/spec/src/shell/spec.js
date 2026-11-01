@@ -23,7 +23,7 @@ import {
 import {
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from '../../../../src/config.js';
+} from '../../../config/index.js';
 import { cleanGitEnvironment } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
 import {

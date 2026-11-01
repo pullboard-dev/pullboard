@@ -33,8 +33,8 @@ import { proposeSentinel } from '../src/sentinels.js';
 import { decideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun } from '../src/sentinels.js';
 import { finishSentinelRun } from '../src/sentinels.js';
-import { COORDINATOR } from '../src/config.js';
-import { JSON_SHAPES } from '../src/json.js';
+import { COORDINATOR } from '../packages/config/index.js';
+import { JSON_SHAPES } from '../packages/config/index.js';
 import { exportView } from '../src/commands/view.js';
 import { main as nativeTestMain } from '../test/native-cli-fixture.js';
 import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from '../src/native-board.js';
@@ -53,11 +53,11 @@ import {
   lintSpec,
   parseSpec,
   unmetRows,
-} from '../src/spec.js';
+} from '../packages/spec/index.js';
 import {
   sha256,
   signRows,
-} from '../src/signature.js';
+} from '../packages/spec/index.js';
 import { recordSigningEvents } from '../test/person-passkey-fixture.js';
 
 const guide = readFileSync(new URL('./formats.md', import.meta.url), 'utf8');

@@ -22,20 +22,20 @@ import { personNeedsSummary } from '../needs-summary.js';
 import { identifyCaller } from '../cli-read-context.js';
 import { relayStateExists } from '../local-state.js';
 import { unlinkedRelayStatus } from '../relay-status-fields.js';
-import { ruleProofCounts } from '../rule-proof-counts.js';
+import { ruleProofCounts } from '../../packages/verify/index.js';
 import { memoryHeldRuns } from '../memory-held.js';
 import { readRunnerUtilization } from '../runner-utilization.js';
 import { runnerDeadlineLine } from '../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../runner-wait.js';
-import { reviewQueueLine } from '../review-queue-line.js';
+import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   productLine,
   productSummaries,
-} from '../products.js';
+} from '../../packages/spec/index.js';
 import { originRepository } from '../github-origin.js';
 import {
   loadSpec,
-} from '../spec.js';
+} from '../../packages/spec/index.js';
 import {
   signingLine,
 } from '../person-signing-words.js';
@@ -94,7 +94,7 @@ export async function run(io, { values }) {
     io.result(summary);
     return 0;
   }
-  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../relay-outbox.js')))) io.say(line);
+  if (hasRelayState || summary.relay.excluded) for (const line of (await import('../relay-output.js')).briefLines(summary.relay, (({ describeMove, refusalLine }) => ({ describeMove, refusalLine }))(await import('../../packages/outbox/index.js')))) io.say(line);
   const { items, accepted, rejected } = summary.stats;
   io.say(`${summary.me.displayName}: ${summary.unread} unread shouts; holding ${summary.mine.map((item) => `#${item.item_id}`).join(', ') || 'nothing'}`);
   io.say(`board: ${items.open} open, ${items.claimed} claimed, ${items.submitted} awaiting verification, ${items.verified} verified, ${items.withdrawn} withdrawn`);

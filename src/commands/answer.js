@@ -4,7 +4,7 @@ import * as store from '../board.js';
 import {
   projectSiblings,
   resolveRepo,
-} from '../project-decisions.js';
+} from '../../packages/spec/index.js';
 import {
   parseImplies,
 } from '../implies.js';

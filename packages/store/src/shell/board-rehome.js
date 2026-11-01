@@ -1,5 +1,5 @@
-import { itemReviewPolicy } from "../../../../src/review-independence.js";
-import { twoTierReviews } from "../../../../src/review-independence.js";
+import { itemReviewPolicy } from "../../../verify/index.js";
+import { twoTierReviews } from "../../../verify/index.js";
 /** Re-homing facades share the board's ordinary mutations without growing its central store. */
 import {
   itemRedirect as readItemRedirect,

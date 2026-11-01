@@ -23,7 +23,7 @@ import { readBlueprint } from '../index.js';
 import { validateBlueprint } from '../index.js';
 import { blueprintRowIds } from '../index.js';
 import { starterStates } from '../index.js';
-import { parseSpec } from '../../../src/spec.js';
+import { parseSpec } from '../../spec/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { assertStarterChecks } from '../../../test/blueprint-starter-fixture.js';
 import { writeLegacyWebQuestions } from '../../../test/blueprint-question.fixture.js';

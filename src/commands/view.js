@@ -6,7 +6,7 @@ import {
 import {
   CONFIG_FILE,
   loadConfig,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   codeIsFromMain,
   repoInfo,
@@ -29,7 +29,7 @@ import {
 } from '../serve.js';
 import {
   defaultViewPort,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   busyViewPortRefusal,
   forgetView,

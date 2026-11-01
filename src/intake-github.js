@@ -1,4 +1,4 @@
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { outsideSensitivity } from './outside-sensitive.js';
 /** Read GitHub public source metadata; never post, execute PR programs or use its executable settings. */
 import { githubPullClient } from './pr-github.js';

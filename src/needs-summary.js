@@ -2,8 +2,8 @@
 import { verifiedPasskeyRowDecision } from './person-row-proof.js';
 import * as store from './board-query.js';
 import { repoInfo } from './git.js';
-import { projectRowDecisions } from './row-decisions.js';
-import { loadSpec } from './spec.js';
+import { projectRowDecisions } from '../packages/spec/index.js';
+import { loadSpec } from '../packages/spec/index.js';
 import { loadDoctrine } from './doctrine.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { personBlockWords } from './blocks.js';
@@ -11,7 +11,7 @@ import { displayAgentName } from './agent-names.js';
 import {
   projectSpecApprovals,
   specApprovalState,
-} from './spec-approval.js';
+} from '../packages/spec/index.js';
 import {
   sentinelDraftNeeds,
   sentinels,

@@ -10,9 +10,9 @@ import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
 import { publicUsage } from '../src/shell/cost-read.js';
 import { sumUsage } from '../src/shell/cost-read.js';
-import { localUsage } from '../../../src/cost-prices.js';
-import { usageDollars } from '../../../src/cost-prices.js';
-import { validateCostPrices } from '../../../src/cost-prices.js';
+import { localUsage } from '../../config/index.js';
+import { usageDollars } from '../../config/index.js';
+import { validateCostPrices } from '../../config/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 
 const prices = {

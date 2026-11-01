@@ -4,32 +4,32 @@ import { workQueue } from "../../../items/index.js";
 import { pipelineStats } from "../../../stats/index.js";
 /** @pullboard-test-input packages/doctrine/src/shell/standard-doctrine.md */
 /** One complete native state builder for local HTTP and sealed relay projections [A2,H5,H16]. */
-import { counterProofStats } from "../../../../src/proof-counter-read.js";
+import { counterProofStats } from "../../../verify/index.js";
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE } from "../../../../src/config.js";
+import { CONFIG_FILE } from "../../../config/index.js";
 import { BLOCKS_FILE } from "../../../../src/blocks.js";
 import * as store from "./board.js";
 import { roadmap } from "./board-milestones.js";
 import { displayAgentName } from "../../../../src/agent-names.js";
-import { COORDINATOR } from "../../../../src/config.js";
-import { loadConfig } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
+import { loadConfig } from "../../../config/index.js";
 import { repoInfo } from "../../../../src/git.js";
 import { listApiProjects } from "../../../../src/projects.js";
 import { nativeStateClockWindow } from "../core/native-state-clock.js";
 import { milestoneRoadmap } from "../../../roadmap/index.js";
 import { proofStats } from "../../../../src/stats.js";
 import { readCapacity } from "../../../stats/index.js";
-import { ruleProofCounts } from "../../../../src/rule-proof-counts.js";
+import { ruleProofCounts } from "../../../verify/index.js";
 import { milestoneNamesByItem } from "../../../../src/item-list.js";
 import { withListFields } from "../../../../src/item-list.js";
-import { projectRowDecisions } from "../../../../src/row-decisions.js";
-import { projectSpecApprovals } from "../../../../src/spec-approval.js";
-import { specApprovalState } from "../../../../src/spec-approval.js";
+import { projectRowDecisions } from "../../../spec/index.js";
+import { projectSpecApprovals } from "../../../spec/index.js";
+import { specApprovalState } from "../../../spec/index.js";
 import { personBlockWords } from "../../../../src/blocks.js";
-import { verdictProjector } from "../../../../src/verdict-freshness.js";
+import { verdictProjector } from "../../../verify/index.js";
 import { trunkRevisionReader } from "../../../git/index.js";
 import {
   dependencyValues,

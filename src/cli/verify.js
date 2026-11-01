@@ -3,7 +3,7 @@ import { reviewerStartup } from '../next-steps.js';
 import * as store from '../board.js';
 import { cdTo } from '../cli-context.js';
 import { shellWord } from '../cli-context.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import { displayAgentName } from '../agent-names.js';
 import { mainCheckout } from '../git.js';
 import { tryGit } from '../git.js';

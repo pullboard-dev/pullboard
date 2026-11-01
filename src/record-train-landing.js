@@ -5,7 +5,7 @@ import { getItem } from './board.js';
 import { editItem } from './board.js';
 import { landingBatches } from './board.js';
 import { recordLandingBatch } from './board.js';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { ENGINE_VERSION } from './machine.js';
 import { Refused } from '../packages/kernel/index.js';
 import { receiptBody } from './gate-run-receipt.js';

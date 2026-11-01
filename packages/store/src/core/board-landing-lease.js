@@ -3,7 +3,7 @@ import {
   atomic,
   logEvent,
 } from "../shell/board.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { coordinatorHolder } from "../../../../src/coordinator-hold.js";
 import { Refused } from "../../../kernel/core.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";

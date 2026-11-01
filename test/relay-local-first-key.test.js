@@ -10,7 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import './native-cli-fixture.js'; // The child exercises this public entry point; retain its affected-test dependency.
-import { outboxGuardFile } from '../src/relay-outbox-guard.js';
+import { outboxGuardFile } from '../packages/outbox/index.js';
 import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 

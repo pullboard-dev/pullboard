@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { briefSections } from '../src/reference-lines.js';
+import { briefSections } from '../packages/spec/index.js';
 import * as store from '../src/board.js';
 import { openBoard, nativeBoardPorts } from '../src/native-board.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
@@ -13,7 +13,7 @@ import { prepareEngineMove } from '../src/engine.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { referenceLines, referenceAcknowledged } from '../src/reference-lines.js';
+import { referenceLines, referenceAcknowledged } from '../packages/spec/index.js';
 import { bridgeProject, bridgeProvider, landBridgeItems, runBridgeCLI, runBridgeCLIAs } from './pr-bridge-fixture.js';
 
 test('changelog matching distinguishes issue numbers and accepts Markdown acknowledgement links [C7]', () => {

@@ -33,7 +33,7 @@ import { serveApi } from '../src/api.js';
 import * as apiExports from '../src/api.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../src/board.js';
 import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
-import { JSON_SHAPES } from '../src/json.js';
+import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../src/projects.js';

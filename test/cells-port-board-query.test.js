@@ -19,7 +19,7 @@ import * as store from '../src/board.js';
 import { readyItems } from '../src/queue-readiness.js';
 import { workQueue } from '../src/queue.js';
 import { roadmap } from '../src/board-milestones.js';
-import { eligibilityProblem } from '../src/review-eligibility.js';
+import { eligibilityProblem } from '../packages/verify/index.js';
 import { lineSettings } from '../packages/state/index.js';
 import { routingCapacity } from '../src/routing-capacity.js';
 import { observeWorkers } from '../src/worker-scale.js';

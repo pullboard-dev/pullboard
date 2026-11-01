@@ -12,7 +12,7 @@ import {
   dirname,
   join,
 } from 'node:path';
-import { testRuntimeOption } from './execution-environment.js';
+import { testRuntimeOption } from '../packages/sandbox/index.js';
 
 /** Run the unchanged bounded worker with the canonical tracker supplied by its executable composition root. */
 export async function runTimedShell(services) {

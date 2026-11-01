@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { gateJudgmentPath } from '../src/review-tier.js';
-import { itemReviewPolicy } from '../src/review-policy.js';
-import { reviewEligibility } from '../src/review-eligibility.js';
+import { gateJudgmentPath } from '../packages/verify/index.js';
+import { itemReviewPolicy } from '../packages/verify/index.js';
+import { reviewEligibility } from '../packages/verify/index.js';
 import { REVIEW_TIER_ENGINE } from '../src/review-tier-engine.js';
 import {
   prepareEngineMove,
@@ -55,6 +55,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js',
     'src/moves/reserveReview.js', 'src/commands/submit.js', 'src/commands/verify.js',
     'src/relay-key.js', 'packages/kernel/src/core/seal.js', 'src/source-advance.js', 'src/source-advance-worker.js',
+    'packages/spec/src/shell/signature.js',
     'packages/sandbox/src/shell/source-advance.js', 'packages/sandbox/src/shell/source-advance-worker.js',
     'src/coordinator-hold.js', 'src/seat-review-read.js',
     'packages/seats/src/shell/coordinator-hold.js', 'packages/seats/src/core/seat-review-read.js', 'src/check-mask.js', 'src/person-presence.js', 'src/person-signing.js', 'src/discovery.js', 'src/machine.js',
@@ -69,6 +70,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/review-queue-line.js', 'src/person-signing-words.js',
     'src/check-words.js', 'src/line-settings.js', 'src/cli-main.js',
     'src/spec.js', 'src/queue.js', 'src/moves/appendFact.js', 'bin/cells-plan.js',
+    'packages/spec/src/shell/spec.js',
     'test/board.test.js', 'test/review-queue.test.js', 'test/person-trusted-cli.js', 'test/test-value.test.js',
     'test/runner-new-unlisted.test.js', 'test/project.test.js', 'packages/gate/tests/new-unlisted.test.js']) {
     assert.equal(gateJudgmentPath(path), false, path);

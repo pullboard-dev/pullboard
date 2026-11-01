@@ -5,16 +5,16 @@ import { movesStats } from '../../packages/stats/index.js';
 import { movesLines } from '../../packages/stats/index.js';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { loadMachineSettings } from '../settings-read.js';
-import { localUsage } from '../cost-prices.js';
-import { dollarText } from '../cost-prices.js';
+import { loadMachineSettings } from '../../packages/config/index.js';
+import { localUsage } from '../../packages/config/index.js';
+import { dollarText } from '../../packages/config/index.js';
 /** The pullboard stats command, in its own module so an item adding another command never edits these lines. */
 import { costTotals } from '../../packages/stats/index.js';
 import { boardHoldLines } from '../board-hold-log.js';
 import { boardHoldStats } from '../board-hold-log.js';
 import { readBoardHoldBaseline } from '../board-hold-ratchet.js';
 import { publicUsage } from '../../packages/stats/index.js';
-import { counterProofStats } from '../proof-counter-read.js';
+import { counterProofStats } from '../../packages/verify/index.js';
 import {
   barStatsLines,
 } from '../bar-corrections.js';

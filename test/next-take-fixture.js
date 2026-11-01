@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import {
   applyRelayMove,
   appliedSequence,
@@ -23,7 +23,7 @@ import {
 } from '../src/engine.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
-import { machineSettingsFile } from '../src/settings.js';
+import { machineSettingsFile } from '../packages/config/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 

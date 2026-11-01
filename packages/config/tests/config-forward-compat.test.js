@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/config.js */
-/** @pullboard-test-loads src/config-forward-compat.js */
+/** @pullboard-test-loads packages/config/src/shell/config.js */
+/** @pullboard-test-loads packages/config/src/shell/config-forward-compat.js */
 /** Future coordinator settings do not break old validators or weaken recognized settings [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

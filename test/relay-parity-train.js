@@ -15,7 +15,7 @@ import { readGateReceipt } from '../src/gate-run-receipt.js';
 import { receiptStore } from '../src/gate-run-receipt.js';
 import { prepareTrainLanding } from '../src/train-landing.js';
 import { invalidateGitFacts } from '../src/git.js';
-import { mainPolicy } from '../src/trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Keep all changes in the existing private parity Git/SQLite fixture, never the person's board or config. */

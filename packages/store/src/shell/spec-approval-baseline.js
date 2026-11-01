@@ -11,8 +11,8 @@ import {
   logEvent,
 } from "./board.js";
 import { Refused } from "../../../kernel/index.js";
-import { parseSpec } from "../../../../src/spec.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { parseSpec } from "../../../spec/index.js";
+import { COORDINATOR } from "../../../config/index.js";
 
 
 

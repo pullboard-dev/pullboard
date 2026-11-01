@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/config.js */
-/** @pullboard-test-loads src/worktree-maintenance-config.js */
+/** @pullboard-test-loads packages/config/src/shell/config.js */
+/** @pullboard-test-loads packages/config/src/core/worktree-maintenance-config.js */
 /** Maintenance remains opt-in and invalid known coordinator settings never become cleanup authority [B3,C7,N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

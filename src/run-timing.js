@@ -4,7 +4,7 @@ import {
   gitChildEnv,
 } from './git.js';
 import { randomUUID } from 'node:crypto';
-import { runTimingFields } from './proof-provenance.js';
+import { runTimingFields } from '../packages/verify/index.js';
 import {
   relative,
   resolve,

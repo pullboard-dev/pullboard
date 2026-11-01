@@ -1,5 +1,5 @@
-import { ensureFactIdentityIndexes } from "../../../../src/fact-identity.js";
-import { missingFactIdentityIndexes } from "../../../../src/fact-identity.js";
+import { ensureFactIdentityIndexes } from "../../../spec/index.js";
+import { missingFactIdentityIndexes } from "../../../spec/index.js";
 import { ensureGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
 import { missingGrantActivationIndex } from "../../../state/src/core/relay-activation.js";
 

@@ -2,7 +2,7 @@
 import { isDefaultTestFile } from './test-selection.js';
 import { listItems } from './board-query.js';
 import { getItem } from './board-query.js';
-import { COORDINATOR } from './config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { git } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
 

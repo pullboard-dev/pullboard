@@ -6,7 +6,7 @@ import { hostname } from 'node:os';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
-import { configProblems, defaults } from '../src/config.js';
+import { configProblems, defaults } from '../packages/config/index.js';
 import { machineNameProblems, machineNames } from '../packages/commits/index.js';
 import { installStep } from '../packages/git/index.js';
 

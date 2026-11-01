@@ -1,5 +1,5 @@
 /** @pullboard-module-loads packages/moves/src/core/moves/*.js packages/moves/src/shell/moves/*.js */
-import { sourceAdvanceFloor } from "../../../../src/source-advance-state.js";
+import { sourceAdvanceFloor } from "../../../verify/src/core/source-advance-state.js";
 import { SOURCE_ADVANCE_ENGINE } from "../../../../src/source-advance-engine.js";
 /**
  * One declaration per public board operation [C7,V4,H16]. Consumers derive their routing from these

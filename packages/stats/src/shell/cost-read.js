@@ -1,4 +1,4 @@
-import { usageDollars } from '../../../../src/cost-prices.js';
+import { usageDollars } from '../../../config/src/core/cost-prices.js';
 /** One authenticated command bounds public usage revisions without discarding pending totals [N2,C7]. */
 export const USAGE_BATCH_LIMIT = 1000;
 

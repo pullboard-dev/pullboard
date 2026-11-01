@@ -2,7 +2,7 @@ import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofi
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../../src/known-main-owner-pattern-engine.js";
 import { ENGINE_VERSION } from "../../../../../src/engine-metadata.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
-import { itemReviewPolicyEngine } from "../../../../../src/review-policy.js";
+import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
 import { checkTimingEngine } from "../../../../items/core.js";
 import { itemPatchRecords } from "../../../../items/core.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../../src/item-patch-submit-engine.js";
@@ -18,7 +18,7 @@ import { OUTSIDE_INTAKE_ENGINE } from "../../../../../src/outside-intake-engine.
 import { outsideSource } from "../../../../items/core.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
 import { BAR_CHECK_ENGINE } from "../../../../../src/bar-check-engine.js";
-import { barCheckEnabled } from "../../../../../src/bar-check.js";
+import { barCheckEnabled } from "../../../../verify/src/core/bar-check.js";
 import { SUBMISSION_PROOF_ENGINE } from "../../../../../src/move-engine-constants.js";
 import { submissionProof } from "../../../../state/src/core/submission-proof.js";
 

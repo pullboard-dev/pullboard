@@ -1,7 +1,7 @@
 /** The pullboard lanes command, in its own module so an item adding another command never edits these lines. */
 import {
   COORDINATOR,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import * as store from '../board.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { laneNames } from '../lanes.js';

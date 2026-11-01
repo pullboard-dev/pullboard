@@ -1,7 +1,7 @@
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../../src/auto-submit-quarantine-engine.js";
 import { proofReceipts } from "../../../../src/board-query.js";
-import { nativeProofBlockingGreen } from "../../../../src/quarantine-verdict.js";
-import { landingGateRecords } from "../../../../src/quarantine-verdict.js";
+import { nativeProofBlockingGreen } from "../../../verify/index.js";
+import { landingGateRecords } from "../../../verify/index.js";
 import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";
 import { landingBatches } from "../../../../src/landing-batch-history.js";
 /**
@@ -26,13 +26,13 @@ import {
   receiptBinds,
   receiptFields,
 } from "../../../../src/gate-run-receipt.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { flakeLedger } from "./flakes.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/index.js";
 import { QUARANTINE_CORE_ENGINE } from "../../../../src/quarantine-core-engine.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";
-import { quarantineVerdictFields } from "../../../../src/quarantine-verdict.js";
+import { quarantineVerdictFields } from "../../../verify/index.js";
 
 const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
 

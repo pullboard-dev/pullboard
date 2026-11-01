@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { git } from '../src/git.js';
-import { mainPolicy } from '../src/trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 
 /** Capture a real clean registered source, then compare every reader after queue, start and red completion.
  * The refusal is labeled fixture input; no gate execution or green submission is claimed.

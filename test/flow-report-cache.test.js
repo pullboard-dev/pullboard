@@ -1,6 +1,6 @@
 /** Report capability migration preserves existing indexed read-only statistics [R1,R2]. */
 import { events as readStatsEvents } from '../src/board.js';
-import { counterProofStats as readStatsCounter } from '../src/proof-counter-read.js';
+import { counterProofStats as readStatsCounter } from '../packages/verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { openBoard } from '../src/native-board.js';
 import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
 import { proofStats } from '../src/stats.js';
 import { flowStats } from '../src/stats-flow.js';
-import { ensureProofCounters } from '../src/proof-counters.js';
+import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
 

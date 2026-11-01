@@ -41,7 +41,7 @@ export const MACHINE_CALLBACKS = {
   'board-refreeze.js': { freeze: 'cli.js#freezer' },
   'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict' },
   'board-reopen.js': {
-    'board.nativePorts.sealSourceAdvanceReturn': 'source-advance-origin.js#sealSourceAdvanceReturn',
+    'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
     'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
   },
@@ -60,7 +60,7 @@ export const MACHINE_CALLBACKS = {
   },
   // Explicit item ports preserve these canonical authority and sandbox refusal paths.
   'reopen-authority.js': {
-    verdictWithdrawalTarget: 'verdict-withdrawal.js#verdictWithdrawalTarget',
+    verdictWithdrawalTarget: '../packages/verify/src/shell/verdict-withdrawal.js#verdictWithdrawalTarget',
     computedConflictProblem: 'computed-conflict-receipt.js#computedConflictProblem',
   },
   '../packages/verify/src/shell/reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
@@ -68,8 +68,8 @@ export const MACHINE_CALLBACKS = {
     normalizedDispatch: '../packages/sentinels/src/shell/dispatch-health.js#normalizedDispatch',
     rejectedWorkReturns: '../packages/sentinels/src/core/rejected-work-return.js#rejectedWorkReturns',
   },
-  'outside-verify.js': { verifyOutsideSandbox: 'sandbox-verify.js#verifyOutsideSandbox' },
-  'item-authors.js': { strictReviewProblem: 'review-independence.js#strictReviewProblem' },
+  'outside-verify.js': { verifyOutsideSandbox: '../packages/sandbox/src/shell/sandbox-verify.js#verifyOutsideSandbox' },
+  'item-authors.js': { strictReviewProblem: '../packages/verify/src/shell/review-independence.js#strictReviewProblem' },
   // Native verification ports retain these exact receipt and projection guards.
   '../packages/verify/src/core/proof-cli.js': { proofRunReceipt: 'proof-receipts.js#proofRunReceipt' },
   '../packages/verify/src/shell/proof-counters.js': {
@@ -84,7 +84,7 @@ export const MACHINE_CALLBACKS = {
   },
   'board.js': {
     freeze: 'cli.js#freezer',
-    'board.nativePorts.sealSourceAdvanceReturn': 'source-advance-origin.js#sealSourceAdvanceReturn',
+    'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
     'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
     'board.nativePorts.recordAutomaticRigorDrafts': '../packages/rigor/src/shell/rigor-auto.js#recordAutomaticRigorDrafts',

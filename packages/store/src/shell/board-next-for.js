@@ -4,7 +4,7 @@ import {
 } from "../core/exit-rules-continuation.js";
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 import { firstRefusal } from "../core/board-item-read.js";
-import * as reviewRouting from "../../../../src/review-routing.js";
+import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { idleReason } from "../../../../src/routing-presence.js";
 import { liveRouteProblem } from "../../../../src/routing-presence.js";
 import { withLocalSeatPresence } from "./seat-presence.js";

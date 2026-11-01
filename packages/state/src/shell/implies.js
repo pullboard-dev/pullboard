@@ -20,7 +20,7 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { COORDINATOR } from '../../../../src/config.js';
+import { COORDINATOR } from '../../../config/index.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { Refused } from '../../../kernel/index.js';
 

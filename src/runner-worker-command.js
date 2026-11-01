@@ -8,7 +8,7 @@ import { spawnOwned } from './runner-worker-process.js';
 import { gateStages } from './gate-stages.js';
 import { stagedScript } from './gate-stages.js';
 import { readPipes } from './gate-stages.js';
-import { fileDenialWatcher } from './sandbox-denial.js';
+import { fileDenialWatcher } from '../packages/sandbox/src/shell/sandbox-denial.js';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';

@@ -1,4 +1,4 @@
-import { environmentProblem } from './config.js';
+import { environmentProblem } from '../packages/config/index.js';
 import { testOutcomeFields } from './test-outcomes.js';
 import { sourcePreparationFields } from '../packages/gate/core.js';
 /**

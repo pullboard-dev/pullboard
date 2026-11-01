@@ -38,8 +38,8 @@ export const PENDING_WRITE_REPAIRS = Object.freeze({
   'src/seat-presence.js#persistedObservation': 1878,
   'src/seat-presence.js#observationRows': 1878,
   // Coordinator44644: source-advance sealing and the train writer's receipt read are follow-up1878.
-  'src/source-advance-origin.js#sealSourceAdvanceReturn': 1878,
-  'src/source-advance-origin.js#sealSourceAdvance': 1878,
+  'packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn': 1878,
+  'packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvance': 1878,
   'src/gate-run-receipt.js#readGateReceipt': Object.freeze({ item: 1878, via: 'src/record-train-landing.js#recordTrainLanding' }),
 });
 

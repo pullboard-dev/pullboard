@@ -6,8 +6,8 @@ import * as store from '../src/board.js';
 import { applyRelayMove, prepareEngineMove } from '../src/engine.js';
 import { exportBoard, importBoard } from '../src/exchange.js';
 import { SPEC_DRAFT_REFREEZE_ENGINE } from '../src/spec-draft-refreeze-engine.js';
-import { rowDecisions } from '../src/row-decisions-query.js';
-import { prepareSpecRefreezes, specRefreezeSkips } from '../src/spec-refreeze.js';
+import { rowDecisions } from '../packages/spec/index.js';
+import { prepareSpecRefreezes, specRefreezeSkips } from '../packages/spec/index.js';
 import { fixtureBoard } from './board-fixture.js';
 
 /** Native fixture bars model stored claim state; they are not executed checks or reviewer assurance. */

@@ -23,7 +23,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { exportBoard } from '../src/exchange.js';
 import { importBoard } from '../src/exchange.js';
-import { undoQueued } from '../src/relay-outbox-undo.js';
+import { undoQueued } from '../packages/outbox/index.js';
 import { pinAuthority } from '../src/person-signing.js';
 import { setPersonSigning } from '../src/person-signing.js';
 import { localAuthority } from '../src/person-signing.js';
