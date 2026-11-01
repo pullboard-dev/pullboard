@@ -1,4 +1,5 @@
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
+export { timeStats, timeLines } from './src/core/stats-time.js';
 export {
   nativeToolCallIds,
 } from './src/core/exit-rules-calls.js';
