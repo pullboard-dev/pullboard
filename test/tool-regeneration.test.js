@@ -14,7 +14,6 @@ import { commitAll } from './submit-gate-fixture.js';
 import { put } from './submit-gate-fixture.js';
 import { planCellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { gitPath } from '../packages/git/index.js';
 import { recordedToolCommits } from '../packages/git/index.js';
 
 /** Execute the real installed cell tool against this small project, never a simulated transform. */
@@ -107,8 +106,7 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   const currentMain = advance(main);
   assert.equal(existsSync(marker), false);
   const submitted = box.run('submit', '1', '--json', '--infra', 'recorded tool regeneration fixture');
-  const diagnostic = gitPath(box.root, `pullboard-tool-regeneration-${original}.log`);
-  assert.equal(submitted.code, 0, submitted.err + submitted.out + (existsSync(diagnostic) ? readFileSync(diagnostic, 'utf8').slice(-10_000) : ''));
+  assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const result = JSON.parse(submitted.out);
   const head = box.git('rev-parse', 'HEAD');
   assert.notEqual(head, original);
