@@ -17,6 +17,7 @@ import {
 import { startRunnerPhases } from '../src/timing.js';
 import { runnerPhaseFields } from '../src/timing.js';
 import { runnerPhaseLine } from '../src/timing.js';
+import { doctrineExecutionPhases } from '../src/commands/submit.js';
 import { runnerUtilization } from '../src/runner-utilization.js';
 import {
   receiptLine,
@@ -141,4 +142,12 @@ console.log(JSON.stringify({green:result.isGreen,phases:result.executionPhases,o
   const inventory = readFileSync(calls, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   assert.equal(inventory.filter(args => args.includes('--batch-check')).length, 1, 'twenty-one retained refs take one bounded tip inventory');
   assert.ok(inventory.filter(args => args[1] === '-t').length < 10, 'there is no per-retained-ref type-check loop');
+});
+test('doctrine phases sum complete sequential observations and reject gaps [C7]', () => {
+  const phase = { version: 1, prepareMs: 1, capacityWaitMs: 2, sourceMs: 3, dependenciesMs: 4, commandMs: 5, cleanupMs: 6, totalMs: 21 };
+  assert.deepEqual(doctrineExecutionPhases([{ executionPhases: phase }, { executionPhases: phase }], 2),
+    { version: 1, prepareMs: 2, capacityWaitMs: 4, sourceMs: 6, dependenciesMs: 8, commandMs: 10, cleanupMs: 12, totalMs: 42 });
+  assert.equal(doctrineExecutionPhases([{ executionPhases: phase }], 2), null);
+  assert.equal(doctrineExecutionPhases([{ executionPhases: { ...phase, totalMs: 0 } }], 1), null);
+  assert.equal(doctrineExecutionPhases([], 0), null);
 });
