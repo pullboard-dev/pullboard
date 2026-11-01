@@ -88,6 +88,12 @@ function recordedSeatTime(detail) {
   };
 }
 
+/** Require a retained source identity before attributing a check to its named phase. */
+function receiptCommit(receipt) {
+  const commit = receipt.commit ?? receipt.executionSource?.commit ?? receipt.source?.commit;
+  return typeof commit === 'string' && /^[a-f0-9]{40,64}$/u.test(commit) ? commit : null;
+}
+
 /** Walk one item's events from add to merge; every millisecond lands in exactly one phase. */
 function breakdown(events, receipts = []) {
   const phases = Object.fromEntries(TIME_PHASES.map(phase => [phase, 0]));
@@ -105,7 +111,7 @@ function breakdown(events, receipts = []) {
     const receipt = event.event_kind === 'proof-run' ? detail.receipt : null;
     if (receipt && Number.isSafeInteger(receipt.durationMs) && receipt.durationMs >= 0) {
       // Production proof receipts carry the run's duration; a check run is the check phase, a submit gate run is the test phase.
-      const identified = typeof receipt.commit === 'string' && /^[a-f0-9]{40,64}$/u.test(receipt.commit);
+      const identified = receiptCommit(receipt) !== null;
       const name = !identified && ['check', 'submit'].includes(receipt.kind) ? 'unattributedChecks'
         : receipt.kind === 'check' || receipt.kind === 'submit' && receipt.submitPhase === 'criterion'
           ? 'check' : receipt.kind === 'submit' && receipt.submitPhase === 'proof' ? 'test'
@@ -122,7 +128,8 @@ function breakdown(events, receipts = []) {
         const duration = ['waitMs', 'admissionMs', 'setupMs', 'runMs', 'evidenceMs']
           .reduce((sum, key) => sum + (Number.isFinite(receipt[key]) && receipt[key] >= 0 ? receipt[key] : 0), 0);
         gate ??= {};
-        gate[receipt.kind] = (gate[receipt.kind] ?? 0) + duration;
+        const name = receiptCommit(receipt) ? receipt.kind : 'unattributedChecks';
+        gate[name] = (gate[name] ?? 0) + duration;
       }
     }
     if (phase && Number.isFinite(at) && at >= since) {
@@ -178,7 +185,7 @@ export function timeStats(history, { now, days = 7, receipts = [] }) {
   }
   const attributed = receipts.map(receipt => {
     if (Number.isSafeInteger(receipt.item)) return receipt;
-    const commit = receipt.commit ?? receipt.executionSource?.commit ?? receipt.source?.commit;
+    const commit = receiptCommit(receipt);
     const items = commits.get(commit);
     return items?.size === 1 ? { ...receipt, item: [...items][0] } : receipt;
   });

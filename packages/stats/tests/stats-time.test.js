@@ -175,9 +175,9 @@ test('a receipt without a commit is an unattributed check without changing the i
 test('only item-attributed gate receipts contribute static and doctrine time [R1,R2,C7]', () => {
   const history = [ev(5, 0, 'add'), ev(5, 1, 'claim'), ev(5, 10, 'submit'), ev(5, 11, 'reserve'), ev(5, 12, 'accept'), ev(5, 13, 'merged')];
   const receipts = [
-    { item: 5, kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: MIN },
-    { item: 5, kind: 'doctrine', at: new Date(T0 + 5 * MIN).toISOString(), runMs: 2 * MIN },
-    { item: 6, kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 9 * MIN },
+    { item: 5, commit: 'a'.repeat(40), kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: MIN },
+    { item: 5, commit: 'a'.repeat(40), kind: 'doctrine', at: new Date(T0 + 5 * MIN).toISOString(), runMs: 2 * MIN },
+    { item: 6, commit: 'a'.repeat(40), kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 9 * MIN },
     { kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 9 * MIN },
   ];
   const stats = timeStats(history, { now: NOW, days: 7, receipts });
@@ -187,9 +187,21 @@ test('only item-attributed gate receipts contribute static and doctrine time [R1
   assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 13 * MIN);
 });
 
+test('item-linked gate receipts without a commit stay unattributed [R1,R2,C7]', () => {
+  const history = [ev(5, 0, 'add'), ev(5, 1, 'claim'), ev(5, 10, 'submit'), ev(5, 11, 'reserve'), ev(5, 12, 'accept'), ev(5, 13, 'merged')];
+  const receipts = ['static', 'doctrine', 'conflict'].map((kind, index) => ({
+    item: 5, kind, at: new Date(T0 + (4 + index) * MIN).toISOString(), runMs: MIN,
+  }));
+  const stats = timeStats(history, { now: NOW, receipts });
+  assert.equal(stats.phases.unattributedChecks.totalMs, 3 * MIN);
+  for (const name of ['static', 'doctrine', 'conflict']) assert.equal(stats.phases[name].totalMs, 0);
+  assert.equal(stats.phases.building.totalMs, 6 * MIN);
+  assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 13 * MIN);
+});
+
 test('a claim renewal does not truncate a measured gate phase [R1,R2,C7]', () => {
   const history = [ev(9, 0, 'add'), ev(9, 1, 'claim'), ev(9, 3, 'renew'), ev(9, 5, 'submit'), ev(9, 6, 'accept'), ev(9, 7, 'merged')];
-  const receipts = [{ item: 9, kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 3 * MIN }];
+  const receipts = [{ item: 9, commit: 'a'.repeat(40), kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 3 * MIN }];
   const stats = timeStats(history, { now: NOW, receipts });
   assert.equal(stats.phases.static.totalMs, 3 * MIN);
   assert.equal(stats.phases.building.totalMs, MIN);
