@@ -137,7 +137,14 @@ export function movedImportOnlyChange(before, after, file, moves) {
     for (const edit of edits.reverse()) result = result.slice(0, edit.start) + edit.value + result.slice(edit.end);
     // Test-input declarations use repository-root paths, and remain otherwise byte identical.
     const annotation = /(@pullboard-test-input[^\r\n*]*)/gu;
-    const oldRows = [...result.matchAll(annotation)], newRows = [...after.matchAll(annotation)];
+    /** Keep annotations only in actual doc comments, never lookalike string literals. */
+    const declarations = source => {
+      const comments = lex(source).comments;
+      return [...source.matchAll(annotation)].filter(row => comments.some(comment =>
+        row.index >= comment.start && row.index + row[0].length <= comment.end
+        && /^\/\*\*\s*@pullboard-test-input\b/u.test(source.slice(comment.start, comment.end))));
+    };
+    const oldRows = declarations(result), newRows = declarations(after);
     if (oldRows.length !== newRows.length) return false;
     let inputChanges = 0;
     for (let i = oldRows.length - 1; i >= 0; i--) {

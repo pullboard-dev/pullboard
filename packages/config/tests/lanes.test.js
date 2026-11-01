@@ -344,6 +344,8 @@ test('cross-lane import edits follow only same-item moves or removed forwarding 
   assert.equal(movedImportOnlyChange(shim, after, 'web/view.js', moves), true);
   const input = '/** @pullboard-test-input api/old.js */\nexport const ok = true;\n';
   assert.equal(movedImportOnlyChange(input, input.replace('api/old.js', 'api/new.js'), 'web/test.js', moves), true);
+  const lookalike = `const text = "@pullboard-test-input api/old.js";\n`;
+  assert.equal(movedImportOnlyChange(lookalike, lookalike.replace('api/old.js', 'api/new.js'), 'web/test.js', moves), false);
 });
 
 test('lane hook permits only an owned rename and its exact foreign import repoint [L3]', t => {
