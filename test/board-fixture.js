@@ -9,7 +9,7 @@ import { closeBoard } from '../src/native-board.js';
 import { Refused } from '../packages/kernel/core.js';
 import { moveArgs } from '../packages/person/index.js';
 import { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } from '../packages/outbox/index.js';
-const checkpointWorker = fileURLToPath(new URL('../src/relay-checkpoint-worker.js', import.meta.url));
+const checkpointWorker = fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
 const outboxPolicy = () => ({ acknowledgedOperations: ACKNOWLEDGED_OPERATIONS, outboxQueueable });
 import { withOutboxGuard } from '../packages/outbox/index.js';
 import { replay as replayConflictRecord } from '../packages/outbox/index.js';
