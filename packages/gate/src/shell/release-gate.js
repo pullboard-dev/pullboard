@@ -1,3 +1,6 @@
+import { checkCoordinatorRelease } from './coordinator-release.js';
+import { recordCoordinatorRelease } from './coordinator-release.js';
+import { readCoordinatorRelease } from './coordinator-release.js';
 /** A fresh release gate owns its execution; imported files can never create native release evidence [C7,I15]. */
 import {
   createHash,
@@ -59,13 +62,14 @@ export function verifyNativeReleaseReceipt(root, id, executionServices) {
     const expected = { head: source.head, tree: source.tree, command: source.command,
       required: releaseExecutors().map(entry => entry.id) };
     const envelope = readReleaseReceipt(file, expected);
-    return envelope?.participation.id === id && receiptBinds(receiptStore(root), envelope.gateReceipt) ? envelope : null;
+    return readCoordinatorRelease(root, id)?.head === source.head && envelope?.participation.id === id && receiptBinds(receiptStore(root), envelope.gateReceipt) ? envelope : null;
   } catch { return null; }
 }
 
 /** Execute the actual accepted full gate with mandatory native placement before privately writing an envelope. */
-export async function runReleaseGate(root, { agent = 'release', onWait, executionServices } = {}) {
+export async function runReleaseGate(root, { agent = 'release', onWait, executionServices, personOverride } = {}) {
   const source = releaseSource(root);
+  checkCoordinatorRelease(root, { personOverride });
   executionServices = requireGateExecutionServices(executionServices);
   const executors = executionServices.landing.releaseExecutors();
   const request = { version: 1, id: randomUUID(), executors };
@@ -84,12 +88,14 @@ export async function runReleaseGate(root, { agent = 'release', onWait, executio
   if (!run.isGreen || problem) {
     throw new Refused('GATE_RUN_EVIDENCE', `release gate did not produce complete green evidence: ${problem ?? 'the actual gate failed'}; inspect its native gate log`);
   }
+  const coordinator = checkCoordinatorRelease(root, { personOverride });
   // Only this execution path writes native release custody. The structural reader has no writer.
   const directory = join(repoInfo(root).commonDir, 'pullboard', 'release-receipts');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const file = join(directory, `${request.id}.json`);
   const body = releaseReceiptBody(envelope, expected);
   writeFileSync(file, body, { flag: 'wx', mode: 0o600 });
+  recordCoordinatorRelease(root, request.id, source.head, coordinator);
   // This private execution path has now checked the actual full receipt, source and all executor custody.
   writeFileSync(gitPath(root, 'pullboard-gate-green'), `${source.tree}\n`);
   return { receipt: releaseReceiptFields(envelope, expected), file,
