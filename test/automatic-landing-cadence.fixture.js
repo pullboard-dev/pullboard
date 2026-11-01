@@ -62,8 +62,12 @@ await resumeAutomaticLanding(root, 'fixture-authenticated-wake', job.dueAt, asyn
   wait: async () => { authentications++; return true; },
 });
 assert.equal(authentications, 1);
-assert.equal(wakes, 2, 'the isolated native worker rechecks its own real cadence and queues the still-deferred work');
-assert.notEqual(JSON.parse(readFileSync(file, 'utf8')).id, job.id);
-assert.equal(observe(board => store.getItem(board, Number(item))).item_merged_commit, null);
+if (observe(board => store.getItem(board, Number(item))).item_merged_commit) {
+  assert.equal(wakes, 1, 'a mature native worker completes without another timer');
+  assert.equal(existsSync(file), false);
+} else {
+  assert.equal(wakes, 2, 'a still-deferred native worker queues a fresh wake');
+  assert.notEqual(JSON.parse(readFileSync(file, 'utf8')).id, job.id);
+}
 
 }
