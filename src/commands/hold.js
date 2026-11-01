@@ -1,7 +1,7 @@
 /** The pullboard hold command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { requireSignedPerson } from '../person-signing-cli.js';
-import { requirePersonChannel } from '../person.js';
+import { requireSignedPerson } from '../../packages/person/index.js';
+import { requirePersonChannel } from '../../packages/person/index.js';
 import {
   isLane,
 } from '../lanes.js';

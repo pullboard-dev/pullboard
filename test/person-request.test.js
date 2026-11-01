@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { moveArgs } from '../packages/person/index.js';
-import { personRequestMove, preparePersonRequest, validatePersonRequest } from '../src/person-request.js';
+import { personRequestMove, preparePersonRequest, validatePersonRequest } from '../packages/person/core.js';
 import { Refused } from '../packages/kernel/core.js';
 
 test('[H12,H16] each supported person intent becomes literal CLI arguments', () => {

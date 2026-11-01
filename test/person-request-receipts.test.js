@@ -10,7 +10,7 @@ import { COORDINATOR } from '../packages/config/index.js';
 import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../packages/state/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { preparePersonRequest } from '../src/person-request.js';
+import { preparePersonRequest } from '../packages/person/core.js';
 import { Refused } from '../packages/kernel/core.js';
 import { personRequestRecords, personRequestStatuses, receivePersonRequest, requestIntentDigest, requestStageText } from '../src/relay-requests.js';
 

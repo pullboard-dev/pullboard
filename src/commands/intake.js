@@ -7,7 +7,7 @@ import {
   ordered,
 } from '../cli.js';
 import { githubSource } from '../intake-github.js';
-import { requirePersonChannel } from '../person.js';
+import { requirePersonChannel } from '../../packages/person/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 
 /** Run intake or the explicit owner approval; there is deliberately no autonomous posting path. */

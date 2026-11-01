@@ -21,7 +21,7 @@ import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';
 import { registryFile, registerProject, forgetProject } from '../src/projects.js';
 import { Refused } from '../packages/kernel/core.js';
 import { board as store } from '../src/native-board.js';
-import { preparePersonRequest } from '../src/person-request.js';
+import { preparePersonRequest } from '../packages/person/core.js';
 import { receivePersonRequest } from '../src/relay-requests.js';
 import { apiHttpFixture as fixture } from './api-fixture.js';
 import { apiHttpBox as httpBox } from './api-fixture.js';

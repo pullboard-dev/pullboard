@@ -66,7 +66,7 @@ import { selectAffectedTests } from '../affected-tests.js';
 import { explicitCheckFiles } from '../browser-admission.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import {
   refuseProvesNothing,
 } from '../../packages/verify/index.js';

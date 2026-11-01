@@ -38,7 +38,7 @@ import {
 } from '../../packages/spec/index.js';
 import {
   signingLine,
-} from '../person-signing-words.js';
+} from '../../packages/person/index.js';
 import {
   submitInvariantLine,
   submitInvariantProposals,
