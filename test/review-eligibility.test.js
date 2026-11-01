@@ -1,4 +1,3 @@
-import { SAME_FAMILY_REFUSAL_ENGINE } from '../src/same-family-refusal-engine.js';
 /** @pullboard-test-input source-tree */
 import { VENDOR_FAMILY_ENGINE } from '../src/vendor-family-engine.js';
 import { canonicalFamily } from '../packages/verify/index.js';
@@ -957,6 +956,8 @@ for (const [builderFamily, reviewerFamily] of [['openai', 'OpenAI'], ['codex', '
     });
   }
 }
+
+import { SAME_FAMILY_REFUSAL_ENGINE } from '../src/same-family-refusal-engine.js';
 
 test('same-vendor refusal keeps its historical code before the new engine [V4,B26,H16]', t => {
   const f = fixture(t);
