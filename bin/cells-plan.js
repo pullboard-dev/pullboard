@@ -313,6 +313,9 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   const problems = [];
   let workerFiles;
   let moveFiles;
+  let inventory;
+  /** Build the repository inventory once and share it across move closure and lint checks. */
+  const sharedInventory = () => inventory ??= cellInventory(root, { importsIn, commonJsIn });
   /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
   function inWorkerClosure(from, to) {
     if (workerFiles === undefined) {
@@ -325,7 +328,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   function inMoveClosure(from, to) {
     if (moveFiles === undefined) {
       try { moveFiles = moveDeclarationFiles(root, { importsIn, commonJsIn,
-        files: cellInventory(root, { importsIn, commonJsIn }).files.keys() }); }
+        files: sharedInventory().files.keys() }); }
       catch { moveFiles = new Set(); /* An unprovable move closure grants no shim exception. */ }
     }
     return moveFiles.has(from) && moveFiles.has(to);
@@ -391,7 +394,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     }
   }
   problems.push(...staleDataReads(data.reads, matchedDataReads));
-  const report = lintReport ?? cellLintReport(root, { importsIn, commonJsIn });
+  const report = lintReport ?? cellLintReport(root, { importsIn, commonJsIn }, { inventory: sharedInventory() });
   const cellRoot = posix.dirname(cell.frontDoor);
   if (report.metrics.unreachable.findings.some(row => row.key === cell.frontDoor)
     || report.metrics.unreachablePackages.findings.some(row => row.key === cellRoot)) {
