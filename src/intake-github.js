@@ -1,5 +1,5 @@
 import { mainPolicy } from '../packages/sandbox/index.js';
-import { outsideSensitivity } from './outside-sensitive.js';
+import { outsideSensitivity } from '../packages/items/index.js';
 /** Read GitHub public source metadata; never post, execute PR programs or use its executable settings. */
 import { githubPullClient } from './pr-github.js';
 import { Refused } from '../packages/kernel/index.js';

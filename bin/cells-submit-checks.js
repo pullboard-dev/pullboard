@@ -14,6 +14,7 @@ import { cellLintGrowth } from '../packages/codemap/index.js';
 import { readCellLintBaseline } from '../packages/codemap/index.js';
 import { CELL_BASELINE_DESCRIPTOR } from '../packages/codemap/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
+import { mappedPath } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { cutTitle } from '../packages/codemap/index.js';
@@ -35,6 +36,20 @@ function additions(before, after) {
     counts.set(value, counts.get(value) - 1);
     return false;
   });
+}
+
+/** Compare exact diagnostic endpoints in the candidate's committed rename namespace, retaining all other text. */
+function mappedCutDiagnostic(map, problem) {
+  const edge = /^((?:[\w:-]+ still imports later [\w:-]+|production imports testkit|live import of absent retired historical path): )([^:\r\n]+) -> ([^:\r\n]+)$/u.exec(problem);
+  if (edge) return `${edge[1]}${mappedPath(map, edge[2])} -> ${mappedPath(map, edge[3])}`;
+  const unknown = /^(cannot prove cut through )([^:\r\n]+)(: [\s\S]*)$/u.exec(problem);
+  return unknown ? `${unknown[1]}${mappedPath(map, unknown[2])}${unknown[3]}` : problem;
+}
+
+/** Normalize both exact front-door key endpoints; never match a basename or rewrite a path substring. */
+function mappedBypassKey(map, key) {
+  const [from, to, extra] = key.split('->');
+  return to !== undefined && extra === undefined ? `${mappedPath(map, from)}->${mappedPath(map, to)}` : key;
 }
 
 /** Read only landed core cut candidates through the controller's already-open connection. */
@@ -229,16 +244,20 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers 
   const oldInventory = cellInventory(baseRoot, parsers), newInventory = cellInventory(sourceRoot, parsers);
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
   const problems = [], existingCuts = [];
+  const candidateMap = readPathMap(sourceRoot);
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
     const oldCuts = previous ? checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
     existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
     if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
     const newCuts = checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
-    problems.push(...additions(oldCuts, newCuts).map(problem => `${name} --cuts: ${problem}; import a lower cell or take a port`));
+    problems.push(...additions(oldCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)),
+      newCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)))
+      .map(problem => `${name} --cuts: ${problem}; import a lower cell or take a port`));
     const oldDoors = previous ? frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory }) : new Map();
+    const oldDoorKeys = new Set([...oldDoors.keys()].map(key => mappedBypassKey(candidateMap, key)));
     for (const [key, text] of frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory })) {
-      if (!oldDoors.has(key)) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
+      if (!oldDoorKeys.has(mappedBypassKey(candidateMap, key))) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
     }
   }
   return { problems, existingCuts };

@@ -1,5 +1,5 @@
 /** Argument and lane helpers for `pullboard add` and `pullboard edit`. Split from src/cli.js, which re-exports it [C7]. */
-import { dependencyValues } from '../item-dependencies.js';
+import { dependencyValues } from '../../packages/items/index.js';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -7,7 +7,7 @@ import { main } from '../cli-main.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { outOfLane } from '../lanes.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { briefFiles } from '../brief.js';
+import { briefFiles } from '../../packages/items/index.js';
 import { startCheckBaseline } from '../check-baseline-worker.js';
 import { ordered } from './claim.js';
 

@@ -11,7 +11,7 @@ import {
 import {
   trunkMerge,
 } from '../../packages/sandbox/index.js';
-import { legacyConflictNote } from '../reopen-cause.js';
+import { legacyConflictNote } from '../../packages/items/index.js';
 import {
   actOn,
   idArg,

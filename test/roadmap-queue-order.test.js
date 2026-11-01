@@ -6,7 +6,7 @@ import { openBoard } from '../src/native-board.js';
 import { addMilestone, orderMilestoneItems, roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem } from '../packages/verify/index.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
-import { workQueue } from '../src/queue.js';
+import { workQueue } from '../packages/items/index.js';
 
 test('roadmap lists open items in queue order with pins applied and agrees with queue on every item [C7]', (t) => {
   const board = openBoard(':memory:');

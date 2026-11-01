@@ -3,7 +3,7 @@ import { NO_ELIGIBLE_REVIEWER_ENGINE } from '../src/no-eligible-reviewer-engine.
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { recordItemSession, refuseSelfSession } from '../src/item-sessions.js';
+import { recordItemSession, refuseSelfSession } from '../packages/items/index.js';
 import { compositionSessionOptions } from '../packages/verify/index.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { exportBoard } from '../packages/store/index.js';
@@ -16,7 +16,7 @@ import { heartbeatSeat } from '../packages/store/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
 import { compositionOwner } from '../packages/verify/index.js';
 import { refuseUnreviewable } from '../packages/verify/index.js';
-import { submitPreflight } from '../src/submit-preflight.js';
+import { submitPreflight } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { STRICT_COMPOSITION_ENGINE } from '../src/strict-composition-engine.js';
 

@@ -1,4 +1,4 @@
-import { localDependencyIds } from '../../../../src/item-dependencies.js';
+import { localDependencyIds } from '../../../items/index.js';
 import { shoutMatchesAudience } from '../../../../src/board-shout-audience.js';
 /**
  * pullboard watch: follow the board's own live event stream and print one line per event [A2,N26].

@@ -6,9 +6,9 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { heartbeatSeat } from '../packages/store/index.js';
-import { refuseLiveAttach } from '../src/item-patches.js';
+import { refuseLiveAttach } from '../packages/items/index.js';
 import { reviewEligibility } from '../packages/verify/index.js';
-import { submitPreflight } from '../src/submit-preflight.js';
+import { submitPreflight } from '../packages/items/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { exportBoard } from '../packages/store/index.js';
 

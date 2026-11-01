@@ -17,9 +17,9 @@ import { strictReviewProblem } from "../../../verify/index.js";
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { reviewFamilyProblem } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
-import { setItem as writeItemFields } from "../../../../src/item-fields.js";
-import { foreignBlockers as readForeignBlockers } from "../../../../src/cross-repo-dependencies.js";
-import { foreignDependencyStates as readForeignDependencyStates } from "../../../../src/cross-repo-dependencies.js";
+import { setItem as writeItemFields } from "../../../items/index.js";
+import { foreignBlockers as readForeignBlockers } from "../../../items/index.js";
+import { foreignDependencyStates as readForeignDependencyStates } from "../../../items/index.js";
 import { readReceivedBoardState } from "../core/board-link-state.js";
 import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
 import { laneLeads } from "../../../../src/lane-lead.js";
@@ -37,7 +37,7 @@ import { verdictReviewProblem } from "../../../verify/index.js";
 import { verdictsFor } from "../../../verify/index.js";
 import { acceptedVerdict } from "../../../verify/index.js";
 import { checkedLandingCommit } from "../../../verify/index.js";
-import { itemFiles } from "../../../../src/item-files.js";
+import { itemFiles } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { GUARDS } from "../../../../src/machine.js";
@@ -47,7 +47,7 @@ import { STATES } from "../../../../src/machine.js";
 import { UNKNOWN_MOVE } from "../../../../src/machine.js";
 import { effectiveGuards } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/index.js";
-import { itemAuthorProblem } from "../../../../src/item-authors.js";
+import { itemAuthorProblem } from "../../../items/index.js";
 import { ROUTES } from "../../../../src/route-escalation.js";
 import { canTake } from "../../../../src/route-escalation.js";
 import { routeOf } from "../../../../src/seats.js";
@@ -114,7 +114,7 @@ import { recordNextIdle } from "./board-record-next-idle.js";
 import { persistShout } from "./board-shout.js";
 export { laneLeads };
 
-export { itemPatches, itemPatchDigest, followItemPatches } from "../../../../src/item-patches.js";
+export { itemPatches, itemPatchDigest, followItemPatches } from "../../../items/index.js";
 export { readBoardMembers, setBoardMembers } from "./board-members.js";
 export {
   getShout,
@@ -351,7 +351,7 @@ export { unreadCount } from "./board-query.js";
 
 export { events } from "./board-query.js";
 
-export { FACT_KINDS } from "../../../../src/item-notes.js";
+export { FACT_KINDS } from "../../../items/index.js";
 export { factReference };
 
 export { itemThread } from "./board-query.js";

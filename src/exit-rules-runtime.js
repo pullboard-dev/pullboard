@@ -19,7 +19,7 @@ import { nativeToolCallIds } from '../packages/stats/index.js';
 import {
   parentSessionDigest,
   runtimeSessionIdentity,
-} from './parent-session.js';
+} from '../packages/items/index.js';
 import { exitedSessionIdentity } from './exit-rules-continuation.js';
 import { Refused } from '../packages/kernel/index.js';
 import {

@@ -11,7 +11,7 @@ import { Refused } from '../packages/kernel/index.js';
 import { receiptBody } from './gate-run-receipt.js';
 import { checkTrainLandingReceipt } from './train-landing-receipt.js';
 import { TRAIN_LANDING_ENGINE } from './train-landing-engine.js';
-import { validateLandingBatch } from './submit-invariants.js';
+import { validateLandingBatch } from '../packages/items/index.js';
 import { applyTrainCheckRepointPlan } from './train-check-repoints.js';
 
 /** Refuse a conflicting envelope rather than treating a reused native receipt as another landing. */

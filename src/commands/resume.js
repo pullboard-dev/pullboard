@@ -7,7 +7,7 @@ import { primaryCheckoutRoot } from '../cli.js';
 import { relayRecovered } from '../relay.js';
 import { proposeLanes } from '../init.js';
 import { counterProofStats } from '../../packages/verify/index.js';
-import { localDependencyIds } from '../item-dependencies.js';
+import { localDependencyIds } from '../../packages/items/index.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
 import {
   keepViewRunning,
@@ -23,7 +23,7 @@ import * as store from '../board.js';
 import { requireBoardWriteAccess } from '../../packages/store/index.js';
 import {
   briefFiles,
-} from '../brief.js';
+} from '../../packages/items/index.js';
 import {
   COORDINATOR,
   loadConfig,
@@ -61,7 +61,7 @@ import {
   coordinatorInbox,
   coordinatorInboxLines,
   inboxFirst,
-} from '../resume.js';
+} from '../../packages/items/index.js';
 import {
   resumeSentinels,
 } from '../sentinel-command.js';
@@ -72,7 +72,7 @@ import {
   loadSpec,
 } from '../../packages/spec/index.js';
 import { initialSpecApprovalBaseline } from '../../packages/spec/index.js';
-import { readResumeSources } from '../resume-sources.js';
+import { readResumeSources } from '../../packages/items/index.js';
 import {
   flowAlertLine,
 } from '../stats-flow.js';

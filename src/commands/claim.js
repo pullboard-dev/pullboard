@@ -7,7 +7,7 @@ import {
   getItem,
   listItems,
 } from '../../packages/store/index.js';
-import { itemFileCollisions } from '../item-files.js';
+import { itemFileCollisions } from '../../packages/items/index.js';
 import { sayMapSlice } from '../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
 import {

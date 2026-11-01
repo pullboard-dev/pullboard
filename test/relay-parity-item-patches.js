@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { git } from '../src/git.js';
-import { itemPatchAuthors } from '../src/item-patch-state.js';
+import { itemPatchAuthors } from '../packages/items/index.js';
 
 /** Attach and remove immutable patch bytes on a real submitted unmerged item, publishing after each mutation. */
 export async function seedItemPatches({ board, box, store, exercise, agent, claim, submitFixture }) {

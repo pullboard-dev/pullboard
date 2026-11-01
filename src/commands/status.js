@@ -1,8 +1,8 @@
 import { currentProofCounters } from '../../packages/verify/index.js';
 import { proofCounter } from '../../packages/verify/index.js';
-import { localDependencyIds } from '../item-dependencies.js';
-import { dependencyLabel } from '../item-dependencies.js';
-import { itemFileCollisions } from '../item-files.js';
+import { localDependencyIds } from '../../packages/items/index.js';
+import { dependencyLabel } from '../../packages/items/index.js';
+import { itemFileCollisions } from '../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../packages/store/index.js';
 import { readCapacity } from '../../packages/stats/index.js';
 import { capacityLines } from '../../packages/stats/index.js';
@@ -11,7 +11,7 @@ import { staleStateSnapshot } from '../../packages/health/index.js';
 import { staleStateLine } from '../board-stale-state-policy.js';
 import { lineSettings } from '../../packages/state/index.js';
 import { routingCapacity } from '../routing-capacity.js';
-import { foreignBlockers } from '../cross-repo-dependencies.js';
+import { foreignBlockers } from '../../packages/items/index.js';
 import { readReceivedBoardState } from '../../packages/store/index.js';
 import { existsSync } from 'node:fs';
 import { relayMachineDirectory } from '../../packages/store/index.js';
@@ -42,7 +42,7 @@ import {
 import {
   submitInvariantLine,
   submitInvariantProposals,
-} from '../submit-invariants.js';
+} from '../../packages/items/index.js';
 import {
   context,
   span,

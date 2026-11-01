@@ -2,7 +2,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from './landing-waivers.js
 /** Coordinator landing batch step; source-preserving partition of land.js [B3,R3,C7]. */
 import { requirePublishGreen } from './publish-pause.js';
 import { cadenceDeferral } from './landing-cadence.js';
-import { requireOutsideOwner } from './outside-source.js';
+import { requireOutsideOwner } from '../packages/items/index.js';
 import { mechanicalConflictFiles } from '../packages/merge/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';

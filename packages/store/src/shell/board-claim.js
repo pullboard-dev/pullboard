@@ -34,14 +34,14 @@ import {
   now,
   reviewHolder,
 } from "./board-query.js";
-import { outsideBuildProblem } from "../../../../src/outside-source.js";
+import { outsideBuildProblem } from "../../../items/index.js";
 import { barReadyProblem } from "../../../verify/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { routeOf } from "../../../../src/seats.js";
 import { canTake } from "../../../../src/route-escalation.js";
-import * as itemDependencies from "../../../../src/item-dependencies.js";
-import { firstRefusalProblem } from "../../../../src/claims.js";
+import * as itemDependencies from "../../../items/index.js";
+import { firstRefusalProblem } from "../../../items/index.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";

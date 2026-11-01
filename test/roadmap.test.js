@@ -1,4 +1,4 @@
-import { workQueue } from '../src/queue.js';
+import { workQueue } from '../packages/items/index.js';
 /** Roadmap progress and withdrawn work preserve their recorded meaning [N26]. */
 import { addMilestone as addMilestoneWithPorts } from '../packages/roadmap/index.js';
 import { milestoneFocus } from '../packages/roadmap/index.js';

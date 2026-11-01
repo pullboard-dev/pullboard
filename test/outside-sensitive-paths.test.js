@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readPlan } from '../bin/cells-plan.js';
-import { OUTSIDE_SENSITIVE_PATHS } from '../src/outside-sensitive.js';
-import { SENSITIVE_CELLS } from '../src/outside-sensitive.js';
-import { outsideSensitivePaths } from '../src/outside-sensitive.js';
-import { outsideSensitivity } from '../src/outside-sensitive.js';
+import { OUTSIDE_SENSITIVE_PATHS } from '../packages/items/index.js';
+import { SENSITIVE_CELLS } from '../packages/items/index.js';
+import { outsideSensitivePaths } from '../packages/items/index.js';
+import { outsideSensitivity } from '../packages/items/index.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const PLAN = readPlan(ROOT);

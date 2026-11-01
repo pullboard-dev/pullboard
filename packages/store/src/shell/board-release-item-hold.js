@@ -1,5 +1,5 @@
 import { forgetHoldMaintenance } from "../core/board-conditional-holds.js";
-import { applyItemHoldRelease } from "../../../../src/item-holds.js";
+import { applyItemHoldRelease } from "../../../items/index.js";
 import { itemHold } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";

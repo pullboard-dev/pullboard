@@ -7,7 +7,7 @@ import { familyIndex } from '../../../verify/index.js';
 import { unreviewableStrict } from '../../../verify/index.js';
 import { withLocalSeatPresence } from '../../../store/index.js';
 import { mechanicalConflictFiles } from '../../../merge/index.js';
-import { localDependencyIds } from '../../../../src/item-dependencies.js';
+import { localDependencyIds } from '../../../items/index.js';
 import { dependencyLabel } from '../../../items/index.js';
 import { itemFileCollisions } from '../../../items/index.js';
 /**
@@ -54,7 +54,7 @@ import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import { staleRowDecisions } from '../../../spec/index.js';
 import { localReleaseRank } from '../../../../src/release-queue.js';
-import { workQueue } from '../../../../src/queue.js';
+import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../../src/route-capacity.js';
 import { readRelayHealth } from '../../../../src/relay-canary-health.js';

@@ -21,7 +21,7 @@ import {
   blockMoveKeys,
   blockOwner,
   recordBlock,
-} from './blocks.js';
+} from '../packages/items/index.js';
 import { repoInfo } from './git.js';
 
 

@@ -446,7 +446,7 @@ async function runMain(argv, streams) {
       maintenanceAfterCommand = io.worktreeMaintenanceContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('./blocks.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('./person.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;

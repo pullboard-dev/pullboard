@@ -9,7 +9,7 @@ import {
   isClean,
 } from './git.js';
 import { prepareItemPatchSubmit } from './item-patch-submit.js';
-import { itemPatchDigest } from './item-patch-state.js';
+import { itemPatchDigest } from '../packages/items/index.js';
 import { getItem } from '../packages/store/index.js';
 import { Refused } from '../packages/kernel/index.js';
 

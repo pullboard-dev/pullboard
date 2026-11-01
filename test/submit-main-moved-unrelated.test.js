@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { explicitCheckFiles } from '../src/browser-admission.js';
-import { composeAfterProof } from '../src/submit-composition.js';
-import { trunkMoveFact } from '../src/submit-composition.js';
+import { composeAfterProof } from '../packages/items/index.js';
+import { trunkMoveFact } from '../packages/items/index.js';
 import { judgeTrunkMove } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 

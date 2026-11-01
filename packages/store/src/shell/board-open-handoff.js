@@ -1,5 +1,5 @@
 import { agentById } from "./board-query.js";
-import * as handoffMoves from "../../../../src/handoff.js";
+import * as handoffMoves from "../../../items/index.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { addItem } from "./board-add-item.js";

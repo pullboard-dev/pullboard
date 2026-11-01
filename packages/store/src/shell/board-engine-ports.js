@@ -5,7 +5,7 @@ import * as rawStore from "./board.js";
 import { withSeatPresence } from "./seat-presence.js";
 
 import { boundProofReceipt } from "./proof-receipts.js";
-import { requireOutsideReceipt } from "../../../../src/outside-proof.js";
+import { requireOutsideReceipt } from "../../../items/index.js";
 
 import { requireCoordinatorHold } from "../../../../src/coordinator-hold.js";
 

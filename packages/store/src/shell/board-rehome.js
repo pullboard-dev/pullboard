@@ -7,7 +7,7 @@ import {
   rehomeDestinationItemId as destinationRehomeId,
   rehomeItem as recordRehome,
   reserveRehomeItemId as reserveRehomeId,
-} from "../../../../src/item-rehome.js";
+} from "../../../items/index.js";
 import {
   boardId,
   current,
