@@ -46,7 +46,7 @@ import {
   questionText,
   ruleText,
 } from './blueprints.js';
-import { requirePersonChannel } from '../../../../src/person.js';
+import { requirePersonChannel } from '../../../person/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** What a fit proposal can say about one target. */

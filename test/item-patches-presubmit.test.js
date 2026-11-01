@@ -114,7 +114,7 @@ import { openBoard } from ${JSON.stringify(module("native-board.js"))};
 import { runSubmitGate, submitGateConfig } from ${JSON.stringify(module('gate-submit.js'))};
 ${executionServicesSource(module('gate-submit.js'))}
 import { withItemPatchSubmit } from ${JSON.stringify(module('item-patch-submit.js'))};
-import { policyAt, frozenCheck, mainPolicy } from ${JSON.stringify(module('trusted-policy.js'))};
+import { policyAt, frozenCheck, mainPolicy } from ${JSON.stringify(new URL('../packages/sandbox/index.js', import.meta.url).href)};
 const root = process.cwd();
 // @pullboard-board-file journey: record actual native proof receipts on the same persistent CLI fixture board
 const board = openBoard(${JSON.stringify(join(f.box.repo, '.git/pullboard/board.sqlite'))});

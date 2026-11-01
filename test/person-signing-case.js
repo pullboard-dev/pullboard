@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { relayClientFixture, relayFixtureChild } from './relay-client-fixture.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { grantChallenge, softwarePasskey } from './person-passkey-fixture.js';
-import { refuseNamedSigners } from '../src/person-signing-cli.js';
+import { refuseNamedSigners } from '../packages/person/index.js';
 import { relayWorkBudgetMs } from './relay-budget.js';
 import { executeMove } from '../packages/api/index.js';
 import { main } from './native-cli-fixture.js';

@@ -2,6 +2,7 @@ import { cellSourceInputs } from './cell-lint-inputs.js';
 import { gitChildEnv } from '../../../../src/git.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 /** Compute the accepted cells layout and literal graph without evaluating repository modules [CD19,CD23,CD61,CD62]. */
+import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -32,8 +33,64 @@ export function committedCellTransition(root) {
   return { present: true, active: true };
 }
 
+/** How many full inventories this process has built; a sweep that reuses one proves it with this count (#2232). */
+let inventoryBuilds = 0;
+
+/**
+ * The number of full cell inventories built so far in this process.
+ *
+ * @returns {number}
+ */
+export function inventoryBuildCount() { return inventoryBuilds; }
+
+/**
+ * Bring an inventory up to date for files whose bytes changed on disk, parsing only those files. The file set is
+ * unchanged, so every other file's imports and unknowns carry over; a changed package.json, or a file that is
+ * gone, means a full rebuild instead.
+ *
+ * @param {string} root
+ * @param {any} parsers
+ * @param {{ files: Map<string, Buffer>, edges: Map<string, any[]>, unknown: any[] }} prior
+ * @param {Iterable<string>} changed
+ * @returns {{ files: Map<string, Buffer>, edges: Map<string, any[]>, unknown: any[] }}
+ */
+export function updateCellInventory(root, parsers, prior, changed) {
+  const paths = [...new Set(changed)];
+  if (paths.some(file => file === 'package.json' || !prior.files.has(file) || !existsSync(join(root, file)))) return cellInventory(root, parsers);
+  const files = new Map(prior.files);
+  for (const file of paths) files.set(file, readFileSync(join(root, file)));
+  const config = files.has('package.json') ? JSON.parse(files.get('package.json').toString('utf8')) : {};
+  const modules = paths.filter(file => /\.[cm]?js$/u.test(file)).sort();
+  const edges = new Map(prior.edges), gone = new Set(modules);
+  const unknown = prior.unknown.filter(row => !gone.has(row.file));
+  const sources = modules.map(file => files.get(file).toString('utf8'));
+  const parsed = parsers.importsIn(sources), common = parsers.commonJsIn(sources);
+  for (const [index, file] of modules.entries()) {
+    const rows = [];
+    if (common[index]) unknown.push({ file, reason: 'CommonJS loader closure is unresolved' });
+    for (const specifier of parsed[index]) {
+      if (specifier.startsWith('node:')) continue;
+      const target = repositoryImport(file, specifier, config.imports);
+      if (!target || !files.has(target)) {
+        unknown.push({ file, specifier, reason: target ? `missing import target ${target}` : 'unresolved import or computed loader' });
+        continue;
+      }
+      rows.push({ target, specifier });
+    }
+    edges.set(file, rows);
+  }
+  const inputs = cellSourceInputs(modules.map((file, index) => ({ file, source: sources[index] })), files);
+  for (const [file, rows] of inputs) for (const row of rows) {
+    if (row.unresolved) unknown.push({ file, specifier: row.specifier, reason: row.unresolved });
+    else if (!files.has(row.target)) unknown.push({ file, specifier: row.specifier, reason: `missing ${row.kind} input ${row.target}` });
+    else edges.get(file).push(row);
+  }
+  return { files, edges, unknown };
+}
+
 /** Inventory all ordinary repository files; symlinks remain visible unknowns rather than traversed boundaries. */
 export function cellInventory(root, parsers) {
+  inventoryBuilds += 1;
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new TypeError('cell inventory needs explicit module parser operations');
   const { importsIn, commonJsIn } = parsers;
   const files = new Map(), unknown = [];

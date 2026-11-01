@@ -1,4 +1,4 @@
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';

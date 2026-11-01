@@ -276,11 +276,110 @@ export function stagedPaths(root, base = null) {
   return { touched, written };
 }
 
+/** The reads one pre-commit run shares, so git is asked once per kind of fact instead of once per path (#2232). */
+let readCache = null;
+
+/**
+ * Run a check with shared git reads: one batched tree or index listing per revision, one resolve-undo
+ * listing, one blob stream and one merge-base answer per head, however many paths it inspects.
+ *
+ * @template T
+ * @param {string} root
+ * @param {string[]} paths
+ * @param {() => T} check
+ * @returns {T}
+ */
+function withSharedReads(root, paths, check) {
+  const outer = readCache;
+  readCache = { root, paths: [...new Set(paths)], maps: new Map(), blobs: new Map(), undo: null, bases: new Map(), lines: undefined };
+  try { return check(); } finally { readCache = outer; }
+}
+
+/** The shared reads for this root, or null outside a pre-commit run. */
+const sharedReads = (root) => (readCache?.root === root ? readCache : null);
+
+/** List the records of many literal paths at one revision in a few git calls. */
+function fillRecords(root, revision, map, paths) {
+  for (const path of paths) if (!map.has(path)) map.set(path, []);
+  for (let start = 0; start < paths.length; start += 400) {
+    const specs = paths.slice(start, start + 400).map((path) => `:(literal)${path}`);
+    const raw = revision === ':index'
+      ? git(root, ['ls-files', '--stage', '-z', '--', ...specs])
+      : git(root, ['ls-tree', '-z', revision, '--', ...specs]);
+    for (const record of raw.split('\0').filter(Boolean)) {
+      const tab = record.indexOf('\t');
+      map.get(record.slice(tab + 1))?.push(record);
+    }
+  }
+}
+
+/**
+ * The raw `ls-files --stage -z` (revision ':index') or `ls-tree -z` record text for one literal path,
+ * the same bytes a single-path git call returns, served from the shared batch when one is running.
+ */
+function treeRaw(root, revision, path) {
+  const shared = sharedReads(root);
+  if (!shared) {
+    return revision === ':index'
+      ? git(root, ['ls-files', '--stage', '-z', '--', `:(literal)${path}`])
+      : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
+  }
+  let map = shared.maps.get(revision);
+  if (!map) { map = new Map(); shared.maps.set(revision, map); fillRecords(root, revision, map, shared.paths); }
+  if (!map.has(path)) fillRecords(root, revision, map, [path]);
+  const records = map.get(path);
+  return records.length ? `${records.join('\0')}\0` : '';
+}
+
+/** The resolve-undo records of one path, from one listing of the whole index per run. */
+function resolveUndoRaw(root, path) {
+  const shared = sharedReads(root);
+  if (!shared) return git(root, ['ls-files', '--resolve-undo', '--stage', '-z', '--', ':(literal)' + path]);
+  if (!shared.undo) {
+    shared.undo = new Map();
+    for (const record of git(root, ['ls-files', '--resolve-undo', '--stage', '-z']).split('\0').filter(Boolean)) {
+      const key = record.slice(record.indexOf('\t') + 1);
+      shared.undo.set(key, [...(shared.undo.get(key) ?? []), record]);
+    }
+  }
+  return (shared.undo.get(path) ?? []).join('\0');
+}
+
+/** Merge bases of HEAD and one merge head, asked once per head. */
+function mergeBasesOf(root, mergeHead) {
+  const shared = sharedReads(root);
+  const ask = () => tryGit(root, ['merge-base', '--all', 'HEAD', mergeHead]);
+  if (!shared) return ask();
+  if (!shared.bases.has(mergeHead)) shared.bases.set(mergeHead, ask());
+  return shared.bases.get(mergeHead);
+}
+
+/** Load the blobs of many object ids with one `cat-file --batch`; ids it cannot serve fall back to single reads. */
+function prefetchBlobs(root, oids) {
+  const shared = sharedReads(root);
+  const wanted = [...new Set(oids)].filter((oid) => shared && !shared.blobs.has(oid));
+  if (!wanted.length) return;
+  let out;
+  try {
+    out = gitExecFileSync(['cat-file', '--batch'], {
+      cwd: root, env: gitChildEnv(root), input: `${wanted.join('\n')}\n`, encoding: null, maxBuffer: 256 * 1024 * 1024,
+    });
+  } catch { return; }
+  let at = 0;
+  for (const oid of wanted) {
+    const end = out.indexOf(0x0a, at);
+    if (end < 0) return;
+    const header = out.toString('utf8', at, end).split(' ');
+    if (header[1] !== 'blob') { at = end + 1; continue; }
+    const size = Number(header[2]);
+    shared.blobs.set(oid, size <= 8 * 1024 * 1024 ? out.subarray(end + 1, end + 1 + size) : null);
+    at = end + 1 + size + 1;
+  }
+}
+
 /** Read one exact blob header from the index or a committed tree, refusing paths and modes that are not plain files. */
 function importFileEntry(root, revision, path) {
-  const raw = revision === ':index'
-    ? git(root, ['ls-files', '--stage', '-z', '--', `:(literal)${path}`])
-    : git(root, ['ls-tree', '-z', revision, '--', `:(literal)${path}`]);
+  const raw = treeRaw(root, revision, path);
   if (!raw.endsWith('\0') || raw.slice(0, -1).includes('\0')) return null;
   const row = raw.slice(0, -1);
   const tab = row.indexOf('\t');
@@ -295,6 +394,8 @@ function importFileEntry(root, revision, path) {
 
 /** Read one bounded text blob by its already parsed object identity. */
 function importFileBlob(root, oid) {
+  const shared = sharedReads(root);
+  if (shared?.blobs.has(oid)) return shared.blobs.get(oid);
   try {
     const bytes = gitExecFileSync(['cat-file', 'blob', oid], {
       cwd: root, env: gitChildEnv(root), encoding: null, maxBuffer: 8 * 1024 * 1024,
@@ -313,6 +414,19 @@ function stagedImportOnlyChange(root, path, moves) {
 
 /** Name added source lines when a foreign staged edit is outside the mechanical import allowance. */
 function stagedChangedLines(root, path) {
+  const shared = sharedReads(root);
+  if (shared) {
+    if (shared.lines === undefined) {
+      try {
+        const rows = addedLines(shared.diff ?? git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0'], { maxBuffer: MAX_SECRET_DIFF_BYTES }));
+        shared.lines = new Map();
+        for (const row of rows) shared.lines.set(row.path, [...(shared.lines.get(row.path) ?? []), `${row.path}:${row.line}`]);
+      } catch { shared.lines = null; }
+    }
+    // A path with no added rows (an exact rename, a mode change) keeps its own single-path read.
+    if (shared.lines?.has(path)) return shared.lines.get(path);
+    if (shared.lines && !treeRaw(root, ':index', path)) return [];
+  }
   try {
     const diff = git(root, ['diff', '--cached', '--text', '--no-ext-diff', '--no-textconv', '--no-color', '-U0', '--', ':(literal)' + path], { maxBuffer: MAX_SECRET_DIFF_BYTES });
     return addedLines(diff).filter(row => row.path === path).map(row => `${path}:${row.line}`);
@@ -402,7 +516,12 @@ export function blockedPaths(paths, protect) {
  * @param {{ root: string, isMain: boolean, config: any, agent: any, boardFile?: string, preMergeHook?: boolean, onNotice?: (message: string) => void, approvedRowPorts: any }} context
  * @returns {string[]}
  */
-export function preCommitProblems({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts }) {
+export function preCommitProblems(context) {
+  return withSharedReads(context.root, stagedPaths(context.root).touched, () => checkStagedChange(context));
+}
+
+/** The body of preCommitProblems, run with the shared git reads open (#2232). */
+function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHook = false, onNotice, approvedRowPorts }) {
   if (!isMain) refuseGrafts(root);
   const { touched, written } = stagedPaths(root);
   const problems = blockedPaths(written, config.protect).map(
@@ -416,6 +535,7 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
       if (error.code !== 'ENOBUFS') throw error;
       throw new Refused('DIFF_TOO_LARGE', 'the staged text diff exceeds the safe scan limit; split the change into smaller commits, then retry');
     }
+    if (readCache) readCache.diff = diff;
     problems.push(...secretsIn(addedLines(diff)).map((where) => `possible secret: ${where}`));
   }
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
@@ -429,6 +549,7 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
   const mergeHeads = mainMergeHeads(root, preMergeHook);
   const ownershipConfig = committedLaneConfig(root);
   const mergeTouched = mergeHeads ? [...new Set([...touched, ...mergeHeads.flatMap((mergeHead) => stagedPaths(root, mergeHead).touched)])] : touched;
+  if (readCache) readCache.paths = [...new Set([...readCache.paths, ...mergeTouched])];
   // Keeping either parent's exact content of a foreign file is accepted unchanged; when that file had a real conflict
   // in this merge, the resolution still names its owner (#860).
   const kept = mergeHeads && !preMergeHook
@@ -452,10 +573,11 @@ export function preCommitProblems({ root, isMain, config, agent, boardFile, preM
     const entry = importFileEntry(root, revision, path);
     return entry && { ...entry, bytes: importFileBlob(root, entry.oid) };
   };
+  prefetchBlobs(root, checkedForeign.flatMap(path => ['HEAD', ':index'].map(revision => importFileEntry(root, revision, path)?.oid).filter(Boolean)));
   const planChanges = new Map(checkedForeign.map(path => [path, planRowChange(path, {
     before: path => planRead('HEAD', path), after: path => planRead(':index', path),
     ownNewFile: path => !outOfLane(ownershipConfig, agent.agent_lane, [path]).length
-      && !git(root, ['ls-tree', '-z', 'HEAD', '--', `:(literal)${path}`])
+      && !treeRaw(root, 'HEAD', path)
       && Boolean(importFileEntry(root, ':index', path)),
   })]));
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
@@ -685,7 +807,7 @@ function mainMergeHeads(root, preMergeHook) {
 
 /** Compare the staged mode and object, rejecting unresolved stages rather than treating them as deletions. */
 function stagedObject(root, path) {
-  const records = git(root, ['ls-files', '--stage', '-z', '--', ':(literal)' + path]).split('\0').filter((record) => {
+  const records = treeRaw(root, ':index', path).split('\0').filter((record) => {
     const separator = record.indexOf('\t');
     return separator !== -1 && record.slice(separator + 1) === path;
   });
@@ -697,7 +819,7 @@ function stagedObject(root, path) {
 
 /** Read one committed path's mode and object without following symlinks or interpreting filename globs. */
 function committedObject(root, commit, path) {
-  const records = git(root, ['ls-tree', '-z', commit, '--', ':(literal)' + path]).split('\0').filter(Boolean);
+  const records = treeRaw(root, commit, path).split('\0').filter(Boolean);
   if (!records.length) return '';
   if (records.length !== 1) return null;
   const fields = /^(\d{6}) \w+ ([0-9a-f]{40,64})\t/.exec(records[0]);
@@ -728,7 +850,7 @@ function unchangedMergePath(root, path, mergeHeads) {
 
 /** Whether Git's resolve-undo index records a real conflict for this path in the merge being committed. */
 function conflictedInMerge(root, path) {
-  return git(root, ['ls-files', '--resolve-undo', '--stage', '-z', '--', ':(literal)' + path]).split('\0').filter(Boolean)
+  return resolveUndoRaw(root, path).split('\0').filter(Boolean)
     .some((record) => record.slice(record.indexOf('\t') + 1) === path && /^\d{6} [0-9a-f]{40,64} [123]\t/iu.test(record));
 }
 
@@ -741,8 +863,7 @@ function resolvedMergeConflictPath(root, path, mergeHeads) {
   const staged = stagedObject(root, path);
   if (staged === null) return false;
   const removed = staged === '';
-  const records = git(root, ['ls-files', '--resolve-undo', '--stage', '-z', '--', ':(literal)' + path])
-    .split('\0').filter(Boolean);
+  const records = resolveUndoRaw(root, path).split('\0').filter(Boolean);
   const stages = new Map();
   for (const record of records) {
     const separator = record.indexOf('\t');
@@ -756,7 +877,7 @@ function resolvedMergeConflictPath(root, path, mergeHeads) {
     stages.set(fields[3], fields[1] + ' ' + fields[2]);
   }
   const bases = mergeHeads.flatMap((mergeHead) => {
-    const result = tryGit(root, ['merge-base', '--all', 'HEAD', mergeHead]);
+    const result = mergeBasesOf(root, mergeHead);
     return result.status === 0 ? result.stdout.trim().split(/\r?\n/u).filter(Boolean) : [];
   });
   if (!bases.length) return false;

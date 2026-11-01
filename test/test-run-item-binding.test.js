@@ -60,7 +60,7 @@ test('a claimed pinned main-red test names its item and precedes an unclaimed ot
   const added = box.run(box.repo, 'add', 'web', 'Main red: synthetic item binding', '--criterion', 'The actual queue retains the claimed item.', '--json');
   assert.equal(added.code, 0, added.err);
   const item = JSON.parse(added.out).item.item_id;
-  for (const args of [['milestone', 'add', 'Now', '--items', String(item)], ['milestone', 'pin', 'Now', String(item), '--reason', 'Synthetic release blocker'], ['claim', String(item)]]) {
+  for (const args of [['milestone', 'add', 'Now', '--items', String(item), '--reason', 'Arrange fixture release'], ['milestone', 'pin', 'Now', String(item), '--reason', 'Synthetic release blocker'], ['claim', String(item)]]) {
     const run = box.run(args[0] === 'claim' ? box.web : box.repo, ...args);
     assert.equal(run.code, 0, run.err);
   }

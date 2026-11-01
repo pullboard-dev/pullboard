@@ -2,6 +2,7 @@ import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
+import { runnerPhaseFields } from '../timing.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -65,7 +66,7 @@ import { selectAffectedTests } from '../affected-tests.js';
 import { explicitCheckFiles } from '../browser-admission.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import {
   refuseProvesNothing,
 } from '../../packages/verify/index.js';
@@ -174,6 +175,14 @@ import { ambiguousMainReds } from '../../packages/store/index.js';
 import { submitReferenceReminders } from '../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 
+/** Sum sequential worker intervals only when every attempted run has complete measurements. */
+export function doctrineExecutionPhases(observations, attempts) {
+  const phases = observations.map(row => runnerPhaseFields(row.executionPhases));
+  const fields = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs', 'totalMs'];
+  return attempts && attempts === observations.length && phases.every(Boolean)
+    ? runnerPhaseFields({ version: 1, ...Object.fromEntries(fields.map(field => [field, phases.reduce((sum, phase) => sum + phase[field], 0)])) }) : null;
+}
+
 /** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
 function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
   if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
@@ -228,13 +237,13 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
       }
       return { problems: bytes.toString('utf8').split(/\r?\n/u).map(line => line.trimEnd()).filter(line => line.trim()), broken: '', seconds };
     },
-    /** A multi-check hold has no measured aggregate runner interval; individual actual phases stay in its observations. */
+    /** Sum the disjoint worker intervals for sequential rule runs when all were measured. */
     finish() {
       lease.tracker?.mark('ranAt');
       const single = attempts === 1 && observations.length === 1 ? observations[0] : null;
       lease.environment = observations.length && attempts === observations.length && observations.every(row => JSON.stringify(row.environment) === JSON.stringify(observations[0].environment)) ? observations[0].environment : null;
       lease.executionAdmission = single?.executionAdmission ?? null;
-      lease.executionPhases = single?.executionPhases ?? null;
+      lease.executionPhases = doctrineExecutionPhases(observations, attempts);
     },
   };
 }
@@ -650,9 +659,15 @@ export async function run(io, { first, values }) {
           const item = store.getItem(board, id), attempt = ctx.submitAttempt;
           if (item.item_status !== 'claimed' || item.item_owner !== attempt.agentId || item.item_frozen_digest !== attempt.digest
             || !(item.item_lease_until > ctx.clock.now().toISOString())) return;
-          await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
-            freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
-            submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+          if (error.code === 'RUNNER_TOOLING_CHANGED') {
+            await ordered(ctx, board, 'appendFact', [id, { agentId: attempt.agentId, kind: 'note',
+              text: `Submit infrastructure refusal [RUNNER_TOOLING_CHANGED]: ${error.message.slice(0, 4000)}. No failed submit is recorded.` }]);
+            if (ctx.io.submitToolingAttempt) ctx.io.submitToolingAttempt.owned = true;
+          } else {
+            await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
+              freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
+              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+          }
         });
       } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }
     }
