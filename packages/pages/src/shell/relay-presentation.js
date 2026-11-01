@@ -16,7 +16,7 @@ import { fileRevision } from "../../../store/index.js";
 import { resolveCommit } from "../../../../src/git.js";
 import { trunkRevisionReader } from "../../../git/index.js";
 import { cachedVerdictStates } from "../../../verify/index.js";
-import { compareFlowWindows } from "../../../../src/stats-flow.js";
+import { compareFlowWindows } from "../../../stats/index.js";
 
 // A comparison clock is an internal fingerprint input, never a displayed forecast or observation.
 const COMPARISON_CLOCK = Date.UTC(2000, 0, 1);

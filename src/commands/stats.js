@@ -27,18 +27,18 @@ import {
   flowLines,
   flowReportLines,
   flowStats,
-} from '../stats-flow.js';
+} from '../../packages/stats/index.js';
 import {
   comparisonLines,
   flowWindowLines,
   flowWindowMinutes,
-} from '../stats-flow-window.js';
+} from '../../packages/stats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
 import {
   proofStats,
-} from '../stats.js';
+} from '../../packages/stats/index.js';
 import {
   agentDisplayName,
   context,

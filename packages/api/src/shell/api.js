@@ -9,7 +9,7 @@ import { withdrawnFrom } from '../../../items/index.js';
 import { verifiedPasskeyRowDecision } from '../../../../src/person-row-proof.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 import { counterProofStats } from '../../../verify/index.js';
-import { proofStats } from '../../../../src/stats.js';
+import { proofStats } from '../../../stats/index.js';
 import { buildLocalBoardState } from '../../../store/index.js';
 import { stateFileInputs } from '../../../store/index.js';
 import { fileRevision } from '../../../store/index.js';
@@ -75,7 +75,7 @@ import {
   compareFlowWindows,
   prepareFlowHistory,
   projectFlowStats,
-} from '../../../../src/stats-flow.js';
+} from '../../../stats/index.js';
 import {
   projectItemSpecApprovals,
   specApprovalState,

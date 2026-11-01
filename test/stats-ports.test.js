@@ -7,8 +7,8 @@ import { events } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
 import { register } from '../packages/store/index.js';
 import { counterProofStats } from '../packages/verify/index.js';
-import { eventCounts } from '../src/stats.js';
-import { proofStats } from '../src/stats.js';
+import { eventCounts } from '../packages/stats/index.js';
+import { proofStats } from '../packages/stats/index.js';
 import { proofStats as legacyProofStats } from './fixtures/proof-stats-legacy.js';
 
 /** Create a real private SQLite board populated through native writer operations. */
