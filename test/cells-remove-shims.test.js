@@ -304,3 +304,15 @@ test('a repoint that would pull a process launcher into the move-registry closur
   assert.match(new Map(result.kept).get('src/stats-pure.js'), /would break the move-registry closure: process launcher packages\/stats\/src\/core\/spawn\.js/u);
   assert.equal(existsSync(join(box.root, 'src/stats-pure.js')), true);
 });
+
+test('a shim a test names inside a generated script stays, and a comment mention never holds it [C7,D3]', t => {
+  const quiet = shimmed(t);
+  quiet.put('test/comment.test.js', '// src/stats.js once held the stats shell\nexport const note = 1;\n');
+  assert.deepEqual(removeShims(quiet.root, quiet.plan, 'stats', { parsers: PARSERS }).deleted, ['src/stats.js'], 'a comment is not a use');
+  const box = shimmed(t);
+  box.put('test/child.test.js', "export const script = `import { shell } from './src/stats.js';\\nconsole.log(shell);`;\n");
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  assert.equal(existsSync(join(box.root, 'src/stats.js')), true, 'the generated child script still imports the shim');
+  assert.deepEqual(result.deleted, []);
+  assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /test\/child\.test\.js:1 names src\/stats\.js inside a string/u);
+});

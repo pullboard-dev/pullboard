@@ -384,3 +384,23 @@ test('outside-cell changes do not widen touched cells but still refuse unplaced 
   box.put('src/unplanned.js', 'export const value = 1;\n');
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
 });
+
+/** The refusal text a candidate draws, or an empty string when submit accepts it. */
+async function refusal(promise) {
+  try { await promise; return ''; } catch (error) { return error.message; }
+}
+
+test('submit refuses deleting a module a test names inside a generated script, never for a comment mention [C7,D3]', async t => {
+  const box = plannedFixture(t, fixture => {
+    fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
+    fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
+    fixture.put('test/child.test.js', "const script = `import { doomed } from ${JSON.stringify(ROOT)}/src/doomed.js;`;\n// src/quiet.js once held the quiet value\nexport { script };\n");
+  });
+  git(box.root, 'rm', '-q', '--', 'src/doomed.js');
+  const named = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
+  assert.match(named, /test\/child\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
+  git(box.root, 'checkout', '-q', box.main, '--', 'src/doomed.js');
+  git(box.root, 'rm', '-q', '--', 'src/quiet.js');
+  const quiet = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
+  assert.doesNotMatch(quiet, /names deleted/u, 'a comment mention never holds a deletion');
+});

@@ -251,6 +251,27 @@ function hitsByShim(box, shims) {
   return hits;
 }
 
+/**
+ * Every place a test source names one of `paths` inside a string literal, such as a generated child script importing
+ * `./src/x.js` or `${ROOT}/src/x.js`. Import checks cannot see these, so deleting a named path turns main red. A literal
+ * that `resolve` maps to the path is an ordinary import the repoint already handles; comments are never strings, and a
+ * path after a space inside a string is prose, not a use.
+ */
+export function scriptMentions(files, paths, resolve = () => null) {
+  const rows = [], wanted = [...new Set(paths)];
+  const patterns = wanted.map(path => [path, new RegExp(`(?:^|(?<=['"\`(,=]|\\}/|^/))(?:\\.{1,2}/)*${path.replace(/[.*+?^$()|[\]\\{}]/gu, '\\$&')}(?![\\w/-]|\\.\\w)`, 'u')]);
+  for (const [file, bytes] of files) {
+    if (!testFile(file) || !/\.[cm]?js$/u.test(file)) continue;
+    const source = bytes.toString('utf8');
+    if (!wanted.some(path => source.includes(path))) continue;
+    for (const literal of lex(source).strings) for (const [path, pattern] of patterns) {
+      if (!literal.text.includes(path) || resolve(file, literal.text) === path || !pattern.test(literal.text)) continue;
+      rows.push({ file, line: source.slice(0, literal.start).split('\n').length, path });
+    }
+  }
+  return rows;
+}
+
 /** Apply the surviving edits and door additions to the original bytes, returning each changed file's new source. */
 function materialize(box, plans, excluded) {
   const out = materializeAll(box, plans, excluded);
@@ -382,7 +403,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     applyToDisk(box, new Map(), touched);
     throw error;
   }
-  const deleted = [];
+  const deleted = [], named = scriptMentions(after.files, live, (file, text) => text.startsWith('.') ? resolveSpec(box, file, text) : null);
   for (const shim of live) {
     if (kept.has(shim)) continue;
     const users = [...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file);
@@ -390,6 +411,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     // Ownership first: a shim this lane may not delete is reported as such before the importers that also hold it.
     if (outOfLane(settings, lane, [shim]).length) why.push(`${shim} is owned by the ${laneOf(settings, shim)} lane; a removal there deletes it`);
     if (foreignPlan.length) why.push(`deleting ${shim} rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
+    why.push(...named.filter(row => row.path === shim).map(row => `${row.file}:${row.line} names ${shim} inside a string; point it at the moved file or front door`));
     why.push(...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by ')));
     if (!held.length && users.length) why.push(`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`);
     if (why.length) { kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`); continue; }
