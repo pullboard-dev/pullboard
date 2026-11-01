@@ -510,14 +510,31 @@ export function selectTestTreeGuards(root, { base, trunk, commit = 'HEAD', chang
   const sourceChanged = !base || changed.some(path => /^(?:src|bin|packages|apps)\//u.test(path));
   if (!testChanged && !sourceChanged) return [];
   const guards = new Set();
+  // A guard the base tree names follows its file through a rename in the commit; a deleted one keeps its old path and is refused.
+  const renames = base ? renamedPaths(root, base, commit) : new Map();
   for (const revision of [...new Set([base, commit].filter(Boolean))]) {
     for (const [path, source] of modulesAt(root, revision, { completeGraph: false }).modules) {
       if (!TEST.test(path)) continue;
       const headers = headerLines(source);
-      if (headers.includes(TEST_TREE_INPUT)) guards.add(path);
+      if (headers.includes(TEST_TREE_INPUT)) guards.add(revision === base ? renames.get(path) ?? path : path);
     }
   }
   return [...guards].sort();
+}
+
+/** Map each path Git detects as renamed between two commits to its new path; copies and deletions are not renames. */
+function renamedPaths(root, base, commit) {
+  const fields = selectionGit(root, ['diff', '-M', '--name-status', '-z', base, commit]).split('\0');
+  const renames = new Map();
+  for (let at = 0; at < fields.length; at++) {
+    const status = fields[at];
+    if (!status) continue;
+    if (status.startsWith('R') || status.startsWith('C')) {
+      if (status.startsWith('R')) renames.set(fields[at + 1], fields[at + 2]);
+      at += 2;
+    } else at += 1;
+  }
+  return renames;
 }
 
 /**

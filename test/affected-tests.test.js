@@ -419,6 +419,25 @@ test('repo-wide test guards survive declaration removal and use committed leadin
 });
 
 
+test('a repo guard the base names follows its file through a rename, and a deleted guard keeps its old path [C7]', t => {
+  const box = graph(t), header = '/** @pullboard-test-input test-tree */\n';
+  const body = Array.from({ length: 12 }, (_, index) => `export const scan${index} = ${index};\n`).join('');
+  box.put('test/old-scanner.test.js', header + body);
+  box.put('test/doomed.test.js', header + 'export const doomed = true;\n');
+  box.put('test/other.test.js', 'export const other = true;\n');
+  const base = box.commit();
+  mkdirSync(join(box.root, 'packages/area/tests'), { recursive: true });
+  box.git('mv', 'test/old-scanner.test.js', 'packages/area/tests/scanner.test.js');
+  rmSync(join(box.root, 'test/doomed.test.js'));
+  const commit = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }),
+    ['packages/area/tests/scanner.test.js', 'test/doomed.test.js'], 'the renamed guard is read at its new path; the deleted guard keeps the old path so submit refuses it');
+  box.put('packages/area/tests/scanner.test.js', body);
+  const stripped = box.commit();
+  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit: stripped, changed: ['src/api.js'] }),
+    ['packages/area/tests/scanner.test.js', 'test/doomed.test.js'], 'a renamed guard that drops its declaration still counts as a guard');
+});
+
 test('explicit pure repo guards cover source and test changes while behavior readers stay affected-only [C7]', t => {
   const box = graph(t), guardHeader = '/** @pullboard-test-input test-tree */\n';
   box.put('src/api.js', 'export const value = 1;\n');
