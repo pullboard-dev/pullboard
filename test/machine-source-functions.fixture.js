@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { posix } from 'node:path';
-/** A top-level function, or a top-level arrow function bound to a const. */
-const START = /^(?:export )?(?:(?:async )?function (\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
+/** A top-level function (including generators), or a top-level arrow function bound to a const. */
+const START = /^(?:export )?(?:(?:async )?function\s*\*?\s+(\w+)\(|const (\w+) = (?:async )?(?:\([^)]*\)|\w+) =>)/;
 
 /**
  * Each top-level function's source by name, arrow functions included. A function declaration ends
