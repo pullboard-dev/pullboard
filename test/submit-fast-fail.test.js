@@ -1,6 +1,7 @@
 /** Submit fails fast: a main conflict is refused before any check, then static problems before the runner gate [V4,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
@@ -25,6 +26,8 @@ function project(t, { staticFails = false } = {}) {
   const builder = builderRepo(box);
   assert.equal(builder.coordinator('add', 'build', 'Fail fast fixture', '--check', MARK(markers.item)).code, 0);
   assert.equal(builder.run('claim', '1').code, 0);
+  // Adding the item ran its check once to baseline it; only runs after this point count.
+  for (const path of Object.values(markers)) rmSync(path, { force: true });
   return { box: builder, markers };
 }
 
