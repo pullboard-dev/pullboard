@@ -14,7 +14,7 @@ import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 const ORIGIN = 'https://app.pullboard.dev/';
 import { closeBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';
-import { relaySnapshot } from '../src/relay-presentation.js';
+import { relaySnapshot } from '../packages/pages/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';

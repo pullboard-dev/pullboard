@@ -12,7 +12,7 @@ import {
 import {
   presentationDigest,
   relaySnapshot,
-} from '../../../../src/relay-presentation.js';
+} from '../../../pages/index.js';
 import { locked } from '../../../../src/relay-lock.js';
 import {
   outboxGeneration,

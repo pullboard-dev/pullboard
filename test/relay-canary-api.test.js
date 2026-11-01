@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { relaySnapshot } from '../src/relay-presentation.js';
+import { relaySnapshot } from '../packages/pages/index.js';
 import { observeRelayHealth } from '../src/relay-canary-health.js';
 import { main } from './native-cli-fixture.js';
 import { apiFetch } from './api-fixture.js';

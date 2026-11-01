@@ -25,7 +25,7 @@ import { resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
-import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
+import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';

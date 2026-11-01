@@ -17,7 +17,7 @@ import {
   readSealedValue,
   writeSealedValue,
   writeSealedDescriptor,
-} from "../../../src/sealed-pages.js";
+} from "../../pages/index.js";
 
 /** Retain only synthetic encrypted objects, with a distinct private reuse cache and observable reads. */
 async function storage() {
