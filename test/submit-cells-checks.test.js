@@ -424,3 +424,10 @@ test('shared cell inventory updates changed modules and reports structural fallb
   second.candidate(box.root, restored, ['src/extra.js']);
   assert.equal(modes.at(-1), 'candidate-full-fallback');
 });
+
+test('one changed cell selects its importers without unrelated cells [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
+  const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
+  assert.deepEqual(result.cells.sort(), ['app:cli', 'stats']);
+});
