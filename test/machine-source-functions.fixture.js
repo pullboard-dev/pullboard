@@ -39,19 +39,19 @@ export function functionsIn(source) {
 export const MACHINE_CALLBACKS = {
   'board-claim.js': { freeze: 'cli.js#freezer', foreignBlockers: 'board.js#foreignBlockers' },
   'board-refreeze.js': { freeze: 'cli.js#freezer' },
-  'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict' },
+  'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': '../packages/landing/src/core/landing-environment-guards.js#requireVerdict' },
   'board-reopen.js': {
     'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
     'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
   },
   'board-record-landing-batch.js': {
-    'board.nativePorts.landingEnvironment.requireBatch': 'landing-environment-guards.js#requireBatch',
-    'board.nativePorts.landingEnvironment.requireRevision': 'landing-environment-guards.js#requireRevision',
+    'board.nativePorts.landingEnvironment.requireBatch': '../packages/landing/src/core/landing-environment-guards.js#requireBatch',
+    'board.nativePorts.landingEnvironment.requireRevision': '../packages/landing/src/core/landing-environment-guards.js#requireRevision',
   },
   'board-finish-landing-batch.js': {
-    'board.nativePorts.landingEnvironment.requireTrunk': 'landing-environment-guards.js#requireTrunk',
-    'board.nativePorts.landingEnvironment.requireStoredBatch': 'landing-environment-guards.js#requireStoredBatch',
+    'board.nativePorts.landingEnvironment.requireTrunk': '../packages/landing/src/core/landing-environment-guards.js#requireTrunk',
+    'board.nativePorts.landingEnvironment.requireStoredBatch': '../packages/landing/src/core/landing-environment-guards.js#requireStoredBatch',
   },
   // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
   'gate-execution.js': {
@@ -90,11 +90,11 @@ export const MACHINE_CALLBACKS = {
     'board.nativePorts.recordAutomaticRigorDrafts': '../packages/rigor/src/shell/rigor-auto.js#recordAutomaticRigorDrafts',
     'board.nativePorts.newRigorNotices': '../packages/rigor/src/core/rigor-notices.js#newRigorNotices',
     'board.nativePorts.rigorNoticeText': '../packages/rigor/src/core/rigor-notices.js#rigorNoticeText',
-    'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict',
-    'board.nativePorts.landingEnvironment.requireBatch': 'landing-environment-guards.js#requireBatch',
-    'board.nativePorts.landingEnvironment.requireRevision': 'landing-environment-guards.js#requireRevision',
-    'board.nativePorts.landingEnvironment.requireTrunk': 'landing-environment-guards.js#requireTrunk',
-    'board.nativePorts.landingEnvironment.requireStoredBatch': 'landing-environment-guards.js#requireStoredBatch',
+    'board.nativePorts.landingEnvironment.requireVerdict': '../packages/landing/src/core/landing-environment-guards.js#requireVerdict',
+    'board.nativePorts.landingEnvironment.requireBatch': '../packages/landing/src/core/landing-environment-guards.js#requireBatch',
+    'board.nativePorts.landingEnvironment.requireRevision': '../packages/landing/src/core/landing-environment-guards.js#requireRevision',
+    'board.nativePorts.landingEnvironment.requireTrunk': '../packages/landing/src/core/landing-environment-guards.js#requireTrunk',
+    'board.nativePorts.landingEnvironment.requireStoredBatch': '../packages/landing/src/core/landing-environment-guards.js#requireStoredBatch',
   },
   '../packages/seats/src/core/line-capacity-board.js': {
     nextFor: 'board.js#nextFor',
