@@ -59,7 +59,7 @@ function project(disableRefresh) {
   const armed = join(box.dir, 'landing-gate-armed');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lanes.web.owns.push('src/command-docs/');
-  config.landing = { publish: 'separate' };
+  config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
   config.flakes = { rerun: false, quarantine: false };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2) + '\n');
   // Setup checks intentionally establish the item lifecycle, not generated-doc assurance.
