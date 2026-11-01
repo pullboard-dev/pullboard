@@ -47,11 +47,11 @@ function carve(ms, gate, facts, into, base) {
 }
 
 /** Walk one item's events from add to merge; every millisecond lands in exactly one phase. */
-function breakdown(events) {
+function breakdown(events, receipts = []) {
   const phases = Object.fromEntries(TIME_PHASES.map(phase => [phase, 0]));
   const state = { claimed: false, rejected: false };
   const facts = { toolMs: 0, thinkingMs: 0 };
-  let phase = null, since = null, gate = null;
+  let phase = null, since = null, gate = null, claimAt = null, pendingBuild = 0;
   for (const event of events) {
     const at = Date.parse(event.event_at), detail = proofEventDetail(event);
     if (event.event_kind === 'fact' && detail.kind === 'seat-time') {
@@ -62,18 +62,39 @@ function breakdown(events) {
     if (receipt && Number.isSafeInteger(receipt.durationMs) && receipt.durationMs >= 0) {
       // Production proof receipts carry the run's duration; a check run is the check phase, a submit gate run is the test phase.
       const name = receipt.kind === 'check' || receipt.kind === 'submit' && receipt.submitPhase === 'criterion'
-        ? 'check' : receipt.kind === 'submit' ? 'test' : null;
+        ? 'check' : receipt.kind === 'submit' && receipt.submitPhase === 'proof' ? 'test' : null;
       if (name) { gate ??= {}; gate[name] = (gate[name] ?? 0) + receipt.durationMs; }
       continue;
     }
+    if (event.event_kind === 'claim') claimAt = at;
+    if (event.event_kind === 'submit' && Number.isFinite(claimAt)) {
+      for (const receipt of receipts) {
+        const finished = Date.parse(receipt.at);
+        if (!['static', 'doctrine', 'conflict'].includes(receipt.kind) || !Number.isFinite(finished)
+          || finished < claimAt || finished > at) continue;
+        const duration = ['waitMs', 'admissionMs', 'setupMs', 'runMs', 'evidenceMs']
+          .reduce((sum, key) => sum + (Number.isFinite(receipt[key]) && receipt[key] >= 0 ? receipt[key] : 0), 0);
+        gate ??= {};
+        gate[receipt.kind] = (gate[receipt.kind] ?? 0) + duration;
+      }
+    }
     if (phase && Number.isFinite(at) && at >= since) {
       const ms = at - since;
-      if ((phase === 'building' || phase === 'rejectRebuilding') && event.event_kind === 'submit') carve(ms, detail.gatePhases ?? gate, facts, phases, phase);
-      else phases[phase] += ms;
+      if (phase === 'building' || phase === 'rejectRebuilding') {
+        pendingBuild += ms;
+        if (event.event_kind === 'submit') {
+          carve(pendingBuild, detail.gatePhases ?? gate, facts, phases, phase);
+          pendingBuild = 0;
+        }
+      } else phases[phase] += ms;
       since = at;
     }
     if (event.event_kind === 'merged') break;
     const next = phaseAfter(event, detail, state);
+    if (next && next !== phase && (phase === 'building' || phase === 'rejectRebuilding') && pendingBuild) {
+      phases[phase] += pendingBuild;
+      pendingBuild = 0;
+    }
     if (next) { phase = next; since = at; }
     if (event.event_kind === 'submit') gate = null;
   }
@@ -94,9 +115,23 @@ function median(values) {
  * @param {{ now: number, days?: number }} options
  * @returns {{ since: string, until: string, landed: number, items: any[], phases: Record<string, { medianMs: number, totalMs: number }>, clockMs: number }}
  */
-export function timeStats(history, { now, days = 7 }) {
+export function timeStats(history, { now, days = 7, receipts = [] }) {
   const window = timeWindowDays(days) * 86400000;
   const ordered = [...history].sort((a, b) => a.event_id - b.event_id);
+  const commits = new Map();
+  for (const event of ordered) {
+    if (event.event_kind !== 'submit' || !Number.isSafeInteger(event.item_id)) continue;
+    const commit = proofEventDetail(event).commit;
+    if (typeof commit !== 'string' || !/^[a-f0-9]{40,64}$/u.test(commit)) continue;
+    if (!commits.has(commit)) commits.set(commit, new Set());
+    commits.get(commit).add(event.item_id);
+  }
+  const attributed = receipts.map(receipt => {
+    if (Number.isSafeInteger(receipt.item)) return receipt;
+    const commit = receipt.commit ?? receipt.executionSource?.commit ?? receipt.source?.commit;
+    const items = commits.get(commit);
+    return items?.size === 1 ? { ...receipt, item: [...items][0] } : receipt;
+  });
   const byItem = new Map(), landedAt = new Map();
   for (const event of ordered) {
     if (event.item_id == null) continue;
@@ -109,7 +144,7 @@ export function timeStats(history, { now, days = 7 }) {
     if (!(at >= now - window && at <= now)) continue;
     const events = byItem.get(id), added = events.find(event => event.event_kind === 'add');
     if (!added) continue;
-    const phases = breakdown(events);
+    const phases = breakdown(events, attributed.filter(receipt => receipt.item === id));
     items.push({ id, landedAt: new Date(at).toISOString(), clockMs: at - Date.parse(added.event_at), phases });
   }
   items.sort((a, b) => a.id - b.id);
@@ -117,7 +152,14 @@ export function timeStats(history, { now, days = 7 }) {
     const values = items.map(item => item.phases[phase]);
     return [phase, { medianMs: median(values), totalMs: values.reduce((sum, value) => sum + value, 0) }];
   }));
-  return { since: new Date(now - window).toISOString(), until: new Date(now).toISOString(), landed: items.length, items, phases,
+  const unattributedReceipts = attributed.filter(receipt => ['static', 'doctrine', 'conflict'].includes(receipt.kind)
+    && !Number.isSafeInteger(receipt.item)).length;
+  const unattributedProofs = items.reduce((count, item) => count + byItem.get(item.id).filter(event => {
+    if (event.event_kind !== 'proof-run') return false;
+    const receipt = proofEventDetail(event).receipt;
+    return receipt?.kind === 'submit' && !['criterion', 'proof'].includes(receipt.submitPhase);
+  }).length, 0);
+  return { since: new Date(now - window).toISOString(), until: new Date(now).toISOString(), landed: items.length, items, phases, unattributedReceipts, unattributedProofs,
     clockMs: items.reduce((sum, item) => sum + item.clockMs, 0) };
 }
 
@@ -125,6 +167,8 @@ export function timeStats(history, { now, days = 7 }) {
 export function timeLines(stats) {
   const minutes = ms => (ms / 60000).toFixed(1);
   const lines = [`${stats.landed} items landed ${stats.since} to ${stats.until}; ${minutes(stats.clockMs)} clock minutes`];
+  if (stats.unattributedReceipts) lines.push(`${stats.unattributedReceipts} older phase receipts lack item attribution`);
+  if (stats.unattributedProofs) lines.push(`${stats.unattributedProofs} submit proof receipts lack phase attribution`);
   for (const phase of TIME_PHASES) {
     const row = stats.phases[phase];
     if (row.totalMs > 0) lines.push(`${phase}: median ${minutes(row.medianMs)} min, total ${minutes(row.totalMs)} min`);
@@ -141,11 +185,12 @@ export function timeLines(stats) {
  */
 export function checkpointLine(stats, { reason, label }) {
   const phases = Object.fromEntries(TIME_PHASES.map(phase => [phase, stats.phases[phase]]));
-  return JSON.stringify({ version: 1, at: stats.until, reason, ...(label ? { label } : {}), since: stats.since, landed: stats.landed, clockMs: stats.clockMs, phases });
+  return JSON.stringify({ version: 1, at: stats.until, reason, ...(label ? { label } : {}), since: stats.since, landed: stats.landed, clockMs: stats.clockMs,
+    unattributedReceipts: stats.unattributedReceipts, unattributedProofs: stats.unattributedProofs, phases });
 }
 
 /** Whether a weekly checkpoint is due: none yet, or the last one is at least seven days old. */
 export function weeklyDue(historyText, now) {
-  const last = historyText.split('\n').filter(Boolean).map(line => { try { return Date.parse(JSON.parse(line).at); } catch { return NaN; } }).filter(Number.isFinite).at(-1);
+  const last = historyText.split('\n').filter(Boolean).map(line => { try { const row = JSON.parse(line); return row.reason === 'weekly' ? Date.parse(row.at) : NaN; } catch { return NaN; } }).filter(Number.isFinite).at(-1);
   return last === undefined || now - last >= 7 * 86400000;
 }

@@ -7,6 +7,11 @@ import { timeLines } from '../packages/stats/index.js';
 import { timeStats } from '../packages/stats/index.js';
 import { weeklyDue } from '../packages/stats/index.js';
 import { proofFields } from '../packages/verify/index.js';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runFixtureGit } from './fixture-child.js';
+import { recordTimeCheckpoint } from '../src/stats-time-checkpoint.js';
 
 const T0 = Date.parse('2026-10-01T00:00:00.000Z');
 const MIN = 60000;
@@ -64,6 +69,7 @@ test('a checkpoint is one dated JSON line and a weekly one is due only after sev
   assert.equal(weeklyDue('', NOW), true);
   assert.equal(weeklyDue(`${line}\n`, NOW + 6 * 86400000), false);
   assert.equal(weeklyDue(`${line}\n`, NOW + 7 * 86400000), true);
+  assert.equal(weeklyDue(`${checkpointLine(stats, { reason: 'release' })}\n`, NOW), true, 'a release does not replace a weekly checkpoint');
 });
 
 test('a production check receipt of 60000 ms shows as 60000 ms of check time, not a matching sum [R1,R2,C7]', () => {
@@ -89,4 +95,55 @@ test('a native submit criterion receipt contributes check time [R1,R2,C7]', () =
   const stats = timeStats(history, { now: NOW, days: 7 });
   assert.equal(stats.phases.check.totalMs, MIN);
   assert.equal(stats.items[0].clockMs, 7 * MIN);
+});
+
+test('only item-attributed gate receipts contribute static and doctrine time [R1,R2,C7]', () => {
+  const history = [ev(5, 0, 'add'), ev(5, 1, 'claim'), ev(5, 10, 'submit'), ev(5, 11, 'reserve'), ev(5, 12, 'accept'), ev(5, 13, 'merged')];
+  const receipts = [
+    { item: 5, kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: MIN },
+    { item: 5, kind: 'doctrine', at: new Date(T0 + 5 * MIN).toISOString(), runMs: 2 * MIN },
+    { item: 6, kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 9 * MIN },
+    { kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 9 * MIN },
+  ];
+  const stats = timeStats(history, { now: NOW, days: 7, receipts });
+  assert.equal(stats.phases.static.totalMs, MIN);
+  assert.equal(stats.phases.doctrine.totalMs, 2 * MIN);
+  assert.equal(stats.unattributedReceipts, 1);
+  assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 13 * MIN);
+});
+
+test('a claim renewal does not truncate a measured gate phase [R1,R2,C7]', () => {
+  const history = [ev(9, 0, 'add'), ev(9, 1, 'claim'), ev(9, 3, 'renew'), ev(9, 5, 'submit'), ev(9, 6, 'accept'), ev(9, 7, 'merged')];
+  const receipts = [{ item: 9, kind: 'static', at: new Date(T0 + 4 * MIN).toISOString(), runMs: 3 * MIN }];
+  const stats = timeStats(history, { now: NOW, receipts });
+  assert.equal(stats.phases.static.totalMs, 3 * MIN);
+  assert.equal(stats.phases.building.totalMs, MIN);
+  assert.equal(TIME_PHASES.reduce((sum, name) => sum + stats.items[0].phases[name], 0), 7 * MIN);
+});
+
+test('a receipt commit is attributed only to a unique submitted item [R1,R2,C7]', () => {
+  const commit = 'a'.repeat(40), at = new Date(T0 + 4 * MIN).toISOString();
+  const history = [ev(7, 0, 'add'), ev(7, 1, 'claim'), ev(7, 5, 'submit', { commit }), ev(7, 6, 'accept'), ev(7, 7, 'merged')];
+  const receipts = [{ kind: 'static', commit, at, runMs: MIN }];
+  assert.equal(timeStats(history, { now: NOW, receipts }).phases.static.totalMs, MIN);
+  history.push(ev(8, 0, 'add'), ev(8, 1, 'claim'), ev(8, 5, 'submit', { commit }), ev(8, 6, 'accept'), ev(8, 7, 'merged'));
+  const ambiguous = timeStats(history, { now: NOW, receipts });
+  assert.equal(ambiguous.phases.static.totalMs, 0);
+  assert.equal(ambiguous.unattributedReceipts, 1);
+});
+
+test('weekly and release checkpoints append without replacing earlier history [R1,R2,C7]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'time-checkpoints-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  runFixtureGit(['init', '-q'], { cwd: root });
+  const ctx = { info: { root, commonDir: join(root, '.git') }, clock: { now: () => new Date(NOW) } };
+  const board = { db: { prepare: () => ({ all: () => HISTORY }) } };
+  const file = recordTimeCheckpoint(ctx, board, { reason: 'weekly' });
+  assert.ok(file);
+  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'weekly' }), null);
+  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'release', label: '0.9.4' }), file);
+  assert.equal(recordTimeCheckpoint(ctx, board, { reason: 'weekly', now: NOW + 7 * 86400000 }), file);
+  const rows = readFileSync(file, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+  assert.deepEqual(rows.map(row => row.reason), ['weekly', 'release', 'weekly']);
+  assert.equal(rows[1].label, '0.9.4');
 });

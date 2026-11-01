@@ -65,7 +65,8 @@ export function run(io, { first, second, rest, values }) {
     if (kind !== undefined && !['weekly', 'release'].includes(kind)) throw new Refused('USAGE', 'record a checkpoint with --checkpoint weekly or --checkpoint release');
     const days = flowWindowMinutes(values.window ?? '7d') / 1440;
     const now = ctx.clock.now().getTime();
-    const time = withBoard(ctx, board => timeStats(store.events(board), { now, days }));
+    const receipts = gateReceipt.retainedReceipts(ctx.info.root, { from: '1970-01-01T00:00:00.000Z', to: new Date(now + 1).toISOString() });
+    const time = withBoard(ctx, board => timeStats(store.events(board), { now, days, receipts }));
     let checkpoint = null;
     if (kind) {
       const file = join(ctx.info.commonDir, 'pullboard', 'stats-history.jsonl');
