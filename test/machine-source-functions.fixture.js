@@ -195,3 +195,37 @@ export function assertPostVerdictLandingAudit(editedSource, codeProblems, machin
     "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
   assert.deepEqual(codeProblems(machine, uncaught), ['MOON_PHASE is raised by accept and reject but not declared there'], 'a real verification refusal remains audited');
 }
+
+/** Exact relocated provider identities for the existing caller-specific audit metadata. */
+const SOURCE_AUDIT_IDENTITIES = {
+  "../packages/link/src/shell/relay.js": "relay.js",
+  "../packages/gate/src/shell/gate-execution.js": "gate-execution.js",
+  "../packages/gate/src/shell/gate-submit.js": "gate-submit.js",
+  "../packages/gate/src/shell/gate.js": "gate.js",
+  "../packages/store/src/core/exit-rules-continuation.js": "exit-rules-continuation.js",
+  "../packages/store/src/shell/board-access.js": "board-access.js",
+  "../packages/store/src/shell/board-health.js": "board-health.js",
+  "../packages/store/src/core/board-link-state.js": "board-link-state.js",
+  "../packages/store/src/shell/board-query.js": "board-query.js",
+  "../packages/store/src/shell/board-read-open.js": "board-read-open.js",
+  "../packages/store/src/shell/board.js": "board.js",
+  "../packages/store/src/shell/proof-receipts.js": "proof-receipts.js",
+  "../packages/store/src/shell/board-store.js": "board-store.js",
+  "../packages/store/src/core/board-rigor-auto-source.js": "board-rigor-auto-source.js",
+  "../packages/store/src/core/board-rigor-source.js": "board-rigor-source.js",
+  "../packages/store/src/core/board-rigor.js": "board-rigor.js",
+  "../packages/store/src/shell/board-claim.js": "board-claim.js",
+  "../packages/store/src/shell/board-finish-landing-batch.js": "board-finish-landing-batch.js",
+  "../packages/store/src/shell/board-next-for.js": "board-next-for.js",
+  "../packages/store/src/shell/board-record-landing-batch.js": "board-record-landing-batch.js",
+  "../packages/store/src/shell/board-refreeze.js": "board-refreeze.js",
+  "../packages/store/src/shell/board-reopen.js": "board-reopen.js",
+  "../packages/store/src/shell/board-verify.js": "board-verify.js"
+};
+
+/** Compare physical aliases without changing function names or expanding any caught boundary. */
+export function auditKey(key) {
+  const [file, name] = key.split('#');
+  const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
+  return `${SOURCE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
+}
