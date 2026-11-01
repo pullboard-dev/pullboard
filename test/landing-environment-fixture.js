@@ -110,7 +110,7 @@ function rechecked(box, entry) {
 function policy(box, landing) {
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.landing = landing;
+  config.landing = { ...landing, manualOverride: true };
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   commit(box, box.repo, 'chore: declare the landing host policy');
 }

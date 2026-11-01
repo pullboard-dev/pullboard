@@ -82,7 +82,7 @@ export async function landOnTrunk(state) {
     }
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
-    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked' });
+    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }] });
     state.say(`nothing landed: ${error.message}`);
     return;
   }
