@@ -1,3 +1,6 @@
+import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
+import { clauseInspectionProblem } from '../../../state/index.js';
+import { itemThread } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
@@ -48,7 +51,7 @@ import { moveItem } from "./board.js";
  * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry }) {
+export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry }) {
   const autoOptions = { agentId, commit, tree, policyCommit, companion, autoMainReds, submissionProof: proof };
   if (autoMainReds && board.executionEngineVersion === undefined) autoOptions.autoMainReds = board.enginePorts.sealKnownMainAutofile(board, id, autoOptions).autoMainReds;
   let recordedProof;
@@ -82,6 +85,8 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         [IN_STATE]: notYours,
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
+        clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspectClauses === true
+          ? clauseInspectionProblem(found, itemThread(board, id)) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,

@@ -1,3 +1,4 @@
+import { CLAUSE_INSPECTION_ENGINE } from '../../../../../src/clause-inspection-engine.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofile-engine.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../../src/known-main-owner-pattern-engine.js";
 import { ENGINE_VERSION } from "../../../../../src/engine-metadata.js";
@@ -36,7 +37,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  return Math.max(args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? ((board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
         ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE) : 1,
@@ -50,6 +51,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "CLAUSE_UNTICKED": "tick each named clause with its declared evidence kind using pullboard fact <id> note, then submit again",
   "B26_PERSON_CHANNEL": "record it as the person through pullboard view or the person's own terminal",
   "BAD_CHECK": "ask your coordinator to set the check: pullboard edit <id> --check \"<command>\"",
   "BAD_CHECK_BASELINE": "the coordinator sets the check again: pullboard edit <id> --check \"<command>\"",
