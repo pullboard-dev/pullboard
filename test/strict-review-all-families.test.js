@@ -72,7 +72,7 @@ test('a current companion family stays excluded when a third joined family can i
   f.claim('core-1'); f.attach('core-2'); f.submit();
   const result = f.projection();
   assert.equal(result.owner, undefined, 'no fallback while an unauthored family exists');
-  assert.ok(result.ineligible.some(row => row.agent === 'core-4' && row.code === 'O2_FAMILY_MATCH'));
+  assert.ok(result.ineligible.some(row => row.agent === 'core-4' && row.code === 'SAME_FAMILY'));
   assert.ok(result.eligible.includes('core-6'));
 });
 

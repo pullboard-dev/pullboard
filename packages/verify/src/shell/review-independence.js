@@ -13,6 +13,7 @@ import { saveReviewFamily } from '../core/required-review-family.js';
 import { validateReviewFamily } from '../core/required-review-family.js';
 import { Refused } from '../../../kernel/index.js';
 import { familyName } from '../core/review-policy.js';
+import { sameFamilyProblem } from '../core/review-policy.js';
 import { familyAliasesOf } from '../core/review-policy.js';
 import { familiesDiffer } from '../core/review-policy.js';
 import { itemReviewPolicy } from '../core/review-policy.js';
@@ -101,7 +102,9 @@ export function reviewFamilyProblem(board, item, reviewer, familyPolicy = 'off')
   // One canonical family per declared spelling [#1762]; the comparison stays case-insensitive.
   const fallback = compositionFamilyFallback(board, item);
   if (familyPolicy === 'require' && !(fallback ? family && family !== fallback.family : familiesDiffer(board, declared, item.item_builder_family))) {
-    return new Refused('O2_FAMILY_MATCH', `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one${join && (!family || !builder) ? `; declare missing families with ${join}` : ''}`, !family || !builder ? join : undefined);
+    const message = `#${item.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one${join && (!family || !builder) ? `; declare missing families with ${join}` : ''}`;
+    return family && (fallback?.family ?? builder) && family === (fallback?.family ?? builder)
+      ? sameFamilyProblem(board, message) : new Refused('O2_FAMILY_MATCH', message, !family || !builder ? join : undefined);
   }
   if (policy.reviewFamily && family !== familyName(policy.reviewFamily, familyAliasesOf(board))) {
     return new Refused('O2_FAMILY_MATCH', `Strict review requires declared vendor family ${policy.reviewFamily}; ask a reviewer from that family`);
