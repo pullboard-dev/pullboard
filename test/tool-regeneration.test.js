@@ -12,6 +12,7 @@ import { privateRepo } from './submit-gate-fixture.js';
 import { builderRepo } from './submit-gate-fixture.js';
 import { commitAll } from './submit-gate-fixture.js';
 import { put } from './submit-gate-fixture.js';
+import { gitPath } from '../packages/git/index.js';
 import { recordedToolCommits } from '../packages/git/index.js';
 
 /** Execute the real installed cell tool against this small project, never a simulated transform. */
@@ -70,12 +71,15 @@ function advance(main) {
 test('submit replays a recorded cell move on main, proves the new head fully and attaches no old verdict [C7,V4,V6]', t => {
   const { main, box, marker } = project(t);
   const original = move(box, main.dir);
+  tool(box, 'cells-plan.js', '--check');
+  tool(box, 'cell-lints.js', '--check');
   const before = main.git('rev-parse', 'HEAD');
   assert.equal(recordedToolCommits(box.root, before, original)[0].commands[0].tool, 'cells-move');
   const currentMain = advance(main);
   assert.equal(existsSync(marker), false);
   const submitted = box.run('submit', '1', '--json', '--infra', 'recorded tool regeneration fixture');
-  assert.equal(submitted.code, 0, submitted.err + submitted.out);
+  const diagnostic = gitPath(box.root, `pullboard-tool-regeneration-${original}.log`);
+  assert.equal(submitted.code, 0, submitted.err + submitted.out + (existsSync(diagnostic) ? readFileSync(diagnostic, 'utf8').slice(-10_000) : ''));
   const result = JSON.parse(submitted.out);
   const head = box.git('rev-parse', 'HEAD');
   assert.notEqual(head, original);
