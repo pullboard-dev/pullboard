@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/cli.js src/cli-help.js src/cli-main.js src/commands/*.js */
+/** @pullboard-test-loads src/cli.js src/cli-help.js src/cli-main.js src/cli-main/*.js src/commands/*.js */
 /** The layered CLI help stays short, command-specific, and in parity with its declaration [N37,I1]. */
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -292,8 +292,8 @@ test('every command comes from its own module [C7,V4]', async () => {
   for (const name of [...resultCommands(), 'mcp']) assert.ok(names.includes(name), `${name} comes from its own module`);
   const cli = readFileSync(join(source, 'cli.js'), 'utf8');
   assert.doesNotMatch(cli, /function (?:setup|read|work)Commands\(/u, 'src/cli.js holds no command table');
-  // Dispatch lives in cli-main.js, the entry that loads only the command in hand.
-  const entry = readFileSync(join(source, 'cli-main.js'), 'utf8');
+  // Dispatch lives in cli-main/run-command.js, the entry that loads only the command in hand.
+  const entry = readFileSync(join(source, 'cli-main', 'run-command.js'), 'utf8');
   const dispatch = entry.slice(entry.indexOf('async function runCommand('), entry.indexOf('\n}\n', entry.indexOf('async function runCommand(')));
   assert.ok(dispatch.includes('COMMANDS[command]'), 'runCommand looks the command up in the registry');
   assert.doesNotMatch(dispatch, /if \(command === '[a-z-]+'(?: && [^)]*)?\) /u, 'runCommand holds no command of its own');
