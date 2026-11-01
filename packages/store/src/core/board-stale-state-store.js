@@ -1,3 +1,4 @@
+import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
 import { claimProgress } from '../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../kernel/core.js";
@@ -100,6 +101,7 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
     return { row, item };
   }
   const observed = Date.parse(snapshot.observedAt);
+  if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
   const progress = row.idle === 'progress' ? claimProgress(board, item, observed) : null;
   if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
   const last = staleInstant(row.workActivity, observed);

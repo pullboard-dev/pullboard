@@ -1,3 +1,4 @@
+import { CLAIM_PROGRESS_ENGINE, ENGINE_VERSION } from '../../../state/index.js';
 import { staleInstant } from '../../../../src/board-stale-state-policy.js';
 import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
 /** Native maintenance captures local inputs once, before sending a replay-independent observation [B4,H16]. */
@@ -78,12 +79,15 @@ export function captureLapsedClaims(ctx, board, actor) {
   snapshot.claimScan = { previous: cursor, next: lapsedItems.length ? lapsedItems.at(-1).item_id : Math.max(cursor, 1) };
   const byId = new Map(items.map(item => [item.item_id, item]));
   snapshot.claims = snapshot.claims.flatMap(row => {
+    if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
+      && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)) {
+      return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
+    }
     if (lapsed.has(row.id)) {
       return row.evidence.complete && row.expired && staleInstant(row.leaseUntil, at.getTime()) !== null
         && Number.isSafeInteger(row.leaseMs) && row.leaseMs > 0 ? [row] : [];
     }
     if (row.health === 'waiting') return [{ ...row, idle: 'waiting' }];
-    if (row.progress.trigger) return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     if (row.idleMs === null || row.idleMs < CLAIM_STALL_MS) return [];
     if (row.idleMs >= CLAIM_IDLE_RELEASE_MS) {
       // Nothing keeps a claim stalled past 40 minutes; the handoff says what was pinned, or why nothing could be.
