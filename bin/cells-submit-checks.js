@@ -4,6 +4,11 @@ import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { checkReceiptKey } from '../packages/git/index.js';
+import { readCheckReceipt } from '../packages/git/index.js';
+import { writeCheckReceipt } from '../packages/git/index.js';
+import { receiptDigest } from '../packages/git/index.js';
 import { git } from '../src/git.js';
 import { tryGit } from '../src/git.js';
 import { cleanGitEnvironment } from '../src/git.js';
@@ -291,11 +296,20 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion ?? '';
   if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
   const source = commit;
+  const cutRows = services.readCutItems?.(acceptedMain, root);
+  if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
+  const inputs = { acceptedMain, source, criterion, cuts: cutRows };
+  const canReuse = cacheEligible() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
+  const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
+    config: inputs, code: [fileURLToPath(import.meta.url)], commands: [] }) : null;
+  const cached = readCheckReceipt(root, receiptKey);
+  if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
+    && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
   commit = cellsComposition(root, acceptedMain, source);
   const cutBase = git(root, ['merge-base', acceptedMain, source]);
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
-      ? landedCutCells(root, acceptedMain, readPlan(mainRoot), services.readCutItems) : new Set();
+      ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
     const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible });
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
@@ -314,5 +328,6 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
     return { ...result, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };
   }));
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);
+  if (receiptKey && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) writeCheckReceipt(root, receiptKey, { result });
   return result;
 }

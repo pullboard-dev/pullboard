@@ -384,3 +384,21 @@ test('outside-cell changes do not widen touched cells but still refuse unplaced 
   box.put('src/unplanned.js', 'export const value = 1;\n');
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
 });
+
+test('submit cell receipt reuses exact input and invalidates changed cut authority [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  let checkouts = 0, rows = [];
+  const services = { parsers: { importsIn, commonJsIn }, withImportParseCache,
+    cacheEligible: () => true, readCutItems: () => rows,
+    withMainCheckout: (root, commit, run) => { checkouts++; return withMainCheckout(root, commit, run); } };
+  const first = await preflight(box.root, box.main, box.main, box.item, services);
+  assert.deepEqual(first.problems, []);
+  const afterFirst = checkouts;
+  const second = await preflight(box.root, box.main, box.main, box.item, services);
+  assert.equal(second.reused, true, 'the exact green check reads its receipt');
+  assert.equal(checkouts, afterFirst, 'reuse avoids snapshot checks');
+  rows = [{ item_id: 1, item_lane: 'core', item_title: 'different cut', item_status: 'verified', item_merged_commit: box.main }];
+  const changed = await preflight(box.root, box.main, box.main, box.item, services);
+  assert.notEqual(changed.reused, true, 'changed board authority cannot reuse the old receipt');
+  assert.ok(checkouts > afterFirst);
+});
