@@ -419,7 +419,10 @@ test('shared cell inventory updates changed modules and reports structural fallb
   box.put('src/refused.js', 'export class Refused extends Error { value = 1; }\n');
   const updated = second.candidate(box.root, restored, ['src/refused.js']);
   assert.equal(modes.at(-1), 'candidate-incremental');
-  assert.deepEqual(updated.edges, cellInventory(box.root, { importsIn, commonJsIn }).edges);
+  const full = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.deepEqual(updated.files, full.files);
+  assert.deepEqual(updated.edges, full.edges);
+  assert.deepEqual(updated.unknown, full.unknown);
   box.put('src/extra.js', 'export const extra = true;\n');
   second.candidate(box.root, restored, ['src/extra.js']);
   assert.equal(modes.at(-1), 'candidate-full-fallback');
