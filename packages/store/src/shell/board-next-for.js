@@ -38,6 +38,7 @@ import { foreignBlockers } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
 import { reviewerChecks } from "./board.js";
 import { buildOrder } from "./board-build-order.js";
+import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { lineSettings } from "../../../state/index.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 
@@ -146,6 +147,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
   if (familyRework) for (const candidate of mine) {
+    if (firstRefusal(board, candidate.entry.item_id)?.otherSeatFirst) continue;
     const routing = reworkFamilyRoute(board, candidate.entry, { listAgents, routeOf, canTake,
       seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily, policy: reworkRoutingPolicy });
     if (routing.applies) candidate.reworkRouting = routing;
@@ -189,6 +191,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       continue;
     }
     const continuationSummary = exitContinuationSummary(board, entry.item_id);
+    const heldFor = claimWaitingOn(board, entry.item_id);
+    if (heldFor.length) { reasons.push(`#${entry.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land`); continue; }
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
@@ -199,6 +203,18 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     reasons.push(`#${entry.item_id} (${entry.item_route}) is open in the ${lane} lane, above your ${route} route: a ${entry.item_route} agent takes it, or, if ${route} can build it, the coordinator reroutes it: pullboard edit ${entry.item_id} --route ${route}`);
   }
   return empty(allItems.some(entry => entry.item_status === 'open' && (lanes ?? [lane]).includes(entry.item_lane) && entry.item_hold_reason) || lanes && selectedLanes.size < lanes.length ? 'held' : 'nothing-eligible', { item: null, reasons });
+}
+
+/** The unlanded items a claim released for waiting still waits on (#1225); empty when none. */
+function claimWaitingOn(board, id) {
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_IDLE_ENGINE) return [];
+  let waits = [];
+  try { waits = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_waiting:${id}`)?.meta_value ?? '[]'); }
+  catch { waits = []; /* Unreadable wait metadata holds nothing; the claim itself re-checks. */ }
+  return (Array.isArray(waits) ? waits : []).filter(dependency => {
+    const row = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(dependency);
+    return row && row.item_status !== 'withdrawn' && !row.item_merged_commit;
+  });
 }
 
 /**

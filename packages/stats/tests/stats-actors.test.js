@@ -200,6 +200,7 @@ test('[R1,R2] an empty board reports no agents or family buckets', (t) => {
     familyCount: 0,
     agents: [],
     families: [],
+    notesPerSubmit: [],
     bars: {},
     caught: { counts: { sentBack: 0, conflict: 0, redHead: 0, flake: 0, stuck: 0 }, total: 0, entries: [] },
   }, 'an empty board has no bar corrections and nothing caught');

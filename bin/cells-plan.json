@@ -1082,6 +1082,22 @@
     {
       "path": "bin/cells-remove-shims.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/claim-idle-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/188.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/claim-progress-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/189.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

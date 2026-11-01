@@ -1,9 +1,13 @@
 /** Coordinator maintenance is a versioned native operation, never a direct housekeeping write [B4,C7]. */
 import { LEASE_LAPSE_ENGINE } from "../../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../../src/stale-state-engine.js";
+import { CLAIM_IDLE_ENGINE } from "../../../../../src/claim-idle-engine.js";
 
 /** An older engine cannot interpret captured inactivity as permission to release another holder. */
-function minimumEngine(args) { return args[0]?.claimsOnly === true ? LEASE_LAPSE_ENGINE : STALE_STATE_ENGINE; }
+function minimumEngine(args) {
+  if (args[0]?.snapshot?.claims?.some?.(row => row?.idle !== undefined)) return CLAIM_IDLE_ENGINE;
+  return args[0]?.claimsOnly === true ? LEASE_LAPSE_ENGINE : STALE_STATE_ENGINE;
+}
 
 /** Bind the same coordinator actor used by the store operation. */
 function actor(move) { return move.args[0]?.agentId ?? null; }

@@ -20,6 +20,7 @@ import {
   IN_STATE,
 } from "../../../state/index.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
+import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import {
   pendingRefreeze,
   pendingRefreezeProblem,
@@ -98,12 +99,24 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
             );
           }
         }
+        // A claim released while it waited on an unlanded item stays held until that item lands (#1225).
+        if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_IDLE_ENGINE) {
+          let waits = [];
+          try { waits = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`claim_waiting:${id}`)?.meta_value ?? '[]'); }
+          catch { waits = []; /* Unreadable wait metadata holds nothing; the dependency check above still applies. */ }
+          const open = (Array.isArray(waits) ? waits : []).filter(dependency => {
+            const row = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(dependency);
+            return row && row.item_status !== 'withdrawn' && !row.item_merged_commit;
+          });
+          if (open.length) return new Refused('BLOCKED', `#${id} is waiting on ${open.map(dependency => `#${dependency}`).join(', ')} to land; it returns to the queue when that lands`);
+        }
         return null;
       },
       notHeldByAnother: (found) => (isHeld(board, found) && found.item_owner !== agentId ? new Refused('HELD', `item #${id} is held by ${found.item_owner} until ${found.item_lease_until}`) : null),
       builderFirstRefusal: (found) => {
         const continuation = exitContinuationProblem(board, id, agentId);
         if (continuation) return continuation;
+        if (firstRefusal(board, id)?.otherSeatFirst) return firstRefusalProblem(board, id, agentId, { firstRefusal });
         if (reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
           reworkRouting = reworkFamilyRoute(board, found, { agentId, listAgents: board.nativePorts.listAgents,
             routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,

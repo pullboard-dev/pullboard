@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { logEvent } from '../packages/store/index.js';
 import { withListFields } from '../packages/items/index.js';
-import { projectItemState } from '../src/api.js';
+import { projectItemState } from '../packages/api/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 

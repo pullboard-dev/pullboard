@@ -12,7 +12,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { atomic } from '../packages/store/index.js';
-import { serveApi } from '../src/api.js';
+import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { proofStats } from '../packages/stats/index.js';

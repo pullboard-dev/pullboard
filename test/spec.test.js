@@ -549,7 +549,7 @@ function runIn(box, cwd, args, env = box.env) {
 
 /** Send one move through the view's own API adapter, executeMove, on the channel named. */
 function viewMove(box, move, channel, env) {
-  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../src/api.js')).href;
+  const apiModule = pathToFileURL(resolve(import.meta.dirname, '../packages/api/src/shell/api.js')).href;
   const cliModule = pathToFileURL(resolve(import.meta.dirname, './native-cli-fixture.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(apiModule)});

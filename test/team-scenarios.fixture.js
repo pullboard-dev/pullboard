@@ -102,7 +102,7 @@ import {
 import {
   executeMove,
   serveApi,
-} from '../src/api.js';
+} from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import {
   main,

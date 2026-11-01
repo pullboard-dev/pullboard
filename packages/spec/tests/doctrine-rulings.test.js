@@ -16,7 +16,7 @@ import { parseSpec } from '../src/shell/spec.js';
 
 /** Send one move through the agent API's executeMove, as an agent tool or the relay would. */
 function apiMove(box, cwd, move) {
-  const api = pathToFileURL(resolve(import.meta.dirname, '../../../src/api.js')).href;
+  const api = pathToFileURL(resolve(import.meta.dirname, '../../api/src/shell/api.js')).href;
   const cli = pathToFileURL(resolve(import.meta.dirname, '../../../test/native-cli-fixture.js')).href;
   const source = `
     const { executeMove } = await import(${JSON.stringify(api)});

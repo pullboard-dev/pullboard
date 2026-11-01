@@ -1,9 +1,16 @@
+import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
+import { claimProgress } from '../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../kernel/core.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
 import { STALE_STATE_ENGINE } from "../../../../src/stale-state-engine.js";
+import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
+
+/** A claim shows as stalled after 20 idle minutes and is released at 40 (#1225); kept beside the health reader's copy. */
+const CLAIM_STALL_MS = 20 * 60_000;
+const CLAIM_IDLE_RELEASE_MS = 40 * 60_000;
 import { RELEASE_REASONS_ENGINE } from "../../../state/index.js";
 import {
   staleInstant,
@@ -54,6 +61,57 @@ function observedExpiry(row, limit, observedAt) {
   const now = Date.parse(observedAt);
   const at = staleInstant(row.lastActivity ?? row.since, now);
   if (row.evidence?.complete !== true || at === null || row.limitMs !== limit || now - at < limit) invalid();
+}
+
+/** One line naming the kept work: the pinned ref and changed files (bounded, with the rest counted), or why nothing was pinned. */
+export function handoffText(handoff) {
+  if (!handoff.pin) return `no work could be pinned: ${handoff.unpinned}`;
+  const shown = handoff.changedFiles.slice(0, 8);
+  const more = handoff.changedCount - shown.length;
+  return `work kept at ${handoff.pin} (${handoff.changedCount} file(s): ${shown.join(', ')}${more > 0 ? `, +${more} more` : ''})`;
+}
+
+/** The lane's lead seat, or the coordinator when the lane has none. */
+function laneLead(board, lane) {
+  let leads = {};
+  try { leads = JSON.parse(board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='lane_leads'").get()?.meta_value ?? '{}'); }
+  catch { leads = {}; /* An unreadable lead policy routes to the coordinator, who is always a valid recipient. */ }
+  const seat = leads[lane];
+  return typeof seat === 'string' && board.db.prepare('SELECT 1 FROM agent WHERE agent_id=? AND agent_lane=?').get(seat, lane) ? seat : 'coordinator';
+}
+
+/**
+ * Re-check one captured idle or waiting claim against the board (#1225): the same holder and claim, a complete
+ * observation old enough for its rule, and for a waiting claim a dependency that has still not landed. Renewals do not
+ * count as work, so a renewed lease never invalidates the idle interval; any other move does.
+ */
+function idleClaim(board, row, snapshot, agentId, itemById) {
+  const item = itemById(board, row.id);
+  const claim = board.db.prepare("SELECT event_id FROM event WHERE item_id=? AND event_by=? AND event_kind='claim' ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
+  if (item.item_status !== 'claimed' || item.item_owner !== row.actor || item.item_owner === agentId || claim?.event_id !== row.claimEventId) changed();
+  if (!['stall', 'release', 'waiting', 'progress'].includes(row.idle)) invalid();
+  if (row.idle === 'waiting') {
+    if (!Array.isArray(row.waitingOn) || !row.waitingOn.length) invalid();
+    const after = String(item.item_after ?? '').split(',').map(Number);
+    const open = row.waitingOn.filter(id => after.includes(id) && (() => {
+      const dependency = board.db.prepare('SELECT item_status,item_merged_commit FROM item WHERE item_id=?').get(id);
+      return dependency && dependency.item_status !== 'withdrawn' && !dependency.item_merged_commit;
+    })());
+    if (open.length !== row.waitingOn.length) changed();
+    return { row, item };
+  }
+  const observed = Date.parse(snapshot.observedAt);
+  if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
+  const progress = row.idle === 'progress' ? claimProgress(board, item, observed) : null;
+  if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
+  const last = staleInstant(row.workActivity, observed);
+  const limit = row.idle === 'release' ? CLAIM_IDLE_RELEASE_MS : CLAIM_STALL_MS;
+  if (!progress && (last === null || row.idleMs !== observed - last || row.idleMs < limit)) invalid();
+  if (['release', 'progress'].includes(row.idle) && (!row.handoff || !Array.isArray(row.handoff.changedFiles) || row.handoff.changedFiles.length > 200
+    || !Number.isSafeInteger(row.handoff.changedCount) || row.handoff.changedCount < row.handoff.changedFiles.length
+    || (row.handoff.pin === null ? typeof row.handoff.unpinned !== 'string' || !row.handoff.unpinned
+      : !/^[0-9a-f]{40,64}$/u.test(row.handoff.head ?? '') || typeof row.handoff.pin !== 'string' || !row.handoff.pin.startsWith(`refs/pullboard/handoffs/${row.id}/`)))) invalid();
+  return { row, item };
 }
 
 /** Apply one pure captured plan under coordinator authority and the ordinary board transaction. */
@@ -119,7 +177,10 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
     }
     if (claimsOnly) {
       // Validate the complete batch against one event prefix before the first release appends another event.
-      const claims = snapshot.claims.map(row => {
+      const idleRows = snapshot.claims.filter(row => row.idle !== undefined);
+      if (idleRows.length && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_IDLE_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic idle-claim release');
+      const idle = idleRows.map(row => idleClaim(board, row, snapshot, agentId, itemById));
+      const claims = snapshot.claims.filter(row => row.idle === undefined).map(row => {
         const item = itemById(board, row.id);
         const lease = board.db.prepare("SELECT event_id,event_at,event_detail FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('claim','renew') ORDER BY event_id DESC LIMIT 1").get(row.id, row.actor);
         const leaseMs = Date.parse(item.item_lease_until) - Date.parse(lease?.event_at);
@@ -148,8 +209,38 @@ export function applyStaleState(board, { agentId, snapshot, health = {}, claimsO
         notice(row.actor, `Your lapsed idle claim on #${row.id} returned to open; first refusal remains yours until ${window.until}.`, row.id);
         result.claims.push(row.id);
       }
+      for (const { row, item } of idle) {
+        if (row.idle === 'stall') {
+          // Told once per claim episode: the holder's lane lead, or the coordinator when the lane has none.
+          board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(`claim_stalled:${row.id}`, String(row.episodeEventId));
+          const minutes = Math.floor(row.idleMs / 60_000);
+          logEvent(board, agentId, 'claim_stalled', row.id, { holder: row.actor, lastActivity: row.workActivity, idleMinutes: minutes, observedAt: snapshot.observedAt });
+          notice(laneLead(board, item.item_lane), `#${row.id} (${row.actor}) is stalled: no commit, file change, running check or item move for ${minutes} minutes; it is released automatically at 40.`, row.id);
+          (result.stalled ??= []).push(row.id);
+          continue;
+        }
+        const reason = row.idle === 'progress'
+          ? `Returned after ${row.progress.trigger}; holder ${row.actor}'s notes: ${row.progress.notes.join(', ') || 'none recorded'} (pullboard show ${row.id} --detail); ${handoffText(row.handoff)}.`
+          : row.idle === 'waiting'
+          ? `Waiting on ${row.waitingOn.map(id => `#${id}`).join(', ')}, which has not landed; the item returns to the queue when it lands.`
+          : `Idle ${Math.floor(row.idleMs / 60_000)} minutes: no commit, file change, running check or item move since ${row.workActivity}; ${handoffText(row.handoff)}.`;
+        moveItem(board, row.id, 'release', {
+          checks: { joined: null, [IN_STATE]: null, releaseOwnsWork: () => null, reviewReleaseExplained: null },
+          set: () => ({ item_owner: null, item_lease_until: null }),
+        });
+        if (row.idle === 'progress') logEvent(board, 'board', 'fact', row.id, {
+          id: `progress-return-${row.id}-${row.claimEventId}`, kind: 'note', text: reason, ref: null, supersedes: null });
+        logEvent(board, agentId, 'release', row.id, { reason,
+          ...(row.idle === 'progress' ? { reopenFirstRefusal: { builder: row.actor, otherSeatFirst: true, until: new Date(Date.parse(snapshot.observedAt) + 7_200_000).toISOString() } } : {}), reasonCode: row.idle === 'waiting' ? 'BLOCKED' : 'OTHER',
+          idleClaim: { holder: row.actor, kind: row.idle, lastActivity: row.workActivity ?? null, observedAt: snapshot.observedAt, claimEventId: row.claimEventId,
+            ...(row.idle === 'waiting' ? { waitingOn: row.waitingOn } : { handoff: row.handoff }) } });
+        board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run(`claim_stalled:${row.id}`);
+        if (row.idle === 'waiting') board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES(?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value').run(`claim_waiting:${row.id}`, JSON.stringify(row.waitingOn));
+        notice(row.actor, `Released your claim on #${row.id}: ${reason}`, row.id);
+        result.claims.push(row.id);
+      }
     }
-    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.claimScan) {
+    if (result.warnings.length || result.holds.length || result.reviews.length || result.claims?.length || result.stalled?.length || result.claimScan) {
       logEvent(board, agentId, 'stale_maintenance', null, { observedAt: snapshot.observedAt, ...result });
     }
     return result;

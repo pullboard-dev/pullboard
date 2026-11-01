@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { after, test } from 'node:test';
 import { main } from './native-cli-fixture.js';
-import { createLocalApiHandler } from '../src/api.js';
+import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { forgetProject, listApiProjects } from '../src/projects.js';
 import { runningView, rememberView, forgetView } from '../src/view-session.js';
