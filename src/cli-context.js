@@ -5,8 +5,8 @@ import {
   DEFAULT_RELAY,
   relayStatus,
   syncRelay,
-} from './relay.js';
-import { executePersonRequests } from './relay-request-execution.js';
+} from '../packages/link/index.js';
+import { executePersonRequests } from '../packages/link/index.js';
 import { executeMove } from '../packages/api/index.js';
 import { moveArgs } from '../packages/person/index.js';
 import { refusalDocument } from './next-step-words.js';

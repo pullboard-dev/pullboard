@@ -13,7 +13,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { orderedMoveCommand } from '../src/relay-command-order.js';
+import { orderedMoveCommand } from '../packages/link/index.js';
 import { requestedCommandMove } from '../packages/state/index.js';
 
 const helpers = createE2eHelpers();

@@ -55,7 +55,7 @@ import {
   relayOperation,
   relayRevoke,
   relayTokens,
-} from '../../../../src/relay.js';
+} from '../../../link/index.js';
 import { laneNames } from '../../../../src/lanes.js';
 import { MACHINE } from '../../../state/index.js';
 import {
@@ -86,8 +86,8 @@ import { trunkRevisionReader } from '../../../git/index.js';
 import { relayPresentationShout } from '../../../../src/relay-presentation.js';
 import { createApiHandler } from './api-http.js';
 import { settingsInventory } from '../../../config/index.js';
-import { personRequestStatuses } from '../../../../src/relay-requests.js';
-import { relayCanaryNeeds } from '../../../../src/relay-canary-needs.js';
+import { personRequestStatuses } from '../../../link/index.js';
+import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */

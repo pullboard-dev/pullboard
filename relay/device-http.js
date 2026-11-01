@@ -3,7 +3,7 @@ import { apiJson, apiRefusal, apiStatus, readApiBody } from '../packages/api/ind
 import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../packages/kernel/index.js';
 import { devicePublicKey } from '../packages/keys/index.js';
-import { approvalContext } from '../src/relay-approval.js';
+import { approvalContext } from '../packages/link/index.js';
 import { handlePersonEnrollment } from './person-enrollment-http.js';
 
 /** Require exact bounded action fields, excluding secrets and unrecognized relay metadata. */

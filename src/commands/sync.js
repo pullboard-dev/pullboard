@@ -6,7 +6,7 @@ import {
 import {
   relayLinked,
   relayRecovered,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import { syncGitBoard } from '../sync.js';
 import { Refused } from '../../packages/kernel/index.js';
 

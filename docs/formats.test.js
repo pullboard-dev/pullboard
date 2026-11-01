@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 import { submitHandoffEventContract } from '../test/generated-doc-handoff-fixture.js';
 /** Keep the format guide aligned with parser behavior, live SQLite schema and static export [A5,A10]. */
-import { recordRelayExclusionIntent } from '../src/relay-exclusion-state.js';
+import { recordRelayExclusionIntent } from '../packages/link/index.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
