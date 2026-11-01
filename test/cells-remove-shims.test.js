@@ -12,6 +12,7 @@ import { computePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { removeShims } from '../bin/cells-remove-shims.js';
+import { scriptMentions } from '../bin/cells-remove-shims.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import { fixture } from './cells-plan-fixture.js';
@@ -306,6 +307,34 @@ test('a repoint that would pull a process launcher into the move-registry closur
   assert.equal(read(box, 'src/moves/seed.js'), "import { pure } from '../stats-pure.js';\nexport const seed = pure;\n");
   assert.match(new Map(result.kept).get('src/stats-pure.js'), /would break the move-registry closure: process launcher packages\/stats\/src\/core\/spawn\.js/u);
   assert.equal(existsSync(join(box.root, 'src/stats-pure.js')), true);
+});
+
+test('quoted prose and unrelated join or URL calls do not name a deleted module [C7,D3]', () => {
+  const source = [
+    `const prose = "See './src/stats.js' for background";`,
+    `const proseColon = "See: './src/stats.js'";`,
+    `const joined = list.join('src/stats.js');`,
+    `const url = URL('src/stats.js');`,
+    `const foreign = runtime.require('src/stats.js');`,
+    `const foreignPath = other.path.join(root, 'src/stats.js');`,
+    `const actual = path.join(root, 'src/stats.js');`,
+    `const urlPath = 'file:src/stats.js';`,
+    `const generated = \"import './src/stats.js';\";`,
+    `const assigned = \"const target = './src/stats.js';\";`,
+  ].join('\n');
+  assert.deepEqual(scriptMentions(new Map([['test/mentions.test.js', Buffer.from(source)]]), ['src/stats.js']),
+    [7, 8, 9, 10].map(line => ({ file: 'test/mentions.test.js', line, path: 'src/stats.js' })));
+});
+
+test('comments inside generated scripts do not name a deleted module [C7,D3]', () => {
+  const source = "const script = `// require('./src/stats.js')\nconst value = 1;`;\n";
+  assert.deepEqual(scriptMentions(new Map([['test/comment-script.test.js', Buffer.from(source)]]), ['src/stats.js']), []);
+});
+
+test('a multiline generated script reports the line containing the module path [C7,D3]', () => {
+  const source = "const script = `\nimport './src/stats.js';\n`;\n";
+  assert.deepEqual(scriptMentions(new Map([['test/multiline.test.js', Buffer.from(source)]]), ['src/stats.js']),
+    [{ file: 'test/multiline.test.js', line: 2, path: 'src/stats.js' }]);
 });
 
 test('a shim a test names inside a generated script stays, and a comment or prose mention never holds it [C7,D3]', t => {

@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
+import { Script } from 'node:vm';
 import { cellInventory, updateCellInventory } from '../packages/codemap/index.js';
 import { importCuts, readPathMap } from '../packages/codemap/index.js';
 import { repositoryImport } from '../packages/codemap/index.js';
@@ -254,7 +255,8 @@ function hitsByShim(box, shims) {
 /** A string token that is a whole module path: no whitespace, a module extension, nothing after the path. */
 const PATH_TOKEN = /^[^\s'"`]+\.[cm]?js$/u;
 /** Code just before a literal that hands it to a module or path call: import(), require(), new URL() or path.join(). */
-const PATH_ARGUMENT = /\b(?:import|require|URL|join)\s*\(\s*(?:[^()'"`]*,\s*)?$/u;
+const PATH_ARGUMENT = /(?<![\w$.])(?:(?:import|require)\s*|new\s+URL\s*|path\s*\.\s*join\s*)\(\s*(?:[^()'"`]*,\s*)?$/u;
+const STATIC_IMPORT = /(?:^|[;\n{}])\s*(?:import|export)\s+(?:[^;\n]*?\s+from\s+)?$/u;
 
 /**
  * Whether one path-shaped string names `path`: ./ or ../ relative, absolute, a file: URL, a template root such as
@@ -263,9 +265,10 @@ const PATH_ARGUMENT = /\b(?:import|require|URL|join)\s*\(\s*(?:[^()'"`]*,\s*)?$/
  */
 function pathToken(token, path, argument) {
   if (!PATH_TOKEN.test(token) || !token.endsWith(path)) return false;
-  const prefix = token.slice(0, -path.length).replace(/^file:\/\//u, '');
+  const fileUrl = token.startsWith('file:');
+  const prefix = token.slice(0, -path.length).replace(/^file:/u, '');
   if (prefix && !prefix.endsWith('/')) return false;
-  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || prefix.startsWith('/') || /^\$\{[^}]*\}\//u.test(prefix) : argument;
+  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || prefix.startsWith('/') || /^\$\{[^}]*\}\//u.test(prefix) : fileUrl || argument;
 }
 
 /**
@@ -273,9 +276,18 @@ function pathToken(token, path, argument) {
  * generated child script's `import ... from './src/x.js'`. A sentence that mentions a path is prose and never counts.
  */
 function namesPath(text, path, argument) {
-  if (pathToken(text, path, argument)) return true;
-  for (const quoted of text.matchAll(/(['"])([^'"\s]*)\1/gu)) if (pathToken(quoted[2], path, false)) return true;
-  return false;
+  if (pathToken(text, path, argument)) return text.lastIndexOf(path);
+  // Compile only source-shaped embedded scripts; this never runs the string or its imports.
+  let script = false;
+  if (text.length <= 1024 * 1024 && /\b(?:const|let|var|import|export|require|return|function|class|new)\b|[=;(){}]/u.test(text)) {
+    try { new Script(text); script = true; } catch { /* Static module syntax is handled below. */ }
+  }
+  const scriptStrings = script ? new Set(lex(text).strings.map(row => row.start)) : null;
+  for (const quoted of text.matchAll(/(['"])([^'"\s]*)\1/gu)) {
+    const before = text.slice(Math.max(0, quoted.index - 200), quoted.index);
+    if ((script ? scriptStrings.has(quoted.index) : PATH_ARGUMENT.test(before) || STATIC_IMPORT.test(before)) && pathToken(quoted[2], path, true)) return quoted.index + 1 + quoted[2].lastIndexOf(path);
+  }
+  return -1;
 }
 
 /**
@@ -293,8 +305,9 @@ export function scriptMentions(files, paths, resolve = () => null) {
     const info = lex(source);
     for (const literal of info.strings) for (const path of wanted) {
       if (!literal.text.includes(path) || resolve(file, literal.text) === path) continue;
-      if (!namesPath(literal.text, path, PATH_ARGUMENT.test(info.code.slice(Math.max(0, literal.start - 200), literal.start)))) continue;
-      rows.push({ file, line: source.slice(0, literal.start).split('\n').length, path });
+      const at = namesPath(literal.text, path, PATH_ARGUMENT.test(info.code.slice(Math.max(0, literal.start - 200), literal.start)));
+      if (at < 0) continue;
+      rows.push({ file, line: source.slice(0, literal.start + 1 + at).split('\n').length, path });
     }
   }
   return rows;
