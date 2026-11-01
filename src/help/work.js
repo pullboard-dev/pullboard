@@ -38,6 +38,7 @@ export const workHelp = `Work
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3]   create a milestone and optionally add items
   pullboard milestone items <name> --add ids [--swap id]   add items; --swap replaces an existing item
+  pullboard milestone items <name> --add ids --reason ".."  move an item the board placed, recording why
   pullboard milestone items <name> --remove ids            remove items from the milestone
   pullboard milestone order <name> <ids>                       rank these items within their milestone (agents)
   pullboard milestone pin|sink <name> <ids> --reason "<why>"   hold items above or below the queue's own order
