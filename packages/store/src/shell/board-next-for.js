@@ -147,6 +147,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     .sort((first, second) => compare(first.entry, second.entry));
   const familyRework = lineSettings(board).reworkSameFamily === true;
   if (familyRework) for (const candidate of mine) {
+    if (firstRefusal(board, candidate.entry.item_id)?.otherSeatFirst) continue;
     const routing = reworkFamilyRoute(board, candidate.entry, { listAgents, routeOf, canTake,
       seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily, policy: reworkRoutingPolicy });
     if (routing.applies) candidate.reworkRouting = routing;

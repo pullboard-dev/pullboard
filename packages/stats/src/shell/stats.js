@@ -106,7 +106,7 @@ export function proofStats(board, { since, now = Date.now(), onFallback } = {}, 
   // A SAVEPOINT is read-only until a write occurs, and nests inside callers' transactions.
   // Hold one snapshot across the cursor, projection shards, and verdicts while other seats append.
   board.db.exec('SAVEPOINT proof_stats_read');
-  try { return proofStatsSnapshot(board, boundary, now, onFallback, reads); }
+  try { return { ...proofStatsSnapshot(board, boundary, now, onFallback, reads), notesPerSubmit: notesPerSubmit(board, boundary) }; }
   finally { board.db.exec('RELEASE proof_stats_read'); }
 }
 
@@ -119,4 +119,15 @@ function proofStatsSnapshot(board, boundary, now, onFallback, reads) {
   const counts = countsFrom(history, boundary);
   const verdicts = board.db.prepare('SELECT * FROM verdict ORDER BY verdict_id').all();
   return { ...counts, ...actorsFrom(history, boundary), bars: barStats(history, verdicts, boundary), caught: caughtFrom(history, verdicts, boundary), flow: flowStats(history, boundary, now, counts) };
+}
+
+/** Count holder notes and successful submissions per seat in the same stats snapshot [R1,R2]. */
+function notesPerSubmit(board, boundary) {
+  return board.db.prepare(`SELECT event_by AS seat,
+    SUM(CASE WHEN event_kind='fact' THEN 1 ELSE 0 END) AS notes,
+    SUM(CASE WHEN event_kind='submit' THEN 1 ELSE 0 END) AS submits
+    FROM event WHERE (event_kind='submit' OR event_kind='fact' AND json_extract(event_detail,'$.kind')='note')
+    AND event_by NOT IN ('board','person','clock','coordinator') AND (? IS NULL OR event_at>=?)
+    GROUP BY event_by ORDER BY event_by`).all(boundary, boundary)
+    .map(row => ({ ...row, notesPerSubmit: row.submits ? row.notes / row.submits : null }));
 }

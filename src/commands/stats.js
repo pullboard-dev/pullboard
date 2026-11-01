@@ -111,6 +111,7 @@ export function run(io, { first, second, rest, values }) {
   io.say(`${stats.merged} items merged · ${stats.mergedWithoutAccept} merged without an accept`);
   io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
   io.say(`agents: ${stats.agents.map((agent) => `${agentDisplayName(agents, ctx.config, agent.id)} (${agent.families.join('/')}; ${agent.moves} moves)`).join(', ') || 'none'}`);
+  for (const row of stats.notesPerSubmit) io.say(`${row.seat}: ${row.notes} notes / ${row.submits} submits (${row.notesPerSubmit ?? 'unmeasured'} notes per submit)`);
   io.say(`events: ${stats.firstEventAt ?? 'none'} to ${stats.lastEventAt ?? 'none'}${stats.since ? ` (since ${stats.since})` : ''}`);
   for (const line of coordinatorActionLines(coordinator)) io.say(line);
   for (const line of barStatsLines(stats.bars)) io.say(line);
