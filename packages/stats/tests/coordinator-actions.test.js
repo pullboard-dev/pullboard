@@ -134,6 +134,7 @@ test('a builder worktree cannot declare the person release override [B35,R2,I15]
 
 test('project milestone shipping enforces and records the ratchet in the shared board log [B35,R2,I15]', t => {
   const f = fixture(t);
+  keepBaseline(f, FIRST, checkCoordinatorRelease(f.root, { now: at(60) }));
   store.addMilestone(f.board, { agentId: 'coordinator', name: 'First release', items: [] });
   store.addMilestone(f.board, { agentId: 'coordinator', name: 'Next release', items: [] });
   store.shipMilestone(f.board, 'First release', { agentId: 'coordinator', commit: f.head });
@@ -147,7 +148,7 @@ test('project milestone shipping enforces and records the ratchet in the shared 
   assert.deepEqual(audit.override, { by: 'person', reason: 'Person approved this migration.', channel: 'terminal' });
   assert.equal(audit.previous, 'First release');
   assert.equal(audit.gauge.actions, coordinatorActions(f.board).actions, 'the recorded baseline includes the release move itself');
-  assert.doesNotThrow(() => checkCoordinatorRelease(f.root, { now: at(60) }));
+  assert.doesNotThrow(() => checkCoordinatorRelease(f.root, { now: at(60) }), 'the newer shared project release supersedes an older, lower host-local audit');
   store.shout(f.board, { from: 'coordinator', to: 'all', text: 'A later manual nudge', lanes: ['core'] });
   assert.throws(() => checkCoordinatorRelease(f.root, { now: at(60) }), /rose.*shout/u,
     'the native full-gate path also sees the project release baseline without any host audit files');

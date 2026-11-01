@@ -60,9 +60,9 @@ export function checkCoordinatorRelease(root, { now = new Date(), personOverride
       finally { closeBoard(board); }
     }
   }
-  const previous = previousRelease(root);
+  const previous = projectRelease ? null : previousRelease(root);
   const projectProblem = projectRelease ? coordinatorActionRise(gauge, projectRelease.coordinatorActions.gauge) : null;
-  const problem = projectProblem ?? (previous && !gauge.available ? 'coordinator actions are unavailable for a previously measured release' : coordinatorActionRise(gauge, previous?.gauge));
+  const problem = projectRelease ? projectProblem : (previous && !gauge.available ? 'coordinator actions are unavailable for a previously measured release' : coordinatorActionRise(gauge, previous?.gauge));
   if (problem && personOverride === undefined) throw new Refused('GATE_RUN_EVIDENCE', `${problem}; reduce the actions or have a person use --person-override "reason"`);
   return { gauge, previous: previous?.id ?? null, previousMilestone: projectRelease?.name ?? null, problem, ...(personOverride === undefined ? {} : { override: { by: 'person', reason: personOverride.trim() } }) };
 }
