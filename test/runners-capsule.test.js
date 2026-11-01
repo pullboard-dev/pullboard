@@ -54,10 +54,10 @@ test('the runner policy exact-leaf exception preserves every worker body byte [C
   const policy = 'packages/runners/src/shell/runner-policy.js';
   const leaf = 'packages/sandbox/src/shell/trusted-policy-read.js';
   const file = join(installed, policy);
-  const source = readFileSync(file, 'utf8');
+  const after = runnerPackage(installed).files;
+  const source = after[policy];
   const direct = "'../../../sandbox/src/shell/trusted-policy-read.js'";
   assert.ok(source.includes(direct));
-  const after = runnerPackage(installed).files;
   assert.equal(Object.hasOwn(after, 'src/trusted-policy-read.js'), false);
   assert.equal(Object.hasOwn(after, 'packages/sandbox/index.js'), false);
   assert.equal(after[leaf], readFileSync(toolSourcePath(installed, leaf), 'utf8'));
