@@ -84,18 +84,20 @@ function prune(dir) {
  * @param {string} root checkout root
  * @param {string[]} label mode and arguments that name the run
  * @param {() => number} fn the real check; prints with console.log/console.error and returns an exit code
- * @param {{ enabled?: boolean }} [options]
+ * @param {{ enabled?: boolean, code?: string[] }} [options] checker entry modules outside this cache library
  * @returns {number}
  */
 export function cachedCellsRun(root, label, fn, options = {}) {
   const enabled = options.enabled ?? cellsCacheEnabled(root);
-  const key = enabled ? checkReceiptKey(root, { kind: 'lint', definition: label, config: {}, code: [fileURLToPath(import.meta.url)] }) : null;
+  const key = enabled ? checkReceiptKey(root, { kind: 'lint', definition: label, config: {}, code: [fileURLToPath(import.meta.url), ...(options.code ?? [])] }) : null;
   const receipt = readCheckReceipt(root, key);
   if (receipt?.result?.code === 0 && Array.isArray(receipt.result.lines)) {
     replay(receipt.result.lines);
     console.error(receiptLine(receipt));
     return 0;
   }
+  // An opaque checker entry never falls through to a legacy result with an unknown definition.
+  if (enabled && options.code?.length && !key) return fn();
   const state = enabled ? cellsStateKey(root) : null, dir = state ? cacheDir(root) : null;
   if (!state || !dir) return fn();
   const file = join(dir, `${createHash('sha256').update(JSON.stringify([state, label, key?.checkDigest, key?.configDigest])).digest('hex')}.json`);
