@@ -125,7 +125,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
-  if (held && plannedRelease === null) return { item: held, reasons: [] };
+  const ownRejectionFirst = held && plannedRelease === null && rejectionReturnEnabled(board)
+    && items.some(entry => entry.item_status === 'open' && entry.item_verdict === 'REJECT' && entry.item_built_by === agentId);
+  if (held && plannedRelease === null && !ownRejectionFirst) return { item: held, reasons: [] };
   const presenceProblem = liveRouteProblem(board, agentId, { withLocalSeatPresence });
   if (presenceProblem) return empty('unknown', { item: null, reasons: [presenceProblem] });
   const selectedLanes = new Set(lanes ?? [lane]);
@@ -141,7 +143,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease);
   const recent = new Set(warm);
   const mainRed = new Set(priority);
-  const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane));
+  const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)
+    && (!ownRejectionFirst || entry.item_verdict === 'REJECT' && entry.item_built_by === agentId));
   const mine = laneItems
     .filter((entry) => !itemHold(board, entry.item_id))
     .map((entry, order) => ({ entry, order, shared: itemFiles(entry).filter((path) => recent.has(path)) }))
@@ -199,6 +202,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
+  if (ownRejectionFirst) return { item: held, reasons };
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
   // Nothing to claim, yet work above the agent's tier is open: name it and the ways through (B16).
   for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !open.item_hold_reason && !canTake(route, open.item_route))) {

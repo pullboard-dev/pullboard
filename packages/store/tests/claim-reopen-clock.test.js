@@ -135,3 +135,14 @@ test('[B35,H16] automatic rejection routing is sealed into claim and verdict rep
     assert.ok(MOVE_REGISTRY[operation].minimumEngine([id, { returnRejectedWork: true }], f.board) >= REJECTION_RETURN_ENGINE);
   }
 });
+
+test('[B35,B5] a new rejection precedes the builder other live claim and retains triage holds', t => {
+  const f = fixture(t); enable(f);
+  const id = returned(f, 'reject', 0);
+  const active = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'already active', criterion: 'prove',
+    specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/active.js\nTest: proves current work' });
+  claim(f, active, f.builder);
+  assert.equal(next(f, f.builder).item.item_id, id);
+  store.holdItem(f.board, id, { agentId: 'coordinator', reason: 'stop-reason triage' });
+  assert.equal(next(f, f.builder).item.item_id, active);
+});
