@@ -8,7 +8,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import * as nativeBoard from '../src/native-board.js';
 import { openBoard } from '../src/native-board.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { heartbeatSeat } from '../src/seat-presence.js';
 import { context } from '../src/cli-read-context.js';

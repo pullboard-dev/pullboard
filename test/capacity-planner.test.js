@@ -11,7 +11,7 @@ import { serveApi } from '../src/api.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { apiFetch } from './api-fixture.js';
-import { rebuildProofCounters } from '../src/proof-counters.js';
+import { rebuildProofCounters } from '../packages/verify/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
 

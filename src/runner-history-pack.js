@@ -1,6 +1,6 @@
 /** Select safe ancestors and tags, then pack only the history objects a runner cache lacks [C7]. */
-import { configFromSource } from './config.js';
-import { defaults } from './config.js';
+import { configFromSource } from '../packages/config/index.js';
+import { defaults } from '../packages/config/index.js';
 import { cleanGitEnvironment } from './git.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from '../packages/kernel/index.js';

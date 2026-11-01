@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
-import { mainPolicy } from '../src/trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { runnerPolicyRecord } from '../src/runner-policy.js';
 import { RUNNER_POLICY_FILE } from '../src/runner-policy.js';
@@ -60,7 +60,7 @@ function fixture(t) {
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
-import { mainPolicy } from '../src/trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 test('nested shard uses carried admitted policy [C7,V4]', () => {
   const policy = mainPolicy(process.cwd());
   assert.equal(policy.config.gate, 'admitted policy gate');

@@ -6,7 +6,7 @@ import {
   listResources,
   runnerResourceStatus,
 } from '../packages/resources/index.js';
-import { loadMachineSettings } from './settings.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { runnerStage } from './runner-stage.js';
 
 const PLATFORMS = new Set(['aix', 'android', 'darwin', 'freebsd', 'linux', 'openbsd', 'sunos', 'win32']);

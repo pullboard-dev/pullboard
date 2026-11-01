@@ -9,6 +9,8 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { repoInfo } from '../src/git.js';
+import { loadMachineSettings } from '../packages/config/index.js';
+import { machineSettingsFile } from '../packages/config/index.js';
 
 /** Load the new surface dynamically so the test-only baseline reports a focused missing-feature failure. */
 async function canaryApi() {
@@ -206,7 +208,6 @@ async function independentCanaryHost(host, lane, name) {
   assert.equal(joined.code, 0, joined.failure);
   const enabled = await host.cliAt(root, 'relay', 'canary', 'on', '--timeout', '5000');
   assert.equal(enabled.code, 0, enabled.failure);
-  const { loadMachineSettings, machineSettingsFile } = await import('../src/settings.js');
   const saved = await withFixtureEnvironment(host.env, () => ({
     config: loadMachineSettings().relay?.canary,
     settingsFile: machineSettingsFile(),
@@ -228,7 +229,6 @@ test('two paired host configurations independently alert and recover through rea
   { timeout: 180_000 }, async t => { // budget: two real private clones, ordinary seat joins, eight bounded network probes and cleanup; alert cadence uses an injected health clock.
     const startedAt = new Date().toISOString();
     const { runRelayCanary } = await import('../src/relay-canary-watch.js');
-    const { loadMachineSettings } = await import('../src/settings.js');
     const { readRelayHealth } = await canaryApi();
     const box = await relayClientFixture(t);
     commitConfiguration(box);

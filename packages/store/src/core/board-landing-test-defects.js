@@ -9,7 +9,7 @@ import {
   getItem,
   logEvent,
 } from "../shell/board.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../src/landing-environment-engine.js";
 import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";

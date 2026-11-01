@@ -1,6 +1,6 @@
 /** Compose maintenance with native board readers and ordinary archive facts [B3,C7]. */
 import { agentHandoff } from '../packages/state/index.js';
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { listAgents } from './board.js';
 import { listItems } from './board.js';
 import { ordered } from './cli.js';

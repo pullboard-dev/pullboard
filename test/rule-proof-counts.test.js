@@ -14,12 +14,12 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { receiptBody } from '../src/gate-run-receipt.js';
-import { clearProofCounters } from '../src/proof-counters.js';
+import { clearProofCounters } from '../packages/verify/index.js';
 import {
   ruleProofCounts,
   ruleProofWindow,
-} from '../src/rule-proof-counts.js';
-import { loadSpec } from '../src/spec.js';
+} from '../packages/verify/index.js';
+import { loadSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { fetchFresh } from './http-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -154,8 +154,8 @@ function simulatedReaderContext(box, identity) {
   const script = `
 import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
 import { openBoard } from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
-import { ruleProofCounts } from ${JSON.stringify(new URL('../src/rule-proof-counts.js', import.meta.url).href)};
-import { loadSpec } from ${JSON.stringify(new URL('../src/spec.js', import.meta.url).href)};
+import { ruleProofCounts } from ${JSON.stringify(new URL('../packages/verify/src/shell/rule-proof-counts.js', import.meta.url).href)};
+import { loadSpec } from ${JSON.stringify(new URL('../packages/spec/src/shell/spec.js', import.meta.url).href)};
 const root = ${JSON.stringify(box.root)};
 const actualRuntime = { execPath: process.execPath, version: process.version };
 const board = openBoard(${JSON.stringify(join(box.root, '.git', 'pullboard', 'board.sqlite'))}, undefined, { isMain: false });

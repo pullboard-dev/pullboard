@@ -1,13 +1,13 @@
 import { AUTOMATIC_DISPATCH_ENGINE } from "../../../../src/automatic-dispatch-engine.js";
-import { SPEC_REFREEZE } from "../../../../src/spec-row-apply.js";
+import { SPEC_REFREEZE } from "../../../spec/index.js";
 import { UNCHANGED_REFREEZE_ENGINE } from "../../../../src/unchanged-refreeze-engine.js";
 import { pendingRefreeze } from "./board-read-auxiliary.js";
-import { barReadyProblem } from "../../../../src/bar-readiness.js";
+import { barReadyProblem } from "../../../verify/index.js";
 import { isHeld } from "./board-query.js";
 import { current } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { IN_STATE } from "../../../../src/machine.js";
 import { MOVES } from "../../../../src/machine.js";

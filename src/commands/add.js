@@ -10,7 +10,7 @@ import { dependencyValues } from '../item-dependencies.js';
 import {
   referenceAuthors,
   referenceAuthority,
-} from '../reference-authors.js';
+} from '../../packages/spec/index.js';
 /** The pullboard add command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {
@@ -32,7 +32,7 @@ import {
 import {
   idProblems,
   loadSpec,
-} from '../spec.js';
+} from '../../packages/spec/index.js';
 import {
   actOn,
   personMode,

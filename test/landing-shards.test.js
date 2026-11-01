@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { configProblems, defaults } from '../src/config.js';
+import { configProblems, defaults } from '../packages/config/index.js';
 import { landingShardCount } from '../src/gate.js';
 import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../src/landing-shards.js';
 import { runFixtureChild } from './fixture-child.js';

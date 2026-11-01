@@ -3,7 +3,7 @@ import { fixture } from './next-take-fixture.js';
 import {
   bindRefs,
   resolveMove,
-} from '../src/relay-outbox.js';
+} from '../packages/outbox/index.js';
 import {
   compareMainFailures,
   mainRedReviewItems,

@@ -1,6 +1,6 @@
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { register } from "./board-register.js";
 
 /**

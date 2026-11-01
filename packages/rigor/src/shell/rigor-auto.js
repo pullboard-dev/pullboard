@@ -6,7 +6,7 @@ import {
   PERSON,
   rowDecisions,
 } from '../../../../src/board.js';
-import { recordRowDraft } from '../../../../src/row-draft-store.js';
+import { recordRowDraft } from '../../../spec/index.js';
 import { rowDrafts } from '../../../../src/board-query.js';
 import {
   causeProblem,

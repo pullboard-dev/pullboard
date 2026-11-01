@@ -15,7 +15,7 @@ import {
 import {
   nextReview,
   ownSessionReviews,
-} from '../../../../src/next-review.js';
+} from '../../../verify/index.js';
 import {
   headCommit,
 } from '../../../../src/git.js';

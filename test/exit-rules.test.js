@@ -15,14 +15,14 @@ import { proofRunReceipt } from '../src/proof-receipts.js';
 import { fixtureBoard } from './board-fixture.js';
 import * as store from '../src/board.js';
 import { itemById } from '../src/board-item-read.js';
-import { exitRulesDefaults, exitRulesConfigProblems } from '../src/exit-rules-config.js';
+import { exitRulesDefaults, exitRulesConfigProblems } from '../packages/config/index.js';
 import { nativeToolCallIds } from '../packages/stats/index.js';
 import { exitRulesDecision } from '../packages/stats/index.js';
 import { exitClaim, exitClaimDecision, exitedSession, requireExitActive, exitContinuationSummary } from '../src/exit-rules-state.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { EXIT_RULES_ENGINE } from '../src/exit-rules-engine.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
-import { bindRefs, resolveMove, strayItemRefs } from '../src/relay-outbox.js';
+import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 
 const policy = { enabled: true, tokens: 100, calls: 3 };

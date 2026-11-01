@@ -4,7 +4,7 @@ import { quarantineWaivers } from '../quarantine.js';
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { boardBusyError } from '../board-access.js';
 import { openBoardReadOnly } from '../board-read-open.js';
-import { rowDecisions } from '../row-decisions-query.js';
+import { rowDecisions } from '../../packages/spec/index.js';
 import { checkLoosening } from '../../packages/doctrine/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
@@ -50,13 +50,13 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   withRowDrafts,
-} from '../row-drafts.js';
+} from '../../packages/spec/index.js';
 import {
   loadSpec,
-} from '../spec.js';
+} from '../../packages/spec/index.js';
 import {
   trunkRef,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   readFileSync,
   existsSync,

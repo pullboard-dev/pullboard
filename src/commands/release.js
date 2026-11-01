@@ -1,5 +1,5 @@
 import { relayRecovered } from '../relay.js';
-import { completeMoveHandoff } from '../post-move-handoff.js';
+import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { prepareStaleObservation } from '../../packages/health/index.js';
 import { staleReleaseNote } from '../board-stale-state-policy.js';
 import { Refused } from '../../packages/kernel/index.js';

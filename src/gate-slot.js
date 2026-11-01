@@ -2,7 +2,7 @@ import { mainCheckout } from './git.js';
 import { sourcePreparationFields } from '../packages/gate/core.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from '../packages/kernel/index.js';
-import { recordRunnerMeasurement } from './settings.js';
+import { recordRunnerMeasurement } from '../packages/config/index.js';
 import {
   inheritedGateSlot,
   memoryAdmission,
@@ -18,7 +18,7 @@ import {
   gateShortSlots,
   loadMachineSettings,
   memoryFloorMB,
-} from './settings.js';
+} from '../packages/config/index.js';
 import {
   recordReceipt,
   receiptOf,

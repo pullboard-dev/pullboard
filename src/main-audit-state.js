@@ -7,7 +7,7 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from './git.js';
-import { withFileLock } from './relay-outbox-guard.js';
+import { withFileLock } from '../packages/outbox/index.js';
 
 /** Resolve only the repository-owned private audit directory. */
 export function mainAuditDirectory(info) { return join(info.commonDir, 'pullboard', 'main-audits'); }

@@ -25,9 +25,9 @@ import { CAUSE_ENGINE, ENGINE_VERSION } from '../src/machine.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { newRigorNotices, undraftedRigor } from '../packages/rigor/index.js';
 import { readRigorSource, rigorSource, RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
-import { frozenCriterion, loadSpec } from '../src/spec.js';
+import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { unpackRelease } from './release-archive.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

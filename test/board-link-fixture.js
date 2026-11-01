@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { addSigner } from '../src/signature.js';
+import { addSigner } from '../packages/spec/index.js';
 import { runFixtureChild, runFixtureGit, fixtureChildMessage } from './fixture-child.js';
 
 /** Create an isolated native board with its established SSH signer authority. */

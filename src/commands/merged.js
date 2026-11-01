@@ -1,9 +1,9 @@
 /** The pullboard merged command, in its own module so an item adding another command never edits these lines. */
-import { warnMainMoved } from '../main-moved-warning.js';
+import { warnMainMoved } from '../../packages/merge/index.js';
 import * as store from '../board.js';
-import { mainPolicy } from '../trusted-policy-read.js';
+import { mainPolicy } from '../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../train-landing.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import {
   codeIsFromMain,
   contains,

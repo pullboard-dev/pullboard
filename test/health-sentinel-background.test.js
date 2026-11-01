@@ -77,9 +77,9 @@ async function answers(port, secret) {
 
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
-import { frozenCriterion, loadSpec } from '../src/spec.js';
+import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 
 /** Exercise the real detached worker's callback without advancing or replacing its native cadence. */
 test('the actual background sentinel scans once, honors off switches and drains its child [A6,H16]', { timeout: 60_000 }, async t => { // budget: private worker startup, explicit callback probes and graceful owned shutdown, not a latency target.

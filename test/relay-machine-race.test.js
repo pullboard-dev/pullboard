@@ -17,7 +17,7 @@ const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
 const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/native-board.js')).href;
 const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
-const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/config.js')).href;
+const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
 const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/lanes.js')).href;
 
 /** Read one real SQLite person-request receipt without opening a transport or changing the board. */

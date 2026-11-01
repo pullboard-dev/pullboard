@@ -2,7 +2,7 @@
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
-import { formatJson } from '../src/mechanical-merge.js';
+import { formatJson } from '../packages/merge/index.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -53,7 +53,7 @@ export function readSeed(root) {
   return { ...stored, files: flat(stored.cells), tests: flat(stored.tests) };
 }
 
-export { formatJson } from '../src/mechanical-merge.js';
+export { formatJson } from '../packages/merge/index.js';
 
 /** Name one cell's shard file, ordered so a directory listing reads leaf-first. */
 export function shardFile(cell) {
@@ -87,6 +87,21 @@ function planCounts(cells, stays) {
   };
 }
 
+/** The plan JSON files writePlan never prunes, for a plan whose cells are these. */
+function keptPlanFiles(cells) {
+  return new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...cells.map(cell => shardFile(cell))]);
+}
+
+/**
+ * Every file writing this plan would change for one cell: the index, that cell's shard, and each JSON file in the plan
+ * folder the write would prune. A shim removal checks these against its lane before it mutates anything.
+ */
+export function planWrites(root, plan, name) {
+  const keep = keptPlanFiles(plan.cells), cell = plan.cells.find(row => row.name === name);
+  const pruned = existsSync(join(root, PLAN_DIR)) ? readdirSync(join(root, PLAN_DIR)).filter(file => file.endsWith('.json') && !keep.has(`${PLAN_DIR}/${file}`)).map(file => `${PLAN_DIR}/${file}`) : [];
+  return [PLAN_FILE, ...(cell ? [shardFile(cell)] : []), ...pruned.sort()];
+}
+
 /** Write the plan as an index plus one shard per cell, removing shards a regenerated plan no longer names. */
 export function writePlan(root, plan) {
   const entries = entryPlacementProblems(root, plan);
@@ -101,7 +116,7 @@ export function writePlan(root, plan) {
   });
   mkdirSync(join(root, PLAN_DIR), { recursive: true });
   const shards = cells.map(cell => [shardFile(cell), cell]);
-  const keep = new Set([SEED_FILE, `${PLAN_DIR}/temporary-edges.json`, `${PLAN_DIR}/transition.json`, ...shards.map(([file]) => file)]);
+  const keep = keptPlanFiles(cells);
   for (const name of readdirSync(join(root, PLAN_DIR))) if (name.endsWith('.json') && !keep.has(`${PLAN_DIR}/${name}`)) rmSync(join(root, PLAN_DIR, name));
   for (const [file, cell] of shards) {
     // A shard whose data is unchanged keeps its bytes, so one row's edit never reformats an unrelated cell.
@@ -496,8 +511,11 @@ function main(argv) {
     return problems.length ? 1 : 0;
   });
   if (mode === '--remove-shims') {
-    if (rest.length !== 1) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell>');
-    const result = removeShims(root, readPlan(root), rest[0], { parsers: { importsIn, commonJsIn } });
+    const laneAt = rest.indexOf('--lane'), lane = laneAt < 0 ? 'core' : rest[laneAt + 1];
+    const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
+    if (cells.length !== 1 || !lane) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>]');
+    const plan = readPlan(root), cell = plan.cells.find(row => row.name === cells[0]);
+    const result = removeShims(root, plan, cells[0], { parsers: { importsIn, commonJsIn }, lane, planFiles: planWrites(root, plan, cells[0]) });
     if (result.changed) writePlan(root, result.plan);
     for (const line of shimReport(result)) console.log(line);
     return 0;
@@ -509,7 +527,7 @@ function main(argv) {
     return problems.length ? 1 : 0;
   });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
-  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell>');
+  throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));

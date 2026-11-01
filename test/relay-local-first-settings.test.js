@@ -4,12 +4,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { relayOutboxSetting } from '../src/cli.js';
-import { settingsInventory } from '../src/settings-inventory.js';
+import { settingsInventory } from '../packages/config/index.js';
 import { performanceCores } from '../src/gate.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
-} from '../src/config.js';
+} from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Return the effective relay.outbox row from the production settings inventory. */

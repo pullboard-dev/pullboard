@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { compareMainFailures, comparisonExecutor } from '../src/main-red.js';
-import { executionEnvironment } from '../src/execution-environment.js';
+import { executionEnvironment } from '../packages/sandbox/index.js';
 import { runProfiledShell } from '../src/gate-execution.js';
 import { withGateSlot } from '../src/gate.js';
 import { recordReceipt } from '../src/gate-receipt.js';

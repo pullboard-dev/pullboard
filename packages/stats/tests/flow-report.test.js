@@ -1,6 +1,6 @@
 /** Hand-computed flow reporting uses real Git/SQLite and immutable native history [R1,R2]. */
 import { events as readStatsEvents } from '../../../src/board.js';
-import { counterProofStats as readStatsCounter } from '../../../src/proof-counter-read.js';
+import { counterProofStats as readStatsCounter } from '../../verify/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';

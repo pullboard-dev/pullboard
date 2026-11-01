@@ -13,7 +13,7 @@ import {
   DEFAULT_VIEW_PORT,
   defaultViewPort,
   loadConfig,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   git,
 } from '../git.js';

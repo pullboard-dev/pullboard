@@ -12,7 +12,7 @@ import { movesStats, movesLines, moveTranscripts } from '../packages/stats/index
 import { importOnlyChange } from '../src/import-only-change.js';
 import { infraNote } from '../packages/commits/src/core/infra-note.js';
 import { runFixtureGit } from './fixture-child.js';
-import { commandOutput } from '../src/json-output.js';
+import { commandOutput } from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** A private real Git/SQLite board with recorded event identities and no provider files. */

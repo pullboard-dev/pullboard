@@ -3,16 +3,16 @@ import { personSigning as nativePersonSigning } from "../shell/person-signing.js
 import { itemCheckBaseline } from "../../../../src/board-query.js";
 /** Preserve the signing item's device-facing fields in the shared native/relay projection [E22,H16]. */
 import * as store from "../../../../src/board.js";
-import { loadSpec } from "../../../../src/spec.js";
+import { loadSpec } from "../../../spec/index.js";
 import { loadDoctrine } from "../../../../src/doctrine.js";
-import { shownDecisionRows } from "../../../../src/row-decisions.js";
+import { shownDecisionRows } from "../../../spec/index.js";
 import { personRequestRecords } from "./person-request.js";
 import {
   barDigest,
   barReadiness,
-} from "../../../../src/bar-readiness.js";
-import { mainPolicy } from "../../../../src/trusted-policy.js";
-import { previewBarCoverage } from "../../../../src/bar-coverage.js";
+} from "../../../verify/index.js";
+import { mainPolicy } from "../../../sandbox/index.js";
+import { previewBarCoverage } from "../../../verify/index.js";
 import { Refused } from "../../../kernel/core.js";
 
 /** Read the exact rows and pending proposals the registered signing device can present. */

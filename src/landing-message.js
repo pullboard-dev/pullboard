@@ -7,7 +7,7 @@ import {
 import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 import { tryGit } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { loadSpec } from './spec.js';
+import { loadSpec } from '../packages/spec/index.js';
 
 /** The merge header type an item with no typed commit takes from its lane; any other lane lands as chore. */
 const LANE_MERGE_TYPES = Object.freeze({ docs: 'docs', test: 'test' });

@@ -13,12 +13,12 @@ import {
 } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { personNeedsState } from '../src/needs-state.js';
-import { parseSpec } from '../src/spec.js';
-import { loadConfig } from '../src/config.js';
+import { parseSpec } from '../packages/spec/index.js';
+import { loadConfig } from '../packages/config/index.js';
 import {
   planSpecRevision,
   validSpecRevision,
-} from '../src/spec-revisions.js';
+} from '../packages/spec/index.js';
 
 const fixtures = createE2eHelpers();
 after(fixtures.cleanup);

@@ -4,7 +4,7 @@ import { getItem } from "../../../../src/board.js";
 import {
   barDigest,
   barReadiness,
-} from "../../../../src/bar-readiness.js";
+} from "../../../verify/index.js";
 import { personRequestRecords } from "../core/person-request.js";
 import { requireSignedPerson } from "./person-signing-cli.js";
 import { personSigning } from "./person-signing.js";

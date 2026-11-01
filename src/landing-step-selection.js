@@ -9,9 +9,9 @@ import { join } from 'node:path';
 import * as store from './board.js';
 import { tryGit } from './git.js';
 import { landingLeaseState } from './board-landing-lease.js';
-import { sameEnvironment } from './execution-environment.js';
-import { staleVerdictRefusal } from './verdict-freshness.js';
-import { verdictProjector } from './verdict-freshness.js';
+import { sameEnvironment } from '../packages/sandbox/index.js';
+import { staleVerdictRefusal } from '../packages/verify/index.js';
+import { verdictProjector } from '../packages/verify/index.js';
 
 /** Hash a test's current bytes, so a real correction can unblock its held batch. */
 export function testHash(root, file) {

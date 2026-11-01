@@ -21,8 +21,8 @@ import { HEALTH_SENTINEL_ENGINE } from '../board-health-receipts.js';
 import { readBlocks } from '../blocks.js';
 import { rigorReport } from '../board-rigor.js';
 import { dispatchHealth } from '../dispatch-health.js';
-import { readGitSyncRepairs } from '../git-sync-files.js';
-import { loadMachineSettings } from '../settings-read.js';
+import { readGitSyncRepairs } from '../../packages/config/index.js';
+import { loadMachineSettings } from '../../packages/config/index.js';
 import { runnerLeaseHealth } from '../../packages/resources/index.js';
 
 /** Run `pullboard health` and return its exit code. */

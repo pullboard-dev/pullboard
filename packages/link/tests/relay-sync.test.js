@@ -13,12 +13,12 @@ import { ENGINE_VERSION } from '../../state/index.js';
 import { relayClientFixture } from '../../../test/relay-client-fixture.js';
 
 const RELAY = JSON.stringify(new URL('../src/shell/relay.js', import.meta.url).href);
-const GUARD = JSON.stringify(new URL('../../../src/relay-outbox-guard.js', import.meta.url).href);
-const CONFLICT = JSON.stringify(new URL('../../../src/relay-conflict-record.js', import.meta.url).href);
-const BASELINE = JSON.stringify(new URL('../../../src/relay-baseline-settle.js', import.meta.url).href);
-const CHECKPOINT = JSON.stringify(new URL('../../../src/relay-checkpoint.js', import.meta.url).href);
-const PUBLISH = JSON.stringify(new URL('../../../src/relay-checkpoint-publish.js', import.meta.url).href);
-const ORDERING = JSON.stringify(new URL('../../../src/relay-ordering.js', import.meta.url).href);
+const GUARD = JSON.stringify(new URL('../../outbox/index.js', import.meta.url).href);
+const CONFLICT = JSON.stringify(new URL('../../outbox/index.js', import.meta.url).href);
+const BASELINE = JSON.stringify(new URL('../../outbox/index.js', import.meta.url).href);
+const CHECKPOINT = JSON.stringify(new URL('../../outbox/index.js', import.meta.url).href);
+const PUBLISH = JSON.stringify(new URL('../../outbox/index.js', import.meta.url).href);
+const ORDERING = JSON.stringify(new URL('../../outbox/index.js', import.meta.url).href);
 
 /** Read the saved link without including ciphertext or credentials in an assertion diagnostic. */
 function link(box) { return JSON.parse(readFileSync(box.linkFile, 'utf8')); }
@@ -31,7 +31,7 @@ function moves(box, texts, options = {}) {
     const { replay: replayConflictRecord } = await import(${CONFLICT});
     const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import(${BASELINE});
     const { checkpointInBackground, scheduleCheckpoint, requestCheckpointCheck } = await import(${CHECKPOINT});
-    const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import(${JSON.stringify(new URL('../../../src/relay-outbox.js', import.meta.url).href)});
+    const { flushOutbox, queueMove, outboxHasPendingCreatedItem, outboxFields, ACKNOWLEDGED_OPERATIONS, outboxQueueable } = await import(${JSON.stringify(new URL('../../outbox/index.js', import.meta.url).href)});
     const { openBoard, nativeBoardPorts } = await import(${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)});
     const { checkpointPublisher } = await import(${PUBLISH});
     const { relayOrdering } = await import(${ORDERING});

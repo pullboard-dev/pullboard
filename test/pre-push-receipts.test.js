@@ -2,7 +2,7 @@
 import { shellWord } from '../src/cli-read-context.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import {
   cpSync,
   mkdirSync,
@@ -129,7 +129,7 @@ test('push evidence refuses missing landings and unfiled newest audit failures w
 
 /** Invoke the real additive smoke helper using the fixture's accepted policy and ordinary inherited admission. */
 function nativeSmoke(box) {
-  const module = new URL('../src/push-receipt-smoke.js', import.meta.url).href;
+  const module = new URL('../packages/sandbox/src/shell/push-receipt-smoke.js', import.meta.url).href;
   const source = `import {runPushReceiptSmoke} from ${JSON.stringify(module)};
 import {checkNeedsBrowser} from ${JSON.stringify(new URL('../src/browser-admission.js', import.meta.url).href)};
 import {checkNeedsGui} from ${JSON.stringify(new URL('../src/gui-admission.js', import.meta.url).href)};

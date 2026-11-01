@@ -10,15 +10,15 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import * as store from '../board.js';
 import { withBoard } from '../cli-context.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import * as gateConfig from '../gate-config.js';
 import { detectGate } from '../init.js';
 import { laneNames } from '../lanes.js';
-import { applyStep } from '../setup-rows.js';
-import { personAsk } from '../setup-rows.js';
-import { requirementStep } from '../setup-rows.js';
-import { setupDecisionRows } from '../setup-rows.js';
-import { loadSpec } from '../spec.js';
+import { applyStep } from '../../packages/spec/index.js';
+import { personAsk } from '../../packages/spec/index.js';
+import { requirementStep } from '../../packages/spec/index.js';
+import { setupDecisionRows } from '../../packages/spec/index.js';
+import { loadSpec } from '../../packages/spec/index.js';
 
 /** Identify setup from this board's coordinator enrollment, independently of agent flags. */
 export function setupIdentity(board) {

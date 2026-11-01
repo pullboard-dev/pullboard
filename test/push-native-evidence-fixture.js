@@ -16,8 +16,8 @@ import { boardReceiptStore, readGateReceipt, receiptBinds, receiptStore } from '
 import { gateRuns, recordGateRun } from '../src/quarantine.js';
 import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
 import { nativePushReceiptProblems as evaluateNativePushReceiptProblems } from '../packages/git/index.js';
-import { COORDINATOR } from '../src/config.js';
-import { policyAt } from '../src/trusted-policy-read.js';
+import { COORDINATOR } from '../packages/config/index.js';
+import { policyAt } from '../packages/sandbox/index.js';
 
 /** Exercise real native readers through the explicit dependency boundary; none is a fabricated receipt. */
 function nativePushReceiptProblems(root, board, commits) {

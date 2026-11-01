@@ -44,14 +44,14 @@ import { personRequestMove, preparePersonRequest } from '../src/person-request.j
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestMoveProblem, requestStageText } from '../src/relay-requests.js';
 import { PEOPLE_ENGINE } from '../src/people-engine.js';
 import { sentinelDraftNeeds } from '../src/sentinels.js';
-import { machineSettingsFile } from '../src/settings.js';
+import { machineSettingsFile } from '../packages/config/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { loadConfig } from '../src/config.js';
+import { loadConfig } from '../packages/config/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
-import { frozenCriterion } from '../src/spec.js';
-import { loadSpec } from '../src/spec.js';
+import { frozenCriterion } from '../packages/spec/index.js';
+import { loadSpec } from '../packages/spec/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { requireSupportedEngine as requirePublished55Engine } from './fixtures/engine-55-reader.js';
 

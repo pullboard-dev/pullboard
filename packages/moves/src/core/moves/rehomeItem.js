@@ -1,5 +1,5 @@
 import { checkTimingEngine } from "../../../../items/core.js";
-import { itemReviewPolicy } from "../../../../../src/review-policy.js";
+import { itemReviewPolicy } from "../../../../verify/src/core/review-policy.js";
 import { REVIEW_INDEPENDENCE_ENGINE } from "../../../../../src/review-independence-engine.js";
 import { PRIVATE_REHOME_ENGINE } from "../../../../../src/private-rehome-engine.js";
 

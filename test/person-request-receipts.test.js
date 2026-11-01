@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { COORDINATOR } from '../src/config.js';
+import { COORDINATOR } from '../packages/config/index.js';
 import { appliedSequence, applyEngineMove, engineReceipt, prepareEngineMove } from '../src/engine.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { ENGINE_VERSION } from '../src/machine.js';

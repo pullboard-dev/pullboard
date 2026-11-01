@@ -43,7 +43,7 @@ import {
   positions,
   CHOICES,
   MOST_CHOICE_PARTS,
-} from '../../../../src/spec.js';
+} from '../../../spec/index.js';
 import {
   existsSync,
   readdirSync,
@@ -59,7 +59,7 @@ import { Refused } from '../../../kernel/index.js';
 import {
   insertSectionRows,
   nextRowId,
-} from '../../../../src/spec.js';
+} from '../../../spec/index.js';
 
 /** The blueprint file format this Pullboard reads and writes. */
 export const BLUEPRINT_FORMAT = 1;

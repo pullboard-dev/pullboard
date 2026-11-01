@@ -2,7 +2,7 @@ import { requireSubmitHandoffHookProof } from './submit-handoff-state.js';
 import {
   mainPolicy,
   policyAt,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import { contains } from './git.js';
 import { itemPatchDigest } from './item-patch-state.js';
 import { agentById } from './board-query.js';

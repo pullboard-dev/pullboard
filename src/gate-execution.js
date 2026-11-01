@@ -6,7 +6,7 @@ import { proofSourceAt } from './gate-observation.js';
 import { testValueProfile } from './gate-observation.js';
 import { quarantineRunVerdict } from './quarantine-run-verdict.js';
 import { sourcePreparationFields } from '../packages/gate/core.js';
-import { gateRunnerAdmission } from './settings.js';
+import { gateRunnerAdmission } from '../packages/config/index.js';
 import { gitChildEnv } from './git.js';
 import { invalidateGitFacts } from './git.js';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -25,7 +25,7 @@ import {
 } from './gate-slot.js';
 import {
   policyAt,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import {
   COLLECTION_ID_ENV,
   parseCollectionReports,
@@ -76,7 +76,7 @@ import {
   captureTestRuntimes,
   executionEnvironment,
   testRuntimeEnvironment,
-} from './execution-environment.js';
+} from '../packages/sandbox/index.js';
 import {
   gitPath,
   headCommit,
@@ -102,11 +102,11 @@ import { committedTestOutcomes } from './test-outcomes.js';
 import {
   frozenCheck,
   mainPolicy,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import {
   proofCounts,
   observedFailureSignatures,
-} from './proof-provenance.js';
+} from '../packages/verify/index.js';
 import {
   logLines,
 } from './timing.js';
@@ -145,7 +145,7 @@ import {
 } from './gate-output.js';
 import {
   sandboxBlockedOperation,
-} from './sandbox-denial.js';
+} from '../packages/sandbox/index.js';
 const STAMP = 'pullboard-gate-green';
 const LOG = 'pullboard-gate.log';
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';

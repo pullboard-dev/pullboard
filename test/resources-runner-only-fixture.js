@@ -1,4 +1,4 @@
-/** @pullboard-module-loads packages/resources/index.js src/settings.js */
+/** @pullboard-module-loads packages/resources/index.js packages/config/src/shell/settings.js */
 /** Private native queue and CLI controls for opt-in submit/review runner-only admission [C7,Q1]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
@@ -11,7 +11,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
 const RESOURCES = pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href;
-const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../src/settings.js')).href;
+const SETTINGS = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/settings.js')).href;
 const TEMP = [];
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

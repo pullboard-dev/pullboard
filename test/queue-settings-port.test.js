@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { machineHome, machineSettingsFile } from '../packages/resources/index.js';
 import { DEFAULT_QUEUE_AGING_MINUTES, readGateQueueSettings, readMachineSettingsFile } from '../packages/queue/index.js';
-import { gateQueueSettings } from '../src/settings.js';
+import { gateQueueSettings } from '../packages/config/index.js';
 
 /** Write one settings object into a fresh directory, returning the directory and its file. */
 function settingsDir(value) {

@@ -22,7 +22,7 @@ import {
   CONFIG_FILE,
   COORDINATOR,
   loadConfig,
-} from './config.js';
+} from '../packages/config/index.js';
 import { loadDoctrine } from './doctrine.js';
 import {
   codeIsFromMain,
@@ -40,9 +40,9 @@ import {
   mainPolicy,
   policyAt,
   trunkRef,
-} from './trusted-policy-read.js';
-import { familyIndex } from './review-policy.js';
-import { MAIN_MERGE_LABEL } from './trunk-conflict.js';
+} from '../packages/sandbox/index.js';
+import { familyIndex } from '../packages/verify/index.js';
+import { MAIN_MERGE_LABEL } from '../packages/merge/index.js';
 
 /**
  * A comma list of spec ids from a flag.

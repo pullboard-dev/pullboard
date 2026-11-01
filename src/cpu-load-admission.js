@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
-import { loadMachineSettings } from './settings.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 import { cpuLoadOptionsIn } from './module-imports.js';
 import { cpuLiteralCache } from './module-imports.js';
 import { cpuRegistrationExportsIn } from './module-imports.js';

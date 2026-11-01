@@ -1,4 +1,4 @@
-import { BOARD_PROOF_GUIDANCE } from "../../../../src/templates.js";
+import { BOARD_PROOF_GUIDANCE } from "../../../config/index.js";
 /**
  * The checks git runs (C1–C3, L3, L4): the commit message cites the spec, a lane's worktree stays in
  * its folders, no secret or env file is committed, and a push sends exactly what the gate checked.
@@ -39,7 +39,7 @@ import {
   configFromSource,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from "../../../../src/config.js";
+} from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../core/commit-message.js";
 import { outOfLane } from "../../../../src/lanes.js";
@@ -51,9 +51,9 @@ import {
   gateFiles,
   idProblems,
   parseSpec,
-} from "../../../../src/spec.js";
-import { approvedRowProblems } from "../../../../src/approved-rows.js";
-import { specGateMoveOnly } from "../../../../src/spec-gate-move.js";
+} from "../../../spec/index.js";
+import { approvedRowProblems } from "../../../spec/index.js";
+import { specGateMoveOnly } from "../../../spec/index.js";
 
 export const HOOKS = ['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'];
 export const HOOKS_DIR = '.githooks';

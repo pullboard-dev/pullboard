@@ -33,7 +33,7 @@ import {
 } from './git.js';
 import {
   mainPolicy,
-} from './trusted-policy.js';
+} from '../packages/sandbox/index.js';
 import { fileURLToPath } from 'node:url';
 import { runProfiledShell } from './gate.js';
 import { runFrozenProof } from './gate.js';

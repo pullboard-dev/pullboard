@@ -34,7 +34,7 @@ import {
   COORDINATOR,
   doctrineFile,
   loadConfig,
-} from './config.js';
+} from '../packages/config/index.js';
 import { loadDoctrine } from './doctrine.js';
 import { installHooks } from '../packages/commits/index.js';
 import {
@@ -65,7 +65,7 @@ import {
   plainGateWords,
   practiceTemplate,
   specTemplate,
-} from './templates.js';
+} from '../packages/config/index.js';
 import { agentsBlock } from './doctrine.js';
 
 /** Resolve a directory through symlinks, retaining a missing suffix for a not-yet-created private home. */

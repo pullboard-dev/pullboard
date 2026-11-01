@@ -1,7 +1,7 @@
 import * as queueStore from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { roadmap, addMilestone, editMilestoneItems, orderMilestoneItems } from '../src/board-milestones.js';
-import { eligibilityProblem as queueEligibility } from '../src/review-eligibility.js';
+import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 import { crossLaneFixture } from './e2e-helpers.js';
 import { HOUR } from './next-order-fixture.js';
 import { MID_ITEM_DETAILS } from './next-order-fixture.js';

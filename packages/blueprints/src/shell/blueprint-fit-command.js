@@ -12,15 +12,15 @@ import {
   refuseOwnFit,
 } from './blueprint-fit.js';
 import { readBlueprint } from './blueprints.js';
-import { COORDINATOR } from '../../../../src/config.js';
+import { COORDINATOR } from '../../../config/index.js';
 import { headCommit } from '../../../../src/git.js';
 import {
   agentSessionDigest,
   requirePersonChannel,
 } from '../../../../src/person.js';
 import { Refused } from '../../../kernel/index.js';
-import { prepareRowDecisions } from '../../../../src/row-decisions.js';
-import { loadSpec } from '../../../../src/spec.js';
+import { prepareRowDecisions } from '../../../spec/index.js';
+import { loadSpec } from '../../../spec/index.js';
 
 /**
  * Blueprint fit (#730): a seat proposes how a blueprint's target fits this repo; the person lists,

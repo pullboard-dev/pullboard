@@ -6,7 +6,7 @@ import {
   whoAmI,
   withBoard,
 } from '../cli.js';
-import { COORDINATOR } from '../config.js';
+import { COORDINATOR } from '../../packages/config/index.js';
 import { laneNames } from '../lanes.js';
 import { relayLinked } from '../relay.js';
 import { relayMachineContext } from '../relay.js';

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import cp from 'node:child_process';
 import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
-import { familyName } from '../src/review-policy.js';
+import { familyName } from '../packages/verify/index.js';
 import { seatFamily } from '../src/family-declaration.js';
 import { assertCommandHoldBudget } from './lock-hold-budget-command.fixture.js';
 import { syncBuiltinESMExports } from 'node:module';

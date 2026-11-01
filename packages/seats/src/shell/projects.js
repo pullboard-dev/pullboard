@@ -23,7 +23,7 @@ import {
 } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { loadConfig } from '../../../../src/config.js';
+import { loadConfig } from '../../../config/index.js';
 import { remoteRepository } from '../core/github-remote.js';
 import { withMachineHomeWrite } from '../../../resources/index.js';
 import { boardReferenceId } from '../../../kernel/src/core/registry-guards.js';
