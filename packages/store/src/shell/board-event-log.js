@@ -64,7 +64,8 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
     const start = performance.now();
     try { return fn(); } finally {
       const elapsed = performance.now() - start;
-      if (writeRecord && elapsed > (writeRecord.phaseMs ?? 0)) { writeRecord.phase = name; writeRecord.phaseMs = elapsed; }
+      const unmeasured = name === 'work' ? Math.max(0, elapsed - (writeRecord?.workAccountedMs ?? 0)) : elapsed;
+      if (writeRecord && unmeasured > (writeRecord.phaseMs ?? 0)) { writeRecord.phase = name; writeRecord.phaseMs = unmeasured; }
     }
   };
   const lastEvent = board.lastEvent;

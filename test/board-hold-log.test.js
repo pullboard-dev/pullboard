@@ -26,15 +26,16 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
     import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
     import assert from 'node:assert/strict';
     import { boardHoldStats } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
+    import { measureBoardWritePhase } from ${JSON.stringify(new URL('../packages/store/src/shell/board-write-lock.js', import.meta.url).href)};
     assert.equal(boardHoldStats().available, false, 'a missing machine log is unmeasured, not healthy zero');
     assert.equal(boardHoldStats().count, null);
     // @pullboard-board-file locking: this real SQLite transaction measures the actual acquired/released boundary.
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-hold', seat: 'web-1', item: 42 } });
     try {
-      atomic(board, () => atomic(board, () => {
+      atomic(board, () => measureBoardWritePhase(board.db, 'fixture-move', () => atomic(board, () => {
         // Wait is the subject: hold a real outer SQLite lock beyond the required one-second threshold.
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_200);
-      }));
+      })));
       board.writeContext.command = 'fixture-fast';
       atomic(board, () => {
         // The contrasting real hold stays below the threshold; no polling or product deadline is changed.
@@ -51,7 +52,7 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   const holds = rows.filter(row => row.command === 'fixture-hold');
   assert.equal(holds.length, 1, 'a nested savepoint never double-counts the same outer hold');
   assert.deepEqual([holds[0].seat, holds[0].item, holds[0].outcome], ['web-1', 42, 'committed']);
-  assert.equal(holds[0].phase, 'work');
+  assert.equal(holds[0].phase, 'fixture-move');
   assert.ok(holds[0].phaseMs >= 1_200);
   assert.ok(holds[0].heldMs >= 1_200, 'the record measures the real held interval');
   assert.equal(rows.some(row => row.command === 'fixture-fast'), false);
