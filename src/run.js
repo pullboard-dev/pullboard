@@ -31,7 +31,7 @@ import {
   CONFIG_FILE,
   COORDINATOR,
   loadConfig,
-} from './config.js';
+} from '../packages/config/index.js';
 import {
   doctrineText,
   loadDoctrine,

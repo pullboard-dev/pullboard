@@ -1,18 +1,18 @@
 /** The pullboard spec command, in its own module so an item adding another command never edits these lines. */
-import { answerQuestion } from '../spec.js';
+import { answerQuestion } from '../../packages/spec/index.js';
 import { rowDrafts } from '../board-query.js';
-import { trunkRef } from '../trusted-policy-read.js';
+import { trunkRef } from '../../packages/sandbox/index.js';
 import { loadDoctrine } from '../doctrine.js';
 import { verifiedPasskeyRowDecision } from '../person-signing.js';
 import {
   planRowVerificationApply,
   rowVerificationFindings,
-} from '../spec-verdicts.js';
+} from '../../packages/spec/index.js';
 import { planAutomaticRigorApply } from '../../packages/rigor/index.js';
 import {
   planSpecRevision,
   prepareSpecRevisionDecisions,
-} from '../spec-revisions.js';
+} from '../../packages/spec/index.js';
 import {
   fitCommand,
 } from '../../packages/blueprints/index.js';
@@ -28,7 +28,7 @@ import {
   COORDINATOR,
   DOCTRINE_FILE,
   LEGACY_DOCTRINE_FILE,
-} from '../config.js';
+} from '../../packages/config/index.js';
 import {
   proposeDoctrine,
 } from '../../packages/doctrine/index.js';
@@ -39,7 +39,7 @@ import {
   citedTestFiles,
   rowEvidence,
   rowStage,
-} from '../evidence.js';
+} from '../../packages/verify/index.js';
 import {
   headCommit,
 } from '../git.js';
@@ -52,7 +52,7 @@ import {
 } from '../person.js';
 import {
   productProblems,
-} from '../products.js';
+} from '../../packages/spec/index.js';
 import {
   personSigning,
 } from '../person-signing.js';
@@ -67,7 +67,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   rowDecisionContext,
-} from '../row-decision-state.js';
+} from '../../packages/spec/index.js';
 import {
   decisionAnswer,
   decisionProjection,
@@ -79,22 +79,22 @@ import {
   restoreRowApply,
   rowDecisionView,
   writeRowApply,
-} from '../row-decisions.js';
+} from '../../packages/spec/index.js';
 import {
   clashingRowDrafts,
   pendingRowDrafts,
   trunkRowIds,
   withRowDrafts,
-} from '../row-drafts.js';
+} from '../../packages/spec/index.js';
 import {
   addSigner,
   assertRequiredSigners,
   defaultPrincipal,
   hasSignerFile,
-} from '../signature.js';
+} from '../../packages/spec/index.js';
 import {
   draftRow,
-} from '../spec-draft.js';
+} from '../../packages/spec/index.js';
 import {
   legacyDoctrineRenameBase,
   lintSpec,
@@ -106,7 +106,7 @@ import {
   signOff,
   standings,
   unmetRows,
-} from '../spec.js';
+} from '../../packages/spec/index.js';
 import {
   renderSpecView,
 } from '../view.js';
@@ -142,7 +142,7 @@ import {
   assertNoCitedSpecDecline,
   prepareSpecRefreezes,
   specRefreezeSkips,
-} from '../spec-refreeze.js';
+} from '../../packages/spec/index.js';
 
 /** Validate optional verdicts using only existing board state; a check never initializes a board. */
 function verifierFindings(ctx, parsed) {

@@ -13,8 +13,8 @@ import {
 } from './fixture-child.js';
 import { cleanGitEnvironment } from '../src/git.js';
 import { conflictFiles } from '../packages/health/index.js';
-import { recordedTrunkMerge, trunkMerge } from '../src/trunk-merge.js';
-import { resolveMechanicalMerge } from '../src/train-mechanical-merge.js';
+import { recordedTrunkMerge, trunkMerge } from '../packages/merge/index.js';
+import { resolveMechanicalMerge } from '../packages/merge/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { json } from './land-board-fixture.js';
 import { createHash, randomUUID } from 'node:crypto';

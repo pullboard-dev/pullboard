@@ -39,8 +39,8 @@ import {
   repoInfo,
 } from './git.js';
 import { testsNeedGui } from './gui-admission.js';
-import { loadMachineSettings } from './settings.js';
-import { gateRunnerAdmission } from './settings.js';
+import { loadMachineSettings } from '../packages/config/index.js';
+import { gateRunnerAdmission } from '../packages/config/index.js';
 import { localRunnerDescriptor } from './runner-load.js';
 import { guiSession } from './gui-session.js';
 import { headTree } from './git.js';

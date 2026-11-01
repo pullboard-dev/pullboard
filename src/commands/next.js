@@ -9,14 +9,14 @@ import {
   mainRedBuildOffer,
   nextTake,
   nextProgress,
-} from '../next-take.js';
+} from '../../packages/sandbox/index.js';
 import {
   sayCheckBaseline,
 } from '../check-baseline.js';
 import {
   refuseNextIdle,
 } from '../next-steps.js';
-import { reviewQueueLine } from '../review-queue-line.js';
+import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

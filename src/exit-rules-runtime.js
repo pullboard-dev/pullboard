@@ -26,7 +26,7 @@ import {
   exitClaim,
   requireExitActive,
 } from './exit-rules-state.js';
-import { mainPolicy } from './trusted-policy-read.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */
 function sourceBytes(source, previous) {

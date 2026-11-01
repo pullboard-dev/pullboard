@@ -5,7 +5,7 @@ import {
   isMergeConflict,
   rigorReport,
 } from '../../../../src/board-rigor.js';
-import { parseSpec } from '../../../../src/spec.js';
+import { parseSpec } from '../../../spec/index.js';
 import {
   automaticRigorNeeds,
   automaticSourceFromText,

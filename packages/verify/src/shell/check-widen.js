@@ -1,6 +1,6 @@
 /** A holder adds test files to its own check; anything not provably a superset stays the coordinator's [C7,V4,H16]. */
 import { CHECK_WIDEN_SELF_ENGINE } from '../../../../src/check-widen-self-engine.js';
-import { COORDINATOR } from '../../../config/src/shell/config.js';
+import { COORDINATOR } from '../../../config/index.js';
 import { coordinatorCheck } from '../../core.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { Refused } from '../../../kernel/index.js';

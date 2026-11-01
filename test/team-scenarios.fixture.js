@@ -205,7 +205,7 @@ import {
   takeResource,
   listResources,
 } from ${JSON.stringify(new URL('../packages/resources/index.js', import.meta.url).href)};
-import {loadMachineSettings} from ${JSON.stringify(new URL('../src/settings.js', import.meta.url).href)};
+import {loadMachineSettings} from ${JSON.stringify(new URL('../packages/config/src/shell/settings.js', import.meta.url).href)};
 const [root,ready,observed]=process.argv.slice(1);
 const capacity=loadMachineSettings().gateSlots;
 const leases=[];

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { loadDoctrine } from '../../../packages/doctrine/index.js';
-import { STATUSES, frozenCriterion, loadSpec } from '../../../src/spec.js';
+import { STATUSES, frozenCriterion, loadSpec } from '../../../packages/spec/index.js';
 import {
   ACCEPT_REASON, addItem, allShouts, appendFact, atomic, claim, closeBoard,
   ensureCoordinator, events, getItem, listAgents, listItems, milestones, recordAttempt,

@@ -4,10 +4,10 @@ import { readdirSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { docTable } from './generated-doc-blocks.js';
-import { ID_RE } from './spec.js';
-import { STATUSES } from './spec.js';
-import { TIERS } from './spec.js';
-import { parseSpec } from './spec.js';
+import { ID_RE } from '../packages/spec/index.js';
+import { STATUSES } from '../packages/spec/index.js';
+import { TIERS } from '../packages/spec/index.js';
+import { parseSpec } from '../packages/spec/index.js';
 
 /** Read data-only source declarations, never Markdown output as generator input. */
 function declaration(root, name) {

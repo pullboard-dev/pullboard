@@ -6,8 +6,8 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { loadConfig } from '../src/config.js';
-import { frozenCriterion, loadSpec } from '../src/spec.js';
+import { loadConfig } from '../packages/config/index.js';
+import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { runFixtureExecFile, runFixtureChild } from './fixture-child.js';
 
 test('show prints a frozen check exactly as stored, with no added escaping [N30,A1]', () => {

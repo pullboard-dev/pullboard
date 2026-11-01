@@ -20,7 +20,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   loadSpec,
-} from '../spec.js';
+} from '../../packages/spec/index.js';
 import {
   existsSync,
   writeFileSync,

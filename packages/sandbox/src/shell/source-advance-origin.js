@@ -1,9 +1,9 @@
 import {
   receiptBlockingGreen,
-} from '../../../../src/quarantine-verdict.js';
+} from '../../../verify/index.js';
 import {
   effectiveItemHead,
-} from '../../../../src/source-advance-state.js';
+} from '../../../verify/index.js';
 import {
   itemPolicy,
 } from './trusted-policy.js';
@@ -12,14 +12,14 @@ import {
 } from './trusted-policy.js';
 import {
   retryReviewCommit,
-} from '../../../../src/verdict-retry.js';
+} from '../../../verify/index.js';
 import {
   getItem,
 } from '../../../../src/board-query.js';
 /** Seal only gate-owned receipts on a composition produced by the trusted worker [C7,V4,H16]. */
 import {
   sourceAdvanceReviewEpisode,
-} from '../../../../src/source-advance-state.js';
+} from '../../../verify/index.js';
 import {
   realpathSync,
 } from 'node:fs';
@@ -31,7 +31,7 @@ import {
 } from '../../../../src/git.js';
 import {
   sourceConflictFiles,
-} from '../../../../src/source-advance-compose.js';
+} from '../../../merge/index.js';
 import {
   itemById,
 } from '../../../../src/board-item-read.js';
@@ -46,7 +46,7 @@ import {
 } from 'node:crypto';
 import {
   preparedSourceComposition,
-} from '../../../../src/source-advance-compose.js';
+} from '../../../merge/index.js';
 import {
   sourceAdvancePlan,
 } from '../../../codemap/index.js';
@@ -55,10 +55,10 @@ import {
 } from '../../../codemap/index.js';
 import {
   sourceAdvanceEpisode,
-} from '../../../../src/source-advance-state.js';
+} from '../../../verify/index.js';
 import {
   sourceAdvanceChain,
-} from '../../../../src/source-advance-state.js';
+} from '../../../verify/index.js';
 import {
   sourceAdvanceVerdict,
 } from './source-advance.js';

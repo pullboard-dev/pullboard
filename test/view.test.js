@@ -19,7 +19,7 @@ import { refusalDocument } from '../src/next-step-words.js';
 import { forgetProject, listApiProjects } from '../src/projects.js';
 import { runningView, rememberView, forgetView } from '../src/view-session.js';
 import { fetchFresh } from './http-fixture.js';
-import { parseSpec } from '../src/spec.js';
+import { parseSpec } from '../packages/spec/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { esc, renderSpecView } from '../src/view.js';
 import { assertPublicExportSupported } from '../src/public-export-guard.js';

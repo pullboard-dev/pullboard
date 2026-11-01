@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { headerRows } from '../src/spec.js';
+import { headerRows } from '../packages/spec/index.js';
 import {
   HEADER_LIMIT,
   buildCommitMessage,
@@ -13,8 +13,8 @@ import {
 } from '../packages/commits/index.js';
 import { landingRows } from '../packages/commits/src/core/landing-rows.js';
 import { checkLandingMessages, itemCommitType, landingMessage } from '../src/land.js';
-import { citedIds, parseSpec } from '../src/spec.js';
-import { defaults } from '../src/config.js';
+import { citedIds, parseSpec } from '../packages/spec/index.js';
+import { defaults } from '../packages/config/index.js';
 import { commitMsgProblems } from '../packages/commits/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

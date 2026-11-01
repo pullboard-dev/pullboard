@@ -28,7 +28,7 @@ import {
   after,
   test,
 } from 'node:test';
-import { parseSpec } from "../../../src/spec.js";
+import { parseSpec } from "../../spec/index.js";
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,

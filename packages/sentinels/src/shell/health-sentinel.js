@@ -5,8 +5,8 @@ import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from "../../../../src/board.js";
 import { readBoardSnapshot } from "../../../../src/board.js";
 import { healthReport } from "../../../health/index.js";
-import { healthSentinelEnabled } from "../../../../src/settings.js";
-import { loadMachineSettings } from "../../../../src/settings.js";
+import { healthSentinelEnabled } from "../../../config/index.js";
+import { loadMachineSettings } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { agentCpuFindings } from "./sentinel-cpu.js";
 import {

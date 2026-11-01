@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { runSubmitGate } from '../src/gate-submit.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

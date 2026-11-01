@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { test } from 'node:test';
 import { takeResource, listResources, gateSlotEnvironment } from '../packages/resources/index.js';
-import { gateRunnerAdmission } from '../src/settings.js';
+import { gateRunnerAdmission } from '../packages/config/index.js';
 import { withGateSlot } from '../src/gate.js';
 import { apiFixtureEnvironment, bindApiFixtureMachine } from './api-fixture.js';
 import { startFixtureChild, runFixtureGit } from './fixture-child.js';

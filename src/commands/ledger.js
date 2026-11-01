@@ -5,7 +5,7 @@ import {
   agentApprovalLine,
   itemAgentApprovals,
   specApprovalState,
-} from '../spec-approval.js';
+} from '../../packages/spec/index.js';
 import {
   agentDisplayName,
   context,

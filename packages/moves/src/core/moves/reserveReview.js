@@ -1,5 +1,5 @@
-import { itemReviewPolicyEngine } from "../../../../../src/review-policy.js";
-import { requiredReviewFamilyEngine } from "../../../../../src/required-review-family.js";
+import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
+import { requiredReviewFamilyEngine } from "../../../../verify/src/core/required-review-family.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by reserveReview, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";

@@ -13,7 +13,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { readRunnerCapacities } from '../src/runner-capacity-read.js';
 import { runnerUtilization } from '../src/runner-utilization.js';
-import { loadMachineSettings } from '../src/settings-read.js';
+import { loadMachineSettings } from '../packages/config/index.js';
 
 /** Isolate only this fixture's machine path; every database and settings file is genuinely read from disk. */
 function fixture(t) {

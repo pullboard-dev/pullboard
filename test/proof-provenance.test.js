@@ -8,13 +8,13 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { prepareEngineMove, applyEngineMove } from '../src/engine.js';
 import { boardReceiptStore, receiptBody, receiptFields } from '../src/gate-run-receipt.js';
-import { proofCounts } from '../src/proof-provenance.js';
+import { proofCounts } from '../packages/verify/index.js';
 import { runShell } from '../src/shell-run.js';
-import { captureTestRuntimes, testRuntimeEnvironment } from '../src/execution-environment.js';
+import { captureTestRuntimes, testRuntimeEnvironment } from '../packages/sandbox/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { fileURLToPath } from 'node:url';
 import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
-import { recordNativeProof } from '../src/proof-cli.js';
+import { recordNativeProof } from '../packages/verify/index.js';
 import { proofRunReceipt } from '../src/proof-receipts.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

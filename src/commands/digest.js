@@ -1,7 +1,7 @@
 import { currentProofCounters } from '../../packages/verify/index.js';
 import { proofCounter } from '../../packages/verify/index.js';
 import { foreignBlockers } from '../board.js';
-import { counterCaught } from '../proof-counter-read.js';
+import { counterCaught } from '../../packages/verify/index.js';
 import { readCapacity as readCapacityWithPorts } from '../../packages/stats/index.js';
 const readCapacity = (board, now) => readCapacityWithPorts(board, now, { currentProofCounters, proofCounter });
 import { capacityLines } from '../../packages/stats/index.js';
@@ -21,7 +21,7 @@ import {
   context,
 } from '../cli.js';
 import { healthReport } from '../../packages/health/index.js';
-import { loadMachineSettings } from '../settings-read.js';
+import { loadMachineSettings } from '../../packages/config/index.js';
 import { dispatchHealth } from '../dispatch-health.js';
 
 /** Bind the upper dispatch operation while preserving the digest reader's exact SQLite snapshot. */

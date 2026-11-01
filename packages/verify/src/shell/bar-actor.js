@@ -1,4 +1,4 @@
-import { COORDINATOR } from '../../../config/src/shell/config.js';
+import { COORDINATOR } from '../../../config/index.js';
 import { barReadySetting } from './bar-readiness.js';
 import { agentParent } from '../../../seats/index.js';
 /** Current bar authorship survives native takeover without rewriting historical seats [V1,H16]. */

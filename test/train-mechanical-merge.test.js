@@ -24,7 +24,7 @@ import { json } from './land-board-fixture.js';
 import {
   mergeMechanicalSources,
   resolveMechanicalMerge,
-} from '../src/train-mechanical-merge.js';
+} from '../packages/merge/index.js';
 import {
   discoverFormats,
   formatTable,
@@ -172,7 +172,7 @@ test('new format declarations and move files are discovered without a shared reg
   mkdirSync(join(root, 'src'));
   copyPackageSubset(resolve(import.meta.dirname, '..'), root,
     [...packageFiles(resolve(import.meta.dirname, '..')).filter(file => file.startsWith('packages/state/src/shell/formats/')),
-      'src/json.js', 'src/spec.js', 'src/board-schema-source.js'].map(path => ({ path, as: path })));
+      'packages/config/src/core/json.js', 'packages/spec/src/shell/spec.js', 'src/board-schema-source.js'].map(path => ({ path, as: path })));
   writeFileSync(join(root, 'src', 'fixture-engine.js'), 'export const FIXTURE_ENGINE = 110;\n');
   const original = discoverFormats(root);
   assert.equal(original.length, 5);

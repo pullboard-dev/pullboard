@@ -10,12 +10,12 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from '../src/git.js';
 import { runSubmitGate } from '../src/gate.js';
-import { mainPolicy } from '../src/trusted-policy-read.js';
-import { withSourceComposition } from '../src/source-advance-compose.js';
-import { captureSourceAdvanceBasis } from '../src/source-advance-origin.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
+import { withSourceComposition } from '../packages/merge/index.js';
+import { captureSourceAdvanceBasis } from '../packages/sandbox/index.js';
 import { boardReceiptStore } from '../src/gate-run-receipt.js';
 import { readGateReceipt } from '../src/gate-run-receipt.js';
-import { prepareSourceAdvance } from '../src/source-advance-origin.js';
+import { prepareSourceAdvance } from '../packages/sandbox/index.js';
 
 /** Build real fixture commits and execute the declared exact-tree test before covering the native move. */
 export async function seedSourceAdvance({ board, box, store, exercise, agent, claim, submitFixture }) {

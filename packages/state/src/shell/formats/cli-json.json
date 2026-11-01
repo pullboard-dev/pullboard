@@ -3,8 +3,8 @@
   "order": 10,
   "version": {
     "kind": "catalog",
-    "file": "src/json.js"
+    "file": "packages/config/src/core/json.js"
   },
-  "source": "`JSON_SHAPES.version` in `src/json.js`",
+  "source": "`JSON_SHAPES.version` in `packages/config/src/core/json.js`",
   "upgrade": "Keep optional fields additive within version 1; bump the envelope version for incompatible command/export shapes."
 }

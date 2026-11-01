@@ -25,7 +25,7 @@ import {
   HOSTED_ORIGIN,
   LOOPBACK,
 } from './serve.js';
-import { defaultViewPort } from './config.js';
+import { defaultViewPort } from '../packages/config/index.js';
 import {
   portHolder,
   runningView,
@@ -33,7 +33,7 @@ import {
 import {
   machineSettingsFile,
   viewBackgroundEnabled,
-} from './settings.js';
+} from '../packages/config/index.js';
 
 const BIN = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
 

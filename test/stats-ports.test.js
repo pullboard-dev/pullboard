@@ -6,7 +6,7 @@ import { closeBoard } from '../src/board.js';
 import { events } from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { register } from '../src/board.js';
-import { counterProofStats } from '../src/proof-counter-read.js';
+import { counterProofStats } from '../packages/verify/index.js';
 import { eventCounts } from '../src/stats.js';
 import { proofStats } from '../src/stats.js';
 import { proofStats as legacyProofStats } from './fixtures/proof-stats-legacy.js';

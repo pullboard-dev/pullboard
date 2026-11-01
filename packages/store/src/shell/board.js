@@ -12,16 +12,16 @@ export { recordExitProgress, requireExitActive } from "../core/exit-rules-state.
  * and coordinator checks); each move or command lives in its own src/board-<move>.js module and is
  * re-exported here, so a change to one move no longer edits the file every other move shares [C7].
  */
-import { committedItemAuthors } from "../../../../src/review-independence.js";
-import { strictReviewProblem } from "../../../../src/review-independence.js";
-import * as reviewRouting from "../../../../src/review-routing.js";
-import { reviewFamilyProblem } from "../../../../src/review-independence.js";
-import { twoTierReviews } from "../../../../src/review-independence.js";
+import { committedItemAuthors } from "../../../verify/index.js";
+import { strictReviewProblem } from "../../../verify/index.js";
+import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
+import { reviewFamilyProblem } from "../../../verify/index.js";
+import { twoTierReviews } from "../../../verify/index.js";
 import { setItem as writeItemFields } from "../../../../src/item-fields.js";
 import { foreignBlockers as readForeignBlockers } from "../../../../src/cross-repo-dependencies.js";
 import { foreignDependencyStates as readForeignDependencyStates } from "../../../../src/cross-repo-dependencies.js";
 import { readReceivedBoardState } from "../core/board-link-state.js";
-import * as reviewFamilies from "../../../../src/required-review-family.js";
+import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
 import { laneLeads } from "../../../../src/lane-lead.js";
 import { PERSON } from "./board-query.js";
 import { now } from "./board-query.js";
@@ -30,15 +30,15 @@ import { reviewReleasesSinceSubmit } from "./board-query.js";
 import { itemById } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
 import { events } from "./board-query.js";
-import { prepareMergeOnlySubmit } from "../../../../src/merge-only-submit.js";
+import { prepareMergeOnlySubmit } from "../../../merge/index.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { verdictReviewProblem } from "../../../../src/verdict-reviews.js";
-import { verdictsFor } from "../../../../src/verdict-reviews.js";
-import { acceptedVerdict } from "../../../../src/verdict-reviews.js";
-import { checkedLandingCommit } from "../../../../src/verdict-reviews.js";
+import { verdictReviewProblem } from "../../../verify/index.js";
+import { verdictsFor } from "../../../verify/index.js";
+import { acceptedVerdict } from "../../../verify/index.js";
+import { checkedLandingCommit } from "../../../verify/index.js";
 import { itemFiles } from "../../../../src/item-files.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { GUARDS } from "../../../../src/machine.js";
 import { IN_STATE } from "../../../../src/machine.js";
@@ -53,7 +53,7 @@ import { canTake } from "../../../../src/route-escalation.js";
 import { routeOf } from "../../../../src/seats.js";
 import { RIGOR_NOTICE_ENGINE } from "../core/board-rigor-source.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
-import { factReference } from "../../../../src/fact-reference.js";
+import { factReference } from "../../../spec/index.js";
 import { landingFlakes } from "../core/board-landing-exceptions.js";
 import { landingWaiverCovers } from "../core/board-landing-exceptions.js";
 import { landingWaiverKind } from "../core/board-landing-exceptions.js";
@@ -140,7 +140,7 @@ export {
   rehomeItem,
   reserveRehomeItemId,
 } from "./board-rehome.js";
-export { setBarReady, signBar } from "../../../../src/bar-readiness.js";
+export { setBarReady, signBar } from "../../../verify/index.js";
 export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./item-check-baseline.js";
 
 export { atomic, logEvent };
@@ -152,7 +152,7 @@ export { schemaMissing, writeRefused } from "./board-migrate.js";
 export { itemFiles };
 export { ROUTES, canTake };
 export { landingFlakes, landingWaiverCovers, landingWaiverKind };
-export { acceptCheck } from "../../../../src/check-accept.js";
+export { acceptCheck } from "../../../verify/index.js";
 export { declareJob, recordJobRun } from "../core/board-recurring-jobs.js";
 export { recordUsage } from "../../../stats/index.js";
 export { recordUsageBatch } from "../../../stats/index.js";
@@ -391,7 +391,7 @@ export { landingBatches };
 /** Tailored inbox activity is the same canonical read projection as other board queries. */
 export { agentActivity } from "./board-query.js";
 
-export { rowVerifications } from "../../../../src/spec-verdicts.js";
+export { rowVerifications } from "../../../spec/index.js";
 
 export { fileTypedRequest, typedRequests, answerTypedRequests } from "./typed-requests.js";
 

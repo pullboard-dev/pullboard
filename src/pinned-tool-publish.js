@@ -12,7 +12,7 @@ import {
   receiptBinds,
 } from './gate-run-receipt.js';
 import { checkTrainLandingReceipt } from './train-landing-receipt.js';
-import { policyAt } from './trusted-policy-read.js';
+import { policyAt } from '../packages/sandbox/index.js';
 import {
   writeToolBuild,
   readToolBuild,

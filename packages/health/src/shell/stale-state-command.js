@@ -1,5 +1,5 @@
 /** Bootstrap ordinary coordinator setup before capturing a revision-bound maintenance observation [B4,H16]. */
-import { initialSpecApprovalBaseline } from '../../../../src/spec-approval-bootstrap.js';
+import { initialSpecApprovalBaseline } from '../../../spec/index.js';
 import { captureStaleState } from './stale-state-capture.js';
 
 /** A setup move must never invalidate the observation the requested stale-state move will carry. */

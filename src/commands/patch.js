@@ -1,7 +1,7 @@
-import { asSubmitted } from '../review-reachability.js';
-import { refuseUnreviewable } from '../review-reachability.js';
+import { asSubmitted } from '../../packages/verify/index.js';
+import { refuseUnreviewable } from '../../packages/verify/index.js';
 import { normalizeItemPatch } from '../item-patch-paths.js';
-import { itemPolicy } from '../trusted-policy.js';
+import { itemPolicy } from '../../packages/sandbox/index.js';
 import { headCommit } from '../git.js';
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
 import { readFileSync } from 'node:fs';

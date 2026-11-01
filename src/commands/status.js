@@ -22,20 +22,20 @@ import { personNeedsSummary } from '../needs-summary.js';
 import { identifyCaller } from '../cli-read-context.js';
 import { relayStateExists } from '../local-state.js';
 import { unlinkedRelayStatus } from '../relay-status-fields.js';
-import { ruleProofCounts } from '../rule-proof-counts.js';
+import { ruleProofCounts } from '../../packages/verify/index.js';
 import { memoryHeldRuns } from '../memory-held.js';
 import { readRunnerUtilization } from '../runner-utilization.js';
 import { runnerDeadlineLine } from '../../packages/resources/index.js';
 import { runnerDeadlineRuns } from '../runner-wait.js';
-import { reviewQueueLine } from '../review-queue-line.js';
+import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   productLine,
   productSummaries,
-} from '../products.js';
+} from '../../packages/spec/index.js';
 import { originRepository } from '../github-origin.js';
 import {
   loadSpec,
-} from '../spec.js';
+} from '../../packages/spec/index.js';
 import {
   signingLine,
 } from '../person-signing-words.js';

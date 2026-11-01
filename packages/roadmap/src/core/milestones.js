@@ -8,7 +8,7 @@ import { MILESTONE_SHIP_ENGINE } from "../../../../src/move-engine-constants.js"
  * commit is recorded. Shipping a milestone records main's commit and carries every unlanded item
  * into the next milestone, so the roadmap stays the one place that says what is planned.
  */
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import {
   ENGINE_VERSION,
   MILESTONE_RANK_ENGINE,

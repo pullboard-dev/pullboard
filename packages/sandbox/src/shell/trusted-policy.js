@@ -4,8 +4,8 @@ import {
 } from '../../../../src/item-dependencies.js';
 import {
   trunkMerge,
-} from '../../../../src/trunk-merge.js';
-export { trunkMerge } from '../../../../src/trunk-merge.js';
+} from '../../../merge/index.js';
+export { trunkMerge } from '../../../merge/index.js';
 import {
   mainPolicy,
   policyAt,
@@ -24,7 +24,7 @@ import {
 } from '../../../kernel/index.js';
 import {
   specGateMoveOnly,
-} from '../../../../src/spec-gate-move.js';
+} from '../../../spec/index.js';
 import {
   importOnlyChange,
 } from '../../../../src/import-only-change.js';

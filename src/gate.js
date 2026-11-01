@@ -27,7 +27,7 @@ export { digestOf, writeTimingProfile };
 import {
   sandboxBlockedOperation,
   sandboxBlockedScanner,
-} from './sandbox-denial.js';
+} from '../packages/sandbox/index.js';
 export { sandboxBlockedOperation, sandboxBlockedScanner };
 import {
   committedTree,

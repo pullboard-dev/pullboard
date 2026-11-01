@@ -1,7 +1,7 @@
-import { reviewPatchAuthors } from '../review-composition.js';
+import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../proof-receipts.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
-import { compositionSessionOptions } from '../review-composition.js';
+import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
   testOutputSummary,
@@ -12,27 +12,27 @@ import {
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../landing-shards.js';
-import { trunkRef } from '../trusted-policy-read.js';
+import { trunkRef } from '../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../affected-tests.js';
-import { committedItemAuthors } from '../review-independence.js';
-import { verifyOutsideSandbox } from '../sandbox-verify.js';
-import { effectiveItemHead } from '../source-advance-state.js';
+import { committedItemAuthors } from '../../packages/verify/index.js';
+import { verifyOutsideSandbox } from '../../packages/sandbox/index.js';
+import { effectiveItemHead } from '../../packages/verify/index.js';
 import { agentSessionDigest } from '../person.js';
 import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
-import { completeMoveHandoff } from '../post-move-handoff.js';
-import { itemReviewPolicy } from '../review-independence.js';
-import { twoTierReviews } from '../review-independence.js';
+import { completeMoveHandoff } from '../../packages/verify/index.js';
+import { itemReviewPolicy } from '../../packages/verify/index.js';
+import { twoTierReviews } from '../../packages/verify/index.js';
 import { missingCompanionKeys } from '../item-patch-review.js';
 import { prepareItemPatchReview } from '../item-patch-review.js';
 import { outsideVerdict } from '../outside-verify.js';
 /** The pullboard verify command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { loadSpec } from '../spec.js';
+import { loadSpec } from '../../packages/spec/index.js';
 import {
   agentApprovalLine,
   itemAgentApprovals,
   specApprovalState,
-} from '../spec-approval.js';
+} from '../../packages/spec/index.js';
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
@@ -72,26 +72,26 @@ import {
   browserFreeChecksEnabled,
   gateRunnersFirstEnabled,
   gateRunnerAdmission,
-} from '../settings.js';
+} from '../../packages/config/index.js';
 import {
   dependencySnapshots,
   frozenCheck,
   itemPolicy,
   requireTrunkMerge,
   submissionPaths,
-} from '../trusted-policy.js';
+} from '../../packages/sandbox/index.js';
 import {
   composeReview,
   composesAtAdmission,
-} from '../verdict-admission.js';
+} from '../../packages/verify/index.js';
 import {
   captureVerdictReview,
   verdictProjector,
   verdictTrunk,
-} from '../verdict-freshness.js';
+} from '../../packages/verify/index.js';
 import {
   judgeTrunkMove,
-} from '../verdict-trunk.js';
+} from '../../packages/verify/index.js';
 import {
   nextOnce,
   withBoardRead,
@@ -111,7 +111,7 @@ import {
   withBoard,
 } from '../cli.js';
 import { recordedRecovery } from '../recorded-recovery.js';
-import { retryReviewCommit } from '../verdict-retry.js';
+import { retryReviewCommit } from '../../packages/verify/index.js';
 
 /** Preserve policy refusals while representing unusable cited criteria as a changed digest. */
 export function verificationCriterionDigest(freeze, item) {

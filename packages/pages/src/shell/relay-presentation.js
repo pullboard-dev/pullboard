@@ -9,13 +9,13 @@ import {
   withGitReadFacts,
 } from "../../../../src/git.js";
 import { Refused } from "../../../kernel/index.js";
-import { loadConfig } from "../../../../src/config.js";
+import { loadConfig } from "../../../config/index.js";
 import { buildLocalBoardState } from "../../../../src/native-board-state.js";
 import { stateFileInputs } from "../../../../src/native-board-state.js";
 import { fileRevision } from "../../../../src/native-board-state.js";
 import { resolveCommit } from "../../../../src/git.js";
 import { trunkRevisionReader } from "../../../git/index.js";
-import { cachedVerdictStates } from "../../../../src/verdict-freshness.js";
+import { cachedVerdictStates } from "../../../verify/index.js";
 import { compareFlowWindows } from "../../../../src/stats-flow.js";
 
 // A comparison clock is an internal fingerprint input, never a displayed forecast or observation.

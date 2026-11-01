@@ -1,4 +1,4 @@
-import { receiptBlockingGreen } from "../../../../src/quarantine-verdict.js";
+import { receiptBlockingGreen } from "../../../verify/index.js";
 /** A late worker cannot reopen a new submission, bar, patch set or review episode [C7,V4,H16]. */
 import { Refused } from "../../../kernel/core.js";
 

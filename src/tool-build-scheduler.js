@@ -24,7 +24,7 @@ import { git } from './git.js';
 import { gitChildEnv } from './git.js';
 import { repoInfo } from './git.js';
 import { withGitFacts } from './git.js';
-import { mainPolicy } from './trusted-policy.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
 
 const TOKEN = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;

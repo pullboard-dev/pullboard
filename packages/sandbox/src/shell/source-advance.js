@@ -7,7 +7,7 @@ import {
 /** Ordered exact-source completion never changes the original submission or its review [C7,V4,H16]. */
 import {
   sourceAdvanceReviewEpisode,
-} from '../../../../src/source-advance-state.js';
+} from '../../../verify/index.js';
 import {
   atomic,
 } from '../../../../src/board-event-log.js';
@@ -22,7 +22,7 @@ import {
 } from '../../../../src/item-patch-state.js';
 import {
   receiptFields,
-} from '../../../../src/proof-provenance.js';
+} from '../../../verify/index.js';
 import {
   ENGINE_VERSION,
 } from '../../../../src/engine-metadata.js';
@@ -31,13 +31,13 @@ import {
 } from '../../../../src/source-advance-engine.js';
 import {
   sourceAdvanceChain,
-} from '../../../../src/source-advance-state.js';
+} from '../../../verify/index.js';
 import {
   sourceAdvanceEpisode,
-} from '../../../../src/source-advance-state.js';
+} from '../../../verify/index.js';
 import {
   acceptedVerdict,
-} from '../../../../src/verdict-reviews.js';
+} from '../../../verify/index.js';
 import {
   Refused,
 } from '../../../kernel/index.js';
@@ -49,7 +49,7 @@ import {
 } from './source-advance-origin.js';
 import {
   receiptBlockingGreen,
-} from '../../../../src/quarantine-verdict.js';
+} from '../../../verify/index.js';
 
 const SHA = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 const HASH = /^[0-9a-f]{64}$/u;

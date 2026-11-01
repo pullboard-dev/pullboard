@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import * as store from "../../../../src/board.js";
 import { repoInfo } from "../../../../src/git.js";
 import { localSeatSessionDigest } from "../../../../src/agent-session.js";
-import { ownSessionReviews } from "../../../../src/next-review.js";
+import { ownSessionReviews } from "../../../verify/index.js";
 import { dispatchWork } from "../../../../src/dispatch-eligibility.js";
 import { Refused } from "../../../kernel/index.js";
 

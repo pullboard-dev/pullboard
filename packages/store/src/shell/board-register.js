@@ -1,11 +1,11 @@
-import * as reviewRouting from "../../../../src/review-routing.js";
+import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import { heartbeatSeat } from "./seat-presence.js";
 import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../../src/item-routing.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { VERIFIER_STANDING_ENGINE } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/index.js";

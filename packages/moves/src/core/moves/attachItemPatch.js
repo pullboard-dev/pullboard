@@ -1,4 +1,4 @@
-import { itemReviewPolicyEngine } from "../../../../../src/review-policy.js";
+import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../../src/item-patch-submit-engine.js";
 import { PATCH_FOLLOW_ENGINE } from "../../../../../src/patch-follow-engine.js";
 import { itemPatchRecords } from "../../../../items/core.js";

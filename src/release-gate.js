@@ -23,7 +23,7 @@ import {
 } from './git.js';
 import {
   mainPolicy,
-} from './trusted-policy-read.js';
+} from '../packages/sandbox/index.js';
 import {
   readGateReceipt,
   receiptBinds,

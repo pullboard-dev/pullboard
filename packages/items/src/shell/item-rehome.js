@@ -4,8 +4,8 @@ import { createHash } from 'node:crypto';
 import { IN_STATE } from "../../../../src/machine.js";
 import { MOVES } from "../../../../src/machine.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
-import { handledReferences } from "../../../../src/reference-lines.js";
-import { validateReferences } from "../../../../src/reference-authors.js";
+import { handledReferences } from "../../../spec/index.js";
+import { validateReferences } from "../../../spec/index.js";
 import { Refused } from "../../../kernel/index.js";
 
 const REHOME_IMPORT_MOVE = MOVES.find(move => move.verb === 'rehomeImport');

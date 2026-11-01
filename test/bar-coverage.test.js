@@ -4,11 +4,11 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { barCoverageCommand, normalizeBarCoverage, prepareBarCoverage, barTestPath, barCoverageForPolicy } from '../src/bar-coverage.js';
+import { barCoverageCommand, normalizeBarCoverage, prepareBarCoverage, barTestPath, barCoverageForPolicy } from '../packages/verify/index.js';
 import { requireSubmitComposition } from '../src/submit-composition.js';
-import { nativeBarActor } from '../src/bar-actor.js';
+import { nativeBarActor } from '../packages/verify/index.js';
 import { baselineTestEvidence } from '../src/check-baseline.js';
-import { configFromSource } from '../src/config.js';
+import { configFromSource } from '../packages/config/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 const SHA = 'a'.repeat(40);

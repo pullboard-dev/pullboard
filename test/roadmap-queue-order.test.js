@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone, orderMilestoneItems, roadmap } from '../src/board-milestones.js';
-import { eligibilityProblem } from '../src/review-eligibility.js';
+import { eligibilityProblem } from '../packages/verify/index.js';
 import { milestoneRoadmap } from '../packages/roadmap/index.js';
 import { workQueue } from '../src/queue.js';
 

@@ -1,4 +1,4 @@
-import { applySpecRowDecisions } from "../../../../src/spec-row-apply.js";
+import { applySpecRowDecisions } from "../../../spec/index.js";
 import { writeRowDecisions } from "./board-record-row-decisions.js";
 import { refreeze } from "./board-refreeze.js";
 import { insertShout } from "./board-shout.js";

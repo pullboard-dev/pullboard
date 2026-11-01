@@ -19,7 +19,7 @@ import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../src/machine.js';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';
-import { frozenCriterion, parseSpec } from '../src/spec.js';
+import { frozenCriterion, parseSpec } from '../packages/spec/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';

@@ -1,5 +1,5 @@
 /** Local presence filters new advice only; sealed claims keep their recorded semantics [B3,N2,H16]. */
-import { COORDINATOR } from '../../../../src/config.js';
+import { COORDINATOR } from '../../../config/index.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 
 /**

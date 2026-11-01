@@ -12,7 +12,7 @@ import {
   gateShortSlots,
   loadMachineSettings,
   memoryFloorMB,
-} from '../settings.js';
+} from '../../packages/config/index.js';
 import {
   agentDisplayName,
   context,

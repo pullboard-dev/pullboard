@@ -2,7 +2,7 @@ import { withDerivedFamily } from "../../../../src/family-declaration.js";
 /** Local inbox acknowledgement keeps delivery metadata out of immutable activity history [R2,N26]. */
 import { atomic } from "../shell/board.js";
 import { openRequests } from "../shell/board-read-auxiliary.js";
-import { COORDINATOR } from "../../../../src/config.js";
+import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/core.js";
 import { workerInboxQuery } from "./board-worker-inbox.js";
 
