@@ -148,3 +148,14 @@ test('[B35,B5] a new rejection precedes the builder other live claim and retains
   store.holdLane(f.board, 'core', { agentId: 'coordinator', reason: 'triage' });
   assert.equal(next(f, f.builder).item.item_id, active);
 });
+
+test('[B35,B5] a claimed rejection remains next ahead of an older live claim', t => {
+  const f = fixture(t); enable(f);
+  const active = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'older active work', criterion: 'prove',
+    specIds: ['B35'], route: 'mid', check: 'true', brief: 'Files: src/active.js\nTest: proves current work' });
+  const id = returned(f, 'reject', 0);
+  claim(f, active, f.builder);
+  assert.equal(next(f, f.builder).item.item_id, id);
+  claim(f, id, f.builder);
+  assert.equal(next(f, f.builder).item.item_id, id);
+});

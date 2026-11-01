@@ -122,7 +122,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     return empty(held.length || cooling.length ? 'held' : requiredRefusals.length || standingRefusal?.code?.includes('FAMILY') ? 'review-family' : standingRefusal ? 'unknown' : 'nothing-eligible', { item: null, reasons: [`nothing ${routed}submitted that you did not build${held.length ? ' and no other agent is reviewing' : ''}`,
       ...(standingRefusal ? [standingRefusal.message] : []), ...requiredRefusals.map(error => error.message), ...held, ...cooling] });
   }
-  const held = items.find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
+  const claims = items.filter((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null && !pendingSubmitHandoff(board, entry));
+  const held = (rejectionReturnEnabled(board) ? claims.find(entry => entry.item_verdict === 'REJECT') : null) ?? claims[0];
   // Read-only build planning may disregard exactly this caller's claim; the ordered claim transition still enforces ONE_CLAIM.
   const plannedRelease = held && held.item_id === afterRelease ? held.item_id : null;
   const ownRejectionFirst = held && plannedRelease === null && rejectionReturnEnabled(board)
