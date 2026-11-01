@@ -26,10 +26,11 @@ function tool(box, name, ...args) {
 }
 
 /** A claimed project with real cell placement, a lint baseline and a deliberately deferred ordinary full gate. */
-function project(t) {
+function project(t, remove = false) {
   const main = privateRepo(t);
   const marker = join(main.dir, 'full-gate.txt');
   put(main.root, 'pullboard.json', JSON.stringify({ gate: `FULL_GATE_MARKER='${marker}' node --test test/work.test.js`,
+    lanes: { build: { owns: ['src/', 'test/', 'packages/', 'bin/', 'apps/'], specs: ['G'] } },
     submit: { handoff: true }, submitGate: 'landing', submitInvariants: [], registryGuards: [], shared: ['pullboard.json'] }));
   put(main.root, 'package.json', JSON.stringify({ type: 'module', bin: './apps/fixture/index.js' }));
   put(main.root, 'apps/fixture/index.js', "import { value } from '../../src/leaf.js';\nconsole.log(value);\n");
@@ -56,6 +57,16 @@ test('the leaf matches accepted main [G1]', () => {
   tool(main, 'cells-move.js', '--apply', 'src/leaf.js', 'packages/leaf/src/core/leaf.js', 'packages/leaf/index.js', 'Expose the leaf value.', previewCustody);
   commitAll(main); // The report reads committed path-map identities.
   const { baseline } = planCellLintBaseline(JSON.parse(tool(main, 'cell-lints.js', '--report')));
+  if (remove) {
+    tool(main, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'build');
+    commitAll(main);
+    const afterRemoval = planCellLintBaseline(JSON.parse(tool(main, 'cell-lints.js', '--report'))).baseline;
+    for (const [metric, row] of Object.entries(afterRemoval.metrics)) {
+      const accepted = baseline.metrics[metric];
+      for (const [key, count] of Object.entries(row.allowances)) accepted.allowances[key] = Math.max(accepted.allowances[key] ?? 0, count);
+      accepted.count = Object.values(accepted.allowances).reduce((sum, count) => sum + count, 0);
+    }
+  }
   main.git('reset', '--hard', original); // Only this disposable private fixture checkout.
   writeCellLintBaseline(main.root, baseline, { initialize: true });
   commitAll(main);
@@ -82,7 +93,7 @@ function advance(main) {
 }
 
 for (const command of ['cells-move', 'remove-shims']) test(`submit replays recorded ${command} on main with fresh full proof and no verdict [C7,V4,V6]`, t => {
-  const { main, box, marker } = project(t);
+  const { main, box, marker } = project(t, command === 'remove-shims');
   let original = move(box, main.dir);
   if (command === 'remove-shims') {
     tool(box, 'cells-plan.js', '--remove-shims', 'leaf', '--lane', 'build');
