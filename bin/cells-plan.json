@@ -1144,7 +1144,15 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/same-family-refusal-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/automatic-landing.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/195.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
