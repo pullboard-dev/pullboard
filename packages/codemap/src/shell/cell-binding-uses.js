@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { serialize } from 'node:v8';
 import { types } from 'node:util';
@@ -114,9 +115,17 @@ function apply(row, at, valid, qualified) {
 const bindingReadScopes = new AsyncLocalStorage();
 
 /** Reuse only real compiler observations inside one explicitly eligible higher-level census. */
-export function withBindingReadCache(work, { eligible } = {}) {
+export function withBindingReadCache(work, { eligible, observations, warmAll = false } = {}) {
   if (typeof eligible !== 'function') return work();
-  return bindingReadScopes.run({ eligible, values: new Map(), bytes: 0 }, work);
+  const values = observations instanceof Map ? observations : new Map();
+  const bytes = [...values.values()].reduce((sum, row) => sum + row.bytes, 0);
+  return bindingReadScopes.run({ eligible, values, bytes, warmAll }, work);
+}
+
+/** Only a durable, eligible census may prepare currently unreachable production modules. */
+export function warmAllBindingReads() {
+  const scope = bindingReadScopes.getStore();
+  return scope?.warmAll === true && reusable(scope);
 }
 
 /** An unavailable eligibility observation never authorizes reuse. */
@@ -152,30 +161,75 @@ function bindingCacheKey(modules) {
   if (!cacheableModules(modules)) return null;
   try {
     const values = modules.map(row => [row.file, row.source, row.body, row.scopeBraces, row.bindings.map(binding => binding.local)]);
-    return serialize([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, COMPILER, values]).toString('base64');
+    return 'binding:' + createHash('sha256').update(JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, COMPILER, values])).digest('hex');
   } catch { return null; }
+}
+
+/** Reuse immutable per-file export metadata only for exact source and resolved literal edges. */
+export function cachedBindingMetadata(source, edges, work) {
+  const scope = bindingReadScopes.getStore();
+  /** Only plain literal edge values may establish the reusable identity. */
+  function identity() {
+    if (typeof source !== 'string' || !Array.isArray(edges) || types.isProxy(edges)
+      || Object.getPrototypeOf(edges) !== Array.prototype || Reflect.ownKeys(edges).length !== edges.length + 1) return null;
+    const rows = [];
+    for (let index = 0; index < edges.length; index++) {
+      const slot = Object.getOwnPropertyDescriptor(edges, String(index));
+      if (!slot || !Object.hasOwn(slot, 'value')) return null;
+      const edge = slot.value;
+      if (!edge || types.isProxy(edge) || ![Object.prototype, null].includes(Object.getPrototypeOf(edge))) return null;
+      const specifier = Object.getOwnPropertyDescriptor(edge, 'specifier'), target = Object.getOwnPropertyDescriptor(edge, 'target');
+      if (!specifier || !target || !Object.hasOwn(specifier, 'value') || !Object.hasOwn(target, 'value')
+        || typeof specifier.value !== 'string' || typeof target.value !== 'string') return null;
+      rows.push([specifier.value, target.value]);
+    }
+    try { return 'metadata:' + createHash('sha256').update(JSON.stringify([process.execPath, process.versions.node, process.env.NODE_OPTIONS ?? null, source, rows])).digest('hex'); }
+    catch { return null; }
+  }
+  if (!reusable(scope)) return work();
+  const key = identity();
+  if (key === null) return work();
+  if (scope.values.has(key)) try { return structuredClone(scope.values.get(key).value); }
+  catch { scope.bytes -= scope.values.get(key).bytes; scope.values.delete(key); }
+  const value = work();
+  if (reusable(scope) && key === identity()) try {
+    const bytes = Buffer.byteLength(key) + serialize(value).byteLength;
+    if (scope.values.size < 32768 && scope.bytes + bytes <= 128 * 1024 * 1024) {
+      scope.values.set(key, { value: structuredClone(value), bytes }); scope.bytes += bytes;
+    }
+  } catch { /* A cache miss remains a normal computation. */ }
+  return value;
 }
 
 /** Exact ordered probe inputs and runtime context identify a real immutable compiler result. */
 export function bindingReadsForModules(modules) {
   const scope = bindingReadScopes.getStore();
   if (!reusable(scope)) return buildBindingReads(modules);
-  const key = bindingCacheKey(modules);
-  if (key === null) return buildBindingReads(modules);
-  if (scope.values.has(key)) {
-    try { return structuredClone(scope.values.get(key).value); }
-    catch { scope.bytes -= scope.values.get(key).bytes; scope.values.delete(key); }
+  if (!cacheableModules(modules) || new Set(modules.map(row => row.file)).size !== modules.length) return buildBindingReads(modules);
+  const entries = modules.map(row => ({ row, key: bindingCacheKey([row]) }));
+  if (entries.some(entry => entry.key === null)) return buildBindingReads(modules);
+  const result = new Map(), missing = [];
+  for (const entry of entries) {
+    if (scope.values.has(entry.key)) {
+      try { result.set(entry.row.file, structuredClone(scope.values.get(entry.key).value)); continue; }
+      catch { scope.bytes -= scope.values.get(entry.key).bytes; scope.values.delete(entry.key); }
+    }
+    missing.push(entry);
   }
-  const result = buildBindingReads(modules);
-  if (reusable(scope) && key === bindingCacheKey(modules)) {
-    try {
-      const bytes = Buffer.byteLength(key) + serialize(result).byteLength;
-      if (scope.values.size < 1024 && scope.bytes + bytes <= 64 * 1024 * 1024) {
-        scope.values.set(key, { value: structuredClone(result), bytes }); scope.bytes += bytes;
-      }
-    } catch { /* Optional memo failure never replaces a real compiler result. */ }
+  if (missing.length) {
+    const fresh = buildBindingReads(missing.map(entry => entry.row));
+    for (const entry of missing) {
+      const value = fresh.get(entry.row.file);
+      result.set(entry.row.file, value);
+      if (reusable(scope) && entry.key === bindingCacheKey([entry.row])) try {
+        const bytes = Buffer.byteLength(entry.key) + serialize(value).byteLength;
+        if (scope.values.size < 32768 && scope.bytes + bytes <= 128 * 1024 * 1024) {
+          scope.values.set(entry.key, { value: structuredClone(value), bytes }); scope.bytes += bytes;
+        }
+      } catch { /* Optional memo failure never replaces a real compiler result. */ }
+    }
   }
-  return result;
+  return new Map(entries.map(({ row }) => [row.file, result.get(row.file)]));
 }
 
 /** Batch independent module probes in bounded chunks; never start a compiler child for every module or execute source. */

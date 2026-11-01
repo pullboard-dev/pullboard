@@ -7,6 +7,8 @@ import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { serialize } from 'node:v8';
+import { deserialize } from 'node:v8';
 import { gzipSync } from 'node:zlib';
 import { gunzipSync } from 'node:zlib';
 import { cellInventory } from '../packages/codemap/index.js';
@@ -70,4 +72,35 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
     return fallback ? cellInventory(checkout, parsers) : updateCellInventory(checkout, parsers, prior, changed);
   }
   return { base, candidate };
+}
+
+/** Persist only complete compiler and lexical observations from checked immutable snapshots. */
+export function observationCache(root, key, eligible = () => false) {
+  const directory = join(repoInfo(root).commonDir, 'pullboard', 'cells-observations');
+  const checker = key ? receiptDigest({ definition: key.checkDigest, preloads: key.config?.preloads }) : null;
+  const file = key ? join(directory, `${receiptDigest({ commit: key.config.acceptedMain, checker })}.json.gz`) : null;
+  let values = new Map();
+  if (file && eligible()) try {
+    const data = JSON.parse(gunzipSync(readFileSync(file), { maxOutputLength: 256 * 1024 * 1024 }).toString('utf8'));
+    if (data.version !== 1 || data.checker !== checker || data.commit !== key.config.acceptedMain
+      || data.digest !== receiptDigest(data.payload)) throw new Error('invalid observations');
+    const loaded = deserialize(Buffer.from(data.payload, 'base64'));
+    if (!(loaded instanceof Map) || loaded.size > 32768 || [...loaded].some(([id, row]) => typeof id !== 'string'
+      || !row || !Number.isSafeInteger(row.bytes) || row.bytes < 0) || !eligible()) throw new Error('invalid observation entries');
+    if ([...loaded.values()].reduce((sum, row) => sum + row.bytes, 0) > 128 * 1024 * 1024) throw new Error('oversized observations');
+    values = loaded;
+  } catch { /* Missing or invalid cache leaves observations empty. */ }
+  function commit() {
+    if (!file || !eligible()) return;
+    try {
+      const payload = serialize(values).toString('base64');
+      const data = { version: 1, checker, commit: key.config.acceptedMain, digest: receiptDigest(payload), payload };
+      if (!eligible()) return;
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const temporary = join(directory, `.${randomUUID()}.tmp`);
+      writeFileSync(temporary, gzipSync(Buffer.from(JSON.stringify(data))), { mode: 0o600, flag: 'wx' });
+      renameSync(temporary, file);
+    } catch { /* Optional observations never replace a real analysis. */ }
+  }
+  return { values, commit };
 }

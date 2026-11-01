@@ -1,4 +1,5 @@
 import { inventoryCache } from './cells-inventory-cache.js';
+import { observationCache } from './cells-inventory-cache.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
 import { existsSync } from 'node:fs';
@@ -185,7 +186,7 @@ function temporaryProblems(mainRoot, candidateRoot, criterion) {
 /** Memoize only within this census using actual higher-controller runtime policy. */
 export function cellsSnapshotProblems(mainRoot, candidateRoot, options) {
   if (typeof options?.withImportParseCache !== 'function' || typeof options?.cacheEligible !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical census cache services are required');
-  return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible }));
+  return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible, observations: options.observations, warmAll: options.warmAll }));
 }
 
 /** Read candidate plan data without allowing shard aliases or symbolic paths outside the snapshot. */
@@ -316,7 +317,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
   const preloads = cacheEligible() ? preloadFingerprint() : null;
   const inputs = { acceptedMain, source, criterion, cuts: cutRows, preloads };
-  const samePreloads = () => cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
+  const samePreloads = () => preloads !== null && cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
   const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
     config: inputs, code: [import.meta.url, '../src/commands/submit.js', '../src/module-imports.js',
@@ -326,12 +327,13 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
     && samePreloads() && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
   const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory, samePreloads);
+  const observations = observationCache(root, receiptKey, samePreloads);
   commit = cellsComposition(root, acceptedMain, source);
   const cutBase = git(root, ['merge-base', acceptedMain, source]);
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
       ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
-    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible, inventories });
+    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: Boolean(receiptKey) });
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
       const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories }));
@@ -342,10 +344,11 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
     const cuts = cutBase === acceptedMain
       ? source === commit ? inspect(mainRoot, candidateRoot) : await withMainCheckout(root, source, sourceRoot => inspect(mainRoot, sourceRoot))
       : await withMainCheckout(root, cutBase, baseRoot => withMainCheckout(root, source, sourceRoot => inspect(baseRoot, sourceRoot)));
-    if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
-    refuse([...result.problems, ...cuts.problems]);
     unchangedSnapshot(mainRoot, acceptedMain);
     unchangedSnapshot(candidateRoot, commit);
+    observations.commit();
+    if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
+    refuse([...result.problems, ...cuts.problems]);
     return { ...result, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };
   }));
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);

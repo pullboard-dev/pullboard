@@ -248,11 +248,9 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
   };
 }
 
-/** Report wall time for a local submit stage even when it refuses. */
-async function timedSubmitStage(ctx, name, run) {
-  const start = performance.now();
-  try { return await run(); }
-  finally { ctx.io.say(`submit ${name}: ${((performance.now() - start) / 1000).toFixed(2)}s`); }
+/** Report wall time without sharing the execution closures of unrelated submit stages. */
+function reportSubmitStage(ctx, name, start) {
+  ctx.io.say(`submit ${name}: ${((performance.now() - start) / 1000).toFixed(2)}s`);
 }
 
 /**
@@ -387,13 +385,18 @@ export async function submitHere(ctx, id, infra) {
   });
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
-  const cells = await timedSubmitStage(ctx, 'cells', () => requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+  let cells;
+  const cellsStart = performance.now();
+  try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
-    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }));
+    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
+  finally { reportSubmitStage(ctx, 'cells', cellsStart); }
   if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
-  await timedSubmitStage(ctx, 'composition', () => { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); });
+  const compositionStart = performance.now();
+  try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
+  finally { reportSubmitStage(ctx, 'composition', compositionStart); }
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
@@ -416,11 +419,15 @@ export async function submitHere(ctx, id, infra) {
     if (!admission.id) await submissionWait({ admitted: true });
   };
   // Static and lint checks run once, all at once, before doctrine and before any runner gate (fail fast).
-  await timedSubmitStage(ctx, 'static', () => withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
+  const staticStart = performance.now();
+  try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
     onWait: submissionWait, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
-    executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, artifactDirectory: ctx.submitHandoffOutput })));
+    executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, artifactDirectory: ctx.submitHandoffOutput })); }
+  finally { reportSubmitStage(ctx, 'static', staticStart); }
   // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
-  const doctrine = await timedSubmitStage(ctx, 'doctrine', () => hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
+  let doctrine;
+  const doctrineStart = performance.now();
+  try { doctrine = await (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
     ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
       const remote = runnerAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
       try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
@@ -428,7 +435,8 @@ export async function submitHere(ctx, id, infra) {
       finally { remote?.finish(); }
     },
       { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) }))
-    : []);
+    : []); }
+  finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
   const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, staticChecked: true, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
 

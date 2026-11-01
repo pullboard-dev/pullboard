@@ -1,4 +1,5 @@
 import { inventoryCache } from '../bin/cells-inventory-cache.js';
+import { observationCache } from '../bin/cells-inventory-cache.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../src/module-import-cache.js';
@@ -203,6 +204,8 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../packages/codemap/index.js';
+import { cachedBindingMetadata } from '../packages/codemap/src/shell/cell-binding-uses.js';
+import { exportReachability } from '../packages/codemap/src/shell/cell-lint-exports.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
 
@@ -251,6 +254,72 @@ test('one eligible binding census reuses real probes and returns independent Map
   }, { eligible: bindingCacheEligible });
   bindingReadsForModules(modules);
   assert.equal(calls(), 4, 'the completed census cannot lend its result to another caller');
+});
+
+test('lexical metadata reuse is isolated and keyed by source and resolved edges [C7,D3]', () => {
+  const observations = new Map(), edges = [{ specifier: './a.js', target: 'a.js' }];
+  let calls = 0;
+  const run = (source, rows) => cachedBindingMetadata(source, rows, () => ({ exports: new Map([['x', ++calls]]) }));
+  withBindingReadCache(() => {
+    const first = run('source', edges); first.exports.set('forged', 1);
+    assert.deepEqual([...run('source', edges).exports], [['x', 1]]);
+    assert.equal(run('changed', edges).exports.get('x'), 2);
+    assert.equal(run('source', [{ ...edges[0], target: 'b.js' }]).exports.get('x'), 3);
+  }, { eligible: () => true, observations });
+  withBindingReadCache(() => assert.equal(run('source', edges).exports.get('x'), 1), { eligible: () => true, observations });
+  assert.equal(calls, 3);
+});
+
+test('a newly reachable unchanged module reuses its cold census observation [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), observations = new Map();
+  const files = new Map([['a.js', Buffer.from("import { value } from './b.js'; export const a = value;\n")],
+    ['b.js', Buffer.from('export const value = 1;\n')]]);
+  const edges = new Map([['a.js', [{ specifier: './b.js', target: 'b.js' }]], ['b.js', []]]);
+  withBindingReadCache(() => exportReachability(files, edges, new Set(['a.js'])),
+    { eligible: () => true, observations, warmAll: true });
+  const cold = calls();
+  let warm;
+  withBindingReadCache(() => { warm = exportReachability(files, edges, new Set(['a.js', 'b.js'])); },
+    { eligible: () => true, observations, warmAll: true });
+  assert.equal(calls(), cold, 'new reach does not compile an unchanged module');
+  assert.deepEqual(warm, exportReachability(files, edges, new Set(['a.js', 'b.js'])), 'reachability diagnostics remain canonical');
+});
+
+test('real compiler observations survive a checked same-main census only [C7,D3]', t => {
+  const { root } = fixture(t), calls = bindingCompilerCalls(t);
+  const key = { checkDigest: 'checker', config: { acceptedMain: 'main', preloads: [] } };
+  const cache = observationCache(root, key, () => true), modules = bindingModules();
+  withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: cache.values });
+  assert.equal(calls(), 1);
+  cache.commit();
+  const restored = observationCache(root, key, () => true);
+  const reconstructed = structuredClone(modules);
+  reconstructed[0].source = JSON.parse(JSON.stringify(reconstructed[0].source));
+  reconstructed[0].body = JSON.parse(JSON.stringify(reconstructed[0].body));
+  withBindingReadCache(() => bindingReadsForModules(reconstructed), { eligible: () => true, observations: restored.values });
+  assert.equal(calls(), 1, 'a later process scope reuses equal reconstructed input values');
+  const changed = observationCache(root, { ...key, checkDigest: 'changed' }, () => true);
+  withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: changed.values });
+  assert.equal(calls(), 2, 'checker identity invalidates the durable observations');
+  const preloadChanged = observationCache(root, { ...key, config: { ...key.config, preloads: ['new bytes'] } }, () => true);
+  withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: preloadChanged.values });
+  assert.equal(calls(), 3, 'changed preload identity invalidates durable observations');
+  const ineligible = observationCache(root, key, () => false);
+  assert.equal(ineligible.values.size, 0, 'untrusted runtime context cannot read prior observations');
+});
+
+test('changed module recompiles without probing unchanged modules in one eligible census [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), first = bindingModules(), second = bindingModules();
+  second[0].file = 'other.js';
+  withBindingReadCache(() => {
+    const old = bindingReadsForModules([...first, ...second]);
+    assert.equal(calls(), 1);
+    const changed = structuredClone(second);
+    changed[0].source = changed[0].source.replace('state.json', 'other.json');
+    const next = bindingReadsForModules([...first, ...changed]);
+    assert.equal(calls(), 2);
+    assert.deepEqual(next.get(first[0].file), old.get(first[0].file));
+  }, { eligible: bindingCacheEligible });
 });
 
 test('foreign runtime options invalidate binding reuse inside the current census [C7,D3]', t => {
@@ -326,6 +395,10 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   catch (error) { cached = error; }
   assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
   const first = { ...observed }, before = process.env.NODE_OPTIONS;
+  observed.imports = 0; observed.bindings = 0;
+  const changedCriterion = { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries with another criterion.' }) };
+  await assert.rejects(requireSubmitCells(box.root, box.main, candidate, changedCriterion), /kernel --cuts: kernel still imports later stats/u);
+  assert.equal(observed.bindings, 0, 'a refused candidate still preserves complete snapshot observations for a later criterion');
   observed.imports = 0; observed.bindings = 0;
   try {
     process.env.NODE_OPTIONS = '--no-warnings';
