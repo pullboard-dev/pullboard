@@ -36,3 +36,5 @@ export { asSubmitted, refuseUnreviewable, unreviewableStrict } from './src/core/
 export { compositionAuthors, compositionFamilyFallback, compositionOwner, compositionReviews, compositionSessionOptions, reviewPatchAuthors } from './src/shell/review-composition.js';
 export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarantineBatchGates, quarantineVerdict, quarantineVerdictFields, receiptBlockingGreen } from './src/core/quarantine-verdict.js';
 export { CHECK_ACCEPT_ENGINE } from '../../src/move-engine-constants.js';
+
+export { refuseManualCheckBaseline } from './src/core/check-baseline-automatic.js';

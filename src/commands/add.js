@@ -15,10 +15,9 @@ import {
 import * as store from '../board.js';
 import {
   checkBaseline,
-  prepareCheckBaseline,
   refuseCheckSyntax,
   sayCheckBaseline,
-} from '../check-baseline.js';
+} from '../../packages/gate/index.js';
 import {
   isLane,
 } from '../lanes.js';
@@ -42,7 +41,6 @@ import {
   buildInFilelessLane,
   idArg,
   idList,
-  launchBaseline,
   ordered,
 } from '../cli.js';
 
@@ -105,10 +103,9 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   const { command } = store.validateItemAddition(board, item);
   if (command) refuseCheckSyntax(command);
-  if (command) item.checkBaseline = values.wait ? checkBaseline(ctx.info.root, command) : prepareCheckBaseline(ctx.info.root, command);
+  if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const id = await ordered(ctx, board, 'addItem', [item]);
-  if (item.checkBaseline?.result === 'pending') await launchBaseline(ctx, board, id, item.checkBaseline);
   io.result?.({ item: store.getItem(board, id) });
   io.say(`#${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
