@@ -9,7 +9,7 @@ import { openBoard } from '../src/native-board.js';
 import { RELEASE_TWICE_HOLD_ENGINE } from '../src/release-twice-hold-engine.js';
 
 const commit = 'a'.repeat(40);
-test('two releases hold the item until coordinator lifts it', t => {
+test('two releases hold the item until coordinator lifts it [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-twice-'));
   const board = openBoard(join(dir, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
@@ -34,7 +34,7 @@ test('two releases hold the item until coordinator lifts it', t => {
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 1);
 });
 
-test('old-engine releases retain their pre-hold behavior', t => {
+test('old-engine releases retain their pre-hold behavior [C7,H16]', t => {
   const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-old-'));
   const board = openBoard(join(dir, 'board.sqlite'));
   t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
