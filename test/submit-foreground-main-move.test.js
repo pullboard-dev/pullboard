@@ -33,14 +33,17 @@ function fixture(t, mode) {
   const marker = join(box.dir, 'main-moved');
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.repo, 'web/feature.js'), "export const feature='base';\n");
-  writeFileSync(join(box.repo, 'test/feature.test.js'), `import {test} from 'node:test'; import assert from 'node:assert/strict'; import {feature} from '../web/feature.js'; import {execFileSync} from 'node:child_process'; import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+  writeFileSync(join(box.repo, 'test/feature.test.js'), `import {test} from 'node:test'; import assert from 'node:assert/strict'; import {feature} from '../web/feature.js'; import {execFileSync} from 'node:child_process'; import {mkdirSync,readFileSync,writeFileSync,existsSync} from 'node:fs';
 const root=${JSON.stringify(box.repo)}, marker=${JSON.stringify(marker)};
 test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
-  if (${JSON.stringify(mode)} === 'policy') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.verify={...c.verify,family:'require'}; writeFileSync(f,JSON.stringify(c)); }
-  else writeFileSync(root+'/landed.txt','an unrelated landing\\n');
+  if (${JSON.stringify(mode)} === 'policy') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.submit={...c.submit,autoFileMainReds:true}; writeFileSync(f,JSON.stringify(c)); }
+  else { mkdirSync(root+'/docs',{recursive:true}); writeFileSync(root+'/docs/landed.md','an unrelated landing\\n'); }
   const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GIT_')));
   execFileSync('git',['-C',root,'add','-A'],{env}); execFileSync('git',['-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','-qm','chore: land during the check [G1]'],{env});
   writeFileSync(marker,'done'); } assert.equal(feature,'item'); });\n`);
+  // A second, independent test keeps the candidate's affected tests narrower than the full suite.
+  writeFileSync(join(box.repo, 'web/other.js'), "export const other='independent';\n");
+  writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG,
     gate: 'node bin/run-tests.js test/feature.test.js', affectedTests: 'node bin/run-tests.js', submit: { handoff: false } }));
@@ -75,7 +78,8 @@ test('foreground submit still refuses when pullboard.json policy changes during 
   const { box, marker, result, output } = fixture(t, 'policy');
   assert.ok(existsSync(marker), output);
   assert.notEqual(result.status, 0, output);
-  assert.match(output, /NO_POLICY/u);
-  assert.match(output, /verify\.family/u);
+  // Composition reaches the changed pullboard.json first; the sealed policy check refuses it behind that.
+  assert.match(output, /NO_POLICY|MAIN_NOT_COMPOSED/u);
+  assert.match(output, /pullboard\.json|submit\.autoFileMainReds/u);
   assert.notEqual(item(box).item_status, 'submitted', output);
 });
