@@ -88,6 +88,7 @@ export const LINE_SETTING_DEFINITIONS = Object.freeze({
   reworkSameFamily: Object.freeze({ type: 'boolean' }),
   order: Object.freeze({ type: 'boolean' }),
   focusMilestone: Object.freeze({ type: 'milestone' }),
+  focusOverflow: Object.freeze({ type: 'boolean' }),
   reviewsFirst: Object.freeze({ type: 'boolean' }),
   requireReviewFamilies: Object.freeze({ type: 'boolean' }),
   wipPerReviewer: Object.freeze({ type: 'number', min: 1.5, max: 3, integer: false }),

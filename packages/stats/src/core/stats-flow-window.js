@@ -158,7 +158,7 @@ export function flowWindowLines(flowWindow) {
 }
 
 const HOUR = 3_600_000;
-const IDLE_REASONS = ['nothing-eligible', 'held', 'review-family', 'main-red', 'unknown'];
+const IDLE_REASONS = ['nothing-eligible', 'held', 'review-family', 'main-red', 'focus', 'unknown'];
 const COMPARE_STAGES = { build: 'build', rework: 'rework', reviewWait: 'reviewWait', review: 'review', land: 'mergeWait' };
 
 /** Adjacent count windows are open at the start and closed at the end, so no boundary move is counted twice. */

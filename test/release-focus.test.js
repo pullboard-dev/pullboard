@@ -53,3 +53,21 @@ test('reviews follow the same focus [B26,C7]', t => {
   set('focusOverflow', true);
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item.item_id, later);
 });
+
+test('focused draft rows form one approval batch for unlanded items [B26,C7]', async () => {
+  const { personNeeds } = await import('../packages/spec/index.js');
+  const needs = personNeeds({ focusMilestone: { name: '0.9.3', items: [1, 2, 3, 4] },
+    items: [
+      { id: 1, status: 'open', specs: ['A1', 'B1'] },
+      { id: 2, status: 'submitted', specs: ['A1'] },
+      { id: 3, status: 'verified', merged: 'abc', specs: ['C1'] },
+      { id: 4, status: 'withdrawn', specs: ['D1'] },
+    ], spec: [{ id: 'A1', status: 'draft', text: 'A' }, { id: 'C1', status: 'draft', text: 'C' },
+      { id: 'D1', status: 'draft', text: 'D' }], practice: [{ id: 'B1', status: 'draft', text: 'B' }] });
+  const batches = needs.filter(row => row.kind === 'focus-approval-batch');
+  assert.deepEqual(batches, [{ kind: 'focus-approval-batch', id: 'focus-approval:0.9.3', ref: '0.9.3',
+    text: 'Draft rows blocking 0.9.3 need your approval.', rows: [
+      { id: 'A1', kind: 'spec', text: 'A', items: [1, 2] },
+      { id: 'B1', kind: 'doctrine', text: 'B', items: [1] },
+    ] }]);
+});

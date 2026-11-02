@@ -46,6 +46,7 @@ import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { lineSettings } from "../../../state/index.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
+import { FOCUS_BOUNDARY_ENGINE } from '../../../../src/focus-boundary-engine.js';
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
@@ -67,6 +68,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
+  const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
+  const overflow = focus && lineSettings(board).focusOverflow === true;
+  const focusIdle = () => empty('focus', { item: null, reasons: [`${focus.name} is in focus; nothing is free for you; overflow is off.`] });
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse();
@@ -118,8 +122,11 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
     reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
-    const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown)?.entry;
+    if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
+    const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
+      && (!focus || overflow || focus.ids.has(candidate.entry.item_id)))?.entry;
     if (item) return { item, reasons: focusReasons(board, item, [], { milestones }) };
+    if (focus && !overflow) return focusIdle();
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
@@ -186,7 +193,9 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   }
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
+  if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
   for (const { entry, shared, reworkRouting: rework } of mine) {
+    if (focus && !overflow && !focus.ids.has(entry.item_id)) continue;
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
@@ -213,6 +222,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (ownRejectionFirst) return { item: held, reasons };
+  if (focus && !overflow) return focusIdle();
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
   // Nothing to claim, yet work above the agent's tier is open: name it and the ways through (B16).
   for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !open.item_hold_reason && !canTake(route, open.item_route))) {

@@ -1,4 +1,5 @@
 import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
+import { FOCUS_BOUNDARY_ENGINE } from '../../../../../src/focus-boundary-engine.js';
 import { REJECT_CLAUSE_ENGINE } from "../../../../../src/reject-clause-engine.js";
 import { FOCUS_MILESTONE_ENGINE } from "../../../../../src/focus-milestone-engine.js";
 import { LAND_COLLISION_ENGINE } from "../../../../../src/landing-collision-engine.js";
@@ -15,6 +16,7 @@ import { REWORK_SAME_FAMILY_ENGINE } from "../../../../../src/rework-same-family
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function historicalMinimumEngine(args, board, at) {
+  if (args[0]?.key === 'focusOverflow') return FOCUS_BOUNDARY_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (args[0]?.key === 'collisionFreeBatch') return LAND_COLLISION_ENGINE;
   if (args[0]?.key === 'order') return LINE_ORDER_ENGINE;
