@@ -32,13 +32,21 @@ function markDispatch(entry, text) {
  * A real repo holding this checkout's entry, entry hook launchers and its source (linked), with a
  * board, and a joined worktree one commit behind main: main's commit adds only a marker.
  */
-async function project(t) {
+async function project(t, { predates = false } = {}) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-current-cli-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'repo');
   mkdirSync(join(root, 'bin'), { recursive: true });
   mkdirSync(join(root, '.githooks'));
   for (const file of ['bin/pullboard.js', 'bin/current-cli.js', '.githooks/pre-commit', 'package.json']) copyFileSync(join(SOURCE, file), join(root, file));
+  if (predates) {
+    // The first commit is the entry as it was before the handover existed.
+    const entry = join(root, 'bin', 'pullboard.js'), source = readFileSync(entry, 'utf8');
+    const old = source.replace(/^\/\/ A worktree behind the main checkout[^\n]*\n[^\n]*runCurrentCli[^\n]*\n[^\n]*handed[^\n]*\n/mu, '');
+    assert.notEqual(old, source, 'the fixture strips the handover from the entry');
+    writeFileSync(entry, old);
+    rmSync(join(root, 'bin', 'current-cli.js'));
+  }
   for (const folder of ['src', 'packages', 'apps']) symlinkSync(join(SOURCE, folder), join(root, folder));
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'PULLBOARD_OWN_CLI'));
   Object.assign(env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
@@ -62,11 +70,18 @@ async function project(t) {
   const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock, { gitRoot: root });
   const seat = register(board, { lane: 'web', path: worktree, family: 'Fixture Vendor' });
   closeBoard(board);
-  mark(join(root, 'bin', 'pullboard.js'), MAIN_MARK);
-  git(root, 'commit', '-q', '-am', 'chore: main moves one commit ahead');
+  /** Main moves one commit ahead: its entry gains a start marker. */
+  const advance = () => {
+    mark(join(root, 'bin', 'pullboard.js'), MAIN_MARK);
+    git(root, 'commit', '-q', '-am', 'chore: main moves one commit ahead');
+  };
+  if (predates) {
+    for (const file of ['bin/pullboard.js', 'bin/current-cli.js']) copyFileSync(join(SOURCE, file), join(root, file));
+    git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'feat: main gains the handover');
+  } else advance();
   /** Run an entry or launcher with cwd and env, as an agent's shell would. */
   const run = (cwd, command, args, extra = {}) => runFixtureChild(command, args, { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
-  return { root, worktree, seat, git, run };
+  return { root, worktree, seat, git, run, advance };
 }
 
 test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; hooks too; PULLBOARD_OWN_CLI=1 keeps its code', async (t) => {
@@ -120,4 +135,24 @@ test('[B17] a worktree whose main checkout CLI is missing runs its own code and 
   assert.equal(missing.stderr.split('\n').filter(line => line.includes('main checkout CLI not found; running this worktree\'s code')).length, 1, missing.context);
   assert.match(missing.stderr, /pullboard\.js is missing or unreadable/u, 'the line says why');
   assert.match(missing.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'));
+});
+
+test('[B17] a worktree made before the handover existed picks it up at its next main merge, then runs main\'s CLI', async (t) => {
+  const box = await project(t, { predates: true });
+  const entry = join(box.worktree, 'bin', 'pullboard.js');
+  markDispatch(entry, OWN_MARK);
+  const old = box.run(box.worktree, process.execPath, [entry, 'whoami']);
+  assert.equal(old.status, 0, old.context);
+  assert.match(old.stderr, new RegExp(OWN_MARK, 'u'), 'a tree without the change runs its own code, as the ruling allows');
+
+  box.git(box.worktree, 'checkout', '-q', '--', 'bin/pullboard.js');
+  box.git(box.worktree, 'merge', '-q', '--ff-only', 'main');
+  box.advance();
+  markDispatch(entry, OWN_MARK);
+  const behind = box.run(box.worktree, process.execPath, [entry, 'whoami']);
+  assert.equal(behind.status, 0, behind.context);
+  assert.equal(behind.stderr.split(MAIN_MARK).length - 1, 1, `after one main merge, a worktree behind again runs main's code\n${behind.context}`);
+  assert.doesNotMatch(behind.stderr, new RegExp(OWN_MARK, 'u'), 'the worktree\'s stale code never ran the command');
+  assert.doesNotMatch(behind.stderr, /main checkout CLI not found/u);
+  assert.match(behind.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'), 'the seat is still resolved from the worktree');
 });
