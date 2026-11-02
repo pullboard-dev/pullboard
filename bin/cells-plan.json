@@ -1306,6 +1306,10 @@
     {
       "path": "bin/checks/relay-boundary.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "relay/browser-adapter.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
