@@ -38,6 +38,11 @@ import { engineStayTransition } from './cells-engine-stays.js';
 import { scriptMentions } from './cells-remove-shims.js';
 import { testFile } from '../packages/codemap/index.js';
 import { posix } from 'node:path';
+import { cellsReorgReason } from './cells-reorg.js';
+import { warning } from './cells-reorg.js';
+import { fixtureFinding } from './cells-reorg.js';
+import { fixtureWarning } from './cells-reorg.js';
+import { importLine } from './cells-reorg.js';
 
 /** Exact multiset subtraction keeps duplicate diagnostics from borrowing one old allowance. */
 function additions(before, after) {
@@ -243,8 +248,7 @@ function deletedScriptMentions(mainRoot, candidateRoot, changed) {
   const tests = git(candidateRoot, ['ls-files', '-z']).split('\0').filter(file => file && testFile(file) && /\.[cm]?js$/u.test(file));
   const files = new Map(tests.filter(file => lstatSync(join(candidateRoot, file)).isFile()).map(file => [file, readFileSync(join(candidateRoot, file))]));
   const resolve = (file, text) => text.startsWith('.') ? posix.join(posix.dirname(file), text) : null;
-  return scriptMentions(files, deleted, resolve)
-    .map(row => `${row.file}:${row.line} names deleted ${row.path} inside a string; point it at the moved file or front door`);
+  return scriptMentions(files, deleted, resolve);
 }
 
 /** Read snapshot source without following a candidate-controlled directory or module symlink. */
@@ -260,26 +264,35 @@ function shimSnapshotFile(root, file) {
 }
 
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
-function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers, inventories, onAllCells = () => {} } = {}) {
+function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', title = '', files, parsers, inventories, onAllCells = () => {} } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
-  if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
+  if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [], warnings: [], reorg: null };
   const before = readPlan(mainRoot);
   const after = candidatePlan(candidateRoot);
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
+  const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
+  const added = changed.filter(file => !existsSync(join(mainRoot, file)));
+  const deleted = changed.filter(file => existsSync(join(mainRoot, file)) && !existsSync(join(candidateRoot, file)));
+  const reorg = cellsReorgReason({ title, criterion, changed, added, deleted, before, after, beforeMap: mainMap, afterMap: candidateMap });
+  const warnings = [];
   const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot);
-  policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));
+  const unplaced = unplanned(candidateRoot, after);
+  if (reorg && unplaced.length) throw new Refused('CELLS_PLAN_UNPLACED', `source paths have no cells-plan entry: ${unplaced.join(', ')}; place each with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`);
+  warnings.push(...unplaced.map(file => warning(file, 1, 'no cells-plan placement', `node bin/cells-plan.js --place ${file} --cell <cell> (or --stay), then commit the plan`)));
   policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
-  const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
-  policy.push(...deletedScriptMentions(mainRoot, candidateRoot, changed));
+  for (const row of deletedScriptMentions(mainRoot, candidateRoot, changed)) {
+    if (reorg) policy.push(`${row.file}:${row.line} names deleted ${row.path} inside a string; point it at the moved file or front door`);
+    else warnings.push(warning(row.file, row.line, `names deleted ${row.path} inside a string`, 'point it at the moved file or front door'));
+  }
   policy.push(...shimImportProblems({ plans: [before, after], parseImports: parsers.importsIn, criterion,
     read: (revision, file) => shimSnapshotFile(revision === 'before' ? mainRoot : candidateRoot, file),
     changes: changed.map(file => ({ file, before: shimSnapshotFile(mainRoot, file), after: shimSnapshotFile(candidateRoot, file) })) }));
-  if (policy.length) return { cells: [], problems: policy };
+  if (policy.length) return { cells: [], problems: policy, warnings, reorg };
   const fallback = allCellsReason(changed, [before, after]);
   if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
-  if (!direct.length) return { cells: [], problems: [] };
+  if (!direct.length) return { cells: [], problems: [], warnings, reorg };
   const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
   const newInventory = inventories ? inventories.candidate(candidateRoot, oldInventory, changed) : cellInventory(candidateRoot, parsers);
   const oldReport = cellLintReport(mainRoot, parsers, { inventory: oldInventory });
@@ -298,20 +311,23 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     if (!moved) continue;
     const oldMoved = previous ? checkMoved(mainRoot, before, name, { acceptedBase: acceptedMain, lintReport: oldReport, lintBaseline: baseline }) : [];
     const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline });
-    problems.push(...additions(oldMoved, newMoved).map(problem => `${name} --moved: ${problem}`));
+    for (const problem of additions(oldMoved, newMoved)) {
+      if (!reorg && fixtureFinding(problem)) warnings.push(fixtureWarning(name, problem));
+      else problems.push(`${name} --moved: ${problem}`);
+    }
   }
-  return { cells, problems, allCellsReason: fallback ?? null };
+  return { cells, problems, warnings, reorg, allCellsReason: fallback ?? null };
 }
 
 /** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
 function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations, cacheEligible, onCellObservation = () => {} }) {
-  if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [] };
+  if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [], later: [] };
   const before = readPlan(baseRoot), after = candidatePlan(sourceRoot);
   const changed = git(sourceRoot, ['diff', '--name-only', '--no-renames', '-z', cutBase, 'HEAD']).split('\0').filter(Boolean);
   const oldInventory = inventories ? inventories.base(baseRoot, cutBase) : cellInventory(baseRoot, parsers);
   const newInventory = inventories ? inventories.candidate(sourceRoot, oldInventory, changed) : cellInventory(sourceRoot, parsers);
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
-  const problems = [], existingCuts = [];
+  const problems = [], existingCuts = [], later = [];
   const candidateMap = readPathMap(sourceRoot);
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
@@ -332,16 +348,20 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
     existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
     if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
     const newCuts = checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
-    problems.push(...additions(oldCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)),
-      newCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)))
-      .map(problem => `${name} --cuts: ${problem}; import a lower cell or take a port`));
+    for (const problem of additions(oldCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)),
+      newCuts.map(problem => mappedCutDiagnostic(candidateMap, problem)))) {
+      const edge = / still imports later [\w:-]+: ([^:\r\n]+) -> ([^:\r\n]+)$/u.exec(problem);
+      if (edge) later.push({ text: `${name} --cuts: ${problem}; import a lower cell or take a port`,
+        warning: warning(edge[1], importLine(sourceRoot, edge[1], edge[2]), `${name} --cuts: ${problem}`, 'import a lower cell or take a port') });
+      else problems.push(`${name} --cuts: ${problem}; import a lower cell or take a port`);
+    }
     const oldDoors = previous ? frontDoorBypasses(baseRoot, before, name, { inventory: oldInventory, acceptedInventory: oldInventory }) : new Map();
     const oldDoorKeys = new Set([...oldDoors.keys()].map(key => mappedBypassKey(candidateMap, key)));
     for (const [key, text] of frontDoorBypasses(sourceRoot, after, name, { inventory: newInventory, acceptedInventory: oldInventory })) {
       if (!oldDoorKeys.has(mappedBypassKey(candidateMap, key))) problems.push(`${name} --cuts: ${text}; import the lower cell's front door or take a port`);
     }
   }
-  return { problems, existingCuts };
+  return { problems, existingCuts, later };
 }
 
 /** Immutable snapshot callbacks may not leave changed files or a moved checkout behind. */
@@ -383,12 +403,13 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   if (typeof services?.withImportParseCache !== 'function' || typeof services?.cacheEligible !== 'function' || typeof services?.withMainCheckout !== 'function' || typeof services?.parsers?.importsIn !== 'function' || typeof services?.parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical checkout and parser services are required');
   const { withMainCheckout, parsers, withImportParseCache, cacheEligible } = services;
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion ?? '';
+  const title = typeof item.item_title === 'string' ? item.item_title : '';
   if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
   const source = commit;
   const cutRows = services.readCutItems?.(acceptedMain, root);
   if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
   const preloads = cacheEligible() ? preloadFingerprint() : null;
-  const inputs = { acceptedMain, source, criterion, cuts: cutRows, preloads };
+  const inputs = { acceptedMain, source, criterion, title, cuts: cutRows, preloads };
   const samePreloads = () => preloads !== null && cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
   const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
@@ -405,7 +426,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
       ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
-    const result = withCellLintParser(() => cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: false, onBindingProbe: services.onBindingProbe, onAllCells: services.onAllCells }));
+    const result = withCellLintParser(() => cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, title, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: false, onBindingProbe: services.onBindingProbe, onAllCells: services.onAllCells }));
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
       const cuts = withCellLintParser(() => withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations: observations.values, cacheEligible: samePreloads, onCellObservation: services.onCellObservation })));
@@ -420,8 +441,10 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
     unchangedSnapshot(candidateRoot, commit);
     observations.commit();
     if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
-    refuse([...result.problems, ...cuts.problems]);
-    return { ...result, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };
+    // Later-cell imports refuse only Cells reorg work; every other item proceeds with them as warnings (#2473).
+    refuse([...result.problems, ...cuts.problems, ...result.reorg ? cuts.later.map(row => row.text) : []]);
+    const warnings = [...result.warnings, ...result.reorg ? [] : cuts.later.map(row => row.warning)];
+    return { ...result, warnings, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };
   }));
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);
   if (receiptKey && !samePreloads()) throw new Refused('CELLS_SUBMIT', 'Node preload changed during cell analysis; restore it and retry');

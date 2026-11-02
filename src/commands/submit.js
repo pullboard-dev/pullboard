@@ -388,7 +388,7 @@ export async function submitHere(ctx, id, infra) {
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   // A queued worker sends every analysis step to one runner job with main's archived tooling; the controller only queues and records.
   const remote = remoteMode ? await withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot, lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
-    trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks,
+    trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks,
     config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)) }, lease, ctx.submitHandoffOutput),
   { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build') })) : null;
   for (const line of remote ? [...remote.notes, `submit remote analysis on ${remote.runner} (${remote.sha256.slice(0, 12)}): ${Object.entries(remote.steps).map(([step, ms]) => `${step} ${(ms / 1000).toFixed(2)}s`).join(', ')}`] : []) ctx.io.say(line);
@@ -396,7 +396,7 @@ export async function submitHere(ctx, id, infra) {
   try {
     const planned = remote ? null : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
       code: [fileURLToPath(new URL('../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
-    () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit));
+    () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
     if (planned?.reused) ctx.io.say(cellsReceiptLine(planned.receipt));
   } finally { reportSubmitStage(ctx, 'placement', placementStart); }
   // The repository's per-file lint subset is cheap; keep its full static stage later.
@@ -437,7 +437,7 @@ export async function submitHere(ctx, id, infra) {
   // Reused cells checks have no runner slot; use their own check-receipt formatter.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
   if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
-  for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
+  for (const line of [...(cells.existingCuts ?? []).map(edge => `cell cuts backlog: ${edge}`), ...cells.warnings ?? []]) ctx.io.say(line);
   // Static and lint checks run once, all at once, before doctrine and before any runner gate (fail fast).
   const staticStart = performance.now();
   try { if (!remote) await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
