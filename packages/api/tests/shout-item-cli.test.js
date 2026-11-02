@@ -151,7 +151,10 @@ test('a repeat inbox with nothing new never scans the event, shout, seat or meta
   try {
     // Item rows stay readable: activity interests walk the dependency and file graph of the items on the board.
     const scans = statements.flatMap(sql => {
-      const plan = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map(row => row.detail).join(' | ');
+      let plan;
+      // The same process also reads its machine-local sidecars; only statements over the board's own tables count.
+      try { plan = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map(row => row.detail).join(' | '); }
+      catch (error) { if (/no such table/u.test(error.message)) return []; throw error; }
       return /\bSCAN (?:event|shout|agent|board_meta)\b/u.test(plan) ? [`${plan} <- ${sql.replace(/\s+/gu, ' ').slice(0, 160)}`] : [];
     });
     assert.deepEqual(scans, [], 'a quiet inbox reads the event log, shouts, seats and metadata only by index');
