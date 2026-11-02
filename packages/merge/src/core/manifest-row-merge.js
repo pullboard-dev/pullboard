@@ -1,6 +1,6 @@
 /** Conservative, deterministic row merges for the two authoritative generated manifests [C7,D3]. */
 const FIELDS = {
-  'bin/cells-plan.json': ['cells', 'stays', 'entries', 'retired'],
+  'bin/cells-plan.json': ['cells', 'stays', 'entries', 'retired', 'engineStays'],
   'packages/gate/test-tiers.json': ['files'],
 };
 const ABSENT = Symbol('absent');
@@ -32,7 +32,7 @@ function choice(base, left, right) {
 /** Each manifest declares its row identity explicitly, independently of JSON property order. */
 function rowKey(field, row) {
   if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
-  const key = field === 'cells' ? row.name : field === 'files' ? row.file : field === 'retired' ? row.row?.[0] : row.path;
+  const key = field === 'cells' ? row.name : field === 'files' ? row.file : (field === 'retired' || field === 'engineStays') ? row.row?.[0] : row.path;
   return typeof key === 'string' && key.length ? key : null;
 }
 

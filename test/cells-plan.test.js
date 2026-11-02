@@ -466,7 +466,10 @@ test('moved shim exceptions require a live edge or trusted historical import [C7
 
 
 /** Render the plan index's actual keyed placement rows. */
-function planIndex(stays) { return JSON.stringify({ version: 1, cells: [], stays }, null, 2) + '\n'; }
+function planIndex(stays) {
+  const engineStays = stays.map(({ path, reason }) => ({ cell: 'state', row: [path, 'packages/state/' + path, reason] }));
+  return JSON.stringify({ version: 1, cells: [], stays, engineStays }, null, 2) + '\n';
+}
 
 /** Render the test-tier manifest's actual file-keyed rows. */
 function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
@@ -481,7 +484,8 @@ test('plan index disjoint additions compose identically in both orders [C7,D3]',
   for (const [ours, theirs] of [heads, [...heads].reverse()]) {
     await withSourceComposition(root, ours, theirs, async composition => {
       const source = readFileSync(join(composition.directory, 'bin/cells-plan.json'), 'utf8');
-      const rows = JSON.parse(source).stays;
+      const document = JSON.parse(source), rows = document.stays;
+      assert.deepEqual(document.engineStays.map(entry => entry.row[0]), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
       assert.deepEqual(rows.map(entry => entry.path), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
       assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
       sources.push(source);
