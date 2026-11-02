@@ -380,7 +380,6 @@ export async function submitHere(ctx, id, infra) {
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
-  requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit);
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
@@ -392,6 +391,7 @@ export async function submitHere(ctx, id, infra) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
+  requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
   const cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)) });
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);

@@ -52,7 +52,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
   ].join('\n'));
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled } }, null, 2) + '\n');
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...(cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'bin/'] } } } : {}) }, null, 2) + '\n');
   if (cells) {
     mkdirSync(join(box.repo, 'bin'), { recursive: true });
     writeFileSync(join(box.repo, 'bin/cells-plan.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');
@@ -209,8 +209,8 @@ test('cell refusal happens after queue acknowledgment and returns only its build
   document(box.run(box.web, 'claim', String(box.second), '--json'));
   await waitJob(box, 'red');
   const completed = state(box, box.id);
-  assert.equal(completed.job.error.code, 'CELLS_SUBMIT');
-  assert.match(completed.job.error.message, /unplaced src\/unplaced.js/u);
+  assert.equal(completed.job.error.code, 'CELLS_PLAN_UNPLACED');
+  assert.match(completed.job.error.message, /src\/unplaced.js/u);
   assert.equal(completed.item.item_status, 'open');
   assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
   assert.equal(existsSync(box.started), false, 'the ordinary gate never executes a source refused by cell checks');
