@@ -1,6 +1,5 @@
 /** Machine-local seat command timing; never placed in a board move or relay [C7,N2]. */
-import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, realpathSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -8,11 +7,18 @@ import { DatabaseSync } from 'node:sqlite';
 /** Resolve an existing checkout and seat without creating or locking a board. */
 export function timingSeat(cwd) {
   try {
-    const env = { ...process.env };
-    for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-    const git = spawnSync('git', ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-common-dir'], { cwd, encoding: 'utf8', timeout: 3000, env });
-    if (git.status !== 0) return null;
-    const [root, common] = git.stdout.trim().split('\n');
+    // Find the worktree's Git metadata without starting Git, including linked worktrees.
+    let root = resolve(cwd);
+    while (!existsSync(join(root, '.git'))) { const parent = dirname(root); if (parent === root) return null; root = parent; }
+    const marker = join(root, '.git');
+    let gitDir = marker;
+    if (!statSync(marker).isDirectory()) {
+      const match = /^gitdir:\s*(.+)\s*$/u.exec(readFileSync(marker, 'utf8').trim());
+      if (!match) return null;
+      gitDir = resolve(root, match[1]);
+    }
+    const commonFile = join(gitDir, 'commondir');
+    const common = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
     const file = join(common, 'pullboard', 'board.sqlite');
     if (!existsSync(file)) return null;
     const db = new DatabaseSync(file, { readOnly: true });
