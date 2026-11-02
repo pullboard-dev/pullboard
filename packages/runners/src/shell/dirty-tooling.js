@@ -1,10 +1,10 @@
 /** Observe dirty primary tooling without granting it execution authority or blocking checks [O5,C7]. */
 import { gitSpawnSync } from '../../../git/index.js';
 import { lstatSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const TOOL_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
+const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
 /** Report one stable warning episode after five minutes; existing health receipts own durable delivery. */
 export function dirtyToolingFinding(root, files, now, previous = []) {
