@@ -42,14 +42,14 @@ async function runLegacy(t, mode, duration = 8000) {
   child.stdout.on('data', chunk => { output += chunk; });
   child.stderr.on('data', chunk => { output += chunk; });
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch {} reject(new Error('legacy fixture timed out: ' + output)); }, duration + 20000);
+    const timer = setTimeout(() => { try { process.kill(-child.pid, 'SIGKILL'); } catch { /* The process group may already have exited. */ } reject(new Error('legacy fixture timed out: ' + output)); }, duration + 20000);
     child.once('error', reject);
     child.once('close', () => { clearTimeout(timer); resolve(); });
     if (mode === 'watch') {
       const poll = setInterval(() => {
         if (!/noisy child/u.test(output) || !/HUNG file .*b-hung\.test\.js/u.test(output)) return;
         clearInterval(poll);
-        try { process.kill(-child.pid, 'SIGTERM'); } catch {}
+        try { process.kill(-child.pid, 'SIGTERM'); } catch { /* The process group may already have exited. */ }
       }, 100);
       child.once('close', () => clearInterval(poll));
     }
