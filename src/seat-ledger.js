@@ -38,11 +38,16 @@ export function seatLedger(agents, items, events, records, now = Date.now()) {
     const transitionKinds = state === 'building' || state === 'silent' ? ['claim'] : state === 'reviewing' ? ['reserve'] : state === 'waiting on review' ? ['submit'] : ['release', 'withdraw', 'accept', 'reject'];
     const transition = [...mine].reverse().find(event => transitionKinds.includes(event.event_kind) && (!held || event.item_id === held.item_id));
     const since = waiting?.start ?? (state === 'waiting on gate' ? Date.parse(lastHandoff.event_at) : null) ?? (transition ? Date.parse(transition.event_at) : null) ?? lastAt ?? now;
-    // Replay only observed intervals; earlier unobserved history remains explicitly unknown.
-    const states = { building: 0, reviewing: 0, gate: 0, reviewWait: 0, lockWait: 0, runnerWait: 0, silent: 0, idle: 0, unknown: 0 };
-    let index = 0, current = 'idle', observedAt = null, owned = null;
-    const eventRows = mine.filter(event => Date.parse(event.event_at) >= start);
-    for (let tick = start; tick < now; tick += 60000) {
+    // Split on observed state changes and measured command boundaries; unknown history stays unknown.
+    const states = { building: 0, reviewing: 0, gate: 0, reviewWait: 0, lockWait: 0, runnerWait: 0, command: 0, test: 0, silent: 0, idle: 0, unknown: 0 };
+    const eventRows = mine.filter(event => { const time = Date.parse(event.event_at); return Number.isFinite(time) && time >= start && time <= now; });
+    const bounds = new Set([start, now]);
+    for (const event of eventRows) { const at = Date.parse(event.event_at); bounds.add(at); if (at + 20 * 60000 < now) bounds.add(at + 20 * 60000); }
+    for (const span of own) { bounds.add(Math.max(start, span.start)); bounds.add(Math.min(now, span.end ?? (active.includes(span) ? now : span.start))); }
+    const points = [...bounds].filter(at => at >= start && at <= now).sort((a, b) => a - b);
+    let index = 0, current = 'unknown', observedAt = null, owned = null;
+    for (let n = 0; n < points.length - 1; n++) {
+      const tick = points[n];
       while (index < eventRows.length && Date.parse(eventRows[index].event_at) <= tick) {
         const event = eventRows[index++]; observedAt = Date.parse(event.event_at);
         if (event.event_kind === 'claim') { owned = event.item_id; current = 'building'; }
@@ -54,9 +59,13 @@ export function seatLedger(agents, items, events, records, now = Date.now()) {
         } else if (event.event_kind === 'submit') { owned = null; current = 'reviewWait'; }
         else if (['release', 'withdraw', 'accept', 'reject'].includes(event.event_kind)) { owned = null; current = 'idle'; }
       }
-      const wait = own.find(span => ['runner-wait', 'lock-wait'].includes(span.kind) && span.start <= tick && (span.end ?? (active.includes(span) ? now : span.start)) > tick);
-      const key = wait ? (wait.kind === 'runner-wait' ? 'runnerWait' : 'lockWait') : observedAt === null ? 'unknown' : ['building', 'reviewing'].includes(current) && tick - observedAt >= 20 * 60000 ? 'silent' : current;
-      states[key] += Math.min(60000, now - tick);
+      const running = own.filter(span => span.start <= tick && (span.end ?? (active.includes(span) ? now : span.start)) > tick);
+      const key = running.some(span => span.kind === 'lock-wait') ? 'lockWait'
+        : running.some(span => span.kind === 'runner-wait') ? 'runnerWait'
+          : running.some(span => span.kind === 'test') ? 'test'
+            : running.some(span => span.kind === 'command') ? 'command'
+              : ['building', 'reviewing'].includes(current) && tick - observedAt >= 20 * 60000 ? 'silent' : current;
+      states[key] += points[n + 1] - tick;
     }
     const split = { commandMs: 0, testMs: 0, runnerWaitMs: 0, lockWaitMs: 0, states };
     for (const span of own) {

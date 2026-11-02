@@ -99,3 +99,20 @@ test('a successful join records the command that created its seat [C7,N2]', t =>
   const rows = readFileSync(join(root, '.git', 'pullboard', 'seat-timing.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.deepEqual(rows.map(row => row.phase), ['start', 'end']); assert.equal(rows[1].seat, 'core-1');
 });
+
+test('overlapping command, test and wait spans split observed claim time without double counting [C7,N2]', () => {
+  const now = Date.now(), m = 60000;
+  const agents = [{ agent_id: 'builder' }], items = [{ item_id: 1, item_status: 'claimed', item_owner: 'builder' }];
+  const events = [{ event_by: 'builder', event_at: new Date(now - 10 * m).toISOString(), event_kind: 'claim', item_id: 1 }];
+  const records = [
+    { id: 'command', seat: 'builder', kind: 'command', start: now - 6 * m, end: now - 3 * m },
+    { id: 'test', seat: 'builder', kind: 'test', start: now - 5 * m, end: now - 4 * m },
+    { id: 'wait', seat: 'builder', kind: 'lock-wait', start: now - 4.5 * m, end: now - 4.25 * m },
+  ];
+  const [row] = seatLedger(agents, items, events, records, now);
+  assert.equal(row.split.states.building, 7 * m);
+  assert.equal(row.split.states.command, 2 * m);
+  assert.equal(row.split.states.test, 0.75 * m);
+  assert.equal(row.split.states.lockWait, 0.25 * m);
+  assert.equal(Object.values(row.split.states).reduce((a, b) => a + b, 0), 24 * 60 * m);
+});
