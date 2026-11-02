@@ -269,6 +269,17 @@ function reportSubmitStage(ctx, name, start) {
  * @param {number} id
  * @returns {Promise<number>}
  */
+/** Keep the full failure list in the item fact and bound the automatic decision shout. */
+export function boundedMainRedShout(id, failures, main) {
+  const prefix = `#${id}: known main red with no open Main red item: `;
+  const suffix = ` fails identically on main at ${main.slice(0, 12)}; file or assign its repair. See pullboard show ${id}.`;
+  const detail = failures.map(red => `${red.file} (${red.names.join('; ')})`).join('; ');
+  const room = Math.max(0, 400 - Array.from(prefix + suffix).length);
+  const chars = Array.from(detail);
+  const excerpt = chars.length > room ? chars.slice(0, Math.max(0, room - 1)).join('') + '…' : detail;
+  return prefix + excerpt + suffix;
+}
+
 export async function submitHere(ctx, id, infra) {
   const { root } = ctx.info;
   const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
@@ -660,8 +671,12 @@ export async function submitHere(ctx, id, infra) {
       const event = store.events(board, { itemId: id }).filter(row => row.event_kind === 'submit').at(-1);
       knownMainFailures = event && JSON.parse(event.event_detail).submissionProof?.knownMainFailures;
     }
-    if (unowned.length && !autoMainReds) await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, lanes: laneNames(ctx.config), decision: true,
-      text: `#${id}: known main red with no open Main red item: ${unowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')} fails identically on main at ${unownedMain.slice(0, 12)}; file or assign its repair.` }]);
+    if (unowned.length && !autoMainReds) try {
+      await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, lanes: laneNames(ctx.config), decision: true,
+        text: boundedMainRedShout(id, unowned, unownedMain) }]);
+    } catch (error) {
+      ctx.io.err(`submitted #${id}, but its main-red notice failed: ${error.message}; read pullboard show ${id}`);
+    }
     return submittedMove;
   });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
