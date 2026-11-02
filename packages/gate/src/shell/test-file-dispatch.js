@@ -181,6 +181,7 @@ export function dispatchTestFiles(options, env) {
         const budget = budgets.get(portableFile);
         const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit);
         if (over) {
+          process.stderr.write(`test file budget: ${over}\n`);
           events.push({ type: 'test:diagnostic', data: { nesting: 0, message: over } });
           summary.success = false;
         }
