@@ -1,3 +1,4 @@
+import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../landing-waivers.js';
 import { quarantineWaivers } from '../quarantine.js';
@@ -102,7 +103,7 @@ export async function hookCommand(io, { first, second }) {
       return {
         migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
-        claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id),
+        claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && !pendingSubmitHandoff(board, item)),
         landings: landing ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit) : [],
       };
     }) ?? {};
@@ -116,7 +117,7 @@ export async function hookCommand(io, { first, second }) {
     const claimedItems = spec.rows.some(row => row.status === 'approved') ? [] : (hookRead(ctx, board => {
       const agent = store.agentAt(board, info.root);
       return agent ? store.listItems(board, { lane: agent.agent_lane }).filter(item =>
-        item.item_status === 'claimed' && item.item_owner === agent.agent_id).map(item => item.item_id) : [];
+        item.item_status === 'claimed' && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item)).map(item => item.item_id) : [];
     }) ?? []);
     // Only the main checkout or a landing worktree merges a verified item; elsewhere no trailer exempts a header.
     const rowlessLandings = hookRead(ctx, (board) => (info.isMain || store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root))
