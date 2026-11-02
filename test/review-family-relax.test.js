@@ -5,6 +5,7 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../src/review-family-relax-engine.js';
+import { REVIEW_FAMILY_SEAT_ENGINE } from '../src/review-family-seat-engine.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
@@ -96,7 +97,13 @@ test('coordinator activity cannot suppress family relaxation; an available other
   }
   const options = { agentId: 'core-2', leaseMs: 3_600_000, policy: 'any', familyPolicy: 'require', familyRelaxAt: 5 };
   const pick = () => store.nextFor(board, { ...options, lane: 'core', verify: true }).item;
+  board.executionEngineVersion = REVIEW_FAMILY_SEAT_ENGINE - 1;
+  assert.equal(pick(), null, 'old engines retain their original coordinator calculation');
+  delete board.executionEngineVersion;
   assert.ok(pick(), 'five waiting items relax when only the coordinator is an opposite-family seat');
+  board.db.prepare("UPDATE agent SET agent_lane='person' WHERE agent_id='coordinator'").run();
+  assert.ok(pick(), 'a person seat also does not suppress relaxation');
+  board.db.prepare("UPDATE agent SET agent_lane='coordinator' WHERE agent_id='coordinator'").run();
   store.register(board, { id: 'core-3', lane: 'core', path: '/fixture/core-3', family: 'anthropic', parentDigest: 'd'.repeat(64), model: 'fixture-model' });
   assert.equal(pick(), null, 'a free opposite-family agent prevents relaxation');
 });
