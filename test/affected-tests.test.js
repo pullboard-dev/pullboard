@@ -382,22 +382,22 @@ test('a src change selects only its importers despite run-tests.js [V4,C7]', (t)
   const sourceInputs = packageFiles(sourceRoot).filter(path => /^(?:src|bin|packages)\//u.test(path) && !/(?:^|\/)tests?\//u.test(path));
   copyPackageFiles(sourceRoot, box.root, { files: sourceInputs });
   box.put('test/api.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
-  box.put('test/person.test.js', "import '../src/person.js';\n");
+  box.put('test/person.test.js', "import '../src/config.js';\n");
   box.put('test/runner-reader.test.js', "import '../bin/run-tests.js';\n");
   box.put('test/unrelated.test.js', "import assert from 'node:assert/strict'; assert.ok(true);\n");
   const base = box.commit();
-  const mapped = mappedWorkingSource(sourceRoot, 'src/person.js');
+  const mapped = mappedWorkingSource(sourceRoot, 'src/config.js');
   // The helper copy already installed the mapped shim at this path; the ordinary change appends to it rather than copying tool bytes.
-  assert.equal(mapped.shimPath, 'src/person.js');
+  assert.equal(mapped.shimPath, 'src/config.js');
   appendFileSync(join(box.root, mapped.shimPath), '\n// ordinary source change\n');
   const commit = box.commit();
-  const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/person.js'] });
+  const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/config.js'] });
   assert.equal(selected.full, false, selected.reason);
   assert.deepEqual(selected.files, ['test/person.test.js', 'test/runner-reader.test.js']);
-  box.put('src/unresolved-reader.js', "import './person.js'; export const load = () => import(process.env.UNKNOWN_MODULE);\n");
+  box.put('src/unresolved-reader.js', "import './config.js'; export const load = () => import(process.env.UNKNOWN_MODULE);\n");
   box.put('test/unresolved-reader.test.js', "import '../src/unresolved-reader.js';\n");
   const unresolved = box.commit();
-  const fallback = selectAffectedTests(box.root, { base: unresolved, commit: unresolved, changed: ['src/person.js'] });
+  const fallback = selectAffectedTests(box.root, { base: unresolved, commit: unresolved, changed: ['src/config.js'] });
   assert.equal(fallback.full, true, 'a genuinely unresolved reached helper still requires the full suite');
   assert.match(fallback.reason, /non-literal dynamic import in reached file src\/unresolved-reader\.js/u);
 });

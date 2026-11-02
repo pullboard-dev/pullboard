@@ -13,7 +13,7 @@ import { laneSeatContext } from '../../packages/seats/index.js';
 import { nextSessionSeats } from '../../packages/seats/index.js';
 import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
-import * as personIdentity from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import { requireHandoffActive } from '../../packages/state/src/core/handoff-state.js';
 import { requestedCommandMove } from '../../packages/state/index.js';
 import { barReadinessRequired } from '../../packages/verify/index.js';
@@ -76,7 +76,7 @@ export function currentReworkRoutingPolicy(ctx, board) {
 }
 
 /** Note the session behind a claim or submit (#921): its ledger must be writable before the move, and record after it. */
-async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, personIdentity.agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, personIdentity.agentSessionDigest()); return result; }
+async function withItemSession(info, operation, args, move) { const noted = operation === 'claim' || operation === 'submit'; if (noted) itemSessions.requireLedger(info, agentSessionDigest()); const result = await move(); if (noted) itemSessions.recordItemSession(info, args[0], operation, agentSessionDigest()); return result; }
 
 /**
  * Whether the board's committed relay.outbox setting queues moves while the relay is down (#922, H21).
@@ -176,7 +176,7 @@ export async function ordered(ctx, board, operation, args) {
     await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
   };
-  const digest = personIdentity.agentSessionDigest();
+  const digest = agentSessionDigest();
   const boardOnly = CHECKOUT_BOARD_ONLY.get(ctx.io);
   const boardOnlyOperation = (boardOnly === 'shout' && operation === 'shout') || (boardOnly === 'fact' && operation === 'appendFact');
   const boardOnlyAgent = ctx.info.isMain ? COORDINATOR : seatAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';

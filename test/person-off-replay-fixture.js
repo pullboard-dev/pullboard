@@ -8,7 +8,7 @@ import {
 import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import * as signing from '../src/person-signing.js';
+import { attestAuthority, setPersonSigning, personSigning } from '../packages/person/index.js';
 import { presenceAttestation } from '../packages/person/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { loadConfig } from '../packages/config/index.js';
@@ -32,8 +32,8 @@ export async function rejectConsumedOffReplay(t) {
   t.after(() => store.closeBoard(board));
   // The relay's own stamp key, as the relay vouches for it to this process (#408).
   const relayKey = relayStampKey(box);
-  signing.attestAuthority(board, box.origin, relayKey.authority);
-  signing.setPersonSigning(board, { agentId: 'coordinator', signed: true });
+  attestAuthority(board, box.origin, relayKey.authority);
+  setPersonSigning(board, { agentId: 'coordinator', signed: true });
   const document = preparePersonRequest({ verb: 'signing', args: { signed: 'off' } }, randomUUID());
   const boardId = board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='board_id'").get().meta_value;
   const presence = { board: boardId, request: document.id, digest: createHash('sha256').update(JSON.stringify(document)).digest('hex'),
@@ -55,12 +55,12 @@ export async function rejectConsumedOffReplay(t) {
   const intake = personRequestRecords(board).find(entry => entry.id === document.id);
   execute('shout', [{ from: 'person', to: 'coordinator', text: requestStageText(intake, 'claim'), lanes: Object.keys(loadConfig(box.root).lanes) }], 'claim');
   execute('setPersonSigning', [{ agentId: 'person', signed: false, request: document.id }], 'execute');
-  assert.equal(signing.personSigning(board).signed, false, 'a genuine first execution turns signing off');
+  assert.equal(personSigning(board).signed, false, 'a genuine first execution turns signing off');
   const original = board.db.prepare("SELECT * FROM event WHERE event_kind='person_signing' ORDER BY event_id DESC LIMIT 1").get();
   assert.equal(JSON.parse(original.event_detail).request, document.id);
-  signing.setPersonSigning(board, { agentId: 'coordinator', signed: true });
-  assert.equal(signing.personSigning(board).signed, true, 'ordinary re-enable is the positive control');
+  setPersonSigning(board, { agentId: 'coordinator', signed: true });
+  assert.equal(personSigning(board).signed, true, 'ordinary re-enable is the positive control');
   board.db.prepare('INSERT INTO event(event_at,event_by,event_kind,item_id,event_detail) VALUES (?,?,?,?,?)')
     .run(original.event_at, original.event_by, original.event_kind, original.item_id, original.event_detail);
-  assert.equal(signing.personSigning(board).signed, true, 'an exact consumed OFF event cannot disable signing again without new presence');
+  assert.equal(personSigning(board).signed, true, 'an exact consumed OFF event cannot disable signing again without new presence');
 }
