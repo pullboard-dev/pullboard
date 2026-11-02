@@ -79,7 +79,7 @@ function fixture(t) {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: initialize fixture');
-  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: repo });
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
@@ -136,7 +136,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   assert.match(text.stdout, /^A: 1\/3 landed · target 2026-01-02T03:04:00\.000Z, past target$/m, 'the text shows N/M landed, the target and past target');
   assert.match(text.stdout, /^ {2}#\d+ Landed work — landed$/m);
   assert.match(text.stdout, /^ {2}#\d+ Accepted work — accepted$/m);
-  assert.match(text.stdout, /^ {2}#\d+ Open work — open$/m);
+  assert.match(text.stdout, /^ {2}1\. #\d+ Open work — open$/m);
 
   // Shipping is the coordinator's move, not a builder's.
   assert.throws(() => shipMilestone(box.board, 'A', { agentId: box.builder, commit: box.git('rev-parse', 'main') }),
@@ -154,7 +154,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   assert.deepEqual(milestone(after, 'A').items.map(({ id }) => id), [landed], 'only the landed item stays in the shipped milestone');
   assert.equal(milestone(after, 'A').pastTarget, false, 'a shipped milestone is no longer past its target');
   assert.deepEqual(store.milestones(box.board).find((entry) => entry.name === 'B').items, [later, accepted, open], 'the unlanded items are now in B, after its own');
-  assert.deepEqual(milestone(after, 'B').items.map(({ id }) => id), [later, open, accepted], 'and the roadmap lists them work to ship first');
+  assert.deepEqual(milestone(after, 'B').items.map(({ id }) => id), [open, later, accepted], 'and the roadmap lists them work to ship first');
 
   // The threads: each moved item records the move; the landed one records none.
   for (const id of [accepted, open]) {
