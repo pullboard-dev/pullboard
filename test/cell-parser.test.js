@@ -15,6 +15,7 @@ import { test } from 'node:test';
 import { bindingReadsForModules, cellLintReport, withCellLintParser } from '../packages/codemap/index.js';
 import { commonJsIn, importsIn } from '../packages/gate/index.js';
 import { fixture } from './cells-plan-fixture.js';
+import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
 test('one owned parser serves import and multiple binding batches, then exits [C7,P3]', async t => {
@@ -143,4 +144,10 @@ test('a slow real batch worker survives the old deadline and a hung worker repor
   preload = 'hung.cjs';
   assert.throws(() => withCellLintParser(parse => parse(['export const value = 1;'])),
     error => error.code === 'CELL_BINDING_TIMEOUT' && /extended batch wait/u.test(error.message));
+});
+
+test('a real syntax error names its fixture file through the batch parser [C7,P3]', () => {
+  const result = withCellLintParser(() => fixtureSourceEdits("import { readFileSync } from 'node:fs';\nconst broken = ;\n",
+    { file: 'test/broken-fixture.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] }));
+  assert.match(result.problems.join('\n'), /test\/broken-fixture\.js: fixture source does not compile/u);
 });
