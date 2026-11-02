@@ -52,7 +52,8 @@ function queueMs() {
  */
 export function beginImmediateQueued(db, startedAt) {
   const bound = queueMs();
-  for (;;) {
+  const finish = globalThis[Symbol.for('pullboard.seat-timing.lock')]?.();
+  try { for (;;) {
     try { db.exec('BEGIN IMMEDIATE'); return; }
     catch (error) {
       const refusal = boardWriteBusyError(db, startedAt, error);
@@ -60,5 +61,5 @@ export function beginImmediateQueued(db, startedAt) {
       try { writeSync(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round((BOARD_BUSY_TIMEOUT_MS + bound) / 1000)}s): ${refusal.message.replace(/^\[BOARD_BUSY\]\s*/u, '')}\n`); }
       catch { /* A closed diagnostic stream must not turn a queued write into a refusal. */ }
     }
-  }
+  } } finally { finish?.(); }
 }
