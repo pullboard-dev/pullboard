@@ -1,3 +1,4 @@
+import { observeDirtyRunnerTooling } from '../../../runners/index.js';
 import { dispatchHealth } from "./dispatch-health.js";
 import { rejectedWorkReturns } from "../core/rejected-work-return.js";
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
@@ -15,7 +16,7 @@ import {
 } from "../../../../src/board-health-receipts.js";
 
 /** A missing board or an explicitly disabled sentinel has no observation to publish. */
-export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, returnRejected = false }) {
+export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFindings, tooling = observeDirtyRunnerTooling, returnRejected = false }) {
   if (!healthSentinelEnabled(config) || !existsSync(file)) return null;
   const db = openBoardReadOnly(file);
   try {
@@ -24,6 +25,7 @@ export function scanHealthSentinel(file, { root, config, now, cpu = agentCpuFind
     const report = healthReport({ db, root, config, now, dispatchHealth, machineSettings: loadMachineSettings() });
     const { dispatch } = dispatchHealth(readBoardSnapshot(db, { now: () => now }), config);
     const last = db.prepare("SELECT event_detail FROM event WHERE event_kind = 'health-scan' ORDER BY event_id DESC LIMIT 1").get();
+    report.stuck.push(...tooling(now, last ? JSON.parse(last.event_detail).active : []));
     const processes = cpu(db);
     report.stuck.push(...(processes ?? (last ? JSON.parse(last.event_detail).active : []).filter(finding => finding.cause === 'AGENT_CPU').map(finding => ({ ...finding, owner: { who: finding.owner } }))));
     const before = (last ? JSON.parse(last.event_detail).active : []).map(healthFindingIdentity).sort();

@@ -411,7 +411,7 @@ test('controller provider freshness follows its real package composition, not un
     'the actual transitive lifecycle provider still requires a fresh controller');
 });
 
-test('committed tooling binds literal Unicode blob bytes and refuses filtered working bytes before SSH [C7,P3]', t => {
+test('committed tooling binds literal Unicode blobs and ignores filtered working bytes before SSH [C7,P3]', t => {
   const helper = createE2eHelpers();
   t.after(helper.cleanup);
   const box = helper.sandbox();
@@ -449,8 +449,8 @@ await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:'privat
   box.git(installed, 'add', '--renormalize', resourcePath);
   assert.equal(box.git(installed, 'diff', '--cached', '--name-only'), '', 'filter normalization retains the original committed blob');
   assert.equal(box.git(installed, 'status', '--porcelain'), '', 'Git filtering reports clean while the working bytes differ from the committed blob');
-  run('refusal');
-  assert.throws(() => readFileSync(marker), { code: 'ENOENT' }, 'different tooling bytes are refused before any private SSH attempt');
+  run('transport');
+  assert.equal(readFileSync(marker, 'utf8'), 'called', 'filtered working bytes are ignored; the private transport receives committed tooling');
 });
 
 test('the actual async controller retains fresh bridging and rejects a stale derived runtime before dispatch [C7,P3]', t => {
