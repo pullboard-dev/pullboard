@@ -1,7 +1,7 @@
 /** Read a privacy-safe runner capacity snapshot for one explicit stats window [C7,O5]. */
 import { guiSession } from '../../../../packages/gate/index.js';
 import { retainedReceipts } from '../../../../packages/gate/index.js';
-import { localRunnerDescriptor } from '../../../../src/runner-load.js';
+import { localRunnerDescriptor } from '../../../../packages/runners/index.js';
 import {
   listResources,
   runnerResourceStatus,

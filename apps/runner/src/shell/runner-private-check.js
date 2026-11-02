@@ -22,7 +22,7 @@ import { gitSpawnSync } from '../../../../packages/git/index.js';
 import { tmpdir } from 'node:os';
 import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
-import { runOnRunner } from '../../../../src/runners.js';
+import { runOnRunner } from '../../../../packages/runners/index.js';
 import { frozenCheckCeilingMs } from '../../../../packages/config/index.js';
 import {
   privateCheckEnvelope,

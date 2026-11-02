@@ -26,10 +26,10 @@ import { captureTestRuntimes } from '../../../../packages/sandbox/src/shell/exec
 import { guiSession } from '../../../../packages/gate/src/shell/gui-session.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { createDescendantTracker } from './runner-custody.js';
-import { sampleRunnerLoad } from '../../../../src/runner-load.js';
-import { pinSourceCacheJob } from '../../../../src/runner-source-cache.js';
-import { recordRunnerCompletion } from '../../../../src/runner-transport.js';
-import { recordRunnerOwner } from '../../../../src/runner-transport.js';
+import { sampleRunnerLoad } from '../../../../packages/runners/src/shell/runner-load.js';
+import { pinSourceCacheJob } from '../../../../packages/runners/src/shell/runner-source-cache.js';
+import { recordRunnerCompletion } from '../../../../packages/runners/src/shell/runner-transport.js';
+import { recordRunnerOwner } from '../../../../packages/runners/src/shell/runner-transport.js';
 import { TEST_RESULT_REQUEST_ENV } from '../../../../packages/gate/src/shell/test-result-store.js';
 import { TEST_RESULT_ORIGIN_ENV } from '../../../../packages/gate/src/shell/test-result-store.js';
 import { TEST_RESULT_STORE_ENV } from '../../../../packages/gate/src/shell/test-result-store.js';
