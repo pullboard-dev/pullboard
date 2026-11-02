@@ -70,12 +70,13 @@ test('[A2, R2] a command emits its inserted event when another connection writes
   let laterEvent;
   const result = await command(repo, ['add', 'app', 'Original move', '--json'], {
     onEvent(event) {
+      if (event.event_kind !== 'add') return;
       emitted = event;
       const other = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
       try {
         assert.equal(other.lastEvent, undefined, 'a new connection has no copy of another connection\'s last event');
         store.addItem(other, { by: 'coordinator', lane: 'app', title: 'Concurrent move' });
-        laterEvent = other.lastEvent;
+        laterEvent = other.emittedEvents.findLast(row => row.event_kind === 'add');
       } finally {
         store.closeBoard(other);
       }
@@ -90,9 +91,9 @@ test('[A2, R2] a command emits its inserted event when another connection writes
   const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const events = store.events(board);
-    assert.equal(events.at(-2).event_id, emitted.event_id);
-    assert.equal(events.at(-1).event_id, laterEvent.event_id);
-    assert.notEqual(emitted.event_id, events.at(-1).event_id, 'delivery used this command\'s row, not the global newest row');
+    assert.equal(events.find(event => event.event_id === emitted.event_id)?.event_kind, 'add');
+    assert.equal(events.find(event => event.event_id === laterEvent.event_id)?.event_kind, 'add');
+    assert.notEqual(emitted.event_id, laterEvent.event_id, 'delivery used this command\'s row, not the concurrent row');
   } finally {
     store.closeBoard(board);
   }

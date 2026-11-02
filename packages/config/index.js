@@ -128,3 +128,5 @@ export {
   maintenanceConfigProblems,
   maintenanceDurations,
 } from './src/core/worktree-maintenance-config.js';
+
+export { clauseInspectionEnabled, setClauseInspection } from './src/shell/settings.js';

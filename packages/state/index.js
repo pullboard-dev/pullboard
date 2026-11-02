@@ -28,7 +28,6 @@ export { EXIT_RULES_ENGINE } from '../../src/exit-rules-engine.js';
 export { ENGINE_VERSION } from '../../src/engine-metadata.js';
 export { agentGrantMinimum } from "./src/core/agent-grant.js";
 export { requireAgentGrant } from "./src/core/agent-grant.js";
-export { correctedBar } from "./src/shell/corrected-bar.js";
 export { engineDeclarationNames } from "./src/shell/engine-folder.js";
 export { engineFolderViolations } from "./src/shell/engine-folder.js";
 export { engineFolderProblems } from "./src/shell/engine-folder.js";
@@ -176,3 +175,5 @@ export { REJECTION_RETURN_ENGINE } from '../../src/rejection-return-engine.js';
 export { BOARD_PROGRESS_ENGINE } from '../../src/board-progress-engine.js';
 export { CLAIM_RETURNS_ENGINE } from '../../src/claim-returns-engine.js';
 export { COORDINATOR_ACTIONS_ENGINE } from '../../src/coordinator-actions-engine.js';
+
+export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary } from './src/core/inspection-clauses.js';

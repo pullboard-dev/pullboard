@@ -88,7 +88,7 @@ test('a trunk conflict waits while another seat reserves the head, then applies 
 test('a reservation taken after the conflict snapshot still holds: the reopen authority refuses and the holder is told [C7,V4]', async t => {
   const { box, id, reviewer, other } = reservedConflictFixture();
   moveTrunk(box);
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
   const me = store.agentAt(board, other), peer = store.agentAt(board, reviewer).agent_id;
   /** The peer reserves while this seat runs Git, after its listItems snapshot and before its reopen. */

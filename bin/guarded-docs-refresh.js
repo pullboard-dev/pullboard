@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GENERATED_DOC_PATHS } from '../packages/merge/core.js';
+import { DEFAULT_FILE_WALL_MS } from '../packages/verify/index.js';
 
 const root = process.cwd();
 const directory = mkdtempSync(join(tmpdir(), 'pullboard-docs-refresh-'));
@@ -19,8 +20,20 @@ function run(cwd, program, args, quiet = false) {
   return result;
 }
 function git(cwd, ...args) { return run(cwd, 'git', args, true); }
+/** Put the failed test and its first error line ahead of lengthy TAP location metadata. */
+function tapFailure(output) {
+  const block = output?.match(/^\s*not ok\b[^\n]*(?:\n(?!\s*\.\.\.\s*$)[^\n]*)*/mu)?.[0];
+  if (!block) return '';
+  const name = block.split('\n')[0].trim();
+  const error = block.match(/^\s*error:\s*(?:[|>]-?\s*\n\s*([^\n]+)|([^\n]+))/mu);
+  return [name, error?.[1] ?? error?.[2]].filter(Boolean).join(': ');
+}
 function requireSuccess(result, phase) {
-  if (result.status !== 0) throw new Error(`${phase}: ${result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`}`);
+  if (result.status !== 0) {
+    const tap = tapFailure(result.stdout);
+    const detail = result.error?.message || tap?.trim() || result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
+    throw new Error(`${phase}: ${detail.replace(/\s+/gu, ' ')}`);
+  }
 }
 /** On every failed guard, notify the board and leave the original main untouched. */
 function refuse(phase, error) {
@@ -46,7 +59,7 @@ try {
   const extra = git(checkout, 'ls-files', '--others', '--exclude-standard'); requireSuccess(extra, phase);
   if (extra.stdout.trim()) throw new Error('generator created untracked files');
   const snapshot = git(checkout, 'diff', '--binary', 'HEAD'); requireSuccess(snapshot, phase);
-  phase = 'formats guard'; requireSuccess(run(checkout, process.execPath, ['--test', '--test-timeout=120000', 'docs/formats.test.js']), phase);
+  phase = 'formats guard'; requireSuccess(run(checkout, process.execPath, ['--test', `--test-timeout=${DEFAULT_FILE_WALL_MS}`, 'docs/formats.test.js']), phase);
   phase = 'docs guard'; requireSuccess(run(checkout, process.execPath, ['bin/update-docs.js', '--check']), phase);
   phase = 'guard integrity';
   const after = git(checkout, 'diff', '--binary', 'HEAD'); requireSuccess(after, phase);
