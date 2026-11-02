@@ -39,6 +39,13 @@ process.stdout.on('error', (error) => {
   process.exit(process.exitCode ?? 0);
 });
 
+// The common version probe needs only the release metadata, not the command dispatcher.
+if (process.argv.length === 3 && process.argv[2] === '--version') {
+  const { default: packageData } = await import('../package.json', { with: { type: 'json' } });
+  process.stdout.write(`${packageData.version}\n`);
+  process.exit(0);
+}
+
 // Select immutable tooling before dispatch or parsing a newer trunk's configuration.
 const { main, selectedToolEntry, asksVersion } = await import('../src/cli-main.js');
 // Promotion must remain reachable when the published build predates its replacement; --version asks Git nothing.

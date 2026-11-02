@@ -133,10 +133,7 @@ test('a read command loads only its own modules [C7]', async (t) => {
   const box = fixture(t);
   const version = box.run('--version');
   assert.match(version.stdout, /^\d+\.\d+\.\d+/u);
-  // 23 is the measured floor through cell front doors: bin, the cli-main front door and its four dispatcher modules,
-  // pinned-tool-build, kernel/core.js (3), config/core.js (4), commands/index.js with kernel/index.js (7),
-  // commands/version.js and package.json. A follow-up can shrink it by lightening those front doors.
-  assert.ok(version.modules.length <= 23, `--version loaded ${version.modules.length} repository modules: ${version.modules.join(', ')}`);
+  assert.ok(version.modules.length <= 10, `--version loaded ${version.modules.length} repository modules: ${version.modules.join(', ')}`);
   assert.equal(version.gitCalls.length, 0, `--version started Git: ${version.gitCalls.join(' | ')}`);
   const show = box.run('show', '1');
   assert.match(show.stdout, /^#1 {2}/u);
