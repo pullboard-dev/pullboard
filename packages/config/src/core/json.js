@@ -91,6 +91,7 @@ export const JSON_SHAPES = {
     submit: shape({ id: 'number', commit: 'string', pin: 'string', gate: 'object' }),
     done: shape({ id: 'number', commit: 'string', pin: 'string', gate: 'object' }),
     verify: shape({ id: 'number', decision: 'string', reason: 'string' }),
+    'verify compare': shape({ item: 'number', status: 'string' }),
     merged: shape({ id: 'number', commit: 'string' }),
     land: shape({ batch: 'object|null', landed: 'array', conflicts: 'array', blocked: 'array', culprits: 'array', flakes: 'array' }),
     withdraw: shape({ id: 'number', reason: 'string', milestones: 'array' }),
