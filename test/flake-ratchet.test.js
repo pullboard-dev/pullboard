@@ -193,3 +193,33 @@ test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t =
   assert.equal(box.git(box.repo, 'rev-parse', 'main'), before);
   assert.equal(box.git(box.remote, 'rev-parse', 'main'), before);
 });
+
+/** Two actual landings retain a falling, named quarantine count in their batch receipts. */
+test('real landings record the quarantine baseline and lower it after repair [C7,T12]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const fixtures = makeLandProjectFixtures(helpers);
+  const box = fixtures.landProject();
+  const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const board = openBoard(boardFile, undefined, { gitRoot: box.repo });
+  let repair;
+  try {
+    repair = addItem(board, { by: 'coordinator', lane: 'web', title: 'Repair synthetic flake', route: 'strong' });
+    logEvent(board, 'coordinator', 'test-quarantine', repair, { engine: 1, file: 'test/old.test.js', name: 'old case', runs: [] });
+  } finally { closeBoard(board); }
+  const first = fixtures.itemWorktree(box, 1);
+  fixtures.submitItem(box, first);
+  fixtures.acceptItem(box, first);
+  const landed = box.run(box.repo, 'land', '--json');
+  assert.equal(landed.code, 0, landed.err + landed.out);
+  assert.equal(JSON.parse(landed.out).batch.flakeRatchet.count, 1);
+  const laterBoard = openBoard(boardFile, undefined, { gitRoot: box.repo });
+  try { withdraw(laterBoard, repair, { agentId: 'coordinator', reason: 'The synthetic flake was repaired.' }); }
+  finally { closeBoard(laterBoard); }
+  const second = fixtures.itemWorktree(box, 2);
+  fixtures.submitItem(box, second);
+  fixtures.acceptItem(box, second);
+  const next = box.run(box.repo, 'land', '--json');
+  assert.equal(next.code, 0, next.err + next.out);
+  assert.equal(JSON.parse(next.out).batch.flakeRatchet.count, 0);
+});
