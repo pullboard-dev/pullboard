@@ -33,9 +33,17 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
       const file = inRoot(location[1]);
       if (file) active.file = file;
     }
+    if (active && /^\s*\.\.\.\s*$/u.test(line)) active.diagnostic = false;
+    if (active && /^\s*(?:error|expected|actual):/u.test(line)) active.diagnostic = true;
+    if (active?.diagnostic && !/^\s*stack:/u.test(line)) (active.detailLines ??= []).push(line.trim());
+    if (active && /^\s*stack:/u.test(line)) active.diagnostic = false;
     if (excludeCancelled && active && /^\s*failureType:\s*['"]?(?:cancelledByParent|subtestsFailed)['"]?\s*$/u.test(line)) active.omit = true;
   }
-  const unique = new Map(failures.filter(entry => !entry.omit).map(({ file, name }) => [`${file}\0${name}`, { name, file }]));
+  const unique = new Map(failures.filter(entry => !entry.omit).map(({ file, name, detailLines }) => {
+    const bytes = Buffer.from((detailLines ?? []).join('\n'));
+    const assertion = bytes.length > 2048 ? `${bytes.subarray(0, 2048).toString('utf8')}\n[assertion truncated at 2 KB]` : bytes.toString('utf8');
+    return [`${file}\0${name}`, { name, file, ...(assertion ? { assertion } : {}) }];
+  }));
   return [...unique.values()];
 }
 
