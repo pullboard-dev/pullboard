@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { cleanGitEnvironment } from '../../../git/index.js';
+import { testOutcomeFields } from './test-outcomes.js';
 import { Refused } from '../../../kernel/index.js';
 import { literalShellWords } from '../../../kernel/index.js';
 import { generateTestTiers } from './test-tiers.js';
@@ -141,6 +142,9 @@ export function testTierReport(plan) {
 /** A green exit with no observed test account cannot prove a selected unit or journey. */
 export function requireTestTierAccount(run, files) {
   const green = run.isGreen === true || run.green === true || run.state === 'pass';
-  const accounted = run.profile?.tests?.length || run.profile?.testOutcomes?.tests?.length || run.testOutcomes?.tests?.length;
+  const outcomes = testOutcomeFields(run.profile?.testOutcomes) ?? testOutcomeFields(run.testOutcomes);
+  const accounted = outcomes
+    ? files.every(file => outcomes.some(row => row.file === posix.normalize(file)))
+    : Boolean(run.profile?.tests?.length);
   if (green && files.length && !accounted) throw new Refused('TEST_SELECTION_UNVERIFIED', 'selected test files produced no test account; make the focused runner execute and report the selected tests');
 }
