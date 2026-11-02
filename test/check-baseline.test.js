@@ -1,13 +1,17 @@
 /** Check baselines run against main and travel with deterministic board moves [V2,H3,H16,N23]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync } from './fixture-child.js';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
+import { startFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { closeBoard, getItem } from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../src/native-board.js';
-import { checkBaseline, prepareCheckBaseline } from '../src/check-baseline.js';
+import { checkBaseline, prepareCheckBaseline } from '../packages/gate/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
@@ -131,7 +135,7 @@ function fileCheck(expected, marker = 'check-marker.txt', observations = null) {
 
 /** Add a check-bearing item as coordinator and return its JSON result and item id. */
 function addChecked(box, title, check) {
-  const result = box.run(box.repo, ['add', 'web', title, '--specs', 'G1', '--criterion', 'the check is measured on main', '--check', check, '--json']);
+  const result = box.run(box.repo, ['add', 'web', title, '--specs', 'G1', '--criterion', 'the check is measured on main', '--check', check, '--wait', '--json']);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   assert.equal(result.stderr, '', 'add writes no baseline diagnostics to stderr');
   return { result, item: JSON.parse(result.stdout).item };
@@ -165,7 +169,7 @@ function heldCheck(box, name) {
   return { started, finished, release, command: `${shellWord(process.execPath)} -e ${shellWord(script)}` };
 }
 
-test('[B35,V2,H16] add records the isolated trunk baseline before returning while edits can finish in background', async (t) => {
+test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in background', async (t) => {
   const box = project({ content: 'committed' });
   const originalMain = box.git(box.repo, 'rev-parse', 'main');
   writeFileSync(join(box.repo, 'web/result.txt'), 'dirty live checkout\n');
@@ -176,12 +180,13 @@ test('[B35,V2,H16] add records the isolated trunk baseline before returning whil
   const added = box.run(box.repo, ['add', 'web', 'Automatic baseline', '--check', command, '--json']);
   assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
   const item = JSON.parse(added.stdout).item;
-  assert.equal(item.item_check_baseline.result, 'green');
+  assert.equal(item.item_check_baseline.result, 'pending');
   assert.equal(item.item_check_baseline.main, originalMain);
+  await waitForState(() => withBoard(join(box.repo, BOARD_FILE), (board) => getItem(board, item.item_id).item_check_baseline?.result === 'green'), 'the detached add worker records its result');
   const locations = readFileSync(observations, 'utf8').trim().split('\n');
   assert.equal(locations.length, 1, 'add runs exactly one baseline');
   assert.notEqual(locations[0], box.repo);
-  assert.equal(existsSync(locations[0]), false, 'the isolated checkout is removed before add returns');
+  assert.equal(existsSync(locations[0]), false, 'the isolated checkout is removed after the baseline completes');
   assert.match(box.run(box.repo, ['show', String(item.item_id)]).stdout, /CRITERION_PROVES_NOTHING/u);
   const edited = box.run(box.repo, ['edit', String(item.item_id), '--check', edit.command, '--json']);
   assert.equal(edited.status, 0, `${edited.stdout}${edited.stderr}`);
@@ -194,6 +199,39 @@ test('[B35,V2,H16] add records the isolated trunk baseline before returning whil
   assert.equal(final.item_check_baseline.command, edit.command);
   assert.equal(final.item_check_baseline.warning, 'CRITERION_PROVES_NOTHING');
   assert.equal(readFileSync(join(box.repo, 'web/result.txt'), 'utf8'), 'dirty live checkout\n');
+});
+
+test('[B35,V2,H16] #2370 default add returns before a held baseline completes', async (t) => {
+  const box = project({ content: 'committed' });
+  const held = heldCheck(box, 'add-default-held');
+  t.after(() => writeFileSync(held.release, 'release'));
+  const added = box.run(box.repo, ['add', 'web', 'Background held check', '--check', held.command, '--json'], undefined, { timeout: 8000 });
+  assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
+  assert.equal(JSON.parse(added.stdout).item.item_check_baseline.result, 'pending');
+  await waitForState(() => existsSync(held.started), 'the background baseline starts');
+  assert.equal(existsSync(held.finished), false, 'add returned before the held baseline finished');
+  writeFileSync(held.release, 'release');
+});
+
+test('[B35,V2,H16] #2370 waited add releases checkout while its baseline runs', async (t) => {
+  const box = project({ content: 'committed' });
+  const held = heldCheck(box, 'add-checkout-release');
+  box.env.CODEX_THREAD_ID = 'baseline-add-wait-fixture';
+  const child = startFixtureChild(process.execPath, [BIN, 'add', 'web', 'Wait without checkout lock', '--check', held.command, '--wait', '--json'],
+    { cwd: box.repo, env: box.env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = ''; child.stdout.on('data', chunk => { stdout += chunk; });
+  const done = new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
+  t.after(() => { writeFileSync(held.release, 'release'); if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); });
+  await waitForState(() => existsSync(held.started), 'the add baseline starts');
+  assert.equal(existsSync(held.finished), false, 'the add still waits for the held baseline');
+  const probe = box.run(box.repo, ['verify', '999999', 'accept', '--note', 'checkout lock probe', '--as', 'coordinator', '--json'], undefined, { timeout: 8000 });
+  assert.notEqual(probe.status, null, `verify must acquire checkout while the baseline waits: ${probe.stderr}`);
+  assert.equal(JSON.parse(probe.stdout).error.code, 'NO_ITEM');
+  assert.equal(existsSync(held.finished), false, 'verify completed before the baseline was released');
+  writeFileSync(held.release, 'release');
+  const result = await done;
+  assert.equal(result.status, 0, `waited add failed: ${stdout}`);
+  assert.equal(JSON.parse(stdout).item.item_check_baseline.result, 'green');
 });
 
 test('[V2,H16] --wait keeps the check blocking and the captured base survives a later main commit', (t) => {
@@ -267,7 +305,7 @@ test('[V2,H3,H16] green baseline warns through add edit show and private next ve
   const shown = box.run(box.repo, ['show', String(item.item_id)]);
   assert.equal(shown.status, 0, shown.stderr);
   assert.match(shown.stdout, /CRITERION_PROVES_NOTHING/u);
-  const textAdded = box.run(box.repo, ['add', 'web', 'Text baseline warning', '--check', check]);
+  const textAdded = box.run(box.repo, ['add', 'web', 'Text baseline warning', '--check', check, '--wait']);
   assert.equal(textAdded.status, 0, textAdded.stderr);
   assert.match(textAdded.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
   const textEdited = box.run(box.repo, ['edit', String(item.item_id), '--check', `${changedCheck}\n# a distinct command`, '--wait']);
@@ -494,7 +532,8 @@ function apiMove(box, move, channel, env) {
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
     const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
-    const apiBoardOpeners = { openBoard, openBoardForRead };
+    const { moveArgs } = await import(${JSON.stringify(new URL('../packages/person/index.js', import.meta.url).href)});
+    const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     const response = await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, ${JSON.stringify(channel)}, undefined, apiBoardOpeners);
     process.stdout.write(JSON.stringify(response));
   `;
@@ -563,7 +602,7 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   assert.deepEqual(JSON.parse(accepted.stdout).digest, digest, 'the acceptance binds to the exact check text');
   const claimed = box.run(box.web, ['next', '--build', '--json']);
   assert.equal(claimed.status, 0, `the person's acceptance lifts the hold for next --build: ${claimed.stdout}${claimed.stderr}`);
-  const acceptedClaim = showItem(box, id).item;
+  let acceptedClaim = showItem(box, id).item;
   assert.equal(acceptedClaim.item_owner, 'web-1', 'next --build claimed the accepted item');
 
   /** A native correction is already frozen and retains the claim while the check's hold is evaluated. */
@@ -585,6 +624,8 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const resubmitted = refusal(box.run(box.web, ['submit', id, '--json']), 'submit after a changed check');
   assert.equal(resubmitted.code, 'CRITERION_PROVES_NOTHING', 'a changed check needs a new acceptance: submit is refused');
   assert.ok(resubmitted.message.includes(changed), `the submit refusal names the changed check: ${resubmitted.message}`);
+  // Submit may renew the claim even when the check hold refuses it.
+  acceptedClaim = showItem(box, id).item;
 
   const red = fileCheck('done', 'red-check-marker.txt');
   const corrected = box.run(box.repo, ['edit', id, '--check', red, '--reason', 'the old check already passed on main', '--wait', '--json'], undefined, { env });
@@ -616,12 +657,12 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   assert.equal(plainSubmit.status, 0, `a board with no setting submits the green check: ${plainSubmit.stdout}${plainSubmit.stderr}`);
 });
 
-test('[B35,V2] default add records a red baseline and immediately flags an already-green check', () => {
+test('[B35,V2] #2370 waited add records a red baseline and flags an already-green check', () => {
   const box = project({ content: 'before' });
   const red = addChecked(box, 'Red baseline', fileCheck('after'));
   assert.equal(red.item.item_check_baseline.result, 'red');
   assert.equal(red.item.item_check_baseline.main, box.git(box.repo, 'rev-parse', 'main'));
-  const green = box.run(box.repo, ['add', 'web', 'Already green', '--check', fileCheck('before')]);
+  const green = box.run(box.repo, ['add', 'web', 'Already green', '--check', fileCheck('before'), '--wait']);
   assert.equal(green.status, 0, `${green.stdout}${green.stderr}`);
   assert.match(green.stdout, /warning: \[CRITERION_PROVES_NOTHING\]/u);
 });

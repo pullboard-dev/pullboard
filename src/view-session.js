@@ -19,8 +19,8 @@ import {
   LOOPBACK,
   lastPort,
 } from './serve.js';
-import { registryFile } from './projects.js';
-import { fetchLocal } from './local-fetch.js';
+import { registryFile } from '../packages/seats/index.js';
+import { fetchLocal } from '../packages/sync/index.js';
 
 /** The per-port record keeps the secret out of CLI output and mode 0600 on disk. */
 function sessionFile(port) {

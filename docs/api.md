@@ -47,7 +47,7 @@ Freshness never rewrites the stored ACCEPT or its verdict row. New accept/reject
 
 For a stale acceptance, merge current main into the submitted work and commit a clean review HEAD. Another agent runs `pullboard verify <id> accept --note "what was re-reviewed"`; its frozen check runs at that combined HEAD, and a new verdict appends to the history while retaining the original submitted commit. A main move during the check refuses `VERDICT_TRUNK_MOVED` and requires another review. `resume` keeps stale acceptances out of its merge list. `land` excludes stale items (and reports their file and commit); when none remain ready, it refuses `STALE_VERDICT`. Nothing in this observation changes the approved criterion or grants person authority.
 
-The board setting `submit.requireInfraNote` in the coordinator's accepted `pullboard.json` is `false` by default. With it `true`, a submit that edits a test file, `pullboard.json`, a githook or a file a gate command names, and that already existed at the claim, is refused with `INFRA_NOTE_REQUIRED` until it carries `--infra "<why>"`. The refusal names the files. With either setting, a supplied note and those files are recorded on the item's `submit` event as `infra: {note, files}`, and `pullboard show` prints them for the reviewer as `infra note:`. A new test file needs no note.
+When a submit edits an existing test, `pullboard.json`, a githook or a file named by a gate command, it records the supplied `--infra "<why>"` note or drafts one from the diff. The submit event records `infra: {note, files}`, and `pullboard show` displays it to the reviewer. A new test file needs no note.
 
 A submit whose frozen check passes may retain red required tests only when a fresh exact-main comparison matches every failing file, case name and failure signature, and each failure has at most one owner: the single still-open `Main red:` repair whose frozen check names its test file, or, when several name the file, the one whose criterion names the exact case title. A case with several candidate owners and none naming it alone refuses submission, and the refusal lists the candidates. A failure with exactly one such repair is linked to it, and the ordered submit rechecks those links. Its receipt keeps `knownMainFailures: {main, failures: [{file, name, signature, item}]}`; the report also lists `knownMainReworks: [{file, name, item}]`, and the durable measurement fact names the repairs for reviewers in `show` text and JSON. A failure with no open repair is accepted the same way as an unowned frozen-check case: the report lists `knownMainUnowned: [{file, name}]`, a measurement fact names it, and one decision shout asks the coordinator to file or assign its repair; submit files no item. No matching cases or an unbound test path can authorize a known-main exception.
 
@@ -185,6 +185,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `submit` | `version:number`, `id:number`, `commit:string`, `pin:string`, `gate:object` |
 | `done` | `version:number`, `id:number`, `commit:string`, `pin:string`, `gate:object` |
 | `verify` | `version:number`, `id:number`, `decision:string`, `reason:string` |
+| `verify compare` | `version:number`, `item:number`, `status:string` |
 | `merged` | `version:number`, `id:number`, `commit:string` |
 | `land` | `version:number`, `batch:object\|null`, `landed:array`, `conflicts:array`, `blocked:array`, `culprits:array`, `flakes:array` |
 | `withdraw` | `version:number`, `id:number`, `reason:string`, `milestones:array` |
@@ -229,8 +230,10 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `hook pre-push` | `version:number`, `messages:array` |
 | `heartbeat` | `version:number`, `seat:string\|null`, `presence:string`, `heartbeatAt:string\|null` |
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
+| `seats` | `version:number`, `seats:array` |
 | `stats moves` | `version:number`, `moves:object` |
 | `stats pipeline` | `version:number`, `pipeline:object` |
+| `stats time` | `version:number`, `time:object` |
 | `tool-build` | `version:number`, `build:object\|null` |
 <!-- api-command-shapes:end -->
 
@@ -459,7 +462,7 @@ The server checks any Origin against its own address and grants no CORS permissi
 | `GET /api/v1/boards/:board/state?detail=full` | The same state with every item in full, which static view exports read |
 | `GET /api/v1/boards/:board/state?since=N` | What changed in the summary state since the snapshot this server sent at event N, and the new latest sequence |
 | `GET /api/v1/boards/:board/cost-analytics?window=today&#124;7d&#124;30d` | Private local Cost analytics for the selected window; unavailable to hosted and relay clients |
-| `GET /api/v1/boards/:board/proofs/:item` | One item’s full flow proof record, authenticated like board state |
+| `GET /api/v1/boards/:board/proofs/:id` | One item’s full flow proof record, authenticated like board state |
 | `GET /api/v1/boards/:board/items/:id` | One item's full detail: the fields its summary leaves out |
 | `GET /api/v1/boards/:board/items?q=text` | The ids of the items whose id, title, lane, spec ids or criterion contain the text, ignoring case |
 | `GET /api/v1/boards/:board/shouts/:id` | One shout from any point in the board's history, including its decision and answer fields |

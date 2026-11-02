@@ -1,7 +1,7 @@
 import { conditionalHoldFloor } from '../packages/health/index.js';
 import { recordFamilyDeclareActivation } from '../src/family-declaration.js';
 import { withDerivedFamily } from '../src/family-declaration.js';
-import { policyAt } from '../packages/sandbox/index.js';
+import { mainPolicy, policyAt } from '../packages/sandbox/index.js';
 import { frozenCheck } from '../packages/sandbox/index.js';
 import { itemPolicy } from '../packages/sandbox/index.js';
 import { requireTrunkMerge } from '../packages/sandbox/index.js';
@@ -14,7 +14,7 @@ import { MOVE_REGISTRY } from '../src/move-registry.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { declaredMoveActor } from '../src/move-registry.js';
-import { relayPresentation, relaySnapshot, relayPresentationShout } from '../src/relay-presentation.js';
+import { relayPresentation, relaySnapshot, relayPresentationShout } from '../packages/pages/index.js';
 import { verifiedPasskeyRowDecision as presentation_verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import { pendingFit as presentation_pendingFit } from '../packages/blueprints/index.js';
 import { projectFit as presentation_projectFit } from '../packages/blueprints/index.js';
@@ -26,7 +26,7 @@ import { viewProofSummary as presentation_viewProofSummary } from '../src/view-s
 import { fitFile as presentation_fitFile } from '../packages/blueprints/index.js';
 import { boardEnginePorts } from '../src/board-engine-ports.js';
 import { validPresence } from '../packages/person/index.js';
-import { recordTrainLanding } from '../src/record-train-landing.js';
+import { recordTrainLanding } from '../packages/landing/index.js';
 /** Native construction binds all capabilities before guards and preserves the public board API [C7,B1,B2]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -338,7 +338,7 @@ test('the native operation bag and counted public bridge retain actual authority
 test('native engine composition keeps supplied upper operations and refuses missing providers before storage [C7,B1,H16]', t => {
   const board = fixtureBoard(t);
   const original = native.nativeBoardPorts().enginePorts;
-  assert.deepEqual(original.sandboxPolicyReads, { policyAt, frozenCheck, itemPolicy, requireTrunkMerge });
+  assert.deepEqual(original.sandboxPolicyReads, { mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge });
   assert.ok(Object.isFrozen(original.sandboxPolicyReads));
   assert.equal(original.firstRefusalDetail, firstRefusalDetail);
   assert.equal(original.itemPatchDigest, itemPatchDigest);
@@ -379,7 +379,7 @@ test('native engine composition keeps supplied upper operations and refuses miss
 
   assert.equal(composed.store.recordTrainLanding, trainProvider);
   assert.equal(composed.sandboxPolicyReads, original.sandboxPolicyReads, 'the root passes exact canonical function identities without a cache or fallback');
-  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+  for (const name of ['mainPolicy', 'policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
     const missingReads = { ...original.sandboxPolicyReads };
     delete missingReads[name];
     assert.throws(() => boardEnginePorts({ ...providers, sandboxPolicyReads: missingReads }),
@@ -424,7 +424,7 @@ test('sandbox policy capabilities refuse before any SQLite path is created [C7,B
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const file = join(directory, 'never-created', 'board.sqlite');
   const ports = native.nativeBoardPorts();
-  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+  for (const name of ['mainPolicy', 'policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
     const sandboxPolicyReads = { ...ports.enginePorts.sandboxPolicyReads };
     delete sandboxPolicyReads[name];
     const enginePorts = { ...ports.enginePorts, sandboxPolicyReads };

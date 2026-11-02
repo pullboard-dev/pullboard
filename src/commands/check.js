@@ -1,7 +1,7 @@
 import { frozenCheckTiming } from '../check-timing.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 import { requirePersonChannel } from '../../packages/person/index.js';
 /** The pullboard check command, in its own module so an item adding another command never edits these lines. */
@@ -9,7 +9,7 @@ import * as store from '../board.js';
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../browser-admission.js';
+} from '../../packages/gate/index.js';
 import {
   checkAcceptCommand,
 } from '../../packages/verify/index.js';
@@ -25,7 +25,7 @@ import {
   runStaticChecks,
   timingDigest,
   withGateSlot,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   Refused,

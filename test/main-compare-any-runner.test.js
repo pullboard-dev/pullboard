@@ -4,12 +4,12 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
-import { compareMainFailures, comparisonExecutor } from '../src/main-red.js';
+import { compareMainFailures, comparisonExecutor } from '../packages/landing/index.js';
 import { executionEnvironment } from '../packages/sandbox/index.js';
 import { runProfiledShell } from '../src/gate-execution.js';
-import { withGateSlot } from '../src/gate.js';
-import { recordReceipt } from '../src/gate-receipt.js';
-import { failureSignatures, matchingMainFailures } from '../src/main-failure-matches.js';
+import { withGateSlot } from '../packages/gate/index.js';
+import { recordReceipt } from '../packages/gate/index.js';
+import { failureSignatures, matchingMainFailures } from '../packages/landing/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { executionServices } from './gate-execution-fixture.js';

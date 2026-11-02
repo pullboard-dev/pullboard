@@ -13,7 +13,7 @@ import { createGitHubClient } from '../relay/github.js';
 import { createRelayHandler } from '../relay/service.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { generateBoardKey, seal } from '../packages/kernel/src/core/seal.js';
-import { readSealedDescriptor, readSealedValue, writeSealedDescriptor, writeSealedValue } from '../src/sealed-pages.js';
+import { readSealedDescriptor, readSealedValue, writeSealedDescriptor, writeSealedValue } from '../packages/pages/index.js';
 import { githubFixture } from './relay-fixture.js';
 
 const BOARD = 'a'.repeat(32);
@@ -205,4 +205,27 @@ test('small authenticated storage probes collect expired staging across the acco
   assert.equal((await box.read(head.document.state)).marker, 'retained current head');
   const invalid = await box.call('GET', '/api/v2/boards/' + BOARD + '/storage', undefined, 'pa_' + 'x'.repeat(43));
   assert.equal(invalid.status, 401);
+});
+
+
+test('API2 root reads count account storage once and observe fresh changes [H5,H17]', async t => {
+  const box = await fixture(t);
+  const first = await box.stage({ marker: 'first counted root' });
+  assert.equal((await box.publish(first)).status, 200);
+  const storageBoards = box.auth.storageBoards;
+  let scans = 0;
+  /** Count real account enumeration without replacing its ownership or storage data. */
+  box.auth.storageBoards = (...args) => { scans++; return storageBoards(...args); };
+  const firstHead = await box.call('GET', '/api/v2/boards/' + BOARD + '/state');
+  assert.equal(firstHead.status, 200);
+  assert.equal(scans, 1, 'one root read performs one fresh account-wide storage count');
+  const before = firstHead.document.state.storage.usedBytes;
+  await box.stage({ marker: 'new retained staging', text: randomBytes(2000).toString('base64') });
+  scans = 0;
+  const nextHead = await box.call('GET', '/api/v2/boards/' + BOARD + '/state');
+  assert.equal(nextHead.status, 200);
+  assert.equal(scans, 1, 'the next request recounts rather than reusing a stale total');
+  assert.ok(nextHead.document.state.storage.usedBytes > before);
+  assert.equal(nextHead.document.state.root.id, first.reference.id);
+  assert.equal((await box.read(nextHead.document.state)).marker, 'first counted root');
 });

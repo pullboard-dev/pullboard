@@ -10,12 +10,15 @@ import {
 import { itemFileCollisions } from '../../packages/items/index.js';
 import { sayMapSlice } from '../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
+import { cleanItemFolders } from '../item-folder.js';
+import { openItemFolder } from '../item-folder.js';
 import {
   MainSpecMerged,
   actOn,
   claimFreezer,
   claimOrdered,
   idArg,
+  ordered,
   whoAmI,
   wrongLaneGuidance,
 } from '../cli.js';
@@ -25,10 +28,11 @@ export async function run(io, { first }) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   const id = idArg(first);
+  cleanItemFolders(ctx, board, me, listItems);
   let result;
   for (;;) {
     try {
-      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
+      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, itemFolder: true, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
       break;
     } catch (error) {
       if (!(error instanceof MainSpecMerged)) throw await wrongLaneGuidance(ctx, board, me, id, error);
@@ -37,11 +41,17 @@ export async function run(io, { first }) {
     }
   }
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
+  const itemFolder = await openItemFolder(ctx, me, id, { board,
+    onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
+      text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
+      ref: null }]),
+  });
   const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
-  io.result?.({ id, ...result, ...(warnings.length ? { warnings } : {}) });
+  io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);
   await sayMapSlice(io, ctx, getItem(board, id), primaryCheckoutRoot);
   io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
+  if (itemFolder) io.say(`item folder: ${itemFolder}`);
   io.say(commitRules);
   // A claim released for idleness carries its work: the next builder sees the pinned commit and the files it changed (#1225).
   if (!result.renewed) {

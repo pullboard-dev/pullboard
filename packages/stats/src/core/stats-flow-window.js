@@ -2,8 +2,8 @@
 import { Refused } from '../../../kernel/core.js';
 import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 import { NEXT_IDLE_ENGINE } from '../../../../src/next-idle-engine.js';
-import { flowWindowBounds } from '../../../../src/flow-window-bounds.js';
-export { flowWindowBounds } from '../../../../src/flow-window-bounds.js';
+import { flowWindowBounds } from '../../../seats/core.js';
+export { flowWindowBounds } from '../../../seats/core.js';
 
 const MINUTE = 60_000;
 export const WINDOW_STAGES = ['build', 'reviewWait', 'review', 'sendBackIdle', 'mergeWait'];
@@ -158,7 +158,7 @@ export function flowWindowLines(flowWindow) {
 }
 
 const HOUR = 3_600_000;
-const IDLE_REASONS = ['nothing-eligible', 'held', 'review-family', 'main-red', 'unknown'];
+const IDLE_REASONS = ['nothing-eligible', 'held', 'review-family', 'main-red', 'focus', 'unknown'];
 const COMPARE_STAGES = { build: 'build', rework: 'rework', reviewWait: 'reviewWait', review: 'review', land: 'mergeWait' };
 
 /** Adjacent count windows are open at the start and closed at the end, so no boundary move is counted twice. */

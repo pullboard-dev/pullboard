@@ -1,7 +1,8 @@
 /** Empty-next observations use the existing authenticated ordered protocol [R2,N2]. */
 import { NEXT_IDLE_ENGINE } from "../../../../../src/next-idle-engine.js";
+import { FOCUS_BOUNDARY_ENGINE } from '../../../../../src/focus-boundary-engine.js';
 /** Older replicas must not silently omit a prospective observation. */
-function minimumEngine() { return NEXT_IDLE_ENGINE; }
+function minimumEngine(args) { return args[0]?.reason === 'focus' ? FOCUS_BOUNDARY_ENGINE : NEXT_IDLE_ENGINE; }
 /** Bind the observation to its authenticated native actor. */
 function actor(move) { return move.args[0]?.agentId ?? null; }
 export default Object.freeze({ operation: 'recordNextIdle', order: 1000, engine: NEXT_IDLE_ENGINE,

@@ -42,6 +42,8 @@ import {
 } from '../src/shell/resources.js';
 
 const e2e = createE2eHelpers();
+// budget: measured stand-in boot allowance already used by runner-transport-lost; the actual deadline and fallback assertions remain exercised.
+const STAND_IN_BOOT_BUDGET_MS = 8_000;
 after(e2e.cleanup);
 after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
@@ -83,7 +85,7 @@ async function observe(predicate, description) {
 }
 
 test('a gate run waiting for an unreachable runner falls back to a local slot after the deadline and names the runner [C7,Q1,Q2]', async () => {
-  const box = fixture({ runnerWaitMs: 1_000, healthDown: true });
+  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, healthDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -104,7 +106,7 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
     await observe(() => queue()?.line.some(row => row.item === 'deadline-case'), 'the original run requeued after transport loss');
     const first = queue().line.find(row => row.item === 'deadline-case');
-    await new Promise(resolve => setTimeout(resolve, 1_100)); // budget: pass the private one-second deadline while the real local holder stays held.
+    await new Promise(resolve => setTimeout(resolve, STAND_IN_BOOT_BUDGET_MS + 100)); // budget: cross the declared private deadline while the real local holder stays held.
     const resources = cli(box.repo, box.env, 'resources');
     assert.equal(resources.status, 0, fixtureResultContext(resources));
     assert.match(resources.stdout, /runner wait deadline/iu, 'public resources names the overdue run');
@@ -153,7 +155,7 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
 });
 
 test('a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
-  const box = fixture({ hold: 'dispatch', runnerWaitMs: 1_000 });
+  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -389,6 +391,34 @@ test('an overdue runner-only request refuses busy capacity with its next step in
   });
 });
 
+test('a missed READY readmits the original ticket on a free runner without awaiting its recovery probe [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [...settings.runners, { ...settings.runners[0], host: HOST + '-second' }];
+    let probeStarted = false, finishProbe;
+    const pendingProbe = new Promise(done => { finishProbe = done; });
+    const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
+      runnerProvider: () => runners, runnerWaitMs: 60,
+      runnerHealthProbe: async () => { probeStarted = true; return pendingProbe; },
+      runnerIdleProbe: async () => { probeStarted = true; return pendingProbe; } };
+    let lease = await takeResource(options);
+    const token = lease.token;
+    const firstHost = lease.runner.host;
+    try {
+      await new Promise(done => setTimeout(done, 80)); // budget: cross the declared private 60ms readiness deadline before requeueing.
+      lease = await lease.requeueRunner('worker-unresponsive', {
+        diagnostic: { reason: 'admission-deadline' } });
+      assert.notEqual(lease.runner.host, firstHost);
+      assert.equal(lease.token, token, 'the retry retains the original ticket identity');
+      assert.equal(probeStarted, true, 'the unready worker is probed independently of admission');
+      const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
+      assert.equal(pool.line.length, 0, 'the free compatible runner is taken in the first dispatch cycle');
+      const remote = listResources({ scope: 'machine' }).find(row => row.name === `runner:${lease.runner.host}`);
+      assert.equal(remote.holders.length, 1, 'the actual remote slot remains reserved');
+    } finally { lease.release(); finishProbe({ healthy: false, reason: 'worker still unready' }); }
+  });
+});
+
 test('a failed late dispatch cannot buy another startup budget on a different free runner [C7,Q1,Q2]', async () => {
   const box = fixture();
   await withPrivateDeadlineMachine(box, async settings => {
@@ -421,14 +451,17 @@ test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1
     const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
       runnerProvider: () => settings.runners };
     let held = await takeResource(options), admitted;
-    let signalQueued, releaseQueue;
+    let signalQueued, releaseQueue, observedWait;
     const queued = new Promise(done => { signalQueued = done; });
     const barrier = new Promise(done => { releaseQueue = done; });
     const older = takeResource({ ...options, runnerWaitMs: 5_000, agent: 'older-runner-waiter', onWait: async state => {
-      if (!state.admitted) { signalQueued(); await barrier; }
+      if (!state.admitted) { observedWait = state.runnerWait; signalQueued(); await barrier; }
     } });
     try {
       await queued;
+      assert.equal(observedWait.runners[0].slots.free, 0);
+      assert.equal(observedWait.runners[0].holders.length, 1);
+      assert.equal(observedWait.runners[0].browser.total, 1);
       let waited = false;
       await assert.rejects(takeResource({ ...options, runnerWaitMs: 60, agent: 'later-runner-waiter', onWait: async state => {
         if (state.admitted || waited) return;
@@ -445,5 +478,125 @@ test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1
       admitted ??= await older;
       admitted?.release();
     }
+  });
+});
+
+test('a waiting older ticket reserves only one of two free runner slots [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
+      runnerProvider: () => settings.runners.map(runner => ({ ...runner, slots: 2 })) };
+    let first = await takeResource(options), second = await takeResource(options), later, admitted;
+    let signalQueued, releaseQueue;
+    const queued = new Promise(done => { signalQueued = done; });
+    const barrier = new Promise(done => { releaseQueue = done; });
+    const older = takeResource({ ...options, runnerWaitMs: 5_000, agent: 'older-idle-slot', onWait: async state => {
+      if (!state.admitted) { signalQueued(); await barrier; }
+    } });
+    try {
+      await queued;
+      first.release(); first = null;
+      second.release(); second = null;
+      later = await takeResource({ ...options, runnerWaitMs: 1_000, agent: 'later-idle-slot' });
+      assert.equal(later.runner.host, settings.runners[0].host, 'the spare slot starts the later eligible request');
+      releaseQueue();
+      admitted = await older;
+      assert.equal(admitted.runner.host, later.runner.host, 'one slot remains reserved for the earlier ticket');
+    } finally {
+      first?.release(); second?.release(); later?.release(); releaseQueue();
+      admitted ??= await older;
+      admitted?.release();
+    }
+  });
+});
+
+test('runner-only browser refusal retries with a browser lease [C7,Q1,Q2]', async () => {
+  const box = fixture({ dropFirst: false });
+  const gateUrl = pathToFileURL(join(process.cwd(), 'src/gate.js')).href;
+  const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}
+let calls = 0;
+const result = await withGateSlot(process.cwd(), lease => {
+  calls += 1;
+  if (calls === 1) {
+    if (lease.browser) throw new Error('first attempt unexpectedly has browser capacity');
+    const error = new Error('authenticated runner refusal');
+    error.code = 'RUNNER_BROWSER_SLOT_REQUIRED';
+    error.runnerAttempt = { host: lease.runner.host, exitCode: 1, output: 'refused' };
+    throw error;
+  }
+  return { browser: lease.browser, host: lease.runner.host };
+}, { executionServices, remote: true, runnerOnly: true, browser: false, runnerWaitMs: 5000 });
+process.stdout.write(JSON.stringify({ calls, result }));`;
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env });
+  assert.equal(result.status, 0, result.stderr);
+  const outcome = JSON.parse(result.stdout);
+  assert.equal(outcome.calls, 2);
+  assert.equal(outcome.result.browser, true);
+  assert.equal(outcome.result.runnerAttempt.output, 'refused');
+});
+
+test('a direct flexible request prefers an idle browser-free runner [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [{ ...settings.runners[0], host: HOST + '-browser', slots: 1, browser: 1 },
+      { ...settings.runners[0], host: HOST + '-plain', slots: 1, browser: 0 }];
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true, runnerOnly: true,
+      runnerProvider: () => runners };
+    const flexible = await takeResource(options);
+    let browser;
+    try {
+      assert.equal(flexible.runner.host, HOST + '-plain', 'browser capacity stays free without a queued browser waiter');
+      browser = await takeResource({ ...options, browser: true, runnerWaitMs: 1_000 });
+      assert.equal(browser.runner.host, HOST + '-browser');
+    } finally { browser?.release(); flexible.release(); }
+  });
+});
+
+test('an older flexible waiter leaves a scarce browser host for a browser waiter [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [{ ...settings.runners[0], host: HOST + '-browser', slots: 1, browser: 1 },
+      { ...settings.runners[0], host: HOST + '-plain', slots: 1, browser: 0 }];
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true, runnerOnly: true,
+      runnerProvider: () => runners };
+    let first = await takeResource(options), second = await takeResource(options), later, admitted;
+    let signalQueued, releaseQueue;
+    const queued = new Promise(done => { signalQueued = done; });
+    const barrier = new Promise(done => { releaseQueue = done; });
+    const older = takeResource({ ...options, runnerWaitMs: 5_000, onWait: async state => {
+      if (!state.admitted) { signalQueued(); await barrier; }
+    } });
+    try {
+      await queued;
+      first.release(); first = null;
+      second.release(); second = null;
+      later = await takeResource({ ...options, browser: true, runnerWaitMs: 1_000 });
+      assert.equal(later.runner.host, HOST + '-browser');
+      releaseQueue();
+      admitted = await older;
+      assert.equal(admitted.runner.host, HOST + '-plain');
+    } finally {
+      first?.release(); second?.release(); later?.release(); releaseQueue();
+      admitted ??= await older;
+      admitted?.release();
+    }
+  });
+});
+
+test('a suite starts promptly on a mostly idle runner fleet [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = Array.from({ length: 5 }, (_, index) => ({ ...settings.runners[0], host: `${HOST}-fleet-${index}`, slots: 9, browser: 9 }));
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true,
+      runnerOnly: true, runnerProvider: () => runners };
+    const held = [];
+    let suite;
+    try {
+      for (let index = 0; index < 12; index += 1) held.push(await takeResource(options));
+      suite = await takeResource({ ...options, browser: true, kind: 'suite', runnerWaitMs: 5_000,
+        onWait: state => { if (!state.admitted) assert.fail('a mostly idle fleet must admit without queueing'); } });
+      assert.ok(suite.runner);
+    } finally { suite?.release(); for (const lease of held) lease.release(); }
   });
 });

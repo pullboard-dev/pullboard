@@ -1,13 +1,18 @@
 import { submitHandoffEventContract } from './generated-doc-handoff-fixture.js';
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../src/native-board.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
+import { randomUUID } from 'node:crypto';
+import { writeBoardCommand } from '../src/board-command-write.js';
+import { shout } from '../packages/store/index.js';
 import { completeSubmitHandoff, startSubmitHandoff } from '../src/submit-handoff-state.js';
 
 /** Require authentic command success before interpreting any native result. */
@@ -28,9 +33,14 @@ function state(box, id) {
 function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
-function fixture(t, { enabled = true, result = 'green', companion = false } = {}) {
+function fixture(t, { enabled = true, result = 'green', companion = false, cells = false } = {}) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('true');
+  const isolated = helpers.sandbox();
+  // Isolate admission before init and commit hooks, as well as the nested queued worker.
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
+  let box;
+  try { box = helpers.project('true', isolated); }
+  catch (error) { helpers.cleanup(); throw error; }
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
   const releases = [release];
@@ -52,7 +62,12 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
   ].join('\n'));
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled } }, null, 2) + '\n');
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...(cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'bin/'] } } } : {}) }, null, 2) + '\n');
+  if (cells) {
+    mkdirSync(join(box.repo, 'bin'), { recursive: true });
+    writeFileSync(join(box.repo, 'bin/cells-plan.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');
+    box.git(box.repo, 'add', 'bin/cells-plan.json');
+  }
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -109,6 +124,44 @@ async function waitJob(box, expected) {
   catch (error) { throw new Error(`${error.message}\n${workerDiagnostic(box, box.id)}`, { cause: error }); }
 }
 
+test('queue preparation retries a real peer commit and still bounds continuous changes [B2,V4,H16,E18]', t => {
+  const box = fixture(t);
+  // @pullboard-board-file locking: a second native connection commits while source sealing is outside BEGIN.
+  const board = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+  const peer = openBoard(box.boardFile, undefined, { gitRoot: box.web });
+  try {
+    const item = getItem(board, box.id);
+    const seal = board.enginePorts.sealSubmitHandoffQueue;
+    let calls = 0;
+    let continuous = true;
+    board.enginePorts = { ...board.enginePorts,
+      /** Preserve the real source seal and introduce only an actual concurrent native message. */
+      sealSubmitHandoffQueue(b, id, options) {
+        const result = seal(b, id, options);
+        calls++;
+        if (continuous || calls === 1) shout(peer, { from: item.item_owner, to: 'all', text: `Peer commit during queue preparation ${calls}` });
+        return result;
+      },
+    };
+    const options = { agentId: item.item_owner, job: randomUUID(), main: box.git(box.web, 'rev-parse', 'main'),
+      commit: box.commit, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), executionCommit: box.commit,
+      executionTree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'), digest: item.item_frozen_digest,
+      companionDigest: null, leaseMs: 7_200_000 };
+    assert.throws(() => writeBoardCommand(board, 'queueSubmitHandoff', [box.id, options], item.item_owner), { code: 'BOARD_BUSY' });
+    assert.equal(calls, 4, 'continuous commits exhaust the existing four attempts without widening its budget');
+    assert.equal(submitHandoff(board, box.id), null, 'no stale queue record is partially published');
+    continuous = false;
+    calls = 0;
+    const result = writeBoardCommand(board, 'queueSubmitHandoff', [box.id, options], item.item_owner);
+    assert.equal(calls, 2, 'one real peer commit causes exactly one fresh preparation');
+    assert.equal(result.created, true);
+    assert.equal(result.job.commit, box.commit);
+    assert.equal(result.job.agentId, item.item_owner);
+    completeSubmitHandoff(board, box.id, { agentId: item.item_owner, job: result.job.id,
+      result: { code: 1, error: { code: 'FIXTURE_FINISHED', message: 'The private native queue observation finished.', next: 'No worker was launched.' } } });
+  } finally { peer.db.close(); board.db.close(); }
+});
+
 test('queued submit returns before its gate and remains bound when the builder commits and claims again [V4,H16,E18]', async t => {
   const box = fixture(t, { companion: true });
   const author = join(box.dir, 'companion-author');
@@ -132,17 +185,23 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
   assert.equal(existsSync(join(box.web, 'web/snapshot.txt')), false, 'the next build no longer contains the queued candidate');
   document(box.run(box.web, 'claim', String(box.second), '--json'));
-  const third = box.run(box.web, 'claim', String(box.third), '--json');
+  assert.equal(helpersCommit(box, 'web/second.txt', 'second\n').status, 0, 'real commit hooks select only the ordinary second claim');
+  const secondQueued = document(box.run(box.web, 'submit', String(box.second), '--no-next', '--json'));
+  assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
+  document(box.run(box.web, 'claim', String(box.third), '--json'));
+  const fourth = document(box.run(box.repo, 'add', 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
+  const third = box.run(box.web, 'claim', String(fourth), '--json');
   assert.equal(third.code, 1);
   assert.equal(JSON.parse(third.out).error.code, 'ONE_CLAIM');
   const duplicate = state(box, box.id).job;
   assert.equal(duplicate.commit, box.commit);
   writeFileSync(box.release, 'release\n');
-  await box.helpers.waitFor(() => state(box, box.id).job?.state === 'green', 'native proved submission', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
+  await waitJob(box, 'green');
+  await box.helpers.waitFor(() => state(box, box.second).job?.state === 'green', 'second native submit completes independently', 120000); // budget: owned-worker cleanup ceiling, not a performance assertion.
   const completed = state(box, box.id);
   assert.equal(completed.item.item_status, 'submitted');
   assert.equal(completed.item.item_commit, box.commit);
-  assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
+  assert.equal(state(box, box.second).item.item_built_by, completed.job.agentId);
   assert.deepEqual(readFileSync(box.started, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }]);
   assert.notEqual(completed.job.executionCommit, box.commit, 'the native companion composition was actually executed');
   assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }], 'the gate still read the captured source after the builder moved');
@@ -150,6 +209,165 @@ test('queued submit returns before its gate and remains bound when the builder c
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   document(box.run(reviewer, 'join', 'api', '--json'));
   assert.equal(document(box.run(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
+});
+
+test('queued gate retains the tool build when the builder changes it [V4,H16,E18]', async t => {
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'builder-tools');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const actualTemp = join(box.dir, 'actual-temp');
+  const aliasedTemp = join(box.dir, 'aliased-temp');
+  mkdirSync(actualTemp);
+  symlinkSync(actualTemp, aliasedTemp, 'dir');
+  box.env.TMPDIR = aliasedTemp;
+  const result = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(JSON.parse(result).queued, true);
+  const job = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
+  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+  assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
+  assert.notEqual(request.tools, realpathSync(request.tools), 'the real worker is launched through a symlinked snapshot path');
+  assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
+  const workerPath = join(request.tools, 'src/submit-handoff-worker.js');
+  const originalWorker = readFileSync(workerPath, 'utf8');
+  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000); // budget: existing owned-child hang ceiling, not a performance assertion.
+  writeFileSync(join(tools, 'src/submit-handoff-worker.js'), "throw new Error('changed builder tooling');\n");
+  assert.equal(readFileSync(workerPath, 'utf8'), originalWorker, 'builder mutations cannot change the queued tools');
+  writeFileSync(box.release, 'release\n');
+  await waitJob(box, 'green');
+  assert.equal(state(box, box.id).item.item_commit, box.commit);
+  await box.helpers.waitFor(() => !existsSync(request.tools), 'owned tool snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
+  assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'cleanup preserves the builder tool installation');
+  writeFileSync(join(tools, 'src/submit-handoff-worker.js'), originalWorker);
+  const malformed = join(box.dir, 'malformed-worker-request.json');
+  writeFileSync(malformed, JSON.stringify({ tools, job: 'not-native-job', commonDir: join(box.repo, '.git') }));
+  const refused = runFixtureChild(process.execPath, [join(tools, 'src/submit-handoff-worker.js'), malformed],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
+  assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');
+});
+
+test('a worker exiting without a result records its real exit and returns the queued item [V4,H16,E18]', async t => {
+  for (const exit of [{ code: 0 }, { code: 7 }, { signal: 'SIGTERM' }]) {
+    const box = fixture(t);
+    const source = resolve(import.meta.dirname, '..');
+    const tools = join(box.dir, 'exiting-tools');
+    cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+    const worker = join(tools, 'src/submit-handoff-worker.js');
+    const stop = exit.signal ? `process.kill(process.pid, '${exit.signal}')` : `process.exit(${exit.code})`;
+    writeFileSync(worker, `if (process.argv[3] === '--execute') { const fs = await import('node:fs'); fs.writeFileSync('untracked-worker-output', 'partial'); fs.writeFileSync('web/snapshot.txt', 'partial'); ${stop}; }\n` + readFileSync(worker, 'utf8'));
+    const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+      { cwd: box.web, env: box.env, encoding: 'utf8' }));
+    assert.equal(queued.queued, true);
+    await waitJob(box, 'red');
+    const ended = state(box, box.id);
+    assert.equal(ended.item.item_status, 'open', 'a dead worker never strands a held claim');
+    assert.equal(ended.job.error.code, 'SUBMIT_HANDOFF_EXIT');
+    const why = exit.signal ? `code none and signal ${exit.signal}` : `code ${exit.code}`;
+    assert.match(ended.job.error.message, new RegExp(`exited with ${why}.*without a terminal result`, 'u'));
+    assert.equal(existsSync(box.started), false, 'no candidate gate was manufactured');
+    const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', ended.job.id);
+    const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+    const failure = JSON.parse(readFileSync(join(directory, 'refusal.json'), 'utf8'));
+    assert.deepEqual(failure.error, ended.job.error, 'the private refusal and native result retain the same cause');
+    await box.helpers.waitFor(() => !existsSync(request.tools), 'failed worker snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
+  }
+});
+
+test('supervisor termination reaches its live child and retains a native refusal before cleanup [V4,H16,E18]', async t => {
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'interrupted-tools');
+  const ready = join(box.dir, 'live-child.json');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const worker = join(tools, 'src/submit-handoff-worker.js');
+  writeFileSync(worker, `if (process.argv[3] === '--execute') {
+    const fs = await import('node:fs');
+    fs.writeFileSync('untracked-worker-output', 'partial');
+    fs.writeFileSync(${JSON.stringify(ready)}, JSON.stringify({pid:process.pid, supervisor:process.ppid}));
+    setInterval(() => {}, 1000);
+    await new Promise(() => {});
+  }\n` + readFileSync(worker, 'utf8'));
+  const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' }));
+  assert.equal(queued.queued, true);
+  await box.helpers.waitFor(() => existsSync(ready), 'actual supervised child readiness', 120000); // budget: owned child readiness ceiling, not a timing assertion.
+  const child = JSON.parse(readFileSync(ready, 'utf8'));
+  const job = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
+  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  assert.equal(child.supervisor, owner.pid, 'signal only the actual launcher-owned supervisor');
+  process.kill(owner.pid, 'SIGTERM');
+  await waitJob(box, 'red');
+  assert.equal(state(box, box.id).item.item_status, 'open');
+  assert.equal(state(box, box.id).job.error.code, 'SUBMIT_HANDOFF_EXIT');
+  assert.match(state(box, box.id).job.error.message, /signal SIGTERM/u);
+  assert.throws(() => process.kill(child.pid, 0), { code: 'ESRCH' }, 'the owned child has actually closed');
+  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+  await box.helpers.waitFor(() => !existsSync(request.tools) && !existsSync(join(directory, 'source')), // budget: owned child cleanup ceiling, not a timing assertion.
+    'interrupted dirty source and tool snapshot cleanup', 120000);
+  assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'cleanup preserves the builder installation');
+});
+
+for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handoff is ${mode === 'missing' ? 'returned when captured tools are gone' : mode === 'silent' ? 'returned after one silent relaunch' : 'relaunched from captured tools'} [V4,H16,E18]`, async t => {
+  const missing = mode === 'missing';
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'initially-silent-tools');
+  const exited = join(box.dir, 'initial-worker-exited');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const worker = join(tools, 'src/submit-handoff-worker.js');
+  writeFileSync(worker, `{
+    const fs = await import('node:fs');
+    if (${JSON.stringify(mode === 'silent')} || !fs.existsSync(${JSON.stringify(exited)})) { fs.writeFileSync(${JSON.stringify(exited)}, 'first launch'); process.exit(0); }
+  }\n` + readFileSync(worker, 'utf8'));
+  const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' }));
+  assert.equal(queued.queued, true);
+  const current = state(box, box.id);
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', current.job.id);
+  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  await box.helpers.waitFor(() => { // budget: owned process exit ceiling, not a timing assertion.
+    try { process.kill(owner.pid, 0); return false; }
+    catch (error) { return error.code === 'ESRCH'; }
+  }, 'actual first worker exit', 120000);
+  assert.equal(state(box, box.id).job.state, 'queued', 'the first worker actually exited before any result');
+  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+  if (missing) rmSync(request.tools, { recursive: true, force: true });
+  else writeFileSync(box.release, 'release\n');
+  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  const contenders = [0, 1].map(() => box.helpers.launch(box, box.web, process.execPath, [box.helpers.BIN, 'next', '--json']));
+  for (const contender of contenders) { const exit = await contender.closed; assert.equal(exit.code, 0, contender.stderrText); }
+  if (mode === 'silent') {
+    const relaunched = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+    assert.equal(relaunched.relaunches, 1);
+    await box.helpers.waitFor(() => { // budget: owned recovery process exit ceiling, not a timing assertion.
+      try { process.kill(relaunched.pid, 0); return false; }
+      catch (error) { return error.code === 'ESRCH'; }
+    }, 'actual recovery worker exit', 120000);
+    document(box.run(box.web, 'next', '--json'));
+  }
+  await waitJob(box, mode === 'relaunch' ? 'green' : 'red');
+  const ended = state(box, box.id);
+  assert.equal(ended.job.id, current.job.id, 'recovery retains the original immutable queue');
+  if (mode !== 'relaunch') {
+    assert.equal(ended.item.item_status, 'open');
+    assert.equal(ended.job.error.code, 'SUBMIT_HANDOFF_DEAD');
+    assert.match(ended.job.error.message, /dead and cannot be relaunched/u);
+    assert.equal(existsSync(box.started), false, 'failure recovery invents no gate or proof');
+    const other = join(box.dir, 'other-web');
+    box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
+    document(box.run(other, 'join', 'web', '--json'));
+    const foreign = box.run(other, 'claim', String(box.id), '--json');
+    assert.equal(JSON.parse(foreign.out).error.code, 'REOPEN_HELD_FOR_BUILDER');
+    if (mode === 'silent') rmSync(request.tools, { recursive: true, force: true });
+  } else {
+    assert.equal(ended.item.item_status, 'submitted');
+    assert.equal(ended.item.item_commit, box.commit);
+    assert.equal(readFileSync(join(box.dir, 'started.jsonl'), 'utf8').trim().split('\n').length, 1, 'concurrent recovery runs exactly one real gate');
+  }
 });
 
 /** Make a real later builder commit without replacing the queued source. */
@@ -183,9 +401,34 @@ test('a queued red retains the exact canonical refusal and builder first refusal
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'REOPEN_HELD_FOR_BUILDER');
-  document(box.run(box.web, 'release', String(box.second), '--no-next', '--json'));
+  document(box.run(box.web, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json'));
   document(box.run(box.web, 'claim', String(box.id), '--json'));
   assert.equal(state(box, box.id).item.item_owner, completed.job.agentId, 'the same seat resumes at a natural break');
+});
+
+
+for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
+  const box = fixture(t, { cells: true });
+  mkdirSync(join(box.web, 'src'), { recursive: true });
+  assert.equal(helpersCommit(box, 'src/unplaced.js', 'export const unsafe = true;\n').status, 0);
+  if (kind === 'ownership') {
+    writeFileSync(join(box.web, 'bin/cells-plan.json'), JSON.stringify({ version: 1, cells: [],
+      stays: [{ path: 'src/unplaced.js', reason: 'Fixture placement remains explicitly covered.' }],
+      entries: [{ path: 'src/unplaced.js', cell: 'app:missing' }] }) + '\n');
+    box.git(box.web, 'add', 'bin/cells-plan.json');
+    box.git(box.web, 'commit', '-qm', 'feat(web): invalid process ownership control [G1]');
+  }
+
+  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  assert.equal(queued.queued, true, 'foreground submission does not compile or refuse the new unplaced cell');
+  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  await waitJob(box, 'red');
+  const completed = state(box, box.id);
+  assert.equal(completed.job.error.code, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');
+  assert.match(completed.job.error.message, kind === 'placement' ? /src\/unplaced.js/u : /existing app cell/u);
+  assert.equal(completed.item.item_status, 'open');
+  assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
+  assert.equal(existsSync(box.started), false, 'the ordinary gate never executes a source refused by cell checks');
 });
 
 test('setting off retains foreground submit until the real gate finishes [V4]', async t => {

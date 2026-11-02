@@ -17,6 +17,8 @@ import { resolveCommit } from "../../../../src/git.js";
 import { trunkRevisionReader } from "../../../git/index.js";
 import { cachedVerdictStates } from "../../../verify/index.js";
 import { compareFlowWindows } from "../../../stats/index.js";
+import { claimWorktrees } from "../../../activity/index.js";
+import { claimOverlaps } from "../../../items/index.js";
 
 // A comparison clock is an internal fingerprint input, never a displayed forecast or observation.
 const COMPARISON_CLOCK = Date.UTC(2000, 0, 1);
@@ -49,10 +51,13 @@ function readRelayPresentation(root, providedBoard, observedAt, ports) {
     const projects = () => [{ root: info.root, name: config.name, project: config.project }];
     // Staged caller boards retain fresh reads; only ordinary owned reads reuse committed verdict state.
     const freshnessReader = providedBoard ? null : cachedVerdictStates(root, board, info, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem, boardId: store.boardId });
+    const items = store.listItems(board);
+    const overlaps = claimOverlaps(items, claimWorktrees(items, store.listAgents(board)));
+    const overlapState = Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
     /** Preserve a single authorized board, including existing unavailable external milestone entries. */
     const project = (clock) => {
       const built = buildLocalBoardState(root, boardId, board, isMain, { projects, scopeCommonDir: info.commonDir, observedAt: clock, freshnessReader }, { ...ports, openBoard: ports.openBoard });
-      return { ...built.state, sequence: built.sequence,
+      return { ...built.state, sequence: built.sequence, claimOverlaps: overlapState,
         statsComparison: compareFlowWindows(built.history, { now: clock, windowMinutes: 120, complete: true }) };
     };
     const state = project(observedAt);

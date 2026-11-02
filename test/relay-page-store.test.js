@@ -5,11 +5,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { createRelayPages } from '../relay/page-store.js';
 import { createRelayJournal } from '../relay/journal.js';
 import { Refused } from '../packages/kernel/core.js';
 import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
-import { PAGE_BYTES, readSealedValue, writeSealedValue } from '../src/sealed-pages.js';
+import { PAGE_BYTES, readSealedValue, writeSealedValue } from '../packages/pages/index.js';
 
 const machine = { kind: 'machine', userId: '1', machine: 'fixture-native' };
 const agent = { kind: 'agent', userId: '1', agent: 'fixture-reader' };
@@ -162,4 +163,23 @@ test('one database transaction rolls back a head and upload cleanup together [H1
     assert.equal(result.apiVersion, 2);
     assert.equal(journal.snapshot().sequence, 0);
   } finally { pages.close(); journal.close(); }
+});
+
+
+test('pin validates a multi-object graph with one prepared lookup [H5,H17]', async t => {
+  const box = await fixture(t);
+  const value = { marker: 'validated graph', text: 'g'.repeat(PAGE_BYTES * 3) };
+  const staged = await box.stage(value);
+  assert.ok(staged.objects.length > 1, 'the actual sealed graph contains multiple objects');
+  box.store.publish(staged.upload.id, machine, staged.reference, () => {});
+  const prepare = DatabaseSync.prototype.prepare;
+  let lookups = 0;
+  /** Count real statement compilation while retaining every native SQLite query and result. */
+  t.mock.method(DatabaseSync.prototype, 'prepare', function(sql, ...args) {
+    if (sql === 'SELECT id,children FROM page_object WHERE id=?') lookups++;
+    return Reflect.apply(prepare, this, [sql, ...args]);
+  });
+  const pin = box.store.pin(agent, staged.reference);
+  assert.equal(lookups, 1, 'the full graph traversal compiles its lookup once');
+  assert.deepEqual(await box.read(staged.reference, pin), value);
 });

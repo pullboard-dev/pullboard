@@ -8,8 +8,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
-import { selectAffectedTests, testClosures } from '../src/affected-tests.js';
-import { importsIn } from '../src/module-imports.js';
+import { selectAffectedTests, testClosures } from '../packages/gate/index.js';
+import { importsIn } from '../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
@@ -73,9 +73,11 @@ function knownLiteralBoardImporters(closures, modules) {
   const runners = [...modules.keys()].filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
   assert.ok(runners.length > 0, 'the split runner scenarios remain actual importer roots');
   const roots = ['test/run-tests-kill.test.js', 'test/run-tests-timeout.test.js', ...runners];
-  const releaseImports = importsIn([modules.get('src/release-queue.js')])[0];
-  for (const file of ['board-read-open.js', 'board-query.js', 'board-read-auxiliary.js']) assert.ok(releaseImports.includes(`./${file}`), `release capture uses canonical reader ${file}`);
-  assert.ok(!releaseImports.includes('./board.js'), 'release capture does not import the writer facade');
+  const releaseSource = modules.get('packages/landing/src/shell/release-queue.js');
+  const releaseImports = importsIn([releaseSource])[0];
+  assert.ok(releaseImports.includes('../../../store/index.js'), 'release capture uses the store front door');
+  for (const name of ['openBoardReadOnly', 'boardId', 'listItems', 'milestones']) assert.match(releaseSource, new RegExp(`\\b${name}\\b`), `release capture uses canonical reader ${name}`);
+  assert.ok(!releaseImports.includes('../../../../src/board.js'), 'release capture does not import the writer facade');
   const parsed = new Map();
   const known = new Set();
   for (const root of roots) {

@@ -13,7 +13,7 @@ import { CHECKOUT_LEASES } from '../cli-main.js';
 import { main } from '../cli-main.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { runPrivateBoard } from '../private-board.js';
+import { runPrivateBoard } from '../../packages/github/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { claimFreezer } from './claim.js';
@@ -53,6 +53,15 @@ export function resourceAgent(ctx) {
 
 /** Keep the public queue adapter while its lease protocol lives in a bounded module. */
 export function queuedItemLease(ctx, initial, agentId, kind, admission = null) {
-  return createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem: store.getItem, withBoard, ordered, claimFreezer, gateWaitReporter });
+  const report = createQueuedItemLease(ctx, initial, agentId, kind, admission, { getItem: store.getItem, withBoard, ordered, claimFreezer, gateWaitReporter });
+  let finish;
+  return async state => {
+    if (!state.admitted && !finish) {
+      const { beginSeatTiming } = await import('../seat-timing.js');
+      finish = beginSeatTiming(ctx.info.root, 'runner-wait', 'gate slot');
+    } else if (state.admitted && finish) { finish(); finish = null; }
+    return report(state);
+  };
 }
+
 

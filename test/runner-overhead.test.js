@@ -14,15 +14,15 @@ import {
 import {
   validateCacheTips,
 } from '../src/runner-overhead.js';
-import { startRunnerPhases } from '../src/timing.js';
-import { runnerPhaseFields } from '../src/timing.js';
-import { runnerPhaseLine } from '../src/timing.js';
+import { startRunnerPhases } from '../packages/gate/index.js';
+import { runnerPhaseFields } from '../packages/gate/index.js';
+import { runnerPhaseLine } from '../packages/gate/index.js';
 import { doctrineExecutionPhases } from '../src/commands/submit.js';
 import { runnerUtilization } from '../src/runner-utilization.js';
 import {
   receiptLine,
   recordReceipt,
-} from '../src/gate-receipt.js';
+} from '../packages/gate/index.js';
 import { localRunnerDescriptor } from '../src/runner-load.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';

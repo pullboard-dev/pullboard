@@ -1,3 +1,4 @@
+import { CLAUSE_INSPECTION_ENGINE } from '../../../../../src/clause-inspection-engine.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofile-engine.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../../src/known-main-owner-pattern-engine.js";
 import { ENGINE_VERSION } from "../../../../../src/engine-metadata.js";
@@ -36,7 +37,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  return Math.max(args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(Object.hasOwn(args[1] ?? {}, 'clausePolicyCommit') || args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? ((board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
         ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE) : 1,
@@ -50,6 +51,7 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "CLAUSE_UNTICKED": "tick each named clause with its declared evidence kind using pullboard fact <id> note, then submit again",
   "TEST_SELECTION_SOURCE": "restore Git history and retry the selected test run",
   "TEST_TIER_MANIFEST": "regenerate and commit the testing tier manifest",
   "TEST_SELECTION_INCOMPLETE": "derive test selection from the complete committed diff",
@@ -91,7 +93,6 @@ export default Object.freeze({ operation: "submit", order: 15, engine: 1,
   "GIT_GRAFTS": "ask the coordinator to remove the git graft file: pullboard shout coordinator --kind question \"please remove .git/info/grafts\"",
   "HEAD_NOT_NEW": "commit the rework, then pullboard submit <id>",
   "HOST_NAME": "reword the named commit's message without this machine's name (git rebase -i, then reword), then run pullboard submit <id> again",
-  "INFRA_NOTE_REQUIRED": "run pullboard submit <id> --infra \"<why>\" with the reason the edit to an existing test or gate file is needed",
   "ITEM_LEASE_LOST": "read pullboard show <id>; if the item is free, claim it again for a build or reserve it with pullboard next --verify <id> for a review, then retry",
   "LAND_GATE_OUTPUT": "inspect the retained timed gate output directory and free disk space, then start another landing",
   "LAND_TIMEOUT_CUSTODY": "inspect the saved timed gate cleanup state and stop only its proven owned processes before starting another landing",

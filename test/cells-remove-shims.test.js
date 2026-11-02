@@ -5,14 +5,18 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { removeShims } from '../bin/cells-remove-shims.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { scriptMentions } from '../bin/cells-remove-shims.js';
+import { writeShimHandoff } from '../bin/cells-remove-shims.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import { fixture } from './cells-plan-fixture.js';
 import { CONFIG } from './cells-remove-shims-read.js';
 import { readFixture } from './cells-remove-shims-read.js';
@@ -275,6 +279,33 @@ test('a runner-closure importer reads core.js while a shell importer of the same
   assert.ok(result.deleted.includes('src/stats.js') && result.deleted.includes('src/stats-pure.js'));
 });
 
+test('a core importer reads its pure door while a shell importer of the same shim reads index.js [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('src/worker-step.js', "import { pure } from './stats.js';\nexport const step = pure;\n");
+  box.put('packages/stats/src/core/uses.js', "import { pure } from '../../../../src/stats.js';\nexport const used = pure;\n");
+  const plan = withClosures(box);
+  removeShims(box.root, plan, 'stats', { parsers: PARSERS });
+  assert.equal(read(box, 'packages/stats/src/core/uses.js'), "import { pure } from '../../core.js';\nexport const used = pure;\n");
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
+});
+
+test('a pure binding with another definition keeps the runner importer and names that binding [C7,D3]', t => {
+  const box = shimmed(t);
+  const step = "import { pure } from './stats.js';\nexport const step = pure;\n";
+  box.put('src/worker-step.js', step);
+  const plan = withClosures(box, {
+    core: 'export { pure } from "./src/core/rebound.js";\n',
+    extra: {
+      'packages/stats/src/core/rebound.js': 'export const pure = 2;\n',
+      'src/stats.js': 'export { pure } from "../packages/stats/src/core/pure.js";\nexport { shell, extra } from "../packages/stats/src/shell/shell.js";\n',
+    },
+  });
+  const result = removeShims(box.root, plan, 'stats', { parsers: PARSERS });
+  assert.equal(read(box, 'src/worker-step.js'), step, 'a same-name export cannot replace the original definition');
+  assert.equal(existsSync(join(box.root, 'src/stats.js')), true, 'the still-used shim stays present');
+  assert.match(new Map(result.kept).get('src/stats.js'), /runner-worker closure file src\/worker-step\.js would reach past stats core\.js, which lacks pure/u);
+});
+
 test('a runner-closure importer of a binding core.js lacks keeps its shim and names the binding [C7,D3]', t => {
   const box = shimmed(t);
   const step = "import { shell } from './stats.js';\nexport const step = shell;\n";
@@ -305,6 +336,60 @@ test('a repoint that would pull a process launcher into the move-registry closur
   assert.equal(read(box, 'src/moves/seed.js'), "import { pure } from '../stats-pure.js';\nexport const seed = pure;\n");
   assert.match(new Map(result.kept).get('src/stats-pure.js'), /would break the move-registry closure: process launcher packages\/stats\/src\/core\/spawn\.js/u);
   assert.equal(existsSync(join(box.root, 'src/stats-pure.js')), true);
+});
+
+test('quoted prose and unrelated join or URL calls do not name a deleted module [C7,D3]', () => {
+  const source = [
+    `const prose = "See './src/stats.js' for background";`,
+    `const proseColon = "See: './src/stats.js'";`,
+    `const joined = list.join('src/stats.js');`,
+    `const url = URL('src/stats.js');`,
+    `const foreign = runtime.require('src/stats.js');`,
+    `const foreignPath = other.path.join(root, 'src/stats.js');`,
+    `const actual = path.join(root, 'src/stats.js');`,
+    `const urlPath = 'file:src/stats.js';`,
+    `const generated = \"import './src/stats.js';\";`,
+    `const assigned = \"const target = './src/stats.js';\";`,
+  ].join('\n');
+  assert.deepEqual(scriptMentions(new Map([['test/mentions.test.js', Buffer.from(source)]]), ['src/stats.js']),
+    [7, 8, 9, 10].map(line => ({ file: 'test/mentions.test.js', line, path: 'src/stats.js' })));
+});
+
+test('comments inside generated scripts do not name a deleted module [C7,D3]', () => {
+  const source = "const script = `// require('./src/stats.js')\nconst value = 1;`;\n";
+  assert.deepEqual(scriptMentions(new Map([['test/comment-script.test.js', Buffer.from(source)]]), ['src/stats.js']), []);
+});
+
+test('comments inside generated modules do not name a deleted module [C7,D3]', () => {
+  const source = "const script = `// require('./src/stats.js')\nexport const value = 1;`;\n";
+  assert.deepEqual(scriptMentions(new Map([['test/comment-module.test.js', Buffer.from(source)]]), ['src/stats.js']), []);
+});
+
+test('a multiline generated script reports the line containing the module path [C7,D3]', () => {
+  const source = "const script = `\nimport './src/stats.js';\n`;\n";
+  assert.deepEqual(scriptMentions(new Map([['test/multiline.test.js', Buffer.from(source)]]), ['src/stats.js']),
+    [{ file: 'test/multiline.test.js', line: 2, path: 'src/stats.js' }]);
+});
+
+test('a shim a test names inside a generated script stays, and a comment or prose mention never holds it [C7,D3]', t => {
+  const quiet = shimmed(t);
+  quiet.put('test/comment.test.js', '// src/stats.js once held the stats shell\nexport const note = 1;\n');
+  quiet.put('test/prose.test.js', 'export const description = "The retired src/stats.js was a shim, not an import";\n');
+  assert.deepEqual(removeShims(quiet.root, quiet.plan, 'stats', { parsers: PARSERS }).deleted, ['src/stats.js'], 'a comment or prose sentence is not a use');
+  const prose = shimmed(t);
+  prose.put('test/prose.test.js', "export const note = 'the old src/stats.js held the stats shell';\n");
+  assert.deepEqual(removeShims(prose.root, prose.plan, 'stats', { parsers: PARSERS }).deleted, ['src/stats.js'], 'a prose sentence naming the path is not a use');
+  const forms = [root => './src/stats.js', root => join(root, 'src/stats.js'), root => pathToFileURL(join(root, 'src/stats.js')).href];
+  for (const form of forms) {
+    for (const wrap of [spec => spec, spec => `import('${spec}').then(m => console.log(m.shell));`]) {
+      const box = shimmed(t);
+      box.put('test/child.test.js', `export const script = ${JSON.stringify(wrap(form(box.root)))};\n`);
+      const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+      assert.equal(existsSync(join(box.root, 'src/stats.js')), true, `the test still names ${form(box.root)}`);
+      assert.deepEqual(result.deleted, []);
+      assert.match(result.kept.find(([shim]) => shim === 'src/stats.js')[1], /test\/child\.test\.js:1 names src\/stats\.js inside a string/u);
+    }
+  }
 });
 
 test('one removal builds exactly one inventory, however many repoint passes it takes [C7,D3]', t => {
@@ -342,4 +427,59 @@ test('removal on a largest-cell-shaped fixture builds one inventory and spawns g
   // git spawns stay far below the importer count; one per importer would have been 120 or more.
   assert.ok(calls <= 20, `git ran ${calls} times for ${importers} importers`);
   console.log(`# remove-shims importers ${importers} gitcalls ${calls}`);
+});
+
+test('kept shims write complete fact and cut drafts; an empty run writes nothing [C7,D3]', t => {
+  const box = shimmed(t);
+  for (let index = 0; index < 5; index++) box.put(`packages/mid/src/use-${index}.js`, "import { leaf } from '../../../src/stats-leaf.js'; export { leaf };\n");
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  const out = join(box.root, 'handoff');
+  const handoff = writeShimHandoff(box.root, result, 'stats', { directory: out, env: { ...process.env, PATH: '' } });
+  assert.ok(handoff);
+  const fact = readFileSync(join(out, 'fact.txt'), 'utf8');
+  const draft = readFileSync(join(out, 'cut-item.txt'), 'utf8');
+  for (let index = 0; index < 5; index++) {
+    assert.match(fact, new RegExp(`packages/mid/src/use-${index}\\.js`, 'u'));
+    assert.match(draft, new RegExp(`packages/mid/src/use-${index}\\.js`, 'u'));
+  }
+  assert.match(draft, /--after <removal item id>/u);
+  const empty = join(box.root, 'empty-handoff');
+  assert.equal(writeShimHandoff(box.root, { keptDetails: [] }, 'stats', { directory: empty }), null);
+  assert.equal(existsSync(empty), false);
+});
+
+test('remove-shims CLI prints and writes its kept-shim handoff [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('src/view/panel.js', "import { shell } from '../stats.js'; export { shell };\n");
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'view importer');
+  const out = mkdtempSync(join(tmpdir(), 'shim-handoff-test-'));
+  t.after(() => rmSync(out, { recursive: true, force: true }));
+  const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats', '--output-dir', out], { cwd: box.root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /src\/view\/panel\.js/u);
+  assert.match(run.stdout, /pullboard [\s\S]*--after/u);
+  assert.match(readFileSync(join(out, 'fact.txt'), 'utf8'), /src\/view\/panel\.js/u);
+  assert.match(readFileSync(join(out, 'cut-item.txt'), 'utf8'), /--after/u);
+});
+
+test('file-cut records the kept fact and shouts its cut draft on a real fixture board [C7,D3]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'Remove private shims', '--criterion', 'Remove the shims.', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const result = { keptDetails: [{ shim: 'src/example.js', reason: 'upward cut', importers: ['packages/one.js', 'packages/two.js'] }] };
+  const handoff = writeShimHandoff(box.web, result, 'example', { lane: 'web', directory: join(box.dir, 'handoff'), fileCut: true, env: box.env });
+  assert.equal(handoff.after, id);
+  const shown = box.run(box.repo, 'show', String(id), '--json');
+  assert.equal(shown.code, 0, shown.err);
+  assert.match(shown.out, /packages\/one\.js/u);
+  const inbox = box.run(box.repo, 'inbox', '--json');
+  assert.equal(inbox.code, 0, inbox.err);
+  assert.match(inbox.out, /Cells cut: remove remaining example shim importers/u);
+  assert.match(inbox.out, /packages\/two\.js/u);
+  assert.match(inbox.out, new RegExp(`after #${id}`, 'u'));
 });

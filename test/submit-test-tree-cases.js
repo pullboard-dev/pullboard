@@ -5,7 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { testClosures } from '../src/affected-tests.js';
+import { testClosures } from '../packages/gate/index.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

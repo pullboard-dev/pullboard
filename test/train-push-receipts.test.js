@@ -1,6 +1,6 @@
-import { recordTrainLanding } from '../src/record-train-landing.js';
+import { recordTrainLanding } from '../packages/landing/index.js';
 /** @pullboard-test-input source-tree */
-import { receiptBinds } from '../src/gate-run-receipt.js';
+import { receiptBinds } from '../packages/gate/index.js';
 import { gateRuns } from '../src/quarantine.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { policyAt } from '../packages/sandbox/index.js';
@@ -18,13 +18,13 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard, recordGateRun } from '../src/native-board.js';
 import { configFromSource } from '../packages/config/index.js';
-import { boardReceiptStore } from '../src/gate-run-receipt.js';
-import { readGateReceipt } from '../src/gate-run-receipt.js';
-import { receiptStore } from '../src/gate-run-receipt.js';
+import { boardReceiptStore } from '../packages/gate/index.js';
+import { readGateReceipt } from '../packages/gate/index.js';
+import { receiptStore } from '../packages/gate/index.js';
 import { appliedSequence } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
-import { prepareTrainLanding } from '../src/train-landing.js';
+import { prepareTrainLanding } from '../packages/landing/index.js';
 import { TRAIN_LANDING_ENGINE } from '../src/train-landing-engine.js';
 import { nativePushReceiptProblems as evaluateNativePushReceipts } from '../packages/git/index.js';
 import { pushedFirstParentCommits } from '../packages/git/index.js';
@@ -32,7 +32,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { mainAuditKey } from '../src/main-audit-state.js';
+import { mainAuditKey } from '../packages/gate/index.js';
 import { prepareCommitMetadata } from '../packages/commits/index.js';
 
 /** Exercise the production evaluator with its genuine native store, policy and receipt providers. */
@@ -174,7 +174,7 @@ import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.u
 import {openBoard,recordGateRun} from ${JSON.stringify(new URL("../src/native-board.js", import.meta.url).href)};
 import {readGateReceipt,receiptStore} from ${JSON.stringify(new URL('../src/gate-run-receipt.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
-import { landingExecutionServices } from ${JSON.stringify(new URL('../src/landing-shards.js', import.meta.url).href)};
+import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';
 const root=process.cwd(); const run=await runGate(root,JSON.parse(readFileSync('pullboard.json','utf8')),{executionServices:{runners:runnerExecutionServices(),landing:landingExecutionServices()},trustStamp:false,landing:true,collectAll:true,auditBatchId:${JSON.stringify(batchId)},agent:'coordinator'});
 const receipt=readGateReceipt(receiptStore(root),run.receiptId); if(!receipt?.collection?.complete||!receipt.collection.full)throw new Error(run.output);
@@ -221,7 +221,7 @@ test('one real native envelope covers multiple reviewed sources and only its fir
     items: onBoard(box, board => ids.map(id => ({ id, commit: store.getItem(board, id).item_commit }))),
     message: `chore: retain the actual multi-item envelope\n\nPullboard-Migration: ${box.base}` };
   const made = runFixtureChild(process.execPath, ['--input-type=module', '-e',
-    `import {createLandingEnvelope} from ${JSON.stringify(new URL('../src/landing-envelope.js', import.meta.url).href)}; console.log(JSON.stringify(createLandingEnvelope(process.cwd(),${JSON.stringify(options)})));`],
+    `import {createLandingEnvelope} from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)}; console.log(JSON.stringify(createLandingEnvelope(process.cwd(),${JSON.stringify(options)})));`],
   { cwd: box.repo, env: box.env, encoding: 'utf8' });
   assert.equal(made.status, 0, `${made.stdout}${made.stderr}`);
   const envelope = JSON.parse(made.stdout);
@@ -419,7 +419,7 @@ test('actual admission sentinel [C7]',()=>writeFileSync(${JSON.stringify(marker)
   writeFileSync(join(box.repo, 'web/dirty-proof.txt'), 'A remote proof needs committed source.\n');
   const source = `import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
 import { runnerExecutionServices } from ${JSON.stringify(new URL('../src/runners.js', import.meta.url).href)};
-import { landingExecutionServices } from ${JSON.stringify(new URL('../src/landing-shards.js', import.meta.url).href)};
+import { landingExecutionServices } from ${JSON.stringify(new URL('../packages/landing/index.js', import.meta.url).href)};
 import { readFileSync } from 'node:fs';
 try {await runGate(process.cwd(),JSON.parse(readFileSync('pullboard.json','utf8')),{executionServices:{runners:runnerExecutionServices(),landing:landingExecutionServices()},trustStamp:false,runnerOnly:true});
 console.log(JSON.stringify({unexpectedExecution:true}));}

@@ -82,28 +82,50 @@ function contextFor(db, context) {
     item: Number.isSafeInteger(context.item) && context.item > 0 ? context.item : null };
 }
 
-/** Start tracking AFTER successful BEGIN; slow admission is never misreported as lock-holding time. */
-export function beginBoardWrite(db, context = {}) {
+/** Publish an advisory contender before waiting for SQLite; it may be waiting or holding. */
+export function prepareBoardWriteMarker(db, context = {}) {
+  try {
+    const file = boardFile(db);
+    if (!file || !ownIdentity || ownIdentity.state.startsWith('Z')) return null;
+    const directory = file + '.write-holders';
+    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    if (!lstatSync(directory).isDirectory()) return null;
+    const marker = join(directory, `${process.pid}-${randomUUID()}.json`);
+    const labels = contextFor(db, context);
+    const detail = { version: 1, pid: process.pid, started: ownIdentity.started, processSha256: ownIdentity.processSha256,
+      command: labels.command, seat: labels.seat, acquiredAt: Date.now(), contender: true };
+    writeFileSync(marker, JSON.stringify(detail) + '\n', { flag: 'wx', mode: 0o600 });
+    return marker;
+  } catch { return null; }
+}
+
+/** Remove an advisory contender after failed admission or after releasing the transaction. */
+export function discardBoardWriteMarker(marker) {
+  if (marker) try { unlinkSync(marker); } catch { /* Advisory cleanup cannot change the move. */ }
+}
+
+/** Start timing after BEGIN without filesystem I/O. */
+export function beginBoardWrite(db, context = {}, marker = null) {
   const record = { db, start: performance.now(), acquiredAt: Date.now(), pid: process.pid,
-    command: 'api', seat: 'unknown', marker: null, complete: false };
+    command: 'api', seat: 'unknown', marker, complete: false };
   let records = pending.get(db);
   if (!records) { records = new Set(); pending.set(db, records); }
   records.add(record);
-  try {
-    Object.assign(record, contextFor(db, context));
-    const file = boardFile(db);
-    if (!file) return record;
-    if (!ownIdentity || ownIdentity.state.startsWith('Z')) return record;
-    const directory = file + '.write-holders';
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-    if (!lstatSync(directory).isDirectory()) return record;
-    const marker = join(directory, `${process.pid}-${randomUUID()}.json`);
-    const detail = { version: 1, pid: process.pid, started: ownIdentity.started, processSha256: ownIdentity.processSha256,
-      command: record.command, seat: record.seat, acquiredAt: record.acquiredAt };
-    writeFileSync(marker, JSON.stringify(detail) + '\n', { flag: 'wx', mode: 0o600 });
-    record.marker = marker;
-  } catch { /* Optional diagnostics cannot refuse, roll back, or change a native move. Unknown holders stay unknown. */ }
+  try { Object.assign(record, contextFor(db, context)); } catch { /* Advisory labels are optional. */ }
   return record;
+}
+
+/** Account a named synchronous part of the active writer without performing diagnostic I/O. */
+export function measureBoardWritePhase(db, name, work) {
+  const started = performance.now();
+  try { return work(); } finally {
+    const elapsed = performance.now() - started;
+    for (const record of pending.get(db) ?? []) {
+      if (record.complete) continue;
+      record.workAccountedMs = (record.workAccountedMs ?? 0) + elapsed;
+      if (elapsed > (record.phaseMs ?? 0)) { record.phase = name; record.phaseMs = elapsed; }
+    }
+  }
 }
 
 /** Enrich API and nested-command observations from native events, without recording event contents. */
@@ -127,10 +149,7 @@ export function finishBoardWrite(record, released, outcome = 'released') {
     catch { /* A closed diagnostic stream must not turn an already committed move into an apparent refusal. */ }
   }
   recordBoardHold({ ...record, durationMs, outcome });
-  if (record.marker) {
-    try { unlinkSync(record.marker); }
-    catch { /* Retain a stale advisory file if cleanup is unavailable; PID/start checks keep it non-authoritative. */ }
-  }
+  if (record.marker) try { unlinkSync(record.marker); } catch { /* Optional advisory cleanup. */ }
   pending.get(record.db)?.delete(record);
 }
 
@@ -182,6 +201,6 @@ export function boardWriteHolderText(file) {
     const identity = live.get(row.pid);
     return identity && !identity.state.startsWith('Z') && identity.started === row.started && identity.processSha256 === row.processSha256;
   }).slice(0, 3).map(row => ({ command: label(row.command, 'unknown'), seat: label(row.seat, 'unknown'), pid: row.pid,
-    observedMs: Math.max(0, Date.now() - row.acquiredAt) }));
+    observedMs: Math.max(0, Date.now() - row.acquiredAt), ...(row.contender ? { state: 'waiting or holding' } : {}) }));
   return holders.length ? '; observed writer records (advisory): ' + JSON.stringify(holders) : '';
 }

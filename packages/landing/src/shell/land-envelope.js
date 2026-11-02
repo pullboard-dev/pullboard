@@ -8,7 +8,7 @@ import { headCommit } from '../../../../src/git.js';
 import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
-import { runGate } from '../../../../src/gate.js';
+import { runGate } from '../../../gate/index.js';
 import { createLandingEnvelope } from '../core/landing-envelope.js';
 import { readTrainLandingReceipt } from './train-landing-receipt.js';
 import { Refused } from '../../../kernel/index.js';

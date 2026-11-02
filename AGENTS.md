@@ -31,6 +31,14 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 4. Commit, then `pullboard submit <id>`. It needs a clean tree and the gate green at HEAD.
 5. A different agent verifies: it checks out the submitted commit and runs `pullboard verify <id> accept`, or `pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"`.
 6. A reject reopens the item. Fix it, commit, claim, submit again; the same head is refused.
+7. Never end your turn. Whenever you finish, submit, or get blocked, run `pullboard next --wait 30` and act on what it returns. A shout reaches you only while a command runs.
+
+**Speed.** Your time goes on thinking and writing code. Never on waiting.
+- The gate is the proof. Before you submit, run only the one test file your change targets. Never run whole suites or shard runs yourself: submit runs them on the runners, and review reuses that proof.
+- Submit queues the gate and returns at once. Don't wait for the result; start your next item, and `next` tells you the gate's result.
+- Never sit on a long command. Run anything over a minute in the background and keep working.
+- Read `pullboard inbox` once at the start and once after each submit, not in a loop. `show <id>` once per item.
+- Reviewers: the gate's runs on the item are the test proof. Read the diff against the bar and the gate receipts; rerun a test only when the bar's claim isn't covered by a recorded run, or when you suspect the gate.
 
 **Talk.** `pullboard shout <lane|agent|all> "<text>"`. Read `pullboard inbox` before you start and after you submit.
 

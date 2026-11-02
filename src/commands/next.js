@@ -1,10 +1,13 @@
+import { recordedVerificationComparison } from '../../packages/verify/index.js';
+import { renderVerificationComparison } from '../../packages/verify/index.js';
+import { claimWorktrees } from '../../packages/activity/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
-import { mainRedReviewItems } from '../main-red.js';
-import { mainRedReworkItems } from '../main-red.js';
-import { computedReturnArgs } from '../computed-conflict-return.js';
+import { mainRedReviewItems } from '../../packages/landing/index.js';
+import { mainRedReworkItems } from '../../packages/landing/index.js';
+import { computedReturnArgs } from '../../packages/landing/index.js';
 import {
   mainRedBuildOffer,
   nextTake,
@@ -12,7 +15,7 @@ import {
 } from '../../packages/sandbox/index.js';
 import {
   sayCheckBaseline,
-} from '../check-baseline.js';
+} from '../../packages/gate/index.js';
 import {
   refuseNextIdle,
 } from '../next-steps.js';
@@ -21,6 +24,7 @@ import {
   Refused,
 } from '../../packages/kernel/index.js';
 import * as seatCheckout from '../seat-checkout.js';
+import { cleanItemFolders } from '../item-folder.js';
 import {
   agentDisplayName,
   MainSpecMerged,
@@ -77,8 +81,9 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), store.listItems));
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }
@@ -121,11 +126,13 @@ async function nextWithProgress(io, values, progress) {
       const item = found.item;
       const review = found.review ?? Boolean(values.verify);
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
-      io.result?.({ item, review, held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.companions ? { companions: found.companions } : {}) });
+      const comparison = review ? withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, item.item_id), item)) : null;
+      io.result?.({ item, review, ...(comparison ? { comparison } : {}), held: Boolean(found.held), shared: found.shared ?? [], reasons: found.reasons ?? [], ...(found.seat ? { seat: found.seat } : {}), ...(found.companions ? { companions: found.companions } : {}) });
       for (const reason of found.reasons ?? []) io.say(displayedWait(reason, agents, ctx.config));
       const here = cdTo(ctx.info.root);
       const as = ctx.info.isMain ? ' --as coordinator' : '';
       if (review) {
+        if (comparison) io.say(renderVerificationComparison(comparison));
         sayCheckBaseline(io, item);
         io.say(`next to verify: #${item.item_id} ${item.item_title}, built by ${agentDisplayName(agents, ctx.config, item.item_built_by)} at ${item.item_commit.slice(0, 12)}`);
         io.say(`reserved for you until ${item.item_review_until}: another agent's verdict on it is refused until then; pullboard next --verify again renews it`);
@@ -159,6 +166,11 @@ async function nextWithProgress(io, values, progress) {
       lastIdleReason = idleReason;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
+      if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
+        io.result?.({ item: null, idleReason, reasons: found.reasons });
+        io.say(found.reasons[0]);
+        return 0;
+      }
       if (values.verify) refuseWhileBuilding(ctx);
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));

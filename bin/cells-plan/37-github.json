@@ -16,16 +16,7 @@
   ["src/private-board.js","packages/github/src/core/private-board.js","imports"],
   ["src/publish.js","packages/github/src/shell/publish.js","seed"]
  ],
- "reexports": [
-  "src/ci-flakes.js",
-  "src/intake-github.js",
-  "src/pr-findings.js",
-  "src/pr-github.js",
-  "src/pr-proof-snapshot.js",
-  "src/pr-verification.js",
-  "src/private-board.js",
-  "src/publish.js"
- ],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":10,"before":true},
   {"cell":"git","imports":8,"before":true},

@@ -1,5 +1,5 @@
 /** Shared local/relay item-list fields, derived once from the declared lifecycle [A2,N26,H17]. */
-import { MACHINE } from "../../../../src/machine.js";
+import { MACHINE } from "../../../state/core.js";
 import { lifecycleSteps } from "./lifecycle-move.js";
 import { recordedWithdrawalFrom } from "./lifecycle-move.js";
 export { lifecycleEvent } from "./lifecycle-move.js";

@@ -6,10 +6,10 @@ import { fixture, git } from './cells-plan-fixture.js';
 import { computePlan, readPlan, writePlan, shardFile } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { cellLintReport, cellLintBaseline, writeCellLintBaseline } from '../packages/codemap/index.js';
-import { importsIn, commonJsIn } from '../src/module-imports.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
-import { withMainCheckout } from '../src/main-red.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { importsIn, commonJsIn } from '../packages/gate/index.js';
+import { withImportParseCache } from '../packages/gate/index.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 
 const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
   readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) };

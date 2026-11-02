@@ -41,7 +41,7 @@ import {
   refuseSandboxBlocked,
   sandboxBlockedOperation,
   runGate,
-} from './gate.js';
+} from '../packages/gate/index.js';
 import {
   contains,
   git,
@@ -54,9 +54,9 @@ import {
 import {
   laneNames,
   outOfLane,
-} from './lanes.js';
+} from '../packages/seats/index.js';
 import { Refused } from '../packages/kernel/index.js';
-import { missingGate } from './gate-config.js';
+import { missingGate } from '../packages/gate/index.js';
 
 /** Report changing machine queue state while an unattended item waits for a gate slot. */
 function gateWaitReporter(io) {

@@ -16,10 +16,10 @@ import { configProblems } from '../src/shell/config.js';
 import { defaults } from '../src/shell/config.js';
 import { durationMs } from '../src/shell/config.js';
 import { loadConfig } from '../src/shell/config.js';
-import { isLane } from '../../../src/lanes.js';
-import { laneNames } from '../../../src/lanes.js';
-import { laneOf } from '../../../src/lanes.js';
-import { outOfLane } from '../../../src/lanes.js';
+import { isLane } from '../../seats/index.js';
+import { laneNames } from '../../seats/index.js';
+import { laneOf } from '../../seats/index.js';
+import { outOfLane } from '../../seats/index.js';
 import { crossLaneFixture } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { specGateMoveOnly } from '../../spec/index.js';
@@ -151,6 +151,14 @@ test('config merges nested groups over the defaults, and leases read as duration
     assert.deepEqual(loadConfig(root).verify, { policy: 'any', family: 'require', reviewRatio: 3 }, 'nested verify options merge over defaults');
     writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { family: 'sometimes' } }));
     assert.throws(() => loadConfig(root), /verify\.family.*off.*prefer.*require/);
+    for (const familyRelaxAt of [null, 'off', 2]) {
+      writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { familyRelaxAt } }));
+      assert.equal(loadConfig(root).verify.familyRelaxAt, familyRelaxAt);
+    }
+    for (const familyRelaxAt of [0, -1, 1.5, '2']) {
+      writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'npm test', verify: { familyRelaxAt } }));
+      assert.throws(() => loadConfig(root), /verify\.familyRelaxAt/);
+    }
     writeFileSync(join(root, 'pullboard.json'), '{ not json');
     assert.throws(() => loadConfig(root), /BAD_CONFIG/);
   } finally {

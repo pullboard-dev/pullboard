@@ -236,7 +236,7 @@ test('public CLI and API reject calls preserve the explicit frozen clause [V6,A2
   const committed = helpers.commitFile(box, box.web, 'web/page.html', '<main>Missing the title</main>', 'feat(web): render a page [G1]');
   assert.equal(committed.status, 0, committed.stderr);
   // @pullboard-board-file persistence: separate CLI reviewer commands read and append this exact private board file.
-  board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   const head = box.git(box.web, 'rev-parse', 'HEAD');
   submitFixture(board, id, { agentId: 'web-1', commit: head, tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}') });
   const reviewer = join(box.dir, 'clause-reviewer');

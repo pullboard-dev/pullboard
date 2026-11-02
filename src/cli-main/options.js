@@ -3,6 +3,8 @@ import { parseArgs } from 'node:util';
 
 const OPTIONS = {
   criterion: { type: 'string' },
+  files: { type: 'string' },
+  'force-size': { type: 'string' },
   sensitive: { type: 'boolean' },
   'review-tier': { type: 'string' },
   'review-family': { type: 'string' },
@@ -39,6 +41,7 @@ const OPTIONS = {
   watch: { type: 'boolean' },
   'runner-only': { type: 'boolean' },
   after: { type: 'string' },
+  on: { type: 'string' },
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
   private: { type: 'boolean' },
@@ -95,6 +98,7 @@ const OPTIONS = {
   'dry-run': { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
+  overflow: { type: 'string' },
   target: { type: 'string' },
   next: { type: 'string' },
   add: { type: 'string' },
@@ -102,6 +106,7 @@ const OPTIONS = {
   swap: { type: 'string' },
   limit: { type: 'string' },
   transcripts: { type: 'string' },
+  checkpoint: { type: 'string' },
   name: { type: 'string' },
   title: { type: 'string' },
   url: { type: 'string' },

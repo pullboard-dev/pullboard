@@ -1,6 +1,6 @@
 import { parseCheckTiming } from '../check-timing.js';
 import { requirePersonChannel } from '../../packages/person/index.js';
-import { githubPullClient } from '../pr-github.js';
+import { githubPullClient } from '../../packages/github/index.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -18,7 +18,7 @@ import {
   prepareCheckBaseline,
   refuseCheckSyntax,
   sayCheckBaseline,
-} from '../check-baseline.js';
+} from '../../packages/gate/index.js';
 import {
   relayCommandReceipt,
   relayCommandReceiptReported,

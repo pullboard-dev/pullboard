@@ -7,8 +7,8 @@ import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
-import { relayPresentation } from '../src/relay-presentation.js';
-import { presentationDigest } from '../src/relay-presentation.js';
+import { relayPresentation } from '../packages/pages/index.js';
+import { presentationDigest } from '../packages/pages/index.js';
 import { observeRelayHealth } from '../packages/link/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureChildAsync } from './fixture-child.js';
@@ -69,6 +69,15 @@ function foreignBoardFixture(t, box) {
 /** Capture full API state and independently reconstruct the sealed API2 snapshot over actual authenticated HTTP. */
 export async function parityRoundtrip(t, { foreign = false, localHealth = false } = {}) {
   const box = await relayClientFixture(t);
+  assert.equal(runFixtureChild('git', ['add', 'pullboard.json'], { cwd: box.root, env: box.env }).status, 0);
+  const git = args => runFixtureChild('git', args, { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const tree = git(['write-tree']);
+  const parent = git(['rev-parse', 'HEAD']);
+  assert.equal(tree.status, 0);
+  assert.equal(parent.status, 0);
+  const commit = git(['commit-tree', tree.stdout.trim(), '-p', parent.stdout.trim(), '-m', 'fixture: commit parity policy']);
+  assert.equal(commit.status, 0);
+  assert.equal(git(['update-ref', 'refs/heads/main', commit.stdout.trim(), parent.stdout.trim()]).status, 0);
   const seeded = seedParityBoard(box.root, box.lane);
   const other = foreign ? foreignBoardFixture(t, box) : null;
   assertPresentationChangeClock(box.root, seeded.item);

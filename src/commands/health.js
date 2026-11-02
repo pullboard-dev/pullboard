@@ -1,4 +1,4 @@
-import { recentReceipts } from '../gate-receipt.js';
+import { recentReceipts } from '../../packages/gate/index.js';
 import { runnerLossHealth } from '../runner-loss-health.js';
 import { runnerLossLines } from '../runner-loss-health.js';
 import { maintenanceTimerHealth } from '../worktree-maintenance-scheduler.js';
@@ -20,7 +20,7 @@ import { openBoardReadOnly } from '../../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../board-health-receipts.js';
 import { readBlocks } from '../../packages/items/index.js';
 import { rigorReport } from '../board-rigor.js';
-import { dispatchHealth } from '../dispatch-health.js';
+import { dispatchHealth } from '../../packages/sentinels/index.js';
 import { readGitSyncRepairs } from '../../packages/config/index.js';
 import { loadMachineSettings } from '../../packages/config/index.js';
 import { runnerLeaseHealth } from '../../packages/resources/index.js';

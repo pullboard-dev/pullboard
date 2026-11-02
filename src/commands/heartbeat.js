@@ -1,8 +1,9 @@
+import { claimWorktrees } from '../../packages/activity/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 import { nextTake } from '../../packages/sandbox/index.js';
-import { mainRedReviewItems } from '../main-red.js';
-import { mainRedReworkItems } from '../main-red.js';
-import { computedReturnArgs } from '../computed-conflict-return.js';
+import { mainRedReviewItems } from '../../packages/landing/index.js';
+import { mainRedReworkItems } from '../../packages/landing/index.js';
+import { computedReturnArgs } from '../../packages/landing/index.js';
 import {
   MainSpecMerged,
   checkMainVerifier,
@@ -31,7 +32,7 @@ export async function run(io) {
   if (seat && !ctx.info.isMain) {
     const found = await nextTake(ctx, {}, { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered,
       idArg, ordered, whoAmI, withBoard, withBoardRead: takeBoardRead,
-      mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest });
+      mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees });
     if (found.item) work = { item: found.item.item_id, review: found.review, held: found.held };
   }
   io.result?.({ ...(work ? { work } : {}), seat: seat?.agent_id ?? null, presence: seat?.presence ?? 'gone', heartbeatAt: seat?.heartbeatAt ?? null });

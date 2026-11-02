@@ -5,7 +5,7 @@ const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js',
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { land, runLandingBatch } from '../src/land.js';
+import { land, runLandingBatch } from '../packages/landing/index.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -20,7 +20,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove, applyRelayMove } from '../packages/state/index.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../src/merge-only-verdict-engine.js';
 import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
-import { capturePrProof } from '../src/pr-proof-snapshot.js';
+import { capturePrProof } from '../packages/github/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);

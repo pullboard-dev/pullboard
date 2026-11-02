@@ -16,11 +16,11 @@ const CONFLICT_REFUSAL_BOUND_MS = 10_000;
 const MARK = path => `node test/mark.mjs ${path}`;
 
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
-function project(t, { staticFails = false } = {}) {
+function project(t, { staticFails = false, staticLint = false } = {}) {
   const box = privateRepo(t);
   const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log'), doctrine: join(box.dir, 'doctrine.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
-    staticChecks: `${MARK(markers.staticCheck)} && ${staticFails ? 'node test/static-problem.mjs' : 'true'}`,
+    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node bin/static-style-checks.js' : staticFails ? 'node test/static-problem.mjs' : 'true'}`,
     shared: ['pullboard.json'] }));
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], `ran ${Date.now()}\\n`);\n");
@@ -76,4 +76,18 @@ test('a static failure is refused before the item check and the runner gate, and
   const when = path => statSync(path).mtimeMs;
   assert.ok(when(clean.markers.staticCheck) <= when(clean.markers.doctrine), 'static runs before doctrine');
   assert.ok(when(clean.markers.doctrine) <= when(clean.markers.item), 'doctrine runs before the runner gate');
+});
+
+
+test('changed import style is refused before cells or gate receipts [V4,C7]', t => {
+  const { box, markers } = project(t, { staticLint: true });
+  put(box.root, 'src/a.js', "import { readFile, writeFile } from 'node:fs';\nexport { readFile, writeFile };\n");
+  commitAll(box, 'feat(core): change source with bad import style [G1]');
+  const result = box.run('submit', '1', '--json', '--infra', 'static preflight fixture');
+  assert.notEqual(result.code, 0);
+  assert.match(result.err + result.out, /src\/a\.js:1: one import binding per line/u);
+  assert.doesNotMatch(result.err + result.out, /submit cells inventory|submit cells:/u);
+  for (const path of Object.values(markers)) assert.equal(existsSync(path), false);
+  const receiptDir = join(box.dir, 'repo', '.git', 'pullboard', 'gate-receipts');
+  assert.equal(existsSync(receiptDir), false, 'no gate receipt was written');
 });

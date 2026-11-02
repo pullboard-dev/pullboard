@@ -42,14 +42,14 @@ import { environmentProblem } from '../packages/config/index.js';
 import {
   digestOf,
   writeTimingProfile,
-} from './gate-output.js';
+} from '../packages/gate/index.js';
 import { sandboxBlockedScanner } from '../packages/sandbox/index.js';
 import {
   logLines,
   timingFromLog,
   timingFromOutput,
   timingRunner,
-} from './timing.js';
+} from '../packages/gate/index.js';
 import {
   GATE_SLOT_HELD_ENV,
   gateSlotEnvironment,
@@ -105,7 +105,7 @@ export function runnerPrivateCheck(root, item, command, policy, lease, guard, wa
   const checkedSource = { commit: item.item_commit, tree: policyGit(root, ['rev-parse', `${item.item_commit}^{tree}`]).trim() };
   const started = Date.now();
   lease.tracker?.mark('runAt');
-  const result = runOnRunner(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser,
+  const result = runOnRunner(root, command, { runner: lease.runner, source: lease.source, runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, byLaunch: lease.browserByLaunch,
     metadata: { ...lease.runMetadata, ...(lease.testOutcomeRunId ? { timingRunId: lease.testOutcomeRunId } : {}), testStage: lease.receiptKind ?? 'verify' }, checkedSource, privateCheck: mode, rawOutputPath: join(directory, 'raw.log') });
   lease.tracker?.mark('ranAt');
   lease.environment = result.environment ?? null;

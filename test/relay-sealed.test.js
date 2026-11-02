@@ -16,7 +16,7 @@ import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
 import { serveView } from '../src/commands/view.js';
-import { registerProject } from '../src/projects.js';
+import { registerProject } from '../packages/seats/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 
@@ -26,7 +26,7 @@ import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove, 
 import { seal as sealMove, unseal as openSealed } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 import { relayRecover, syncRelay } from '../packages/link/index.js';
-import { createRelayPageCache, snapshotSourceId } from '../src/relay-page-cache.js';
+import { createRelayPageCache, snapshotSourceId } from '../packages/pages/index.js';
 
 after(cleanupFixtureChildren);
 

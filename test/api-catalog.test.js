@@ -25,11 +25,11 @@ import { resultCommands } from '../src/cli.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
 import { openBoard } from '../src/native-board.js';
-import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
+import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';
-import { registerProject } from '../src/projects.js';
+import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
 import { fixtureJSON as intakeFixtureJSON, intakeFixture } from './intake-fixture.js';
@@ -226,6 +226,8 @@ async function json(box, cwd, command, args = [], subcommand) {
   const document = JSON.parse(result.stdout);
   if (command === 'check' && subcommand !== 'accept') {
     assert.equal(result.stderr, `check #${document.id} set by ${document.by} (unknown): ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
+  } else if (command === 'done' || command === 'submit') {
+    assert.match(result.stderr, /^(?:cells-submit receipt not reused: config changed\n)?$/, `${command} permits only the cache diagnostic on stderr`);
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
@@ -794,16 +796,19 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const companion = await json(source, source.repo, 'companion', [String(catalog.item_id), 'coordinator', 'Catalog companion', '--key', 'catalog']);
   assert.equal(companion.item.item_parent_id, catalog.item_id);
   assert.equal(companion.created, true);
-  await json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id)], 'add');
+  await json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'add');
   await json(source, source.repo, 'milestone', ['items', 'Catalog', '--remove', String(catalog.item_id)], 'items');
-  await json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id)], 'items');
-  await json(source, source.repo, 'milestone', ['order', 'Catalog', String(catalog.item_id)], 'order');
+  await json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'items');
+  await json(source, source.repo, 'milestone', ['order', 'Catalog', String(catalog.item_id), '--reason', 'Exercise catalog milestone ordering'], 'order');
   await json(source, source.repo, 'milestone', ['pin', 'Catalog', String(catalog.item_id), '--reason', 'Catalog coverage first'], 'pin');
   const sunk = await json(source, source.repo, 'milestone', ['sink', 'Catalog', String(catalog.item_id), '--reason', 'Catalog coverage last'], 'sink');
   assert.deepEqual([sunk.milestone.sunk, sunk.milestone.reasons[String(catalog.item_id)]], [[catalog.item_id], 'Catalog coverage last'], 'a sink records the item and its reason');
   assert.equal((await json(source, source.repo, 'milestone', ['lift', 'Catalog', String(catalog.item_id)], 'lift')).milestone.sunk, undefined, 'a lift returns the item to the computed order');
   await json(source, source.repo, 'milestone', ['add', 'Later'], 'add');
   await json(source, source.repo, 'milestone', ['move', 'Later', '--before', 'Catalog'], 'move');
+  const focused = await json(source, source.repo, 'milestone', ['focus', 'Catalog'], 'focus');
+  assert.deepEqual([focused.focus, focused.overflow], ['Catalog', false], 'focus names the release seats hold to');
+  assert.equal((await json(source, source.repo, 'milestone', ['focus', 'off'], 'focus')).focus, null, 'focus off clears it before later moves');
   await json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
   await json(source, source.repo, 'milestone', ['edit', 'Release', '--target', '2026-10-20T18:00Z'], 'edit');
   const shippedLater = await json(source, source.repo, 'milestone', ['ship', 'Later'], 'ship');
@@ -814,6 +819,9 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.equal((await json(source, source.repo, 'check', ['accept', String(reopenItem.item_id)], 'accept')).check, 'true', 'the person accepts the check as it reads');
   await json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
   await json(source, source.repo, 'submit', [String(reopenItem.item_id), '--no-next']);
+  const comparison = await json(source, source.repo, 'verify', [String(reopenItem.item_id), '--compare'], 'compare');
+  assert.equal(comparison.status, 'complete');
+  assert.deepEqual([comparison.files, comparison.head.id, comparison.base.id], [[], null, null], 'an empty selection records no executions');
   await json(source, source.repo, 'reopen', [String(reopenItem.item_id), '--note', 'exercise the versioned reopen result']);
   // A cause repeated on two items becomes a draft row once its check is proved red, then green (#714).
   for (const title of ['Rigor catalog one', 'Rigor catalog two']) {
@@ -850,6 +858,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null, fixed: true });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
+  assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
+  assert.ok(Array.isArray((await json(source, source.repo, 'seats')).seats));
+  assert.equal(typeof (await json(source, source.repo, 'stats', ['time'], 'time')).time, 'object');
+  assert.ok(Object.hasOwn(await json(source, source.repo, 'tool-build'), 'build'));
 
   const handoffPath = join(source.dir, 'catalog-handoff');
   await source.git(source.repo, 'worktree', 'add', '--detach', '--quiet', handoffPath, 'HEAD');
@@ -934,6 +946,15 @@ catalogCase('[A1,H11] sync shares a board through a real Git remote without an a
   assert.equal(result.sequence, 0);
   assert.equal(result.pending, null);
   assert.match(await source.git(remote, 'rev-parse', result.ref), /^[0-9a-f]{40,64}$/u);
+});
+
+catalogCase('[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON', async () => {
+  const source = await project();
+  const parent = (await json(source, source.repo, 'add', ['coordinator', 'Slice parent', '--criterion', 'Every slice inherits this bar.', '--check', 'true'], 'add')).item;
+  await json(source, source.repo, 'check', ['accept', String(parent.item_id)], 'accept');
+  await json(source, source.repo, 'claim', [String(parent.item_id)]);
+  const { item } = await uncataloguedRootJSON(source, source.repo, 'slice', [String(parent.item_id), 'Slice part', '--files', 'app/part.js', '--check', 'true']);
+  assert.deepEqual([item.item_parent_id, item.item_criterion], [parent.item_id, 'Every slice inherits this bar.'], 'the slice inherits its parent and frozen criterion');
 });
 
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', () =>

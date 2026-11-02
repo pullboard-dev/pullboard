@@ -7,12 +7,12 @@ import {
   CURRENT_SNAPSHOT_BYTES,
   currentSnapshotPresentation,
   openPagedSnapshot,
-} from "../../../src/relay-page-layout.js";
-import { writePagedSnapshot } from "../../../src/relay-page-writer.js";
+} from "../../pages/index.js";
+import { writePagedSnapshot } from "../../pages/index.js";
 import {
   readSealedDescriptor,
   writeSealedDescriptor,
-} from "../../../src/sealed-pages.js";
+} from "../../pages/index.js";
 
 /** Keep synthetic cipher objects and prove every requested history path belongs to the selected root. */
 async function fixture() {

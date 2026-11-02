@@ -1,3 +1,4 @@
+import { validateItemDependencies } from "./board-item-dependencies.js";
 import { releaseClaim } from "../core/board-release-claim.js";
 import { itemById } from "./board-query.js";
 import { reviewHolder } from "./board-query.js";
@@ -21,5 +22,5 @@ import { insertShout } from "./board-shout.js";
  */
 export function release(board, id, agentId, note = '', goneSeat, reasonCode) {
   return releaseClaim(board, id, agentId, note, goneSeat, { atomic, itemById, reviewHolder,
-    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout }, reasonCode);
+    reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies }, reasonCode);
 }

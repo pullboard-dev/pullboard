@@ -11,6 +11,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { testOutcomeFields } from './test-outcomes.js';
 import { join } from 'node:path';
 import {
   gzipSync,
@@ -35,7 +36,20 @@ export function validTestTap(report) {
   return report && Array.isArray(report.lines) && report.lines.every(line => typeof line === 'string'
     && !/[\r\n\0]/u.test(line) && /^\s*(?:not )?ok \d+(?: |$)/u.test(line))
     && report.counts && ['passed', 'failed', 'skipped', 'tests'].every(name => Number.isSafeInteger(report.counts[name]) && report.counts[name] >= 0)
-    && report.counts.failed === 0 && report.observedTests === report.counts.tests;
+    && report.counts.failed === 0 && report.observedTests === report.counts.tests
+    && (report.testOutcomes === undefined || testOutcomeFields(report.testOutcomes) !== null);
+}
+
+/** Reuse case identity only from complete recorded Node outcomes, never inferred cached TAP or exit status. */
+export function testResultOutcomes(entry) {
+  if (!validTestTap(entry?.tap)) return null;
+  const tests = testOutcomeFields(entry.tap.testOutcomes);
+  const counts = entry.tap?.counts;
+  if (!tests || tests.length !== counts.tests || tests.some(row => row.file !== entry.file)
+    || tests.filter(row => row.passed && !row.skipped).length !== counts.passed
+    || tests.filter(row => !row.passed && !row.skipped).length !== counts.failed
+    || tests.filter(row => row.skipped).length !== counts.skipped + (counts.todo ?? 0)) return null;
+  return tests;
 }
 
 /** Validate the record's key, source and origin before it can enter another machine's store. */
@@ -51,7 +65,8 @@ export function validTestResult(entry) {
     && entry.origin.commit === entry.commit && entry.origin.stage === entry.stage && entry.origin.at === entry.at
     && (entry.origin.request === undefined || /^[a-f0-9-]{36}$/u.test(entry.origin.request))
     && (entry.origin.completion === undefined || completedTestResult(entry))
-    && (entry.status === 'fail' || entry.status === 'pass' && validTestTap(entry.tap));
+    && (entry.status === 'fail' || entry.status === 'pass' && validTestTap(entry.tap)
+      && (entry.tap.testOutcomes === undefined || testResultOutcomes(entry) !== null));
 }
 
 /** Publish a whole record atomically, retaining private filesystem permissions. */
@@ -78,7 +93,8 @@ export function storeTestResult(store, entry) {
   try {
     const prior = JSON.parse(readFileSync(join(store, 'green', `${entry.key}.json`), 'utf8'));
     if (validTestResult(prior) && prior.key === entry.key && prior.status === 'pass'
-      && (prior.origin.completion || !entry.origin.request)) entry = prior;
+      && (prior.origin.completion || !entry.origin.request)
+      && (!testResultOutcomes(entry) || testResultOutcomes(prior))) entry = prior;
   } catch { /* A missing or damaged entry is replaced by this complete receipt. */ }
   publish(join(store, 'green', `${entry.key}.json`), entry);
   // A concurrent red is still authoritative at lookup, regardless of publication order.

@@ -1,12 +1,12 @@
-import { failureSignatures } from '../main-failure-matches.js';
+import { failureSignatures } from '../../packages/landing/index.js';
 /** The pullboard test command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
-import { mainFailureNotices } from '../main-red.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
+import { mainFailureNotices } from '../../packages/landing/index.js';
 import { listItems } from '../../packages/store/index.js';
-import { compareMainFailures } from '../main-red.js';
-import { withMainCheckout } from '../main-red.js';
-import { runTestFiles } from '../test-run.js';
+import { compareMainFailures } from '../../packages/landing/index.js';
+import { withMainCheckout } from '../../packages/landing/index.js';
+import { runTestFiles } from '../../packages/gate/index.js';
 import { itemsInStatus } from '../../packages/store/index.js';
 import {
   context,

@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
@@ -238,7 +238,7 @@ export function runnerBoardFile(root, hops = 3) {
   const boardFile = join(info.commonDir, 'pullboard', 'board.sqlite');
   if (existsSync(boardFile)) return boardFile;
   if (hops <= 0) return null;
-  const origin = spawnSync('git', ['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const origin = gitSpawnSync(['config', '--get', 'remote.origin.url'], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
   const url = origin.status === 0 ? origin.stdout.trim() : '';
   return url && isAbsolute(url) && existsSync(url) ? runnerBoardFile(url, hops - 1) : null;
 }

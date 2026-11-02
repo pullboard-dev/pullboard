@@ -1,3 +1,4 @@
+import { claimWorktreeSnapshot } from '../untouched-claim-observation.js';
 import {
   submitHandoffActor,
   isSubmitHandoffWorker,
@@ -7,8 +8,8 @@ import { captureLapsedClaims } from '../../packages/health/index.js';
 import { itemCheckBaseline } from '../../packages/store/index.js';
 import { writeBoardCommand } from '../board-command-write.js';
 import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
-import { laneSeatContext } from '../seat-checkout.js';
-import { nextSessionSeats } from '../seat-checkout.js';
+import { laneSeatContext } from '../../packages/seats/index.js';
+import { nextSessionSeats } from '../../packages/seats/index.js';
 import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
 import * as personIdentity from '../person.js';
@@ -35,14 +36,14 @@ import { configFromSource } from '../../packages/config/index.js';
 import { loadDoctrine } from '../doctrine.js';
 import { agentDoctrine } from '../../packages/doctrine/index.js';
 import { signedMoveProblem } from '../../packages/person/index.js';
-import { bindLocalSession } from '../agent-session.js';
-import { localSessionMatches } from '../agent-session.js';
+import { bindLocalSession } from '../../packages/seats/index.js';
+import { localSessionMatches } from '../../packages/seats/index.js';
 import { headCommit } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { frozenCriterion } from '../../packages/spec/index.js';
 import { mainCriterionFacts } from '../main-criterion-facts.js';
 import { liveCriterionSpec } from '../main-criterion-facts.js';
-import { foreignNodeOptions } from '../test-isolation.js';
+import { foreignNodeOptions } from '../../packages/gate/index.js';
 import { loadSpec } from '../../packages/spec/index.js';
 import { refuseAgentApprovedRows } from '../../packages/spec/index.js';
 import { ensureSpecApprovalCoordinator } from '../../packages/spec/index.js';
@@ -137,7 +138,7 @@ export async function ordered(ctx, board, operation, args) {
     const actor = ctx.info.isMain ? COORDINATOR : (submitHandoffActor(ctx, board, operation, args) ?? store.agentAt(board, ctx.info.root))?.agent_id;
     requireHandoffActive(board, actor, operation, args);
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
-      await (await import('../git-sync-repair.js')).repairGitSync(ctx.info.root, board, ctx.io);
+      await (await import('../../packages/sync/index.js')).repairGitSync(ctx.info.root, board, ctx.io);
     }
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);
@@ -146,6 +147,7 @@ export async function ordered(ctx, board, operation, args) {
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
     const requested = requestedCommandMove(requestedCommand, operation);
     const heartbeat = requested ? (await import('../cli-presence.js')).heartbeatCommand : null;
+    if (requested && operation === 'submit') heartbeat(ctx.io, { ctx, board });
     /** Observe a committed requested write before its relay checkpoint captures the presentation. */
     const observeRequested = () => {
       ctx.io.recordedMove = true;
@@ -160,14 +162,16 @@ export async function ordered(ctx, board, operation, args) {
       ctx.io.onOrderedMove?.({ operation, events: (board.emittedEvents?.slice(firstEvent) ?? []).map(event => ({ ...event })) });
       return result;
     };
+    // Select transport before the acknowledged write; a later damaged marker cannot undo its receipt.
+    const gitLinked = !ctx.privateBoard && gitSyncLinked(ctx.info.root);
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
-      : gitSyncLinked(ctx.info.root)
+      : gitLinked
         ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());
-    if (!ctx.privateBoard && requested && gitSyncLinked(ctx.info.root)) ctx.io.recordedMove = true;
+    if (requested && gitLinked) ctx.io.recordedMove = true;
     await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
   };
@@ -192,7 +196,8 @@ export async function claimOrdered(ctx, board, args) {
   if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const exitRules = mainPolicy(ctx.info.root).config.exitRules;
-  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
+  const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
+  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
@@ -235,7 +240,8 @@ export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecis
         ? policy.commit
         : (/^[0-9a-f]{40,64}$/.test(item.item_claim_head ?? '') ? item.item_claim_head : mainPolicy(ctx.info.root).commit);
       config = policyAt(ctx.info.root, commit).config;
-      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family } };
+      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family,
+        ...(Number.isSafeInteger(config.verify.familyRelaxAt) && config.verify.familyRelaxAt > 0 ? { familyRelaxAt: config.verify.familyRelaxAt } : {}) } };
     } else {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }

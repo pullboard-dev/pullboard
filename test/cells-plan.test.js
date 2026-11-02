@@ -1,10 +1,12 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import { sourceAdvancePlan } from '../packages/codemap/index.js';
-import { selectAffectedTests } from '../src/affected-tests.js';
-import { selectTestTreeGuards } from '../src/affected-tests.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { withSourceComposition } from '../packages/merge/index.js';
+import { retryReviewCommit } from '../packages/verify/index.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { selectTestTreeGuards } from '../packages/gate/index.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
@@ -87,7 +89,10 @@ test('no cell is ordered ahead of a cell it imports, computed from the real sour
     checked++;
     if (position.get(to) > position.get(from) && !cuts.has(`${from}->${to}`)) ahead.add(`${from} (move ${position.get(from)}) imports ${to} (move ${position.get(to)}) through ${file} -> ${target}`);
   }
-  assert.ok(checked > 1000, `the real import graph was read (${checked} cross-cell imports)`);
+  const crossCellEdges = [...edges].flatMap(([file, rows]) => testFile(file) ? []
+    : rows.filter(({ target }) => !testFile(target) && index.has(file) && index.has(target) && index.get(file) !== index.get(target)));
+  assert.ok(crossCellEdges.length > 0, 'the real inventory contains cross-cell imports');
+  assert.equal(checked, crossCellEdges.length, 'the order check visits every cross-cell import in the inventory');
   assert.deepEqual([...ahead], [], 'name the import as a cut of the later cell, or regenerate with node bin/cells-plan.js --write');
   for (const cell of PLAN.cells) {
     for (const name of cell.item.after) assert.ok(position.get(name) < cell.order, `${cell.name} waits only on earlier cells`);
@@ -340,6 +345,8 @@ test('cut refresh refuses a newly tracked unplanned endpoint without changing an
 /** Two branches off one commit that each change the same file, merged in the given order into a real conflict. */
 function divergent(t, file, base, left, right) {
   const { root, put } = fixture(t);
+  git(root, 'config', 'user.name', 'Cells plan fixture');
+  git(root, 'config', 'user.email', 'cells@example.invalid');
   put(file, base); git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'base');
   const main = git(root, 'rev-parse', 'HEAD').trim();
   const branch = (name, source) => {
@@ -429,4 +436,113 @@ test('replay of a version-three receipt keeps the older policy for plan rows [H1
   const { root, heads } = divergent(t, SHARD_FILE, SHARD(base), SHARD(edit('packages/a/m-2.js')), SHARD(edit('packages/b/m-2.js')));
   assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 3 }), [], 'the recorded version-three answer is unchanged');
   assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 4 }), [SHARD_FILE]);
+});
+
+test('moved shim exceptions require a live edge or trusted historical import [C7,D3,CD64]', t => {
+  for (const mode of ['live', 'expired', 'history', 'uncommitted-history', 'unreferenced', 'wrong-leaf']) {
+    const { root, put } = fixture(t);
+    put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
+    if (mode === 'history') {
+      put('src/move-history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
+      git(root, 'add', 'src/move-history/152.json');
+      git(root, 'commit', '-q', '-m', 'seal history');
+    }
+    const plan = computePlan(root);
+    writePlan(root, plan);
+    put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+    put('packages/kernel/src/core/other.js', 'export class Refused extends Error {}\n');
+    put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    put('src/board.js', "import { Refused } from '../packages/kernel/index.js';\nexport const board = () => Refused;\n");
+    put('src/refused.js', `export { Refused } from '../packages/kernel/src/core/${mode === 'wrong-leaf' ? 'other' : 'refused'}.js';\n`);
+    if (['live', 'expired', 'wrong-leaf'].includes(mode)) put('bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'packages/kernel/src/core/refused.js', contractItem: 42, expires: mode === 'expired' ? '2000-01-01' : '2999-01-01' }] }));
+    if (mode === 'uncommitted-history') put('src/move-history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
+    const notes = [], problems = checkMoved(root, plan, 'kernel', { notes });
+    if (mode === 'live' || mode === 'history') {
+      assert.deepEqual(problems, [], `${mode}: ${problems.join('\n')}`);
+      assert.match(notes.join('\n'), mode === 'live' ? /live temporary edge #42/u : /sealed move history/u);
+    } else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
+  }
+});
+
+
+/** Render the plan index's actual keyed placement rows. */
+function planIndex(stays) {
+  const engineStays = stays.map(({ path, reason }) => ({ cell: 'state', row: [path, 'packages/state/' + path, reason] }));
+  return JSON.stringify({ version: 1, cells: [], stays, engineStays }, null, 2) + '\n';
+}
+
+/** Render the test-tier manifest's actual file-keyed rows. */
+function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
+
+
+test('plan index disjoint additions compose identically in both orders [C7,D3]', async t => {
+  const row = path => ({ path: path, reason: 'T1' });
+  const base = [row('test/base.test.js')];
+  const { root, heads } = divergent(t, 'bin/cells-plan.json', planIndex(base),
+    planIndex([...base, row('test/zeta.test.js')]), planIndex([...base, row('test/alpha.test.js')]));
+  const sources = [];
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await withSourceComposition(root, ours, theirs, async composition => {
+      const source = readFileSync(join(composition.directory, 'bin/cells-plan.json'), 'utf8');
+      const document = JSON.parse(source), rows = document.stays;
+      assert.deepEqual(document.engineStays.map(entry => entry.row[0]), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.deepEqual(rows.map(entry => entry.path), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
+      sources.push(source);
+    });
+    const review = retryReviewCommit(root, ours, { commit: theirs });
+    assert.equal(git(root, 'show', `${review}:bin/cells-plan.json`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
+  }
+  assert.equal(sources.length, 2);
+  assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
+});
+
+test('plan index same-row edits refuse and name the row [C7,D3]', async t => {
+  const path = 'test/shared.test.js';
+  const row = value => [{ path: path, reason: value }];
+  const { root, heads } = divergent(t, 'bin/cells-plan.json', planIndex(row('T1')),
+    planIndex(row('T2')), planIndex(row('T3')));
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
+      assert.fail('a conflicting row must not reach the composed-source controller');
+    }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+    assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
+      error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+  }
+});
+
+
+test('test tiers disjoint additions compose identically in both orders [C7,D3]', async t => {
+  const row = path => ({ file: path, tier: 'T1' });
+  const base = [row('test/base.test.js')];
+  const { root, heads } = divergent(t, 'packages/gate/test-tiers.json', tierManifest(base),
+    tierManifest([...base, row('test/zeta.test.js')]), tierManifest([...base, row('test/alpha.test.js')]));
+  const sources = [];
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await withSourceComposition(root, ours, theirs, async composition => {
+      const source = readFileSync(join(composition.directory, 'packages/gate/test-tiers.json'), 'utf8');
+      const rows = JSON.parse(source).files;
+      assert.deepEqual(rows.map(entry => entry.file), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
+      sources.push(source);
+    });
+    const review = retryReviewCommit(root, ours, { commit: theirs });
+    assert.equal(git(root, 'show', `${review}:packages/gate/test-tiers.json`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
+  }
+  assert.equal(sources.length, 2);
+  assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
+});
+
+test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
+  const path = 'test/shared.test.js';
+  const row = value => [{ file: path, tier: value }];
+  const { root, heads } = divergent(t, 'packages/gate/test-tiers.json', tierManifest(row('T1')),
+    tierManifest(row('T2')), tierManifest(row('T3')));
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
+      assert.fail('a conflicting row must not reach the composed-source controller');
+    }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+    assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
+      error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+  }
 });

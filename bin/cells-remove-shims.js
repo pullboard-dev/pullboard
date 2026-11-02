@@ -1,9 +1,14 @@
 /** Remove one cell's re-export shims: repoint every importer to the cell front door, then delete what nothing imports [C7,D3]. */
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { posix } from 'node:path';
+import { Script } from 'node:vm';
 import { cellInventory, updateCellInventory } from '../packages/codemap/index.js';
 import { importCuts, readPathMap } from '../packages/codemap/index.js';
 import { repositoryImport } from '../packages/codemap/index.js';
@@ -138,7 +143,7 @@ function choose(box, shim, file, use) {
   const pure = pureReason(box, file);
   if (pure) {
     if (core && covers(core)) return { path: core, adds: [] };
-    const missing = names.filter(name => !core || !exportsOf(box, core).has(name));
+    const missing = names.filter(name => !core || !exportsOf(box, core).has(name) || !same(core, name));
     const named = missing.length > 8 ? `${missing.slice(0, 8).join(', ')} +${missing.length - 8} more` : missing.join(', ');
     return { refuse: `${pure} ${file} would reach past ${cell.name} core.js, which lacks ${named || 'a pure front door'}` };
   }
@@ -249,6 +254,67 @@ function hitsByShim(box, shims) {
     }
   }
   return hits;
+}
+
+/** A string token that is a whole module path: no whitespace, a module extension, nothing after the path. */
+const PATH_TOKEN = /^[^\s'"`]+\.[cm]?js$/u;
+/** Code just before a literal that hands it to a module or path call: import(), require(), new URL() or path.join(). */
+const PATH_ARGUMENT = /(?<![\w$.])(?:(?:import|require)\s*|new\s+URL\s*|path\s*\.\s*join\s*)\(\s*(?:[^()'"`]*,\s*)?$/u;
+const STATIC_IMPORT = /(?:^|[;\n{}])\s*(?:import|export)\s+(?:[^;\n]*?\s+from\s+)?$/u;
+
+/**
+ * Whether one path-shaped string names `path`: ./ or ../ relative, absolute, a file: URL, a template root such as
+ * `${ROOT}/src/x.js`, or a bare repository path handed to a path call. A longer repository path that merely ends the
+ * same way, like ./packages/a/src/x.js, is another module.
+ */
+function pathToken(token, path, argument) {
+  if (!PATH_TOKEN.test(token) || !token.endsWith(path)) return false;
+  const fileUrl = token.startsWith('file:');
+  const prefix = token.slice(0, -path.length).replace(/^file:/u, '');
+  if (prefix && !prefix.endsWith('/')) return false;
+  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || prefix.startsWith('/') || /^\$\{[^}]*\}\//u.test(prefix) : fileUrl || argument;
+}
+
+/**
+ * Whether a string literal names `path` as a module: the whole literal is a path, or a quoted string inside it is, as in a
+ * generated child script's `import ... from './src/x.js'`. A sentence that mentions a path is prose and never counts.
+ */
+function namesPath(text, path, argument) {
+  if (pathToken(text, path, argument)) return text.lastIndexOf(path);
+  // Compile only source-shaped embedded scripts; this never runs the string or its imports.
+  let script = false;
+  if (text.length <= 1024 * 1024 && /\b(?:const|let|var|import|export|require|return|function|class|new)\b|[=;(){}]/u.test(text)) {
+    try { new Script(text); script = true; } catch { /* Static module syntax is handled below. */ }
+  }
+  const nestedStrings = new Set(lex(text).strings.map(row => row.start));
+  for (const quoted of text.matchAll(/(['"])([^'"\s]*)\1/gu)) {
+    const before = text.slice(Math.max(0, quoted.index - 200), quoted.index);
+    if (nestedStrings.has(quoted.index) && (script || PATH_ARGUMENT.test(before) || STATIC_IMPORT.test(before)) && pathToken(quoted[2], path, true)) return quoted.index + 1 + quoted[2].lastIndexOf(path);
+  }
+  return -1;
+}
+
+/**
+ * Every place a test source names one of `paths` in a string literal (see namesPath): a generated child script importing
+ * `./src/x.js`, `/abs/root/src/x.js` or `file:///abs/root/src/x.js` is invisible to import checks, so deleting a named
+ * path turns main red. A literal that `resolve` maps to the path is an ordinary import the repoint already handles;
+ * comments and prose sentences never hold a path.
+ */
+export function scriptMentions(files, paths, resolve = () => null) {
+  const rows = [], wanted = [...new Set(paths)];
+  for (const [file, bytes] of files) {
+    if (!testFile(file) || !/\.[cm]?js$/u.test(file)) continue;
+    const source = bytes.toString('utf8');
+    if (!wanted.some(path => source.includes(path))) continue;
+    const info = lex(source);
+    for (const literal of info.strings) for (const path of wanted) {
+      if (!literal.text.includes(path) || resolve(file, literal.text) === path) continue;
+      const at = namesPath(literal.text, path, PATH_ARGUMENT.test(info.code.slice(Math.max(0, literal.start - 200), literal.start)));
+      if (at < 0) continue;
+      rows.push({ file, line: source.slice(0, literal.start + 1 + at).split('\n').length, path });
+    }
+  }
+  return rows;
 }
 
 /** Apply the surviving edits and door additions to the original bytes, returning each changed file's new source. */
@@ -384,7 +450,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     applyToDisk(box, new Map(), touched);
     throw error;
   }
-  const deleted = [];
+  const deleted = [], named = scriptMentions(after.files, live, (file, text) => text.startsWith('.') ? resolveSpec(box, file, text) : null);
   for (const shim of live) {
     if (kept.has(shim)) continue;
     const users = [...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file);
@@ -392,9 +458,10 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     // Ownership first: a shim this lane may not delete is reported as such before the importers that also hold it.
     if (outOfLane(settings, lane, [shim]).length) why.push(`${shim} is owned by the ${laneOf(settings, shim)} lane; a removal there deletes it`);
     if (foreignPlan.length) why.push(`deleting ${shim} rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
+    why.push(...named.filter(row => row.path === shim).map(row => `${row.file}:${row.line} names ${shim} inside a string; point it at the moved file or front door`));
     why.push(...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by ')));
-    if (!held.length && users.length) why.push(`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`);
-    if (why.length) { kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`); continue; }
+    if (users.length) why.push(`still imported by ${users.join(', ')}`);
+    if (why.length) { kept.set(shim, why.join('; ')); continue; }
     deleted.push(shim);
   }
   // One git rm for every deleted shim, not one process each; a refusal falls back to plain file removal (#2232).
@@ -406,7 +473,60 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   const cited = [...plans].flatMap(([shim, made]) => made.cited.map(file => `${file} cites ${shim}; not rewritten outside the ${lane} lane`));
   const reexports = cell.reexports.filter(shim => !deleted.includes(shim) && !absent.includes(shim));
   const next = { ...plan, cells: plan.cells.map(row => row.name === name ? { ...row, reexports } : row) };
-  return { plan: next, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], cited };
+  const keptDetails = [...kept].map(([shim, reason]) => ({ shim, reason, importers: [...new Set([
+    ...[...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file),
+    ...named.filter(row => row.path === shim).map(row => row.file),
+  ])].sort() }));
+  return { plan: next, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], keptDetails, cited };
+}
+
+/** Make complete, reviewable board text for each shim that could not be removed. */
+export function shimHandoff(result, cell, item) {
+  if (!result.keptDetails?.length) return null;
+  const rows = result.keptDetails.map(({ shim, reason, importers }) => `- ${shim}: ${reason}; importers: ${importers.length ? importers.join(', ') : '(none found)'}`);
+  const fact = `Cells ${cell} kept shims:\n${rows.join('\n')}`;
+  const title = `Cells cut: remove remaining ${cell} shim importers`;
+  const criterion = `After the ${cell} shim removal, resolve these remaining edges and remove the kept shims where safe:\n${rows.join('\n')}`;
+  return { fact, title, criterion, after: item ?? null };
+}
+
+/** Obtain board identity and the one live claim before any optional board write. */
+function claimedItem(root, lane, env) {
+  const read = args => {
+    const run = spawnSync('pullboard', [...args, '--json'], { cwd: root, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (run.status !== 0) throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} failed: ${run.stderr?.trim() || run.error?.message || run.status}`);
+    try { return JSON.parse(run.stdout); } catch { throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} did not return JSON`); }
+  };
+  const me = read(['whoami']);
+  const claims = (read(['list', lane, '--all']).items ?? []).filter(row => row.item_owner === me.id && row.item_status === 'claimed' && Date.parse(row.item_lease_until) > Date.now());
+  if (claims.length !== 1) throw new Refused('CELLS_PLAN_FILE', 'a single live claimed removal item is required for --file-cut');
+  return claims[0].item_id;
+}
+
+/** Persist the handoff outside the checkout and optionally record it through the normal board CLI. */
+export function writeShimHandoff(root, result, cell, { lane = 'core', directory, fileCut = false, env = process.env } = {}) {
+  if (!result.keptDetails?.length) return null;
+  let item;
+  if (fileCut) item = claimedItem(root, lane, env);
+  else try { item = claimedItem(root, lane, env); } catch { item = null; } // An unjoined dry run still produces a draft.
+  const handoff = shimHandoff(result, cell, item);
+  const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+  const add = ['add', lane, handoff.title, '--criterion', handoff.criterion, '--after', String(item ?? '<removal item id>'), '--force-size', 'one cut must enumerate every remaining shim importer'];
+  const command = `pullboard ${add.map(quote).join(' ')}`;
+  const out = directory ?? mkdtempSync(join(tmpdir(), 'pullboard-shim-handoff-'));
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, 'fact.txt'), handoff.fact + '\n');
+  writeFileSync(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n${command}\n`);
+  if (fileCut) {
+    const short = `Please file after #${item}: ${handoff.title}. `;
+    const complete = `${short}${handoff.criterion}`;
+    const request = Array.from(complete).length <= 400 ? complete : `${short}Full criterion and every importer are in the kept-shim fact on #${item}.`;
+    for (const args of [['fact', String(item), 'note', handoff.fact], ['shout', 'coordinator', '--kind', 'question', request]]) {
+      const run = spawnSync('pullboard', args, { cwd: root, env, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+      if (run.status !== 0) throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} failed: ${run.stderr?.trim() || run.error?.message || run.status}; handoff retained in ${out}`);
+    }
+  }
+  return { ...handoff, command, directory: out };
 }
 
 /** The lines the command prints: each repoint, deletion, kept shim with its reason, and the citations left outside the lane. */

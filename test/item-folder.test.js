@@ -1,0 +1,105 @@
+/** Real claim and release lifecycle for isolated item worktrees [B5,C7]. */
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { crossLaneFixture } from './e2e-helpers.js';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { createE2eHelpers } from './e2e-helpers.js';
+
+test('[B5,C7] claim opens a folder; release removes a clean folder and the next claim reuses its branch', t => {
+  const helpers = createE2eHelpers();
+  t.after(() => helpers.cleanup());
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'item folder fixture', '--criterion', 'The item is isolated', '--specs', 'G1', '--json');
+  assert.equal(added.code, 0, added.err || added.out);
+  const id = JSON.parse(added.out).item.item_id;
+  const first = box.run(box.web, 'claim', String(id), '--json');
+  assert.equal(first.code, 0, first.err || first.out);
+  const path = JSON.parse(first.out).itemFolder;
+  assert.ok(path && existsSync(path), 'claim prints a real folder');
+  assert.equal(box.git(path, 'branch', '--show-current'), `web/item-${id}`);
+  assert.equal(box.git(path, 'rev-parse', 'HEAD'), box.git(box.repo, 'rev-parse', 'main'));
+  const released = box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'exercise reuse', '--no-next');
+  assert.equal(released.code, 0, released.err || released.out);
+  assert.equal(existsSync(path), false, 'release removes the clean item folder');
+  assert.equal(box.git(box.repo, 'rev-parse', `refs/heads/web/item-${id}`), box.git(box.repo, 'rev-parse', 'main'), 'release retains the branch');
+  const again = box.run(box.web, 'claim', String(id));
+  assert.equal(again.code, 0, again.err || again.out);
+  assert.ok(again.out.includes(`item folder: ${path}`), 'text output names the reused folder');
+  writeFileSync(join(path, 'uncommitted.txt'), 'preserve me\n');
+  const dirty = box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'retain dirty work', '--no-next');
+  assert.equal(dirty.code, 0, dirty.err || dirty.out);
+  assert.equal(existsSync(join(path, 'uncommitted.txt')), true, 'uncommitted work prevents cleanup');
+  unlinkSync(join(path, 'uncommitted.txt'));
+  box.run(box.web, 'next', '--verify', '--no-next');
+  assert.equal(existsSync(path), false, 'next removes the released folder once its work is clean');
+  assert.ok(box.git(box.repo, 'rev-parse', `refs/heads/web/item-${id}`), 'next retains the released branch');
+});
+
+
+/** Leave exactly the old native item folder a later seat must recover. */
+function priorItemFolder(t) {
+  const box = crossLaneFixture(t);
+  const old = box.seat('folder-old', 'web', 'folder-old-session');
+  const next = box.seat('folder-next', 'web', 'folder-next-session');
+  const id = box.add('web', 'Recover the previous item folder');
+  const claimed = box.json(box.runAs('folder-old-session', old.root, 'claim', String(id), '--json'));
+  const path = claimed.itemFolder;
+  const claimNext = () => box.runAs('folder-next-session', next.root, 'claim', String(id), '--json');
+  const releaseOld = () => box.runAs('folder-old-session', old.root, 'release', String(id), '--reason', 'OTHER', '--note', 'The next seat continues the same item', '--no-next');
+  return { box, old, next, id, path, claimNext, releaseOld };
+}
+
+test('a claim takes over an old clean item folder without manual Git cleanup [B5,C7]', t => {
+  const { box, id, path, claimNext, releaseOld } = priorItemFolder(t);
+  writeFileSync(join(path, 'old-draft.txt'), 'leave this folder during release\n');
+  const released = releaseOld();
+  assert.equal(released.code, 0, released.err || released.out);
+  unlinkSync(join(path, 'old-draft.txt'));
+  assert.equal(existsSync(path), true, 'the previous native folder still holds the branch');
+  const taken = claimNext();
+  assert.equal(taken.code, 0, taken.err || taken.out);
+  const current = JSON.parse(taken.out).itemFolder;
+  assert.notEqual(current, path);
+  assert.equal(existsSync(path), false);
+  assert.equal(box.git(current, 'branch', '--show-current'), `web/item-${id}`);
+});
+
+test('taking over a dirty item folder archives its exact work before removal [B5,C7]', t => {
+  const { box, id, path, claimNext, releaseOld } = priorItemFolder(t);
+  const head = box.git(path, 'rev-parse', 'HEAD');
+  writeFileSync(join(path, 'README.md'), 'staged item draft\n');
+  box.git(path, 'add', 'README.md');
+  writeFileSync(join(path, 'private-draft.txt'), 'untracked item draft\n');
+  const released = releaseOld();
+  assert.equal(released.code, 0, released.err || released.out);
+  const taken = claimNext();
+  assert.equal(taken.code, 0, taken.err || taken.out);
+  assert.equal(existsSync(path), false);
+  const shown = box.json(box.run(box.repo, 'show', String(id), '--json'));
+  const note = shown.thread.find(row => row.type === 'fact' && row.text.startsWith('Archived prior item folder '));
+  assert.ok(note, 'the item retains a native recovery note');
+  const recovery = JSON.parse(note.text.split('\nRecovery: ')[1]);
+  assert.ok(recovery.directory, 'the note locates the verified archive');
+  const manifest = JSON.parse(readFileSync(join(recovery.directory, 'manifest.json'), 'utf8'));
+  assert.equal(manifest.head, head);
+  assert.equal(box.git(box.repo, 'rev-parse', manifest.ref), head);
+  assert.match(readFileSync(join(recovery.directory, 'staged.patch'), 'utf8'), /staged item draft/u);
+  const untracked = manifest.files.find(file => file.path === 'private-draft.txt');
+  assert.ok(untracked, 'untracked draft bytes remain recoverable');
+  assert.equal(readFileSync(join(recovery.directory, 'blobs', untracked.sha256), 'utf8'), 'untracked item draft\n');
+});
+
+test('a still-held item folder is retained and the claim names its holder [B5,C7]', t => {
+  const { box, old, id, path, claimNext } = priorItemFolder(t);
+  const before = box.git(path, 'rev-parse', 'HEAD');
+  const refused = claimNext();
+  assert.equal(refused.code, 1);
+  const error = JSON.parse(refused.out).error;
+  assert.equal(error.code, 'HELD');
+  assert.ok(error.message.includes(old.agent));
+  assert.equal(existsSync(path), true);
+  assert.equal(box.git(path, 'rev-parse', 'HEAD'), before);
+  const shown = box.json(box.run(box.repo, 'show', String(id), '--json'));
+  assert.equal(shown.item_owner, old.agent);
+});

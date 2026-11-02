@@ -1,3 +1,5 @@
+import { rankInversionHistory } from './rank-inversion-history.js';
+import { landingFailureFindings } from './landing-failure.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
 import { reviewWait } from '../../../verify/index.js';
@@ -33,9 +35,10 @@ import {
   mainCheckout,
   tryGit,
 } from '../../../../src/git.js';
-import { gateControlFindings } from '../../../../src/gate-control.js';
+import { gateControlFindings } from '../../../gate/index.js';
 import { boardBusyError } from '../../../store/index.js';
 import { buildOrder } from '../../../store/index.js';
+import { nextFor } from '../../../store/index.js';
 import { foreignBlockers } from '../../../store/index.js';
 import { milestonePriorities } from '../../../store/index.js';
 import { milestones } from '../../../store/index.js';
@@ -53,10 +56,10 @@ import { rowDecisions } from '../../../store/index.js';
 import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import { staleRowDecisions } from '../../../spec/index.js';
-import { localReleaseRank } from '../../../../src/release-queue.js';
+import { localReleaseRank } from '../../../landing/index.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
-import { routeWorkShortages } from '../../../../src/route-capacity.js';
+import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */
@@ -149,6 +152,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   if (!db) return report;
   if (typeof dispatchHealth !== 'function') throw new TypeError('healthReport requires its dispatchHealth observation port');
   const at = now.getTime();
+  report.stuck.push(...landingFailureFindings({ db, clock: { now: () => now } }, now));
   const age = (iso) => at - Date.parse(iso);
   const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
@@ -499,6 +503,7 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     return last?.event_kind === 'reject' ? active.find(agent => agent.id === item.item_built_by && agent.lane === item.item_lane && canTake(agent.route, item.item_route)) : null;
   };
   const returned = new Set();
+  const rankedWhenClaimed = rankInversionHistory(board);
 
   // A lapsed claim is CLAIM_LAPSED's to report; only a live claim can rank behind free work.
   for (const claim of items.filter((item) => item.item_status === 'claimed' && Date.parse(item.item_lease_until ?? '') > at)) {
@@ -511,12 +516,13 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     if (proved) continue;
     // Model exactly the release printed below: legal child or returned claims remain occupied.
     const releasedClaims = [claim.item_id];
-    const compare = buildOrder(board, { releasedClaims });
+    const compare = buildOrder(board, { releasedClaims, agentId: holder.id, tierFirst: true });
+    const offered = nextFor(board, { agentId: holder.id, lane: holder.lane, afterRelease: claim.item_id }).item;
     // Historical hard-collision waits clear only when this one named claim is released (#1114).
     const freeToHolder = (entry) => entry.waits.every((wait) => wait.startsWith(`#${entry.id} waits for #${claim.item_id} (claimed) on `));
     const ahead = open.filter((entry) => freeToHolder(entry) && entry.lane === holder.lane && canTake(holder.route, entry.route))
       .map((entry) => raw.get(entry.id))
-      .filter((item) => item && compare(item, claim) < 0)
+      .filter((item) => item && compare(item, claim) < 0 && rankedWhenClaimed(claim, item))
       .filter(item => {
         const builder = reworkBuilder(item);
         if (!builder) return true;
@@ -532,6 +538,7 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
         }
         return false;
       })
+      .filter(item => offered?.item_status === 'open' && item.item_id === offered.item_id)
       .sort(compare);
     if (!ahead.length) continue;
     const first = ahead[0];

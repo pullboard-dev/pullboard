@@ -1,6 +1,6 @@
 /** The pullboard doctrine command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
 import {
   checkRulesAt,
   doctrineReport,
@@ -8,10 +8,10 @@ import {
 } from '../../packages/doctrine/index.js';
 import {
   gateWaitReporter,
-} from '../gate-wait.js';
+} from '../../packages/gate/index.js';
 import {
   withGateSlot,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { notifyFileGrowth as applyFileGrowthNotice } from "../../../items/index.js";
 import { reviewPolicyChange } from "../../../verify/index.js";
 import { saveItemReviewPolicy } from "../../../verify/index.js";
@@ -49,11 +50,20 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
     const { item, next, command, unfreeze, bar, widened } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming });
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline, { authorized: Boolean(widened) });
-    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder });
+    const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder,
+      sha256: text => createHash('sha256').update(text).digest('hex') });
     if (expiredHolder) {
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
     }
     const { item_check_timing, ...storedNext } = next;
+    // A coordinator removing prerequisites also removes the corresponding blocked-release wait.
+    if (after !== undefined) {
+      const marker = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`blocked_release_waiting:${id}`);
+      if (marker) {
+        const retained = JSON.parse(marker.meta_value).filter(value => after.includes(value));
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key IN (?,?)').run(JSON.stringify(retained), `blocked_release_waiting:${id}`, `claim_waiting:${id}`);
+      }
+    }
     saveCheckTiming(board, id, checkTiming);
     setItem(board, id, { ...storedNext, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     reviewFamilies.saveReviewFamily(board, id, reviewFamily);

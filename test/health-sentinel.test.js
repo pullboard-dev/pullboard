@@ -1,3 +1,4 @@
+import { dirtyToolingFindings } from '../packages/runners/index.js';
 /** Real board, ordered replay and background lifetime controls for the health sentinel [A6,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,9 +13,9 @@ import { loadDoctrine } from '../src/doctrine.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
-import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { eventCauses, rigorReport } from '../src/board-rigor.js';
-import { startServeSentinel, HEALTH_SENTINEL_INTERVAL_MS } from '../src/serve-sentinel.js';
+import { startServeSentinel, HEALTH_SENTINEL_INTERVAL_MS } from '../packages/sentinels/index.js';
 import { machineSettingsFile } from '../packages/config/index.js';
 import { frozenCriterion, loadSpec } from '../packages/spec/index.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -57,8 +58,8 @@ function fixture(t) {
     return id;
   };
   /** Read the real health snapshot and apply it through authenticated, versioned replay. */
-  const scan = () => {
-    const observation = scanHealthSentinel(file, { root, config: loadConfig(root), now: clock.now() });
+  const scan = (options = {}) => {
+    const observation = scanHealthSentinel(file, { root, config: loadConfig(root), now: clock.now(), ...options });
     if (!observation) return null;
     const move = prepareEngineMove(board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }], { actor: 'coordinator' });
     const result = applyRelayMove(board, move, { sequence: appliedSequence(board) + 1, at: clock.now().toISOString(), kind: 'move',
@@ -238,4 +239,36 @@ test('the background sentinel uses the ten minute cadence, skips overlaps and dr
   assert.deepEqual(entered, ['/one'], 'shutdown never starts another project');
   assert.equal(tick(), null);
   release();
+});
+
+
+test('dirty runner tooling warns the coordinator once after five minutes and resolves [O5,C7,A6]', t => {
+  const box = fixture(t);
+  const base = Number(box.clock.now());
+  box.clock.now = () => new Date(base + box.clock.offset);
+  let files = [{ path: 'src/runner-worker.js', changedAt: base }];
+  /** Feed the real sentinel a deterministic primary-tooling observation, never a gate decision. */
+  const tooling = (now, previous) => {
+    return dirtyToolingFindings('/private/primary-tooling', files, now, previous);
+  };
+  /** Count actual persisted warnings, excluding the separate resolution notice. */
+  const notices = () => store.allShouts(box.board).filter(row => row.shout_text.startsWith('Stuck:') && row.shout_text.includes('[PRIMARY_TOOLING_DIRTY]'));
+  box.clock.offset = 300_000;
+  box.scan({ tooling });
+  assert.equal(notices().length, 0, 'exactly five minutes is not more than five minutes');
+  box.clock.offset++;
+  box.scan({ tooling });
+  assert.equal(notices().length, 1);
+  assert.equal(notices()[0].shout_to, 'coordinator');
+  assert.match(notices()[0].shout_text, /src\/runner-worker\.js/u);
+  assert.equal(box.scan({ tooling }), null, 're-reading durable observation never repeats the warning');
+  files[0].changedAt = base + box.clock.offset;
+  assert.equal(box.scan({ tooling }), null, 'editing an already dirty file preserves the same warning episode');
+  files = [];
+  box.scan({ tooling });
+  assert.equal(store.allShouts(box.board).filter(row => row.shout_text.startsWith('Resolved:') && row.shout_text.includes('[PRIMARY_TOOLING_DIRTY]')).length, 1);
+  files = [{ path: 'src/runner-worker.js', changedAt: base + box.clock.offset }];
+  box.clock.offset += 300_001;
+  box.scan({ tooling });
+  assert.equal(notices().length, 2, 'a distinct observed clean-to-dirty episode gets its own warning');
 });

@@ -1,6 +1,8 @@
 import { parseCheckTiming } from '../check-timing.js';
+import { criterionSize } from '../../packages/items/index.js';
+import { criterionCells } from '../../packages/items/index.js';
 import { requirePersonChannel } from '../../packages/person/index.js';
-import { githubPullClient } from '../pr-github.js';
+import { githubPullClient } from '../../packages/github/index.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -14,13 +16,13 @@ import {
 /** The pullboard add command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {
-  checkBaseline,
+  prepareCheckBaseline,
   refuseCheckSyntax,
   sayCheckBaseline,
 } from '../../packages/gate/index.js';
 import {
   isLane,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -42,6 +44,8 @@ import {
   idArg,
   idList,
   ordered,
+  launchBaseline,
+  CHECKOUT_LEASES,
 } from '../cli.js';
 
 /** Run `pullboard add` and return its exit code. */
@@ -92,6 +96,11 @@ export async function run(io, args) {
     briefInLane(ctx, item.lane, item.brief);
   }
   const asPerson = personBarMode(ctx, board, me, values, personMode);
+  const size = criterionSize(item.criterion, criterionCells(ctx.info.root));
+  const sizeReason = values['force-size']?.trim();
+  if (values['force-size'] !== undefined && !sizeReason) throw new Refused('ITEM_SIZE_REASON', '--force-size needs a nonempty reason', 'use --force-size "why this scope must stay together"');
+  if (size.oversized && !sizeReason) throw new Refused('ITEM_TOO_LARGE', `criterion names ${size.cells.length} cells and ${size.clauses} clauses (size ${size.score})`,
+    `split it into one item per named cell (${size.cells.join(', ') || 'none'}) and at most three numbered clauses per item; or use --force-size "reason"`);
   const confirmed = await confirmBarEffect(ctx, board, me, { verb: 'add', args: {
     lane: item.lane, title: item.title, ...(values.wait ? { wait: true } : {}), as: 'person',
   } }, item, asPerson);
@@ -103,9 +112,24 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   const { command } = store.validateItemAddition(board, item);
   if (command) refuseCheckSyntax(command);
-  if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+  if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const id = await ordered(ctx, board, 'addItem', [item]);
+  if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
+    text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
+  if (item.checkBaseline?.result === 'pending') {
+    await launchBaseline(ctx, board, id, item.checkBaseline);
+    if (values.wait) {
+      // The recorded move is complete; do not hold checkout authority while the worker measures.
+      CHECKOUT_LEASES.get(io)?.release();
+      CHECKOUT_LEASES.delete(io);
+      while (true) {
+        const baseline = store.getItem(board, id).item_check_baseline;
+        if (baseline?.result !== 'pending' || baseline.request !== item.checkBaseline.request) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+  }
   io.result?.({ item: store.getItem(board, id) });
   io.say(`#${id}`);
   sayCheckBaseline(io, store.getItem(board, id));

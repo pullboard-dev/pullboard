@@ -9,17 +9,17 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { mainAuditKey } from '../src/main-audit-state.js';
-import { readMainAudit } from '../src/main-audit-state.js';
+import { mainAuditKey } from '../packages/gate/index.js';
+import { readMainAudit } from '../packages/gate/index.js';
 import { readAuditJob } from './main-audit-project.js';
 import {
   readGateReceipt,
   receiptStore,
-} from '../src/gate-run-receipt.js';
+} from '../packages/gate/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { invalidateGitFacts } from '../src/git.js';
-import { runLandingBatch } from '../src/land.js';
+import { runLandingBatch } from '../packages/landing/index.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */

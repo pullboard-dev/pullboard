@@ -1,8 +1,8 @@
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { withDerivedFamilies } from "../../../../src/family-declaration.js";
 import { effectiveItemHead } from "../../../verify/index.js";
-import { agentParent } from "../../../../src/seat-parent.js";
-export { agentParent } from "../../../../src/seat-parent.js";
+import { agentParent } from "../../../seats/index.js";
+export { agentParent } from "../../../seats/index.js";
 import { projectReviewFamily } from "../../../verify/index.js";
 import { withSeatPresence } from "./seat-presence.js";
 import { projectItemDecisions } from "../../../items/index.js";
@@ -323,6 +323,11 @@ export const UNREAD_SQL = UNREAD_SHOUT_SQL;
  */
 export function agentAt(board, path) {
   return withModel(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
+}
+
+/** Check membership without reading display-only presence sidecars inside a writer. */
+export function hasAgent(board, id) {
+  return typeof id === 'string' && Boolean(board.db.prepare('SELECT 1 FROM agent WHERE agent_id=?').get(id));
 }
 
 /** Read one seat and its model without loading every registered seat and model on the board. */

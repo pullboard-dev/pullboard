@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { amendLandingEngines } from '../src/landing-step-merge.js';
+import { amendLandingEngines } from '../packages/landing/index.js';
 import { computePlan, placePath, readPlan, writePlan } from '../bin/cells-plan.js';
 import { git } from './cells-plan-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -48,7 +48,7 @@ function fixture(t) {
   return { root, merge: git(root, 'rev-parse', 'HEAD') };
 }
 
-test('an allocating landing places its new history by rule in the same merge and leaves cells-plan green [B3,C7,D3,H16]', t => {
+test('an allocating landing keeps its new history as a stay in the same merge and leaves cells-plan green [B3,C7,D3,H16]', t => {
   const { root, merge } = fixture(t);
   const parents = git(root, 'show', '-s', '--format=%P', merge);
   assert.equal(parents.split(' ').length, 2, 'the input is a real item merge');
@@ -59,10 +59,12 @@ test('an allocating landing places its new history by rule in the same merge and
   assert.equal(git(root, 'show', '-s', '--format=%P', head), parents, 'allocation and placement amend that same merge');
   const history = 'src/move-history/81.json';
   assert.equal(JSON.parse(git(root, 'show', `${head}:${history}`)).engine, 81);
-  const state = readPlan(root).cells.find(cell => cell.name === 'state');
-  assert.deepEqual(state.paths.filter(([from]) => from === history), [[history, 'packages/state/src/shell/move-history/81.json', 'rule']]);
-  const committed = JSON.parse(git(root, 'show', `${head}:bin/cells-plan/01-state.json`));
-  assert.deepEqual(committed.paths.find(([from]) => from === history), state.paths.find(([from]) => from === history));
+  const plan = readPlan(root);
+  const stay = plan.stays.find(row => row.path === history);
+  assert.deepEqual(stay, { path: history, reason: 'explicit bounded placement: stays in place during the move' });
+  assert.equal(plan.cells.some(cell => cell.paths.some(([from]) => from === history)), false, 'history is not also assigned to a move rule');
+  const committed = JSON.parse(git(root, 'show', `${head}:bin/cells-plan.json`));
+  assert.deepEqual(committed.stays.find(row => row.path === history), stay);
   const checked = runFixtureChild(process.execPath, [BIN, '--check'], { cwd: root, encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr + checked.stdout);
   assert.equal(git(root, 'status', '--porcelain'), '', 'no unplaced file or unstaged plan escapes the merge');

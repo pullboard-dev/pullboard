@@ -1,4 +1,4 @@
-import { recordTrainLanding } from '../src/record-train-landing.js';
+import { recordTrainLanding } from '../packages/landing/index.js';
 /** A real native producer feeds the unchanged complete reader oracle; acceptance alone is synthetic [H5,H16,C7]. */
 import assert from 'node:assert/strict';
 import { chmodSync } from 'node:fs';
@@ -8,12 +8,12 @@ import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runGate } from '../src/gate.js';
+import { runGate } from '../packages/gate/index.js';
 import { runnerExecutionServices } from '../src/runners.js';
-import { landingExecutionServices } from '../src/landing-shards.js';
-import { readGateReceipt } from '../src/gate-run-receipt.js';
-import { receiptStore } from '../src/gate-run-receipt.js';
-import { prepareTrainLanding } from '../src/train-landing.js';
+import { landingExecutionServices } from '../packages/landing/index.js';
+import { readGateReceipt } from '../packages/gate/index.js';
+import { receiptStore } from '../packages/gate/index.js';
+import { prepareTrainLanding } from '../packages/landing/index.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import { runFixtureGit } from './fixture-child.js';

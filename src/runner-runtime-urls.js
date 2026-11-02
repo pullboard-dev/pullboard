@@ -1,6 +1,6 @@
 /** Find executable source-relative runtime files without treating generated programs as dependencies [C7,P3]. */
 import { lex } from '../packages/kernel/index.js';
-import { importsIn } from './module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 
 /** Return literal runtime edges, or null when a two-argument URL cannot be resolved safely. */
 export function runtimeUrls(source, parse) {

@@ -16,6 +16,7 @@ import {
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
+import { installFileWatchdog } from '../packages/verify/index.js';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
@@ -46,6 +47,7 @@ const explicitTestFiles = args => selectedFiles(args, optionTakesValue);
 /** Distinguish actual files from option values before admission. */
 const hasTestFiles = args => selectedFilesPresent(args, optionTakesValue);
 const runner = fileURLToPath(import.meta.url);
+let recordRunnerWait = () => {};
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
 const LANDING_ATTEMPT_ENV = 'PULLBOARD_LANDING_ATTEMPT';
@@ -59,6 +61,7 @@ export const DEFAULT_TEST_FILE_TIMEOUT_MS = 30_000;
 // Worker identity startup retries stay below the ordinary per-file ceiling even if ps is unavailable.
 const LANDING_WORKER_IDENTITY_TIMEOUT_MS = 12_000;
 const LANDING_CHILD_CUSTODY_TIMEOUT_MS = 12_000;
+let reportFileTest = () => {};
 const watchdogSource = `
 const { parentPort } = require('node:worker_threads');
 const { writeSync } = require('node:fs');
@@ -187,6 +190,7 @@ function installTestWatchdog() {
     }
     const id = `${process.pid}:${++nextTestId}`;
     const name = String(context.name).replace(/[\r\n\t\u0000-\u001f]/gu, ' ').slice(0, 200);
+    reportFileTest(id, name);
     activeTests.set(context, id);
     runningTests.add(id);
     watchdog.postMessage({ type: 'start', id, name, file, timeoutMs, pid: process.pid });
@@ -195,6 +199,7 @@ function installTestWatchdog() {
   afterEach((context) => {
     const id = activeTests.get(context);
     if (id !== undefined) {
+      reportFileTest(id, null);
       watchdog.postMessage({ type: 'stop', id });
       runningTests.delete(id);
     }
@@ -733,6 +738,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
   const waivers = landingWaiverProjection(process.env[LANDING_WAIVERS_ENV]);
   let testOutcomes = null;
   const waivedFiles = new Map();
+  const hungFiles = new Set();
   const { dispatchTestFiles, legacyFileMode } = await import('../src/test-file-dispatch.js');
   const { run } = await import('node:test');
   const legacy = legacyFileMode(args);
@@ -1001,10 +1007,15 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
     const execute = legacy ? run : input => dispatchTestFiles(input, testEnv);
     const stream = execute({ ...options, signal: controller.signal,
       setup(tests) {
+        // A HUNG file stays red, but its watchdog must not cancel the remaining named files.
+        tests.on('test:stderr', data => {
+          if (data.file && data.message?.includes('run-tests: HUNG file ')) hungFiles.add(data.file);
+        });
         tests.on('test:complete', data => {
           const { file, name, details } = data;
           // Node 22.13 leaves ordinary/file completions untyped; newer versions label them as tests.
           if (file && details?.passed === false && (details.type === undefined || details.type === 'test') && !firstFailure) {
+            if (hungFiles.has(file)) return;
             // A failure a live person waiver covers does not stop the run; every other file still runs.
             if (landingFailureWaived(waivers, file, name)) { waivedFiles.set(file, waivedFiles.get(file) ?? true); return; }
             // A file or suite failing only through its tests was decided by those tests already.
@@ -1022,7 +1033,7 @@ async function runLandingTests(args, env, concurrency, fullScope = false) {
           if (data.file) {
             startedFiles.add(data.file);
             completedFiles.add(data.file);
-            if (data.success === false && !firstFailure && waivedFiles.get(data.file) !== true) {
+            if (data.success === false && !firstFailure && waivedFiles.get(data.file) !== true && !hungFiles.has(data.file)) {
               firstFailure = { file: data.file, name: 'test file failed before a test completed' };
               if (!collectAll) queueMicrotask(abortLandingRun);
             }
@@ -1267,6 +1278,7 @@ async function main(args) {
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
   const actions = await (await import('../src/test-action-cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
+  process.stdout.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
   const { testsNeedGui } = await import('../src/gui-admission.js');
   let guiFiles;
@@ -1378,7 +1390,10 @@ async function main(args) {
       }, {
         executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
-        onWait: ({ holders, runnerUnavailable }) => {
+        onWait: state => {
+          recordRunnerWait(state);
+          const { holders, runnerUnavailable } = state;
+          if (state.admitted) return;
           if (runnerUnavailable) {
             process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; requeueing the run\n`);
             return;
@@ -1398,7 +1413,11 @@ async function main(args) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
-  await main(process.argv.slice(2));
+  const { beginSeatTiming } = await import('../src/seat-timing.js');
+  const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
+  let finishWait;
+  recordRunnerWait = state => { if (state.admitted) { finishWait?.(); finishWait = null; } else finishWait ??= beginSeatTiming(process.cwd(), 'runner-wait', 'gate slot'); };
+  try { await main(process.argv.slice(2)); } finally { finishWait?.(); finishSeatTiming(); }
 } else if (process.argv[1]) {
   process.env.PULLBOARD_TEST_FILE = process.argv[1];
   (await import('../src/test-action-cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
@@ -1467,5 +1486,6 @@ if (process.argv[1] && resolve(process.argv[1]) === runner) {
   }
   // After any browser wait, so a file never holds a core while it queues for a browser (#1046).
   if (process.env.NODE_TEST_CONTEXT === 'child-v8') tokenWaitMs = await takeTestFileToken();
+  reportFileTest = installFileWatchdog(process.argv[1]);
   if (!landingWorker) installTestWatchdog();
 }

@@ -1,15 +1,20 @@
+import { claimWorktrees } from '../../packages/activity/index.js';
+import { claimOverlapLines } from '../../packages/activity/index.js';
+import { claimOverlaps } from '../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../packages/store/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
+import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
-import { laneSeatContext } from '../seat-checkout.js';
-import { nextSessionSeats } from '../seat-checkout.js';
+import { laneSeatContext } from '../../packages/seats/index.js';
+import { nextSessionSeats } from '../../packages/seats/index.js';
 import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
-import { mainRedReviewItems } from '../main-red.js';
-import { computedReturnArgs } from '../computed-conflict-return.js';
+import { mainRedReviewItems } from '../../packages/landing/index.js';
+import { computedReturnArgs } from '../../packages/landing/index.js';
 import { focusReviewFirst } from '../../packages/roadmap/index.js';
 import { focusReasons } from '../../packages/roadmap/index.js';
+import { milestoneFocus } from '../../packages/roadmap/index.js';
 import { mainLaneWork } from '../next-steps.js';
 import * as store from '../board.js';
 import { withBoardRead } from '../cli-context.js';
@@ -19,9 +24,9 @@ import { idArg } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { headCommit } from '../git.js';
-import { laneNames } from '../lanes.js';
+import { laneNames } from '../../packages/seats/index.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { mainRedReworkItems } from '../main-red.js';
+import { mainRedReworkItems } from '../../packages/landing/index.js';
 import { nextReview } from '../../packages/verify/index.js';
 import { ownSessionReviews } from '../../packages/verify/index.js';
 import { trunkMerge } from '../../packages/sandbox/index.js';
@@ -70,6 +75,7 @@ function warmFiles(ctx, board, me) {
  * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
  */
 export async function nextOnce(ctx, values) {
+  if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   const looked = values.verify ? { claim: true } : withBoardRead(ctx, (board) => nextPick(ctx, board, values));
   if (!looked.claim) return looked;
@@ -84,7 +90,7 @@ export async function nextOnce(ctx, values) {
     const holder = whoAmI(target, board);
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
-      await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped }]);
+      await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true }]);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, ...routed, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
@@ -97,6 +103,9 @@ export async function nextOnce(ctx, values) {
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
+  const items = store.listItems(board), agents = store.listAgents(board);
+  const workingFiles = claimWorktrees(items, agents);
+  for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
@@ -105,8 +114,10 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id && !pendingSubmitHandoff(board, item)
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
+    policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
+    skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
@@ -117,7 +128,16 @@ function nextPick(ctx, board, values) {
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  if (offer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };
+  const focus = milestoneFocus(board, { milestones: store.milestones });
+  const findFocusedReview = () => store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
+    policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
+    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), focusOnly: true });
+  const focusedReview = focus && !held && !values.build
+    ? relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findFocusedReview) : findFocusedReview() : null;
+  const focusOffer = focusedReview?.item && focus.ids.has(focusedReview.item.item_id)
+    ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
+  const selectedOffer = focusOffer ?? offer;
+  if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
   if (!item) return { reasons, ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;

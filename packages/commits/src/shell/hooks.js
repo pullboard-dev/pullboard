@@ -42,7 +42,7 @@ import {
 } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { parseCommitMessage } from "../core/commit-message.js";
-import { outOfLane } from "../../../../src/lanes.js";
+import { outOfLane } from "../../../seats/index.js";
 import { movedImportOnlyChange } from "../../../../src/import-only-change.js";
 import { movedImportTargets } from "../../../../src/import-only-change.js";
 import { planRowChange } from "../../../../src/plan-row-change.js";
@@ -404,9 +404,9 @@ function importFileBlob(root, oid) {
   } catch { return null; }
 }
 
-/** Check a staged foreign path against its exact HEAD and index blobs. */
-function stagedImportOnlyChange(root, path, moves) {
-  const before = importFileEntry(root, 'HEAD', path);
+/** Compare a foreign staged path with one exact parent, preserving mode and moved-import proof. */
+function stagedImportOnlyChange(root, path, moves, parent = 'HEAD') {
+  const before = importFileEntry(root, parent, path);
   const after = importFileEntry(root, ':index', path);
   if (!before || !after || before.mode !== after.mode) return false;
   return movedImportOnlyChange(importFileBlob(root, before.oid), importFileBlob(root, after.oid), path, moves);
@@ -583,7 +583,16 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   const moves = movedImportTargets(git(root, ['diff', '--cached', '--name-status', '-z', '-M']),
     path => { const entry = importFileEntry(root, 'HEAD', path); return entry && importFileBlob(root, entry.oid); },
     path => Boolean(importFileEntry(root, ':index', path)));
-  const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path, moves) || planChanges.get(path).allowed);
+  // A shim may have been deleted on this branch before main was merged; derive its move from
+  // each accepted merge parent as well as HEAD, then compare the staged file to that same parent.
+  const mergeMoves = (mergeHeads ?? []).map(parent => ({ parent, moves: movedImportTargets(
+    git(root, ['diff', '--cached', '--name-status', '-z', '-M', parent]),
+    path => { const entry = importFileEntry(root, parent, path); return entry && importFileBlob(root, entry.oid); },
+    path => Boolean(importFileEntry(root, ':index', path)),
+  ) }));
+  const mechanical = checkedForeign.filter(path => stagedImportOnlyChange(root, path, moves)
+    || mergeMoves.some(({ parent, moves: parentMoves }) => stagedImportOnlyChange(root, path, parentMoves, parent))
+    || planChanges.get(path).allowed);
   for (const path of mechanical) onNotice?.(`cross-lane mechanical ${planChanges.get(path).allowed ? 'new-file placement' : 'import edit'}: ${JSON.stringify(path)}; this path will be flagged for the reviewer on submit`);
   problems.push(...checkedForeign.filter(path => !mechanical.includes(path))
     .flatMap((path) => outOfLane(ownershipConfig, agent.agent_lane, [path]).map(label => ({ path, label })))
@@ -595,7 +604,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
 }
 
 /**
- * A commit that deletes or renames a test file an approved must-row names must point that row at its new
+ * A commit that deletes or changes a renamed test file an approved must-row names must point that row at its new
  * home in the same commit, or the rule loses its test silently (#809). The row is read from HEAD's spec
  * and again from the staged one, so a repoint in this commit counts and a missing row does not.
  *
@@ -611,7 +620,11 @@ export function deletedGateProblems(root, config) {
   for (const line of status.stdout.split('\n').filter(Boolean)) {
     const [code, from, to] = line.split('\t');
     if (code.startsWith('D')) gone.set(from, 'deletes');
-    else if (code.startsWith('R')) gone.set(from, `renames to ${to}`);
+    else if (code.startsWith('R')) {
+      const before = tryGit(root, ['rev-parse', `HEAD:${from}`]);
+      const after = tryGit(root, ['rev-parse', `:${to}`]);
+      if (before.status !== 0 || after.status !== 0 || before.stdout.trim() !== after.stdout.trim()) gone.set(from, `renames to ${to} with changed content`);
+    }
   }
   if (!gone.size) return [];
   const head = tryGit(root, ['show', `HEAD:${config.spec}`]);

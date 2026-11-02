@@ -11,7 +11,7 @@ import { eventMetrics } from '../bin/case-study/events.js';
 import { structureMetrics, requireFinishedStructure } from '../bin/case-study/structure.js';
 import { caseStudy, readCaseStudyBaseline, writeCaseStudy } from '../bin/case-study/report.js';
 import { frozenCheckMetrics, suiteLogMetrics } from '../bin/case-study/durations.js';
-import { receiptBody } from '../src/gate-run-receipt.js';
+import { receiptBody } from '../packages/gate/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 const START = '2026-10-01T00:00:00.000Z', END = '2026-10-01T00:10:00.000Z';

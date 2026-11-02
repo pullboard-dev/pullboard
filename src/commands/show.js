@@ -1,3 +1,5 @@
+import { recordedVerificationComparison } from '../../packages/verify/index.js';
+import { renderVerificationComparison } from '../../packages/verify/index.js';
 import { itemProgress } from '../../packages/roadmap/index.js';
 import { progressLine } from '../../packages/roadmap/index.js';
 import { submitHandoff } from '../submit-handoff-read.js';
@@ -15,7 +17,7 @@ import {
 /** The pullboard show command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
-} from '../agent-names.js';
+} from '../../packages/seats/index.js';
 import {
   barCorrectionLine,
   barCorrections,
@@ -28,7 +30,7 @@ import {
 } from '../../packages/spec/index.js';
 import {
   sayCheckBaseline,
-} from '../check-baseline-format.js';
+} from '../../packages/gate/index.js';
 import {
   mainMergeFor,
   mainMergeLines,
@@ -74,6 +76,7 @@ export async function run(io, { first, values }) {
 
   // The commits front door also carries the hook machinery, so an item that was never submitted never loads it.
   const infra = submits?.length ? (await import('../../packages/commits/index.js')).infraNoteOf(submits) : null;
+  const comparison = recordedVerificationComparison(thread, item);
   const agentApproved = itemAgentApprovals(item, approval);
   const approvalQualification = agentApprovalLine(agentApproved);
   // #922: moves on this item made while the relay was down wait in this machine's relay outbox until it answers.
@@ -84,12 +87,13 @@ export async function run(io, { first, values }) {
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';
   if (values.json) {
-    io.result({ ...item, progress, ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
+    io.result({ ...item, progress, ...(comparison ? { comparison } : {}), ...(queuedSubmit ? { queuedSubmit } : {}), reviewEligibility: independence, checkText, verdicts, thread, ...(proofReceipts.length ? { proofReceipts } : {}), agentApproved, approvalQualification, ...(cost.models.length || cost.shared ? { usage: localUsage(cost, publicUsage) } : {}), ...(relayPending.length ? { relayPending } : {}) });
     return 0;
   }
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
   io.say(progressLine(progress));
+  if (comparison) io.say(renderVerificationComparison(comparison));
   if (queuedSubmit) io.say(`queued gate: ${queuedSubmit.state} at ${queuedSubmit.executionCommit}`);
   if (queuedSubmit?.error) io.say(`${queuedSubmit.error.message}\nnext: ${queuedSubmit.error.next}`);
   if (item.item_rehome_import) {

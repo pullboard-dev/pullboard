@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { barCoverageCommand, normalizeBarCoverage, prepareBarCoverage, barTestPath, barCoverageForPolicy } from '../packages/verify/index.js';
 import { requireSubmitComposition } from '../packages/items/index.js';
 import { nativeBarActor } from '../packages/verify/index.js';
-import { baselineTestEvidence } from '../src/check-baseline.js';
+import { baselineTestEvidence } from '../packages/gate/index.js';
 import { configFromSource } from '../packages/config/index.js';
 import { runFixtureChild } from './fixture-child.js';
 

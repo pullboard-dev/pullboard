@@ -3,7 +3,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { exactStart } from './gate.js';
+import { exactStart } from '../packages/gate/index.js';
 import { submitHandoffRoot } from './submit-handoff-origin.js';
 import { Refused } from '../packages/kernel/index.js';
 

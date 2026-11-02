@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { cleanupTimeoutDetails } from '../packages/runners/index.js';
 
 const CLEANUP_BUDGET_MS = 30_000;
 
@@ -39,15 +40,16 @@ export function clearPhaseCleanup(S) {
 export function reportCleanupTimeout(S) {
   if (S.cleanupTimedOut || Date.now() < Math.min(S.cleanupDeadline, S.phaseCleanupDeadline)) return;
   S.cleanupTimedOut = true;
-  const details = { id: S.workerId, stage: S.cleanupStage, ...(S.cleanupDetails?.() ?? {}) };
+  const details = cleanupTimeoutDetails(S);
   // A timeout may arrive after ordinary job deletion while output is still flushing.
-  // Keep a small diagnostic even then; it never contains command arguments or credentials.
+  // Retain every waited-on process, naming executables without their arguments or environment.
   if (S.cleanupDirectory) {
     try {
       mkdirSync(S.cleanupDirectory, { recursive: true, mode: 0o700 });
       writeFileSync(join(S.cleanupDirectory, 'cleanup-timeout.json'), JSON.stringify(details) + '\n', { mode: 0o600 });
     } catch { /* The named red result remains authoritative if diagnostic storage fails. */ }
   }
+  process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_DETAILS ${S.workerId} ${Buffer.from(JSON.stringify(details)).toString('base64')}\n`);
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${S.workerId} ${details.reason || S.cleanupStage}\n`);
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${S.workerId}\n`);
 }

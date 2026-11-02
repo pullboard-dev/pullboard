@@ -1,3 +1,4 @@
+import { auditAdapterEnvironment } from '../../../kernel/index.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
 import { runShellAsync } from './shell-run.js';
 import { gateStages } from './gate-stages.js';
@@ -214,6 +215,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const inherited = {
     ...(gateLease?.testTiers ? { NODE_TEST_CONTEXT: undefined } : {}),
     [TIMING_RUN_ID_ENV]: id,
+    ...auditAdapterEnvironment(auditCoverage),
     ...(auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('../core/audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
     ...(gateLease && !gateLease.runner ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
     [LANDING_RUN_ENV]: landing ? '1' : '0',
@@ -229,7 +231,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const remoteCommand = landing && collectAll ? `(export ${LANDING_COLLECT_ALL_ENV}=1 ${COLLECTION_ID_ENV}=${collectionId}\n${command}\n)` : command;
   const run = yield { root, command, remoteCommand, gateLease,
     remoteOptions: gateLease?.runner ? { runner: gateLease.runner, source: gateLease.source, runnerWaitDeadline: gateLease.runnerWaitDeadline,
-    browser: gateLease.browser, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
+    browser: gateLease.browser, byLaunch: gateLease.browserByLaunch, pipefail, stages, waivers: landing ? continuation : [], metadata: { ...(gateLease.runMetadata ?? {}), landing, auditCoverage,
       testStage: inherited.PULLBOARD_TEST_STAGE, timingRunId: id, ...(timeoutMs ? { timeoutMs } : {}) } } : null,
     localOptions: { pipefail, env: inherited, stages, timeoutMs, captureRuntimes: Boolean(gateLease) } };
   gateLease?.tracker?.mark('ranAt');
@@ -259,7 +261,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     && run.executionSourceUnchanged !== false && (!gateLease?.runner || Boolean(executionSource))
     && (!executionSource || sameTimingSource(timingSourceBefore, executionSource))
     ? timingSourceBefore : null;
-  const rawResult = { ...profiledRun, profile, profilePath, logPath,
+  const rawResult = { ...profiledRun, id, profile, profilePath, logPath,
     ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource, { collectionId: collectionId ?? id }) } : {}),
     suiteTiming: suiteTimingFromOutput(run.output, id, run.executionSource
       ? { head: run.executionSource.commit, tree: run.executionSource.tree } : timingSourceForReceipt(root)),
@@ -321,6 +323,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
         durationMs: Math.max(0, Math.round(run.remoteWallMs ?? run.profile?.wallMs ?? run.seconds * 1000)), sourceClean,
         ...(context.submitPhase ? { submitPhase: context.submitPhase } : {}),
         ...(context.submitAdmission ? { submitAdmission: context.submitAdmission } : {}),
+        ...(context.submitReuse ? { submitReuse: true, submitReusePlan: context.submitReusePlan } : {}),
         ...(context.diagnosticAdmission ? { diagnosticAdmission: context.diagnosticAdmission } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });

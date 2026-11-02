@@ -6,6 +6,7 @@ import { agentsPanelHtml } from './agents-panel-render.js';
 import { needsPanelModel } from './needs-panel.js';
 import { ruleListModel } from './rule-list-model.js';
 import { selectItemsView } from './items-selection.js';
+import { overlapHtml } from './claim-overlap.js';
 
 /** Return the shared browser-scope renderer without eagerly building hidden pane DOM. */
 export function pageRenderScript() {
@@ -14,6 +15,7 @@ const agentsPanelModel = (${agentsPanelModel.toString()});
 const agentsPanelHtml = (${agentsPanelHtml.toString()});
 const ruleListModel = (${ruleListModel.toString()});
 const selectItemsView = (${selectItemsView.toString()});
+const overlapHtml = (${overlapHtml.toString()});
 const needsPanelModel = (${needsPanelModel.toString()});
 const needsActionsHtml = (${needsActionsHtml.toString()});
 
@@ -304,7 +306,7 @@ function render() {
       primaryHtml: '<span>#' + i.id + '</span>' + rich(i.title, titles), timeHtml: age(i.updatedAt), chipHtml: tag, seat, chipTitle: model, seatStage: { ...stage, key: itemStageKey(stage.stage), marksHtml: marks.join('') },
       // A rejected row's second line is its verdict; any other row's is its lane and the spec ids it serves.
       metaHtml: (rejected(i) ? '<b class="item-reason">' + reasonHtml(i.verdict.reason) + '</b> <span class="why">' + linked(firstLine(visibleVerdictNote(i.verdict.reason, i.verdict.note)), titles) + '</span>'
-        : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills });
+        : '<span>' + esc(i.lane) + '</span>' + (i.specs.length ? '<span class="specs" title="' + esc(i.specs.join(', ')) + '">' + esc(i.specs.slice(0, 3).join(', ') + (i.specs.length > 3 ? ' +' + (i.specs.length - 3) : '')) + '</span>' : '')) + pills + overlapHtml(data.claimOverlaps, i.id) });
   }).join('') : '<li class="empty">' + (finishedUnderAll
     ? 'Finished work is under All. <button class="link" data-filter-choice="state:all" data-filter-kind="state" data-filter-value="all" type="button">Show all</button>'
     : items.length ? 'No items match.' : snapshot ? 'No items at this event.' : 'No items yet. Add the first one with New item.') + '</li>';
@@ -373,6 +375,7 @@ function render() {
     const panelChoice = view.itemPanel?.root === view.root && view.itemPanel.item === item.id ? view.itemPanel.tab : 'overview';
     const statusChips = stageMarkup(item, p, gatedOf(item), heldNote(item, p, undefined, Date.now()) || '', itemStageMarks(item, p))
       + (verdicts.some(verdict => verdict.decision === 'REJECT') && ['building', 'verify', 'verified'].includes(s) ? '<span class="chip">Resubmitted after a send-back</span>' : '')
+      + overlapHtml(data.claimOverlaps, item.id)
       + (item.builtBy ? '<span class="chip">Built by ' + esc(agentName(item.builtBy)) + '</span>' : '')
       + (item.commit ? '<span class="item-head-hash">at ' + hashButton(item.commit) + '</span>' : '');
     const factRefs = (item.thread || []).filter((entry) => entry.type === 'fact' && entry.ref);

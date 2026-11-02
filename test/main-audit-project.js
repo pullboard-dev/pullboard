@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   mainAuditKey,
   readMainAudit,
-} from '../src/main-audit-state.js';
+} from '../packages/gate/index.js';
 /** Read only the exact native audit identity; malformed or mismatched journals fail the owning fixture. */
 export function readAuditJob(directory, key) {
   assert.match(key, /^[a-f0-9]{64}$/u, 'audit journal identity is the exact native digest');
@@ -32,7 +32,7 @@ function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,enco
 /** Wait for an observed native ownership boundary. */
 async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
 /** Copy actual installed source with spaces and a separate real tracked main project. */
-export async function mainAuditFixture(t, { initialGreen = false } = {}) {
+export async function mainAuditFixture(t, { initialGreen = false, requireRealGit = false } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
   // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
@@ -53,7 +53,7 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'src/gate-run-receipt.js')));
   const boardFile=join(repo,'.git/pullboard/board.sqlite');
   /** Close board ownership before any process execution or native admission. */
-  function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true});try{return action(db);}finally{store.closeBoard(db);}}
+  function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true,gitRoot:repo});try{return action(db);}finally{store.closeBoard(db);}}
   const actors=board(db=>{db.executionEngineVersion=1;try{return[store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'alpha',path:join(scratch,'builder')}),store.register(db,{lane:'beta',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;}});
   const identity=board(db=>({id:store.boardId(db),after:store.events(db).at(-1).event_id}));await activateMainAudits(repo,identity.after,identity.id);
   const candidate=join(scratch,'candidate');git(repo,env,'worktree','add','--detach',candidate,base);
@@ -66,6 +66,9 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   writeFileSync(join(candidate,'test/a.test.js'),"import {test} from 'node:test';test('audit failure alpha',()=>{throw new Error('actual alpha');});\n");
   writeFileSync(join(candidate,'test/b.test.js'),"import {test} from 'node:test';test('audit failure beta',()=>{throw new Error('actual beta');});\n");
   writeFileSync(join(candidate,'test/c.test.js'),`import {test} from 'node:test';import {appendFileSync} from 'node:fs';test('later green body',()=>appendFileSync(${JSON.stringify(marker)},'ran'));\n`);
+  if (requireRealGit) {
+    writeFileSync(join(candidate,'test/c.test.js'), `import {test} from 'node:test';import assert from 'node:assert/strict';import {withGitAdapter,currentGitAdapter,realGitAdapter} from '../src/git-adapter.js';import {writeFileSync} from 'node:fs';test('audit uses real Git',()=>{assert.equal(process.env.PULLBOARD_TEST_REAL,'all');const fake={spawnSync(){},execFileSync(){},spawn(){}};withGitAdapter(fake,()=>assert.equal(currentGitAdapter(),realGitAdapter));writeFileSync(${JSON.stringify(marker)},'ran');});\n`);
+  }
   if (initialGreen) {
     writeFileSync(join(candidate,'test/a.test.js'),`import {test} from 'node:test';import {spawnSync} from 'node:child_process';import assert from 'node:assert/strict';test('CLI journey audit',()=>assert.equal(spawnSync(process.execPath,['bin/pullboard.js','--version']).status,0));\n`);
     writeFileSync(join(candidate,'test/b.test.js'),`import {test} from 'node:test';import {appendFileSync} from 'node:fs';test('unchanged paid unit',()=>appendFileSync(${JSON.stringify(unitMarker)},'ran'));\n`);

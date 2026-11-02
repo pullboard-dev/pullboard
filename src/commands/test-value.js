@@ -6,8 +6,8 @@ import {
   withBoardRead,
 } from '../cli.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { testValueReport } from '../test-value.js';
-import { readPlacementReport } from '../test-economics-index.js';
+import { testValueReport } from '../../packages/gate/index.js';
+import { readPlacementReport } from '../../packages/gate/index.js';
 
 /** Print the same measurements in text or versioned JSON without recording a board move. */
 export function run(io, { first, second, rest, values }) {

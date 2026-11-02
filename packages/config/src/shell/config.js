@@ -60,7 +60,7 @@ export function defaults() {
     reviewLease: '30m',
     worktrees: 'beside',
     worktreeMaintenance: maintenanceSettings.maintenanceDefaults(),
-    verify: { policy: 'any', family: 'off', reviewRatio: 3 },
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: false },
     review: { starveMinutes: 10 },
     // Explicit vendor spellings: canonical family -> declared alias names. Never inferred from a model [#1762].
     families: {},
@@ -311,6 +311,13 @@ export function configProblems(config) {
   }
   if (!['off', 'prefer', 'require'].includes(config.verify?.family)) {
     problems.push('"verify.family" is "off", "prefer" or "require"');
+  }
+  if (config.verify?.familyRelaxAt !== undefined && config.verify.familyRelaxAt !== null && config.verify.familyRelaxAt !== 'off'
+    && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
+    problems.push('"verify.familyRelaxAt" is off or a positive integer');
+  }
+  if (typeof config.verify?.inspectClauses !== 'boolean') {
+    problems.push('"verify.inspectClauses" is true or false');
   }
   if (!config.families || typeof config.families !== 'object' || Array.isArray(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80

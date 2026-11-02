@@ -1,3 +1,6 @@
+import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
+import { clauseInspectionProblem } from '../../../state/index.js';
+import { itemThread } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
@@ -35,6 +38,46 @@ import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.j
 import { FLOW_SIZE_ENGINE } from "../../../../src/flow-size-engine.js";
 import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
+import { isDeepStrictEqual } from 'node:util';
+import { contains } from '../../../git/index.js';
+
+/** Name changed policy leaves without treating object key order as policy. */
+function changedPolicyKeys(before, after, prefix) {
+  if (isDeepStrictEqual(before, after)) return [];
+  if (before && after && typeof before === 'object' && typeof after === 'object'
+    && !Array.isArray(before) && !Array.isArray(after)) {
+    return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
+      .flatMap(key => changedPolicyKeys(before[key], after[key], `${prefix}.${key}`));
+  }
+  return [prefix];
+}
+
+/**
+ * Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments.
+ *
+ * The proof's policy commit may trail current main: landings move main during every long check, so a
+ * forward move whose pullboard.json policy is unchanged keeps the sealed policy; any changed field refuses [V4].
+ */
+export function sealClauseInspection(board, id, options) {
+  const root = board.gitRoot;
+  if (!root) {
+    const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+    if (file) throw new Refused('NO_POLICY', 'the native board must know its repository before submitting');
+    return options; // Isolated in-memory fixtures have no board policy.
+  }
+  const policy = board.enginePorts.sandboxPolicyReads.mainPolicy(root);
+  const moved = Boolean(options.policyCommit && options.policyCommit !== policy.commit);
+  // Main moving forward during a long proof is routine; only a rewind or a policy change voids the sealed policy (#2375).
+  if (moved && !contains(root, options.policyCommit, policy.commit)) {
+    throw new Refused('NO_POLICY', 'accepted main no longer contains the submit policy commit; refresh the submit policy and retry');
+  }
+  const sealed = moved ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
+  // Every pullboard.json field is policy (lanes, shared paths, static checks...), not only submit, verify and gate.
+  const changed = [...new Set([...Object.keys(sealed.config), ...Object.keys(policy.config)])].sort()
+    .flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
+  if (changed.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${changed.join(', ')}; refresh and retry`);
+  return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true };
+}
 
 /**
  * Submit your claimed item at a commit (V4, V6). The caller has already checked the tree is clean
@@ -48,7 +91,17 @@ import { moveItem } from "./board.js";
  * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry }) {
+export function submit(board, id, options) {
+  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) options = sealClauseInspection(board, id, options);
+  const { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  let inspect = inspectClauses === true;
+  if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
+    if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
+    const policy = board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, clausePolicyCommit);
+    inspect = policy.config.verify.inspectClauses === true;
+    if (inspect !== (inspectClauses === true)) throw new Refused('NO_POLICY', 'the sealed inspection setting does not match its accepted policy');
+  }
+
   const autoOptions = { agentId, commit, tree, policyCommit, companion, autoMainReds, submissionProof: proof };
   if (autoMainReds && board.executionEngineVersion === undefined) autoOptions.autoMainReds = board.enginePorts.sealKnownMainAutofile(board, id, autoOptions).autoMainReds;
   let recordedProof;
@@ -82,6 +135,8 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         [IN_STATE]: notYours,
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
+        clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
+          ? clauseInspectionProblem(found, itemThread(board, id)) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,

@@ -4,7 +4,7 @@ import {
 } from '../../packages/config/index.js';
 import * as store from '../board.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { laneNames } from '../lanes.js';
+import { laneNames } from '../../packages/seats/index.js';
 import {
   actOn,
   context,

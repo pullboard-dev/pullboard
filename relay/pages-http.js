@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { apiJson, apiRefusal, apiStatus, readApiBody } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { Refused } from '../packages/kernel/index.js';
-import { PAGE_BYTES, PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../src/sealed-pages.js';
+import { PAGE_BYTES, PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../packages/pages/index.js';
 
 const PAGE_BODY_BYTES = 600_000;
 
@@ -46,9 +46,10 @@ export function createRelayPagesHandler({ directory, now, authorize, withJournal
     const root = snapshotPageRoot(snapshot);
     if (!root) return { ...annotated(snapshot, id), apiVersion: 1, storage: quota.usage(id) };
     const read = pages.pin(principal, root);
-    const warning = quota.notice(id);
+    const storage = quota.usage(id);
+    const warning = quota.notice(id, storage);
     return { apiVersion: 2, sequence: snapshot.sequence, receivedAt: snapshot.receivedAt, sender: snapshot.sender,
-      root, read, storage: quota.usage(id), ...(warning ? { warning } : {}) };
+      root, read, storage, ...(warning ? { warning } : {}) };
   }
 
   /** Route only bounded opaque operations; no request supplies the account charged for them. */

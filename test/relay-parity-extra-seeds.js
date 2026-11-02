@@ -7,7 +7,7 @@ import { resolveCommit } from '../src/git.js';
 import { tryGit } from '../src/git.js';
 import { barReadiness } from '../packages/verify/index.js';
 import { revisionReference } from '../packages/spec/index.js';
-import { receiptBody } from '../src/gate-run-receipt.js';
+import { receiptBody } from '../packages/gate/index.js';
 import { requireHandoffActive } from '../packages/state/src/core/handoff-state.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 

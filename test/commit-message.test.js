@@ -12,7 +12,7 @@ import {
   specOrder,
 } from '../packages/commits/index.js';
 import { landingRows } from '../packages/commits/src/core/landing-rows.js';
-import { checkLandingMessages, itemCommitType, landingMessage } from '../src/land.js';
+import { checkLandingMessages, itemCommitType, landingMessage } from '../packages/landing/index.js';
 import { citedIds, parseSpec } from '../packages/spec/index.js';
 import { defaults } from '../packages/config/index.js';
 import { commitMsgProblems } from '../packages/commits/index.js';
@@ -172,4 +172,19 @@ test('one header per item type: the type is the item\'s commits\' first of feat,
   assert.equal(landingMessage({ ...item, item_spec_ids: '', item_lane: 'docs' }).header, 'docs(merge): typed landing', 'no typed commit: the lane rule');
   assert.notDeepEqual(commitMsgProblems('feat(core): add it', { rules, spec }), [], 'a work commit still cites its rows');
   assert.notDeepEqual(commitMsgProblems('feat(merge): add it', { rules, spec }), [], 'a merge header without its item trailer still cites rows');
+});
+
+
+test('a hundred-character landing title shortens before dropping five header ids [B3,R3,C7]', () => {
+  const rows = ['A1', 'B2', 'C7', 'R3', 'V4'];
+  for (const title of ['x'.repeat(100), 'a long landing title '.repeat(5)]) {
+    const built = landingMessage({ item_id: 2292, item_lane: 'core', item_title: title, item_spec_ids: rows.join(',') }, { type: 'fix' });
+    const parsed = parseCommitMessage(built.message);
+    assert.ok(built.header.length <= HEADER_LIMIT, built.header);
+    assert.equal(parsed.type, 'fix');
+    assert.deepEqual(parsed.shown, rows);
+    assert.equal(parsed.more, 0);
+    assert.deepEqual(parsed.rows, rows);
+    assert.deepEqual(commitMessageProblems(built.message, { item: 2292, rows }), []);
+  }
 });

@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import {
   readGateReceipt,
   receiptBody,
-} from '../src/gate-run-receipt.js';
+} from '../packages/gate/index.js';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
@@ -35,14 +35,14 @@ import {
   readOnlyMemberRanges,
 } from '../packages/codemap/index.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
-import { mainAuditKey } from '../src/main-audit-state.js';
+import { mainAuditKey } from '../packages/gate/index.js';
 import { readAuditJob } from './main-audit-project.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import {
   mappedWorkingSource,
   workingSourceInventory,
 } from '../bin/checks/scan.js';
-import { importsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
 
@@ -363,7 +363,7 @@ function mappedProducer(identity) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const mapped = mappedWorkingSource(root, identity);
   const files = new Map([[mapped.implementationPath, mapped.body], ...(mapped.shimPath ? [[mapped.shimPath, mapped.shimBody]] : [])]);
-  if (mapped.shimPath && mapped.implementationPath.startsWith('packages/seats/')) {
+  if (mapped.implementationPath.startsWith('packages/seats/')) {
     const front = mappedWorkingSource(root, 'packages/seats/index.js');
     files.set(front.implementationPath, front.body);
   }
@@ -609,8 +609,8 @@ test('session path producers prove a fixed leaf without granting authority to th
     valid.replace('locate(info)', 'locate(...info)'),
     valid.replace('return join', "if (info) return info.file; return join"),
   ]) assert.ok(fixtureSourceEdits(consumer, { ...options, readSource: () => blob(source) }).problems.length, source);
-  const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../src/agent-session.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
-  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: mappedProducer('src/agent-session.js') }), { edits: [], problems: [] });
+  const direct = "import { readFileSync } from 'node:fs'; import { checkoutSessionFile } from '../packages/seats/index.js'; readFileSync(checkoutSessionFile(repoInfo(worker)), 'utf8');";
+  assert.deepEqual(fixtureSourceEdits(direct, { ...options, readSource: mappedProducer('packages/seats/src/shell/agent-session.js') }), { edits: [], problems: [] });
 });
 
 test('a producer moved into a package behind its shim resolves its deep relative imports and keeps its exact bar [C7]', () => {

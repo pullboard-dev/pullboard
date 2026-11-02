@@ -27,7 +27,8 @@ import {
 } from '../../../kernel/index.js';
 
 /** Resolve current-seat eligibility on either a read snapshot or the final ordered writer. */
-function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest }) {
+function selected(ctx, board, values, services) {
+  const { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest } = services;
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes });
@@ -38,6 +39,7 @@ function selected(ctx, board, values, { checkMainVerifier, whoAmI, mainRedRework
   return dispatchWork(board, store.agentById(board, me.id), {
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board), observeIdle: values.observeIdle,
+    workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board)),
   });
 }
 
@@ -72,7 +74,7 @@ export async function nextTake(ctx, values = {}, services) {
     try {
       await claimOrdered(ctx, board, [picked.item.item_id, {
         agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
-        freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
+        freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
       }]);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: picked.item.item_id, rows: error.rows } };

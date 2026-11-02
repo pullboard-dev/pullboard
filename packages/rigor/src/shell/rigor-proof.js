@@ -1,6 +1,6 @@
 /** Commit-bound, observed proof for a noticed failure cause; uncertain execution proves no rule [D1,D3,S1]. */
 import { runnerExecutionServices } from '../../../../src/runners.js';
-import { landingExecutionServices } from '../../../../src/landing-shards.js';
+import { landingExecutionServices } from '../../../landing/index.js';
 import {
   spawn,
   spawnSync,
@@ -19,13 +19,13 @@ import {
 import {
   literalShellWords,
   resolveExecutable,
-} from '../../../../src/browser-admission.js';
+} from '../../../gate/index.js';
 import {
   cleanGitEnvironment,
   resolveCommit,
   tryGit,
 } from '../../../../src/git.js';
-import { withGateSlot } from '../../../../src/gate.js';
+import { withGateSlot } from '../../../gate/index.js';
 import { gateSlotEnvironment } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {

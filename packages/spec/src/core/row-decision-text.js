@@ -29,7 +29,16 @@ export function personNeeds(state) {
   // Coordinator preparation remains in rigorDrafts; only an existing row is a person call.
   const rigorDrafts = (state.rigorDrafts ?? []).filter(draft => draft.unproved !== true || draft.materialized === true && !draft.collision);
   const drafts = rows.filter(row => (row.status === 'draft' || row.staleDecision) && !rigorDrafts.some(draft => draft.target === `spec:${row.id}`)).length;
+  const focus = state.focusMilestone;
+  const focusItems = (state.items ?? []).filter(item => focus?.items?.includes(item.id) && !item.merged && item.status !== 'withdrawn');
+  const focusRows = ['spec', 'practice'].flatMap(key => (state[key] ?? [])
+    .filter(row => row.status === 'draft' && !row.decision)
+    .map(row => ({ id: row.id, kind: key === 'practice' ? 'doctrine' : 'spec', text: row.text,
+      items: focusItems.filter(item => item.specs?.includes(row.id)).map(item => item.id) }))
+    .filter(row => row.items.length));
   return [
+    ...(focusRows.length ? [{ kind: 'focus-approval-batch', id: `focus-approval:${focus.name}`, ref: focus.name,
+      text: `Draft rows blocking ${focus.name} need your approval.`, rows: focusRows }] : []),
     ...(state.decisions ?? []).map(ask => ({ kind: 'decision', id: ask.shout_id,
       ref: name(ask.shout_from), text: ask.shout_text, what: 'decision', at: ask.shout_at })),
     ...rows.filter(row => row.status === 'pending').map(row => ({ kind: 'pending', id: row.id,

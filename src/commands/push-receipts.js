@@ -1,16 +1,16 @@
-import { boardReceiptStore } from '../gate-run-receipt.js';
-import { readGateReceipt } from '../gate-run-receipt.js';
-import { receiptBinds } from '../gate-run-receipt.js';
+import { boardReceiptStore } from '../../packages/gate/index.js';
+import { readGateReceipt } from '../../packages/gate/index.js';
+import { receiptBinds } from '../../packages/gate/index.js';
 import { gateRuns } from '../quarantine.js';
 import { getItem } from '../../packages/store/index.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { policyAt } from '../../packages/sandbox/index.js';
-import { checkNeedsBrowser } from '../browser-admission.js';
+import { checkNeedsBrowser } from '../../packages/gate/index.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
-import { checkNeedsGui } from '../gui-admission.js';
-import { runProfiledShellAsync } from '../gate.js';
-import { withGateSlot } from '../gate.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
+import { checkNeedsGui } from '../../packages/gate/index.js';
+import { runProfiledShellAsync } from '../../packages/gate/index.js';
+import { withGateSlot } from '../../packages/gate/index.js';
 /** Additive receipt check; the existing pre-push hook remains the only active hook [C7]. */
 import {
   context,

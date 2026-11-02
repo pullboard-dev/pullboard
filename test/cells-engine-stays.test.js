@@ -13,11 +13,11 @@ import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { withMainCheckout } from '../src/main-red.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
+import { withImportParseCache } from '../packages/gate/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 
 /** Pin actual accepted source and complete lint authority before a candidate requests engine stays. */
 function accepted(t, cellName = 'state') {

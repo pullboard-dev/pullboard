@@ -4,7 +4,7 @@ import { nativeBoardOpeners } from '../cli-context.js';
 import {
   serveApi,
 } from '../../packages/api/index.js';
-import { performanceCores } from '../gate.js';
+import { performanceCores } from '../../packages/gate/index.js';
 import { refusalDocument } from '../next-step-words.js';
 import {
   traceServeStartup,
@@ -19,7 +19,7 @@ import {
 } from '../git.js';
 import {
   registerProjectAndLink,
-} from '../projects.js';
+} from '../../packages/seats/index.js';
 import { projectLinkPorts } from '../cli/project-ports.js';
 import {
   Refused,

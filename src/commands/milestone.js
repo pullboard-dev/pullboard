@@ -1,5 +1,7 @@
 /** The pullboard milestone command, in its own module so an item adding another command never edits these lines. */
-import * as store from '../board.js';
+import * as store from '../../packages/store/index.js';
+import { retainedReceipts } from '../../packages/gate/index.js';
+import { recordTimeCheckpoint } from '../../packages/stats/index.js';
 import { checkReleaseReferences } from '../../packages/spec/index.js';
 import {
   mainCheckout,
@@ -20,7 +22,19 @@ export async function run(io, { first, second, rest, values }) {
   let name;
   let entry;
   if (values.limit !== undefined && first !== 'edit' || values.swap !== undefined && first !== 'items') throw new Refused('USAGE', 'use milestone edit --limit <n>|none, or milestone items --add <id> --swap <id>');
-  if (first === 'add') {
+  if (first === 'focus') {
+    if (!second || rest.length || (values.overflow !== undefined && !['on', 'off'].includes(values.overflow))) {
+      throw new Refused('USAGE', 'pullboard milestone focus <name|off> [--overflow off|on]');
+    }
+    if (second !== 'off' && !store.milestones(board).some(value => value.name === second)) {
+      throw new Refused('NO_MILESTONE', `no milestone named ${second}`);
+    }
+    const common = { agentId: me.id, reason: 'Set release focus', window: { activeItems: null } };
+    await ordered(ctx, board, 'setLineSetting', [{ ...common, key: 'focusMilestone', value: second === 'off' ? false : { name: second, overflow: values.overflow === 'on' } }]);
+    io.result?.({ focus: second === 'off' ? null : second, overflow: values.overflow === 'on' });
+    io.say(second === 'off' ? 'milestone focus cleared' : `milestone focus: ${second}; overflow ${values.overflow ?? 'off'}`);
+    return 0;
+  } else if (first === 'add') {
     if (!second || rest.length || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.name !== undefined) {
       throw new Refused('USAGE', 'pullboard milestone add <name> [--note ...] [--items 1,2,3]');
     }
@@ -75,6 +89,7 @@ export async function run(io, { first, second, rest, values }) {
     name = second;
     checkReleaseReferences(ctx.info.root, board, name, mainCheckout(ctx.info.root)?.commit ?? null, store);
     const shipped = await ordered(ctx, board, 'shipMilestone', [name, { agentId: me.id, coordinatorActions: true, commit: mainCheckout(ctx.info.root)?.commit ?? null, ...(values.next === undefined ? {} : { next: values.next }), ...(values.as === 'person' ? { asPerson: true, reason: values.reason, channel: 'terminal' } : {}) }]);
+    recordTimeCheckpoint(ctx, board, { reason: 'release', label: name, retainedReceipts, events: store.events });
     io.result?.(shipped);
     const outcome = shipped.moved.length ? `moved ${shipped.moved.map((id) => `#${id}`).join(', ')} into ${shipped.into}` : 'no local items moved';
     const external = shipped.notMoved.length ? `; not moved across boards: ${shipped.notMoved.join(', ')}` : '';

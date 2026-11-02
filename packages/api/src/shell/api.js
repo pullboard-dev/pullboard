@@ -1,3 +1,5 @@
+import { claimWorktrees } from '../../../activity/index.js';
+import { claimOverlaps } from '../../../items/index.js';
 import { workQueue } from '../../../items/index.js';
 import { costAnalytics } from '../../../stats/index.js';
 import { personSigningPresentation } from '../../../person/index.js';
@@ -37,7 +39,7 @@ import {
   readFileSync,
   statSync,
 } from 'node:fs';
-import { displayAgentName } from '../../../../src/agent-names.js';
+import { displayAgentName } from '../../../seats/index.js';
 import * as store from '../../../../src/board.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import {
@@ -56,13 +58,13 @@ import {
   relayRevoke,
   relayTokens,
 } from '../../../link/index.js';
-import { laneNames } from '../../../../src/lanes.js';
+import { laneNames } from '../../../seats/index.js';
 import { MACHINE } from '../../../state/index.js';
 import {
   listApiProjects,
   registryFile,
   registeredProjectRootsSnapshot,
-} from '../../../../src/projects.js';
+} from '../../../seats/index.js';
 import { milestoneRoadmap } from '../../../roadmap/index.js';
 import {
   ruleProofWindow,
@@ -83,7 +85,7 @@ import {
 import { Refused } from '../../../kernel/index.js';
 import { verdictProjector } from '../../../verify/index.js';
 import { trunkRevisionReader } from '../../../git/index.js';
-import { relayPresentationShout } from '../../../../src/relay-presentation.js';
+import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './api-http.js';
 import { settingsInventory } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';
@@ -456,7 +458,7 @@ function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta 
 }
 
 /** Per-read projections, including observation time, are not part of a cached build fingerprint. */
-const DELTA_WHOLE = new Set(WHOLE_STATE_DELTA_FIELDS);
+const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
 /** The state lists a delta merges entry by entry, and the field that names each entry. */
 const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
 /** How many recent builds of each board a server keeps as possible delta bases. */
@@ -526,6 +528,11 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
   const projection = seen === null ? { unseen: null } : withBoard(root, (board) => ({
     unseen: { since: seen, count: board.db.prepare('SELECT COUNT(*) AS n FROM shout WHERE shout_id > ?').get(seen).n },
   }), isMain, boardOpeners);
+  projection.claimOverlaps = withBoard(root, board => {
+    const items = store.listItems(board);
+    const overlaps = claimOverlaps(items, claimWorktrees(items, store.listAgents(board)));
+    return Object.fromEntries([...overlaps].filter(([, value]) => value.overlaps.length || value.outOfScope.length));
+  }, isMain, boardOpeners);
   if (state.capacityForecast) projection.capacityForecast = capacityAtRead(state.capacityForecast, observedAt);
   if (refreshFlow && comparisonHistory) projection.statsComparison = compareFlowWindows(comparisonHistory, { now: observedAt, windowMinutes: 120, complete: true });
   if (refreshFlow && preparedFlow) {
@@ -540,7 +547,7 @@ function stateForRequest(state, root, seen, preparedFlow, refreshFlow, isMain, o
 /** Cache JSON fragments for state fields whose values stay fixed across a cache hit. */
 function prepareStateJson(state) {
   const fields = Object.entries(state).map(([key, value]) => {
-    if (key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison') return { dynamic: key };
+    if (key === 'claimOverlaps' || key === 'unseen' || key === 'observedAt' || key === 'capacityForecast' || key === 'statsComparison') return { dynamic: key };
     if (key === 'proofStats') {
       const stats = Object.entries(value).filter(([name]) => name !== 'flow').map(([name, entry]) => jsonField(name, entry)).filter(Boolean);
       return { dynamic: key, stats };
@@ -548,6 +555,7 @@ function prepareStateJson(state) {
     return { static: jsonField(key, value) };
   });
   if (!fields.some((field) => field.dynamic === 'unseen')) fields.push({ dynamic: 'unseen' });
+  if (!fields.some((field) => field.dynamic === 'claimOverlaps')) fields.push({ dynamic: 'claimOverlaps' });
   return fields;
 }
 
@@ -601,7 +609,7 @@ function serializeState(state, fields, reportJson, validator = false) {
   const encoded = fields.map((field) => {
     if (field.static !== undefined) return field.static;
     if (field.dynamic === 'statsComparison' && validator) return jsonField(field.dynamic, comparisonForValidation(state.statsComparison));
-    if (field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison') return jsonField(field.dynamic, state[field.dynamic]);
+    if (field.dynamic === 'claimOverlaps' || field.dynamic === 'unseen' || field.dynamic === 'observedAt' || field.dynamic === 'capacityForecast' || field.dynamic === 'statsComparison') return jsonField(field.dynamic, state[field.dynamic]);
     if (field.dynamic === 'proofStats') {
       const value = state.proofStats?.flow;
       const flow = reportJson === undefined || !value ? jsonField('flow', value)

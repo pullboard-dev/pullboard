@@ -26,7 +26,7 @@
         "src/board-schema-source.js",
         "src/formats/board-schema.json",
         "src/machine.js",
-        "src/move-registry.js",
+        "packages/moves/src/shell/move-registry.js",
         "relay/browser-model.js"
       ],
       "tests": [
@@ -36,10 +36,11 @@
     },
     {
       "inputs": [
-        "src/moves/**",
+        "packages/moves/src/core/moves/**",
+        "packages/moves/src/shell/moves/**",
         "src/recorded-move.js",
         "src/api-moves.js",
-        "src/move-registry.js",
+        "packages/moves/src/shell/move-registry.js",
         "src/discovery.js"
       ],
       "tests": [
@@ -77,7 +78,7 @@
     }
   ],
   "spec": "SPEC.md",
-  "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true, "family": "require" },
+  "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true, "family": "require", "familyRelaxAt": 5 },
   "check": { "timeout": "60m" },
   "lease": "2h",
   "lanes": {

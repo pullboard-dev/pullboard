@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { runFixtureGit } from './fixture-child.js';
-import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { CPU_SENTINEL_ENGINE } from '../src/cpu-sentinel-engine.js';
 import { HEALTH_SHOUT_CAP } from '../src/board-health-receipts.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';

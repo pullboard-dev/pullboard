@@ -8,10 +8,10 @@ import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { selectAffectedTests } from '../src/affected-tests.js';
-import { browserBoundFiles } from '../src/browser-admission.js';
-import { testsNeedGui } from '../src/gui-admission.js';
-import { importsIn } from '../src/module-imports.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { browserBoundFiles } from '../packages/gate/index.js';
+import { testsNeedGui } from '../packages/gate/index.js';
+import { importsIn } from '../packages/gate/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { copyPackageFiles } from '../src/package-files.js';
 import { packageFiles } from '../src/package-files.js';
@@ -471,7 +471,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/shared-wait-guard.test.js',
     'test/view-test-policy.test.js',
     'test/wall-clock-budgets.test.js',
-  ];
+  ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
   const guards = affectedTests.selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');

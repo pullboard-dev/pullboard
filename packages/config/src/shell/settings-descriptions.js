@@ -26,6 +26,7 @@ const ROWS = [
   ['gate.measuredSlots', 'Measured runner slots', 'Each runner offers slots computed from its own cores and memory, unless it was registered with a fixed count.', 'Runners', 'on/off'],
   ['gate.postLandSuite', 'Full suite after landing', 'When enabled, each landed train batch is followed by the full suite on registered runners; newly red files get Main red owners.', 'Runners', 'on/off'],
   ['gate.runnerWaitMs', 'Wait for a runner', 'How long a runner-only check waits for a free runner before it refuses.', 'Runners', 'ms'],
+  ['inspection.clauses', 'Legacy inspection preference', 'This legacy machine value does not control submit; accepted main sets verify.inspectClauses for the board.', 'Order', 'on/off'],
   // This machine: Background
   ['health.sentinel', 'Health watch', 'The automatic health observer runs on this computer; a board can turn it off for itself too.', 'Background', 'on/off'],
   ['view.background', 'Keep the view running', 'Init and resume keep pullboard view running, so pullboard.dev can open this computer\'s boards.', 'Background', 'on/off'],
@@ -95,6 +96,7 @@ const ROWS = [
   // This repo: Review
   ['verify.policy', 'Who may review', 'Any other agent may review, or only the coordinator.', 'Review', 'choice'],
   ['verify.family', 'Reviewer model family', 'Whether a reviewer must (require) or should (prefer) come from a different model family than the builder; off ignores it.', 'Review', 'choice'],
+  ['verify.familyRelaxAt', 'Review backlog threshold', 'Allow independent same-family reviews when this many submissions lack an available other-family reviewer; off disables it.', 'Review', 'count'],
   ['verify.reviewRatio', 'Reviews to builds', 'How many builds each reviewer is scheduled against.', 'Review', 'ratio'],
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
@@ -143,7 +145,7 @@ const ROWS = [
 ];
 
 // The settings the CLI can set, by the form `pullboard settings <form> <value>` takes; test/settings-descriptions.test.js holds this equal to help.js SETTING_FORMS.
-const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs']);
+const CLI_FORMS = new Set(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'inspection.clauses']);
 
 export const SETTING_DESCRIPTIONS = Object.freeze(Object.fromEntries(ROWS.map(([key, label, description, group, unit]) => [key, Object.freeze({ label, description, group, unit, cli: CLI_FORMS.has(key) ? key : null })])));
 export const CLI_SETTABLE = Object.freeze([...CLI_FORMS]);

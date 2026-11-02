@@ -1,3 +1,4 @@
+import { liveClaimCollisions } from '../../../items/index.js';
 import {
   exitContinuationSummary,
   exitContinuationProblem,
@@ -5,8 +6,8 @@ import {
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
-import { idleReason } from "../../../../src/routing-presence.js";
-import { liveRouteProblem } from "../../../../src/routing-presence.js";
+import { idleReason } from "../../../seats/index.js";
+import { liveRouteProblem } from "../../../seats/index.js";
 import { withLocalSeatPresence } from "./seat-presence.js";
 import * as itemDependencies from "../../../items/index.js";
 import { criticalPathEnabled } from "../../../items/index.js";
@@ -16,8 +17,8 @@ import { focusReasons } from "../../../roadmap/index.js";
 import { milestoneFocus } from "../../../roadmap/index.js";
 import { milestones } from "./board-read-auxiliary.js";
 import { milestonePriorities } from "./board-read-auxiliary.js";
-import { lineOrderEnabled } from "../../../../src/line-order.js";
-import { reviewerScarcity } from "../../../../src/line-order.js";
+import { lineOrderEnabled } from "../../../seats/index.js";
+import { reviewerScarcity } from "../../../seats/index.js";
 import { current } from "./board-query.js";
 import { itemById } from "./board-query.js";
 import { listItems } from "./board-query.js";
@@ -29,19 +30,23 @@ import { itemFiles } from "../../../items/index.js";
 import { itemFileCollisions } from "../../../items/index.js";
 import { firstRefusalReason } from "../../../items/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
+import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { MILESTONE_RANK_ENGINE } from "../../../state/index.js";
-import { ROUTES } from "../../../../src/route-escalation.js";
-import { canTake } from "../../../../src/route-escalation.js";
-import { routeOf } from "../../../../src/seats.js";
+import { ROUTES } from "../../../seats/index.js";
+import { canTake } from "../../../seats/index.js";
+import { routeOf } from "../../../seats/index.js";
 import { milestoneRanks } from "../../../items/index.js";
 import { foreignBlockers } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
 import { reviewerChecks } from "./board.js";
+import { reviewFamilyRelaxation } from './board-review-family.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
 import { buildOrder } from "./board-build-order.js";
 import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { lineSettings } from "../../../state/index.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
+import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose
@@ -59,10 +64,20 @@ import { reworkFamilyRoute } from "../core/rework-family-routing.js";
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false }) {
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
+  const focus = (board.executionEngineVersion ?? ENGINE_VERSION) >= FOCUS_BOUNDARY_ENGINE ? milestoneFocus(board, { milestones }) : null;
+  const overflow = focus?.overflow === true;
+  const focusIdle = () => empty('focus', { item: null, reasons: [`${focus.name} is in focus; nothing is free for you; overflow is off.`] });
+  const restrictFocus = focus && (!overflow || focusOnly);
+  const otherFocusedWork = () => {
+    if (!focus || !overflow || focusOnly) return false;
+    const item = nextFor(board, { agentId, lane, verify: !verify, policy, familyPolicy, familyRelaxAt, runnable, routes,
+      warm, lanes, skipIds, omitIds, afterRelease, reworkRoutingPolicy, workingFiles, focusOnly: true }).item;
+    return Boolean(item && focus.ids.has(item.item_id));
+  };
   const route = routeOf(board, agentId);
   const tier = (entry) => ROUTES.indexOf(entry.item_route);
   const allItems = listItems(board).reverse();
@@ -75,7 +90,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const family = reviewRouting.seatFamily(board, agentId);
     const hasDifferentFamily = (entry) => reviewRouting.familiesDiffer(board, family, entry.item_builder_family);
     const unrelated = items.filter((entry) => entry.item_status === 'submitted' && entry.item_built_by !== agentId && !skipIds.includes(entry.item_id));
-    const checks = reviewerChecks(board, { agentId, policy, familyPolicy });
+    const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
+    const checks = reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: item => reviewFamilyRelaxation(board, item, agentId, familyRelaxAt, policy, familyPolicy) } : {}) });
     /** Use the native reservation/verdict guard order, preserving its first refusal and short circuit. */
     function failure(entry) {
       for (const [guard, check] of Object.entries(checks)) {
@@ -113,8 +129,12 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const order = criticalPathEnabled(board) ? criticalPathOrder({ items: listItems(board, { all: true }), group, fallback: previousOrder }) : previousOrder;
     candidates.sort((first, second) => order(first.entry, second.entry));
     reviewRouting.prioritizeReviews(board, candidates, priority, focusCompare);
-    const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown)?.entry;
-    if (item) return { item, reasons: focusReasons(board, item, [], { milestones }) };
+    if (focus) candidates.sort((a, b) => focusCompare(a.entry, b.entry));
+    const item = candidates.find((candidate) => !candidate.problem && !candidate.holder && !candidate.cooldown
+      && (!restrictFocus || focus.ids.has(candidate.entry.item_id)))?.entry;
+    if (item && (!focus || focus.ids.has(item.item_id) || !otherFocusedWork())) return { item, reasons: focusReasons(board, item, [], { milestones }) };
+    if (focus && !overflow) return focusIdle();
+    if (item) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
     const held = candidates.filter((candidate) => candidate.holder && candidate.holder !== agentId)
       .map(({ entry, holder: reviewer }) => `${reviewer} holds the review of #${entry.item_id} until ${entry.item_review_until}`);
     const cooling = candidates.filter((candidate) => candidate.cooldown)
@@ -144,7 +164,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     if (hold) { selectedLanes.delete(name); reasons.push(`${hold.hold_by} holds the ${name} lane: ${hold.hold_reason}`); }
   }
   const compare = buildOrder(board, { warm, agentId, tierFirst: true });
-  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease && (!ownRejectionFirst || entry.item_id !== held.item_id));
+  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease && (!ownRejectionFirst || entry.item_id !== held.item_id))
+    .map(entry => ({ ...entry, item_files: [entry.item_files, ...(workingFiles.get(entry.item_id)?.files ?? [])].filter(Boolean).join('\n') }));
   const recent = new Set(warm);
   const mainRed = new Set(priority);
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)
@@ -180,19 +201,21 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   }
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
+  if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
   for (const { entry, shared, reworkRouting: rework } of mine) {
+    if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
-      .filter((before) => before.item_status !== 'verified');
+      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
     if (continuation) { reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {
       reasons.push(rework.mode === 'policy-unknown' ? `#${entry.item_id} waits for accepted takeover and maintenance policy` : `#${entry.item_id} is reserved for ${rework.mode === 'builder' ? rework.builder : `the ${rework.builderFamily} family`}`);
       continue;
     }
-    const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal });
+    const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true });
     if (reserved) { reasons.push(reserved); continue; }
-    const collisions = itemFileCollisions(entry, inFlight);
+    const collisions = [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
     if (collisions.length) { reasons.push(...collisions); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
@@ -202,11 +225,13 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     const continuationSummary = exitContinuationSummary(board, entry.item_id);
     const heldFor = claimWaitingOn(board, entry.item_id);
     if (heldFor.length) { reasons.push(`#${entry.item_id} is waiting on ${heldFor.map(id => `#${id}`).join(', ')} to land`); continue; }
+    if (!waiting.length && focus && !focus.ids.has(entry.item_id) && otherFocusedWork()) return empty('focus', { item: null, reasons: [`${focus.name} has focused work available in the other mode.`] });
     if (!waiting.length) return { item: continuationSummary ? { ...entry, continuationSummary } : entry, reasons: focusReasons(board, entry,
       [...(rework?.rejection ? [`Rejected #${entry.item_id}: ${rework.rejection.clause ?? ''} — ${rework.rejection.note}; builder handoff ${rework.builder} at ${rework.rejection.commit}`] : []), ...reasons, ...collisions.map(reason => reason.replace(' waits for ', ' overlaps with '))], { milestones }), shared };
     reasons.push(`#${entry.item_id} waits on ${waiting.map(waitingOn).join(', ')}`);
   }
   if (ownRejectionFirst) return { item: held, reasons };
+  if (focus && !overflow) return focusIdle();
   if (!mine.length && !reasons.length) reasons.push(idleReason(items, lane, routed));
   // Nothing to claim, yet work above the agent's tier is open: name it and the ways through (B16).
   for (const entry of listItems(board).filter((open) => open.item_status === 'open' && open.item_lane === lane && !open.item_hold_reason && !canTake(route, open.item_route))) {

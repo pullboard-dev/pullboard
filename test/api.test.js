@@ -32,12 +32,13 @@ import { refusalDocument } from '../src/next-step-words.js';
 import { serveApi } from '../packages/api/index.js';
 import * as apiExports from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
-import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
+import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';
-import { registerProject } from '../src/projects.js';
+import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
 import {
   apiError,
   apiFetch,
@@ -47,24 +48,19 @@ import {
   shellWord,
   timedMs,
 } from './api-fixture.js';
-
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
 const covered = new Set();
 const coveredRoots = new Set();
-
 after(() => {
   for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
 });
-
 const SPEC = `# API fixture
-
 ## G · Goals
 - G1 [approved, must] The fixture keeps its board. | gate: true
 `;
-
 test('apiBoardListing is exported and matches the board list [A2]', async (t) => {
   const apiBoardListing = apiExports.apiBoardListing;
   assert.equal(typeof apiBoardListing, 'function', 'the existing API listing classifier is exported');
@@ -85,11 +81,9 @@ test('apiBoardListing is exported and matches the board list [A2]', async (t) =>
   assert.deepEqual(listed.boards.map(({ root }) => root), [box.repo]);
   assert.deepEqual(listed.warnings.map(({ root, error }) => [root, error.error.code]), [[unreadableRoot, 'BOARD_UNAVAILABLE']]);
 });
-
 test('[A5] append-only event records expose format version one', () => {
   assert.equal(EVENT_LOG_VERSION, 1);
 });
-
 test('[O8] authenticated API state exposes model labels and configured stable display names', async (t) => {
   const box = project();
   const created = box.run(box.repo, 'worktree', 'app', '--model', 'Claude Sonnet', '--json');
@@ -111,7 +105,6 @@ test('[O8] authenticated API state exposes model labels and configured stable di
   const legacy = suffix.find((agent) => agent.agent_id === 'coordinator');
   assert.equal(legacy.model, 'unknown');
   assert.equal(legacy.displayName, 'coordinator (unknown)');
-
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.agents = { names: 'prefix' };
@@ -123,7 +116,6 @@ test('[O8] authenticated API state exposes model labels and configured stable di
   assert.equal(prefix.find((agent) => agent.agent_id === 'app-1').displayName, 'claude-sonnet-app-1');
   assert.equal(prefix.find((agent) => agent.agent_id === 'coordinator').displayName, 'unknown-coordinator');
 });
-
 test('[A2] the local API admits only its listed origins', async (t) => {
   const box = project();
   const listedOrigin = 'https://app.pullboard.dev';
@@ -131,7 +123,6 @@ test('[A2] the local API admits only its listed origins', async (t) => {
   const listed = await apiFetch(configured, '/api/v1/boards', { headers: { origin: listedOrigin } });
   assert.equal(listed.status, 200);
   assert.equal((await listed.json()).boards.length, 1, 'the allowed origin reaches the regular board handler');
-
   for (const origin of [
     'https://app.pullboard.dev.attacker.invalid',
     'https://sub.app.pullboard.dev',
@@ -141,17 +132,14 @@ test('[A2] the local API admits only its listed origins', async (t) => {
     const response = await apiFetch(configured, '/api/v1/boards', { headers: { origin } });
     assert.equal((await apiError(response, 403)).code, 'API_ORIGIN', `an unlisted origin is refused: ${origin}`);
   }
-
   const missingKey = await apiFetch(configured, '/api/v1/boards', { noSecret: true, headers: { origin: listedOrigin } });
   assert.equal((await apiError(missingKey, 401)).code, 'AUTH_REQUIRED', 'an allowed origin still needs the session key');
   const wrongKey = await apiFetch(configured, '/api/v1/boards', { headers: { origin: listedOrigin, 'x-pullboard-key': randomUUID() } });
   assert.equal((await apiError(wrongKey, 401)).code, 'AUTH_REQUIRED', 'an allowed origin does not replace the session key');
-
   const defaulted = await startLocalHandler(t, box);
   const defaultOrigin = await apiFetch(defaulted, '/api/v1/boards', { headers: { origin: listedOrigin } });
   assert.equal((await apiError(defaultOrigin, 403)).code, 'API_ORIGIN', 'omitting the option preserves same-origin-only behavior');
 });
-
 test('local API admits only configured literal IPv4 hosts at their own origin [H19]', async (t) => {
   const box = project();
   const configured = await startLocalHandler(t, box, { allowedHosts: ['192.168.7.9'] });
@@ -173,7 +161,6 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
-
 /** Make a disposable home and a real repo with isolated git settings. */
 function sandbox() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-api-')));
@@ -202,11 +189,11 @@ function sandbox() {
   delete env.PULLBOARD_STARTUP_TEST_PHASE_REACHED_FILE;
   delete env.PULLBOARD_STARTUP_TEST_RELEASE_FILE;
   for (const marker of SSH_SHELL_MARKERS) delete env[marker];
+  for (const marker of AGENT_SHELL_MARKERS) delete env[marker];
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   return { dir, env, git, run };
 }
-
 /** Initialize a real board with an undeclared legacy coordinator for the API protocol fixtures. */
 function project() {
   const box = sandbox();
@@ -237,14 +224,12 @@ function project() {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up API fixture');
   return { ...box, repo, initialized };
 }
-
 /** Read the event-log marker without going through openBoard's version guard. */
 function readEventLogVersion(file) {
   const db = new DatabaseSync(file);
   try { return db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version')?.meta_value; }
   finally { db.close(); }
 }
-
 /** Set a private fixture's event-log marker to model another reader's persisted format. */
 function setEventLogVersion(file, version) {
   const db = new DatabaseSync(file);
@@ -253,7 +238,6 @@ function setEventLogVersion(file, version) {
       .run('event_log_version', String(version));
   } finally { db.close(); }
 }
-
 test('[A5] board opens upgrade older event logs and refuse future event logs before migration', () => {
   const box = project();
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
@@ -437,7 +421,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const olderAgain = new DatabaseSync(dbFile);
   olderAgain.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 1');
   olderAgain.close();
-  const mainCodeFromWorktree = spawnSync(process.execPath, [join(repo, 'bin/pullboard.js'), 'join', 'app', '--family', 'codex', '--json'], {
+  const mainCodeFromWorktree = spawnSync(process.execPath, [join(repo, 'bin/pullboard.js'), 'join', 'app', '--family', 'codex', '--model', 'fixture-model', '--json'], {
     cwd: linked, env: box.env, encoding: 'utf8',
   });
   assert.equal(mainCodeFromWorktree.status, 0, mainCodeFromWorktree.stderr + mainCodeFromWorktree.stdout);
@@ -446,8 +430,8 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.ok(migratedFromWorktree.prepare('PRAGMA table_info(item)').all().some((column) => column.name === 'item_files'));
   migratedFromWorktree.close();
 
-  const schemaSource = join(linked, 'src/board-schema-source.js');
-  const migrateSource = join(linked, 'src/board-migrate.js');
+  const schemaSource = join(linked, 'packages/store/src/shell/board-schema-source.js');
+  const migrateSource = join(linked, 'packages/store/src/shell/board-migrate.js');
   const oldSource = readFileSync(schemaSource, 'utf8');
   const oldMigrations = readFileSync(migrateSource, 'utf8');
   const migration = "  ['shout', 'shout_request_outcome', \"TEXT NOT NULL DEFAULT ''\"],\n];";
@@ -458,7 +442,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.notEqual(newMigrations, oldMigrations, 'the unmerged worktree carries a real schema-4 migration');
   writeFileSync(schemaSource, newSource);
   writeFileSync(migrateSource, newMigrations);
-  box.git(linked, 'add', 'src/board-schema-source.js', 'src/board-migrate.js');
+  box.git(linked, 'add', 'packages/store/src/shell/board-schema-source.js', 'packages/store/src/shell/board-migrate.js');
   box.git(linked, 'commit', '-q', '-m', 'feat: simulate an unmerged schema bump');
 
   let before = readFileSync(dbFile);
@@ -583,7 +567,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const unguarded = join(box.dir, 'unguarded');
   box.git(repo, 'worktree', 'add', '-q', unguarded, '-b', 'schema/unguarded', 'schema/future');
-  const guardedSource = join(unguarded, 'src/board-store.js');
+  const guardedSource = join(unguarded, 'packages/store/src/shell/board-store.js');
   const guardedText = readFileSync(guardedSource, 'utf8');
   const unguardedText = guardedText.replace(
     "  isMain = sharedSchemaOwner(file, isMain);",
@@ -1029,7 +1013,8 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
       `add response must include its nested item\n${movedStep.evidence}`);
     assert.equal(movedStep.document.result.item.item_title, '--help', movedStep.evidence);
     assert.equal(movedStep.document.event.event_kind, 'add', movedStep.evidence);
-    assert.equal(movedStep.document.event.event_id, (await (await apiFetch(api, `${boardPath}/events?after=${eventsStep.document.events.at(-1)?.event_id ?? 0}`)).json()).events.at(-1)?.event_id, `the add is the newest event; an empty next may record next-idle first (#1818)\n${movedStep.evidence}`);
+    const emitted = (await (await apiFetch(api, `${boardPath}/events?after=${eventsStep.document.events.at(-1)?.event_id ?? 0}`)).json()).events;
+    assert.ok(emitted.some(event => event.event_id === movedStep.document.event.event_id && event.event_kind === 'add'), `the committed add is in the event stream\n${movedStep.evidence}`);
     assert.equal(api.stderr(), '', movedStep.evidence);
   } catch (error) {
     error.message = `${error.message}\n${lastStepEvidence}`;
@@ -1055,7 +1040,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   try {
     const app = join(box.dir, 'app-1');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-    const joined = box.run(app, 'join', 'app');
+    const joined = box.run(app, 'join', 'app', '--model', 'fixture-agent');
     lastStepEvidence = fixtureCommandEvidence('join worktree agent', joined, box.env);
     assert.equal(joined.status, 0, lastStepEvidence);
     const api = await startApi(t, box);
@@ -1232,10 +1217,14 @@ test('[A2] SSE delivers a live move and resumes after Last-Event-ID without repl
   assert.equal(reconnect.status, 200);
   const reader = reconnect.body.getReader();
   try {
+    const pending = { text: '' };
+    const placement = await nextSseEvent(reader, pending);
+    assert.equal(placement.document.event.event_kind, 'milestone_placed');
+    assert.equal(placement.document.event.item_id, firstEvent.document.event.item_id);
     const secondMove = await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'add', args: { lane: 'app', title: 'Live two' } }) });
     assert.equal(secondMove.status, 200);
     const expectedSecond = await secondMove.json();
-    const second = await nextSseEvent(reader);
+    const second = await nextSseEvent(reader, pending);
     assert.equal(second.id, String(expectedSecond.event.event_id));
     assert.ok(Number(second.id) > Number(firstEvent.id), 'the reconnect resumed after the delivered event without replay');
     assert.equal(second.document.event.event_kind, 'add');
@@ -1329,7 +1318,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
   const verifier = json(box, box.repo, 'worktree', ['app', '--route', 'light', '--model', 'fixture-verifier']);
   /** Execute the real CLI with only this test's private homes, Git config and PATH. */
   async function runFixtureCommand(argv, io) {
-    const keys = new Set([...Object.keys(box.env), 'PULLBOARD_RELAY_TOKEN', 'npm_config_cache']);
+    const keys = new Set([...Object.keys(box.env), ...AGENT_SHELL_MARKERS, 'PULLBOARD_RELAY_TOKEN', 'npm_config_cache']);
     const previous = new Map([...keys].map((key) => [key, process.env[key]]));
     try {
       for (const key of keys) {
@@ -1423,12 +1412,22 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     await move('claim', ids[0], {}, builder.agent);
     await move('submit', ids[0], {}, builder.agent);
     await move('next', undefined, { verify: true }, verifier.agent);
+    // Keep the fixture's trunk fixed so automatic landing cannot invalidate every item during this incremental check.
+    writeFileSync(join(box.repo, 'landing-fixture-dirty'), 'hold the trunk\n');
     await move('verify', ids[0], { decision: 'accept', reason: 'CRITERION_MET', note: 'verified dependency' }, verifier.agent);
     builds.length = 0;
     const dependencyState = await assertFreshFullState('verified dependency');
     assert.deepEqual(builds, [ids[0], ids[1]], 'the changed item and its dependent are recomputed');
     assert.deepEqual(dependencyState.items.find((item) => item.id === ids[1]).blockedBy, [],
       'the waiting item becomes unblocked when its dependency is verified');
+    const dependent = dependencyState.items.find((item) => item.id === ids[1]);
+    if (dependent.claim) {
+      assert.ok([builder.agent, verifier.agent].includes(dependent.claim.by), 'the extra claim belongs to a fixture seat');
+      const owner = dependent.claim.by === builder.agent ? builder : verifier;
+      const released = box.run(owner.path, 'release', String(ids[1]), '--reason', 'OTHER', '--note', 'isolate the later lease expiry', '--no-next');
+      assert.equal(released.status, 0, released.stderr || released.stdout);
+      await assertFreshFullState('release the extra claim');
+    }
 
     builds.length = 0;
     await move('shout', undefined, { to: 'all', text: 'Board-only change for incremental projection' });

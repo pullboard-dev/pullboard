@@ -9,8 +9,10 @@ import { delimiter, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { suiteProven } from '../src/test-action-cache.js';
-import { testActionKeys } from '../src/test-action-cache.js';
+import { readTestOutcomes } from '../packages/gate/index.js';
+import { requireTestTierAccount } from '../packages/gate/index.js';
+import { suiteProven } from '../packages/gate/index.js';
+import { testActionKeys } from '../packages/gate/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 const source = fileURLToPath(new URL('../src', import.meta.url));
@@ -155,7 +157,7 @@ test('an unchanged closure reuses its green result and a changed import reruns i
   assert.match(sixth.output, /d found a forbidden word/u, 'the fresh scan finds the word the stored green never saw');
 });
 
-test('a reused result prints the same TAP as a fresh run [C7]', (t) => {
+test('a reused result retains TAP and proves a focused gate without rerunning [C7,V4]', (t) => {
   const fixture = makeFixture(t);
   fixture.change('test/b.test.js', `${fixtureTest('b', 'b')}
 test('skipped # proof', { skip: 'not selected by the fixture' }, () => {});
@@ -174,15 +176,48 @@ test('nested proof', async t => { await t.test('child proof', () => {}); });
   assert.match(second.output, /^# pass 3$/mu);
   assert.match(second.output, /^# fail 0$/mu);
   assert.match(second.output, /^# skipped 1$/mu);
+  const frame = second.output.split('\n').find(line => line.startsWith('# pullboard suite timing '));
+  const id = JSON.parse(frame.slice('# pullboard suite timing '.length)).id;
+  const outcomes = readTestOutcomes(second.output, id);
+  assert.deepEqual(outcomes, [
+    { file: 'test/b.test.js', name: 'b [C7]', passed: true, skipped: false },
+    { file: 'test/b.test.js', name: 'skipped # proof', passed: true, skipped: true },
+    { file: 'test/b.test.js', name: 'child proof', passed: true, skipped: false },
+    { file: 'test/b.test.js', name: 'nested proof', passed: true, skipped: false },
+  ]);
+  assert.doesNotThrow(() => requireTestTierAccount({ green: true, testOutcomes: outcomes }, ['test/b.test.js']));
+  assert.throws(() => requireTestTierAccount({ green: true }, ['test/b.test.js']), { code: 'TEST_SELECTION_UNVERIFIED' });
+  const gateModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const observed = runFixtureChild(process.execPath, ['--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import { runProfiledShellAsync, requireTestTierAccount } from ${JSON.stringify(gateModule)};
+    const run = await runProfiledShellAsync(process.cwd(), 'node bin/run-tests.js test/b.test.js');
+    requireTestTierAccount(run, ['test/b.test.js']);
+    assert.throws(() => requireTestTierAccount(run, ['test/a.test.js', 'test/b.test.js']), {code:'TEST_SELECTION_UNVERIFIED'});
+    const noOp = await runProfiledShellAsync(process.cwd(), 'true');
+    assert.throws(() => requireTestTierAccount(noOp, ['test/b.test.js']), {code:'TEST_SELECTION_UNVERIFIED'});
+    console.log(JSON.stringify({green:run.isGreen, output:run.output, outcomes:run.profile.testOutcomes}));
+  `], { cwd: fixture.root, env: fixture.env, encoding: 'utf8', timeout: 25000 });
+  assert.equal(observed.status, 0, observed.stdout + observed.stderr);
+  const gate = JSON.parse(observed.stdout);
+  assert.equal(gate.green, true);
+  assert.deepEqual(gate.outcomes, outcomes);
+  assert.match(gate.output, /all 1 test files reused; none ran/u);
+  assert.equal(readFileSync(fixture.env.PULLBOARD_ACTION_CAPTURE, 'utf8'), '', 'the real profiled gate never reruns the cached test body');
   const entries = readdirSync(join(fixture.store, 'green'));
   assert.equal(entries.length, 1);
   const path = join(fixture.store, 'green', entries[0]);
   const legacy = JSON.parse(readFileSync(path, 'utf8'));
-  delete legacy.tap;
+  delete legacy.tap.testOutcomes;
   writeFileSync(path, JSON.stringify(legacy));
   const oldEntry = fixture.run(['test/b.test.js']);
   assert.equal(oldEntry.status, 0, oldEntry.output);
-  assert.deepEqual(oldEntry.ran, ['b'], 'a pre-upgrade status-only entry has no replayable proof and runs fresh');
+  assert.deepEqual(oldEntry.ran, ['b'], 'a legacy TAP-only entry lacks native case identity and runs fresh');
+  assert.deepEqual(fixture.run(['test/b.test.js']).ran, [], 'the fresh complete entry replaces legacy metadata instead of warming forever');
+  const corrupted = JSON.parse(readFileSync(path, 'utf8'));
+  corrupted.tap.testOutcomes[0].file = 'test/another.test.js';
+  writeFileSync(path, JSON.stringify(corrupted));
+  assert.deepEqual(fixture.run(['test/b.test.js']).ran, ['b'], 'a cached account cannot borrow another file identity');
 });
 
 test('a test that reads its own checkout history is never keyed [C7]', async (t) => {
@@ -264,10 +299,10 @@ exec '${realpathSync(git).replaceAll("'", "'\\''")}' "$@"
 test('a harness dependency edit changes every key, and a test edit stays local to its file [C7]', async (t) => {
   const fixture = makeFixture(t);
   // Commit the harness, so its own imports are inputs the keys can name.
-  runFixtureGit(['add', '-f', 'bin', 'src'], { cwd: fixture.root, env: fixture.env });
+  runFixtureGit(['add', '-f', 'bin', 'src', 'packages'], { cwd: fixture.root, env: fixture.env });
   runFixtureGit(['commit', '-q', '-m', 'commit the harness'], { cwd: fixture.root, env: fixture.env });
   const before = await testActionKeys(fixture.root);
-  const isolationFile = toolSourcePath(fixture.root, 'src/test-isolation.js');
+  const isolationFile = toolSourcePath(fixture.root, 'packages/gate/src/shell/test-isolation.js');
   const isolation = readFileSync(isolationFile, 'utf8');
   fixture.change(relative(fixture.root, isolationFile), `${isolation}\n// A harness-only edit that no test imports.\n`);
   const harnessEdit = await testActionKeys(fixture.root);

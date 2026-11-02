@@ -1,10 +1,27 @@
+import { launchComparisonWorker } from '../../packages/verify/index.js';
+import { generateTestTiers } from '../../packages/gate/index.js';
+import { fileURLToPath } from 'node:url';
+import { submitGateConfig } from '../../packages/gate/index.js';
+import { submitGatePlan } from '../../packages/gate/index.js';
+import { reusableSubmitProof } from '../submit-proof-reuse.js';
 import { selectTestTiers } from '../../packages/gate/index.js';
+import { compareVerification } from '../../packages/verify/index.js';
+import { comparisonCommand } from '../../packages/verify/index.js';
+import { renderVerificationComparison } from '../../packages/verify/index.js';
+import { recordedVerificationComparison } from '../../packages/verify/index.js';
+import { VERIFICATION_COMPARISON_PREFIX } from '../../packages/verify/index.js';
+import { withMainCheckout } from '../../packages/landing/index.js';
+import { runProfiledShellAsync } from '../../packages/gate/index.js';
+import { testsNeedBrowser } from '../../packages/gate/index.js';
+import { testsNeedGui } from '../../packages/gate/index.js';
+import { mainPolicy } from '../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../packages/gate/index.js';
 import { testTierCommand } from '../../packages/gate/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
+import { linkKnownMainReworks } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
@@ -16,9 +33,12 @@ import {
 } from '../test-output-summary.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
+import { compareMainFailures } from '../../packages/landing/index.js';
+import { failureSignatures } from '../../packages/landing/index.js';
+import { matchingMainFailures } from '../../packages/landing/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
-import { selectAffectedTests } from '../affected-tests.js';
+import { selectAffectedTests } from '../../packages/gate/index.js';
 import { committedItemAuthors } from '../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../../packages/verify/index.js';
@@ -41,12 +61,12 @@ import {
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../browser-admission.js';
+} from '../../packages/gate/index.js';
 import {
   refuseSandboxBlocked,
   timingDigest,
   withGateSlot,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import {
   contains,
   git,
@@ -63,7 +83,7 @@ import {
   checkImplies,
   parseImplies,
 } from '../../packages/state/index.js';
-import { checkNeedsGui } from '../gui-admission.js';
+import { checkNeedsGui } from '../../packages/gate/index.js';
 import * as itemSessions from '../../packages/items/index.js';
 import { itemAuthors } from '../../packages/items/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
@@ -82,6 +102,7 @@ import {
   dependencySnapshots,
   frozenCheck,
   itemPolicy,
+  policyAt,
   requireTrunkMerge,
   submissionPaths,
 } from '../../packages/sandbox/index.js';
@@ -117,6 +138,34 @@ import {
 } from '../cli.js';
 import { recordedRecovery } from '../../packages/state/index.js';
 import { retryReviewCommit } from '../../packages/verify/index.js';
+import { readFileSync } from 'node:fs';
+
+/** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
+export async function knownMainCheck(root, check, { main, item, items, onWait, onMeasuredReceipt, runnerAdmission }) {
+  if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
+  try {
+    const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : check.output;
+    const run = { ...check, isGreen: false, output,
+      stages: [{ status: check.exitCode, output }] };
+    const failures = failureSignatures(run, root);
+    if (!failures?.length) return null;
+    // Private checks report paths under their temporary checkout; use the already
+    // validated repository-relative failure identities to select main's files.
+    const profile = { tests: failures.map(row => ({ file: row.file, passed: false })) };
+    const comparison = await compareMainFailures(root, profile, onWait, output, {
+      commit: main, detailed: true, onMeasuredReceipt, runnerAdmission,
+      execution: { executor: check.executionRunner ? { kind: 'ssh', host: check.executionRunner } : { kind: 'local' }, environment: check.environment },
+    });
+    const matched = matchingMainFailures(failures, comparison, main);
+    return linkKnownMainReworks(matched, items(), item);
+  } catch { return null; } // Preserve CHECK_RED when comparison, identity or ownership cannot be established.
+}
+
+/** Retain exact case identities and repair links in the immutable verdict without calling the raw check green. */
+export function knownMainCheckNote(known) {
+  return known ? `\nfrozen check remains red; identical on main ${known.main}:\n`
+    + known.failures.map(row => `${row.file} :: ${row.name}; open Main red repair #${row.item}`).join('\n') : '';
+}
 
 /** Preserve policy refusals while representing unusable cited criteria as a changed digest. */
 export function verificationCriterionDigest(freeze, item) {
@@ -189,6 +238,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     let check;
     let review;
     let unaffectedMove = '';
+    let knownMain = null;
     const companionDigest = store.itemPatchDigest(board, id);
     const missing = missingCompanionKeys(root, board, item, head,
       { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem });
@@ -200,24 +250,71 @@ export async function verifyHere(ctx, id, { second, values }) {
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
-      const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events: store.events });
-      const admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
+      const composeNow = () => {
+        const current = requireTrunkMerge(root, checkedCommit);
+        if (!contains(root, current.commit, checkedCommit) && !reReview) {
+          const builder = item.item_built_by ?? store.events(board, { itemId: item.item_id }).findLast(event => event.event_kind === 'submit')?.event_by;
+          if (!builder) throw new Refused('BAD_VERDICT_REVIEW', 'the submitted builder cannot be determined from native history; restore its submission before review');
+          checkedCommit = retryReviewCommit(root, checkedCommit, current);
+          checkedLabel = 'main-composed review';
+          unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${builder}; checked against main ${current.commit}.`;
+          ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
+        }
+        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events });
+      };
+      let admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
+      let proofRetries = 0;
+      const reselection = new Error('review composition changed at admission');
       if (!admitted) ({ trunk, review } = composeNow());
-      for (let attempt = 0; attempt < 2; attempt += 1) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        knownMain = null;
+        if (!trunk) ({ trunk, review } = composeNow());
         const checkedItem = { ...item, item_commit: checkedCommit };
         const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests });
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;
         if (testTiers) ctx.io.say(testTierReport(testTiers));
-        if (frozenCheck(item) || supplement) {
+        let expectedPlan = null;
+        if (head === checkedCommit && isClean(root) && !untracked(root).length && !companionDigest && !item.item_effective_head) {
+          try {
+            const config = submitGateConfig(ctx.config, policyAt(root, trunk.commit).config);
+            const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: trunk.commit, commit: checkedCommit, check: frozenCheck(item) });
+            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand };
+          } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
+        }
+        const reused = expectedPlan ? reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
+          tree: item.item_tree, main: trunk.commit, check: expectedPlan.check, affectedTests: ctx.config.affectedTests ?? '',
+          gate: ctx.config.gate ?? '', supplement, expectedPlan }) : { reason: 'clean submit plan unavailable' };
+        if (reused.ids) {
+          ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
+          check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
+        } else if (frozenCheck(item) || supplement) {
+          ctx.io.say(`submit proof not reused: ${reused.reason}`);
           const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item) || supplement, { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
           const gui = await checkNeedsGui(root, frozenCheck(item) || supplement, { commit: checkedCommit });
           // Exact command classifiers still govern local and remote private-check admission [C7,V4].
           const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item) || supplement, { commit: checkedCommit }));
-          check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+          try {
+            check = await withGateSlot(root, async (lease) => {
+              if (admitted) {
+                const selected = checkedCommit;
+                ({ trunk, review } = composeNow());
+                admitted = false;
+                // The affected tests and browser/GUI admission were selected for the old object.
+                // Release this slot and classify the actual composition before running anything.
+                if (checkedCommit !== selected) throw reselection;
+              }
+              const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
+              return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran;
+            }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
+          } catch (error) {
+            if (error === reselection) continue;
+            throw error;
+          }
         } else {
+          ctx.io.say(`submit proof not reused: ${reused.reason}`);
           check = checkAtCommit(root, checkedItem);
         }
         invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
@@ -226,23 +323,30 @@ export async function verifyHere(ctx, id, { second, values }) {
         verificationQuarantine = check.blockingVerdict ? { rawExitCode: check.exitCode, proofReceiptId: check.proofReceiptId,
           coveredCases: check.blockingVerdict.quarantines.length, eventIds: check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId),
           omittedEvents: Math.max(0, check.blockingVerdict.quarantines.length - 8) } : null;
-        if (check.checked) verificationOutput = check.outputPath
+        if (check.checked && !check.reused) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
         const evidence = verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '';
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
-        if (check.state === 'red') throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
+        if (check.state === 'red') {
+          knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
+            items: () => store.listItems(board, { all: true }), runnerAdmission,
+            onWait: queuedItemLease(ctx, item, me.id, 'review'),
+            onMeasuredReceipt: receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
+          });
+          if (!knownMain) throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
+        }
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
         submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
         const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
         // With verify.unrelatedTrunkMoves on, a move through commits that touch nothing this review read keeps its verdict (#928).
-        const judged = currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
+        const judged = check.reused || currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
           : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles });
         if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
           throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
         }
-        if (currentTrunk.commit !== trunk.commit && (!judged || judged.overlap)) {
-          if (attempt === 1) {
+        if (currentTrunk.commit !== trunk.commit && (knownMain || !judged || judged.overlap)) {
+          if (proofRetries++ >= 1) {
             const reach = judged ? (await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles }, { all: true })).overlaps : [];
             throw new Refused('VERDICT_TRUNK_MOVED', `main moved again from ${trunk.commit} to ${currentTrunk.commit} during the one review retry${reach.length ? `, reaching this review through ${reach.join('; ')}` : ''}; merge the latest main and re-review the clean composition`);
           }
@@ -270,7 +374,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
@@ -282,6 +386,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       ...(companionDigest ? { companionDigest } : {}),
       environment: check?.environment ?? null,
       ...(decision === 'ACCEPT' ? { check: check.checked ? 'green' : 'none' } : {}),
+      ...(knownMain ? { knownMainFailures: knownMain } : {}),
       ...(decision === 'ACCEPT' && check.blockingVerdict ? { quarantineProofId: check.proofReceiptId } : {}),
       ...(implies ? { implies } : {}),
     }]);
@@ -317,7 +422,72 @@ export async function run(io, args) {
   const id = idArg(first);
   const verdictResult = {};
   const ctx = { ...context(io), verdictResult };
+  if (values.compare) {
+    if (args.second) throw new Refused('USAGE', 'use pullboard verify <id> --compare without an accept or reject verdict');
+    const item = withBoardRead(ctx, board => store.getItem(board, id));
+    const policy = mainPolicy(ctx.info.root);
+    const executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
+    if (process.env.PULLBOARD_COMPARE_SOURCE && (process.env.PULLBOARD_COMPARE_SOURCE !== item.item_commit
+      || process.env.PULLBOARD_COMPARE_DIGEST !== item.item_frozen_digest)) {
+      io.result?.({ item: id, status: 'superseded' }); return 0;
+    }
+    let compared;
+    try {
+      compared = await compareVerification(ctx.info.root, item, { main: policy.commit,
+        selectTests: async (root, pair) => {
+          const selected = selectAffectedTests(root, pair);
+          const tiered = selectTestTiers(root, pair);
+          const units = tiered?.units ?? await withMainCheckout(root, pair.commit, checkout =>
+            generateTestTiers(checkout).files.filter(row => row.tier === 'T1').map(row => row.file));
+          const allowed = new Set(units);
+          return { ...selected, files: selected.files.filter(file => allowed.has(file)) };
+        },
+        runTests: (commit, files, { profileFile, artifactDirectory }) => withMainCheckout(ctx.info.root, commit, async checkout => {
+          const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
+          const browser = await testsNeedBrowser(checkout, files);
+          return withGateSlot(checkout, lease => {
+            lease.testTiers = true;
+            return runProfiledShellAsync(checkout, command,
+              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true });
+          }, { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
+            browser, gui: testsNeedGui(checkout, files), shortEligible: true, item: String(id), kind: 'compare' });
+        }),
+      });
+      compared = { ...compared, status: 'complete', source: item.item_commit, digest: item.item_frozen_digest };
+    } catch (error) {
+      compared = { item: id, status: 'unavailable', source: item.item_commit, digest: item.item_frozen_digest,
+        error: error.message };
+    }
+    await recordComparison(ctx, item, compared);
+    io.result?.(compared);
+    io.say(renderVerificationComparison(compared));
+    return compared.status === 'unavailable' ? 1 : 0;
+  }
   const code = await verifyHere(ctx, id, args);
   if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
+}
+
+/** Store observation facts only while the exact submitted source and frozen bar are still current. */
+async function recordComparison(ctx, item, result) {
+  return withBoard(ctx, async board => {
+    const current = store.getItem(board, item.item_id);
+    if (current.item_commit !== item.item_commit || current.item_frozen_digest !== item.item_frozen_digest) return;
+    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: whoAmI(ctx, board).id, kind: 'measurement',
+      text: VERIFICATION_COMPARISON_PREFIX + JSON.stringify(result) }]);
+  });
+}
+
+/** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
+export async function startAutomaticComparison(ctx, id) {
+  const item = withBoardRead(ctx, board => store.getItem(board, id));
+  const previous = withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, id), item));
+  if (previous && ['pending', 'complete'].includes(previous.status)) return;
+  const pending = { item: id, status: 'pending', source: item.item_commit, digest: item.item_frozen_digest };
+  await recordComparison(ctx, item, pending);
+  try {
+    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
+      toolRoot: fileURLToPath(new URL('../../', import.meta.url)), entry: 'bin/pullboard.js',
+      item: id, source: item.item_commit, digest: item.item_frozen_digest });
+  } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
 }

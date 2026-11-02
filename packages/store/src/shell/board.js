@@ -1,4 +1,5 @@
 import { reviewPatchAuthors } from "../../../verify/index.js";
+import { frozenFamilyPolicy } from './review-family-relaxation.js';
 export { recordExitProgress, requireExitActive } from "../core/exit-rules-state.js";
 /**
  * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
@@ -22,7 +23,7 @@ import { foreignBlockers as readForeignBlockers } from "../../../items/index.js"
 import { foreignDependencyStates as readForeignDependencyStates } from "../../../items/index.js";
 import { readReceivedBoardState } from "../core/board-link-state.js";
 import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
-import { laneLeads } from "../../../../src/lane-lead.js";
+import { laneLeads } from "../../../seats/index.js";
 import { PERSON } from "./board-query.js";
 import { now } from "./board-query.js";
 import { current } from "./board-query.js";
@@ -48,9 +49,9 @@ import { UNKNOWN_MOVE } from "../../../state/index.js";
 import { effectiveGuards } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { itemAuthorProblem } from "../../../items/index.js";
-import { ROUTES } from "../../../../src/route-escalation.js";
-import { canTake } from "../../../../src/route-escalation.js";
-import { routeOf } from "../../../../src/seats.js";
+import { ROUTES } from "../../../seats/index.js";
+import { canTake } from "../../../seats/index.js";
+import { routeOf } from "../../../seats/index.js";
 import { RIGOR_NOTICE_ENGINE } from "../core/board-rigor-source.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
 import { factReference } from "../../../spec/index.js";
@@ -74,6 +75,7 @@ import { prepareClaim as preparedClaim } from "./board-claim.js";
 import { claim as applyPreparedClaim } from "./board-claim.js";
 import { release } from "./board-release.js";
 import { submit } from "./board-submit.js";
+import { sealClauseInspection } from "./board-submit.js";
 import { reviewReleaseNoteProblem } from "./board-review-release-note.js";
 import { reviewOffer } from "./board-review-offer.js";
 import { reserveReview } from "./board-reserve-review.js";
@@ -159,7 +161,7 @@ export { recordUsageBatch } from "../../../stats/index.js";
 export { recordSharedUsage } from "../../../stats/index.js";
 export { proofReceipts, recordProofRun } from "./proof-receipts.js";
 /** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
-export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../../src/seats.js";
+export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../seats/index.js";
 export { agentAt, agentById, listAgents } from "./board-query.js";
 export { takeCoordinator } from "./board-coordinator-hold.js";
 
@@ -301,7 +303,7 @@ export { reviewQueue } from "./board-query.js";
  * @param {{ agentId: string, policy: string, familyPolicy?: string }} who
  * @returns {Record<string, (found: any) => Refused | null>}
  */
-export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
+export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor }) {
   const family = reviewRouting.seatFamily(board, agentId);
   return {
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -312,7 +314,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' })
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {
@@ -422,7 +424,7 @@ export {
   attachItemPatch,
   removeItemPatch,
   release,
-  submit,
+  submit, sealClauseInspection,
   reviewReleaseNoteProblem,
   reviewOffer,
   reserveReview,
@@ -474,3 +476,5 @@ export function claim(board, id, options) {
 }
 
 export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit-handoff-state.js";
+
+export { createItemSlice } from "./board-item-slice.js";

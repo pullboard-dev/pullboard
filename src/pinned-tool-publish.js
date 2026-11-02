@@ -10,8 +10,8 @@ import {
   readGateReceipt,
   receiptStore,
   receiptBinds,
-} from './gate-run-receipt.js';
-import { checkTrainLandingReceipt } from './train-landing-receipt.js';
+} from '../packages/gate/index.js';
+import { checkTrainLandingReceipt } from '../packages/landing/index.js';
 import { policyAt } from '../packages/sandbox/index.js';
 import {
   writeToolBuild,

@@ -7,7 +7,7 @@ import { loadSpec } from '../packages/spec/index.js';
 import { loadDoctrine } from './doctrine.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { personBlockWords } from '../packages/items/index.js';
-import { displayAgentName } from './agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import {
   projectSpecApprovals,
   specApprovalState,
@@ -17,12 +17,17 @@ import {
   sentinels,
 } from '../packages/store/index.js';
 import { relayCanaryNeeds } from '../packages/link/index.js';
+import { milestoneFocus } from '../packages/roadmap/index.js';
 
 /** Keep status obligations; reuse its same-call seats and doctrine, otherwise read them freshly. */
 export function personNeedsSummary(root, { board, config, agents, doctrine }) {
   const spec = loadSpec(root, config);
+  const focus = milestoneFocus(board, { milestones: store.milestones });
   const rows = projectRowDecisions(store.rowDecisions(board), { root, spec: spec.rows, practice: (doctrine ?? loadDoctrine(root, config)).rows });
   const projected = projectSpecApprovals({ ...rows,
+    focusMilestone: focus ? { name: focus.name, items: [...focus.ids] } : null,
+    items: store.listItems(board).map(item => ({ id: item.item_id, status: item.item_status,
+      merged: item.item_merged_commit, specs: item.item_spec_ids ? item.item_spec_ids.split(',') : [] })),
     decisions: store.openDecisions(board, store.PERSON), holds: store.laneHolds(board),
     agents: (agents ?? store.listAgents(board)).map(agent => ({ ...agent, displayName: displayAgentName(agent, config.agents.names) })),
     rigorDrafts: rigorDraftNeeds(rows, store.rowDrafts(board), store.rowDecisions(board)), sentinelDrafts: sentinelDraftNeeds(sentinels(board)), blocks: recentBlocks(repoInfo(root).commonDir, board),

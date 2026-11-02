@@ -1,6 +1,6 @@
 /** Real gate, item-check and verifier profiles parse emitted timings [C7,V10]. */
 import { copyFixtureRunner } from './fixture-runner-copy.js';
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';

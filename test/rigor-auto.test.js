@@ -17,7 +17,7 @@ import { RIGOR_COLD_NOTICE } from '../packages/rigor/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';
 import { readDigest } from '../packages/items/index.js';
 import { healthReport } from '../packages/health/index.js';
-import { dispatchHealth } from '../src/dispatch-health.js';
+import { dispatchHealth } from '../packages/sentinels/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { planAutomaticRigorApply } from '../packages/rigor/index.js';
@@ -60,7 +60,7 @@ function fixture() {
   mkdirSync(directory, { recursive: true });
   const file = join(directory, 'board.sqlite');
   let now = new Date('2026-10-24T12:00:00Z');
-  const board = openBoard(file, { now: () => new Date(now) });
+  const board = openBoard(file, { now: () => new Date(now) }, { gitRoot: root });
   store.ensureCoordinator(board, root);
   const builder = store.register(board, { lane: 'app', path: join(root, 'builder'), model: 'Fixture builder' });
   const reviewer = store.register(board, { lane: 'app', path: join(root, 'reviewer'), model: 'Fixture reviewer' });

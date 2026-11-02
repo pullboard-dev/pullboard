@@ -109,6 +109,43 @@ ${executionServicesSource(url)}
 // alone). 8000 ms is the measured headroom; the product deadline is unchanged and every assertion below is kept.
 const STAND_IN_BOOT_BUDGET_MS = 8_000;
 
+test('a worker missing READY yields to a free runner in the next admission cycle [C7,Q1,Q2]', t => {
+  const box = fixture(t, { dropFirst: false });
+  const ssh = join(box.dir, 'transport-bin', 'ssh');
+  const before = readFileSync(ssh, 'utf8');
+  const dispatch = "if (hold === 'dispatch') await holdHere();";
+  assert.ok(before.includes(dispatch));
+  writeFileSync(ssh, before.replace(dispatch,
+    `if (host === ${JSON.stringify(box.runner.host)} && remoteCommand.startsWith(configuredNode)) await holdHere();`));
+  const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
+  const configured = JSON.parse(readFileSync(settings, 'utf8'));
+  const second = { ...box.runner, host: HOST + '-setup' };
+  writeFileSync(settings, JSON.stringify({ ...configured, runners: [box.runner, second],
+    gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
+  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
+${executionServicesSource(gate)}
+    import {DatabaseSync} from 'node:sqlite';
+    const attempts=[],notices=[],waits=[];
+    const run=await withGateSlot(process.cwd(),lease=>{
+      attempts.push(lease.runner.host);
+      return runProfiledShellAsync(process.cwd(),'node -e "console.log(\\'READY_FAILOVER_EXECUTED\\')"',{gateLease:lease});
+    },{executionServices,remote:true,runnerOnly:true,onWait:state=>{
+      if(state.runnerUnavailable)notices.push(state.runnerUnavailable);
+      else if(!state.admitted)waits.push(state);
+    }});
+    const db=new DatabaseSync(process.env.PULLBOARD_MACHINE_HOME+'/resources.sqlite',{readOnly:true});
+    const held=db.prepare('SELECT host,detail FROM runner_unavailable').all();db.close();
+    console.log(JSON.stringify({green:run.isGreen,output:run.output,attempts,notices,waits,held}));`);
+  assert.equal(result.green, true);
+  assert.match(result.output, /READY_FAILOVER_EXECUTED/u);
+  assert.deepEqual(result.attempts, [box.runner.host, second.host], 'the command executes on the second actual SSH worker');
+  assert.equal(result.waits.length, 0, 'failover admits in the next cycle instead of waiting for another budget');
+  assert.equal(result.notices[0].host, box.runner.host);
+  assert.match(result.notices[0].reason, /worker did not become ready/u);
+  assert.deepEqual(result.held, [{ host: box.runner.host, detail: 'WORKER_UNRESPONSIVE' }], 'free capacity never certifies the failed worker');
+});
+
 test('an SSH-healthy host whose worker misses READY stays held after the admission deadline [C7]', t => {
   const box = fixture(t, { dropFirst: false });
   const ssh = join(box.dir, 'transport-bin', 'ssh');

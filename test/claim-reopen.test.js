@@ -12,7 +12,8 @@ import { configFromSource, defaults } from '../packages/config/index.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
-import { saveAgentSession, saveAgentParent } from '../src/seats.js';
+import { saveAgentSession, saveAgentParent } from '../packages/seats/index.js';
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../src/blocked-dependencies-engine.js';
 
 const COMMIT = 'a'.repeat(40);
 const TRUNK = 'b'.repeat(40);
@@ -324,4 +325,86 @@ test('[B4,V1,H16] takeover authorship uses the captured current runtime, preserv
   assert.equal(f.board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get('agent_session:coordinator').meta_value,old);
   assert.equal(barReadiness(f.board,store.getItem(f.board,id), {}, f.board.runtimePorts.verification).revision.authors.item_criterion.parent,current.parent);
   assert.throws(()=>signReady(f,id,child),error=>error.code==='BAR_SELF_SIGN');
+});
+
+test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', async t => {
+  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const f = fixture(t);
+  const first = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'first', route: 'mid', criterion: 'first works', check: 'true', brief: 'Files: src/a.js\nTest: first works' });
+  const second = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'second', route: 'mid', criterion: 'second works', check: 'true', brief: 'Files: src/b.js\nTest: second works' });
+  claim(f, first, f.builder);
+  const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'digest:bar' });
+  store.claim(f.board, second, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze, itemFolder: true });
+  const move = prepareEngineMove(f.board, 'claim', [first, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze }]);
+  assert.ok(move.engine >= ITEM_FOLDER_ENGINE);
+  assert.throws(() => applyEngineMove(f.board, { ...move, engine: ITEM_FOLDER_ENGINE - 1 }, { sequence: 1, at: '2026-01-01T00:01:00Z' }), /engine/);
+  assert.equal(store.getItem(f.board, first).item_owner, f.builder);
+  assert.equal(store.getItem(f.board, second).item_owner, f.builder);
+});
+
+test('older replay retains the one-claim guard even if an unknown modern flag is present [B5,H16]', async t => {
+  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
+  const first = add('legacy first'), second = add('legacy second');
+  claim(f, first, f.builder);
+  f.board.executionEngineVersion = ITEM_FOLDER_ENGINE - 1;
+  assert.throws(() => store.claim(f.board, second, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze: () => ({ text: '{}', digest: 'd' }), itemFolder: true }), { code: 'ONE_CLAIM' });
+  assert.equal(store.getItem(f.board, first).item_owner, f.builder);
+  assert.equal(store.getItem(f.board, second).item_owner, null);
+});
+
+test('an old modern claim does not upgrade a later legacy claim [B5,H16]', async t => {
+  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
+  const first = add('first'), second = add('second');
+  const freeze = () => ({ text: '{}', digest: 'digest:bar' });
+  store.claim(f.board, first, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze, itemFolder: true });
+  store.release(f.board, first, f.builder, 'Exercise a fresh legacy claim.', 'OTHER');
+  store.claim(f.board, first, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze });
+  const legacy = prepareEngineMove(f.board, 'claim', [second, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze }]);
+  const replay = applyEngineMove(f.board, { ...legacy, engine: ITEM_FOLDER_ENGINE - 1 }, { sequence: 1, at: '2026-01-01T00:01:00Z' });
+  assert.equal(replay.error?.code, 'ONE_CLAIM');
+});
+
+test('blocked release records prerequisites and withdrawn blockers free the item [B5,B10,H16]', (t) => {
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, criterion: 'prove', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the fix' });
+  const blocker = add('blocker');
+  const work = add('work');
+  store.editItem(f.board, work, { agentId: 'coordinator', after: [blocker], reason: 'Record the prerequisite' });
+  assert.equal(store.getItem(f.board, work).item_after, String(blocker));
+  assert.throws(() => store.editItem(f.board, blocker, { agentId: 'coordinator', after: [work], reason: 'Would create a cycle' }), error => error.code === 'DEPENDENCY_CYCLE');
+  store.editItem(f.board, work, { agentId: 'coordinator', after: [], reason: 'Clear the prerequisite' });
+  claim(f, work, f.builder);
+  assert.throws(() => store.release(f.board, work, f.builder, '', { blockedOn: [work] }, 'BLOCKED'), error => error.code === 'DEPENDENCY_CYCLE');
+  assert.equal(store.getItem(f.board, work).item_status, 'claimed', 'refused release rolls back');
+  const move = prepareEngineMove(f.board, 'release', [work, f.builder, 'waiting', { blockedOn: [blocker] }, 'BLOCKED'], { id: 'blocked-release-fixture', actor: f.builder });
+  assert.throws(() => applyEngineMove(f.board, { ...move, engine: BLOCKED_DEPENDENCIES_ENGINE - 1 }, { sequence: 1, at: '2026-01-01T00:00:00Z' }), /engine/u, 'older replicas cannot flatten blocked dependencies');
+  assert.equal(applyEngineMove(f.board, move, { sequence: 1, at: '2026-01-01T00:00:00Z' }).error, undefined);
+  assert.equal(store.getItem(f.board, work).item_after, String(blocker));
+  assert.notEqual(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item?.item_id, work);
+  assert.throws(() => claim(f, work, f.other), error => error.code === 'BLOCKED');
+  store.withdraw(f.board, blocker, { agentId: 'coordinator', reason: 'No longer needed' });
+  assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item.item_id, work);
+  claim(f, work, f.other);
+  assert.equal(store.getItem(f.board, work).item_owner, f.other);
+});
+
+test('blocked release waits through acceptance until its prerequisite lands [B5,B10]', t => {
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, criterion: 'prove', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the fix' });
+  const blocker = add('prerequisite');
+  const work = add('waiting task');
+  claim(f, work, f.builder);
+  store.release(f.board, work, f.builder, '', { blockedOn: [blocker] }, 'BLOCKED');
+  claim(f, blocker, f.builder);
+  submitFixture(f.board, blocker, { agentId: f.builder, commit: COMMIT, tree: COMMIT });
+  store.verify(f.board, blocker, { agentId: f.other, head: COMMIT, digest: 'digest:bar', policy: 'any', decision: 'ACCEPT', note: 'proof' });
+  assert.notEqual(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item?.item_id, work);
+  assert.throws(() => claim(f, work, f.other), error => error.code === 'BLOCKED');
+  store.merged(f.board, blocker, { agentId: 'coordinator', commit: TRUNK });
+  assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item.item_id, work);
+  claim(f, work, f.other);
 });

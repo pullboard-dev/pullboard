@@ -1,11 +1,14 @@
+import { committedRunnerController } from '../packages/runners/index.js';
 /** Dispatch runner work through a fresh controller process and hold its SSH session [C7]. */
-import { RunnerDropped } from './gate-policy-load.js';
+import { RunnerDropped } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
+import { readCleanupTimeoutDetails } from '../packages/runners/index.js';
+import { cleanupProcessText } from '../packages/runners/index.js';
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -68,22 +71,27 @@ function bridgeResult(request, result, phase) {
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid };
-  const child = spawnSync(process.execPath, [fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
+  const installation = committedRunnerController(fileURLToPath(new URL('../', import.meta.url)));
+  try {
+  const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   return bridgeResult(request, child, 'sync-bridge');
+  } finally { installation?.cleanup(); }
 }
 
 /** Isolate asynchronous execution from dependencies cached before an installation upgrade. */
 export async function runOnRunnerAsync(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
   // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
-  loadedToolingFiles({ rescan: false });
+  const installation = committedRunnerController(fileURLToPath(new URL('../', import.meta.url)));
+  try {
+  if (!installation) loadedToolingFiles({ rescan: false });
   const { signal, ...plainOptions } = options;
   const request = { root, command, options: plainOptions, parentPid: process.pid };
   const input = JSON.stringify(request);
-  const child = spawn(process.execPath, [fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
+  const child = spawn(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, stdio: ['pipe', 'pipe', 'pipe'],
   });
   const output = [], diagnostics = [];
@@ -111,6 +119,7 @@ export async function runOnRunnerAsync(root, command, options) {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
     return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
   } finally { signal?.removeEventListener('abort', abort); }
+  } finally { installation?.cleanup(); }
 }
 
 /** Serve only a directly launched controller, whose dependency cache starts in this process. */
@@ -212,7 +221,7 @@ async function runInController(root, command, options, ports) {
     const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];
-    let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '';
+    let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '', cleanupDetails = null;
     const rawHash = createHash('sha256');
     let rawBytes = 0, head = Buffer.alloc(0), tail = Buffer.alloc(0);
     const half = 4 * 1024 ** 2;
@@ -293,9 +302,12 @@ async function runInController(root, command, options, ports) {
         if (line === `PULLBOARD_RUNNER_HEARTBEAT ${request.spec.id}`) heartbeatAt = Date.now();
         const cleanupPrefix = `PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${request.spec.id} `;
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
+        const detailsPrefix = `PULLBOARD_RUNNER_CLEANUP_DETAILS ${request.spec.id} `;
+        if (line.startsWith(detailsPrefix)) cleanupDetails = readCleanupTimeoutDetails(line.slice(detailsPrefix.length), request.spec.id);
         if (line === `PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${request.spec.id}`) {
-          error = new Refused('RUNNER_CLEANUP_TIMEOUT', `runner ${request.runner.host} could not verify cleanup within 30 seconds${cleanupReason ? ': ' + cleanupReason : ''}; inspect job ${request.spec.id} under its runner namespace before another run`);
+          error = new Refused('RUNNER_CLEANUP_TIMEOUT', `runner ${request.runner.host} could not verify cleanup within 30 seconds${cleanupReason ? ': ' + cleanupReason : ''}${cleanupDetails ? '; waiting on ' + cleanupProcessText(cleanupDetails) : ''}; inspect job ${request.spec.id} under its runner namespace before another run`);
           error.diagnostic = runnerFailure(request, { status: null, stderr: '' }, 'cleanup-unverified').diagnostic;
+          if (cleanupDetails) error.diagnostic.cleanup = cleanupDetails;
           transport.stop(); return;
         }
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;

@@ -7,10 +7,10 @@ import { fixture, git } from './cells-plan-fixture.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { cellLintReport, cellLintBaseline, writeCellLintBaseline } from '../packages/codemap/index.js';
-import { withMainCheckout } from '../src/main-red.js';
-import { importsIn, commonJsIn } from '../src/module-imports.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { importsIn, commonJsIn } from '../packages/gate/index.js';
+import { withImportParseCache } from '../packages/gate/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 
 /** Pin an actual moved package and its accepted baseline before adding entry metadata. */
 function accepted(t, declared = false) {

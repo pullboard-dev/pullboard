@@ -1,5 +1,6 @@
+import { REVIEW_REQUEST_ENGINE } from '../../../../../src/review-request-engine.js';
 import { RULING_OWNER_ENGINE } from "../../../../../src/ruling-owner-engine.js";
-import { laneMessageFloor } from "../../../../../src/lane-lead.js";
+import { laneMessageFloor } from "../../../../seats/core.js";
 import { DECISION_QUEUE_ENGINE } from "../../../../../src/decision-queue-engine.js";
 import { ACTIVITY_NEWS_ENGINE } from "../../../../../src/activity-news-engine.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
@@ -19,7 +20,7 @@ function historicalMinimumEngine(args, board, at) {
 
 /** News combines every applicable floor; old arguments retain their historical replay condition order. */
 function existingMinimumEngine(args, board, at) {
-  const laneFloor = laneMessageFloor(board, args[0]);
+  const laneFloor = Math.max(laneMessageFloor(board, args[0]), args[0]?.kind === 'request' || args[0]?.clause !== undefined || (args[0]?.kind === 'question' && args[0]?.item !== undefined) ? REVIEW_REQUEST_ENGINE : 1);
   const optionsFloor = Math.max(args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1,
     args[0]?.effects !== undefined ? RULING_OWNER_ENGINE : 1);
   if (args[0]?.news !== true) return Math.max(laneFloor, optionsFloor, historicalMinimumEngine(args, board, at));

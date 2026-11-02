@@ -18,6 +18,7 @@ import { posix } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cellInventory } from '../packages/codemap/index.js';
+import { temporaryCellEdges } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
 import { readCellLintBaseline } from '../packages/codemap/index.js';
@@ -39,6 +40,7 @@ import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { removeShims } from './cells-remove-shims.js';
 import { shimReport } from './cells-remove-shims.js';
+import { writeShimHandoff } from './cells-remove-shims.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
@@ -303,6 +305,48 @@ function baseUnsupported(root, base, file, { moves, dataReads }) {
   return counts;
 }
 
+const historyReferencesByBase = new Map();
+
+/** Read only sealed history already present on the accepted base; candidate edits cannot create authority. */
+function historyShimReferences(root, acceptedBase) {
+  const base = acceptedBase || tryGit(root, ['rev-parse', 'main']).stdout || tryGit(root, ['rev-parse', 'HEAD']).stdout;
+  if (!/^[a-f0-9]{40,64}$/u.test(base)) return new Map();
+  const key = `${root}\0${base}`;
+  if (historyReferencesByBase.has(key)) return historyReferencesByBase.get(key);
+  const listing = tryGit(root, ['ls-tree', '-r', '--name-only', base, '--', 'src/move-history']);
+  if (listing.status !== 0) return new Map();
+  const declarations = new Map();
+  for (const file of listing.stdout.split('\n').filter(file => /^src\/move-history\/\d+\.json$/u.test(file))) {
+    const blob = tryGit(root, ['show', `${base}:${file}`]);
+    if (blob.status !== 0) continue;
+    try {
+      const row = JSON.parse(blob.stdout);
+      if (row.version !== 1 || row.engine !== Number(posix.basename(file, '.json')) || !row.declarations || Array.isArray(row.declarations) || typeof row.declarations !== 'object') continue;
+      for (const [name, source] of Object.entries(row.declarations)) {
+        if (/^[A-Za-z0-9_-]+\.js$/u.test(name) && typeof source === 'string') declarations.set(`${name}\0${source}`, { name, source, file });
+      }
+    } catch { /* An invalid snapshot supplies no authority. */ }
+  }
+  const refs = new Map(), rows = [...declarations.values()];
+  /** One broken historical declaration cannot authorize anything or hide other valid declarations. */
+  function scan(batch) {
+    if (!batch.length) return;
+    let edges;
+    try { edges = importsIn(batch.map(row => row.source)); }
+    catch {
+      if (batch.length > 1) { const mid = Math.floor(batch.length / 2); scan(batch.slice(0, mid)); scan(batch.slice(mid)); }
+      return;
+    }
+    for (const [index, specifiers] of edges.entries()) for (const specifier of specifiers) if (specifier.startsWith('.')) {
+      const target = posix.normalize(posix.join('src/moves', specifier));
+      if (!refs.has(target)) refs.set(target, batch[index].file);
+    }
+  }
+  for (let index = 0; index < rows.length; index += 100) scan(rows.slice(index, index + 100));
+  historyReferencesByBase.set(key, refs);
+  return refs;
+}
+
 /**
  * Check that one cell's move happened as planned: every path sits at its target, every old path is gone or is
  * only a re-export through the reachable front door, and no enforced cell lint rose. This is each move item's frozen check.
@@ -314,6 +358,8 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   let workerFiles;
   let moveFiles;
   let inventory;
+  let exceptions;
+  let history;
   /** Build the repository inventory once and share it across move closure and lint checks. */
   const sharedInventory = () => inventory ??= cellInventory(root, { importsIn, commonJsIn });
   /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
@@ -333,6 +379,14 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     }
     return moveFiles.has(from) && moveFiles.has(to);
   }
+  function keptReason(from, to) {
+    exceptions ??= temporaryCellEdges(sharedInventory().files);
+    const edge = exceptions.edges.find(row => row.importer === from && row.target === to);
+    if (edge && Date.parse(`${edge.expires}T00:00:00Z`) > Date.now()
+      && !exceptions.problems.some(problem => problem.includes(`${from} -> ${to}:`))) return `live temporary edge #${edge.contractItem} until ${edge.expires}`;
+    history ??= historyShimReferences(root, acceptedBase);
+    return history.has(from) ? `sealed move history ${history.get(from)}` : null;
+  }
   problems.push(...pureFrontDoorProblems(root, cell));
   if (!existsSync(join(root, cell.frontDoor))) problems.push(`missing front door ${cell.frontDoor}`);
   const stale = new Set(stalePlanRows(root, plan).filter(entry => entry.cell === name).map(entry => entry.row[0]));
@@ -344,8 +398,10 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
       if (!/^(?:export(?:\*|\{[^}]*\})from(?:'[^']*'|"[^"]*");)+$/u.test(code)) problems.push(`${from} still holds code; leave only a re-export shim`);
       else for (const match of code.matchAll(/from(['"])([^'"]*)\1;/gu)) {
         const target = match[2].startsWith('.') ? posix.normalize(posix.join(posix.dirname(from), match[2])) : null;
-        const exactLeaf = target === to && /^(?:export\{[^}]+\}from(?:'[^']*'|"[^"]*");)+$/u.test(code)
-          && (inWorkerClosure(from, to) || inMoveClosure(from, to));
+        const namedLeaf = target === to && /^(?:export\{[^}]+\}from(?:'[^']*'|"[^"]*");)+$/u.test(code);
+        const reason = namedLeaf && !inWorkerClosure(from, to) && !inMoveClosure(from, to) ? keptReason(from, to) : null;
+        const exactLeaf = namedLeaf && (reason || inWorkerClosure(from, to) || inMoveClosure(from, to));
+        if (reason) notes.push(`${from} kept: ${reason}`);
         if (target !== cell.frontDoor && target !== cell.pureFrontDoor && !exactLeaf) problems.push(`${from} bypasses front door ${cell.frontDoor}; re-export through it, not ${match[2]}`);
       }
     } else if (existsSync(join(root, from))) problems.push(`${from} still exists; move the asset to ${to}`);
@@ -517,8 +573,11 @@ function main(argv) {
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--remove-shims') {
     const laneAt = rest.indexOf('--lane'), lane = laneAt < 0 ? 'core' : rest[laneAt + 1];
-    const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
-    if (cells.length !== 1 || !lane) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>]');
+    const outAt = rest.indexOf('--output-dir'), directory = outAt < 0 ? undefined : rest[outAt + 1];
+    const fileCut = rest.includes('--file-cut');
+    const cells = rest.filter((_value, index) => !(laneAt >= 0 && (index === laneAt || index === laneAt + 1))
+      && !(outAt >= 0 && (index === outAt || index === outAt + 1)) && rest[index] !== '--file-cut');
+    if (cells.length !== 1 || !lane || (outAt >= 0 && !directory)) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>] [--output-dir <directory>] [--file-cut]');
     const plan = readPlan(root), cell = plan.cells.find(row => row.name === cells[0]);
     // One parse cache for the whole sweep: unchanged sources are never re-compiled across repoint iterations (#2232).
     const result = recordToolCommand(root, { tool: 'remove-shims', cell: cells[0], lane }, () => withParseScope(() => {
@@ -527,6 +586,8 @@ function main(argv) {
       return removed;
     }));
     for (const line of shimReport(result)) console.log(line);
+    const handoff = writeShimHandoff(root, result, cells[0], { lane, directory, fileCut });
+    if (handoff) console.log(`${handoff.fact}\nCut item: ${handoff.title}\n${handoff.criterion}\nAfter: ${handoff.after ?? '<removal item id>'}\n${handoff.command}\nHandoff: ${handoff.directory}`);
     return 0;
   }
   if (mode === '--file-cuts') { fileCuts(root, readPlan(root), rest.includes('--yes')); return 0; }

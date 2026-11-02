@@ -2,7 +2,7 @@
 /** A runner registered with no browser slots runs browser-free test files and never browser-bound ones [C7]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { copyPackageFiles } from '../src/package-files.js';
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -31,7 +31,7 @@ async function until(condition, what) {
 }
 
 /** Build a committed repo, a stand-in runner registered with --browser 0, and a held local slot; run body, then restore. */
-async function withNoBrowserRunner(t, { cli, git }, body) {
+async function withNoBrowserRunner(t, { cli, git }, body, browserSlots = 0) {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-runner-browser-free-')));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const [home, repo, worker, bin, remoteHome] = ['home', 'repo', 'second-machine', 'bin', 'worker-home'].map(name => join(dir, name));
@@ -58,7 +58,7 @@ async function withNoBrowserRunner(t, { cli, git }, body) {
   git(repo, env, 'add', '.');
   git(repo, env, 'commit', '-q', '-m', 'test: commit a browser-free runner fixture');
   installSshStandIn({ bin, worker, home: remoteHome, machineHome: remoteMachineHome, requests });
-  const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', '0', '--json');
+  const added = cli(repo, env, 'runner', 'add', HOST, '--slots', '1', '--browser', String(browserSlots), '--json');
   assert.equal(added.status, 0, added.context);
 
   const previousHome = process.env.PULLBOARD_HOME;
@@ -85,17 +85,31 @@ async function withNoBrowserRunner(t, { cli, git }, body) {
 }
 
 /** Run one command through the repo's own gate API, as an item check does, with no browser slot asked. */
-function gateRun({ repo, env }, command) {
+function gateRun({ repo, env }, command, runnerOnly = false) {
   const gateUrl = pathToFileURL(join(repo, 'src', 'gate.js')).href;
   const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
 const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShell(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease }),
-  { executionServices, browser: false, item: '1043', kind: 'check', itemCheck: true, agent: 'browser-free-fixture' });
+  { executionServices, browser: false, runnerOnly: ${runnerOnly}, item: '1043', kind: 'check', itemCheck: true, agent: 'browser-free-fixture' });
 process.stdout.write(result.output);
 process.stdout.write('PULLBOARD_RUN_RESULT ' + JSON.stringify({ isGreen: result.isGreen, runner: result.profile.executionRunner ?? null, runnerAttempt: result.runnerAttempt ?? null }) + '\\n');
 process.exitCode = result.isGreen ? 0 : 1;
 `;
   return runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { cwd: repo, env });
+}
+
+/** An authenticated worker refusal is retried on a real remote browser lease [C7]. */
+export async function browserRefusalRetriesRunner(t, helpers) {
+  await withNoBrowserRunner(t, helpers, async fixture => {
+    const command = `PULLBOARD_TEST_REUSE=0 PULLBOARD_TEST_BROWSER_BY_LAUNCH=0 node bin/run-tests.js ${shellQuote('test/free.test.js')}`;
+    const result = await awaitNestedRun(gateRun(fixture, command, true));
+    assert.equal(result.status, 0, fixture.show(result));
+    assert.match(result.stderr, /retrying on an eligible runner with a browser slot/u);
+    const record = JSON.parse(result.stdout.split('\n').findLast(line => line.startsWith('PULLBOARD_RUN_RESULT ')).slice('PULLBOARD_RUN_RESULT '.length));
+    assert.equal(record.runner, HOST);
+    assert.equal(record.runnerAttempt.host, HOST);
+    assert.deepEqual(fixture.phases(), { dispatched: 2, returned: 2 });
+  }, 1);
 }
 
 /** A browser-free file runs green on the no-browser runner; a lease refusal reruns locally; a browser-bound file stays local. */
