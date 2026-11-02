@@ -17,7 +17,7 @@ import { commonJsIn, importsIn } from '../packages/gate/index.js';
 import { fixture } from './cells-plan-fixture.js';
 import { privateFixtureFiles, runFixtureChild } from './fixture-child.js';
 
-test('one owned parser serves import and multiple binding batches, then exits [C7,P3]', async t => {
+test('one owned parser controller serves import and multiple binding batches, then exits [C7,P3]', async t => {
   const sources = ["import value from './leaf.js'; export default value;", "import('./dynamic.js');",
     "const require = value => value; require('node:fs');", "throw new Error('source must never execute');"];
   const modules = Array.from({ length: 300 }, (_, index) => ({ file: `leaf-${index}.js`,
@@ -43,14 +43,14 @@ test('one owned parser serves import and multiple binding batches, then exits [C
   });
   assert.deepEqual(actual, expected);
   assert.throws(() => retained(sources), /compiler setup failed/u, 'a completed command cannot restart its worker through a retained callback');
-  assert.equal(starts, 1, 'all parser batches share exactly one actual process');
+  assert.equal(starts, 1, 'all parser batches share exactly one owned controller');
   assert.equal(synchronous, 0, 'no per-batch compiler process remains inside the command scope');
   const keepAlive = setInterval(() => {}, 100);
-  try { assert.equal((await exited).signal, 'SIGKILL', 'the owned worker really exits when the command completes'); }
+  try { assert.deepEqual(await exited, { code: 0, signal: null }, 'the owned controller closes after observing its compiler exit'); }
   finally { clearInterval(keepAlive); }
 });
 
-test('the real lint CLI starts exactly one parser per cold run and prints unchanged report bytes [C7,P3]', t => {
+test('the real lint CLI starts one parser controller per cold run and prints unchanged report bytes [C7,P3]', t => {
   const box = fixture(t);
   const files = privateFixtureFiles('pullboard-parser-count-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
@@ -63,7 +63,7 @@ for (const name of ['spawn','spawnSync']) {
   /** Observe actual parser starts without replacing compiler execution or results. */
   cp[name]=function(...args) {
     const result=original(...args);
-    if (args[0]===process.execPath && args[1].includes('--experimental-vm-modules'))
+    if (args[0]===process.execPath && args[1].includes('--supervise'))
       appendFileSync(${JSON.stringify(join(files.root, 'starts.jsonl'))},JSON.stringify({name,pid:result.pid})+'\\n');
     return result;
   };
@@ -78,7 +78,7 @@ syncBuiltinESMExports();
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, expected, 'stdout remains byte-identical to the original compiler path');
     const starts = files.read('starts.jsonl').toString('utf8').trim().split('\n').map(line => JSON.parse(line));
-    assert.equal(starts.length, run, 'each actual CLI invocation starts exactly one V8 parser process');
+    assert.equal(starts.length, run, 'each actual CLI invocation starts exactly one parser controller');
     assert.ok(starts.every(start => start.name === 'spawn' && Number.isSafeInteger(start.pid)));
   }
   const initialized = runFixtureChild(process.execPath, [executable, '--init'], { cwd: box.root, encoding: 'utf8' });
@@ -88,7 +88,7 @@ syncBuiltinESMExports();
   assert.equal(checked.status, 0, checked.stderr);
   assert.equal(checked.stdout, '');
   assert.equal(files.read('starts.jsonl').toString('utf8').trim().split('\n').length, 3,
-    'the actual cold --check run also starts exactly one parser');
+    'the actual cold --check run also starts exactly one parser controller');
 });
 
 /** Real worker requests continue when filesystem watch hints are lost [C7,P3]. */
