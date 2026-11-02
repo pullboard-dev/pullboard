@@ -1,4 +1,5 @@
 import { reviewPatchAuthors } from "../../../verify/index.js";
+import { frozenFamilyPolicy } from './review-family-relaxation.js';
 export { recordExitProgress, requireExitActive } from "../core/exit-rules-state.js";
 /**
  * The board (B1–B7, V1–V8, R1–R3): items, claims, submissions, verdicts and shouts in one SQLite
@@ -301,7 +302,7 @@ export { reviewQueue } from "./board-query.js";
  * @param {{ agentId: string, policy: string, familyPolicy?: string }} who
  * @returns {Record<string, (found: any) => Refused | null>}
  */
-export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' }) {
+export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off', relaxationFor }) {
   const family = reviewRouting.seatFamily(board, agentId);
   return {
     notBuilder: (found) => itemAuthorProblem(board, found, agentId, { reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem }),
@@ -312,7 +313,7 @@ export function reviewerChecks(board, { agentId, policy, familyPolicy = 'off' })
     policyAllows: (found) =>
       policy === COORDINATOR && found.item_lane !== COORDINATOR && agentId !== COORDINATOR ? new Refused('COORDINATOR_VERIFIES', 'this repo has the coordinator verify lane work') : null,
     requiredReviewFamily: found => reviewFamilies.requiredReviewFamilyProblem(board, found, agentId),
-    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
+    familyAllows: (found) => reviewRouting.strictReviewProblem(board, found, agentId) ?? (twoTierReviews(board) ? reviewFamilyProblem(board, found, agentId, relaxationFor && relaxationFor(found) ? 'prefer' : relaxationFor ? frozenFamilyPolicy(found, familyPolicy) : familyPolicy) : familyPolicy === 'require' && (!family || !found.item_builder_family || family === found.item_builder_family)
       ? new Refused('O2_FAMILY_MATCH', `#${found.item_id} needs a verifier from another declared family under verify.family require; ask the coordinator to assign one`)
       : null),
     reviewFree: (found) => {

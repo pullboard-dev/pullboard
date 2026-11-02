@@ -1,4 +1,6 @@
 import { itemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../../src/review-family-relax-engine.js';
+import { frozenRelaxationEngine } from '../review-relax-engine.js';
 import { requiredReviewFamilyEngine } from "../../../../verify/src/core/required-review-family.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by reserveReview, discovered without a shared registry edit [C7,V4,H16]. */
@@ -7,6 +9,7 @@ import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function minimumEngine(args, board, at) {
+  if (args[1]?.familyRelaxAt !== undefined || frozenRelaxationEngine(board, args[0]) > 1) return REVIEW_FAMILY_RELAX_ENGINE;
   if (itemReviewPolicyEngine(board, args[0]) > 1) return Math.max(itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]));
   if (requiredReviewFamilyEngine(board, args[0]) > 1) return requiredReviewFamilyEngine(board, args[0]);
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;

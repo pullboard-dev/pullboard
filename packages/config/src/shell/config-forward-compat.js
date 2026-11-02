@@ -20,7 +20,7 @@ function schema(base) {
     pushReceiptCheck: fields(['smoke']),
     landing: { ...fields(['publish', 'timeout', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride']),
       environment: fields(['platform', 'arch', 'node']), cadence: fields(['every', 'accepted']) },
-    verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission']) },
+    verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission', 'familyRelaxAt']) },
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
       'affectedTests', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health']),
     testConcurrency: fields(['files', 'browser']),

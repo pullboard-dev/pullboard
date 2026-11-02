@@ -36,7 +36,7 @@ const MACHINE_DEFAULTS = {
 };
 const OPTIONAL_REPO_DEFAULTS = {
   'submit.handoff': false,
-  project: null, name: null, 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.composeAtAdmission': false,
+  project: null, name: null, 'checks.provesNothing': 'warn', 'verify.unrelatedTrunkMoves': false, 'verify.composeAtAdmission': false, 'verify.familyRelaxAt': null,
   'flakes.rerun': false, 'flakes.quarantine': false, 'rigor.budget': 400, 'cells.cache': false, 'relay.outbox': true, 'relay.board': null,
   submitGate: null, submitDeferAbove: null, landingShards: 1, 'landing.publish': null, 'landing.pauseOnRed': false, 'landing.manualOverride': false, 'landing.environment': null, positiveControl: null, affectedTests: null,
   'health.sentinel': true, 'testConcurrency.browser': 2, approvers: null,

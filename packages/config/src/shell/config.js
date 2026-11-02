@@ -312,6 +312,10 @@ export function configProblems(config) {
   if (!['off', 'prefer', 'require'].includes(config.verify?.family)) {
     problems.push('"verify.family" is "off", "prefer" or "require"');
   }
+  if (config.verify?.familyRelaxAt !== undefined && config.verify.familyRelaxAt !== null && config.verify.familyRelaxAt !== 'off'
+    && (!Number.isSafeInteger(config.verify.familyRelaxAt) || config.verify.familyRelaxAt < 1)) {
+    problems.push('"verify.familyRelaxAt" is off or a positive integer');
+  }
   if (!config.families || typeof config.families !== 'object' || Array.isArray(config.families)
     || Object.entries(config.families).some(([name, aliases]) => !name.trim() || name.length > 80
       || !Array.isArray(aliases) || aliases.some(alias => typeof alias !== 'string' || !alias.trim() || alias.length > 80))) {

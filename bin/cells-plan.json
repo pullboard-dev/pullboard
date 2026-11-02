@@ -716,6 +716,10 @@
       "reason": "canonical engine identity retained in src during package moves"
     },
     {
+      "path": "src/review-family-relax-engine.js",
+      "reason": "canonical engine identity retained in src during package moves"
+    },
+    {
       "path": "src/review-routing-engine.js",
       "reason": "canonical engine identity retained in src during package moves"
     },
