@@ -40,6 +40,7 @@ import {
   statSync,
 } from 'node:fs';
 import { displayAgentName } from '../../../seats/index.js';
+import { withProjectGitTimeout } from '../../../git/index.js';
 import * as store from '../../../../src/board.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import {
@@ -640,6 +641,11 @@ const VERSION = 1;
  * @param {boolean} [isMain] Whether the running CLI code comes from the main checkout.
  */
 function withBoard(root, read, isMain, boardOpeners) {
+  return withProjectGitTimeout(root, () => readProjectBoard(root, read, isMain, boardOpeners));
+}
+
+/** Keep every Git read made while projecting a registered board inside its inspection deadline. */
+function readProjectBoard(root, read, isMain, boardOpeners) {
   const { openBoard, openBoardForRead } = requireBoardOpeners(boardOpeners);
   const info = repoInfo(root);
   loadConfig(info.root);
@@ -660,6 +666,11 @@ function withBoard(root, read, isMain, boardOpeners) {
  * waited behind agents' writes (#1040). Any other board goes through withBoard, which upgrades or refuses it.
  */
 function withReadBoard(root, read, isMain, boardOpeners) {
+  return withProjectGitTimeout(root, () => readProjectBoardOnly(root, read, isMain, boardOpeners));
+}
+
+/** Preserve the read-only connection contract while applying the project Git bound to its callback too. */
+function readProjectBoardOnly(root, read, isMain, boardOpeners) {
   requireBoardOpeners(boardOpeners);
   const info = repoInfo(root);
   loadConfig(info.root);
@@ -702,7 +713,7 @@ export function apiBoardListing(projects = listApiProjects, isMain, refusalDocum
     try {
       boards.push(withBoard(project.root, (board) => ({ ...project, id: store.boardId(board) }), isMain, boardOpeners));
     } catch (cause) {
-      const error = ['EVENT_LOG_VERSION', 'UNMERGED_SCHEMA'].includes(cause.code) ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
+      const error = ['EVENT_LOG_VERSION', 'UNMERGED_SCHEMA', 'BOARD_UNAVAILABLE'].includes(cause.code) ? cause : new Refused('BOARD_UNAVAILABLE', `registered project ${project.root} cannot be read; restore the repo or run pullboard forget ${project.root}`);
       warnings.push({ ...project, error: refusalDocument(error) });
     }
   }
@@ -1130,6 +1141,10 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       return entry.searchTexts.filter(([, searched]) => !words || searched.includes(words)).map(([id]) => id);
     });
   }
+  /** Keep all later Git reads in a registered board response bounded, including cached projections and watchers. */
+  function projectRead(board, read) {
+    return withProjectGitTimeout(board.root, () => withGitReadFacts(read));
+  }
   return createApiHandler({
     refusalDocument,
     authenticate: (req) => {
@@ -1156,17 +1171,17 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
     boards: () => withGitReadFacts(() => apiBoardListing(apiProjects, codeIsMain, refusalDocument, boardOpeners)),
     decisions: (selected) => withGitReadFacts(() => projectDecisionListing(selected, apiProjects, codeIsMain, boardOpeners)),
     board: (id) => withGitReadFacts(() => findBoard(id, apiProjects, codeIsMain, boardOpeners)),
-    state: (board, who, seen, options) => withGitReadFacts(() => localState(board, seen, options).state),
-    stateJson: (board, who, seen, options) => withGitReadFacts(() => {
+    state: (board, who, seen, options) => projectRead(board, () => localState(board, seen, options).state),
+    stateJson: (board, who, seen, options) => projectRead(board, () => {
       const sent = localState(board, seen, options);
       return { json: sent.json, validator: sent.validator, reportValidator: sent.reportValidator };
     }),
     watchRevision: (board) => {
-      const watcher = withGitReadFacts(() => watchLocalStateRevision(board, { scopeCommonDir }));
-      return { ...watcher, revision: () => withGitReadFacts(() => watcher.revision()) };
+      const watcher = projectRead(board, () => watchLocalStateRevision(board, { scopeCommonDir }));
+      return { ...watcher, revision: () => projectRead(board, () => watcher.revision()) };
     },
-    delta: (board, who, seen, options) => withGitReadFacts(() => localDelta(board, seen, options)),
-    proof: (board, id) => withGitReadFacts(() => withReadBoard(board.root, current => {
+    delta: (board, who, seen, options) => projectRead(board, () => localDelta(board, seen, options)),
+    proof: (board, id) => projectRead(board, () => withReadBoard(board.root, current => {
       try { store.itemById(current, id); }
       catch (error) { if (error.code === 'NO_ITEM') return null; throw error; }
       const report = proofStats(current, { now: now() }, { events: store.events, counterProofStats }).flow.report;
@@ -1174,15 +1189,15 @@ export function createLocalApiHandler({ secret, getPort, runCommand, projects = 
       if (!proof) throw new Refused('ITEM_NOT_AVAILABLE', 'this item exists, but its proof report is unavailable; run a normal writable board command to rebuild the derived report, then retry');
       return proof;
     }, codeIsMain, boardOpeners)),
-    item: (board, id) => withGitReadFacts(() => localItem(board, id)),
-    search: (board, text) => withGitReadFacts(() => localSearch(board, text)),
-    shout: (board, id) => withGitReadFacts(() => relayLinked(board.root)
+    item: (board, id) => projectRead(board, () => localItem(board, id)),
+    search: (board, text) => projectRead(board, () => localSearch(board, text)),
+    shout: (board, id) => projectRead(board, () => relayLinked(board.root)
       ? relayPresentationShout(board.root, id, { verifiedPasskeyRowDecision, pendingFit, projectFit, projectState, personRequestStatuses, personSigningPresentation, activeViewAgents, viewProofSummary, fitFile, openBoard })
       : withBoard(board.root, (db) => store.shoutDetails(db, id), codeIsMain, boardOpeners)),
-    code: (board, ref) => withGitReadFacts(() => codeAt(board.root, ref)),
+    code: (board, ref) => projectRead(board, () => codeAt(board.root, ref)),
     costAnalytics: (board, window, who) => {
       if (!who.privateLocal || typeof costModelPresentation !== 'function') throw new Refused('ITEM_NOT_AVAILABLE', 'cost analytics is available only in the private local view');
-      return withGitReadFacts(() => withReadBoard(board.root, current => costAnalytics({
+      return projectRead(board, () => withReadBoard(board.root, current => costAnalytics({
       items: store.listItems(current, { all: true }), agents: store.listAgents(current), events: store.events(current),
       window, now: new Date(now()), modelPresentation: costModelPresentation,
       }), codeIsMain, boardOpeners));

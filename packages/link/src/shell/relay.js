@@ -79,6 +79,7 @@ import { relayPresentation } from '../../../pages/index.js';
 import { relaySnapshot } from '../../../pages/index.js';
 import { codeIsFromMain } from '../../../../src/git.js';
 import { repoInfo } from '../../../../src/git.js';
+import { withProjectGitTimeout } from '../../../git/index.js';
 import { tryGit } from '../../../../src/git.js';
 import { forgetBoardKey } from '../../../keys/index.js';
 import { readBoardKey } from '../../../keys/index.js';
@@ -1687,7 +1688,7 @@ export async function deliverDeviceWraps(root, io) {
 }
 
 /** Expose board-scoped machine context only to the native setup/approval adapter. */
-export function relayMachineContext(root) { return loadLink(linkFile(root)); }
+export function relayMachineContext(root) { return withProjectGitTimeout(root, () => loadLink(linkFile(root))); }
 
 /** Ignore notices from courtesy roster reads; disconnected boards keep their local labels and dates. */
 function ignoreRosterNotice() {}
