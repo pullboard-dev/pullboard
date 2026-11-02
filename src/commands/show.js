@@ -8,7 +8,8 @@ import { localUsage } from '../../packages/config/index.js';
 import { dollarText } from '../../packages/config/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
-import { reviewEligibility, showReviewPacket } from '../../packages/verify/index.js';
+import { reviewEligibility } from '../../packages/verify/index.js';
+import { showReviewPacket } from '../../packages/verify/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {
   testRuntimeEnvironment,

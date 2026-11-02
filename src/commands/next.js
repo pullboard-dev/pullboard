@@ -20,7 +20,8 @@ import {
 import {
   refuseNextIdle,
 } from '../next-steps.js';
-import { reviewPacketLines, reviewQueueLine } from '../../packages/verify/index.js';
+import { reviewPacketLines } from '../../packages/verify/index.js';
+import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

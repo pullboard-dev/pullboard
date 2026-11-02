@@ -8,10 +8,15 @@
  * and head, so `show --review` and `next --verify` print it without a checkout or a test process.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
-import { frozenBar, wording } from '../core/frozen-clause.js';
+import { frozenBar } from '../core/frozen-clause.js';
+import { wording } from '../core/frozen-clause.js';
 
 const VERSION = 1;
 const SHA = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
