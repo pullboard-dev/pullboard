@@ -1,3 +1,5 @@
+import { heartbeatCommand } from '../cli-presence.js';
+import { mergeSubmissionMain } from '../../packages/merge/index.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../packages/state/index.js';
@@ -311,6 +313,7 @@ export async function submitHere(ctx, id, infra) {
     const item = store.getItem(board, id);
     if (!isSubmitHandoffWorker(ctx)) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
+    if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
     const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id)) : null;
@@ -348,6 +351,18 @@ export async function submitHere(ctx, id, infra) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
+  // A live handoff owns its captured source; never rewrite it underneath its queued worker.
+  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? withBoard(ctx, board => pendingSubmitHandoff(board, held)) : null;
+  if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
+  if (!isSubmitHandoffWorker(ctx) && !pendingHandoff) {
+    const composed = mergeSubmissionMain(root, acceptedMain.commit);
+    commit = composed.commit;
+    if (composed.merged) {
+      await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
+        text: `Builder ${held.item_owner} automatic main merge: source ${composed.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
+      ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
+    }
+  }
   let trunk;
   let regenerated = null;
   try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
@@ -398,8 +413,6 @@ export async function submitHere(ctx, id, infra) {
     }
     return { me: who, claimHead: item.item_claim_head };
   });
-  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? withBoard(ctx, board => pendingSubmitHandoff(board, held)) : null;
-  if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
@@ -616,13 +629,12 @@ export async function submitHere(ctx, id, infra) {
   // A main that moved through commits touching nothing this proof depends on is merged without a rerun (#1816).
   let submitted = commit;
   let trunkMove = null;
+  // Queued proof is pinned to its captured main. Landing handles later composition.
+  if (isSubmitHandoffWorker(ctx) && currentTrunk.commit !== acceptedMain.commit) {
+    if (!contains(root, acceptedMain.commit, currentTrunk.commit)) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'current main no longer contains the queued accepted policy');
+    currentTrunk = acceptedMain;
+  }
   if (requireComposition && !companion && currentTrunk.commit !== acceptedMain.commit) {
-    if (isSubmitHandoffWorker(ctx)) await withBoard(ctx, async board => {
-      const job = submitHandoff(board, id);
-      await ordered(ctx, board, 'startSubmitHandoff', [id, { agentId: me.id, job: job.id,
-        hookProjection: { job: job.id, commit: job.executionCommit, tree: job.executionTree,
-          digest: job.digest, receipts: [...new Set(submissionReceiptIds)] } }]);
-    });
     const composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
       readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles, judgeTrunkMove,
         ...(ctx.submitHandoffOutput ? { onMergeFailure: error => writeFileSync(join(ctx.submitHandoffOutput, 'merge-failure.log'), String(error.stderr || error.stack || error.message), { mode: 0o600 }) } : {}) });

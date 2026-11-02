@@ -10,6 +10,8 @@ import {
 import { itemFileCollisions } from '../../packages/items/index.js';
 import { sayMapSlice } from '../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
+import { cleanItemFolders } from '../item-folder.js';
+import { openItemFolder } from '../item-folder.js';
 import {
   MainSpecMerged,
   actOn,
@@ -25,6 +27,7 @@ export async function run(io, { first }) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   const id = idArg(first);
+  cleanItemFolders(ctx, board, me, listItems);
   let result;
   for (;;) {
     try {
@@ -37,11 +40,13 @@ export async function run(io, { first }) {
     }
   }
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
+  const itemFolder = openItemFolder(ctx, me, id);
   const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
-  io.result?.({ id, ...result, ...(warnings.length ? { warnings } : {}) });
+  io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);
   await sayMapSlice(io, ctx, getItem(board, id), primaryCheckoutRoot);
   io.say(`${result.renewed ? 'renewed' : 'claimed'} #${first} until ${result.leaseUntil}; criterion frozen as ${result.digest.slice(0, 12)}`);
+  if (itemFolder) io.say(`item folder: ${itemFolder}`);
   io.say(commitRules);
   // A claim released for idleness carries its work: the next builder sees the pinned commit and the files it changed (#1225).
   if (!result.renewed) {

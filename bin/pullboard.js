@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** @pullboard-module-loads src/cli-hook-work.js src/submit-handoff-worker.js */
+/** @pullboard-module-loads apps/lib/src/shell/cli-hook-work.js apps/lib/src/shell/submit-handoff-worker.js */
 /**
  * The pullboard command. Node 22 announces that node:sqlite is experimental; that notice is noise
  * for a CLI, so it is dropped before the board module loads. Every other warning still prints.
@@ -84,9 +84,9 @@ process.exitCode = await main(process.argv.slice(2), {
     flushOutbox: (...args) => import('../packages/outbox/index.js').then(m => m.flushOutbox(...args)),
     queueMove: (...args) => import('../packages/outbox/index.js').then(m => m.queueMove(...args)),
     outboxHasPendingCreatedItem: (...args) => import('../packages/outbox/index.js').then(m => m.outboxHasPendingCreatedItem(...args)),
-    checkpointWorker: fileURLToPath(new URL('../src/relay-checkpoint-worker.js', import.meta.url)),
-    hookWorker: fileURLToPath(new URL('../src/cli-hook-work.js', import.meta.url)),
-    submitHandoffWorker: fileURLToPath(new URL('../src/submit-handoff-worker.js', import.meta.url)),
+    checkpointWorker: fileURLToPath(new URL('../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url)),
+    hookWorker: fileURLToPath(new URL('../apps/lib/src/shell/cli-hook-work.js', import.meta.url)),
+    submitHandoffWorker: fileURLToPath(new URL('../apps/lib/src/shell/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
       void import('../src/relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});

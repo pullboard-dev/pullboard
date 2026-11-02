@@ -1,6 +1,6 @@
 import { checkAtCommit } from '../runner-private-check.js';
 /** The pullboard publish command, in its own module so an item adding another command never edits these lines. */
-import { publishTrunk } from '../publish.js';
+import { publishTrunk } from '../../packages/github/index.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { Refused } from '../../packages/kernel/index.js';

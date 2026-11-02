@@ -43,3 +43,4 @@ export { installFileWatchdog } from './src/shell/file-watchdog.js';
 export { compareVerification, comparisonCommand, renderVerificationComparison, recordedVerificationComparison, VERIFICATION_COMPARISON_PREFIX } from './src/shell/verify-compare.js';
 
 export { launchComparisonWorker } from './src/shell/comparison-worker.js';
+export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';

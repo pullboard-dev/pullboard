@@ -277,6 +277,33 @@ test('a runner-closure importer reads core.js while a shell importer of the same
   assert.ok(result.deleted.includes('src/stats.js') && result.deleted.includes('src/stats-pure.js'));
 });
 
+test('a core importer reads its pure door while a shell importer of the same shim reads index.js [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('src/worker-step.js', "import { pure } from './stats.js';\nexport const step = pure;\n");
+  box.put('packages/stats/src/core/uses.js', "import { pure } from '../../../../src/stats.js';\nexport const used = pure;\n");
+  const plan = withClosures(box);
+  removeShims(box.root, plan, 'stats', { parsers: PARSERS });
+  assert.equal(read(box, 'packages/stats/src/core/uses.js'), "import { pure } from '../../core.js';\nexport const used = pure;\n");
+  assert.equal(read(box, 'src/uses-shell.js'), "import { shell } from '../packages/stats/index.js';\nexport { shell };\n");
+});
+
+test('a pure binding with another definition keeps the runner importer and names that binding [C7,D3]', t => {
+  const box = shimmed(t);
+  const step = "import { pure } from './stats.js';\nexport const step = pure;\n";
+  box.put('src/worker-step.js', step);
+  const plan = withClosures(box, {
+    core: 'export { pure } from "./src/core/rebound.js";\n',
+    extra: {
+      'packages/stats/src/core/rebound.js': 'export const pure = 2;\n',
+      'src/stats.js': 'export { pure } from "../packages/stats/src/core/pure.js";\nexport { shell, extra } from "../packages/stats/src/shell/shell.js";\n',
+    },
+  });
+  const result = removeShims(box.root, plan, 'stats', { parsers: PARSERS });
+  assert.equal(read(box, 'src/worker-step.js'), step, 'a same-name export cannot replace the original definition');
+  assert.equal(existsSync(join(box.root, 'src/stats.js')), true, 'the still-used shim stays present');
+  assert.match(new Map(result.kept).get('src/stats.js'), /runner-worker closure file src\/worker-step\.js would reach past stats core\.js, which lacks pure/u);
+});
+
 test('a runner-closure importer of a binding core.js lacks keeps its shim and names the binding [C7,D3]', t => {
   const box = shimmed(t);
   const step = "import { shell } from './stats.js';\nexport const step = shell;\n";

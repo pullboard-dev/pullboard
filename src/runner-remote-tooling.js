@@ -1,3 +1,6 @@
+import { archivedToolingSource } from '../packages/runners/index.js';
+import { committedRunnerController } from '../packages/runners/index.js';
+import { runnerPackage } from './runner-package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
 import { runnerSource } from './gate-policy-load.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
@@ -99,37 +102,50 @@ function committedToolingMatches(root, commit, files) {
 
 /** Snapshot, scan and pin the actual tooling bytes independently of the project being tested. */
 export function trustedTooling() {
-  const { entry, files } = loadedToolingFiles();
+  const installation = committedRunnerController(TOOL_ROOT);
+  try {
+  const root = installation?.root ?? TOOL_ROOT;
+  const { entry, files } = installation ? runnerPackage(root) : loadedToolingFiles();
   for (const [name, source] of Object.entries(files)) {
     if (Buffer.byteLength(source) > MAX_BLOB_BYTES
       || secretsIn(source.split(/\r?\n/u).map((text, index) => ({ path: `tooling/${name}`, line: index + 1, text }))).length) {
       throw new Refused('RUNNER_TOOLING_SECRET', 'the selected runner tooling failed its transfer scan; restore a trusted Pullboard installation');
     }
   }
-  const manifest = JSON.parse(readFileSync(join(TOOL_ROOT, 'package.json'), 'utf8'));
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   if (manifest.name !== 'pullboard' || typeof manifest.version !== 'string') {
     throw new Refused('RUNNER_TOOLING_IDENTITY', 'runner tooling must come from a named Pullboard installation; reinstall Pullboard');
   }
   let provenance = { kind: 'installed-package', name: manifest.name, version: manifest.version };
-  if (existsSync(join(TOOL_ROOT, '.git'))) {
-    const selected = runnerSource(TOOL_ROOT);
-    if (!selected || !committedToolingMatches(TOOL_ROOT, selected.commit, files)) {
+  const archived = archivedToolingSource(root);
+  if (archived || existsSync(join(root, '.git'))) {
+    const selected = archived ?? runnerSource(root);
+    if (!selected || !committedToolingMatches(archived?.root ?? root, selected.commit, files)) {
       throw new Refused('RUNNER_TOOLING_CHANGED', 'runner tooling differs from its selected committed revision; restore or commit the tooling before remote execution');
     }
-    provenance = { ...provenance, kind: 'git-checkout', ...selected };
+    provenance = { ...provenance, kind: 'git-checkout', commit: selected.commit, tree: selected.tree };
   }
   const tooling = { ...provenance, sha256: createHash('sha256').update(JSON.stringify(files)).digest('hex') };
   const runtimeFiles = Object.fromEntries(Object.entries(files).filter(([name]) => name !== entry));
   return { worker: files[entry], tooling,
     runtime: { entry, files: runtimeFiles, sha256: createHash('sha256').update(JSON.stringify(runtimeFiles)).digest('hex') } };
+  } finally { installation?.cleanup(); }
 }
 
 /** Install pinned bytes first, then replace the SSH shell with the file-based worker. */
 export function remoteWorkerCommand(runner, worker, tooling, runtime, extra = '', recovery = null) {
   const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
   const payload = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
-  const installer = `import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, renameSync, rmSync } from 'node:fs';
-import { dirname, isAbsolute, join } from 'node:path';
+  const installer = `import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 ${installRunnerPackage.toString()}

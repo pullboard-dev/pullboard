@@ -19,9 +19,35 @@ import { itemAuthors } from '../../../items/index.js';
 import { shownPath } from '../../../kernel/src/core/registry-guards.js';
 
 /**
+ * The other seat holding a live review reservation on this head, or null (#1356). The reviewer's own
+ * reservation never blocks its own return; the reopen authority rechecks this inside its write.
+ *
+ * @param {any} board
+ * @param {any} item
+ * @param {string} agentId - the seat asking for the return
+ * @returns {string | null}
+ */
+function heldByOther(board, item, agentId) {
+  const holder = item.item_review_by;
+  if (!holder || holder === agentId) return null;
+  return Date.parse(item.item_review_until ?? '') > board.clock.now().getTime() ? holder : null;
+}
+
+/**
+ * Tell the reviewer holding a head that the trunk now conflicts with it, once per trunk commit (#1356).
+ * The conflict is applied by whichever seat next asks for review after the reservation ends.
+ */
+async function noticeHolder(board, ordered, me, holder, item, merge) {
+  const text = `#${item.item_id} conflicts with the trunk at ${merge.commit.slice(0, 12)} in ${merge.files.map(shownPath).join(', ')}; your review holds it until ${item.item_review_until}, and it goes back to its builder when that review ends`;
+  if (board.db.prepare('SELECT 1 FROM shout WHERE shout_to = ? AND shout_text = ?').get(holder, text)) return;
+  await ordered('shout', [{ from: me.id, to: holder, text, lanes: [] }]);
+}
+
+/**
  * Return each submitted head that conflicts with the trunk to its builder, recorded as a conflict reopen (#807).
  * Git decides, in memory, exactly as landing does; a board with no recorded trunk keeps today's offers.
  * A refused return throws unless the head already left review, so a known conflict is never offered.
+ * A head another seat holds under a live reservation is not returned; its holder is told instead (#1356).
  *
  * @param {string} root
  * @param {any} board
@@ -36,10 +62,18 @@ export async function returnUnmergeable(root, board, me, { ordered, trunkMerge, 
     try { merge = trunkMerge(root, effectiveItemHead(board, item) ?? item.item_commit); }
     catch (error) { if (error instanceof Refused) return returned; throw error; }
     if (!merge.files?.length) continue;
+    const holder = heldByOther(board, item, me.id);
+    if (holder) { await noticeHolder(board, ordered, me, holder, item, merge); continue; }
     try {
       await ordered('reopen', [item.item_id, { agentId: me.id, automaticConflict: true }]);
       returned.push({ id: item.item_id, files: merge.files });
     } catch (error) {
+      // A peer reserved the head after this snapshot: the authority refused inside its write, so tell that reviewer.
+      if (error instanceof Refused && error.code === 'REVIEW_HELD') {
+        const now = itemById(board, item.item_id);
+        await noticeHolder(board, ordered, me, now.item_review_by, now, merge);
+        continue;
+      }
       // Only a race is forgiven: another move already took the head out of review. A head still waiting
       // when its return was refused would otherwise be the next one offered.
       const now = itemById(board, item.item_id);

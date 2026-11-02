@@ -91,7 +91,7 @@ test('legacy custody and draining resources never reach the supplied observer [C
 
 test('wait projections read only the pool facts and name the recovery step without a probe [C7,Q2]', t => {
   const db = queue(t);
-  db.exec('CREATE TABLE runner_gui(host TEXT PRIMARY KEY,gui INTEGER NOT NULL); CREATE TABLE holder(name TEXT,browser INTEGER,timing INTEGER)');
+  db.exec('CREATE TABLE runner_gui(host TEXT PRIMARY KEY,gui INTEGER NOT NULL); CREATE TABLE holder(name TEXT,agent TEXT,item TEXT,browser INTEGER,timing INTEGER); CREATE TABLE runner_timing_drain(singleton INTEGER,host TEXT,token TEXT,agent TEXT,item TEXT)');
   due(db);
   const runners = [{ host: 'private-runner', slots: 1, browser: 0 }];
   const reasons = runnerWaitReasons(db, runners, { gui: 0, browser: 0, timing: 0 }, new Set(['private-runner']));

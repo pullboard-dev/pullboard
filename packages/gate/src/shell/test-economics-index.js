@@ -13,6 +13,7 @@ import {
 import { join } from 'node:path';
 import { repoInfo } from '../../../../src/git.js';
 import { testsAtStage } from './test-economics.js';
+import { readTestFileBudgets } from './test-file-budget-policy.js';
 
 /** Keep the derived inventory shared across worktrees; gate reads never discover the tree. */
 function directory(root) { return join(repoInfo(root).commonDir, 'pullboard', 'test-value-index'); }
@@ -98,8 +99,9 @@ export function writePlacementIndex(root, report) {
 /** Invalidate changed test-side inputs; work is bounded by reached rows and their own inputs. */
 export function indexedStageSelection(root, files, stage, changed = []) {
   const report = readPlacementIndex(root, files);
+  const committed = readTestFileBudgets(root, files);
   const touched = new Set(changed);
   const effective = { ...report, files: report.files.map(row => ({ ...row,
-    tier: [row.file, ...(row.testInputs ?? [])].some(path => touched.has(path)) ? 'audit' : row.tier })) };
+    tier: committed.get(row.file)?.audit || [row.file, ...(row.testInputs ?? [])].some(path => touched.has(path)) ? 'audit' : row.tier })) };
   return testsAtStage(files, effective, stage);
 }

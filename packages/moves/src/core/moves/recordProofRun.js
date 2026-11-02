@@ -1,3 +1,4 @@
+import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../../../src/submit-proof-reuse-engine.js';
 import { EXIT_RULES_ENGINE } from "../../../../state/core.js";
 import { ITEM_PATCH_SUBMIT_ENGINE } from "../../../../../src/item-patch-submit-engine.js";
 /** Native proof receipt routing is pure; origin binding belongs to the engine adapter [C7,H16]. */
@@ -6,7 +7,7 @@ import { SUBMIT_ADMISSION_ENGINE } from "../../../../../src/submit-admission-eng
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 
 /** Proof provenance always requires its own replay floor, regardless of optional metadata. */
-function minimumEngine(args) { if (args[0]?.exitFailures === true) return EXIT_RULES_ENGINE; return Object.hasOwn(args[0]?.receipt ?? {}, 'blockingVerdict') ? QUARANTINE_VERDICT_ENGINE : args[0]?.receipt?.proof?.submitPhase ? ITEM_PATCH_SUBMIT_ENGINE : args[0]?.receipt?.proof?.submitAdmission ? SUBMIT_ADMISSION_ENGINE : PROOF_RUN_ENGINE; }
+function minimumEngine(args) { if (args[0]?.receipt?.proof?.submitReuse === true) return SUBMIT_PROOF_REUSE_ENGINE; if (args[0]?.exitFailures === true) return EXIT_RULES_ENGINE; return Object.hasOwn(args[0]?.receipt ?? {}, 'blockingVerdict') ? QUARANTINE_VERDICT_ENGINE : args[0]?.receipt?.proof?.submitPhase ? ITEM_PATCH_SUBMIT_ENGINE : args[0]?.receipt?.proof?.submitAdmission ? SUBMIT_ADMISSION_ENGINE : PROOF_RUN_ENGINE; }
 
 /** Attribute a recorded proof to its declared native seat. */
 function actor(move) { return move.args[0]?.agentId ?? null; }

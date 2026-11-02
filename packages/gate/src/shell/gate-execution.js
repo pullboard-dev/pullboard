@@ -321,6 +321,7 @@ function leaveProofReceipt(root, command, run, before, context, lease) {
         durationMs: Math.max(0, Math.round(run.remoteWallMs ?? run.profile?.wallMs ?? run.seconds * 1000)), sourceClean,
         ...(context.submitPhase ? { submitPhase: context.submitPhase } : {}),
         ...(context.submitAdmission ? { submitAdmission: context.submitAdmission } : {}),
+        ...(context.submitReuse ? { submitReuse: true, submitReusePlan: context.submitReusePlan } : {}),
         ...(context.diagnosticAdmission ? { diagnosticAdmission: context.diagnosticAdmission } : {}) } });
     if (!receipt) return null;
     mkdirSync(store, { recursive: true, mode: 0o700 });

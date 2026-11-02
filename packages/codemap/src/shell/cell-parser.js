@@ -8,6 +8,8 @@ import { renameSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { loadavg } from 'node:os';
+import { availableParallelism } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -57,17 +59,19 @@ export function withCellLintParser(work) {
     }
     const request = join(directory, `request-${id}.json`), reply = join(directory, `reply-${id}.json`);
     const temporary = request + '.tmp';
-    const deadline = process.hrtime.bigint() + 10_000_000_000n;
+    const load = loadavg()[0], cores = availableParallelism();
+    const extension = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
+    const deadline = process.hrtime.bigint() + BigInt(10_000 + extension) * 1_000_000n;
     try {
       writeFileSync(temporary, input, { flag: 'wx', mode: 0o600 });
       renameSync(temporary, request);
       while (process.hrtime.bigint() < deadline) {
         const results = replyAt(reply, id, sources.length);
         if (results) return results;
-        // Budget: only this private reply is checked, every 2ms within the existing ten-second batch limit.
+        // Budget: poll only this private reply; the bounded extension accommodates a loaded machine.
         Atomics.wait(sleeper, 0, 0, 2);
       }
-      throw failure();
+      throw Object.assign(new Error(`cell binding compiler timeout after extended batch wait (${10_000 + extension} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
     } catch (error) { failed = true; throw error; }
     finally { rmSync(request, { force: true }); rmSync(reply, { force: true }); }
   }

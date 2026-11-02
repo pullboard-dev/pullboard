@@ -1,5 +1,5 @@
 /** Content-addressed receipts bind board-tool recipes to exact Git input and output trees [C7,V4]. */
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from './git-adapter.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,7 +11,7 @@ const OBJECT = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u;
 
 /** Run scoped Git plumbing without consulting another checkout's inherited repository selectors. */
 function run(root, args, { input, env = {} } = {}) {
-  const result = spawnSync('git', ['--no-replace-objects', ...args], { cwd: root,
+  const result = gitSpawnSync(['--no-replace-objects', ...args], { cwd: root,
     env: { ...cleanGitEnvironment(), ...env }, input, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   if (result.status !== 0) throw new Error(`Git ${args[0]} failed: ${result.stderr ?? result.error ?? ''}`);
   return result.stdout.trim();
