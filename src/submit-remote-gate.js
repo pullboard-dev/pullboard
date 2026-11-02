@@ -2,7 +2,6 @@
 import { shellWord } from './runner-remote-tooling.js';
 import { effectiveRunners } from './runner-slots.js';
 import { loadMachineSettings } from '../packages/config/index.js';
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -10,8 +9,7 @@ import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { withItemPatchSubmit } from '../packages/items/index.js';
+import { runnerPhaseFields } from '../packages/gate/index.js';
 import { git } from './git.js';
 import { gitPath } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
@@ -116,20 +114,6 @@ try {
 process.stdout.write(${JSON.stringify(RESULT)} + JSON.stringify(result) + '\\n');
 `;
 
-/**
- * Check only the changed files' style on this machine before cells: the cheap lint subset of a foreground submit.
- * The full static stage still runs later; a queued submit's runner analysis runs the full stage instead.
- */
-export async function changedStaticChecks(root, companion, main, source, staticChecks) {
-  if (!/\bbin\/static-style-checks\.js\b/u.test(staticChecks ?? '')) return;
-  await withItemPatchSubmit(root, companion, gateRoot => {
-    const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', main, source]).split('\0').filter(Boolean);
-    const checker = fileURLToPath(new URL('../bin/static-style-checks.js', import.meta.url));
-    const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
-    if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
-  });
-}
-
 /** A queued submit sends its analysis to a runner whenever this machine has one registered or allows only runners. */
 export function remoteGateWanted(runnerAdmission, settings = loadMachineSettings()) {
   return runnerAdmission?.runnerOnly === true || effectiveRunners(settings).length > 0;
@@ -209,4 +193,77 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
     throw new Refused('RUNNER_RESULT_INVALID', `the remote analysis returned no cells result or test plan; read ${directory}`);
   }
   return { ...value, directory, sha256, runner: lease.runner.host };
+}
+
+/** Sum sequential worker intervals only when every attempted run has complete measurements. */
+export function doctrineExecutionPhases(observations, attempts) {
+  const phases = observations.map(row => runnerPhaseFields(row.executionPhases));
+  const fields = ['prepareMs', 'capacityWaitMs', 'sourceMs', 'dependenciesMs', 'commandMs', 'cleanupMs', 'totalMs'];
+  return attempts && attempts === observations.length && phases.every(Boolean)
+    ? runnerPhaseFields({ version: 1, ...Object.fromEntries(fields.map(field => [field, phases.reduce((sum, phase) => sum + phase[field], 0)])) }) : null;
+}
+
+/** Bind both doctrine check sources to the actual leased worker, retaining authenticated per-rule observations. */
+export function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
+  if (!lease.runner || typeof lease.executionServices?.runners?.runOnRunnerAsync !== 'function') throw new Refused('RUNNER_SOURCE', 'runner-only doctrine needs its actual registered runner lease; restore runner admission and retry');
+  const parent = artifactDirectory ? join(artifactDirectory, 'doctrine') : gitPath(root, 'pullboard-doctrine-output');
+  mkdirSync(parent, { recursive: true, mode: 0o700 });
+  const observations = [];
+  let attempts = 0;
+  lease.tracker?.mark('runAt');
+  return {
+    /** Execute exactly one approved rule at its candidate or merge-base source; exit 1 is a counted result. */
+    async runCheck(commit, command, timeoutMs) {
+      attempts++;
+      const started = performance.now();
+      const directory = mkdtempSync(join(parent, 'rule-'));
+      const shell = `(\n${command}\n) 2>&1`;
+      const checkedSource = { commit, tree: git(root, ['rev-parse', `${commit}^{tree}`]).trim() };
+      const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
+        policyCommit: mainCommit, trunk: { ref: trunkRef(root), commit: mainCommit } });
+      let result;
+      try {
+        result = await lease.executionServices.runners.runOnRunnerAsync(root, shell, { runner: lease.runner, source: lease.source,
+          runnerWaitDeadline: lease.runnerWaitDeadline, browser: lease.browser, checkedSource, privateCheck: policy,
+          metadata: { ...lease.runMetadata, testStage: 'doctrine' }, rawOutputPath: join(directory, 'raw.log') });
+      } catch (error) {
+        writeFileSync(join(directory, 'failure.json'), JSON.stringify({ version: 1, policySha256: policy.sha256, checkedSource,
+          code: error?.code ?? error?.name ?? 'unknown', rawOutputPath: join(directory, 'raw.log') }) + '\n', { mode: 0o600 });
+        throw error;
+      }
+      const receipt = result.privateCheck?.receipt;
+      const phase = receipt?.phases?.check;
+      const observed = { version: 1, policyCommit: mainCommit, commandSha256: createHash('sha256').update(command).digest('hex'),
+        privateCheckSha256: policy.sha256, checkedSource, executionSource: result.executionSource ?? null,
+        runner: result.executionRunner ?? null, environment: result.environment ?? null,
+        executionAdmission: result.executionAdmission ?? null, executionPhases: result.executionPhases ?? null,
+        privateCheck: receipt ?? null, rawOutputPath: result.rawOutputPath ?? null, rawOutputSha256: result.rawOutputSha256 ?? null };
+      writeFileSync(join(directory, 'observation.json'), JSON.stringify(observed) + '\n', { mode: 0o600 });
+      observations.push(observed);
+      if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== checkedSource.commit
+        || result.executionSource?.tree !== checkedSource.tree || receipt?.requestSha256 !== policy.sha256) {
+        throw new Refused('RUNNER_RESULT_INVALID', 'doctrine runner result does not bind its admitted source and approved policy; inspect the retained observation before retrying');
+      }
+      const seconds = Math.round((performance.now() - started) / 1000);
+      const broken = !receipt.sourceUnchanged ? 'changed its private source' : receipt.problem ? receipt.problem.message
+        : !phase ? 'has no complete check phase' : phase.timedOut ? `timed out after ${Math.round(timeoutMs / 1000)}s`
+          : phase.signal ? `was killed by ${phase.signal}` : ![0, 1].includes(phase.code) ? `exited ${phase.code}` : '';
+      if (broken) return { problems: [], broken, seconds };
+      if (phase.offset !== 0 || !Number.isSafeInteger(phase.length) || phase.length < 0 || phase.length > 64 * 1024 * 1024
+        || statSync(result.rawOutputPath).size !== phase.length) return { problems: [], broken: 'exceeded the complete bounded check output', seconds };
+      const bytes = readFileSync(result.rawOutputPath);
+      if (bytes.length !== phase.length || createHash('sha256').update(bytes).digest('hex') !== phase.sha256) {
+        throw new Refused('RUNNER_RESULT_INVALID', 'doctrine check bytes do not match the authenticated phase; inspect the retained observation before retrying');
+      }
+      return { problems: bytes.toString('utf8').split(/\r?\n/u).map(line => line.trimEnd()).filter(line => line.trim()), broken: '', seconds };
+    },
+    /** Sum the disjoint worker intervals for sequential rule runs when all were measured. */
+    finish() {
+      lease.tracker?.mark('ranAt');
+      const single = attempts === 1 && observations.length === 1 ? observations[0] : null;
+      lease.environment = observations.length && attempts === observations.length && observations.every(row => JSON.stringify(row.environment) === JSON.stringify(observations[0].environment)) ? observations[0].environment : null;
+      lease.executionAdmission = single?.executionAdmission ?? null;
+      lease.executionPhases = doctrineExecutionPhases(observations, attempts);
+    },
+  };
 }

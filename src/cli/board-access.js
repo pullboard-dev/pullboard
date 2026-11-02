@@ -1,3 +1,4 @@
+import { seatAt } from '../item-folder-identity.js';
 import { gateWaitReporter } from '../git-wait-reporter.js';
 import { submitHandoffActor } from '../submit-handoff-origin.js';
 /** Shared board access every command uses: the caller's board, its person mode and its queue seat. Split from src/cli.js, which re-exports it [C7]. */
@@ -20,7 +21,7 @@ import { claimFreezer } from './claim.js';
 
 /** Preserve the public command facade while supplying actual query and person-channel capabilities. */
 export function barActorForCommand(ctx, board, options = {}) {
-  return commandBarActor(ctx, board, options, { agentAt: store.agentAt, requirePersonChannel: personIdentity.requirePersonChannel });
+  return commandBarActor(ctx, board, options, { agentAt: seatAt, requirePersonChannel: personIdentity.requirePersonChannel });
 }
 /**
  * Select the person actor only through the main checkout's explicit person mode (B26).
@@ -48,7 +49,7 @@ export function actOn(io, work, { privateBoard = false } = {}) {
 
 /** Name a known board seat for queue diagnostics without requiring an unjoined checkout to join. */
 export function resourceAgent(ctx) {
-  return ctx.info.isMain ? COORDINATOR : withBoard(ctx, board => (submitHandoffActor(ctx, board) ?? store.agentAt(board, ctx.info.root))?.agent_id);
+  return ctx.info.isMain ? COORDINATOR : withBoard(ctx, board => (submitHandoffActor(ctx, board) ?? seatAt(board, ctx.info.root))?.agent_id);
 }
 
 /** Keep the public queue adapter while its lease protocol lives in a bounded module. */

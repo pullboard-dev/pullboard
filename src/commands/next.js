@@ -1,3 +1,4 @@
+import { nextIdleChanged } from '../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../packages/verify/index.js';
 import { claimWorktrees } from '../../packages/activity/index.js';
@@ -157,7 +158,9 @@ async function nextWithProgress(io, values, progress) {
     const idleReason = found.idleReason ?? 'unknown';
     if (!found.retry && idleReason !== lastIdleReason) {
       try {
-        await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
+        const changed = withBoardRead(ctx, board => nextIdleChanged(board,
+          { agentId: whoAmI(ctx, board).id, reason: idleReason }));
+        if (changed) await progress.run('idle observation', null, () => withBoard(ctx, board => ordered(ctx, board, 'recordNextIdle', [{ agentId: whoAmI(ctx, board).id, reason: idleReason }])));
       } catch (error) {
         if (!(error instanceof Refused) || !['RELAY_RECOVERY_PENDING', 'RELAY_KEY_MISSING', 'AUTH_REQUIRED', 'ENGINE_VERSION'].includes(error.code)) throw error;
         // Reading eligibility stays available while canonical writes are fenced; this interval remains unknown.

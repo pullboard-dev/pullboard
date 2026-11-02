@@ -103,3 +103,26 @@ test('a still-held item folder is retained and the claim names its holder [B5,C7
   const shown = box.json(box.run(box.repo, 'show', String(id), '--json'));
   assert.equal(shown.item_owner, old.agent);
 });
+
+test('board commands run inside a seat\'s item folder act as that seat and next never opens a new seat [B5,C7]', t => {
+  const box = crossLaneFixture(t);
+  const web = box.seat('folder-seat', 'web', box.session);
+  const first = box.add('web', 'First item in its own folder');
+  const second = box.add('web', 'Second item claimed from the first folder');
+  const folder = box.json(box.runAs(box.session, web.root, 'claim', String(first), '--json')).itemFolder;
+  const folders = () => box.git(box.repo, 'worktree', 'list', '--porcelain').split('\n').filter(line => line.startsWith('worktree ')).length;
+  const seats = () => box.json(box.run(box.repo, 'seats', '--json')).seats.map(row => row.seat).sort();
+  const [foldersBefore, seatsBefore] = [folders(), seats()];
+  for (const args of [['status'], ['inbox'], ['show', String(first)]]) box.json(box.runAs(box.session, folder, ...args, '--json'));
+  box.json(box.runAs(box.session, folder, 'shout', 'web', 'from the item folder', '--json'));
+  const next = box.runAs(box.session, folder, 'next', '--build', '--json');
+  assert.equal(next.code, 0, next.out + next.err);
+  assert.deepEqual(seats(), seatsBefore, 'running next from the item folder never joins a new seat');
+  assert.equal(box.json(box.run(box.repo, 'show', String(first), '--json')).item_owner, web.agent, 'next resumes the folder\'s own held item');
+  assert.equal(folders(), foldersBefore, 'resuming opens no folder');
+  const claimed = box.json(box.runAs(box.session, folder, 'claim', String(second), '--json'));
+  assert.equal(claimed.itemFolder, `${web.root}-item-${second}`);
+  assert.equal(box.json(box.run(box.repo, 'show', String(second), '--json')).item_owner, web.agent, 'the folder\'s seat claims the second item');
+  assert.deepEqual(seats(), seatsBefore, 'claiming from the item folder never joins a new seat');
+  assert.ok(existsSync(`${web.root}-item-${second}`), 'the new folder opens beside the seat, not inside the item folder');
+});
