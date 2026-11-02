@@ -4,7 +4,7 @@ const KINDS = Object.freeze({
     mechanism: 'The board assigns the highest-ranked eligible item to a free seat, replacing manual item assignments.' },
   focus: { pattern: /\b(?:focus|prioriti[sz]e|priority|only work on)\b/iu,
     mechanism: 'The board applies the current focus to its eligible queue and dispatches focused work before other work.' },
-  freeze: { pattern: /\b(?:freeze|stop|pause)\b|\bhold (?:off|work|claims|submits|submissions)\b/iu,
+  freeze: { pattern: /(?<!re-)\bfreeze\b|\b(?:stop|pause)\b|\bhold (?:off|work|claims|submits|submissions)\b/iu,
     mechanism: 'A board freeze blocks the named claims or submissions until the coordinator resumes them, replacing stop-work broadcasts.' },
   'merge-main': { pattern: /\b(?:merge|rebase)\b[^.!?\n]{0,80}\bmain\b/iu,
     mechanism: 'Submit detects a moved main and brings the candidate onto the accepted trunk before running the required proof.' },

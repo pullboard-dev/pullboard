@@ -18,7 +18,7 @@ function fixture(t) {
   const now = new Date('2026-11-02T12:00:00Z');
   const board = openBoard(file, { now: () => new Date(now) });
   t.after(() => { store.closeBoard(board); rmSync(directory, { recursive: true, force: true }); });
-  store.ensureCoordinator(board, directory);
+  store.board_ensureCoordinator(board, directory);
   store.register(board, { lane: 'core', path: join(directory, 'core-1'), model: 'Fixture builder' });
   /** Send through the public transaction; no fixture inserts drafts or edits stored messages. */
   const send = (to, text, extra = {}) => store.shout(board, { from: 'coordinator', to, text, lanes: ['core'], ...extra });
