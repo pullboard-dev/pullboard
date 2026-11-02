@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { mainRedBuildRouting } from '../packages/store/index.js';
+import { exportBoard } from '../packages/store/index.js';
+import { nextTake } from '../packages/sandbox/src/shell/next-take.js';
 import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyRelayMove } from '../packages/state/index.js';
@@ -57,13 +59,42 @@ test('only a demonstrably waiting clean claim may yield; dirty, committed and un
   assert.equal(route(clean), null, 'a clean but actively building claim is not waiting');
   const blocker = f.add('New unsatisfied prerequisite');
   store.editItem(f.board, waiting, { agentId: 'coordinator', after: [blocker] });
-  const before = store.exportBoard(f.board);
+  const before = exportBoard(f.board);
   const offered = route(clean);
   assert.deepEqual(offered.releaseRequest, { seat: f.seat, item: waiting, repair, path: '/private/preempt-builder' });
-  assert.deepEqual(store.exportBoard(f.board), before, 'planning itself never steals a lease');
+  assert.deepEqual(exportBoard(f.board), before, 'planning itself never steals a lease');
   for (const observation of [undefined, { files: [], unknown: true }, { files: ['web/work.js'], unknown: false }]) {
     assert.equal(route(new Map(observation ? [[waiting, observation]] : [])), null);
   }
   const other = store.register(f.board, { lane: 'web', path: '/private/preempt-free', route: 'strong' });
   assert.equal(route(clean).buildOffer.seat, other, 'a free eligible seat wins over releasing any waiting claim');
+});
+
+/** Exercise the real Next takeover controller against native ordered release writers. */
+test('Next releases only its caller waiting claim and records why it yielded [N2,B3]', async t => {
+  const f = fixture(t);
+  const waiting = f.add('Held waiting work');
+  store.claim(f.board, waiting, { agentId: f.seat, lane: 'web', leaseMs: 7_200_000,
+    freeze: item => ({ text: item.item_title, digest: 'private-next-preemption' }) });
+  const blocker = f.add('Blocking prerequisite');
+  store.editItem(f.board, waiting, { agentId: 'coordinator', after: [blocker] });
+  const repair = f.add('Emergency work');
+  f.mark(repair, 'on');
+  const services = {
+    checkMainVerifier() {}, whoAmI: () => ({ id: f.seat, lane: 'web' }),
+    mainRedReworkItems: () => [], mainRedReviewItems: () => [], agentSessionDigest: () => 'private-test',
+    claimWorktrees: () => new Map([[waiting, { files: [], unknown: false }]]),
+    withBoardRead: (_ctx, work) => work(f.board), withBoard: async (_ctx, work) => work(f.board),
+    ordered: async (_ctx, board, operation, args) => {
+      assert.equal(operation, 'release', 'preemption cannot impersonate another seat or bypass the release move');
+      assert.equal(args[1], f.seat);
+      return store.release(board, ...args);
+    },
+  };
+  const result = await nextTake({ info: { root: '/private/preempt-builder' } }, {}, services);
+  assert.equal(result.retryDetail.code, 'WAITING_CLAIM_RELEASED');
+  assert.equal(store.getItem(f.board, waiting).item_status, 'open');
+  const release = store.events(f.board).filter(event => event.event_kind === 'release' && event.item_id === waiting).at(-1);
+  assert.match(JSON.stringify(release.event_detail), new RegExp('urgent #' + repair));
+  assert.equal(store.getItem(f.board, repair).item_status, 'open', 'the next iteration still takes an ordinary guarded claim');
 });
