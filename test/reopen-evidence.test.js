@@ -40,3 +40,11 @@ test('long assertion evidence is explicitly truncated [C7,B22]', () => {
   assert.match(failure.assertion, /truncated at 2 KB/u);
   assert.ok(Buffer.byteLength(failure.assertion) < 2100);
 });
+
+test('the spec reporter preserves the assertion with its source case [C7,B22]', () => {
+  const output = 'test at test/a.test.js:4:1\n✖ nested case (2ms)\n  AssertionError: expected 7, got 9\n';
+  const [failure] = landingFailures(output, '/project');
+  assert.equal(failure.file, 'test/a.test.js');
+  assert.equal(failure.name, 'nested case');
+  assert.match(failure.assertion, /expected 7, got 9/u);
+});

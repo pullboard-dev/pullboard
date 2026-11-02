@@ -21,7 +21,7 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
     const at = /^\s*test at (.+?):\d+(?::\d+)?\s*$/u.exec(line);
     if (at) { specFile = inRoot(at[1]); active = null; continue; }
     const spec = specFile !== undefined ? /^\s*\u2716 (.+?)(?: \([\d.]+m?s\))?\s*$/u.exec(line) : null;
-    if (spec) { failures.push({ name: spec[1], file: specFile }); specFile = undefined; continue; }
+    if (spec) { active = { name: spec[1], file: specFile, spec: true }; failures.push(active); specFile = undefined; continue; }
     const failed = /^\s*not ok\s+\d+\s+-\s+(.*)$/u.exec(line);
     if (failed) {
       active = { name: failed[1].replace(/\s+#.*$/u, ''), file: null };
@@ -33,6 +33,7 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
       const file = inRoot(location[1]);
       if (file) active.file = file;
     }
+    if (active?.spec && /^\s+\S/u.test(line)) (active.detailLines ??= []).push(line.trim());
     if (active && /^\s*\.\.\.\s*$/u.test(line)) active.diagnostic = false;
     if (active && /^\s*(?:error|expected|actual):/u.test(line)) active.diagnostic = true;
     if (active?.diagnostic && !/^\s*stack:/u.test(line)) (active.detailLines ??= []).push(line.trim());
