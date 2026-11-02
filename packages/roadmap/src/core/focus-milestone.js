@@ -7,9 +7,10 @@ import { lineSettings } from "../../../state/src/core/line-settings-read.js";
 export function milestoneFocus(board, ports) {
   if (!engineAtLeast(board, FOCUS_MILESTONE_ENGINE)) return null;
   if (typeof ports?.milestones !== 'function') throw new TypeError('milestone focus needs its explicit store reader');
-  const name = lineSettings(board).focusMilestone;
+  const setting = lineSettings(board).focusMilestone;
+  const name = typeof setting === 'string' ? setting : setting?.name;
   if (typeof name !== 'string') return null;
-  return { name, ids: new Set(ports.milestones(board).find(milestone => milestone.name === name)?.items ?? []) };
+  return { name, overflow: setting?.overflow === true, ids: new Set(ports.milestones(board).find(milestone => milestone.name === name)?.items ?? []) };
 }
 
 /** Add a leading preference while leaving the caller's established comparison intact within each group. */

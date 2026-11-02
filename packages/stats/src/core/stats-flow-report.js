@@ -158,7 +158,7 @@ export function indexReportItem(policy, item) {
 export function recordReportPolicy(policy, event, detail, item) {
   safeReportPolicy(policy);
   const kind = event.event_kind;
-  if (kind === 'line_setting' && detail.key === 'focusMilestone') policy.focus = detail.value || null;
+  if (kind === 'line_setting' && detail.key === 'focusMilestone') policy.focus = (typeof detail.value === 'object' && detail.value !== null ? detail.value.name : detail.value) || null;
   if (kind === 'hold' && !policy.heldLanes.includes(detail.lane)) policy.heldLanes.push(detail.lane);
   if (kind === 'unhold') policy.heldLanes = policy.heldLanes.filter(lane => lane !== detail.lane);
   const matching = item?.commit && item.commit === detail.commit;
