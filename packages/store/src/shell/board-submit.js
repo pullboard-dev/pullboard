@@ -39,6 +39,7 @@ import { FLOW_SIZE_ENGINE } from "../../../../src/flow-size-engine.js";
 import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
 import { isDeepStrictEqual } from 'node:util';
+import { submitHandoff } from '../../../../src/submit-handoff-read.js';
 
 /** Name changed policy leaves without treating object key order as policy. */
 function changedPolicyKeys(before, after, prefix) {
@@ -60,6 +61,13 @@ export function sealClauseInspection(board, id, options) {
     return options; // Isolated in-memory fixtures have no board policy.
   }
   const policy = board.enginePorts.sandboxPolicyReads.mainPolicy(root);
+  if (options.policyCommit && options.policyCommit !== policy.commit) {
+    const job = submitHandoff(board, id);
+    if (!board.enginePorts.submitHandoffBoardRoot?.(board, id, options.agentId)
+      || job?.state !== 'running' || job.main !== options.policyCommit || job.agentId !== options.agentId) {
+      throw new Refused('NO_POLICY', 'accepted main changed; refresh the submit policy and retry');
+    }
+  }
   const sealed = options.policyCommit && options.policyCommit !== policy.commit
     ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
   const changed = ['submit', 'verify', 'gate'].flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
