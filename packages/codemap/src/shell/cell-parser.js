@@ -87,7 +87,7 @@ export function withCellLintParser(work) {
     if (child) {
       let rotation = null;
       try { rotation = supervisorRotation(directory, child.pid); } catch { /* Invalid evidence cannot prove cleanup. */ }
-      child.kill('SIGTERM');
+      if (!rotation) child.kill('SIGTERM');
       // budget: five seconds to observe the owned supervisor's terminal journal before removing its transport.
       const deadline = process.hrtime.bigint() + 5_000_000_000n;
       let terminal = !Number.isSafeInteger(child.pid) || Boolean(rotation);
