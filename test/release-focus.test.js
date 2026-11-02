@@ -122,6 +122,12 @@ test('milestone focus records the one-line idle observation and clearing restore
   const idle = box.runAs(box.session, actor.root, 'next', '--build');
   assert.equal(idle.code, 0, idle.err);
   assert.deepEqual(idle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
+  const reviewIdle = box.runAs(box.session, actor.root, 'next', '--verify');
+  assert.equal(reviewIdle.code, 0, reviewIdle.err);
+  assert.deepEqual(reviewIdle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
+  const takeIdle = box.runAs(box.session, actor.root, 'next', '--take');
+  assert.equal(takeIdle.code, 0, takeIdle.err);
+  assert.deepEqual(takeIdle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     assert.ok(store.events(board).some(event => event.event_kind === 'next-idle' && JSON.parse(event.event_detail).reason === 'focus'));
