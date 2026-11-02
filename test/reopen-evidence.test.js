@@ -4,6 +4,8 @@ import { after, test } from 'node:test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
+import { openBoard } from '../src/native-board.js';
+import { exportBoard, importBoard } from '../packages/store/index.js';
 import { landingFailures } from '../packages/landing/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { makeLandProjectFixtures } from './land-project-fixture.js';
@@ -31,7 +33,16 @@ test('a landing reopen carries the exact failing assertion [C7,B22]', () => {
   const fact = thread.find(row => row.type === 'fact' && row.text.startsWith('Landing failure evidence:'));
   assert.ok(fact, 'reopen attaches the assertion evidence');
   for (const expected of [entry.file, 'keeps the landed behavior', 'fixture behavior is red', 'expected: 7', 'actual: 9', base, entry.commit]) assert.ok(fact.text.includes(expected), expected);
-  assert.ok(thread.some(row => row.kind === 'reopen' && /landing failure evidence/u.test(row.detail?.note ?? '')), 'next step points to the evidence');
+  const reopened = thread.find(row => row.kind === 'reopen');
+  assert.match(reopened.detail?.note ?? '', /landing failure evidence/u, 'next step points to the evidence');
+  const snapshot = onBoard(box, board => exportBoard(board));
+  const replica = openBoard(':memory:');
+  try {
+    importBoard(replica, snapshot);
+    const replayed = store.itemThread(replica, entry.item);
+    assert.deepEqual(replayed.find(row => row.kind === 'reopen').detail.landingFailure, reopened.detail.landingFailure);
+    assert.equal(replayed.find(row => row.type === 'fact' && row.text.startsWith('Landing failure evidence:')).text, fact.text);
+  } finally { store.closeBoard(replica); }
 });
 
 test('long assertion evidence is explicitly truncated [C7,B22]', () => {
