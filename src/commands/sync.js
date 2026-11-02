@@ -7,7 +7,7 @@ import {
   relayLinked,
   relayRecovered,
 } from '../../packages/link/index.js';
-import { syncGitBoard } from '../sync.js';
+import { syncGitBoard } from '../../packages/sync/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 
 /** Publish or receive the board's acknowledged Git prefix without signing into a relay account. */

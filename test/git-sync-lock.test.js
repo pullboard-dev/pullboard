@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { inspectGitSyncLock, withGitSyncLock } from '../packages/sync/src/shell/git-sync-lock.js';
+import { inspectGitSyncLock, withGitSyncLock } from '../packages/sync/index.js';
 
 /** Own only disposable marker/lock paths below this test's fresh temporary directory. */
 function fixture(t) {
