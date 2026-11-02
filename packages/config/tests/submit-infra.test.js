@@ -133,24 +133,17 @@ function infraBox(t, { edit, existing = true, requireInfraNote = true }) {
   return box;
 }
 
-test('submit asks why when a change edits an existing test [C7,V4]', (t) => {
+test('submit drafts a note when a change edits an existing test [C7,V4]', (t) => {
   const box = infraBox(t, { edit: (box) => put(box.root, 'test/existing.test.js', "import '../src/a.js';\n// a reason\n") });
-  const refused = box.run('submit', '1');
-  assert.equal(refused.code, 1, `${refused.out}\n${refused.err}`);
-  const refusal = `${refused.out}\n${refused.err}`;
-  assert.match(refusal, /INFRA_NOTE_REQUIRED/u, 'submit refuses an unexplained edit to an existing test');
-  assert.match(refusal, /test\/existing\.test\.js/u, 'the refusal names the file');
-  assert.match(refusal, /--infra/u, 'the refusal says how to give the reason');
-
-  const submitted = box.run('submit', '1', '--infra', 'the listener shim hid a real socket');
+  const submitted = box.run('submit', '1');
   assert.equal(submitted.code, 0, `${submitted.out}\n${submitted.err}`);
   const shown = box.run('show', '1');
   assert.equal(shown.code, 0, shown.err);
-  assert.match(shown.out, /infra note: the listener shim hid a real socket/u, 'the reviewer reads the note in show');
+  assert.match(shown.out, /infra note:/u, 'the reviewer reads the drafted note in show');
   assert.match(shown.out, /test\/existing\.test\.js/u, 'show names the edited file');
 });
 
-test('the infra note is required only when the board turns it on [C7,V4]', (t) => {
+test('a supplied infra note is retained and an enabled board drafts one [C7,V4]', (t) => {
   /** Edit an existing test file after the item claim. */
   const edit = (box) => put(box.root, 'test/existing.test.js', "import '../src/a.js';\n// a change\n");
   const optional = infraBox(t, { edit, requireInfraNote: false });
@@ -167,9 +160,9 @@ test('the infra note is required only when the board turns it on [C7,V4]', (t) =
   assert.match(shown.out, /test\/existing\.test\.js/u);
 
   const enabled = infraBox(t, { edit, requireInfraNote: true });
-  const refused = enabled.run('submit', '1');
-  assert.equal(refused.code, 1, `${refused.out}\n${refused.err}`);
-  assert.match(`${refused.out}\n${refused.err}`, /INFRA_NOTE_REQUIRED/u);
+  const drafted = enabled.run('submit', '1');
+  assert.equal(drafted.code, 0, `${drafted.out}\n${drafted.err}`);
+  assert.match(enabled.run('show', '1').out, /infra note:/u);
 });
 
 test('a new test file needs no note [C7,V4]', (t) => {
@@ -179,7 +172,7 @@ test('a new test file needs no note [C7,V4]', (t) => {
   assert.doesNotMatch(`${submitted.out}\n${submitted.err}`, /INFRA_NOTE_REQUIRED/u);
 });
 
-test('a gate named by a quoted path or a shell separator needs a note [C7,V4]', (t) => {
+test('a gate named by a quoted path or a shell separator receives a drafted note [C7,V4]', (t) => {
   // Each gate names a script the change then edits: a quoted path with a space, and a path followed by a separator.
   // An unnormalized path names the same file Git reports, so it needs the note too (#814 review).
   for (const [gate, file] of [["node 'src/check gate.js'", 'src/check gate.js'], ['node src/check.js; true', 'src/check.js'],
@@ -193,10 +186,10 @@ test('a gate named by a quoted path or a shell separator needs a note [C7,V4]', 
     assert.equal(box.run('claim', '1').code, 0);
     put(box.root, file, 'process.exit(0); // edited after the claim\n');
     commitAll(box, 'feat(core): change the gate script [G1]');
-    const refused = box.run('submit', '1');
-    const output = `${refused.out}\n${refused.err}`;
-    assert.equal(refused.code, 1, `${gate}: the edit is refused without a note\n${output}`);
-    assert.match(output, /INFRA_NOTE_REQUIRED/u, `${gate}: the refusal is INFRA_NOTE_REQUIRED`);
-    assert.ok(output.includes(file), `${gate}: the refusal names ${file}`);
+    const submitted = box.run('submit', '1');
+    assert.equal(submitted.code, 0, `${gate}: ${submitted.out}\n${submitted.err}`);
+    const shown = box.run('show', '1');
+    assert.match(shown.out, /infra note:/u);
+    assert.ok(shown.out.includes(file), `${gate}: the note names ${file}`);
   }
 });
