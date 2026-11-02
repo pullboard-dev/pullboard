@@ -148,6 +148,7 @@ export function run(io, { first, second, rest, values }) {
   io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
   io.say(`agents: ${stats.agents.map((agent) => `${agentDisplayName(agents, ctx.config, agent.id)} (${agent.families.join('/')}; ${agent.moves} moves)`).join(', ') || 'none'}`);
   for (const row of stats.notesPerSubmit) io.say(`${row.seat}: ${row.notes} notes / ${row.submits} submits (${row.notesPerSubmit ?? 'unmeasured'} notes per submit)`);
+  for (const row of stats.workFreeReleases) io.say(`work-free releases ${row.day}: ${row.seat} ${row.reason} ${row.count}`);
   io.say(`events: ${stats.firstEventAt ?? 'none'} to ${stats.lastEventAt ?? 'none'}${stats.since ? ` (since ${stats.since})` : ''}`);
   for (const line of coordinatorActionLines(coordinator)) io.say(line);
   for (const line of barStatsLines(stats.bars)) io.say(line);
