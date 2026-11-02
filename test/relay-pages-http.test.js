@@ -13,7 +13,7 @@ import { createGitHubClient } from '../relay/github.js';
 import { createRelayHandler } from '../relay/service.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { generateBoardKey, seal } from '../packages/kernel/src/core/seal.js';
-import { readSealedDescriptor, readSealedValue, writeSealedDescriptor, writeSealedValue } from '../src/sealed-pages.js';
+import { readSealedDescriptor, readSealedValue, writeSealedDescriptor, writeSealedValue } from '../packages/pages/index.js';
 import { githubFixture } from './relay-fixture.js';
 
 const BOARD = 'a'.repeat(32);
