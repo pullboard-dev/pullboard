@@ -1,4 +1,5 @@
 /** Create one ordinary child bound to its parent's frozen bar [C7,B26,H16]. */
+import { createHash } from 'node:crypto';
 import { atomic, logEvent } from './board-event-log.js';
 import { hasAgent, itemById } from './board-query.js';
 import { insertItem, validateItemAddition } from './board-add-item.js';
@@ -24,6 +25,11 @@ export function createItemSlice(board, { agentId, parentId, parentDigest, title,
     // The slice move grants the holder this scoped check choice; it does not grant ordinary bar editing.
     const validated = validateItemAddition(board, { ...item, by: 'coordinator', parentId: null });
     const id = insertItem(board, item, validated);
+    const childBar = { ...frozen, check: validated.command };
+    if (check !== undefined && check !== frozen.check) { delete childBar.sourceCheck; delete childBar.barCoverage; delete childBar.barRevision; }
+    const text = JSON.stringify(childBar);
+    const digest = createHash('sha256').update(text).digest('hex');
+    board.db.prepare('UPDATE item SET item_frozen=?, item_frozen_digest=? WHERE item_id=?').run(text, digest, id);
     const detail = { parentId, parentDigest, frozenBar: parent.item_frozen, files, lane: item.lane };
     board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`item-slice:${id}`, JSON.stringify(detail));
     logEvent(board, agentId, 'item-slice', id, detail);

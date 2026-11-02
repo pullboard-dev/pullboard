@@ -23,6 +23,9 @@ test('holder and coordinator create slices, others are refused, and old engines 
   const made = json(box, box.web, 'slice', String(parent), 'View part', '--files', 'web/view.js', '--check', 'true').item;
   assert.equal(made.item_parent_id, parent);
   assert.equal(made.item_criterion, 'The whole feature works');
+  assert.equal(JSON.parse(made.item_frozen).criterion, 'The whole feature works');
+  assert.equal(JSON.parse(made.item_frozen).check, 'true');
+  assert.ok(made.item_frozen_digest, 'the child bar is frozen before it is offered');
   const coordinator = json(box, box.repo, 'slice', String(parent), 'API part', '--lane', 'api', '--files', 'api/view.js', '--check', 'true').item;
   assert.equal(coordinator.item_parent_id, parent);
   assert.equal(coordinator.item_lane, 'api');
