@@ -237,7 +237,8 @@ export function freezer(ctx, { captureVerifyPolicy = false, board, applyingDecis
         ? policy.commit
         : (/^[0-9a-f]{40,64}$/.test(item.item_claim_head ?? '') ? item.item_claim_head : mainPolicy(ctx.info.root).commit);
       config = policyAt(ctx.info.root, commit).config;
-      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family } };
+      policy = { version: 1, commit, verify: { policy: config.verify.policy, family: config.verify.family,
+        ...(Number.isSafeInteger(config.verify.familyRelaxAt) && config.verify.familyRelaxAt > 0 ? { familyRelaxAt: config.verify.familyRelaxAt } : {}) } };
     } else {
       config = policy ? itemPolicy(ctx.info.root, { ...item, item_frozen: JSON.stringify({ policy }) }).config : ctx.config;
     }

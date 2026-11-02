@@ -96,6 +96,7 @@ const ROWS = [
   // This repo: Review
   ['verify.policy', 'Who may review', 'Any other agent may review, or only the coordinator.', 'Review', 'choice'],
   ['verify.family', 'Reviewer model family', 'Whether a reviewer must (require) or should (prefer) come from a different model family than the builder; off ignores it.', 'Review', 'choice'],
+  ['verify.familyRelaxAt', 'Review backlog threshold', 'Allow independent same-family reviews when this many submissions lack an available other-family reviewer; off disables it.', 'Review', 'count'],
   ['verify.reviewRatio', 'Reviews to builds', 'How many builds each reviewer is scheduled against.', 'Review', 'ratio'],
   ['verify.unrelatedTrunkMoves', 'Keep verdicts through unrelated changes', 'A verdict survives main moving through commits that touch nothing the review read.', 'Review', 'on/off'],
   ['verify.composeAtAdmission', 'Compose with main at review', 'A review is judged on the item combined with the current main when it starts.', 'Review', 'on/off'],
