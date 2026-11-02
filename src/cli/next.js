@@ -14,6 +14,7 @@ import { mainRedReviewItems } from '../../packages/landing/index.js';
 import { computedReturnArgs } from '../../packages/landing/index.js';
 import { focusReviewFirst } from '../../packages/roadmap/index.js';
 import { focusReasons } from '../../packages/roadmap/index.js';
+import { milestoneFocus } from '../../packages/roadmap/index.js';
 import { mainLaneWork } from '../next-steps.js';
 import * as store from '../board.js';
 import { withBoardRead } from '../cli-context.js';
@@ -113,6 +114,7 @@ function nextPick(ctx, board, values) {
     && item.item_parent_id === null && item.item_owner === me.id && !pendingSubmitHandoff(board, item)
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
+    policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
     reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
@@ -125,7 +127,14 @@ function nextPick(ctx, board, values) {
     familyPolicy: ctx.config.verify.family, starveMinutes: ctx.config.review?.starveMinutes ?? 10, ratio: ctx.config.verify.reviewRatio, runnable: values.runnable, routes: values.routes,
     observeIdle: values.observeIdle, omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), priority: mainRedReviewItems(ctx.info.root, board) });
   const offer = held ? null : relayLinked(ctx.info.root) ? store.withVerifierStanding(board, { root: true }, findOffer) : findOffer();
-  if (offer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (offer.urgent || focusReviewFirst(board, offer.item, item, { milestones: store.milestones }))) return { item: offer.item, offer, build: item ?? null, reasons: focusReasons(board, offer.item, [], { milestones: store.milestones }) };
+  const focus = milestoneFocus(board, { milestones: store.milestones });
+  const focusedReview = focus && !held && !values.build ? store.nextFor(board, { agentId: me.id, lane: me.lane, verify: true,
+    policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
+    omitIds: values.omitIds ?? [], skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }), focusOnly: true }) : null;
+  const focusOffer = focusedReview?.item && focus.ids.has(focusedReview.item.item_id)
+    ? { item: focusedReview.item, queue: store.reviewQueue(board), ratio: ctx.config.verify.reviewRatio } : null;
+  const selectedOffer = focusOffer ?? offer;
+  if (selectedOffer?.item && !values.build && !(rejectionReturnEnabled(board) && item?.item_verdict === 'REJECT' && item.item_built_by === me.id) && (focusOffer || (!focus || focus.ids.has(selectedOffer.item.item_id) || !item || !focus.ids.has(item.item_id)) && (selectedOffer.urgent || focusReviewFirst(board, selectedOffer.item, item, { milestones: store.milestones })))) return { item: selectedOffer.item, offer: selectedOffer, build: item ?? null, reasons: focusReasons(board, selectedOffer.item, [], { milestones: store.milestones }) };
   if (!item) return { reasons, ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;

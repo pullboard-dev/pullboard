@@ -30,8 +30,7 @@ export async function run(io, { first, second, rest, values }) {
       throw new Refused('NO_MILESTONE', `no milestone named ${second}`);
     }
     const common = { agentId: me.id, reason: 'Set release focus', window: { activeItems: null } };
-    await ordered(ctx, board, 'setLineSetting', [{ ...common, key: 'focusOverflow', value: values.overflow === 'on' }]);
-    await ordered(ctx, board, 'setLineSetting', [{ ...common, key: 'focusMilestone', value: second === 'off' ? false : second }]);
+    await ordered(ctx, board, 'setLineSetting', [{ ...common, key: 'focusMilestone', value: second === 'off' ? false : { name: second, overflow: values.overflow === 'on' } }]);
     io.result?.({ focus: second === 'off' ? null : second, overflow: values.overflow === 'on' });
     io.say(second === 'off' ? 'milestone focus cleared' : `milestone focus: ${second}; overflow ${values.overflow ?? 'off'}`);
     return 0;

@@ -16,7 +16,6 @@ import { REWORK_SAME_FAMILY_ENGINE } from "../../../../../src/rework-same-family
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function historicalMinimumEngine(args, board, at) {
-  if (args[0]?.key === 'focusOverflow') return FOCUS_BOUNDARY_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (args[0]?.key === 'collisionFreeBatch') return LAND_COLLISION_ENGINE;
   if (args[0]?.key === 'order') return LINE_ORDER_ENGINE;
@@ -29,6 +28,7 @@ function historicalMinimumEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   return Math.max(
     historicalMinimumEngine(args, board, at),
+    args[0]?.key === 'focusMilestone' && args[0]?.value && typeof args[0].value === 'object' ? FOCUS_BOUNDARY_ENGINE : 1,
     args[0]?.key === 'focusMilestone' ? FOCUS_MILESTONE_ENGINE : 1,
     args[0]?.key === 'bar.check' ? BAR_CHECK_ENGINE : 1,
     args[0]?.key === 'bar.sharpenToPerson' ? REJECT_CLAUSE_ENGINE : 1,

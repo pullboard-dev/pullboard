@@ -33,7 +33,7 @@ test('with overflow on, next offers a later release only when the focused one ha
   const focus = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Focused' });
   addMilestone(board, { agentId: 'coordinator', reason: 'Set up focus', name: '0.9.3', items: [focus] });
   set('focusMilestone', '0.9.3');
-  set('focusOverflow', true);
+  set('focusMilestone', { name: '0.9.3', overflow: true });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, focus);
   const peer = store.register(board, { lane: 'core', path: '/peer', route: 'strong' });
   store.claim(board, focus, { agentId: peer, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
@@ -50,7 +50,7 @@ test('reviews follow the same focus [B26,C7]', t => {
   const peer = store.register(board, { lane: 'review', path: '/peer-review', route: 'strong' });
   store.reserveReview(board, focus, { agentId: peer, lane: 'review', leaseMs: HOUR, policy: 'any' });
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item, null);
-  set('focusOverflow', true);
+  set('focusMilestone', { name: '0.9.3', overflow: true });
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item.item_id, later);
 });
 
@@ -70,4 +70,17 @@ test('focused draft rows form one approval batch for unlanded items [B26,C7]', a
       { id: 'A1', kind: 'spec', text: 'A', items: [1, 2] },
       { id: 'B1', kind: 'doctrine', text: 'B', items: [1] },
     ] }]);
+});
+
+test('overflow checks focused builds and reviews together [B26,C7]', t => {
+  const { board, builder, set } = setup(t);
+  const actor = store.register(board, { lane: 'core', path: '/mixed', route: 'strong' });
+  const focusedReview = submitted(board, builder, 'Focused review', 'strong', 3);
+  const laterBuild = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Later build' });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Set up focus', name: '0.9.3', items: [focusedReview] });
+  set('focusMilestone', { name: '0.9.3', overflow: true });
+  assert.equal(store.nextFor(board, { agentId: actor, lane: 'core' }).item, null, 'an eligible focused review blocks an outside build');
+  assert.equal(store.nextFor(board, { agentId: actor, lane: 'core', verify: true }).item.item_id, focusedReview);
+  store.reserveReview(board, focusedReview, { agentId: actor, lane: 'core', leaseMs: HOUR, policy: 'any' });
+  assert.equal(store.getItem(board, laterBuild).item_status, 'open');
 });
