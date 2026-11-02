@@ -113,7 +113,7 @@ import {
 import {
   relaySnapshot,
   presentationDigest,
-} from '../src/relay-presentation.js';
+} from '../packages/pages/index.js';
 import {
   snapshotState,
 } from '../relay/browser-model.js';

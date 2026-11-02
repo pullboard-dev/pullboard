@@ -17,7 +17,7 @@ import {
   withGitFacts,
 } from '../../../../src/git.js';
 import { isLane } from '../../../seats/index.js';
-import { fetchLocal } from '../../../../src/local-fetch.js';
+import { fetchLocal } from '../../../sync/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** The kinds that carry a shout, so --to can match their addressee. */

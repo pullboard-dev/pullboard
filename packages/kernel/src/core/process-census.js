@@ -9,9 +9,10 @@ import { createHash } from 'node:crypto';
  * Linux host null, so runner cleanup could never be verified.
  *
  * @param {string} stdout - The census text.
+ * @param {{includeCommand?: boolean}} [options] - Retain executable names for private cleanup diagnostics.
  * @returns {Map<number, {pid:number, ppid:number, pgid:number, started:string, state:string, processSha256:string}>|null}
  */
-export function parseProcessCensus(stdout) {
+export function parseProcessCensus(stdout, { includeCommand = false } = {}) {
   const rows = new Map();
   for (const line of stdout.split(/\r?\n/u)) {
     if (!line.trim()) continue;
@@ -24,7 +25,7 @@ export function parseProcessCensus(stdout) {
     if (pgid === 0) continue;
     const started = `${match[4]} ${match[5]} ${match[6]} ${match[7]} ${match[8]}`;
     const processSha256 = createHash('sha256').update(match[10]).digest('hex');
-    rows.set(pid, { pid, ppid, pgid, started, state: match[9], processSha256 });
+    rows.set(pid, { pid, ppid, pgid, started, state: match[9], processSha256, ...(includeCommand ? { command: match[10] } : {}) });
   }
   return rows.size ? rows : null;
 }

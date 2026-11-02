@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
-import { relayPresentation, relaySnapshot } from '../src/relay-presentation.js';
+import { relayPresentation, relaySnapshot } from '../packages/pages/index.js';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';

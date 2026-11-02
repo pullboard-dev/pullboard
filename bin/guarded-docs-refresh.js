@@ -22,12 +22,12 @@ function git(cwd, ...args) { return run(cwd, 'git', args, true); }
 function requireSuccess(result, phase) {
   if (result.status !== 0) throw new Error(`${phase}: ${result.error?.message ?? result.stderr?.trim() ?? `exit ${result.status}`}`);
 }
-/** On every failed guard, notify the coordinator and leave the original main untouched. */
+/** On every failed guard, notify the board and leave the original main untouched. */
 function refuse(phase, error) {
   const message = `post-landing docs refresh refused at ${phase}: ${error.message}`.slice(0, 350);
   process.stderr.write(`${message}\n`);
-  const notice = run(root, process.execPath, ['bin/pullboard.js', 'shout', 'coordinator', '--kind', 'blocker', message]);
-  if (notice.status !== 0) process.stderr.write('coordinator shout failed; report the refusal manually\n');
+  const notice = run(root, process.execPath, ['bin/pullboard.js', 'shout', 'all', message]);
+  if (notice.status !== 0) process.stderr.write('board shout failed; report the refusal manually\n');
 }
 let phase = 'setup';
 try {

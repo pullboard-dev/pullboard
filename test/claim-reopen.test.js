@@ -366,3 +366,44 @@ test('an old modern claim does not upgrade a later legacy claim [B5,H16]', async
   const replay = applyEngineMove(f.board, { ...legacy, engine: ITEM_FOLDER_ENGINE - 1 }, { sequence: 1, at: '2026-01-01T00:01:00Z' });
   assert.equal(replay.error?.code, 'ONE_CLAIM');
 });
+
+test('blocked release records prerequisites and withdrawn blockers free the item [B5,B10,H16]', (t) => {
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, criterion: 'prove', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the fix' });
+  const blocker = add('blocker');
+  const work = add('work');
+  store.editItem(f.board, work, { agentId: 'coordinator', after: [blocker], reason: 'Record the prerequisite' });
+  assert.equal(store.getItem(f.board, work).item_after, String(blocker));
+  assert.throws(() => store.editItem(f.board, blocker, { agentId: 'coordinator', after: [work], reason: 'Would create a cycle' }), error => error.code === 'DEPENDENCY_CYCLE');
+  store.editItem(f.board, work, { agentId: 'coordinator', after: [], reason: 'Clear the prerequisite' });
+  claim(f, work, f.builder);
+  assert.throws(() => store.release(f.board, work, f.builder, '', { blockedOn: [work] }, 'BLOCKED'), error => error.code === 'DEPENDENCY_CYCLE');
+  assert.equal(store.getItem(f.board, work).item_status, 'claimed', 'refused release rolls back');
+  const move = prepareEngineMove(f.board, 'release', [work, f.builder, 'waiting', { blockedOn: [blocker] }, 'BLOCKED'], { id: 'blocked-release-fixture', actor: f.builder });
+  assert.throws(() => applyEngineMove(f.board, { ...move, engine: move.engine - 1 }, { sequence: 1, at: '2026-01-01T00:00:00Z' }), /engine/u, 'older replicas cannot flatten blocked dependencies');
+  assert.equal(applyEngineMove(f.board, move, { sequence: 1, at: '2026-01-01T00:00:00Z' }).error, undefined);
+  assert.equal(store.getItem(f.board, work).item_after, String(blocker));
+  assert.notEqual(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item?.item_id, work);
+  assert.throws(() => claim(f, work, f.other), error => error.code === 'BLOCKED');
+  store.withdraw(f.board, blocker, { agentId: 'coordinator', reason: 'No longer needed' });
+  assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item.item_id, work);
+  claim(f, work, f.other);
+  assert.equal(store.getItem(f.board, work).item_owner, f.other);
+});
+
+test('blocked release waits through acceptance until its prerequisite lands [B5,B10]', t => {
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, criterion: 'prove', specIds: ['B13'], route: 'mid', check: 'true', brief: 'Files: src/a.js\nTest: proves the fix' });
+  const blocker = add('prerequisite');
+  const work = add('waiting task');
+  claim(f, work, f.builder);
+  store.release(f.board, work, f.builder, '', { blockedOn: [blocker] }, 'BLOCKED');
+  claim(f, blocker, f.builder);
+  submitFixture(f.board, blocker, { agentId: f.builder, commit: COMMIT, tree: COMMIT });
+  store.verify(f.board, blocker, { agentId: f.other, head: COMMIT, digest: 'digest:bar', policy: 'any', decision: 'ACCEPT', note: 'proof' });
+  assert.notEqual(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item?.item_id, work);
+  assert.throws(() => claim(f, work, f.other), error => error.code === 'BLOCKED');
+  store.merged(f.board, blocker, { agentId: 'coordinator', commit: TRUNK });
+  assert.equal(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item.item_id, work);
+  claim(f, work, f.other);
+});
