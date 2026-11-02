@@ -62,7 +62,8 @@ test('relay study measures native reads and local moves across private transport
         'the decrypted relay checkpoint still precedes the acknowledged add');
       box.holdPublishes(false);
       box.env[CHECKPOINT_BACKGROUND_ENV] = '0';
-      assert.equal((await box.cli('relay', 'sync')).code, 0, 'the durable publisher work can finish');
+      const synced = await box.cli('relay');
+      assert.equal(synced.code, 0, JSON.stringify(synced.document));
       const afterUpload = await readRelay(box);
       assert.equal(afterUpload.document.tables.item.filter(item => item.item_title === title).length, 1,
         'the authenticated encrypted checkpoint eventually contains exactly one requested item');
