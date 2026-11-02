@@ -20,7 +20,11 @@ export function relayBoundaryProblems(sources) {
     if (ADAPTERS.has(file) || /(?:^|\/)(?:test|tests)\//u.test(file) || /(?:^|[.-])test\.[cm]?js$/u.test(file)) continue;
     const code = lex(source).code;
     const allowed = [...(NON_RELAY.get(file) ?? [])];
-    for (const match of code.matchAll(/\b(?:globalThis\s*\.\s*)?fetch\s*\(/gu)) {
+    const calls = [...code.matchAll(/\b(?:globalThis\s*\.\s*)?fetch\s*\(/gu)];
+    for (const match of source.matchAll(/\b(?:globalThis|window)\s*\[\s*['"]fetch['"]\s*\]\s*\(/gu)) {
+      if (code.slice(match.index, match.index + 6).trim()) calls.push(match);
+    }
+    for (const match of calls) {
       const line = code.slice(0, match.index).split('\n').length;
       const original = source.split('\n')[line - 1];
       const exception = allowed.findIndex(text => original.includes(text));

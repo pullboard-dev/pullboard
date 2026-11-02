@@ -65,5 +65,7 @@ test('relay lint refuses a stray direct fetch [C7]', () => {
   const rows = relayBoundaryProblems([{ file: 'src/stray-relay.js', source: 'export async function read(url) { return fetch(url); }' }]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].file, 'src/stray-relay.js');
+  assert.equal(relayBoundaryProblems([{ file: 'src/stray.js', source: "globalThis['fetch']('/relay')" }]).length, 1);
+  assert.equal(relayBoundaryProblems([{ file: 'relay/github.js', source: "fetch(url, { method: form || json }); fetch('/relay');" }]).length, 1);
   assert.deepEqual(relayBoundaryProblems([{ file: 'src/fixture.js', source: 'const example = "fetch(url)"; // fetch(url)' }]), []);
 });
