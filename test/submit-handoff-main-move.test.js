@@ -40,7 +40,9 @@ test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !exi
   if (${JSON.stringify(gateMove)} === 'policy') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.verify={...c.verify,family:'require'}; writeFileSync(f,JSON.stringify(c)); }
   else writeFileSync(root+'/gate-advance.txt','advanced');
   const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GIT_')));
-  execFileSync('git',['-C',root,'add','-A'],{env}); execFileSync('git',['-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','-qm','chore: advance during gate [G1]'],{env}); writeFileSync(marker,'done'); } assert.equal(feature,'item'); });\n`);
+  execFileSync('git',['-C',root,'add','-A'],{env}); execFileSync('git',['-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','-qm','chore: advance during gate [G1]'],{env});
+  if (${JSON.stringify(gateMove)} === 'twice') { writeFileSync(root+'/second-advance.txt','advanced again'); execFileSync('git',['-C',root,'add','-A'],{env}); execFileSync('git',['-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','-qm','chore: advance again [G1]'],{env}); }
+  writeFileSync(marker,'done'); } assert.equal(feature,'item'); });\n`);
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
   const config = join(box.repo, 'pullboard.json');
@@ -121,14 +123,14 @@ test('queued submit still refuses a main rewind during native preflight [V4,H16,
   assert.equal(state(box).job, null, 'a rewound policy grants no queued worker');
 });
 
-for (const mode of ['unrelated', 'policy']) test(`queued gate handles ${mode} main change [V4,H16,E18]`, async t => {
+for (const mode of ['unrelated', 'twice', 'policy']) test(`queued gate handles ${mode} main change [V4,H16,E18]`, async t => {
   const box = fixture(t, false, mode);
   const result = submit(box);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   await box.helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), 'queued gate completion', 120000);
   assert.ok(existsSync(join(box.dir, 'gate-moved')), 'main moved while the queued check ran');
   const completed = state(box);
-  if (mode === 'unrelated') {
+  if (mode !== 'policy') {
     assert.equal(completed.job.state, 'green', JSON.stringify(completed.job));
     assert.equal(completed.item.item_status, 'submitted');
   } else {
