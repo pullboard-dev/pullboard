@@ -33,7 +33,7 @@ import {
 import {
   Refused,
 } from '../../packages/kernel/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { refuseHeldElsewhere } from '../../packages/seats/index.js';
 import {
   browserFreeChecksEnabled,
 } from '../../packages/config/index.js';
@@ -63,7 +63,7 @@ export async function run(io, { first, second, rest, values }) {
     const held = first ? store.getItem(board, idArg(first))
       : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
     if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');
-    seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), held, 'check', agentSessionDigest);
+    refuseHeldElsewhere(ctx.info, store.listAgents(board), held, 'check', agentSessionDigest);
     return { item: held, author: store.itemCheckAuthor(board, held.item_id), caller: me.id, agents: store.listAgents(board) };
   });
   const check = frozenCheck(item);

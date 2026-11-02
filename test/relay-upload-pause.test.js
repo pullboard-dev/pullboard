@@ -98,7 +98,7 @@ test('quota-paused checkpoints keep exact pending bytes, permit ordered moves an
   assert.equal(state(box).checkpoint.sealed === saved.checkpoint.sealed, true);
   assert.equal(saved.snapshotApiVersion, 2, 'the native quota refusal occurred during a real bounded-page upload');
   const staged = await box.script(`
-    const { createRelayPageCache, snapshotSourceId } = await import(${JSON.stringify(new URL('../src/relay-page-cache.js', import.meta.url).href)});
+    const { createRelayPageCache, snapshotSourceId } = await import(${JSON.stringify(new URL('../packages/pages/index.js', import.meta.url).href)});
     const { readFileSync } = await import('node:fs');
     const link = JSON.parse(readFileSync(${JSON.stringify(box.linkFile)}, 'utf8'));
     const cache = createRelayPageCache(link);
