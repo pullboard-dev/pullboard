@@ -1,3 +1,4 @@
+import { repointLandingGates } from '../../../spec/index.js';
 /** Coordinator landing merge step; source-preserving partition of land.js [B3,R3,C7]. */
 import { assignEngineNumbers } from '../../../../src/engine-numbers.js';
 import { placeLandingHistory } from './landing-history-plan.js';
@@ -73,6 +74,13 @@ export async function mergeGroup(state, items) {
         state.say(`conflict #${item.item_id}: ${resolution.files.join(', ')}`);
         continue;
       }
+    }
+    const gateRenames = repointLandingGates(batch.root, state.config, trunk, headCommit(batch.root));
+    if (gateRenames.length) {
+      git(batch.root, ['add', '--', state.config.spec]);
+      git(batch.root, ['commit', '--amend', '--no-edit']);
+      resolutions.push({ id: item.item_id, files: [state.config.spec], entries: gateRenames.map(change => ({ kind: 'spec-gate-rename', ...change })) });
+      for (const change of gateRenames) state.say(`spec ${change.row}: gate ${change.from} -> ${change.to}`);
     }
     // An engine the item added without a number gets the next one now, in landing order, inside its own merge (#1101).
     const engines = amendLandingEngines(batch.root);

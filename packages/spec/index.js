@@ -1,3 +1,4 @@
+export { repointLandingGates } from './src/shell/spec.js';
 /** Spec rows, decisions, approvals and signatures retain exact named exports behind one front door [C7,CD60,CD64]. */
 export { approvedRowProblems, staleFrozenItems, staleItemFinding } from "./src/shell/approved-rows.js";
 export { factIdentityIndexSql, missingFactIdentityIndexes, ensureFactIdentityIndexes, requireFactIdentityIndexes, factIdentityExists } from "./src/core/fact-identity.js";
