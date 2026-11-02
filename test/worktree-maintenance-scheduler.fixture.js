@@ -15,7 +15,7 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { runFixtureChild } from './fixture-child.js';
-import { isolateTestMachine } from '../src/test-isolation.js';
+import { isolateTestMachine } from '../packages/gate/index.js';
 import { processCensus } from '../src/runner-custody.js';
 import { maintenanceGit } from '../src/worktree-maintenance-archive.js';
 import { scheduleWorktreeMaintenance, runScheduledMaintenance } from '../src/worktree-maintenance-scheduler.js';

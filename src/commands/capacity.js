@@ -5,7 +5,7 @@ import { eventCauses } from '../board-rigor.js';
 import { context } from '../cli.js';
 import { withBoardRead } from '../cli.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { testCapacityReport } from '../test-capacity.js';
+import { testCapacityReport } from '../../packages/gate/index.js';
 
 /** Keep missing evidence visible in text just as null remains visible in JSON. */
 function minutes(value) { return value === null ? 'unknown' : `${value.toFixed(3)} min`; }

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { cellInventory, mappedPath, readPathMap } from '../packages/codemap/index.js';
-import { commonJsIn, importsIn } from '../src/module-imports.js';
+import { commonJsIn, importsIn } from '../packages/gate/index.js';
 import { readPlan } from '../bin/cells-plan.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));

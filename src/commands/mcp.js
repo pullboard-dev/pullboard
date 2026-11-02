@@ -11,8 +11,8 @@ import {
 } from '../cli.js';
 
 import { tryGit } from '../git.js';
-import { codeMapGraph } from '../affected-tests.js';
-import { selectAffectedTests } from '../affected-tests.js';
+import { codeMapGraph } from '../../packages/gate/index.js';
+import { selectAffectedTests } from '../../packages/gate/index.js';
 import { scanSource } from '../../packages/codemap/index.js';
 import { repositoryImport } from '../../packages/codemap/index.js';
 import { readPlan } from '../../bin/cells-plan.js';

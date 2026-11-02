@@ -5,10 +5,10 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { GitHubReleaseTransport, ReleaseTransportError, unpackReleaseReceipt } from '../src/release-transport.js';
+import { GitHubReleaseTransport, ReleaseTransportError, unpackReleaseReceipt } from '../packages/gate/index.js';
 import { verifyHostedRelease } from '../packages/sandbox/index.js';
-import { releaseReceiptFields } from '../src/release-gate-receipt.js';
-import { releaseReceiptProblem } from '../src/release-gate-receipt.js';
+import { releaseReceiptFields } from '../packages/gate/index.js';
+import { releaseReceiptProblem } from '../packages/gate/index.js';
 
 /** Supply explicit synthetic API observations; the envelope remains intentionally unvalidated by this transport. */
 function fixture() {

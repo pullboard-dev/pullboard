@@ -9,13 +9,13 @@ import {
   mainPolicy,
   policyAt,
 } from "../../../sandbox/index.js";
-import { pinRunMain } from "../../../../src/gate.js";
+import { pinRunMain } from "../../../gate/index.js";
 import {
   readGateReceipt,
   receiptStore,
-} from "../../../../src/gate-run-receipt.js";
-import { runProfiledShell } from "../../../../src/gate.js";
-import { runFrozenProof } from "../../../../src/gate.js";
+} from "../../../gate/index.js";
+import { runProfiledShell } from "../../../gate/index.js";
+import { runFrozenProof } from "../../../gate/index.js";
 import { recordNativeProof } from "../../../verify/index.js";
 import { proofRunReceipt } from "../../../store/index.js";
 import { quarantineVerdictSnapshot } from "./quarantine.js";

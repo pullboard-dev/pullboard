@@ -13,7 +13,7 @@ import { refusalDocument } from '../src/next-step-words.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
-import { receiptBody } from '../src/gate-run-receipt.js';
+import { receiptBody } from '../packages/gate/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';
 import {
   ruleProofCounts,

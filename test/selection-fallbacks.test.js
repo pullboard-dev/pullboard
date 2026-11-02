@@ -4,8 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
-import { selectAffectedTests } from '../src/affected-tests.js';
-import { testClosures } from '../src/affected-tests.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { testClosures } from '../packages/gate/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** Build actual immutable Git trees; no fixture module is imported or executed by selection. */

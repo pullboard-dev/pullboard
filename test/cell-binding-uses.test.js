@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import {
   readGateReceipt,
   receiptBody,
-} from '../src/gate-run-receipt.js';
+} from '../packages/gate/index.js';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import {
@@ -35,14 +35,14 @@ import {
   readOnlyMemberRanges,
 } from '../packages/codemap/index.js';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
-import { mainAuditKey } from '../src/main-audit-state.js';
+import { mainAuditKey } from '../packages/gate/index.js';
 import { readAuditJob } from './main-audit-project.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import {
   mappedWorkingSource,
   workingSourceInventory,
 } from '../bin/checks/scan.js';
-import { importsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 
 const IMPORT = "import { join } from 'node:path';\n";
 

@@ -12,7 +12,7 @@ import { ENGINE_REGISTRY, ENGINE_VERSION } from '../packages/state/index.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
+import { readGateReceipt, receiptStore } from '../packages/gate/index.js';
 import { prepareTrainLanding, prepareNativeTrainLanding } from '../packages/landing/index.js';
 import { recordTrainLanding } from '../packages/landing/index.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';

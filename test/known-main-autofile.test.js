@@ -13,7 +13,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from '../src/known-main-autofile-engine.js';
 import { rememberCreatedItems } from '../packages/link/index.js';
 import { bindRefs, resolveMove } from '../packages/outbox/index.js';
-import { readGateReceipt } from '../src/gate-run-receipt.js';
+import { readGateReceipt } from '../packages/gate/index.js';
 import { sealKnownMainAutofile } from '../src/known-main-autofile-receipts.js';
 import { validateKnownMainAutofile } from '../src/known-main-autofile.js';
 import { fixture, cli, rows } from './known-main-affected.fixture.js';

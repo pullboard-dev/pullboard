@@ -9,10 +9,10 @@ import { delimiter, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { readTestOutcomes } from '../src/test-outcomes.js';
+import { readTestOutcomes } from '../packages/gate/index.js';
 import { requireTestTierAccount } from '../packages/gate/index.js';
-import { suiteProven } from '../src/test-action-cache.js';
-import { testActionKeys } from '../src/test-action-cache.js';
+import { suiteProven } from '../packages/gate/index.js';
+import { testActionKeys } from '../packages/gate/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 const source = fileURLToPath(new URL('../src', import.meta.url));

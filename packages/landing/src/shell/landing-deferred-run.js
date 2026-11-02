@@ -1,6 +1,6 @@
 import { getItem } from '../../../store/index.js';
-import { readGateReceipt } from '../../../../src/gate-run-receipt.js';
-import { receiptStore } from '../../../../src/gate-run-receipt.js';
+import { readGateReceipt } from '../../../gate/index.js';
+import { receiptStore } from '../../../gate/index.js';
 import {
   dirname,
   join,
@@ -17,9 +17,9 @@ import {
   runProfiledShell,
   withLandingGateSlot,
   refuseSandboxBlocked,
-} from '../../../../src/gate.js';
-import { testsNeedBrowser } from '../../../../src/browser-admission.js';
-import { testsNeedGui } from '../../../../src/gui-admission.js';
+} from '../../../gate/index.js';
+import { testsNeedBrowser } from '../../../gate/index.js';
+import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
 import { Refused } from '../../../kernel/index.js';
 

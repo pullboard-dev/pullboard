@@ -12,8 +12,8 @@ import { unplanned } from '../bin/cells-plan.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** A real committed source checkout with the actual plan, native agents and normal hooks. */

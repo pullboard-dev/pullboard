@@ -1,6 +1,6 @@
 import { recordTrainLanding } from '../packages/landing/index.js';
 /** @pullboard-test-input source-tree */
-import { receiptBinds } from '../src/gate-run-receipt.js';
+import { receiptBinds } from '../packages/gate/index.js';
 import { gateRuns } from '../src/quarantine.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { policyAt } from '../packages/sandbox/index.js';
@@ -18,9 +18,9 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard, recordGateRun } from '../src/native-board.js';
 import { configFromSource } from '../packages/config/index.js';
-import { boardReceiptStore } from '../src/gate-run-receipt.js';
-import { readGateReceipt } from '../src/gate-run-receipt.js';
-import { receiptStore } from '../src/gate-run-receipt.js';
+import { boardReceiptStore } from '../packages/gate/index.js';
+import { readGateReceipt } from '../packages/gate/index.js';
+import { receiptStore } from '../packages/gate/index.js';
 import { appliedSequence } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';
@@ -32,7 +32,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';
-import { mainAuditKey } from '../src/main-audit-state.js';
+import { mainAuditKey } from '../packages/gate/index.js';
 import { prepareCommitMetadata } from '../packages/commits/index.js';
 
 /** Exercise the production evaluator with its genuine native store, policy and receipt providers. */

@@ -9,7 +9,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
-import { checkBaseline } from '../src/check-baseline.js';
+import { checkBaseline } from '../packages/gate/index.js';
 import { itemsTouching } from '../packages/commits/index.js';
 import { rigorReport } from '../src/board-rigor.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';

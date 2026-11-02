@@ -13,7 +13,7 @@ import {
 import {
   checkBaseline,
   prepareCheckBaseline,
-} from '../src/check-baseline.js';
+} from '../packages/gate/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Exercise each real bundled shell command, retaining all failures so both defects reproduce. */
