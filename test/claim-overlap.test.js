@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { claimWorktrees, claimOverlapLines } from '../packages/activity/index.js';
 import { claimOverlaps, liveClaimCollisions } from '../packages/items/index.js';
 
-test('two claimed Git worktrees name shared edits and protect an open item until release', t => {
+test('two claimed Git worktrees name shared edits and protect an open item until release', async t => {
   const root = mkdtempSync(join(tmpdir(), 'claim-overlap-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const git = (...args) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
@@ -39,6 +39,24 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.match(leftNotice, /#1 overlaps #2 \(two\) on shared\.js/);
   assert.match(rightNotice, /#2 overlaps #1 \(one\) on shared\.js/);
   assert.match(leftNotice, /#1 may be out of scope: #3 names shared\.js/);
+  const { openBoard } = await import('../src/native-board.js');
+  const store = await import('../src/board.js');
+  const { heartbeatCommand } = await import('../src/cli-presence.js');
+  const board = openBoard(':memory:');
+  t.after(() => store.closeBoard(board));
+  const left = store.register(board, { lane: 'core', path: first, route: 'strong' });
+  const right = store.register(board, { lane: 'core', path: second, route: 'strong' });
+  const a = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'First fixture' });
+  const b = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Second fixture' });
+  const freeze = item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' });
+  store.claim(board, a, { agentId: left, lane: 'core', leaseMs: 3600000, head: base, freeze });
+  store.claim(board, b, { agentId: right, lane: 'core', leaseMs: 3600000, head: base, freeze });
+  for (const [root, id, peer, owner] of [[first, a, b, right], [second, b, a, left]]) {
+    const lines = [];
+    heartbeatCommand({ err: line => lines.push(line) }, { ctx: { info: { root } }, board });
+    assert.match(lines.join('\n'), new RegExp(`#${id} overlaps #${peer} \\(${owner}\\) on shared\\.js`));
+  }
+
   assert.match(liveClaimCollisions(items[2], items, observations).join('\n'), /#3 waits for #1 \(one\) on shared\.js/);
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
 });
