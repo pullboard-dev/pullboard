@@ -618,7 +618,10 @@ export async function submitHere(ctx, id, infra) {
   let trunkMove = null;
   // A queued worker proves the immutable captured source and policy. Landing will
   // reconcile later main changes; do not attribute those unproved files to this gate.
-  if (isSubmitHandoffWorker(ctx) && currentTrunk.commit !== acceptedMain.commit) currentTrunk = acceptedMain;
+  if (isSubmitHandoffWorker(ctx) && currentTrunk.commit !== acceptedMain.commit) {
+    if (!contains(root, acceptedMain.commit, currentTrunk.commit)) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'current main no longer contains the queued accepted policy');
+    currentTrunk = acceptedMain;
+  }
   if (requireComposition && !companion && currentTrunk.commit !== acceptedMain.commit) {
     if (isSubmitHandoffWorker(ctx)) await withBoard(ctx, async board => {
       const job = submitHandoff(board, id);
