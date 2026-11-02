@@ -136,7 +136,7 @@ test('[N26] a milestone ships what landed and moves the rest', async (t) => {
   assert.match(text.stdout, /^A: 1\/3 landed · target 2026-01-02T03:04:00\.000Z, past target$/m, 'the text shows N/M landed, the target and past target');
   assert.match(text.stdout, /^ {2}#\d+ Landed work — landed$/m);
   assert.match(text.stdout, /^ {2}#\d+ Accepted work — accepted$/m);
-  assert.match(text.stdout, /^ {2}#\d+ Open work — open$/m);
+  assert.match(text.stdout, /^ {2}1\. #\d+ Open work — open$/m);
 
   // Shipping is the coordinator's move, not a builder's.
   assert.throws(() => shipMilestone(box.board, 'A', { agentId: box.builder, commit: box.git('rev-parse', 'main') }),
