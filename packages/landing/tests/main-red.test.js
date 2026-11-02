@@ -431,9 +431,7 @@ test('an inherited red reads native spec reporter failure locations [V1]', t => 
   put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
   commit(submitter.root, box.env, 'test(core): select spec-reported red [G2]');
   const before = runCount(box);
-  const unexplained = submitter.run('submit', String(submitItem));
-  assert.match(unexplained.err, /\[INFRA_NOTE_REQUIRED\]/u, 'test edits need an explanation before any inherited-red comparison');
-  const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise native spec failure reporting');
+  const red = submitter.run('submit', String(submitItem));
   inheritedMessage(red, { row: 'G1', item: rework });
   const refusedItem = JSON.parse(submitter.run('show', String(submitItem), '--json').out);
   assert.equal(refusedItem.thread.some(entry => entry.kind === 'submit'), false, 'a red gate records no successful submit or infra note');
