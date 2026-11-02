@@ -62,3 +62,30 @@ test('next skips a named file being edited and offers it after release', async t
   const offered = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles, omitIds: [edited] });
   assert.equal(offered.item?.item_id, waiting);
 });
+
+test('a merged main change is not attributed to the claimed worktree', t => {
+  const root = mkdtempSync(join(tmpdir(), 'claim-overlap-main-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'ignore' });
+  git(root, 'init');
+  git(root, 'branch', '-m', 'main');
+  git(root, 'config', 'user.name', 'Fixture');
+  git(root, 'config', 'user.email', 'fixture@example.test');
+  writeFileSync(join(root, 'base.js'), 'base\n');
+  git(root, 'add', '.');
+  git(root, 'commit', '-m', 'base');
+  const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  const seat = join(root, 'seat');
+  git(root, 'worktree', 'add', '--detach', seat, 'HEAD');
+  writeFileSync(join(seat, 'own.js'), 'own\n');
+  git(seat, 'add', 'own.js');
+  git(seat, 'commit', '-m', 'own work');
+  writeFileSync(join(root, 'trunk.js'), 'trunk\n');
+  git(root, 'add', 'trunk.js');
+  git(root, 'commit', '-m', 'trunk work');
+  git(seat, 'merge', '--no-edit', 'main');
+  const item = { item_id: 1, item_status: 'claimed', item_owner: 'one', item_claim_head: base };
+  const observed = claimWorktrees([item], [{ agent_id: 'one', agent_path: seat }]).get(1);
+  assert.equal(observed.unknown, false);
+  assert.deepEqual(observed.files, ['own.js']);
+});
