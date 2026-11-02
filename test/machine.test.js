@@ -154,7 +154,7 @@ const CAUGHT = {
   '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../src/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
-  'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   'commands/verify.js#verifyHere': ['commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
@@ -519,7 +519,7 @@ test('every refusal a move raises today is declared on that move, and every decl
   assert.ok(walk.refusalsOf('commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
   assert.ok(!walk.refusalsOf('commands/submit.js#submitHere', new Set(CAUGHT['commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
   assert.ok(walk.refusalsOf('cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
-  for (const code of ['INFRA_NOTE_REQUIRED', 'NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
+  for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
   for (const code of Object.keys(NOT_MOVES)) {

@@ -1,6 +1,6 @@
 /** Ship staged work through ordinary hooks, claim guards, submission and verdict waiting [V4,B3,C7]. */
 import { buildCommitMessage } from '../../packages/commits/index.js';
-import { landingMessage } from '../landing-message.js';
+import { landingMessage } from '../../packages/landing/index.js';
 import { loadSpec } from '../../packages/spec/index.js';
 import { firstRefusal } from '../../packages/store/index.js';
 import { listItems } from '../../packages/store/index.js';
@@ -75,7 +75,7 @@ export async function run(io, { first, second, rest, values }) {
       const current = withBoard(context(io), board => getItem(board, item.item_id));
       const spec = loadSpec(root, ctx.config);
       const rows = landingMessage(current, { spec }).rows;
-      const message = buildCommitMessage({ type: 'feat', scope: current.item_lane, title: current.item_title, item: current.item_id, rows }).message;
+      const message = buildCommitMessage({ type: 'feat', scope: current.item_lane, title: current.item_title, item: current.item_id, rows, preferRows: true }).message;
       gitStep(root, ['commit', '-m', message], 'commit', 'fix the hook refusal without bypassing it, then run pullboard ship again');
     }
     const main = mainCheckout(root);

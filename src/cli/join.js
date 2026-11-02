@@ -47,7 +47,7 @@ export async function bindWriteSession(io, positionals, values) {
   let agent = info.isMain ? COORDINATOR : null;
   if (!info.isMain) {
     const ctx = context(io);
-    const ownsLandingRoot = command === 'hook' ? (await import('../landing-candidates.js')).landingBatchOwnsRoot : () => false;
+    const ownsLandingRoot = command === 'hook' ? (await import('../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
     agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw withBoard(ctx, (board) => seatCheckout.unjoinedRefusal(info, store.listAgents(board), personIdentity.agentSessionDigest));

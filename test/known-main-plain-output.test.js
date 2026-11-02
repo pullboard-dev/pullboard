@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { runProfiledShellAsync } from '../src/gate-execution.js';
 import { existsSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
-import { mainFailureNotices } from '../src/main-red.js';
+import { mainFailureNotices } from '../packages/landing/index.js';
 import { fixture } from './known-main-affected.fixture.js';
 import { cli } from './known-main-affected.fixture.js';
 import { rows } from './known-main-affected.fixture.js';

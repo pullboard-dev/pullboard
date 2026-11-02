@@ -1,3 +1,4 @@
+import { landingFailureFindings } from './landing-failure.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
 import { reviewWait } from '../../../verify/index.js';
@@ -53,7 +54,7 @@ import { rowDecisions } from '../../../store/index.js';
 import { unverifiedSubmissions } from '../../../store/index.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import { staleRowDecisions } from '../../../spec/index.js';
-import { localReleaseRank } from '../../../../src/release-queue.js';
+import { localReleaseRank } from '../../../landing/index.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
 import { routeWorkShortages } from '../../../../src/route-capacity.js';
@@ -149,6 +150,7 @@ export function healthReport({ db, root, config, now, dispatchHealth, machineSet
   if (!db) return report;
   if (typeof dispatchHealth !== 'function') throw new TypeError('healthReport requires its dispatchHealth observation port');
   const at = now.getTime();
+  report.stuck.push(...landingFailureFindings({ db, clock: { now: () => now } }, now));
   const age = (iso) => at - Date.parse(iso);
   const board = { ...readBoardSnapshot(db, { now: () => now }), familyAliases: familyIndex(config?.families) };
   report.stuck.push(...missedJobFindings(board, at), ...dispatchHealth(board, config).findings);
