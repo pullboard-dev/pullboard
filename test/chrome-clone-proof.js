@@ -4,7 +4,7 @@ import { channel } from 'node:diagnostics_channel';
 import { existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, watch } from 'node:fs';
 import { hostname, loadavg, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from '../src/chrome-clone-check.js';
+import { chromeCloneDirectories, chromeCloneSnapshot, newChromeClones } from '../packages/gate/index.js';
 import { findChromeExecutable, launchChromeProcess } from './chrome-fixture.js';
 import { chromeLaunchArgs } from './chrome-launch-args.js';
 

@@ -2,8 +2,8 @@
 /** Private finite worker: no actor argument, credentials, host override or inherited admission [C7,V4]. */
 import * as nativeBoard from '../src/native-board.js';
 const { openBoardForRead } = nativeBoard;
-import { selectAffectedTests } from '../src/affected-tests.js';
-import { selectTestTreeGuards } from '../src/affected-tests.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { selectTestTreeGuards } from '../packages/gate/index.js';
 import { runnerExecutionServices } from '../src/runners.js';
 import { landingExecutionServices } from '../packages/landing/index.js';
 import { isAbsolute } from 'node:path';
@@ -11,10 +11,10 @@ import { runSourceAdvances } from '../packages/sandbox/index.js';
 import { context } from '../src/cli.js';
 import { ordered } from '../src/cli.js';
 import { withBoard } from '../src/cli.js';
-import { runSubmitGate } from '../src/gate.js';
+import { runSubmitGate } from '../packages/gate/index.js';
 import { withFileLock } from '../packages/outbox/index.js';
-import { readMainAudit } from '../src/main-audit-state.js';
-import { saveMainAudit } from '../src/main-audit-state.js';
+import { readMainAudit } from '../packages/gate/index.js';
+import { saveMainAudit } from '../packages/gate/index.js';
 import { landingLeaseState } from '../src/board-landing-lease.js';
 import { takeLandingResource } from '../packages/landing/index.js';
 

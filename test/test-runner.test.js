@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { importsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 import { commandDocs } from '../src/command-docs.js';
 
 test('tests run without inherited Git identity or config and refuse ambient pullboard [C7, S13]', (t) => {

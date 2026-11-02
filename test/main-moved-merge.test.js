@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { test } from 'node:test';
-import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
 import { mainMovedFixture } from './main-moved-fixture.js';
 
 /** Read the native checked source and immutable receipts after the independent worker has drained. */

@@ -25,7 +25,7 @@ import { heartbeatSeat } from '../packages/store/index.js';
 import { recurringJobs } from '../src/board-recurring-jobs.js';
 import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { loadConfig } from '../packages/config/index.js';
-import { gateRuns } from '../src/gate-control.js';
+import { gateRuns } from '../packages/gate/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 

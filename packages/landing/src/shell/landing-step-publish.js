@@ -18,7 +18,7 @@ import { mainCheckout } from '../../../../src/git.js';
 import { repoInfo } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
 import { untracked } from '../../../../src/git.js';
-import { isStampedGreen } from '../../../../src/gate.js';
+import { isStampedGreen } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { save } from './landing-step-merge.js';
 import { landingRunObserver } from './landing-step-gate.js';

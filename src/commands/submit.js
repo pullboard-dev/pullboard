@@ -10,7 +10,7 @@ import { toolRegenerationSource } from '../../packages/git/index.js';
 import { receiptLine as cellsReceiptLine } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
-import { runnerPhaseFields } from '../timing.js';
+import { runnerPhaseFields } from '../../packages/gate/index.js';
 import {
   pendingSubmitHandoff,
   submitHandoff,
@@ -25,10 +25,10 @@ import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { gateRuns } from '../quarantine.js';
-import { withImportParseCache } from '../module-import-cache.js';
-import { foreignNodeOptions } from '../test-isolation.js';
-import { importsIn } from '../module-imports.js';
-import { commonJsIn } from '../module-imports.js';
+import { withImportParseCache } from '../../packages/gate/index.js';
+import { foreignNodeOptions } from '../../packages/gate/index.js';
+import { importsIn } from '../../packages/gate/index.js';
+import { commonJsIn } from '../../packages/gate/index.js';
 import { requireSubmitCells } from '../../bin/cells-submit-checks.js';
 import { landedCutItemRows } from '../../bin/cells-submit-checks.js';
 import { privateCheckEnvelope } from '../runner-private-mode.js';
@@ -71,8 +71,8 @@ import { requireSubmitComposition } from '../../packages/items/index.js';
 import { composeAfterProof } from '../../packages/items/index.js';
 import { trunkMoveFact } from '../../packages/items/index.js';
 import { judgeTrunkMove } from '../../packages/verify/index.js';
-import { selectAffectedTests } from '../affected-tests.js';
-import { explicitCheckFiles } from '../browser-admission.js';
+import { selectAffectedTests } from '../../packages/gate/index.js';
+import { explicitCheckFiles } from '../../packages/gate/index.js';
 /** The pullboard submit command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
@@ -95,13 +95,13 @@ import { recordNativeProof } from '../../packages/verify/index.js';
 import { proofRunReceipt } from '../../packages/store/index.js';
 import {
   gateWaitReporter,
-} from '../gate-wait.js';
+} from '../../packages/gate/index.js';
 import {
   deferredSelectionNote,
   runStaticChecks,
   runSubmitGate,
   withGateSlot,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import {
   contains,
   git,

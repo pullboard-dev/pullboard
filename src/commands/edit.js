@@ -18,7 +18,7 @@ import {
   prepareCheckBaseline,
   refuseCheckSyntax,
   sayCheckBaseline,
-} from '../check-baseline.js';
+} from '../../packages/gate/index.js';
 import {
   relayCommandReceipt,
   relayCommandReceiptReported,

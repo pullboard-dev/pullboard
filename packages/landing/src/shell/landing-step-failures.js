@@ -10,6 +10,7 @@ import * as store from '../../../../src/board.js';
 export function landingFailures(output, root, { excludeCancelled = false } = {}) {
   const failures = [];
   let active = null;
+  const cases = [];
   /** A reported path relative to the root, or null when it lies outside it. */
   const inRoot = (path) => {
     const file = isAbsolute(path) ? relative(root, path) : path.replace(/^\.\//u, '');
@@ -18,13 +19,22 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
   // The spec reporter (Node 24's default for node --test) names each failure as "test at <file>:<line>" then "✖ <name>".
   let specFile;
   for (const line of output.split('\n')) {
+    const subtest = /^(\s*)# Subtest:\s*(.+)$/u.exec(line);
+    if (subtest) {
+      while (cases.length && cases.at(-1).indent >= subtest[1].length) cases.pop();
+      cases.push({ indent: subtest[1].length, name: subtest[2] });
+      continue;
+    }
     const at = /^\s*test at (.+?):\d+(?::\d+)?\s*$/u.exec(line);
     if (at) { specFile = inRoot(at[1]); active = null; continue; }
     const spec = specFile !== undefined ? /^\s*\u2716 (.+?)(?: \([\d.]+m?s\))?\s*$/u.exec(line) : null;
-    if (spec) { failures.push({ name: spec[1], file: specFile }); specFile = undefined; continue; }
+    if (spec) { active = { name: spec[1], file: specFile, spec: true }; failures.push(active); specFile = undefined; continue; }
     const failed = /^\s*not ok\s+\d+\s+-\s+(.*)$/u.exec(line);
     if (failed) {
       active = { name: failed[1].replace(/\s+#.*$/u, ''), file: null };
+      const indent = /^\s*/u.exec(line)[0].length;
+      const parents = cases.filter(entry => entry.indent < indent).map(entry => entry.name);
+      if (parents.length) active.caseNames = [...parents, active.name];
       failures.push(active);
       if (/^(?:\.\/)?(?:test|tests)\/[^\r\n]+\.(?:[cm]?js|ts|py)$/u.test(active.name)) active.file = active.name.replace(/^\.\//u, '');
     }
@@ -33,9 +43,20 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
       const file = inRoot(location[1]);
       if (file) active.file = file;
     }
+    if (active?.spec && /^\s+\S/u.test(line)) (active.detailLines ??= []).push(line.trim());
+    if (active && /^\s*\.\.\.\s*$/u.test(line)) active.diagnostic = false;
+    if (active && !active.spec && /^\s*(?:error|expected|actual):/u.test(line)) active.diagnostic = true;
+    if (active?.diagnostic && !/^\s*stack:/u.test(line)) (active.detailLines ??= []).push(line.trim());
+    if (active && /^\s*stack:/u.test(line)) active.diagnostic = false;
     if (excludeCancelled && active && /^\s*failureType:\s*['"]?(?:cancelledByParent|subtestsFailed)['"]?\s*$/u.test(line)) active.omit = true;
   }
-  const unique = new Map(failures.filter(entry => !entry.omit).map(({ file, name }) => [`${file}\0${name}`, { name, file }]));
+  const unique = new Map(failures.filter(entry => !entry.omit).map(({ file, name, caseNames, detailLines }) => {
+    const bytes = Buffer.from((detailLines ?? []).join('\n'));
+    let end = Math.min(bytes.length, 2048);
+    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end -= 1;
+    const assertion = bytes.length > 2048 ? `${bytes.subarray(0, end).toString('utf8')}\n[assertion truncated at 2 KB]` : bytes.toString('utf8');
+    return [`${file}\0${JSON.stringify(caseNames ?? [name])}`, { name, file, ...(caseNames ? { caseNames } : {}), ...(assertion ? { assertion } : {}) }];
+  }));
   return [...unique.values()];
 }
 

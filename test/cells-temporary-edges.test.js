@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree bin/cells-plan/** */
 /** Temporary import debt has an explicit removal owner, UTC expiry and visible shim count [C7]. */
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';

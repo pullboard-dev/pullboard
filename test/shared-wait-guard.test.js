@@ -15,7 +15,7 @@ import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const COCKPIT = join(ROOT, 'test', 'cockpit');

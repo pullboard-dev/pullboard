@@ -1,6 +1,6 @@
 /** Read a privacy-safe runner capacity snapshot for one explicit stats window [C7,O5]. */
-import { guiSession } from './gui-session.js';
-import { retainedReceipts } from './gate-receipt.js';
+import { guiSession } from '../packages/gate/index.js';
+import { retainedReceipts } from '../packages/gate/index.js';
 import { localRunnerDescriptor } from './runner-load.js';
 import {
   listResources,

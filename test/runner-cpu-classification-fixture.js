@@ -4,8 +4,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { cpuLoadOptionsIn } from '../src/module-imports.js';
-import { testsNeedCpuRunner } from '../src/cpu-load-admission.js';
+import { cpuLoadOptionsIn } from '../packages/gate/index.js';
+import { testsNeedCpuRunner } from '../packages/gate/index.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Exercise both ordinary executable shapes and explicit positive/negative declarations. */

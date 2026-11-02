@@ -4,7 +4,7 @@ import { submitFixture } from './board-submit-fixture.js';
 import { fixtureBoard } from './board-fixture.js';
 import { landedCutItemRows } from '../bin/cells-submit-checks.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
+import { withImportParseCache } from '../packages/gate/index.js';
 /** A cell's landed import cut is a ratchet: new upward or front-door-skipping imports refuse at submit, old ones do not [C7,D3]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -16,9 +16,9 @@ import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { withMainCheckout } from '../packages/landing/index.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 

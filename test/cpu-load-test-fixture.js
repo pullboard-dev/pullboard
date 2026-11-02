@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 

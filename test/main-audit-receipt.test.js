@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
-import { receiptBody, receiptFields } from '../src/gate-run-receipt.js';
+import { receiptBody, receiptFields } from '../packages/gate/index.js';
 
 /** Explicit synthetic parser input has no native receipt file and cannot authorize a gate event. */
 function input() {

@@ -1,7 +1,7 @@
 import { copyPackageFiles } from '../src/package-files.js';
 /** Shared registered-runner test tooling and bounded round-trip helpers. */
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';

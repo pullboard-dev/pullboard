@@ -15,7 +15,7 @@ import { configFromSource } from '../packages/config/index.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { settingsInventory } from '../packages/config/index.js';
 import { describeSetting } from '../packages/config/index.js';
-import { performanceCores } from '../src/gate.js';
+import { performanceCores } from '../packages/gate/index.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,
