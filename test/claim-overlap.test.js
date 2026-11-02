@@ -138,4 +138,8 @@ test('the real next command routes around a live worktree edit', async t => {
   const next = box.run(second, 'next', '--build', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).item.item_id, free, `#${blocked} must wait while #${changed} edits web/shared.js`);
+  mkdirSync(join(second, 'web'), { recursive: true });
+  writeFileSync(join(second, 'web', 'shared.js'), 'other work\n');
+  const submit = box.run(box.web, 'submit', String(changed));
+  assert.match(submit.err, new RegExp(`#${changed} overlaps #${free} .*web/shared\\.js`));
 });
