@@ -17,9 +17,8 @@ function fixture(t, failing) {
   put('bin/guarded-docs-refresh.js', readFileSync(new URL('../bin/guarded-docs-refresh.js', import.meta.url)));
   put('packages/merge/core.js', "export const GENERATED_DOC_PATHS = ['docs/formats.md'];\n");
   put('docs/formats.md', 'old\n');
-  put('bin/update-docs.js', "import {writeFileSync} from 'node:fs'; writeFileSync('docs/formats.md', 'generated\\n');\n");
+  put('bin/update-docs.js', `import {writeFileSync} from 'node:fs'; if (process.argv.includes('--check')) { process.exitCode = ${failing === 'docs' ? 1 : 0}; } else { writeFileSync('docs/formats.md', 'generated\\n'); }\n`);
   put('docs/formats.test.js', `import { test } from 'node:test'; import assert from 'node:assert/strict'; test('formats', () => assert.equal(${failing === 'formats' ? 'false' : 'true'}, true));\n`);
-  put('test/generated-docs.test.js', `import { test } from 'node:test'; import assert from 'node:assert/strict'; test('docs', () => assert.equal(${failing === 'docs' ? 'false' : 'true'}, true));\n`);
   put('bin/pullboard.js', `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(join(root, '..', `${root.split('/').at(-1)}-shout`))}, process.argv.join(' '));\n`);
   git('add', '-A'); git('commit', '-q', '-m', 'fixture');
   const before = git('rev-parse', 'HEAD');

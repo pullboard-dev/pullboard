@@ -40,8 +40,19 @@ try {
   const base = git(root, 'rev-parse', 'HEAD'); requireSuccess(base, phase);
   const opened = git(root, 'worktree', 'add', '--detach', checkout, base.stdout.trim()); requireSuccess(opened, phase); added = true;
   phase = 'generate'; requireSuccess(run(checkout, process.execPath, ['bin/update-docs.js']), phase);
-  phase = 'formats guard'; requireSuccess(run(checkout, process.execPath, ['--test', 'docs/formats.test.js']), phase);
-  phase = 'docs guard'; requireSuccess(run(checkout, process.execPath, ['--test', 'test/generated-docs.test.js']), phase);
+  phase = 'generation scope';
+  const changed = git(checkout, 'diff', '--name-only', 'HEAD'); requireSuccess(changed, phase);
+  if (changed.stdout.trim().split('\n').filter(Boolean).some(file => !GENERATED_DOC_PATHS.includes(file))) throw new Error('generator changed a non-generated file');
+  const extra = git(checkout, 'ls-files', '--others', '--exclude-standard'); requireSuccess(extra, phase);
+  if (extra.stdout.trim()) throw new Error('generator created untracked files');
+  const snapshot = git(checkout, 'diff', '--binary', 'HEAD'); requireSuccess(snapshot, phase);
+  phase = 'formats guard'; requireSuccess(run(checkout, process.execPath, ['--test', '--test-timeout=120000', 'docs/formats.test.js']), phase);
+  phase = 'docs guard'; requireSuccess(run(checkout, process.execPath, ['bin/update-docs.js', '--check']), phase);
+  phase = 'guard integrity';
+  const after = git(checkout, 'diff', '--binary', 'HEAD'); requireSuccess(after, phase);
+  const remaining = git(checkout, 'ls-files', '--others', '--exclude-standard'); requireSuccess(remaining, phase);
+  const staged = git(checkout, 'diff', '--cached', '--quiet');
+  if (after.stdout !== snapshot.stdout || remaining.stdout.trim() || staged.status !== 0) throw new Error('a guard changed the generated tree');
   phase = 'stage'; requireSuccess(git(checkout, 'add', '--', ...GENERATED_DOC_PATHS), phase);
   const diff = git(checkout, 'diff', '--cached', '--quiet');
   if (diff.status === 0) { process.stdout.write('generated documentation is already current\n'); }
