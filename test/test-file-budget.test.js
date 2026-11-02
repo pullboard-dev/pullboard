@@ -14,6 +14,8 @@ import { readTestFileBudgets } from '../packages/gate/src/shell/test-file-budget
 import { testFileBudgetPath } from '../packages/gate/src/shell/test-file-budget-policy.js';
 import { writePlacementIndex } from '../packages/gate/src/shell/test-economics-index.js';
 import { indexedStageSelection } from '../packages/gate/src/shell/test-economics-index.js';
+import { inCleanCheckout } from '../packages/gate/src/shell/test-run.js';
+import { withMainCheckout } from '../packages/landing/src/shell/main-red.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
@@ -40,8 +42,18 @@ function fixture(t) {
   const run = (cwd = candidate, files = ['slow.test.js', 'later.test.js'], flags = []) => runFixtureChild(process.execPath, [runner, ...flags, ...files], {
     cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine') }, encoding: 'utf8', detached: true,
   });
-  return { candidate, git, path, run };
+  return { main, candidate, git, path, run };
 }
+
+test('a dirty seat snapshot carries accepted main into its detached runner checkout [C7]', async t => {
+  const box = fixture(t);
+  writeFileSync(join(box.candidate, 'later.test.js'), "import {test} from 'node:test'; test('changed',()=>{});\n");
+  await inCleanCheckout(box.candidate, async snapshot => {
+    assert.notEqual(snapshot, box.candidate);
+    assert.equal(readTestFileBudgets(snapshot, ['slow.test.js']).get('slow.test.js').ms, 1);
+    assert.equal(box.git(snapshot, 'rev-parse', '--abbrev-ref', 'HEAD'), 'HEAD', 'snapshot is detached');
+  }, withMainCheckout);
+});
 
 test('an over-budget file fails with its observed runtime, while audit placement passes [C7]', t => {
   const box = fixture(t);

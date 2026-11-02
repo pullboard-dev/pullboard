@@ -30,7 +30,9 @@ function rowsAt(root, ref, paths, env) {
     for (const path of entry.stdout.split('\0').filter(Boolean)) {
       const result = tryGit(root, ['show', `${ref}:${path}`], { env });
       if (result.status !== 0) throw new Error(`cannot read test file budget row ${path}`);
-      const value = JSON.parse(result.stdout);
+      let value;
+      try { value = JSON.parse(result.stdout); }
+      catch { throw new Error(`invalid test file budget row ${path}`); }
       if (value?.version !== 1 || typeof value.file !== 'string' || !Object.hasOwn(value, 'ms') || testFileBudgetPath(value.file) !== path
         || value.placement !== undefined && value.placement !== 'audit') throw new Error(`invalid test file budget row ${path}`);
       rows.set(path, { file: value.file, ms: testFileLimit(value.ms), audit: value.placement === 'audit' });
