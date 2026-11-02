@@ -14,11 +14,11 @@ import * as store from '../src/board.js';
 import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { SEALED_SNAPSHOT_BYTES as RELAY_LIMIT, SNAPSHOT_BODY_BYTES as BODY_LIMIT } from '../packages/link/index.js';
-import { presentationDigest, relaySnapshot } from '../src/relay-presentation.js';
+import { presentationDigest, relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
-import { readSealedDescriptor } from '../src/sealed-pages.js';
-import { openPagedSnapshot } from '../src/relay-page-layout.js';
+import { readSealedDescriptor } from '../packages/pages/index.js';
+import { openPagedSnapshot } from '../packages/pages/index.js';
 import { PROOF_RUN_ENGINE } from '../src/proof-run-engine.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */

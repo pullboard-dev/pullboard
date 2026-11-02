@@ -1156,6 +1156,14 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/clause-inspection-engine.js",
+      "reason": "canonical feature engine identity; landing assigns its next number and freezes move history"
+    },
+    {
+      "path": "test/inspection-clauses.test.js",
+      "reason": "frozen item2050 native check entry; exercises the canonical state front door"
+    },
+    {
       "path": "src/move-history/195.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1164,7 +1172,43 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/blocked-dependencies-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "bin/guarded-docs-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/item-folder-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/197.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/seat-timing.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/seat-ledger.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/command-docs/seats.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-test-placement.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/198.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/199.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { startFixtureChild } from './fixture-child.js';
+import { stopGroup } from './runner-process-group.js';
 
 /** Read a private board through public functions, never by mutating its database. */
 export function onBoard(box, action, clock) {
@@ -83,15 +84,9 @@ export function startInterruptedLanding(box, entry, t) {
   child.stdout.on('data', part => { outputBytes += Buffer.byteLength(part); });
   child.stderr.on('data', part => { outputBytes += Buffer.byteLength(part); });
   const closed = new Promise(resolveClose => child.once('close', (status, signal) => resolveClose({ status, signal })));
-  t.after(() => {
+  t.after(async () => {
     writeFileSync(box.release, 'release');
-    if (child.exitCode === null && child.signalCode === null) {
-      try { process.kill(-child.pid, 'SIGKILL'); }
-      catch (error) {
-        // The test deliberately kills this owned group; cleanup may observe it already gone.
-        if (error.code !== 'ESRCH') throw error;
-      }
-    }
+    await stopGroup(child, closed);
   });
   return { child, closed, waitForGate: () => waitForFixtureProgress({
     child,

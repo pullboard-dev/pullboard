@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
-import { relaySnapshot } from '../src/relay-presentation.js';
+import { relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, readRelay } from './relay-study-fixture.js';
 

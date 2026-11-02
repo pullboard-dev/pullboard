@@ -1,3 +1,4 @@
+import { withCellLintParser } from '../packages/codemap/index.js';
 import { inventoryCache } from './cells-inventory-cache.js';
 import { observationCache } from './cells-inventory-cache.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
@@ -211,7 +212,7 @@ function temporaryProblems(mainRoot, candidateRoot, criterion) {
 /** Memoize only within this census using actual higher-controller runtime policy. */
 export function cellsSnapshotProblems(mainRoot, candidateRoot, options) {
   if (typeof options?.withImportParseCache !== 'function' || typeof options?.cacheEligible !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical census cache services are required');
-  return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible, observations: options.observations, warmAll: options.warmAll }));
+  return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible, observations: options.observations, warmAll: options.warmAll, onProbe: options.onBindingProbe }));
 }
 
 /** Read candidate plan data without allowing shard aliases or symbolic paths outside the snapshot. */
@@ -388,10 +389,10 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
       ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
-    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: Boolean(receiptKey), onAllCells: services.onAllCells });
+    const result = withCellLintParser(() => cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: false, onBindingProbe: services.onBindingProbe, onAllCells: services.onAllCells }));
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
-      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations: observations.values, cacheEligible: samePreloads, onCellObservation: services.onCellObservation }));
+      const cuts = withCellLintParser(() => withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations: observations.values, cacheEligible: samePreloads, onCellObservation: services.onCellObservation })));
       unchangedSnapshot(baseRoot, cutBase);
       unchangedSnapshot(sourceRoot, source);
       return cuts;

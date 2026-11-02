@@ -1,5 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { clauseInspectionProblem } from '../../packages/state/index.js';
+import { clauseInspectionSummary } from '../../packages/state/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
@@ -280,6 +282,7 @@ export function boundedMainRedShout(id, failures, main) {
 
 export async function submitHere(ctx, id, infra) {
   const { root } = ctx.info;
+  const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {
@@ -310,6 +313,8 @@ export async function submitHere(ctx, id, infra) {
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     const readiness = barReadyProblem(board, item);
     if (readiness) throw readiness;
+    const clauseProblem = inspectClauses ? clauseInspectionProblem(item, store.itemThread(board, id)) : null;
+    if (clauseProblem) throw clauseProblem;
     const correction = store.pendingRefreezeProblem(board, id);
     if (correction) {
       await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
@@ -328,6 +333,12 @@ export async function submitHere(ctx, id, infra) {
   });
   if (barWarning) {
     ctx.io.say(`bar.check warning: ${barWarning}`);
+  }
+  if (inspectClauses) {
+    await withBoard(ctx, async board => {
+      const summary = clauseInspectionSummary(held, store.itemThread(board, id));
+      if (summary) await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: summary }]);
+    });
   }
   const policy = itemPolicy(root, held);
   let acceptedMain = submitHandoffPolicy(ctx) ?? mainPolicy(root);
@@ -393,7 +404,7 @@ export async function submitHere(ctx, id, infra) {
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
-  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
+  withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize, inspectClauses }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
     if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
@@ -642,6 +653,7 @@ export async function submitHere(ctx, id, infra) {
       if (Object.hasOwn(receipt, 'blockingVerdict')) quarantineProofIds.push(receiptId);
     }
     const submittedMove = await ordered(ctx, board, 'submit', [id, { agentId: me.id, commit: submitted, tree: headTree(root) ?? '', files: filesSince(root, id, claimHead, commit), policyCommit: acceptedMain.commit, ...(infraRecord ? { infra: infraRecord } : {}),
+      ...(inspectClauses ? { inspectClauses: true } : {}),
       gateGreen: gate.isGreen && !waived && !criterionMatched,
       ...(autoMainReds ? { autoMainReds } : {}),
       ...(quarantineProofIds.length ? { quarantineProofIds } : {}),

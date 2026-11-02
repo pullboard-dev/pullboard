@@ -5,6 +5,9 @@ import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -368,7 +371,7 @@ test('accessor arrays and generator callers retain ordinary real binding computa
 
 test('eligible runtime context changes require a fresh real binding compiler observation [C7,D3]', t => {
   const calls = bindingCompilerCalls(t), before = process.env.NODE_OPTIONS;
-  const owned = new URL('../src/browser-slot-guard.js', import.meta.url).href;
+  const owned = new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url).href;
   const next = `${before ?? ''} --import=${owned}`.trim();
   try {
     withBindingReadCache(() => {
@@ -393,25 +396,33 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   });
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
   const candidate = commitCandidate(box), observed = {}, calls = bindingCompilerCalls(t, observed);
+  let requested = 0, computed = 0;
+  const run = item => preflight(box.root, box.main, candidate, item, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+    readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+    onBindingProbe: row => { requested += row.requested; computed += row.computed; } });
   let cached;
-  try { await requireSubmitCells(box.root, box.main, candidate, box.item); }
+  try { await run(box.item); }
   catch (error) { cached = error; }
   assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
-  const first = { ...observed }, before = process.env.NODE_OPTIONS;
+  const first = { ...observed, requested, computed }, before = process.env.NODE_OPTIONS;
   observed.imports = 0; observed.bindings = 0;
+  requested = 0; computed = 0;
   const changedCriterion = { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries with another criterion.' }) };
-  await assert.rejects(requireSubmitCells(box.root, box.main, candidate, changedCriterion), /kernel --cuts: kernel still imports later stats/u);
-  assert.equal(observed.bindings, 0, 'a refused candidate still preserves complete snapshot observations for a later criterion');
+  await assert.rejects(run(changedCriterion), /kernel --cuts: kernel still imports later stats/u);
+  assert.equal(computed, 0, 'a refused candidate still preserves complete binding observations for a later criterion');
   observed.imports = 0; observed.bindings = 0;
+  requested = 0; computed = 0;
   try {
     process.env.NODE_OPTIONS = '--no-warnings';
     assert.equal(bindingCacheEligible(), false);
     let uncached;
-    try { await requireSubmitCells(box.root, box.main, candidate, box.item); }
+    try { await run(box.item); }
     catch (error) { uncached = error; }
     assert.equal(uncached?.message, cached.message, 'the exact full diagnostics do not change when canonical policy bypasses both caches');
     assert.ok(observed.imports > first.imports, 'actual submit entry bypasses import-parser reuse');
-    assert.ok(observed.bindings > first.bindings, 'actual submit entry bypasses repeated binding-probe reuse');
+    assert.ok(first.requested > first.computed, 'eligible actual submit reuses binding probes within the census');
+    assert.equal(computed, requested, 'canonical bypass recompiles every requested binding probe');
+    assert.ok(computed > first.computed, 'actual submit entry bypasses repeated binding-probe reuse');
     assert.ok(calls() > 0);
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });
@@ -532,6 +543,23 @@ test('shared cell inventory updates changed modules and reports structural fallb
   assert.equal(modes.at(-1), 'candidate-full-fallback');
 });
 
+test('damaged inventory cache is discarded and rebuilt from the immutable snapshot [C7,D3]', t => {
+  const box = fixture(t), main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const key = { checkDigest: 'damaged-inventory' }, parsers = { importsIn, commonJsIn }, modes = [];
+  const first = inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  const directory = join(box.root, '.git', 'pullboard', 'cells-inventory');
+  const file = join(directory, readdirSync(directory).find(name => name.endsWith('.json.gz')));
+  writeFileSync(file, 'not a valid compressed inventory');
+  const rebuilt = inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full');
+  assert.deepEqual(rebuilt.edges, first.edges);
+  inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-cache', 'the rebuilt cache can be read');
+  writeFileSync(file, gzipSync(Buffer.from(JSON.stringify({ version: 1, commit: main, payload: {} }))));
+  inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full', 'the old JSON format is not trusted as binary evidence');
+});
+
 test('one changed cell selects its importers without unrelated cells [C7,D3,CD64]', async t => {
   const box = plannedFixture(t);
   box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
@@ -592,7 +620,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
   const box = plannedFixture(t, ({ put }) => {
     const cells = { kernel: ['src/refused.js'], store: ['src/board.js'], items: ['src/claims.js'],
       stats: ['src/stats.js'], 'app:cli': ['src/cli.js'] };
-    for (let index = 0; index < 32; index++) {
+    for (let index = 0; index < 96; index++) {
       const name = `extra${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + index % 26)}`, file = `src/${name}.js`;
       cells[name] = [file];
       put(file, `export const ${name} = ${index};\n`);
@@ -604,11 +632,21 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
   assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
   box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {} // one-cell change\n');
   const candidate = commitCandidate(box);
+  const compilerCalls = bindingCompilerCalls(t);
+  const spawn = childProcess.spawn;
+  let workers = 0;
+  t.mock.method(childProcess, 'spawn', (...args) => {
+    if (args[0] === process.execPath && args[1]?.some(value => String(value).endsWith('cell-parser-worker.js'))) workers++;
+    return spawn(...args);
+  });
+  syncBuiltinESMExports();
   const started = performance.now();
   const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
   const elapsed = performance.now() - started;
   t.diagnostic(`many-cell candidate stage: ${elapsed.toFixed(1)}ms`);
   assert.ok(elapsed < 60_000, `the complete cell stage took ${elapsed.toFixed(1)}ms; limit 60000ms`); // budget: ceiling from the #2313 bar (60 s for an ordinary change)
+  assert.ok(compilerCalls() <= 4, 'compiler setup is bounded independently of the number of source files');
+  assert.ok(workers <= 2, `the census uses at most two shared parser workers, got ${workers}`);
   assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
   box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,

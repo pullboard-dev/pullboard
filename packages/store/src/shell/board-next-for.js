@@ -184,7 +184,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   for (const { entry, shared, reworkRouting: rework } of mine) {
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
-      .filter((before) => before.item_status !== 'verified');
+      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
     if (continuation) { reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {

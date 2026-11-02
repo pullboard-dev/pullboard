@@ -22,7 +22,7 @@ import { join } from 'node:path';
 export function serveHealth(encodedRequest) {
   try {
     const { request, root } = readRequest(encodedRequest);
-    process.stdout.write(JSON.stringify(request.job !== undefined ? runnerJobReply(root, request)
+    process.stdout.write(JSON.stringify(request.job !== undefined ? runnerJobReply(root, request, { census: processCensus })
       : request.idle === true ? runnerIdleReply(root, request, processCensus) : runnerHealthReply(root, request)) + '\n');
   } catch { process.exitCode = 1; }
 }
