@@ -547,9 +547,8 @@ test('a suite starts promptly on a mostly idle runner fleet [C7,Q1,Q2]', async (
     let suite;
     try {
       for (let index = 0; index < 12; index += 1) held.push(await takeResource(options));
-      const start = Date.now();
-      suite = await takeResource({ ...options, browser: true, kind: 'suite', runnerWaitMs: 5_000 });
-      assert.ok(Date.now() - start < 5_000, 'a fleet with 33 free gate slots admits the suite without waiting for a holder');
+      suite = await takeResource({ ...options, browser: true, kind: 'suite', runnerWaitMs: 5_000,
+        onWait: state => { if (!state.admitted) assert.fail('a mostly idle fleet must admit without queueing'); } });
       assert.ok(suite.runner);
     } finally { suite?.release(); for (const lease of held) lease.release(); }
   });
