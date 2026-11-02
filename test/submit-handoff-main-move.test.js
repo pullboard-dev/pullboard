@@ -39,7 +39,8 @@ const root=${JSON.stringify(box.repo)}, marker=${JSON.stringify(join(box.dir, 'g
 test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !existsSync(marker)) {
   if (${JSON.stringify(gateMove)} === 'policy') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.verify={...c.verify,family:'require'}; writeFileSync(f,JSON.stringify(c)); }
   else writeFileSync(root+'/gate-advance.txt','advanced');
-  execFileSync('git',['-C',root,'add','-A']); execFileSync('git',['-C',root,'commit','-qm','chore: advance during gate [G1]']); writeFileSync(marker,'done'); } assert.equal(feature,'item'); });\n`);
+  const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GIT_')));
+  execFileSync('git',['-C',root,'add','-A'],{env}); execFileSync('git',['-C',root,'commit','-qm','chore: advance during gate [G1]'],{env}); writeFileSync(marker,'done'); } assert.equal(feature,'item'); });\n`);
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
   const config = join(box.repo, 'pullboard.json');
