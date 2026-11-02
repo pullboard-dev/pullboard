@@ -8,7 +8,7 @@ import { recordBlock } from '../packages/items/index.js';
 import {
   relayPresentation,
   presentationDigest,
-} from '../src/relay-presentation.js';
+} from '../packages/pages/index.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;

@@ -16,7 +16,7 @@ import * as store from '../src/board.js';
 import { addMilestone, editMilestoneItems, orderMilestoneItems, editMilestone, moveMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
 import * as milestones from '../src/board.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
-import { relaySnapshot } from '../src/relay-presentation.js';
+import { relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';
 import { serveApi } from '../packages/api/index.js';
