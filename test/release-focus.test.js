@@ -7,6 +7,7 @@ import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
 import { crossLaneFixture } from './e2e-helpers.js';
 import { openBoard } from '../src/native-board.js';
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 function setup(t) {
   const { board, builder, reviewer } = boardFixture();
@@ -73,6 +74,22 @@ test('focused draft rows form one approval batch for unlanded items [B26,C7]', a
       { id: 'A1', kind: 'spec', text: 'A', items: [1, 2] },
       { id: 'B1', kind: 'doctrine', text: 'B', items: [1] },
     ] }]);
+});
+
+test('real project state feeds focused draft rows into one Needs-you batch [B26,C7]', async t => {
+  const box = crossLaneFixture(t);
+  const item = box.add('web', 'Needs the focused row');
+  box.milestone('0.9.3', item);
+  box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
+  const spec = join(box.repo, 'SPEC.md');
+  writeFileSync(spec, readFileSync(spec, 'utf8').replace('G1 [approved, must]', 'G1 [draft, must]'));
+  const { projectState } = await import('../src/serve.js');
+  const { personNeeds } = await import('../packages/spec/index.js');
+  const state = projectState(box.repo);
+  assert.deepEqual(state.focusMilestone, { name: '0.9.3', items: [item] });
+  const batches = personNeeds(state).filter(need => need.kind === 'focus-approval-batch');
+  assert.equal(batches.length, 1);
+  assert.deepEqual(batches[0].rows, [{ id: 'G1', kind: 'spec', text: 'The page renders.', items: [item] }]);
 });
 
 test('overflow checks focused builds and reviews together [B26,C7]', t => {
