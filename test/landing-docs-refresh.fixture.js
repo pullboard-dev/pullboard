@@ -51,15 +51,15 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps/lib', 'docs', 'relay', 'package.json',
-    'test/runner-slots-measured.test.js', 'test/exit-rules.test.js', 'test/worktree-maintenance-scheduler.test.js',
-    'test/worktree-maintenance-retention.fixture.js', 'test/worktree-maintenance-scheduler.fixture.js', 'test/worktree-maintenance-archive.fixture.js'],
+  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps/lib', 'docs', 'relay', 'package.json'],
     { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.context);
-  const extracted = runFixtureChild('tar', ['-xf', '-', '-C', box.repo], { input: archive.stdout, env });
+  const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', '-', '-C', box.repo], { input: archive.stdout, env });
   assert.equal(extracted.status, 0, extracted.context);
   // The private project uses its own explicit gate, not this repository's generated test inventory.
   rmSync(join(box.repo, 'packages/gate/test-tiers.json'));
+  // Its source layout is real, but this private project has no inherited cell plan or package test suite.
+  rmSync(join(box.repo, 'bin/cells-plan.json'));
   const armed = join(box.dir, 'landing-gate-armed');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.gate = 'node --test --test-reporter=tap web/docs.test.js';
