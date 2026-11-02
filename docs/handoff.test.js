@@ -40,9 +40,9 @@ test('the hand-off guide matches the board [B3,N19]', () => {
       '--evidence', 'attempt', '--outcome', 'integrating', '--item', String(id), '--commit', accepted);
 
     const ask = JSON.parse(command(box, box.web, 'shout', 'coordinator',
-      'Which page should follow?', '--decision', '--json')).id;
+      'Which page should follow?', '--decision', '--kind', 'decision', '--json')).id;
     const answered = JSON.parse(command(box, box.web, 'shout', 'coordinator',
-      'May the checked page proceed?', '--decision', '--json')).id;
+      'May the checked page proceed?', '--decision', '--kind', 'decision', '--json')).id;
     command(box, box.repo, 'answer', String(answered), 'Proceed with the checked page.');
     const person = JSON.parse(command(box, box.repo, 'shout', 'person',
       'Should the release wait for another page?', '--decision', '--json')).id;
