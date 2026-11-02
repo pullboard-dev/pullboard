@@ -106,7 +106,7 @@ export function proofStats(board, { since, now = Date.now(), onFallback } = {}, 
   // A SAVEPOINT is read-only until a write occurs, and nests inside callers' transactions.
   // Hold one snapshot across the cursor, projection shards, and verdicts while other seats append.
   board.db.exec('SAVEPOINT proof_stats_read');
-  try { return { ...proofStatsSnapshot(board, boundary, now, onFallback, reads), notesPerSubmit: notesPerSubmit(board, boundary) }; }
+  try { return { ...proofStatsSnapshot(board, boundary, now, onFallback, reads), notesPerSubmit: notesPerSubmit(board, boundary), workFreeReleases: readWorkFreeReleases(board.db, { since: boundary }) }; }
   finally { board.db.exec('RELEASE proof_stats_read'); }
 }
 
@@ -131,3 +131,4 @@ function notesPerSubmit(board, boundary) {
     GROUP BY event_by ORDER BY event_by`).all(boundary, boundary)
     .map(row => ({ ...row, notesPerSubmit: row.submits ? row.notes / row.submits : null }));
 }
+import { readWorkFreeReleases } from '../core/work-free-releases.js';

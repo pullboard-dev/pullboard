@@ -1322,6 +1322,14 @@
     {
       "path": "relay/browser-adapter.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/taken-over-release-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/211.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
