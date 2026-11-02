@@ -45,6 +45,13 @@ export function recordLandingBatch(board, { agentId, batch, revision = 0, landin
     guardLandingWrite(board, landingFence);
     const previous = landingBatches(board).find((entry) => entry.id === batch.id);
     if (previous?.flakeRatchet && (!batch.flakeRatchet || ['pushed', 'trunk'].includes(previous.state) && JSON.stringify(previous.flakeRatchet) !== JSON.stringify(batch.flakeRatchet))) throw new Refused('LAND_BATCH', 'preserve the published flake ratchet snapshot');
+    if (batch.flakeRatchet && JSON.stringify(previous?.flakeRatchet ?? null) !== JSON.stringify(batch.flakeRatchet)) {
+      const maxEvent = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
+      if (batch.flakeRatchet.eventId > maxEvent) throw new Refused('LAND_BATCH', 'the flake ratchet event boundary must already exist');
+      const changed = board.db.prepare(`SELECT 1 FROM event WHERE event_id>? AND event_kind IN
+        ('test-quarantine','flake-observation','flake-repair','gate-run','accept','reject','reopen','withdraw','merged') LIMIT 1`).get(batch.flakeRatchet.eventId);
+      if (changed) throw new Refused('BOARD_BUSY', 'flake evidence or repair status changed before the landing snapshot was recorded; retry the landing');
+    }
     board.nativePorts.landingEnvironment.requireRevision(board, previous, batch);
     preserveInvariantEvidence(previous, evidence, board.executionEngineVersion ?? ENGINE_VERSION);
     validateLandingRevision(previous, batch, revision);
