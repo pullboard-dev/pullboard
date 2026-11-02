@@ -14,10 +14,25 @@ import { HELP } from '../src/cli.js';
 import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
 import { viewPureGate } from './checks/view-pure.js';
 import { boardWriteIoProblems } from './checks/board-write-io.js';
+import { engineFolderViolations } from '../packages/state/index.js';
+import { fixedWallMargins } from '../test/wall-clock-budgets.js';
 
 // Only the executable composes higher CLI services; importing this module does not run the preflight.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
 const root = process.cwd();
+if (process.argv[2] === '--changed-files') {
+  const files = process.argv.slice(3);
+  const sources = files.filter(file => /^(?:src|packages|apps)\//u.test(file) && /\.[cm]?js$/u.test(file))
+    .map(file => ({ file, source: readFileSync(join(root, file), 'utf8') }));
+  const failures = [
+    ...importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`),
+    ...engineFolderViolations(sources).map(row => `${row.file}:${row.line}: ${row.text}`),
+  ];
+  for (const file of files) {
+    if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) failures.push(...fixedWallMargins(readFileSync(join(root, file), 'utf8'), file));
+  }
+  if (failures.length) { process.stderr.write(`${failures.join('\n')}\n`); process.exitCode = 1; }
+} else {
 let failed = false;
 const sources = styleSources(root);
 for (const row of importStyleViolations(sources)) {
@@ -55,4 +70,5 @@ for (const row of doctrineReport(root, loadConfig(root))) {
 }
 if (!failed) console.log('static style, prose declarations, clock budgets and doctrine hold');
 process.exitCode = failed ? 1 : 0;
+}
 }

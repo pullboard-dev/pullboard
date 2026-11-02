@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
@@ -402,6 +404,15 @@ export async function submitHere(ctx, id, infra) {
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
+  // The repository's per-file lint subset is cheap; keep its full static stage later.
+  if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+    await withItemPatchSubmit(root, companion, gateRoot => {
+      const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+      const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
+      const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
+      if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
+    });
+  }
   let cells;
   const cellsStart = performance.now();
   try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
