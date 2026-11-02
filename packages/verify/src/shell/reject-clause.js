@@ -1,4 +1,8 @@
-import { frozenBar, namedClause, wording } from '../core/frozen-clause.js';
+import {
+  frozenBar,
+  namedClause,
+  wording,
+} from '../core/frozen-clause.js';
 import { REVIEW_REQUEST_ENGINE } from '../../../../src/review-request-engine.js';
 import { pipelineCause } from '../../../kernel/index.js';
 /** Identify the frozen requirement a rejection disputes and stop repeated unchanged rounds [V6,R2,B30,H16]. */

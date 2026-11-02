@@ -1,5 +1,9 @@
 import { REVIEW_REQUEST_ENGINE } from '../../../../../src/review-request-engine.js';
-import { frozenBar, namedClause, wording } from '../../../../verify/src/core/frozen-clause.js';
+import {
+  frozenBar,
+  namedClause,
+  wording,
+} from '../../../../verify/src/core/frozen-clause.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../../src/review-family-relax-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
