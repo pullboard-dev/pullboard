@@ -1,4 +1,4 @@
-import { auditAdapterEnvironment } from '../packages/kernel/index.js';
+import { auditAdapterEnvironment } from '../../../../packages/kernel/index.js';
 import { processCensus } from './runner-custody.js';
 import { scheduledChromeCloneSweep } from './chrome-clone-cleanup.js';
 /** Execute one remote job end to end; stdout is reserved for raw command bytes and stderr for one receipt [C7]. */
@@ -22,21 +22,21 @@ import { safeSetupMessage } from './runner-worker-receipt.js';
 import { setupRefusalCode } from './runner-worker-receipt.js';
 import { stopReading } from './runner-worker-receipt.js';
 import { readSpec } from './runner-worker-spec.js';
-import { captureTestRuntimes } from '../packages/sandbox/src/shell/execution-environment.js';
-import { guiSession } from './gui-session.js';
-import { Refused } from '../packages/kernel/index.js';
+import { captureTestRuntimes } from '../../../../packages/sandbox/src/shell/execution-environment.js';
+import { guiSession } from '../../../../packages/gate/src/shell/gui-session.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 import { createDescendantTracker } from './runner-custody.js';
-import { sampleRunnerLoad } from './runner-load.js';
-import { pinSourceCacheJob } from './runner-source-cache.js';
-import { recordRunnerCompletion } from './runner-transport.js';
-import { recordRunnerOwner } from './runner-transport.js';
-import { TEST_RESULT_REQUEST_ENV } from './test-result-store.js';
-import { TEST_RESULT_ORIGIN_ENV } from './test-result-store.js';
-import { TEST_RESULT_STORE_ENV } from './test-result-store.js';
-import { importTestResults } from './test-result-store.js';
-import { packTestResults } from './test-result-store.js';
-import { selectedTestResults } from './test-result-store.js';
-import { startRunnerPhases } from './timing.js';
+import { sampleRunnerLoad } from '../../../../src/runner-load.js';
+import { pinSourceCacheJob } from '../../../../src/runner-source-cache.js';
+import { recordRunnerCompletion } from '../../../../src/runner-transport.js';
+import { recordRunnerOwner } from '../../../../src/runner-transport.js';
+import { TEST_RESULT_REQUEST_ENV } from '../../../../packages/gate/src/shell/test-result-store.js';
+import { TEST_RESULT_ORIGIN_ENV } from '../../../../packages/gate/src/shell/test-result-store.js';
+import { TEST_RESULT_STORE_ENV } from '../../../../packages/gate/src/shell/test-result-store.js';
+import { importTestResults } from '../../../../packages/gate/src/shell/test-result-store.js';
+import { packTestResults } from '../../../../packages/gate/src/shell/test-result-store.js';
+import { selectedTestResults } from '../../../../packages/gate/src/shell/test-result-store.js';
+import { startRunnerPhases } from '../../../../packages/gate/src/shell/timing.js';
 import { chmodSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -141,7 +141,7 @@ export async function main(S) {
       [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, [TEST_RESULT_REQUEST_ENV]: spec.id, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
       // An audit-coverage run always executes every file, whatever the exchange holds.
       ...auditAdapterEnvironment(spec.auditCoverage),
-      ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('../packages/gate/src/core/audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
+      ...(spec.auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('../../../../packages/gate/src/core/audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
       ...(spec.timingRunId ? { PULLBOARD_TIMING_RUN_ID: spec.timingRunId } : {}),
       PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };

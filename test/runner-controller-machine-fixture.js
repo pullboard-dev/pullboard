@@ -6,7 +6,8 @@ const entrySource = readFileSync(new URL('../bin/runner-controller.js', import.m
 
 /** Follow the literal shipped composition entry and its actual native ports, never an arbitrary child executable. */
 export function runnerControllerCallees(file, body, source) {
-  if (file === 'runner-dispatch.js'
+  // Moved app cells reach src/ files as ../src/<file>; it is the same file.
+  if (file.replace(/^\.\.\/src\//u, '') === 'runner-dispatch.js'
     && /\b(?:spawn|spawnSync)\(process\.execPath,\s*\[fileURLToPath\(new URL\('\.\.\/bin\/runner-controller\.js', import\.meta\.url\)\),\s*'--pullboard-runner-controller'\]/u.test(body)
     && source.includes('export async function serveRunnerController(ports)')
     && entrySource.includes("import { serveRunnerController } from '../src/runners.js'")

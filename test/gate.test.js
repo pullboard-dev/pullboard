@@ -36,7 +36,7 @@ import { BROWSER_SLOT_HELD_ENV, GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLO
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 
-const PRIVATE_WORKER = resolve(import.meta.dirname, '../src/private-check-worker.js');
+const PRIVATE_WORKER = resolve(import.meta.dirname, '../apps/runner/src/shell/private-check-worker.js');
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const dirs = [];
