@@ -1,7 +1,9 @@
+/** @pullboard-test-input source-tree */
 import { inventoryCache } from '../bin/cells-inventory-cache.js';
 import { observationCache } from '../bin/cells-inventory-cache.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
+import { cachedSubmitSourceStep } from '../src/submit-controller-cache.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
@@ -11,6 +13,7 @@ import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { fixture } from './cells-plan-fixture.js';
@@ -699,4 +702,33 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
   assert.throws(() => bindingReadsForModules(modules), /compiler timeout after retry.*load .*cores/u);
   const fixture = fixtureSourceEdits(source, options);
   assert.match(fixture.problems.join(' '), /compiler timeout after retry.*load .*cores/u);
+});
+
+test('controller source steps cache only exact green source and base [C7,D3]', async t => {
+  const box = plannedFixture(t);
+  const code = [fileURLToPath(new URL('../src/submit-controller-cache.js', import.meta.url))];
+  const run = { kind: 'fixture-submit-step', base: box.main, source: box.main, code };
+  let calls = 0;
+  const first = await cachedSubmitSourceStep(box.root, run, () => { calls++; });
+  assert.equal(first.reused, false);
+  const second = await cachedSubmitSourceStep(box.root, run, () => { calls++; });
+  assert.equal(second.reused, true, 'a completed identical source step avoids a second check');
+  assert.equal(calls, 1);
+  const originalOptions = process.env.NODE_OPTIONS;
+  try {
+    process.env.NODE_OPTIONS = '--require=/untrusted/preload.js';
+    await cachedSubmitSourceStep(box.root, run, () => { calls++; });
+  } finally { if (originalOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = originalOptions; }
+  assert.equal(calls, 2, 'unknown preloads never reuse a receipt');
+  await cachedSubmitSourceStep(box.root, { ...run, base: 'a'.repeat(40) }, () => { calls++; });
+  assert.equal(calls, 3, 'a different accepted main cannot use the receipt');
+  box.put('src/refused.js', 'export class Refused extends Error { changed = true; }\n');
+  await cachedSubmitSourceStep(box.root, run, () => { calls++; });
+  assert.equal(calls, 4, 'a dirty tree cannot use the receipt');
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'new source tree');
+  const newer = git(box.root, 'rev-parse', 'HEAD').trim();
+  await assert.rejects(cachedSubmitSourceStep(box.root, { ...run, source: newer }, () => { calls++; throw new Error('red'); }), /red/u);
+  await cachedSubmitSourceStep(box.root, { ...run, source: newer }, () => { calls++; });
+  assert.equal(calls, 6, 'a refused check is never recorded as green');
 });

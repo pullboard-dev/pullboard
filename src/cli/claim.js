@@ -1,3 +1,4 @@
+import { seatAt } from '../item-folder-identity.js';
 import { claimWorktreeSnapshot } from '../untouched-claim-observation.js';
 import {
   submitHandoffActor,
@@ -115,7 +116,7 @@ export async function ordered(ctx, board, operation, args) {
   // Every engine-27 registration records the seat that made it: the coordinator from the main
   // checkout, the joined agent from its worktree, or `machine` for a join no seat made (#579).
   if (operation === 'register' && args[0] && args[0].createdBy === undefined) {
-    const joined = store.agentAt(board, ctx.info.root)?.agent_id;
+    const joined = seatAt(board, ctx.info.root)?.agent_id;
     args = [{ ...args[0], createdBy: ctx.info.isMain ? COORDINATOR : joined ?? 'machine' }, ...args.slice(1)];
   }
   const command = ['add', 'companion', 'patch', 'edit', 'merged', 'move'].includes(ctx.io.relayCommand?.cliOperation) ? ctx.io.relayCommand : undefined;
@@ -135,7 +136,7 @@ export async function ordered(ctx, board, operation, args) {
           () => store.recordSpecApprovalBaseline(board, ...values))
         : store.recordSpecApprovalBaseline(board, ...values);
     };
-    const actor = ctx.info.isMain ? COORDINATOR : (submitHandoffActor(ctx, board, operation, args) ?? store.agentAt(board, ctx.info.root))?.agent_id;
+    const actor = ctx.info.isMain ? COORDINATOR : (submitHandoffActor(ctx, board, operation, args) ?? seatAt(board, ctx.info.root))?.agent_id;
     requireHandoffActive(board, actor, operation, args);
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
       await (await import('../../packages/sync/index.js')).repairGitSync(ctx.info.root, board, ctx.io);
@@ -178,10 +179,10 @@ export async function ordered(ctx, board, operation, args) {
   const digest = personIdentity.agentSessionDigest();
   const boardOnly = CHECKOUT_BOARD_ONLY.get(ctx.io);
   const boardOnlyOperation = (boardOnly === 'shout' && operation === 'shout') || (boardOnly === 'fact' && operation === 'appendFact');
-  const boardOnlyAgent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
+  const boardOnlyAgent = ctx.info.isMain ? COORDINATOR : seatAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
   if (boardOnlyOperation && digest && localSessionMatches(ctx.info, { agent: boardOnlyAgent, digest })) return execute();
   if (isSubmitHandoffWorker(ctx) || CHECKOUT_LEASES.has(ctx.io) || !digest || ctx.io.personChannel === 'view' || ctx.io.personRequest) return execute();
-  const agent = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
+  const agent = ctx.info.isMain ? COORDINATOR : seatAt(board, ctx.info.root)?.agent_id ?? 'unjoined agent';
   const lease = await bindLocalSession(ctx.info, { agent, digest, keepLease: true });
   try { return await execute(); }
   finally { lease.release(); }
