@@ -582,6 +582,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
   const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
   const elapsed = performance.now() - started;
   t.diagnostic(`many-cell candidate stage: ${elapsed.toFixed(1)}ms`);
+  // budget: ceiling from the #2313 bar (60 s for an ordinary change)
   assert.ok(elapsed < 60_000, `the complete cell stage took ${elapsed.toFixed(1)}ms; limit 60000ms`);
   assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
   box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
