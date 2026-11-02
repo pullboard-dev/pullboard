@@ -109,7 +109,7 @@ test('historical review paths replay while modern reviews use age [C7,N2,B13,H16
 
 test('recorded review selection keeps its historical path priority on replay [N2,H16]', t => {
   for (const engine of [CRITICAL_PATH_ENGINE - 1, REVIEW_ROUTING_ENGINE - 1, ENGINE_VERSION]) {
-    const { board, builder, reviewer } = boardFixture();
+    const { board, builder, reviewer } = boardFixture(engine);
     const replica = openBoard(':memory:');
     t.after(() => { store.closeBoard(board); store.closeBoard(replica); });
     const independent = submitted(board, builder, 'Older independent review', 'strong', 1);
@@ -119,6 +119,7 @@ test('recorded review selection keeps its historical path priority on replay [N2
     setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
       reason: 'Synthetic old/current selection replay fixture.', window: { items: 3 } });
     importBoard(replica, exportBoard(board));
+    delete board.executionEngineVersion;
     const prepared = prepareEngineMove(board, 'reserveNextReview', [{ agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
     const move = { ...prepared, engine };
     const receipt = { sequence: 1, at: '2026-10-25T12:00:00Z' };
@@ -183,11 +184,19 @@ test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
   assert.equal(first.item.item_id, earliestMid, 'roadmap position precedes the stronger later release');
 
   const sameMilestoneStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'same milestone strong', route: 'strong' });
-  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [sameMilestoneStrong] });
+  if (!store.milestones(board).find(m => m.name === '0.8.4').items.includes(sameMilestoneStrong)) {
+    editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [sameMilestoneStrong] });
+  }
   const newerStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'newer same milestone strong', route: 'strong' });
-  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [newerStrong] });
+  if (!store.milestones(board).find(m => m.name === '0.8.4').items.includes(newerStrong)) {
+    editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [newerStrong] });
+  }
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, earliestMid,
+    'current selection keeps the coordinator-ranked item first');
+  board.executionEngineVersion = MILESTONE_RANK_ENGINE - 1;
   const sameRelease = store.nextFor(board, { agentId: builder, lane: 'core' });
   assert.equal(sameRelease.item.item_id, sameMilestoneStrong, 'route-tier then oldest order remains within one milestone');
+  delete board.executionEngineVersion;
 
   store.claim(board, sameMilestoneStrong, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
   const resumed = store.nextFor(board, { agentId: builder, lane: 'core' });
@@ -198,12 +207,13 @@ test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
 test('recorded reserve-next moves retain their versioned ordering [B16,H16]', (t) => {
   assert.ok(ENGINE_VERSION >= 8, 'roadmap selection is carried by engine 8 or newer');
   for (const version of [1, 2, 3, 4, 5, 6, 7, ENGINE_VERSION]) {
-    const { board, builder, reviewer } = boardFixture();
+    const { board, builder, reviewer } = boardFixture(version);
     t.after(() => store.closeBoard(board));
     const laterStrong = submitted(board, builder, 'later strong', 'strong', 1);
     const earliestMid = submitted(board, builder, 'earliest mid', 'mid', 2);
     addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'first', items: [earliestMid] });
     addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'later', items: [laterStrong] });
+    delete board.executionEngineVersion;
     const move = prepareEngineMove(board, 'reserveNextReview', [{ agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
     assert.equal(move.engine, ENGINE_VERSION, 'new moves carry the current engine');
     const outcome = applyEngineMove(board, { ...move, engine: version }, { sequence: 1, at: new Date().toISOString() });
@@ -459,7 +469,7 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
 test('milestone rank moves replay identically and preserve historical next selection [N2,B13,H16]', (t) => {
   assert.equal(MILESTONE_RANK_ENGINE, 34, 'milestone ranking retains its allocated minimum after later writer upgrades');
   for (const version of new Set([8, 24, 31, 32, 33, MILESTONE_RANK_ENGINE, ENGINE_VERSION])) {
-    const source = boardFixture();
+    const source = boardFixture(version);
     const replica = openBoard(':memory:');
     const fixtures = [source, { ...source, board: replica }];
     t.after(() => fixtures.forEach(({ board }) => store.closeBoard(board)));
@@ -469,12 +479,15 @@ test('milestone rank moves replay identically and preserve historical next selec
       addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'release', items: [1, 2] });
     }
     importBoard(replica, exportBoard(source.board));
-    const move = prepareEngineMove(fixtures[0].board, 'orderMilestoneItems', ['release', { agentId: fixtures[0].builder, items: [2, 1] }]);
+    delete source.board.executionEngineVersion;
+    const move = prepareEngineMove(fixtures[0].board, 'orderMilestoneItems', ['release', { agentId: 'coordinator', items: [2, 1], reason: 'Arrange fixture order' }]);
     assert.equal(move.engine, ENGINE_VERSION, 'the envelope carries the current engine; milestone order starts at34');
     // Historical review receipts need a prefix before modern review activation, not a newer snapshot.
-    const recorded = version < REVIEW_ROUTING_ENGINE ? { ...move, engine: MILESTONE_RANK_ENGINE } : move;
+    const recorded = version < REVIEW_ROUTING_ENGINE
+      ? { ...move, engine: MILESTONE_RANK_ENGINE, args: ['release', { agentId: 'coordinator', items: [2, 1] }] }
+      : move;
     const outcomes = fixtures.map(({ board }) => applyRelayMove(board, recorded, {
-      sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: fixtures[0].builder },
+      sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: 'coordinator' },
     }));
     assert.equal(outcomes[0].error, undefined, JSON.stringify(outcomes[0]));
     assert.deepEqual(outcomes[0], outcomes[1]);
@@ -782,7 +795,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   home.order(false);
   assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, older, 'recorded off restores the prior order');
 
-  const scarce = lineOrderFixture(t);
+  const scarce = lineOrderFixture(t, LINE_ORDER_ENGINE - 1);
   const otherAuthor = store.register(scarce.board, { lane: 'core', path: join(scarce.root, 'author-Q'), parent: 'author-Q', session: 'author-Q-child' });
   for (let index = 0; index < 2; index++) store.register(scarce.board, { lane: 'review', path: join(scarce.root, `sibling-${index}`),
     parent: 'builder-P', session: `builder-sibling-${index}` });
@@ -990,7 +1003,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
 
 /** A newer recorded control must not alter historical selection when replaying an older move. */
 test('focus milestone policy survives export while old reserve-next retains its ordering [N2,B16,H16]', t => {
-  const { board, builder, reviewer } = boardFixture();
+  const { board, builder, reviewer } = boardFixture(FOCUS_MILESTONE_ENGINE);
   t.after(() => store.closeBoard(board));
   const outside = submitted(board, builder, 'Old roadmap review', 'strong', 1);
   const focused = submitted(board, builder, 'New focus review', 'strong', 2);
