@@ -106,6 +106,19 @@ export function beginBoardWrite(db, context = {}) {
   return record;
 }
 
+/** Account a named synchronous part of the active writer without performing diagnostic I/O. */
+export function measureBoardWritePhase(db, name, work) {
+  const started = performance.now();
+  try { return work(); } finally {
+    const elapsed = performance.now() - started;
+    for (const record of pending.get(db) ?? []) {
+      if (record.complete) continue;
+      record.workAccountedMs = (record.workAccountedMs ?? 0) + elapsed;
+      if (elapsed > (record.phaseMs ?? 0)) { record.phase = name; record.phaseMs = elapsed; }
+    }
+  }
+}
+
 /** Enrich API and nested-command observations from native events, without recording event contents. */
 export function noteBoardWriteItem(db, item) {
   if (!Number.isSafeInteger(item) || item < 1) return;
