@@ -1,3 +1,4 @@
+import { realRelayAdapter } from '../packages/kernel/core.js';
 /** Bound browser I/O independently of the first-paint promise [H5,H16,H17]. */
 import { Refused } from '../packages/kernel/index.js';
 
@@ -40,9 +41,9 @@ export async function withBrowserDeadline(work, {
 
 /** Keep the response headers and JSON body under one deadline, including a stalled response body. */
 export function browserJSON(path, options = {}) {
-  const { signal, ...request } = options;
+  const { signal, adapter = realRelayAdapter, ...request } = options;
   return withBrowserDeadline(async boundedSignal => {
-    const response = await fetch(path, { ...request, signal: boundedSignal });
+    const response = await adapter.request(path, { ...request, signal: boundedSignal });
     const document = response.status === 304 ? null : await response.json();
     return { response, document };
   }, { signal });

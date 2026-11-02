@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
+import { browserJSON } from '../relay/browser-deadline.js';
 import { createFakeRelayAdapter, realRelayAdapter, relayFetch, withRelayAdapter } from '../packages/person/index.js';
 
 async function contract(adapter, origin) {
@@ -41,4 +42,16 @@ test('scoped relay fakes stay isolated across concurrent async work [C7]', async
   });
   const run = value => withRelayAdapter(fake(value), async () => (await relayFetch('http://example.test')).text());
   assert.deepEqual(await Promise.all([run('first'), run('second')]), ['first', 'second']);
+});
+
+/** Browser JSON uses the same contract without requiring Node's scoped storage. */
+test('browser relay JSON accepts the shared fake contract [C7]', async () => {
+  const fake = createFakeRelayAdapter(async (url, options) => {
+    assert.equal(url, '/board');
+    assert.equal(options.adapter, undefined);
+    assert.ok(options.signal instanceof AbortSignal);
+    return new Response(JSON.stringify({ version: 1 }), { headers: { 'content-type': 'application/json' } });
+  });
+  const result = await browserJSON('/board', { adapter: fake });
+  assert.deepEqual(result.document, { version: 1 });
 });
