@@ -541,14 +541,22 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
   problems.push(...deletedRowProblems(root, [config.spec, config.practice]));
   problems.push(...deletedGateProblems(root, config));
   problems.push(...approvedRowProblems(root, config, boardFile, approvedRowPorts));
-  if (shimImports) problems.push(...shimImports({ paths: written,
-    read: (revision, path) => {
-      const entry = importFileEntry(root, revision, path);
-      if (!entry) return undefined;
-      const bytes = importFileBlob(root, entry.oid);
-      if (bytes === null) throw new Refused('SHIM_IMPORT_INPUT', `cannot analyze the staged source blob ${path}; split it into bounded modules`);
-      return bytes.toString('utf8');
-    } }));
+  if (shimImports) {
+    const revisions = new Map();
+    problems.push(...shimImports({ paths: written,
+      read: (revision, path) => {
+        // An initial commit has an index but no HEAD; do not invent historical source or read the worktree.
+        if (revision !== ':index') {
+          if (!revisions.has(revision)) revisions.set(revision, tryGit(root, ['rev-parse', '--verify', revision]).status === 0);
+          if (!revisions.get(revision)) return undefined;
+        }
+        const entry = importFileEntry(root, revision, path);
+        if (!entry) return undefined;
+        const bytes = importFileBlob(root, entry.oid);
+        if (bytes === null) throw new Refused('SHIM_IMPORT_INPUT', `cannot analyze the staged source blob ${path}; split it into bounded modules`);
+        return bytes.toString('utf8');
+      } }));
+  }
   if (isMain) return problems;
   if (!agent) {
     problems.push('this worktree has not joined a lane: pullboard join <lane> --model "<model name>"');
