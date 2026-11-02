@@ -396,15 +396,6 @@ export async function submitHere(ctx, id, infra, { precheck = false } = {}) {
     ctx.io.say(`submit precheck passed for #${id} at ${commit}; cells and gate have not run`);
     return 0;
   }
-  let cells;
-  const cellsStart = performance.now();
-  try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
-    readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
-    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
-  finally { reportSubmitStage(ctx, 'cells', cellsStart); }
-  // A reused cells receipt never ran on a runner, so it has no slot; the check-receipt line cites it without one.
-  if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
-  for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
   try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
@@ -412,12 +403,20 @@ export async function submitHere(ctx, id, infra, { precheck = false } = {}) {
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
-  const recordedTools = recordedToolCommits(root, acceptedMain.commit, commit);
-  // A replay may replace HEAD: new recorded-tool work stays at its origin instead of rewriting a sealed queued source.
-  if (pendingHandoff || handoffEnabled && !recordedTools && !regeneratedFrom) {
+  // Queue all captured sources before cell compilation; the bound worker runs the same checks and refusal path.
+  if (pendingHandoff || handoffEnabled) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
+  let cells;
+  const cellsStart = performance.now();
+  try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+    readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
+    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
+  finally { reportSubmitStage(ctx, 'cells', cellsStart); }
+  // Reused cells checks have no runner slot; use their own check-receipt formatter.
+  if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
+  for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
   const configuredSubmit = submitGateConfig(companion || regenerated || regeneratedFrom ? policyAt(root, companion?.commit ?? commit).config : ctx.config, acceptedMain.config);
