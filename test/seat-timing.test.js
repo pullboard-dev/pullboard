@@ -50,7 +50,14 @@ test('seat ledger prints each observed live state and elapsed minutes [C7,N2]', 
   const events = names.map(name => ({ event_by: name, event_at: ago(name === 'silent' ? 25 * 60000 : 5 * 60000), event_kind: 'fact' }));
   events.push({ event_by: 'gate', item_id: 2, event_at: ago(3 * 60000), event_kind: 'submit-handoff', event_detail: '{"state":"running"}' });
   const records = ['lock', 'runner'].map((seat, i) => ({ version: 1, id: seat, seat, pid: process.pid, kind: i ? 'runner-wait' : 'lock-wait', phase: 'start', start: now - 2 * 60000 }));
-  const rows = seatLedger(agents, items, events, records, now);
+  // A fixture SQLite board supplies the same seat/item/event columns as the real command.
+  const board = new DatabaseSync(':memory:');
+  board.exec('CREATE TABLE agent(agent_id TEXT); CREATE TABLE item(item_id INTEGER, item_status TEXT, item_owner TEXT, item_review_by TEXT, item_review_until TEXT, item_built_by TEXT); CREATE TABLE event(event_by TEXT, event_at TEXT, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
+  for (const agent of agents) board.prepare('INSERT INTO agent VALUES (?)').run(agent.agent_id);
+  for (const item of items) board.prepare('INSERT INTO item VALUES (?,?,?,?,?,?)').run(item.item_id, item.item_status, item.item_owner ?? null, item.item_review_by ?? null, item.item_review_until ?? null, item.item_built_by ?? null);
+  for (const event of events) board.prepare('INSERT INTO event VALUES (?,?,?,?,?)').run(event.event_by, event.event_at, event.event_kind, event.item_id ?? null, event.event_detail ?? null);
+  const rows = seatLedger(board.prepare('SELECT * FROM agent').all(), board.prepare('SELECT * FROM item').all(), board.prepare('SELECT * FROM event').all(), records, now);
+  board.close();
   const printed = seatLines(rows).join('\n');
   for (const name of ['building', 'reviewing', 'waiting on gate', 'waiting on review', 'waiting on lock', 'waiting on runner slot', 'silent', 'idle']) assert.ok(printed.includes(name));
   assert.deepEqual(rows.map(row => [row.state, row.minutes]), [
