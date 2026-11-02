@@ -1,7 +1,7 @@
 /** One durable request identity creates one normally claimable cross-lane child [B2,B5,B12]. */
 import { createHash } from 'node:crypto';
 import { itemById } from "./board-query.js";
-import { listAgents } from "./board-query.js";
+import { hasAgent } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
@@ -12,7 +12,7 @@ import { Refused } from "../../../kernel/index.js";
 export function companionPlan(board, options, validateAddition) {
   const { agentId, parentId, lane, key, title = '', criterion = '', specIds = [], brief = '', route = 'strong', check, checkBaseline, barActor } = options;
   if ((board.executionEngineVersion ?? ENGINE_VERSION) < COMPANION_ENGINE) throw new Refused('ENGINE_VERSION', `companion requests require engine ${COMPANION_ENGINE}; upgrade Pullboard`);
-  if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before requesting companion work');
+  if (!hasAgent(board, agentId)) throw new Refused('NOT_JOINED', 'join this board before requesting companion work');
   if (!Number.isSafeInteger(parentId) || parentId < 1) throw new Refused('COMPANION_PARENT', 'name the parent item: pullboard companion <parent> <lane> "<title>" --key <key>');
   if (typeof key !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/u.test(key)) throw new Refused('COMPANION_KEY', 'supply a stable --key of 1 to 80 letters, digits, dots, underscores or hyphens; reuse it for this same companion');
   if (typeof lane !== 'string' || !/^[a-z][a-z0-9-]*$/u.test(lane)) throw new Refused('NO_LANE', 'name the companion lane; see pullboard lanes');
