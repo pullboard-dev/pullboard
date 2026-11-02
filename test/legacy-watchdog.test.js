@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { DefaultSerializer } from 'node:v8';
-import { rawOutputObserver } from '../packages/gate/src/shell/legacy-watchdog-output.js';
+import { rawOutputObserver } from '../packages/gate/src/shell/legacy-watchdog-output.cjs';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 

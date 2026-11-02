@@ -563,8 +563,8 @@ export function legacyNativeFileRun(args, env, concurrency, { runner, knownNodeO
   const nodeArgs = [
     '--disable-warning=ExperimentalWarning',
     '--test',
-    '--import',
-    fileURLToPath(new URL('./legacy-watchdog-output.js', import.meta.url)),
+    '--require',
+    fileURLToPath(new URL('./legacy-watchdog-output.cjs', import.meta.url)),
     `--test-concurrency=${files}`,
     ...(!reporter ? ['--test-reporter=tap', ...(env.PULLBOARD_TEST_ACTIONS ? ['--test-reporter-destination=stdout', `--test-reporter=${fileURLToPath(new URL('./test-action-reporter.js', import.meta.url))}`, `--test-reporter-destination=${devNull}`] : [])] : []),
     '--import',
