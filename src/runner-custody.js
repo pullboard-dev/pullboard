@@ -24,13 +24,13 @@ import { exactStart } from './child-journal-preload.js';
 const safePath = [dirname(process.execPath), process.env.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
 
 /** Read one all-process POSIX census; a failed or malformed census is never interpreted as an empty machine. */
-export function processCensus() {
+export function processCensus({ includeCommand = false } = {}) {
   const result = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], {
     encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
     env: { PATH: safePath, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' },
   });
   if (result.error || result.status !== 0 || typeof result.stdout !== 'string') return null;
-  return parseProcessCensus(result.stdout, { includeCommand: true });
+  return parseProcessCensus(result.stdout, { includeCommand });
 }
 
 /** Add a kernel start-time identity when procfs is available; otherwise retain a conservative census tuple. */
@@ -72,7 +72,7 @@ function writeChildJournalPreload(directory) {
  *   tick?: () => void, timedOut?: () => boolean, warn?: (reason: string) => void, intervalMs?: number,
  *   startOf?: (pid: number) => string }} [hooks]
  */
-export function createDescendantTracker(directory, { census: processCensusHook = processCensus, kill = (pid, signal) => process.kill(pid, signal),
+export function createDescendantTracker(directory, { census: processCensusHook = () => processCensus({ includeCommand: true }), kill = (pid, signal) => process.kill(pid, signal),
   selfPid = process.pid, tick = () => {}, timedOut = () => false, warn = () => {}, intervalMs = 250, startOf = exactStart } = {}) {
   const initial = processCensusHook();
   if (!initial) throw new Error('initial process identity census failed');
