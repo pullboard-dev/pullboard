@@ -138,7 +138,7 @@ import {
 import {
   relayRecovered,
 } from '../../packages/link/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { refuseHeldElsewhere } from '../../packages/seats/index.js';
 import {
   submitPreflight,
   requirePlannedSource,
@@ -320,7 +320,7 @@ export async function submitHere(ctx, id, infra) {
     const item = store.getItem(board, id);
     const folder = itemFolderIdentity(board, ctx.info.root);
     if (folder && folder.item !== id) throw new Refused('NOT_YOURS', `this folder belongs to item #${folder.item}; submit that item from here`);
-    if (!isSubmitHandoffWorker(ctx) && !folder) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
+    if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
