@@ -67,7 +67,10 @@ test('a real cells move may land with its new shim count committed [C7,CD64]', a
   git(box.root, 'merge', '--no-ff', '-qm', 'land actual cells move', commit);
   assert.deepEqual(JSON.parse(readFileSync(join(box.root, COUNTS))), { version: 1, cells: { kernel: 1 } });
   assert.equal(cellLintReport(box.root, parsers).metrics.shims.count, 1);
-  const records = shimLifecycle(box.root, { items: [{ item_id: 23, item_title: 'Remove kernel shims', item_criterion: 'Delete src/refused.js', item_status: 'open' }] });
+  const records = shimLifecycle(box.root, { items: [
+    { item_id: 23, item_title: 'Remove kernel shims', item_criterion: 'Delete src/refused.js', item_status: 'open' },
+    { item_id: 99, item_title: 'Refuse new shim imports', item_criterion: 'Reject a new import of src/refused.js', item_status: 'open' },
+  ] });
   assert.equal(records.length, 1);
   assert.equal(records[0].moveLandedAt, git(box.root, 'log', '-1', '--format=%cI').trim(), 'age starts at the real merge landing');
   assert.equal(records[0].removalItem, 23);

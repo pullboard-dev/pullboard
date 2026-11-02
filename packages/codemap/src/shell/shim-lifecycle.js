@@ -5,7 +5,7 @@ import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { lex } from '../../../kernel/index.js';
 
-/** Read all old mapped paths in one Git batch; missing paths are completed removals. */
+/** Read immutable objects in one Git batch; missing old paths are completed removals. */
 function readObjects(root, paths) {
   if (!paths.length) return new Map();
   const bytes = gitExecFileSync(['cat-file', '--batch'], { cwd: root, env: cleanGitEnvironment(),
@@ -63,6 +63,7 @@ export function shimLifecycle(root, { commit = 'HEAD', items = [] } = {}) {
     const cell = /^(?:packages|apps)\/([^/]+)\//u.exec(target)?.[1];
     if (!cell) continue;
     const candidates = items.filter(item => /shim/iu.test(item.item_title ?? '')
+      && /remov|delet|retir|\bcut\b|\bgo(?:es|ne)?\b/iu.test(item.item_title ?? '')
       && `${item.item_title ?? ''}\n${item.item_criterion ?? ''}`.includes(path));
     candidates.sort((a, b) => Number(['verified', 'withdrawn'].includes(a.item_status)) - Number(['verified', 'withdrawn'].includes(b.item_status)) || b.item_id - a.item_id);
     result.push({ path, cell, moveLandedAt: dates.get(path) ?? null,
