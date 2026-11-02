@@ -14,7 +14,7 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { gitSpawnSync } from './git-adapter.js';
+import { gitSpawnSync } from '../packages/git/index.js';
 
 const KEEP = 60;
 

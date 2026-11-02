@@ -1,7 +1,7 @@
 /** Local timing and board events projected into bounded seat states [C7,N2]. */
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
-import { gitExecFileSync } from './git-adapter.js';
+import { gitExecFileSync } from '../packages/git/index.js';
 import { join } from 'node:path';
 
 /** Ignore malformed or partially written tail records rather than inventing time. */

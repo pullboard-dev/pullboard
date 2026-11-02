@@ -1,5 +1,5 @@
 /** Preserve exact local work before maintenance may reset or remove a checkout [B3,C7]. */
-import { gitSpawnSync } from './git-adapter.js';
+import { gitSpawnSync } from '../packages/git/index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';

@@ -5,7 +5,7 @@ import { cleanGitEnvironment } from './git.js';
 import { blockedPaths } from '../packages/commits/index.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from '../packages/kernel/index.js';
-import { gitSpawnSync } from './git-adapter.js';
+import { gitSpawnSync } from '../packages/git/index.js';
 import { closeSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
