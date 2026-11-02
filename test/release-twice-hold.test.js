@@ -50,3 +50,23 @@ test('old-engine releases retain their pre-hold behavior [C7,H16]', t => {
   assert.equal(store.getItem(board, id).item_hold_reason, null);
   assert.equal(store.recentShouts(board).filter(row => row.shout_text.includes(`#${id} held after two releases`)).length, 0);
 });
+
+test('clean next claims do not count, but changed or explicit claims do [C7,H16]', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-release-auto-'));
+  const board = openBoard(join(dir, 'board.sqlite'));
+  t.after(() => { store.closeBoard(board); rmSync(dir, { recursive: true, force: true }); });
+  store.register(board, { lane: 'coordinator', path: '/repo' });
+  const first = store.register(board, { lane: 'core', path: '/one', route: 'strong' });
+  const second = store.register(board, { lane: 'core', path: '/two', route: 'strong' });
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'strong' });
+  const claim = (agentId, auto = true) => store.claim(board, id, { agentId, lane: 'core', leaseMs: 7200000, head: commit,
+    ...(auto ? { autoNext: true, autoNextSnapshot: { head: commit, digest: 'c'.repeat(64) } } : {}),
+    freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
+  claim(first); store.release(board, id, first, '', { worktreeSnapshot: { head: commit, digest: 'c'.repeat(64) } }, 'ROUTED_ELSEWHERE');
+  claim(second); store.release(board, id, second, '', { worktreeSnapshot: { head: commit, digest: 'c'.repeat(64) } }, 'ROUTED_ELSEWHERE');
+  assert.equal(store.getItem(board, id).item_hold_reason, null);
+  claim(first); store.release(board, id, first, '', { worktreeSnapshot: { head: 'b'.repeat(40), digest: 'c'.repeat(64) } }, 'BLOCKED');
+  assert.equal(store.getItem(board, id).item_hold_reason, null);
+  claim(second, false); store.release(board, id, second, '', { worktreeSnapshot: { head: commit, digest: 'c'.repeat(64) } }, 'BLOCKED');
+  assert.match(store.getItem(board, id).item_hold_reason, /Released twice/);
+});
