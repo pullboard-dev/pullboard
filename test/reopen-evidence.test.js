@@ -48,3 +48,11 @@ test('the spec reporter preserves the assertion with its source case [C7,B22]', 
   assert.equal(failure.name, 'nested case');
   assert.match(failure.assertion, /expected 7, got 9/u);
 });
+
+test('nested TAP failures retain their parent and subtest names [C7,B22]', () => {
+  const output = '# Subtest: parent case\n    # Subtest: child case\n    not ok 1 - child case\n      location: /project/test/a.test.js:1:1\n      error: wrong result\n      expected: 7\n      actual: 9\n      ...\n';
+  const [failure] = landingFailures(output, '/project');
+  assert.deepEqual(failure.caseNames, ['parent case', 'child case']);
+  assert.match(failure.assertion, /expected: 7/u);
+  assert.match(failure.assertion, /actual: 9/u);
+});
