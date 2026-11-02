@@ -85,11 +85,14 @@ test('real project state feeds focused draft rows into one Needs-you batch [B26,
   writeFileSync(spec, readFileSync(spec, 'utf8').replace('G1 [approved, must]', 'G1 [draft, must]'));
   const { projectState } = await import('../src/serve.js');
   const { personNeeds } = await import('../packages/spec/index.js');
-  const state = projectState(box.repo);
-  assert.deepEqual(state.focusMilestone, { name: '0.9.3', items: [item] });
-  const batches = personNeeds(state).filter(need => need.kind === 'focus-approval-batch');
-  assert.equal(batches.length, 1);
-  assert.deepEqual(batches[0].rows, [{ id: 'G1', kind: 'spec', text: 'The page renders.', items: [item] }]);
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    const state = projectState(box.repo, { board });
+    assert.deepEqual(state.focusMilestone, { name: '0.9.3', items: [item] });
+    const batches = personNeeds(state).filter(need => need.kind === 'focus-approval-batch');
+    assert.equal(batches.length, 1);
+    assert.deepEqual(batches[0].rows, [{ id: 'G1', kind: 'spec', text: 'The page renders.', items: [item] }]);
+  } finally { store.closeBoard(board); }
 });
 
 test('overflow checks focused builds and reviews together [B26,C7]', t => {
