@@ -1,6 +1,6 @@
-import { flakeQuarantines as nativeFlakeQuarantines } from '../src/quarantine.js';
-import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
-import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
+import { flakeQuarantines as nativeFlakeQuarantines } from '../packages/flakes/index.js';
+import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
+import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /**
  * The gate's digest (V10): what an agent reads of a red run. And submit's own run of the gate (V16):
  * no stamp stands in for it, and the tree must hold still while it runs.

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { flakeSource, observeNativeFailure } from '../src/native-flakes.js';
+import { flakeSource, observeNativeFailure } from '../packages/flakes/index.js';
 
 const COMMAND = 'node --test --test-reporter=tap test/three.test.mjs';
 

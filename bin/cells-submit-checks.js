@@ -1,3 +1,4 @@
+import { shimImportProblems } from '../packages/codemap/index.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
 import { inventoryCache } from './cells-inventory-cache.js';
 import { observationCache } from './cells-inventory-cache.js';
@@ -63,10 +64,10 @@ function mappedBypassKey(map, key) {
   return to !== undefined && extra === undefined ? `${mappedPath(map, from)}->${mappedPath(map, to)}` : key;
 }
 
-/** Read only landed core cut candidates through the controller's already-open connection. */
+/** Read only landed core cut items (titles cutTitle names), so the runner request carries a few rows, not the board [C7]. */
 export function landedCutItemRows(db) {
   return db.prepare(`SELECT item_id, item_lane, item_title, item_status, item_merged_commit FROM item
-    WHERE item_lane='core' AND item_status='verified' AND item_merged_commit IS NOT NULL
+    WHERE item_lane='core' AND item_status='verified' AND item_merged_commit IS NOT NULL AND item_title LIKE 'Cells import cuts: % removes imports into later cells'
     AND NOT EXISTS (SELECT 1 FROM board_meta WHERE meta_key='item_redirect:' || item_id)`).all();
 }
 
@@ -246,6 +247,18 @@ function deletedScriptMentions(mainRoot, candidateRoot, changed) {
     .map(row => `${row.file}:${row.line} names deleted ${row.path} inside a string; point it at the moved file or front door`);
 }
 
+/** Read snapshot source without following a candidate-controlled directory or module symlink. */
+function shimSnapshotFile(root, file) {
+  if (typeof file !== 'string' || /[\\\x00-\x1f]/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) return undefined;
+  let path = root;
+  for (const part of file.split('/')) {
+    path = join(path, part);
+    try { if (lstatSync(path).isSymbolicLink()) return undefined; }
+    catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return undefined; throw error; }
+  }
+  return lstatSync(path).isFile() ? readFileSync(path, 'utf8') : undefined;
+}
+
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
 function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers, inventories, onAllCells = () => {} } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
@@ -259,6 +272,9 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
   policy.push(...deletedScriptMentions(mainRoot, candidateRoot, changed));
+  policy.push(...shimImportProblems({ plans: [before, after], parseImports: parsers.importsIn, criterion,
+    read: (revision, file) => shimSnapshotFile(revision === 'before' ? mainRoot : candidateRoot, file),
+    changes: changed.map(file => ({ file, before: shimSnapshotFile(mainRoot, file), after: shimSnapshotFile(candidateRoot, file) })) }));
   if (policy.length) return { cells: [], problems: policy };
   const fallback = allCellsReason(changed, [before, after]);
   if (fallback) onAllCells(fallback);

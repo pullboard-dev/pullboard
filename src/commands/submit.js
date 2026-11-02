@@ -26,8 +26,8 @@ import {
 } from '../submit-handoff-origin.js';
 import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
-import { sealQuarantineVerdict } from '../quarantine.js';
-import { gateRuns } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
+import { gateRuns } from '../../packages/flakes/index.js';
 import { withImportParseCache } from '../../packages/gate/index.js';
 import { foreignNodeOptions } from '../../packages/gate/index.js';
 import { importsIn } from '../../packages/gate/index.js';
@@ -54,8 +54,8 @@ import {
   summaryProfile,
   withTestOutput,
 } from '../test-output-summary.js';
-import { quarantineWaivers } from '../quarantine.js';
-import { quarantineVerdictSnapshot } from '../quarantine.js';
+import { quarantineWaivers } from '../../packages/flakes/index.js';
+import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';

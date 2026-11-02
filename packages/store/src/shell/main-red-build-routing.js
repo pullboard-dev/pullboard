@@ -1,13 +1,19 @@
+import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
+import { localDependencyIds } from '../../../items/index.js';
+import { pendingSubmitHandoff } from './submit-handoff-read.js';
 /** Plan main-red build offers without taking another seat's work or releasing a claim [C7,N2]. */
 import * as store from "./board.js";
 
 /** Prefer an eligible free seat, otherwise ask the newest build holder to release through ordinary commands. */
-export function mainRedBuildRouting(board, { priority = [], caller, runnable = false, routes } = {}) {
+export function mainRedBuildRouting(board, { priority = [], caller, runnable = false, routes, workingFiles = new Map() } = {}) {
   const items = store.listItems(board);
   const reviewing = new Set(items.filter(item => item.item_status === 'submitted').map(item => store.reviewHolder(board, item)).filter(Boolean));
   // A caller already reviewing resumes that reservation; main red must not interrupt review work.
   if (reviewing.has(caller)) return null;
-  const repairs = new Set(priority.filter(id => items.some(item => item.item_id === id && item.item_status === 'open')));
+  const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE;
+  const urgent = enabled ? board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all().map(row => Number(row.meta_key.slice('item_urgent:'.length))) : [];
+  const repairs = new Set([...priority, ...urgent].filter(id => items.some(item => item.item_id === id && item.item_status === 'open')));
   if (!repairs.size) return null;
   const lanes = new Set(items.filter(item => repairs.has(item.item_id)).map(item => item.item_lane));
   const agents = store.listAgents(board).filter(seat => seat.agent_id !== 'coordinator'
@@ -19,9 +25,18 @@ export function mainRedBuildRouting(board, { priority = [], caller, runnable = f
     if (reviewing.has(seat.agent_id)) continue;
     if (claims.length > 1) continue;
     const claim = claims[0] ?? null;
+    if (enabled && claim) {
+      const observation = workingFiles.get(claim.item_id);
+      // A clean tree alone is not waiting: require an actual unresolved prerequisite too.
+      const waiting = localDependencyIds(claim).some(id => {
+        const dependency = items.find(item => item.item_id === id);
+        return dependency && !['verified', 'withdrawn'].includes(dependency.item_status);
+      }) || store.foreignBlockers(board, claim).length > 0;
+      if (!waiting || !observation || observation.unknown || observation.files.length || pendingSubmitHandoff(board, claim)) continue;
+    }
     const omitIds = items.filter(item => !repairs.has(item.item_id) && item.item_id !== claim?.item_id).map(item => item.item_id);
     const selected = store.nextFor(board, { agentId: seat.agent_id, lane: seat.agent_lane,
-      priority: [...repairs], omitIds, runnable, ...(routes ? { routes } : {}), ...(claim ? { afterRelease: claim.item_id } : {}) });
+      priority: [...repairs], omitIds, runnable, workingFiles, ...(routes ? { routes } : {}), ...(claim ? { afterRelease: claim.item_id } : {}) });
     if (!selected.item || !repairs.has(selected.item.item_id) || selected.item.item_lane !== seat.agent_lane) continue;
     // Renewals are separate events, so renewing a half-built item never makes it the newest build.
     const started = claim ? board.db.prepare("SELECT event_id FROM event WHERE event_kind='claim' AND item_id=? AND event_by=? ORDER BY event_id DESC LIMIT 1")
