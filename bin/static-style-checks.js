@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** The Pullboard repository's source-only preflight; no browser fixtures run [C7]. */
 import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -14,6 +15,7 @@ import { HELP } from '../src/cli.js';
 import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
 import { viewPureGate } from './checks/view-pure.js';
 import { boardWriteIoProblems } from './checks/board-write-io.js';
+import { relayBoundaryProblems } from './checks/relay-boundary.js';
 import { fixedWallMargins } from '../test/wall-clock-budgets.js';
 
 // Only the executable composes higher CLI services; importing this module does not run the preflight.
@@ -24,6 +26,8 @@ if (process.argv[2] === '--changed-files') {
   const sources = files.filter(file => /^(?:src|packages|apps)\//u.test(file) && /\.[cm]?js$/u.test(file))
     .map(file => ({ file, source: readFileSync(join(root, file), 'utf8') }));
   const failures = [
+    ...relayBoundaryProblems([...sources, ...files.filter(file => /^relay\/.*\.[cm]?js$/u.test(file))
+      .map(file => ({ file, source: readFileSync(join(root, file), 'utf8') }))]).map(row => `${row.file}:${row.line}: ${row.text}`),
     ...importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`),
     // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
     ...engineFolderProblems(root).filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`),
@@ -35,6 +39,11 @@ if (process.argv[2] === '--changed-files') {
 } else {
 let failed = false;
 const sources = styleSources(root);
+const relaySources = readdirSync(join(root, 'relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name)).map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(join(root, 'relay', entry.name), 'utf8') }));
+for (const row of relayBoundaryProblems([...sources, ...relaySources])) {
+  console.error(`${row.file}:${row.line}: ${row.text}`);
+  failed = true;
+}
 for (const row of importStyleViolations(sources)) {
   console.error(`${row.file}:${row.line}: one import binding per line (${row.count} bindings)`);
   failed = true;
