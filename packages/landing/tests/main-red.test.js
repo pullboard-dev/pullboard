@@ -35,11 +35,13 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
   writeFileSync(driver, [
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
     `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../sandbox/src/shell/execution-environment.js')).href)};`,
+    `import { readGateReceipt, receiptStore } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/gate-run-receipt.js')).href)};`,
     'const [root, mode] = process.argv.slice(2);',
     "const profile = {tests:[{file:'test/inherited.test.js',passed:false}]};",
     'const environment = executionEnvironment();',
     "const execution = mode === 'generic' ? undefined : { executor: {kind:'local'}, environment: mode === 'unknown' ? null : mode === 'mismatch' ? {...environment,node:'99.0.0'} : environment };",
-    'const result = await compareMainFailures(root, profile, undefined, "", {execution});',
+    "let recordedRuns = []; if (mode.startsWith('recorded')) { let id; await compareMainFailures(root, profile, undefined, '', {execution, detailed:true, onMeasuredReceipt: value => { id=value; }}); if (!id) throw Error('native receipt missing'); const receipt = readGateReceipt(receiptStore(root), id); recordedRuns = [mode === 'recorded-altered' ? {...receipt, green: true} : receipt]; }",
+    'const result = await compareMainFailures(root, profile, undefined, "", {execution, detailed: mode.startsWith("recorded"), recordedRuns});',
     'console.log(JSON.stringify(result));',
   ].join('\n'));
   const run = mode => {
@@ -58,6 +60,12 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
   assert.equal(run('matching').files[0].result, 'red');
   assert.ok(runCount(box) > callsBefore, 'a pinned comparison executes rather than reusing generic evidence');
   assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'pinned evidence does not alter the generic cache');
+  const beforeRecorded = runCount(box);
+  assert.equal(run('recorded').files[0].result, 'red');
+  assert.equal(runCount(box), beforeRecorded + 1, 'a retained native comparison is reused without another main run');
+  const beforeAltered = runCount(box);
+  assert.equal(run('recorded-altered').files[0].result, 'red');
+  assert.equal(runCount(box), beforeAltered + 2, 'altered event evidence cannot avoid a fresh comparison');
   const mismatch = run('mismatch');
   assert.deepEqual(mismatch.files, []);
   assert.match(mismatch.unavailable, /exact runtime/u);
