@@ -17,7 +17,12 @@ import { Refused } from '../../../kernel/index.js';
  */
 export function retryReviewCommit(root, checkedCommit, trunk) {
   const merge = tryGit(root, ['merge-tree', '--write-tree', '--name-only', '-z', trunk.commit, checkedCommit], { env: cleanGitEnvironment() });
-  if (merge.status !== 0) throw new Refused('MERGE_CONFLICT', 'the review retry cannot form a clean merge with current main; merge main into the item, resolve the conflicts, commit and resubmit');
+  if (merge.status !== 0) {
+    const fields = merge.stdout.split('\0');
+    const end = fields.indexOf('', 1);
+    const paths = fields.slice(1, end < 0 ? undefined : end).filter(Boolean);
+    throw new Refused('MERGE_CONFLICT', `the review cannot form a clean merge with current main${paths.length ? `; conflicts: ${paths.map(path => JSON.stringify(path)).join(', ')}` : ''}; resolve the conflicts, commit and resubmit`);
+  }
   const tree = merge.stdout.split('\0')[0].trim();
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(tree)) throw new Refused('MERGE_CHECK_FAILED', 'Git did not return a readable retry merge tree; restore its objects and retry verification');
   const env = { ...cleanGitEnvironment(), GIT_AUTHOR_NAME: 'Pullboard review', GIT_AUTHOR_EMAIL: 'review@pullboard.invalid',

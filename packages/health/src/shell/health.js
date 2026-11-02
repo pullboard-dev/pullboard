@@ -38,6 +38,7 @@ import {
 import { gateControlFindings } from '../../../../src/gate-control.js';
 import { boardBusyError } from '../../../store/index.js';
 import { buildOrder } from '../../../store/index.js';
+import { nextFor } from '../../../store/index.js';
 import { foreignBlockers } from '../../../store/index.js';
 import { milestonePriorities } from '../../../store/index.js';
 import { milestones } from '../../../store/index.js';
@@ -515,7 +516,8 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     if (proved) continue;
     // Model exactly the release printed below: legal child or returned claims remain occupied.
     const releasedClaims = [claim.item_id];
-    const compare = buildOrder(board, { releasedClaims });
+    const compare = buildOrder(board, { releasedClaims, agentId: holder.id, tierFirst: true });
+    const offered = nextFor(board, { agentId: holder.id, lane: holder.lane, afterRelease: claim.item_id }).item;
     // Historical hard-collision waits clear only when this one named claim is released (#1114).
     const freeToHolder = (entry) => entry.waits.every((wait) => wait.startsWith(`#${entry.id} waits for #${claim.item_id} (claimed) on `));
     const ahead = open.filter((entry) => freeToHolder(entry) && entry.lane === holder.lane && canTake(holder.route, entry.route))
@@ -536,6 +538,7 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
         }
         return false;
       })
+      .filter(item => offered?.item_status === 'open' && item.item_id === offered.item_id)
       .sort(compare);
     if (!ahead.length) continue;
     const first = ahead[0];

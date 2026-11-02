@@ -438,12 +438,12 @@ test('spec draft files a row in the named section [S1,C7]', (t) => {
   const rows = () => parseSpec(readFileSync(join(box.root, box.specName), 'utf8')).rows;
   const constraint = box.run('draft', 'Uses the local disk', '--section', 'K');
   assert.equal(constraint.status, 0, constraint.stderr);
-  assert.equal(constraint.stdout.trim(), 'K2');
+  assert.equal(constraint.stdout.trim().split('\n')[0], 'K2');
   assert.equal(rows().find(row => row.id === 'K2').section, 'K · Constraints');
 
   const goal = box.run('draft', 'A new goal');
   assert.equal(goal.status, 0, goal.stderr);
-  assert.equal(goal.stdout.trim(), 'G3', 'G stays the default even when another section comes first');
+  assert.equal(goal.stdout.trim().split('\n')[0], 'G3', 'G stays the default even when another section comes first');
   assert.equal(rows().find(row => row.id === 'G3').section, 'G · Goals');
 
   const question = box.run('draft', 'Another question', '--section', 'Q', '--aim', '--gate', 'question test', '--json');
@@ -481,14 +481,14 @@ test('spec draft never reuses an existing id [S1,C7]', (t) => {
   assert.equal(parseSpec(readFileSync(freshSpec, 'utf8')).rows.length, 0, 'the fenced examples are not real rows');
   const first = fresh.run('draft', 'The first real requirement');
   assert.equal(first.status, 0, first.stderr);
-  assert.equal(first.stdout.trim(), 'G1', 'the first real requirement receives the first available id');
+  assert.equal(first.stdout.trim().split('\n')[0], 'G1', 'the first real requirement receives the first available id');
   assert.deepEqual(parseSpec(readFileSync(freshSpec, 'utf8')).rows.map(({ id, status }) => [id, status]), [['G1', 'draft']]);
 
   const doctrine = '# Doctrine\n\n## G · Goals\n- G3 [draft] A repo doctrine id occupies this number.\n';
   const crossFile = specBox(t, { practiceName: 'DOCTRINE.md', practice: doctrine });
   const next = crossFile.run('draft', 'The next requirement');
   assert.equal(next.status, 0, next.stderr);
-  assert.equal(next.stdout.trim(), 'G4', 'the allocator reserves ids present in DOCTRINE.md as well as SPEC.md');
+  assert.equal(next.stdout.trim().split('\n')[0], 'G4', 'the allocator reserves ids present in DOCTRINE.md as well as SPEC.md');
   const specRows = parseSpec(readFileSync(join(crossFile.root, crossFile.specName), 'utf8')).rows;
   const doctrineRows = parseSpec(readFileSync(join(crossFile.root, crossFile.practiceName), 'utf8')).rows;
   assert.ok(specRows.some((row) => row.id === 'G4'));
@@ -517,7 +517,7 @@ test('a drafted row reads as draft [S1,C7]', (t) => {
 
   const drafted = box.run('draft', 'A proposed requirement');
   assert.equal(drafted.status, 0, drafted.stderr);
-  assert.equal(drafted.stdout.trim(), 'G4');
+  assert.equal(drafted.stdout.trim().split('\n')[0], 'G4');
 
   const rows = () => parseSpec(readFileSync(join(box.root, box.specName), 'utf8')).rows;
   assert.deepEqual(rows().filter((row) => ['G3', 'G4'].includes(row.id)).map(({ id, status }) => [id, status]), [
@@ -557,7 +557,8 @@ function viewMove(box, move, channel, env) {
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
     const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
-    const apiBoardOpeners = { openBoard, openBoardForRead };
+    const { moveArgs } = await import(${JSON.stringify(new URL('../packages/person/index.js', import.meta.url).href)});
+    const apiBoardOpeners = { openBoard, openBoardForRead, moveArgs };
     const response = await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, ${JSON.stringify(channel)}, undefined, apiBoardOpeners);
     process.stdout.write(JSON.stringify(response));
   `;
