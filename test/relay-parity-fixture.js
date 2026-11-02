@@ -69,6 +69,8 @@ function foreignBoardFixture(t, box) {
 /** Capture full API state and independently reconstruct the sealed API2 snapshot over actual authenticated HTTP. */
 export async function parityRoundtrip(t, { foreign = false, localHealth = false } = {}) {
   const box = await relayClientFixture(t);
+  assert.equal(runFixtureChild('git', ['add', 'pullboard.json'], { cwd: box.root, env: box.env }).status, 0);
+  assert.equal(runFixtureChild('git', ['commit', '-m', 'fixture: commit parity policy'], { cwd: box.root, env: box.env }).status, 0);
   const seeded = seedParityBoard(box.root, box.lane);
   const other = foreign ? foreignBoardFixture(t, box) : null;
   assertPresentationChangeClock(box.root, seeded.item);
