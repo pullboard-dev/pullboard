@@ -1,4 +1,4 @@
-import { recordPublishFinding as nativeRecordPublishFinding } from '../src/pr-findings.js';
+import { recordPublishFinding as nativeRecordPublishFinding } from '../packages/github/index.js';
 /** Publishing proposes only proven heads and observes a person's merge [B3,R3]. */
 import assert from 'node:assert/strict';
 import {
@@ -22,7 +22,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';
 import { configFromSource } from '../packages/config/index.js';
-import { publishVerificationStatuses } from '../src/pr-verification.js';
+import { publishVerificationStatuses } from '../packages/github/index.js';
 import { withGitFacts } from '../src/git.js';
 
 /** Read the real private gate invocations, retaining their exact Git heads. */

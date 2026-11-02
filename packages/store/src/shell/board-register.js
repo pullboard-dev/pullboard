@@ -5,6 +5,7 @@ import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
 import { afterBoardWrite } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
+import { withDerivedFamily } from "../../../items/index.js";
 import { checkRoute } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
@@ -43,7 +44,7 @@ export function register(board, who) {
   }
   let fresh = false;
   const registered = atomic(board, () => {
-    const row = board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
+    const row = withDerivedFamily(board, board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path));
     const existing = row && { ...row, agent_model: agentModel(board, row.agent_id) };
     if (existing) {
       if (existing.agent_lane !== lane || existing.agent_route !== route) {

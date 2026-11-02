@@ -20,7 +20,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove, applyRelayMove } from '../packages/state/index.js';
 import { MERGE_ONLY_VERDICT_ENGINE } from '../src/merge-only-verdict-engine.js';
 import { operationIntent } from '../packages/state/src/core/relay-sender-policy.js';
-import { capturePrProof } from '../src/pr-proof-snapshot.js';
+import { capturePrProof } from '../packages/github/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
