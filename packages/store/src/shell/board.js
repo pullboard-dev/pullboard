@@ -476,3 +476,5 @@ export function claim(board, id, options) {
 }
 
 export { prepareQueueSubmitHandoff, queueSubmitHandoff, startSubmitHandoff, completeSubmitHandoff } from "./submit-handoff-state.js";
+
+export { createItemSlice } from "./board-item-slice.js";
