@@ -1,7 +1,6 @@
 /** Rank notices use the builder's real offer and explicit milestone order [N2,B13]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
 import { healthReport } from '../packages/health/index.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
 import { fixture, cli } from './next-take-fixture.js';
@@ -16,7 +15,8 @@ test('a pinned claim stays above an unpinned free item [N2,B13]', async t => {
   const box = await fixture(t);
   const earlier = box.add('ordinary');
   const pinned = box.add('pinned');
-  store.addMilestone(box.board, { agentId: 'coordinator', name: 'priority', reason: 'Fixture ranks work.', items: [earlier, pinned] });
+  const added = await cli(box, box.root, ['milestone', 'add', 'priority', '--items', `${earlier},${pinned}`]);
+  assert.equal(added.code, 0, added.out + added.err);
   const result = await cli(box, box.root, ['milestone', 'pin', 'priority', String(pinned), '--reason', 'Fixture pins the claim']);
   assert.equal(result.code, 0, result.out + result.err);
   box.claim(pinned, box.seats.actor);
