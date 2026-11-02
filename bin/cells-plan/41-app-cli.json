@@ -269,7 +269,8 @@
   ["src/command-docs/stats-time.json","apps/cli/src/shell/command-docs/stats-time.json","rule"],
   ["src/documentation/events/milestone_placed.json","apps/cli/src/shell/documentation/events/milestone_placed.json","rule"],
   ["src/commands/seats.js","apps/cli/src/shell/commands/seats.js","rule"],
-  ["src/item-folder.js","apps/cli/src/shell/item-folder.js","rule"]
+  ["src/item-folder.js","apps/cli/src/shell/item-folder.js","rule"],
+  ["src/commands/slice.js","apps/cli/src/shell/commands/slice.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",
