@@ -2,6 +2,7 @@
 import { Worker } from 'node:worker_threads';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
+import { join } from 'node:path';
 import { realpathSync } from 'node:fs';
 import { fileWatchdogLimits } from '../core/file-watchdog-policy.js';
 
@@ -10,7 +11,7 @@ export function installFileWatchdog(file) {
   const path = relative(realpathSync(process.cwd()), realpathSync(resolve(file))).replaceAll('\\', '/');
   const limits = fileWatchdogLimits(path);
   const worker = new Worker(new URL('./file-watchdog-worker.js', import.meta.url), {
-    workerData: { file, ...limits, outputMarker: process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT }, execArgv: [], env: { ...process.env, NODE_OPTIONS: '' },
+    workerData: { file, ...limits, outputMarker: process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT ?? (process.env.PULLBOARD_LEGACY_WATCHDOG_DIR ? join(process.env.PULLBOARD_LEGACY_WATCHDOG_DIR, String(process.pid)) : undefined) }, execArgv: [], env: { ...process.env, NODE_OPTIONS: '' },
   });
   for (const stream of [process.stdout, process.stderr]) {
     const write = stream.write;

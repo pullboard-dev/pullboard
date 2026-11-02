@@ -563,6 +563,8 @@ export function legacyNativeFileRun(args, env, concurrency, { runner, knownNodeO
   const nodeArgs = [
     '--disable-warning=ExperimentalWarning',
     '--test',
+    '--import',
+    fileURLToPath(new URL('./legacy-watchdog-output.js', import.meta.url)),
     `--test-concurrency=${files}`,
     ...(!reporter ? ['--test-reporter=tap', ...(env.PULLBOARD_TEST_ACTIONS ? ['--test-reporter-destination=stdout', `--test-reporter=${fileURLToPath(new URL('./test-action-reporter.js', import.meta.url))}`, `--test-reporter-destination=${devNull}`] : [])] : []),
     '--import',
@@ -571,6 +573,8 @@ export function legacyNativeFileRun(args, env, concurrency, { runner, knownNodeO
     ...selectionReporter,
     ...selectors,
   ];
-  return spawnSync(process.execPath, nodeArgs, { env, stdio: 'inherit' });
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-legacy-watchdog-'));
+  try { return spawnSync(process.execPath, nodeArgs, { env: { ...env, PULLBOARD_LEGACY_WATCHDOG_DIR: directory }, stdio: 'inherit' }); }
+  finally { rmSync(directory, { recursive: true, force: true }); }
 }
 
