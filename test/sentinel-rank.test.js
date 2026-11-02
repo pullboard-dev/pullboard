@@ -15,7 +15,7 @@ test('a pinned claim stays above an unpinned free item [N2,B13]', async t => {
   const box = await fixture(t);
   const earlier = box.add('ordinary');
   const pinned = box.add('pinned');
-  const added = await cli(box, box.root, ['milestone', 'add', 'priority', '--items', `${earlier},${pinned}`]);
+  const added = await cli(box, box.root, ['milestone', 'add', 'priority', '--items', `${earlier},${pinned}`, '--reason', 'Fixture controls ranking']);
   assert.equal(added.code, 0, added.out + added.err);
   const result = await cli(box, box.root, ['milestone', 'pin', 'priority', String(pinned), '--reason', 'Fixture pins the claim']);
   assert.equal(result.code, 0, result.out + result.err);
