@@ -31,7 +31,7 @@ export function boardEnginePorts(providers) {
   ]) {
     if (typeof providers?.[name] !== 'function') throw new Refused('NO_POLICY', `Supply the explicit native engine provider ${name} before opening storage.`);
   }
-  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+  for (const name of ['mainPolicy', 'policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
     if (typeof providers.sandboxPolicyReads?.[name] !== 'function') throw new Refused('NO_POLICY', `Supply the explicit native engine provider sandboxPolicyReads.${name} before opening storage.`);
   }
   const {
