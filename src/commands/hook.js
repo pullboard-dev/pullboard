@@ -1,3 +1,5 @@
+import { stagedShimImportProblems } from '../../packages/codemap/index.js';
+import { importsIn } from '../../packages/gate/index.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../../packages/landing/index.js';
@@ -93,7 +95,14 @@ export async function hookCommand(io, { first, second }) {
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (landing) io.caller('coordinator', info.root);
     else if (agent) io.caller('seat', info.root);
-    problems = preCommitProblems({ approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+    const criterion = agent ? hookRead(ctx, board => {
+      const claims = store.listItems(board).filter(item => item.item_status === 'claimed'
+        && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item));
+      return claims.length === 1 && claims[0].item_frozen ? JSON.parse(claims[0].item_frozen).criterion ?? '' : '';
+    }) ?? '' : '';
+    const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
+    const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
+    problems = preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
