@@ -1,3 +1,4 @@
+import { QUEUE_PREEMPT_ENGINE } from '../../../../src/queue-preempt-engine.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { expectedBuildProblem } from '../../../items/index.js';
 import { liveClaimCollisions } from '../../../items/index.js';
@@ -204,6 +205,11 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   mine.sort((a, b) => focusCompare(a.entry, b.entry));
   mine.sort((a, b) => Number(Boolean(b.reworkRouting?.rejection) && b.entry.item_built_by === agentId) - Number(Boolean(a.reworkRouting?.rejection) && a.entry.item_built_by === agentId));
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUE_PREEMPT_ENGINE) {
+    const emergency = new Set([...priority, ...board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'item_urgent:*' AND meta_value='on'").all()
+      .map(row => Number(row.meta_key.slice('item_urgent:'.length)))]);
+    mine.sort((a, b) => Number(emergency.has(b.entry.item_id)) - Number(emergency.has(a.entry.item_id)));
+  }
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
     const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;

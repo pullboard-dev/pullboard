@@ -1,3 +1,4 @@
+import { relayFetch } from '../../../person/index.js';
 /** CLI pairing flow: the relay stores only a one-use client-encrypted package [H15,H17]. */
 import { randomUUID } from 'node:crypto';
 import {
@@ -93,7 +94,7 @@ function saveState(file, state) {
 async function relayRequest(url, token, path, body) {
   let response;
   try {
-    response = await fetch(new URL(path, url), {
+    response = await relayFetch(new URL(path, url), {
       method: 'POST', redirect: 'error', signal: AbortSignal.timeout(10000),
       headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), 'content-type': 'application/json' }, body: JSON.stringify(body),
     });

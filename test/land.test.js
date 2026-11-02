@@ -1,5 +1,5 @@
-import { flakeQuarantines as nativeFlakeQuarantines } from '../src/quarantine.js';
-import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
+import { flakeQuarantines as nativeFlakeQuarantines } from '../packages/flakes/index.js';
+import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../packages/landing/index.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../packages/landing/index.js';
 import { landingPorts } from './landing-ports-fixture.js';
