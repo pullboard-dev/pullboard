@@ -1162,10 +1162,7 @@
     {
       "path": "src/move-history/196.json",
       "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/verify-known-main-check.js",
-      "reason": "explicit bounded placement: stays in place during the move"
+
     }
   ],
   "retired": [

@@ -4,7 +4,7 @@ import { testTierCommand } from '../../packages/gate/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
-import { boundProofReceipt } from '../../packages/store/index.js';
+import { boundProofReceipt, linkKnownMainReworks } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
 import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
@@ -16,7 +16,7 @@ import {
 } from '../test-output-summary.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices, compareMainFailures, failureSignatures, matchingMainFailures } from '../landing-shards.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { committedItemAuthors } from '../../packages/verify/index.js';
@@ -117,7 +117,34 @@ import {
 } from '../cli.js';
 import { recordedRecovery } from '../../packages/state/index.js';
 import { retryReviewCommit } from '../../packages/verify/index.js';
-import { knownMainCheck, knownMainCheckNote } from '../verify-known-main-check.js';
+import { readFileSync } from 'node:fs';
+
+/** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
+export async function knownMainCheck(root, check, { main, item, items, onWait, onMeasuredReceipt, runnerAdmission }) {
+  if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
+  try {
+    const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : check.output;
+    const run = { ...check, isGreen: false, output,
+      stages: [{ status: check.exitCode, output }] };
+    const failures = failureSignatures(run, root);
+    if (!failures?.length) return null;
+    // Private checks report paths under their temporary checkout; use the already
+    // validated repository-relative failure identities to select main's files.
+    const profile = { tests: failures.map(row => ({ file: row.file, passed: false })) };
+    const comparison = await compareMainFailures(root, profile, onWait, output, {
+      commit: main, detailed: true, onMeasuredReceipt, runnerAdmission,
+      execution: { executor: check.executionRunner ? { kind: 'ssh', host: check.executionRunner } : { kind: 'local' }, environment: check.environment },
+    });
+    const matched = matchingMainFailures(failures, comparison, main);
+    return linkKnownMainReworks(matched, items(), item);
+  } catch { return null; } // Preserve CHECK_RED when comparison, identity or ownership cannot be established.
+}
+
+/** Retain exact case identities and repair links in the immutable verdict without calling the raw check green. */
+export function knownMainCheckNote(known) {
+  return known ? `\nfrozen check remains red; identical on main ${known.main}:\n`
+    + known.failures.map(row => `${row.file} :: ${row.name}; open Main red repair #${row.item}`).join('\n') : '';
+}
 
 /** Preserve policy refusals while representing unusable cited criteria as a changed digest. */
 export function verificationCriterionDigest(freeze, item) {
