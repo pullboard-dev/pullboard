@@ -24,14 +24,9 @@ function writeIdentity(key) {
 
 /** The only approved in-transaction I/O boundaries: holder accuracy and live policy races. */
 export const BOARD_WRITE_IO_EXCEPTIONS = Object.freeze({
-  holder: 'src/board-write-lock.js#beginBoardWrite',
   policy: 'src/cli-read-context.js#writePolicySignature',
 });
 
-const WRITE_PUBLICATION = new Map([
-  ['src/board-write-lock.js#beginBoardWrite', new Set(['node:fs#mkdirSync', 'node:fs#lstatSync', 'node:fs#writeFileSync'])],
-  ['src/board-write-lock.js#boardFile', new Set(['node:fs#realpathSync'])],
-]);
 // Only the transaction kernel can call these after release; callers inside work are not exempt.
 const POST_RELEASE = new Map([
   ['src/board-write-lock.js#finishBoardWrite', new Set(['node:fs#writeSync', 'node:fs#unlinkSync'])],
@@ -190,9 +185,6 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
       if (target.builtin && EXTERNAL_IO.test(target.builtin)) {
         if (PURE_NETWORK_CALLS.has(target.builtin.replace(/^node:/u, '') + '#' + target.name)) continue;
         const owner = writeIdentity(chain.at(-1));
-        const marker = owner === 'src/board-write-lock.js#beginBoardWrite'
-          || owner === 'src/board-write-lock.js#boardFile' && chain.some(value => writeIdentity(value) === BOARD_WRITE_IO_EXCEPTIONS.holder);
-        if (marker && WRITE_PUBLICATION.get(owner)?.has(target.builtin + '#' + target.name)) continue;
         if (writeIdentity(chain[0]) === 'src/board-event-log.js#atomic'
           && chain.some(value => writeIdentity(value) === 'src/board-write-lock.js#finishBoardWrite')
           && POST_RELEASE.get(owner)?.has(target.builtin + '#' + target.name)) continue;

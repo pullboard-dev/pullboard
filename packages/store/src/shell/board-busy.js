@@ -1,4 +1,5 @@
 import { boardWriteHolderText } from "./board-write-lock.js";
+import { discardBoardWriteMarker } from "./board-write-lock.js";
 /** Translate SQLite lock contention without coupling error reporting to the full board store [C7]. */
 import { Refused } from "../../../kernel/index.js";
 import { writeSync } from 'node:fs';
@@ -50,13 +51,13 @@ function queueMs() {
  * @param {any} db
  * @param {number} startedAt
  */
-export function beginImmediateQueued(db, startedAt) {
+export function beginImmediateQueued(db, startedAt, marker = null) {
   const bound = queueMs();
   for (;;) {
     try { db.exec('BEGIN IMMEDIATE'); return; }
     catch (error) {
       const refusal = boardWriteBusyError(db, startedAt, error);
-      if (refusal === error || bound === 0 || db.prepare('PRAGMA busy_timeout').get().timeout === 0 || Date.now() - startedAt >= BOARD_BUSY_TIMEOUT_MS + bound) throw refusal;
+      if (refusal === error || bound === 0 || db.prepare('PRAGMA busy_timeout').get().timeout === 0 || Date.now() - startedAt >= BOARD_BUSY_TIMEOUT_MS + bound) { discardBoardWriteMarker(marker); throw refusal; }
       try { writeSync(2, `pullboard: board write queued, still waiting for the lock (up to ${Math.round((BOARD_BUSY_TIMEOUT_MS + bound) / 1000)}s): ${refusal.message.replace(/^\[BOARD_BUSY\]\s*/u, '')}\n`); }
       catch { /* A closed diagnostic stream must not turn a queued write into a refusal. */ }
     }
