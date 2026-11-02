@@ -510,17 +510,20 @@ export function writeShimHandoff(root, result, cell, { lane = 'core', directory,
   if (fileCut) item = claimedItem(root, lane, env);
   else try { item = claimedItem(root, lane, env); } catch { item = null; } // An unjoined dry run still produces a draft.
   const handoff = shimHandoff(result, cell, item);
+  const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+  const add = ['add', lane, handoff.title, '--criterion', handoff.criterion, '--after', String(item ?? '<removal item id>'), '--force-size', 'one cut must enumerate every remaining shim importer'];
+  const command = `pullboard ${add.map(quote).join(' ')}`;
   const out = directory ?? mkdtempSync(join(tmpdir(), 'pullboard-shim-handoff-'));
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'fact.txt'), handoff.fact + '\n');
-  writeFileSync(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n`);
+  writeFileSync(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n${command}\n`);
   if (fileCut) {
-    for (const args of [['fact', String(item), 'note', handoff.fact], ['add', lane, handoff.title, '--criterion', handoff.criterion, '--after', String(item)]]) {
+    for (const args of [['fact', String(item), 'note', handoff.fact], add]) {
       const run = spawnSync('pullboard', args, { cwd: root, env, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
       if (run.status !== 0) throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} failed: ${run.stderr?.trim() || run.error?.message || run.status}; handoff retained in ${out}`);
     }
   }
-  return { ...handoff, directory: out };
+  return { ...handoff, command, directory: out };
 }
 
 /** The lines the command prints: each repoint, deletion, kept shim with its reason, and the citations left outside the lane. */

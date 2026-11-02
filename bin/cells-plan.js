@@ -587,7 +587,7 @@ function main(argv) {
     }));
     for (const line of shimReport(result)) console.log(line);
     const handoff = writeShimHandoff(root, result, cells[0], { lane, directory, fileCut });
-    if (handoff) console.log(`${handoff.fact}\nCut item: ${handoff.title}\n${handoff.criterion}\nAfter: ${handoff.after ?? '<removal item id>'}\nHandoff: ${handoff.directory}`);
+    if (handoff) console.log(`${handoff.fact}\nCut item: ${handoff.title}\n${handoff.criterion}\nAfter: ${handoff.after ?? '<removal item id>'}\n${handoff.command}\nHandoff: ${handoff.directory}`);
     return 0;
   }
   if (mode === '--file-cuts') { fileCuts(root, readPlan(root), rest.includes('--yes')); return 0; }
