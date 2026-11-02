@@ -1,6 +1,6 @@
 /** Reload one committed CLI generation after an infrastructure refusal [C7,P3,V4]. */
 import { spawn } from 'node:child_process';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
 import { dirname } from 'node:path';
 import { resolve } from 'node:path';
 import { join } from 'node:path';
@@ -13,7 +13,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 function sourceGit(root, args) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
-  const run = spawnSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const run = gitSpawnSync(args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   return run.status === 0 ? run.stdout.trim() : null;
 }
 
