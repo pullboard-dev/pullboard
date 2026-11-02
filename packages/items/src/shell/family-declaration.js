@@ -106,8 +106,10 @@ export function derivedFamily(board, id, { session = null, inserting = false } =
     seats.add(row.meta_key.slice('agent_session:'.length));
   }
   let first = null;
+  // A long-lived session spans many seats; one read of just those seats replaces a per-seat scan of each one's events (#2421).
+  const snapshot = seats.size > 1 ? sessionSnapshot(board, [...seats]) : null;
   for (const seat of seats) {
-    for (const record of seatRecords(board, seat, { inserting: inserting && seat === id })) {
+    for (const record of seatRecords(board, seat, { inserting: inserting && seat === id }, snapshot)) {
       if (!first || record.order < first.order) first = record;
     }
   }
@@ -147,6 +149,50 @@ export function withDerivedFamily(board, row) {
   return row ? { ...row, agent_family: seatFamily(board, row.agent_id) } : row;
 }
 
+/**
+ * The family inputs of exactly these seats: their rows and their join and family events, by index.
+ * Why: a seat's family read must not list every seat on the board, which every inbox and claim pays for (#2421).
+ */
+function sessionSnapshot(board, ids) {
+  const seats = new Map(), joins = new Map(), families = new Map();
+  for (let offset = 0; offset < ids.length; offset += 500) {
+    const chunk = ids.slice(offset, offset + 500), marks = chunk.map(() => '?').join(',');
+    for (const row of board.db.prepare(`SELECT agent_id, agent_path, agent_family FROM agent WHERE agent_id IN (${marks})`).all(...chunk)) seats.set(row.agent_id, row);
+    for (const row of board.db.prepare(`SELECT event_id, event_by, event_kind, event_detail FROM event WHERE event_kind IN ('join','family') AND event_by IN (${marks}) ORDER BY event_id`).all(...chunk)) {
+      if (row.event_kind === 'join') { if (!joins.has(row.event_by) || joins.get(row.event_by).event_id > row.event_id) joins.set(row.event_by, row); }
+      else {
+        if (!families.has(row.event_by)) families.set(row.event_by, []);
+        families.get(row.event_by).push({ order: row.event_id, family: parsed(row.event_detail)?.family });
+      }
+    }
+  }
+  for (const list of families.values()) list.sort((left, right) => left.order - right.order);
+  let receipts;
+  return { seats, joins, families,
+    /** Read historical registration receipts at most once, only when a legacy changed seat needs them. */
+    receipts() { return receipts ??= receiptRegistrations(board); } };
+}
+
+/** A few rows read only their own seats and session peers; larger sets read every seat in one pass. */
+const SCOPED_ROWS = 512;
+
+/** The snapshot shape familySnapshot returns, holding only these rows' seats, their sessions and their session peers. */
+function scopedSnapshot(board, rows) {
+  const sessions = new Map(), peers = new Map(), ids = new Set();
+  const members = board.db.prepare(`SELECT meta_key FROM board_meta WHERE ${AGENT_KEY} AND meta_key LIKE 'agent\\_session:%' ESCAPE '\\' AND meta_value=? ORDER BY rowid`);
+  for (const row of rows) {
+    const id = row?.agent_id;
+    if (!id) continue;
+    ids.add(id);
+    const original = originalSession(board, id);
+    if (!original) continue;
+    sessions.set(id, original);
+    if (!peers.has(original)) peers.set(original, members.all(original).map(entry => entry.meta_key.slice('agent_session:'.length)));
+    for (const peer of peers.get(original)) ids.add(peer);
+  }
+  return { ...sessionSnapshot(board, [...ids]), sessions, peers };
+}
+
 /** Collect read-local family inputs once; no derived authority survives this bulk read. */
 function familySnapshot(board) {
   const seats = new Map(board.db.prepare('SELECT agent_id, agent_path, agent_family FROM agent').all().map(row => [row.agent_id, row]));
@@ -179,7 +225,7 @@ export function withDerivedFamilies(board, rows) {
   });
   board.db.exec('SAVEPOINT family_bulk_read');
   try {
-    const snapshot = familySnapshot(board), records = new Map();
+    const snapshot = rows.length <= SCOPED_ROWS ? scopedSnapshot(board, rows) : familySnapshot(board), records = new Map();
     return rows.map(row => {
       if (!row) return row;
       const id = row.agent_id, original = id ? snapshot.sessions.get(id) ?? null : null;
