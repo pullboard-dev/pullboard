@@ -506,6 +506,23 @@ process.stdout.write(JSON.stringify({ calls, result }));`;
   assert.equal(outcome.result.runnerAttempt.output, 'refused');
 });
 
+test('a direct flexible request prefers an idle browser-free runner [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [{ ...settings.runners[0], host: HOST + '-browser', slots: 1, browser: 1 },
+      { ...settings.runners[0], host: HOST + '-plain', slots: 1, browser: 0 }];
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true, runnerOnly: true,
+      runnerProvider: () => runners };
+    const flexible = await takeResource(options);
+    let browser;
+    try {
+      assert.equal(flexible.runner.host, HOST + '-plain', 'browser capacity stays free without a queued browser waiter');
+      browser = await takeResource({ ...options, browser: true, runnerWaitMs: 1_000 });
+      assert.equal(browser.runner.host, HOST + '-browser');
+    } finally { browser?.release(); flexible.release(); }
+  });
+});
+
 test('an older flexible waiter leaves a scarce browser host for a browser waiter [C7,Q1,Q2]', async () => {
   const box = fixture();
   await withPrivateDeadlineMachine(box, async settings => {
