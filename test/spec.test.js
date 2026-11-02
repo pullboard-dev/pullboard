@@ -1,3 +1,5 @@
+import { repointLandingGates } from '../packages/spec/index.js';
+import { missingGateFindings } from '../packages/spec/index.js';
 /**
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
@@ -1064,6 +1066,27 @@ function answerCommandCase(t, separateGitDir) {
   assert.equal(JSON.parse(person.stdout).decisions[0].answer, "Redis on the host's port");
 }
 
+test('landing repoints only Git-renamed gate paths and keeps deleted gates missing [S4,B3]', (t) => {
+  const source = '# Demo\n\n## G · Goals\n- G1 [approved, must] Original text stays exact. | gate: node test/old.test.js | serves: G2\n- G2 [approved, must] Deleted proof stays required. | gate: test/gone.test.js\n- G3 [approved, must] Untouched proof. | gate: test/still.test.js\n';
+  const box = specBox(t, { specSource: SPEC });
+  mkdirSync(join(box.root, 'test'));
+  for (const file of ['old', 'gone', 'still']) writeFileSync(join(box.root, `test/${file}.test.js`), `export const ${file} = true;\n`);
+  box.git('add', '-A'); box.git('commit', '-q', '-m', 'test: add gate proofs');
+  const base = box.git('rev-parse', 'HEAD').trim();
+  box.git('mv', 'test/old.test.js', 'test/new.test.js');
+  box.git('rm', '-q', 'test/gone.test.js');
+  box.git('commit', '-q', '-m', 'test: move one proof');
+  const tip = box.git('rev-parse', 'HEAD').trim();
+  writeFileSync(join(box.root, box.specName), source);
+  const changes = repointLandingGates(box.root, { spec: box.specName }, base, tip);
+  assert.deepEqual(changes, [{ row: 'G1', from: 'test/old.test.js', to: 'test/new.test.js' }]);
+  const actual = readFileSync(join(box.root, box.specName), 'utf8');
+  assert.equal(actual, source.replace('test/old.test.js', 'test/new.test.js'));
+  const findings = missingGateFindings(parseSpec(actual), box.root);
+  assert.ok(findings.some(row => row.id === 'G2' && row.level === 'error'));
+  assert.ok(!findings.some(row => row.id === 'G1' || row.id === 'G3'));
+});
+
 test('spec check fails when an approved row names a missing gate [S4]', (t) => {
   // A gate file that was committed and then removed is a lost test: an approved must-row fails spec check and
   // names the row, the file and the removal (#809).
@@ -1115,6 +1138,31 @@ test('a commit that deletes an approved row test is refused [S4]', (t) => {
   box.git('add', '-A');
   const repointed = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
   assert.ok(!repointed.some((problem) => problem.includes('G9 names')), `the same commit repoints the row: ${repointed.join('\n')}`);
+});
+
+test('an exact-content gate rename passes the commit and spec guards; changed content is refused [S4,B3]', (t) => {
+  const source = `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/proof.test.js\n`;
+  const box = specBox(t, { specSource: source });
+  mkdirSync(join(box.root, 'test'));
+  const content = 'export const proof = true;\n'.repeat(20);
+  writeFileSync(join(box.root, 'test/proof.test.js'), content);
+  box.git('add', '-A'); box.git('commit', '-q', '-m', 'test: add proof');
+  const config = configFromSource(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+  box.git('mv', 'test/proof.test.js', 'test/moved.test.js');
+  const exact = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
+  assert.ok(!exact.some(problem => problem.includes('G9 names')), exact.join('\n'));
+  writeFileSync(join(box.root, 'test/moved.test.js'), content + 'export const changed = true;\n');
+  box.git('add', 'test/moved.test.js');
+  const changed = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
+  assert.ok(changed.some(problem => problem.includes('G9 names') && problem.includes('changed content')), changed.join('\n'));
+  writeFileSync(join(box.root, 'test/moved.test.js'), content);
+  box.git('add', 'test/moved.test.js'); box.git('commit', '-q', '-m', 'test: rename proof');
+  const findings = missingGateFindings(parseSpec(source), box.root);
+  assert.ok(findings.some(row => row.id === 'G9' && row.level === 'warning' && /landing will repoint/u.test(row.message)));
+  assert.ok(!findings.some(row => row.id === 'G9' && row.level === 'error'));
+  writeFileSync(join(box.root, 'test/moved.test.js'), content + 'export const later = true;\n');
+  box.git('add', 'test/moved.test.js'); box.git('commit', '-q', '-m', 'test: change moved proof');
+  assert.ok(missingGateFindings(parseSpec(source), box.root).some(row => row.id === 'G9' && row.level === 'error'));
 });
 
 test('a gate path written another way still guards its test [S4]', (t) => {
