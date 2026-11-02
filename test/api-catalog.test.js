@@ -852,6 +852,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null, fixed: true });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
+  assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
+  assert.ok(Array.isArray((await json(source, source.repo, 'seats')).seats));
+  assert.equal(typeof (await json(source, source.repo, 'stats', ['time'], 'time')).time, 'object');
+  assert.ok(Object.hasOwn(await json(source, source.repo, 'tool-build'), 'build'));
 
   const handoffPath = join(source.dir, 'catalog-handoff');
   await source.git(source.repo, 'worktree', 'add', '--detach', '--quiet', handoffPath, 'HEAD');

@@ -1438,6 +1438,14 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     assert.deepEqual(builds, [ids[0], ids[1]], 'the changed item and its dependent are recomputed');
     assert.deepEqual(dependencyState.items.find((item) => item.id === ids[1]).blockedBy, [],
       'the waiting item becomes unblocked when its dependency is verified');
+    const dependent = dependencyState.items.find((item) => item.id === ids[1]);
+    if (dependent.claim) {
+      assert.ok([builder.agent, verifier.agent].includes(dependent.claim.by), 'the extra claim belongs to a fixture seat');
+      const owner = dependent.claim.by === builder.agent ? builder : verifier;
+      const released = box.run(owner.path, 'release', String(ids[1]), '--reason', 'OTHER', '--note', 'isolate the later lease expiry', '--no-next');
+      assert.equal(released.status, 0, released.stderr || released.stdout);
+      await assertFreshFullState('release the extra claim');
+    }
 
     builds.length = 0;
     await move('shout', undefined, { to: 'all', text: 'Board-only change for incremental projection' });
