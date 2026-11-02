@@ -40,6 +40,7 @@ import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { fixtureSourceEdits } from './cells-move-fixtures.js';
 import { removeShims } from './cells-remove-shims.js';
 import { shimReport } from './cells-remove-shims.js';
+import { writeShimHandoff } from './cells-remove-shims.js';
 import { readMoveDataReads, staleDataReads } from './cells-data-reads.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
@@ -572,8 +573,11 @@ function main(argv) {
   }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--remove-shims') {
     const laneAt = rest.indexOf('--lane'), lane = laneAt < 0 ? 'core' : rest[laneAt + 1];
-    const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
-    if (cells.length !== 1 || !lane) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>]');
+    const outAt = rest.indexOf('--output-dir'), directory = outAt < 0 ? undefined : rest[outAt + 1];
+    const fileCut = rest.includes('--file-cut');
+    const cells = rest.filter((_value, index) => !(laneAt >= 0 && (index === laneAt || index === laneAt + 1))
+      && !(outAt >= 0 && (index === outAt || index === outAt + 1)) && rest[index] !== '--file-cut');
+    if (cells.length !== 1 || !lane || (outAt >= 0 && !directory)) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>] [--output-dir <directory>] [--file-cut]');
     const plan = readPlan(root), cell = plan.cells.find(row => row.name === cells[0]);
     // One parse cache for the whole sweep: unchanged sources are never re-compiled across repoint iterations (#2232).
     const result = recordToolCommand(root, { tool: 'remove-shims', cell: cells[0], lane }, () => withParseScope(() => {
@@ -582,6 +586,8 @@ function main(argv) {
       return removed;
     }));
     for (const line of shimReport(result)) console.log(line);
+    const handoff = writeShimHandoff(root, result, cells[0], { lane, directory, fileCut });
+    if (handoff) console.log(`${handoff.fact}\nCut item: ${handoff.title}\n${handoff.criterion}\nAfter: ${handoff.after ?? '<removal item id>'}\nHandoff: ${handoff.directory}`);
     return 0;
   }
   if (mode === '--file-cuts') { fileCuts(root, readPlan(root), rest.includes('--yes')); return 0; }

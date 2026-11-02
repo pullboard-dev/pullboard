@@ -13,6 +13,8 @@ import { readPlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { removeShims } from '../bin/cells-remove-shims.js';
 import { scriptMentions } from '../bin/cells-remove-shims.js';
+import { writeShimHandoff } from '../bin/cells-remove-shims.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import { fixture } from './cells-plan-fixture.js';
@@ -425,4 +427,45 @@ test('removal on a largest-cell-shaped fixture builds one inventory and spawns g
   // git spawns stay far below the importer count; one per importer would have been 120 or more.
   assert.ok(calls <= 20, `git ran ${calls} times for ${importers} importers`);
   console.log(`# remove-shims importers ${importers} gitcalls ${calls}`);
+});
+
+test('kept shims write complete fact and cut drafts; an empty run writes nothing [C7,D3]', t => {
+  const box = shimmed(t);
+  for (let index = 0; index < 5; index++) box.put(`packages/mid/src/use-${index}.js`, "import { leaf } from '../../../src/stats-leaf.js'; export { leaf };\n");
+  const result = removeShims(box.root, box.plan, 'stats', { parsers: PARSERS });
+  const out = join(box.root, 'handoff');
+  const handoff = writeShimHandoff(box.root, result, 'stats', { directory: out, env: { ...process.env, PATH: '' } });
+  assert.ok(handoff);
+  const fact = readFileSync(join(out, 'fact.txt'), 'utf8');
+  const draft = readFileSync(join(out, 'cut-item.txt'), 'utf8');
+  for (let index = 0; index < 5; index++) {
+    assert.match(fact, new RegExp(`packages/mid/src/use-${index}\\.js`, 'u'));
+    assert.match(draft, new RegExp(`packages/mid/src/use-${index}\\.js`, 'u'));
+  }
+  assert.match(draft, /--after <removal item id>/u);
+  const empty = join(box.root, 'empty-handoff');
+  assert.equal(writeShimHandoff(box.root, { keptDetails: [] }, 'stats', { directory: empty }), null);
+  assert.equal(existsSync(empty), false);
+});
+
+test('file-cut records the kept fact and dependent item on a real fixture board [C7,D3]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'Remove private shims', '--criterion', 'Remove the shims.', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const result = { keptDetails: [{ shim: 'src/example.js', reason: 'upward cut', importers: ['packages/one.js', 'packages/two.js'] }] };
+  const handoff = writeShimHandoff(box.web, result, 'example', { lane: 'web', directory: join(box.dir, 'handoff'), fileCut: true, env: box.env });
+  assert.equal(handoff.after, id);
+  const shown = box.run(box.repo, 'show', String(id), '--json');
+  assert.equal(shown.code, 0, shown.err);
+  assert.match(shown.out, /packages\/one\.js/u);
+  const list = box.run(box.repo, 'list', 'web', '--all', '--json');
+  assert.equal(list.code, 0, list.err);
+  const cut = JSON.parse(list.out).items.find(item => item.item_title === handoff.title);
+  assert.ok(cut);
+  assert.match(cut.item_criterion, /packages\/two\.js/u);
+  assert.match(String(cut.item_after), new RegExp(`(?:^|,)${id}(?:,|$)`, 'u'));
 });

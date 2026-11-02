@@ -1,7 +1,11 @@
 /** Remove one cell's re-export shims: repoint every importer to the cell front door, then delete what nothing imports [C7,D3]. */
 import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { Script } from 'node:vm';
@@ -456,8 +460,8 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     if (foreignPlan.length) why.push(`deleting ${shim} rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
     why.push(...named.filter(row => row.path === shim).map(row => `${row.file}:${row.line} names ${shim} inside a string; point it at the moved file or front door`));
     why.push(...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by ')));
-    if (!held.length && users.length) why.push(`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`);
-    if (why.length) { kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`); continue; }
+    if (users.length) why.push(`still imported by ${users.join(', ')}`);
+    if (why.length) { kept.set(shim, why.join('; ')); continue; }
     deleted.push(shim);
   }
   // One git rm for every deleted shim, not one process each; a refusal falls back to plain file removal (#2232).
@@ -469,7 +473,54 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
   const cited = [...plans].flatMap(([shim, made]) => made.cited.map(file => `${file} cites ${shim}; not rewritten outside the ${lane} lane`));
   const reexports = cell.reexports.filter(shim => !deleted.includes(shim) && !absent.includes(shim));
   const next = { ...plan, cells: plan.cells.map(row => row.name === name ? { ...row, reexports } : row) };
-  return { plan: next, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], cited };
+  const keptDetails = [...kept].map(([shim, reason]) => ({ shim, reason, importers: [...new Set([
+    ...[...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file),
+    ...named.filter(row => row.path === shim).map(row => row.file),
+  ])].sort() }));
+  return { plan: next, changed: deleted.length > 0 || absent.length > 0, rewritten, deleted, absent, kept: [...kept], keptDetails, cited };
+}
+
+/** Make complete, reviewable board text for each shim that could not be removed. */
+export function shimHandoff(result, cell, item) {
+  if (!result.keptDetails?.length) return null;
+  const rows = result.keptDetails.map(({ shim, reason, importers }) => `- ${shim}: ${reason}; importers: ${importers.length ? importers.join(', ') : '(none found)'}`);
+  const fact = `Cells ${cell} kept shims:\n${rows.join('\n')}`;
+  const title = `Cells cut: remove remaining ${cell} shim importers`;
+  const criterion = `After the ${cell} shim removal, resolve these remaining edges and remove the kept shims where safe:\n${rows.join('\n')}`;
+  return { fact, title, criterion, after: item ?? null };
+}
+
+/** Obtain board identity and the one live claim before any optional board write. */
+function claimedItem(root, lane, env) {
+  const read = args => {
+    const run = spawnSync('pullboard', [...args, '--json'], { cwd: root, env, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if (run.status !== 0) throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} failed: ${run.stderr?.trim() || run.error?.message || run.status}`);
+    try { return JSON.parse(run.stdout); } catch { throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} did not return JSON`); }
+  };
+  const me = read(['whoami']);
+  const claims = (read(['list', lane, '--all']).items ?? []).filter(row => row.item_owner === me.id && row.item_status === 'claimed' && Date.parse(row.item_lease_until) > Date.now());
+  if (claims.length !== 1) throw new Refused('CELLS_PLAN_FILE', 'a single live claimed removal item is required for --file-cut');
+  return claims[0].item_id;
+}
+
+/** Persist the handoff outside the checkout and optionally record it through the normal board CLI. */
+export function writeShimHandoff(root, result, cell, { lane = 'core', directory, fileCut = false, env = process.env } = {}) {
+  if (!result.keptDetails?.length) return null;
+  let item;
+  if (fileCut) item = claimedItem(root, lane, env);
+  else try { item = claimedItem(root, lane, env); } catch { item = null; } // An unjoined dry run still produces a draft.
+  const handoff = shimHandoff(result, cell, item);
+  const out = directory ?? mkdtempSync(join(tmpdir(), 'pullboard-shim-handoff-'));
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, 'fact.txt'), handoff.fact + '\n');
+  writeFileSync(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n`);
+  if (fileCut) {
+    for (const args of [['fact', String(item), 'note', handoff.fact], ['add', lane, handoff.title, '--criterion', handoff.criterion, '--after', String(item)]]) {
+      const run = spawnSync('pullboard', args, { cwd: root, env, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
+      if (run.status !== 0) throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} failed: ${run.stderr?.trim() || run.error?.message || run.status}; handoff retained in ${out}`);
+    }
+  }
+  return { ...handoff, directory: out };
 }
 
 /** The lines the command prints: each repoint, deletion, kept shim with its reason, and the citations left outside the lane. */
