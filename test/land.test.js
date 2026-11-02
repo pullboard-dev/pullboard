@@ -6,6 +6,7 @@ import { landingPorts } from './landing-ports-fixture.js';
 import './item-patch-journey.test.js';
 /** Exercise landing against real private Git worktrees, hooks, SQLite and bare remotes [B3,R3]. */
 import assert from 'node:assert/strict';
+import { loadConfig } from '../packages/config/index.js';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { after, test } from 'node:test';
@@ -16,6 +17,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { landingFailures, landingSubject } from '../packages/landing/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild, runFixtureChild } from './fixture-child.js';
+import { stopGroup } from './runner-process-group.js';
 import { waitForFixtureProgress } from './fixture-progress.js';
 import { assertNoRemoteLanding } from './land-no-remote-fixture.js';
 import { MARKER_NOT_YET, readMarker } from './land-marker-fixture.js';
@@ -153,13 +155,7 @@ async (t) => {
     };
     for (const writer of writers) {
       writeFileSync(writer.release, 'release');
-      if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-        try { process.kill(-writer.child.pid, 'SIGTERM'); } catch {}
-        if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-          try { process.kill(-writer.child.pid, 'SIGKILL'); } catch {}
-          await writer.closed;
-        }
-      }
+      await stopGroup(writer.child, writer.closed);
     }
     for (const hook of hooks) {
       if (!await settle(hook.closed, 1_000) && hook.exitCode === null && hook.signalCode === null) {
@@ -231,7 +227,7 @@ async (t) => {
   t.after(async () => {
     if (writer) {
       writeFileSync(writer.release, 'release');
-      await writer.closed;
+      await stopGroup(writer.child, writer.closed);
     }
     if (hook && hook.exitCode === null && hook.signalCode === null) {
       hook.kill('SIGKILL');
@@ -1101,13 +1097,7 @@ async (t) => {
     };
     for (const writer of writers) {
       writeFileSync(writer.release, 'release');
-      if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-        try { process.kill(-writer.child.pid, 'SIGTERM'); } catch {}
-        if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-          try { process.kill(-writer.child.pid, 'SIGKILL'); } catch {}
-          await writer.closed;
-        }
-      }
+      await stopGroup(writer.child, writer.closed);
     }
     for (const hook of hooks) {
       if (!await settle(hook.closed, 1_000) && hook.exitCode === null && hook.signalCode === null) {
@@ -1193,7 +1183,7 @@ async (t) => {
   t.after(async () => {
     if (writer) writeFileSync(writer.release, 'cleanup');
     try { if (hook) await stop(hook, hook.closed); }
-    finally { if (writer) await stop(writer.child, writer.closed, true); }
+    finally { if (writer) await stopGroup(writer.child, writer.closed); }
   });
   writer = startExclusiveWriter(box, join(box.repo, '.git', 'pullboard', 'board.sqlite'), 'slow-reader');
   await waitFor(() => existsSync(writer.ready), 'exclusive writer before the delayed hook');
@@ -1252,9 +1242,9 @@ test('land bisect adoption retains completed gates, isolated diagnostics and ori
   child.stdout.on('data', part => { outputBytes += Buffer.byteLength(part); });
   child.stderr.on('data', part => { outputBytes += Buffer.byteLength(part); });
   const closed = new Promise((resolveClose) => child.once('close', (status, signal) => resolveClose({ status, signal })));
-  t.after(() => {
+  t.after(async () => {
     writeFileSync(box.release, 'release');
-    if (child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+    await stopGroup(child, closed);
   });
   await waitForFixtureProgress({
     child,
@@ -1324,7 +1314,7 @@ test('landing records replay identically with native sender and engine boundarie
 test('an item with no spec rows lands under a header its commit hook accepts [B3,R3]', () => {
   const box = landProject();
   // A docs-lane item with no spec rows: its commit cites none, and its merge header names its lane's type.
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  const config = loadConfig(box.repo);
   config.lanes.docs = { owns: ['docs/'], specs: [] };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
