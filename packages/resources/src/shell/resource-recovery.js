@@ -59,7 +59,7 @@ export function recordRunnerFailure(db, host, reason, diagnostic, { quarantine =
     failure=excluded.failure,probe_after=excluded.probe_after,probe_token='',probe_until=0,probe_attempts=0`)
     .run(host, new Date().toISOString(), reason === 'cleanup-unverified' ? 'CLEANUP_UNVERIFIED'
       : reason === 'worker-unresponsive' ? 'WORKER_UNRESPONSIVE' : 'TRANSPORT_UNVERIFIED',
-      JSON.stringify(failure), Date.now() + 1_000);
+      JSON.stringify(failure), Date.now() + (reason === 'worker-unresponsive' ? 0 : 1_000));
   });
 }
 
