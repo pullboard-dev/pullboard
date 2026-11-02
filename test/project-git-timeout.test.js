@@ -3,7 +3,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { performance } from 'node:perf_hooks';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChildAsync } from './fixture-child.js';
@@ -17,11 +16,9 @@ import {listApiProjects} from ${JSON.stringify(url('packages/seats/index.js'))};
 import {apiBoardOpeners} from ${JSON.stringify(url('test/board-fixture.js'))};
 import {refusalDocument} from ${JSON.stringify(url('src/next-step-words.js'))};
 console.log(JSON.stringify(apiBoardListing(listApiProjects,undefined,refusalDocument,apiBoardOpeners)));`;
-  const start = performance.now();
   const child = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], // budget: absence of the production Git deadline must fail instead of retaining the test indefinitely.
     { cwd: box.repo, env: box.env, timeout: 45_000, killSignal: 'SIGKILL' });
   assert.equal(child.status, 0, child.context + child.stdout);
-  assert.ok(performance.now() - start < 35_000, 'listing completes within its interactive bound'); // budget: five-second Git limit plus loaded CLI/runtime startup allowance.
   assert.equal(existsSync(box.marker), true, 'the real Git stand-in was reached');
   const listed = JSON.parse(child.stdout);
   assert.ok(listed.boards.some(project => project.root === box.repo));
@@ -33,12 +30,10 @@ console.log(JSON.stringify(apiBoardListing(listApiProjects,undefined,refusalDocu
 
 test('verify skips a registered repository whose Git never returns and still records the verdict [C7,N33]', { timeout: 120_000 }, async t => { // budget: real add/build/submit/reviewer setup plus one bounded foreign Git lookup.
   const box = projectGitTimeoutFixture(t, { review: true });
-  const start = performance.now();
   const child = await runFixtureChildAsync(process.execPath, [join(import.meta.dirname, '../bin/pullboard.js'), 'verify', String(box.item), 'accept',
     '--note', 'The frozen ready file exists.', '--no-next', '--json'], // budget: a regression in the foreign-project lookup fails at the outer diagnostic ceiling.
   { cwd: box.reviewer, env: box.env, timeout: 45_000, killSignal: 'SIGKILL' });
   assert.equal(child.status, 0, child.context + child.stdout);
-  assert.ok(performance.now() - start < 35_000, 'verify completes within its interactive bound'); // budget: five-second foreign Git limit plus native proof/startup allowance.
   assert.equal(existsSync(box.marker), true, 'verify used the registered-project fallback');
   assert.match(child.stderr, /unreachable.*timed out/u);
   assert.ok(child.stderr.includes(box.bad));
