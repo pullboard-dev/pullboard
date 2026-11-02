@@ -31,9 +31,10 @@ function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
 function fixture(t, { enabled = true, result = 'green', companion = false } = {}) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('true');
-  // The nested fixture owns its isolated machine pool, not the runner's outer lease.
-  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
+  const isolated = helpers.sandbox();
+  // Isolate admission before init and commit hooks, as well as the nested queued worker.
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
+  const box = helpers.project('true', isolated);
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
   const releases = [release];
@@ -163,11 +164,21 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
   const result = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(JSON.parse(result).queued, true);
+  const job = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
+  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+  assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
+  assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
+  const workerPath = join(request.tools, 'src/submit-handoff-worker.js');
+  const originalWorker = readFileSync(workerPath, 'utf8');
   await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000);
   writeFileSync(join(tools, 'src/submit-handoff-worker.js'), "throw new Error('changed builder tooling');\n");
+  assert.equal(readFileSync(workerPath, 'utf8'), originalWorker, 'builder mutations cannot change the queued tools');
   writeFileSync(box.release, 'release\n');
   await waitJob(box, 'green');
   assert.equal(state(box, box.id).item.item_commit, box.commit);
+  await box.helpers.waitFor(() => !existsSync(request.tools), 'owned tool snapshot cleanup', 120000);
+  assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'cleanup preserves the builder tool installation');
 });
 
 /** Make a real later builder commit without replacing the queued source. */
@@ -201,7 +212,7 @@ test('a queued red retains the exact canonical refusal and builder first refusal
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'REOPEN_HELD_FOR_BUILDER');
-  document(box.run(box.web, 'release', String(box.second), '--no-next', '--json'));
+  document(box.run(box.web, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json'));
   document(box.run(box.web, 'claim', String(box.id), '--json'));
   assert.equal(state(box, box.id).item.item_owner, completed.job.agentId, 'the same seat resumes at a natural break');
 });
