@@ -1,3 +1,7 @@
+import { join } from 'node:path';
+import { openBoard } from '../apps/lib/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { DatabaseSync } from 'node:sqlite';
 import { prepareFlakeLanding } from '../packages/landing/index.js';
 import { boardFixture } from './next-order-fixture.js';
@@ -163,4 +167,29 @@ test('historical structured quarantine requires twenty clean runs before the bou
   const at = throughEvent => quarantinesAt(events, runs, { throughEvent, quarantineCoreEngine: 2, autoSubmitEngine: 3 })[0].status;
   assert.equal(at(20), 'quarantined');
   assert.equal(at(21), 'lifted');
+});
+
+/** Exercise the actual landing route against a private board and remote. */
+test('a real landing refuses a newly observed unquarantined flake [C7,T12]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const fixtures = makeLandProjectFixtures(helpers);
+  const box = fixtures.landProject();
+  const item = fixtures.itemWorktree(box, 1);
+  fixtures.submitItem(box, item);
+  fixtures.acceptItem(box, item);
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
+  try {
+    const outcome = passed => [{ file: 'test/unstable.test.js', name: 'unstable case', passed, skipped: false }];
+    for (const [id, passed] of [['red-fixture', false], ['green-fixture', true]]) {
+      logEvent(board, 'coordinator', 'gate-run', null, { run: { id, version: 1, tree: 'fixture-tree', kind: 'landing', testOutcomes: outcome(passed) } });
+    }
+  } finally { closeBoard(board); }
+  const before = box.git(box.repo, 'rev-parse', 'main');
+  const result = box.run(box.repo, 'land', '--json');
+  assert.notEqual(result.code, 0, result.out);
+  assert.match(result.err + result.out, /FLAKE_RATCHET|unquarantined flaky test/);
+  assert.match(result.err + result.out, /test\/unstable\.test\.js/);
+  assert.equal(box.git(box.repo, 'rev-parse', 'main'), before);
+  assert.equal(box.git(box.remote, 'rev-parse', 'main'), before);
 });
