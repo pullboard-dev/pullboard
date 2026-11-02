@@ -1,5 +1,5 @@
 import { RULING_OWNER_ENGINE } from "../../../../../src/ruling-owner-engine.js";
-import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../../state/index.js';
+import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../../../src/rigor-instructions-engine.js';
 import { laneMessageFloor } from "../../../../seats/core.js";
 import { DECISION_QUEUE_ENGINE } from "../../../../../src/decision-queue-engine.js";
 import { ACTIVITY_NEWS_ENGINE } from "../../../../../src/activity-news-engine.js";
