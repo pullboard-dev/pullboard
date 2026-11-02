@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { cleanupProcessText, readCleanupTimeoutDetails } from '../index.js';
-import { createWorkerState } from '../../../../src/runner-worker-state.js';
-import { createDescendantTracker } from '../../../../src/runner-custody.js';
-import { beginCleanup, reportCleanupTimeout } from '../../../../src/runner-worker-cleanup.js';
-import { spawnOwned, drainOwned } from '../../../../src/runner-worker-process.js';
+import { createWorkerState } from '../../../src/runner-worker-state.js';
+import { createDescendantTracker } from '../../../src/runner-custody.js';
+import { beginCleanup, reportCleanupTimeout } from '../../../src/runner-worker-cleanup.js';
+import { spawnOwned, drainOwned } from '../../../src/runner-worker-process.js';
 
 /** A controlled POSIX observation supplies identity evidence without signalling synthetic PIDs. */
 function row(pid, ppid, pgid) {
@@ -49,7 +49,7 @@ test('cleanup timeout receipt and refusal name every waited-on process beyond si
   assert.equal(output.match(/^PULLBOARD_RUNNER_CLEANUP_TIMEOUT /gmu).length, 1);
 });
 
-test('a real test ends with a detached child and native worker cleanup drains it without a timeout [C7]', { timeout: 60_000 }, async () => { // budget: hang ceiling for the native child handshakes and drain.
+test('a real test ends with a detached child and native worker cleanup drains it without a timeout [C7]', { timeout: 60_000 }, async t => { // budget: hang ceiling for the native child handshakes and drain.
   const directory = mkdtempSync(join(tmpdir(), 'pb-cleanup-child-'));
   const state = createWorkerState(import.meta.url);
   const tracker = createDescendantTracker(directory, { tick: () => reportCleanupTimeout(state), timedOut: () => state.cleanupTimedOut });
@@ -69,11 +69,16 @@ test('leave a detached child for native cleanup [C7]', async () => {
   const env = { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, tracker.nodeOptions].filter(Boolean).join(' ') };
   delete env.NODE_TEST_CONTEXT;
   const record = spawnOwned(state, process.execPath, [probe], { env, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
+  const abort = () => record.child.kill('SIGTERM');
+  t.signal.addEventListener('abort', abort, { once: true });
   let output = ''; record.child.stdout.on('data', chunk => { output += chunk; }); record.child.stderr.resume();
   try {
-    const [message] = await once(record.child, 'message');
+    const [message] = await once(record.child, 'message', { signal: t.signal });
     tracker.observe();
-    assert.ok(tracker.cleanupState().live.some(process => process.pid === message.pid));
+    const waiting = tracker.cleanupState().live.find(process => process.pid === message.pid);
+    assert.ok(waiting);
+    assert.ok(typeof waiting.command === 'string' && waiting.command.length > 0);
+    assert.ok(typeof waiting.started === 'string' && waiting.started.length > 0);
     record.child.send('finish-test');
     assert.deepEqual(await record.closed, { code: 0, signal: null });
     assert.match(output, /# pass 1/u);
@@ -84,6 +89,7 @@ test('leave a detached child for native cleanup [C7]', async () => {
     assert.deepEqual(tracker.cleanupState().pending, []);
     assert.equal(state.cleanupTimedOut, false);
   } finally {
+    t.signal.removeEventListener('abort', abort);
     await drainOwned(state, record, true); await tracker.stopDescendants(); await tracker.verifyAfterGroups();
     tracker.stopMonitoring(); clearTimeout(state.cleanupTimer);
     rmSync(directory, { recursive: true, force: true });
