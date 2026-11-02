@@ -157,3 +157,27 @@ test('landing idle target [C7,V10]', async () => {
   assert.equal((output.match(/ok \d+ - later file still reports \[C7,V10\]/gu) ?? []).length, 1, output);
   assert.doesNotMatch(output, /Landing gate stopped early|Files not run:/u);
 });
+
+test('a busy descendant keeps its test file alive for two minutes [C7,V10]', t => {
+  const result = runFixture(t, `import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
+test('working child [C7,V10]', () => {
+  execFileSync(process.execPath, ['-e', 'const end=Date.now()+120000; while(Date.now()<end) {}']);
+});
+`, '180000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '2000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '180000' });
+  assert.equal(result.status, 0, outputOf(result));
+  assert.match(outputOf(result), /ok \d+ - working child \[C7,V10\]/u);
+  assert.doesNotMatch(outputOf(result), /HUNG file/u);
+});
+
+test('output from a quiet descendant keeps its file alive [C7,V10]', t => {
+  const result = runFixture(t, `import { test } from 'node:test';
+import { execFileSync } from 'node:child_process';
+test('output child [C7,V10]', () => {
+  execFileSync(process.execPath, ['-e', "let n=0; const timer=setInterval(()=>{console.log('progress'); if(++n===8)clearInterval(timer)},300)"], { stdio: 'inherit' });
+});
+`, '10000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '1000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '10000' });
+  assert.equal(result.status, 0, outputOf(result));
+  assert.match(outputOf(result), /ok \d+ - output child \[C7,V10\]/u);
+  assert.doesNotMatch(outputOf(result), /HUNG file/u);
+});
