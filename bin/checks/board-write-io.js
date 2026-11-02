@@ -3,7 +3,10 @@ import { posix } from 'node:path';
 import { scanSource } from '../../packages/codemap/index.js';
 import { lex } from '../../packages/kernel/index.js';
 
-const EXTERNAL_IO = /^(?:node:)?(?:fs(?:\/promises)?|child_process)$/u;
+const EXTERNAL_IO = /^(?:(?:node:)?(?:fs(?:\/promises)?|child_process|https?|net|tls|dns(?:\/promises)?|dgram)|global:network)$/u;
+// These builtin address/header validators perform no network operation.
+const PURE_NETWORK_CALLS = new Set(['net#isIP', 'net#isIPv4', 'net#isIPv6',
+  'http#validateHeaderName', 'http#validateHeaderValue']);
 // Exact relocation identities; permission names and I/O sets remain unchanged.
 const STORE_WRITE_IDENTITIES = new Map([
   ['packages/store/src/shell/board-write-lock.js', 'src/board-write-lock.js'],
@@ -173,7 +176,11 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
         ? exported(posix.normalize(posix.join(posix.dirname(file), binding.from)), symbol)
         : [{ builtin: binding.from, name: symbol }];
     }
-    return model.functions.has(name) ? [{ file, name }] : [];
+    if (model.functions.has(name)) return [{ file, name }];
+    if (['fetch', 'WebSocket', 'EventSource', 'globalThis.fetch', 'globalThis.WebSocket', 'globalThis.EventSource'].includes(name)) {
+      return [{ builtin: 'global:network', name: member ?? base }];
+    }
+    return [];
   }
   /** Keep direct source and its causal imported-call chain, without board data or private arguments. */
   function inspect(file, start, end, chain, visited) {
@@ -181,6 +188,7 @@ export function boardWriteIoProblems(sources, { pending = PENDING_WRITE_REPAIRS 
     for (const call of calls(body, model.source.slice(start, end))) for (const target of targets(file, call.name)) {
       const key = target.file + '#' + target.name;
       if (target.builtin && EXTERNAL_IO.test(target.builtin)) {
+        if (PURE_NETWORK_CALLS.has(target.builtin.replace(/^node:/u, '') + '#' + target.name)) continue;
         const owner = writeIdentity(chain.at(-1));
         const marker = owner === 'src/board-write-lock.js#beginBoardWrite'
           || owner === 'src/board-write-lock.js#boardFile' && chain.some(value => writeIdentity(value) === BOARD_WRITE_IO_EXCEPTIONS.holder);

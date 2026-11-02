@@ -175,6 +175,21 @@ test('the write guard follows named, aliased and reexported I/O without running 
   assert.deepEqual(boardWriteIoProblems(guardSources(pure), { pending: {} }), []);
 });
 
+test('network imports and global requests cannot run inside a board writer [B2,C7,CD39]', () => {
+  const cases = [
+    "import {atomic} from './board-event-log.js'; import {request as send} from 'node:https'; atomic(board, () => send('https://invalid.test'));",
+    "import {atomic} from './board-event-log.js'; import * as net from 'node:net'; atomic(board, () => net.connect(1234));",
+    "import {atomic} from './board-event-log.js'; atomic(board, () => fetch('https://invalid.test'));",
+    "import {atomic} from './board-event-log.js'; const send = globalThis.fetch; atomic(board, () => send('https://invalid.test'));",
+    "import {atomic} from './board-event-log.js'; atomic(board, () => new WebSocket('wss://invalid.test'));",
+  ];
+  for (const source of cases) assert.ok(boardWriteIoProblems(guardSources(source), { pending: {} }).length > 0, source);
+  const local = "import {atomic} from './board-event-log.js'; function fetch() { return 'local'; } atomic(board, () => fetch());";
+  assert.deepEqual(boardWriteIoProblems(guardSources(local), { pending: {} }), [], 'a known local function is not a network global');
+  const address = "import {atomic} from './board-event-log.js'; import {isIP} from 'node:net'; atomic(board, () => isIP('127.0.0.1'));";
+  assert.deepEqual(boardWriteIoProblems(guardSources(address), { pending: {} }), [], 'pure address validation performs no network I/O');
+});
+
 test('opaque atomic callbacks are refused rather than silently certified [C7,CD39]', () => {
   const source = "import {atomic} from './board-event-log.js'; atomic(board, callbacks[name]);";
   assert.ok(boardWriteIoProblems(guardSources(source), { pending: {} }).some(row => row.call === 'unresolved atomic callback'));
