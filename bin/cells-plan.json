@@ -1116,6 +1116,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/claim-returns-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/move-history/191.json",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1161,6 +1165,10 @@
     },
     {
       "path": "src/move-history/195.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/196.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

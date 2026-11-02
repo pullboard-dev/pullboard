@@ -174,6 +174,7 @@ export { CLAIM_PROGRESS_ENGINE } from '../../src/claim-progress-engine.js';
 
 export { REJECTION_RETURN_ENGINE } from '../../src/rejection-return-engine.js';
 export { BOARD_PROGRESS_ENGINE } from '../../src/board-progress-engine.js';
+export { CLAIM_RETURNS_ENGINE } from '../../src/claim-returns-engine.js';
 export { COORDINATOR_ACTIONS_ENGINE } from '../../src/coordinator-actions-engine.js';
 
 export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary } from './src/core/inspection-clauses.js';

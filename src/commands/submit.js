@@ -3,6 +3,7 @@ import { clauseInspectionSummary } from '../../packages/state/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
+import { receiptLine as cellsReceiptLine } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
 import { runnerPhaseFields } from '../timing.js';
@@ -309,6 +310,7 @@ export async function submitHere(ctx, id, infra) {
     return item;
   });
   ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
+  ctx.submitAttempt.stage = 'fast';
   const barWarning = await withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
@@ -403,7 +405,8 @@ export async function submitHere(ctx, id, infra) {
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
-  if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
+  // A reused cells receipt never ran on a runner, so it has no slot; the check-receipt line cites it without one.
+  if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
@@ -454,6 +457,7 @@ export async function submitHere(ctx, id, infra) {
 
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
+  ctx.submitAttempt.stage = 'runner';
   let gate = await runGate(frozenCheck(held));
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
@@ -697,7 +701,7 @@ export async function run(io, { first, values }) {
           } else {
             await ordered(ctx, board, 'claim', [id, { agentId: attempt.agentId, lane: item.item_lane, leaseMs: ctx.config.leaseMs,
               freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
-              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000) } }]);
+              submitOutcome: { digest: attempt.digest, code: error.code, text: error.message.slice(0, 4000), ...(attempt.stage === 'fast' ? { stage: 'fast' } : {}) } }]);
           }
         });
       } catch (recordError) { ctx.io.err(`submit outcome not recorded: ${recordError.message}`); }

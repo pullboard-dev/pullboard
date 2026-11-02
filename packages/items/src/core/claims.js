@@ -10,10 +10,18 @@ export function firstRefusalProblem(board, id, agentId, ports) {
 }
 
 /** Explain ineligible build work without raising an item refusal from review selection. */
-export function firstRefusalReason(board, id, agentId, { firstRefusal, exitContinuationProblem }) {
+export function firstRefusalReason(board, id, agentId, { firstRefusal, exitContinuationProblem, otherBuilderFirst = false, offering = false }) {
   const continuation = exitContinuationProblem?.(board, id, agentId);
   if (continuation) return continuation.message;
   const window = firstRefusal(board, id);
+  if (window?.otherSeatFirst && otherBuilderFirst) {
+    // A reviewer of this item never gets the first refusal; the original builder may re-claim, since no one else is held off [B4,B5].
+    const reviewed = board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_by=? AND event_kind IN ('accept','reject','reserve') LIMIT 1").get(id, agentId);
+    if (reviewed) return `item #${id} returned for lack of progress; a reviewer of it cannot take the first refusal; take another item`;
+    // Offering skips the original builder so another seat is asked first; an explicit claim by the builder still works [B4,B5].
+    return offering && window.builder === agentId
+      ? `item #${id} returned for lack of progress; another seat is offered it first until ${window.until}; claim it by id to take it back` : null;
+  }
   if (window?.otherSeatFirst) return window.builder === agentId
     ? `item #${id} returned for lack of progress; another seat gets first refusal until ${window.until}; take another item` : null;
   return window && window.builder !== agentId && !takeoverReady(board, id)
@@ -118,8 +126,11 @@ export function manualLandingFailure(note, { quoted = false } = {}) {
 }
 
 
+/** Refusal codes raised by the runner stage of submit: the gate and the frozen check. */
+const RUNNER_STAGE_CODES = new Set(['GATE_RED', 'CHECK_RED', 'TEST_FAILURE']);
+
 /** Derive progress from native moves: renewals and notes never restart the two-hour submit clock [B4,B5]. */
-export function claimProgress(board, item, now) {
+export function claimProgress(board, item, now, { runnerOnly = false } = {}) {
   const history = board.db.prepare('SELECT event_id,event_at,event_by,event_kind,event_detail FROM event WHERE item_id=? ORDER BY event_id').all(item.item_id);
   let holder = null, since = null, failures = 0;
   const notes = [];
@@ -132,7 +143,9 @@ export function claimProgress(board, item, now) {
     if (event.event_kind === 'fact' && event.event_by === item.item_owner && detail.kind === 'note') notes.push(detail.id);
     if (event.event_kind === 'submit') since = null;
     if (event.event_kind === 'accept') failures = 0;
-    if ((detail.submitOutcome && event.event_by === item.item_owner) || (event.event_kind === 'reject' && holder === item.item_owner)) failures += 1;
+    // From the returns engine on, only the runner stage counts: a fast-stage refusal (conflict, lint, cuts, static) is fixed in minutes [B4,B5].
+    const real = !runnerOnly || (RUNNER_STAGE_CODES.has(detail.submitOutcome?.code) && detail.submitOutcome?.stage !== 'fast');
+    if ((detail.submitOutcome && real && event.event_by === item.item_owner) || (event.event_kind === 'reject' && holder === item.item_owner)) failures += 1;
     if (['release', 'withdraw', 'merged'].includes(event.event_kind) && !detail.review) { holder = null; since = null; failures = 0; }
   }
   const elapsed = now - Date.parse(since);
