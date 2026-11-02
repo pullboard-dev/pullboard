@@ -8,6 +8,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { openBoard } from '../index.js';
+import { HOOK_WORKER } from '../index.js';
 import { submitHandoffWorkerEntrypoint } from '../index.js';
 import { getItem } from '../../../packages/store/index.js';
 import { submitHandoff } from '../../../packages/store/index.js';
@@ -65,4 +66,22 @@ test('launched submit worker completes a native queued request without unsettled
   assert.equal(getItem(board, id).item_commit, commit);
   assert.equal(JSON.parse(readFileSync(join(directory, 'submission.json'), 'utf8')).commit, commit);
   assert.equal(existsSync(join(directory, 'source')), false, 'the launched supervisor removes its owned source');
+});
+
+test('launched hook worker inspects committed work without unsettled await [I6,C7]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const id = document(box.run(box.repo, 'add', 'web', 'Hook process work',
+    '--criterion', 'The committed work is named.', '--json')).item.item_id;
+  document(box.run(box.web, 'claim', String(id), '--json'));
+  const built = helpers.commitFile(box, box.web, 'web/page.txt', 'ready\n', 'feat(web): ready page [G1]');
+  assert.equal(built.status, 0, built.stderr);
+  // budget: existing owned-child hang ceiling; successful inspection and native exit are the assertions.
+  const result = await runFixtureChildAsync(process.execPath, [HOOK_WORKER, 'Stop'],
+    { cwd: box.web, env: box.env, encoding: 'utf8', timeout: 120_000 });
+  assert.notEqual(result.status, 13, result.context);
+  assert.equal(result.status, 0, result.context);
+  assert.doesNotMatch(result.stderr, /unsettled top-level await/u);
+  assert.match(result.stdout, new RegExp(`Committed work on #${id} is not submitted`, 'u'));
 });
