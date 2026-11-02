@@ -35,7 +35,7 @@ async function runLegacy(t, mode, duration = 8000) {
   const flags = mode === 'watch' ? ['--watch'] : ['--experimental-test-coverage'];
   const child = spawn(process.execPath, [runner, ...flags, '--test-concurrency=2', join(root, 'a-noisy.test.js'), join(root, 'b-hung.test.js')], {
     cwd: root, detached: true, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'),
-      PULLBOARD_TEST_IDLE_TIMEOUT_MS: '3000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: String(duration + 15000), PULLBOARD_TEST_TIMEOUT_MS: String(duration + 10000) },
+      PULLBOARD_LEGACY_DEBUG: '1', PULLBOARD_TEST_IDLE_TIMEOUT_MS: '3000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: String(duration + 15000), PULLBOARD_TEST_TIMEOUT_MS: String(duration + 10000) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
