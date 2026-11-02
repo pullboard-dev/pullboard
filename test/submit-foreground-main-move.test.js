@@ -1,4 +1,4 @@
-/** Foreground and queued submits survive an unrelated main move during their check; a real policy change still refuses [V4,H16,C7]. */
+/** Foreground and queued submits survive an unrelated main move during their check; any pullboard.json policy change still refuses [V4,H16,C7]. */
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -51,6 +51,7 @@ function fixture(t, mode, handoff = false) {
 const root=${JSON.stringify(box.repo)}, marker=${JSON.stringify(marker)};
 test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   if (${JSON.stringify(mode)} === 'policy') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.submit={...c.submit,autoFileMainReds:true}; writeFileSync(f,JSON.stringify(c)); }
+  else if (${JSON.stringify(mode)} === 'shared') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.shared=[...c.shared,'notes/']; writeFileSync(f,JSON.stringify(c)); }
   else { const dir=root+'/'+['ap','i'].join(''); mkdirSync(dir,{recursive:true}); writeFileSync(dir+'/'+['lan','ded'].join('')+'.js','export const landed=true;\\n'); }
   const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GIT_')));
   execFileSync('git',['-C',root,'add','-A'],{env}); execFileSync('git',['-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','-qm','chore: land during the check [G1]'],{env});
@@ -123,5 +124,26 @@ test('queued submit survives an unrelated main move during its gate and is accep
     const request = join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'request.json');
     return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
       && !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'source'));
+  }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
+});
+
+test('queued submit refuses when a non-submit pullboard.json policy field changes during its gate [V4,H16,C7]', async t => {
+  const { box, helpers, marker, result, output } = fixture(t, 'shared', true);
+  assert.equal(result.status, 0, output);
+  assert.match(result.stdout, /queued gate/u);
+  await helpers.waitFor(() => ['green', 'red', 'incomplete', 'refused'].includes(state(box).job?.state) || existsSync(join(box.repo, '.git/pullboard/submit-handoffs', state(box).job?.id ?? 'none', 'refusal.json')), // budget: real queued worker completion hang ceiling, no elapsed-time assertion.
+    'queued gate result', 120000) // budget: owned-worker hang ceiling, no throughput claim.
+    .catch(error => { throw new Error(`${error.message}: ${JSON.stringify(state(box).job)}\n${workerLog(box, state(box).job)}`); });
+  const completed = state(box);
+  assert.ok(existsSync(marker), 'main changed its shared paths while the queued gate ran');
+  assert.notEqual(completed.job.state, 'green', JSON.stringify(completed.job));
+  assert.notEqual(completed.item.item_status, 'submitted', JSON.stringify(completed));
+  const refusal = readFileSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'refusal.json'), 'utf8');
+  assert.match(refusal, /NO_POLICY/u);
+  assert.match(refusal, /accepted submit policy changed: shared/u);
+  await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
+    const request = join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'request.json');
+    return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
+      && !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'source'));
   }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
 });

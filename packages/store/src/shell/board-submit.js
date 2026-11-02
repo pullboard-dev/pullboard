@@ -56,7 +56,7 @@ function changedPolicyKeys(before, after, prefix) {
  * Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments.
  *
  * The proof's policy commit may trail current main: landings move main during every long check, so a
- * forward move whose submit, verify and gate policy is unchanged keeps the sealed policy [V4].
+ * forward move whose pullboard.json policy is unchanged keeps the sealed policy; any changed field refuses [V4].
  */
 export function sealClauseInspection(board, id, options) {
   const root = board.gitRoot;
@@ -72,7 +72,9 @@ export function sealClauseInspection(board, id, options) {
     throw new Refused('NO_POLICY', 'accepted main no longer contains the submit policy commit; refresh the submit policy and retry');
   }
   const sealed = moved ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
-  const changed = ['submit', 'verify', 'gate'].flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
+  // Every pullboard.json field is policy (lanes, shared paths, static checks...), not only submit, verify and gate.
+  const changed = [...new Set([...Object.keys(sealed.config), ...Object.keys(policy.config)])].sort()
+    .flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
   if (changed.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${changed.join(', ')}; refresh and retry`);
   return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true };
 }
