@@ -1,5 +1,5 @@
 /** Canonical named entry points for the planned cell; implementations retain their current owner [C7]. */
-export { timeStats, timeLines } from './src/core/stats-time.js';
+export { buildTimeStats, buildTimeLines } from './src/core/stats-build-time.js';
 export {
   nativeToolCallIds,
 } from './src/core/exit-rules-calls.js';
@@ -140,6 +140,20 @@ export {
   wilson,
   costAnalytics,
 } from './src/shell/cost-analytics.js';
+export {
+  TIME_PHASES,
+  timeWindowDays,
+  timeStats,
+  timeLines,
+  checkpointLine,
+  weeklyDue,
+} from './src/core/stats-time.js';
+export {
+  readTimeHistory,
+  appendTimeCheckpoint,
+} from './src/shell/time-history.js';
 
 export { coordinatorActionStats, coordinatorActionLines, coordinatorActionRise } from './src/core/coordinator-actions.js';
 export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/shell/coordinator-actions.js';
+
+export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';

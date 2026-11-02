@@ -1,8 +1,15 @@
-import { coordinatorActions } from '../../packages/stats/index.js';
-import { timeStats } from '../../packages/stats/index.js';
-import { timeLines } from '../../packages/stats/index.js';
+import { buildTimeStats } from '../../packages/stats/index.js';
+import { buildTimeLines } from '../../packages/stats/index.js';
 import { criterionCells } from '../../packages/items/index.js';
 import { criterionSize } from '../../packages/items/index.js';
+import { appendTimeCheckpoint } from '../../packages/stats/index.js';
+import { checkpointLine } from '../../packages/stats/index.js';
+import { readTimeHistory } from '../../packages/stats/index.js';
+import { timeLines } from '../../packages/stats/index.js';
+import { timeStats } from '../../packages/stats/index.js';
+import { weeklyDue } from '../../packages/stats/index.js';
+import { join } from 'node:path';
+import { coordinatorActions } from '../../packages/stats/index.js';
 import { coordinatorActionLines } from '../../packages/stats/index.js';
 import { pipelineLimit } from '../../packages/stats/index.js';
 import { pipelineStats } from '../../packages/stats/index.js';
@@ -24,7 +31,7 @@ import { counterProofStats } from '../../packages/verify/index.js';
 import {
   barStatsLines,
 } from '../bar-corrections.js';
-import * as store from '../board.js';
+import * as store from '../../packages/store/index.js';
 import { caughtLines } from '../../packages/items/index.js';
 import * as gateReceipt from '../gate-receipt.js';
 import { readRunnerStage } from '../runner-stage-read.js';
@@ -54,16 +61,33 @@ import {
 /** Run `pullboard stats` and return its exit code. */
 export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
-  if (first !== undefined && !['pipeline', 'moves', 'time'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats time, pullboard stats pipeline, or pullboard stats moves --limit 20');
+  if (first !== undefined && !['pipeline', 'moves', 'time'].includes(first)) throw new Refused('USAGE', 'use pullboard stats, pullboard stats pipeline, pullboard stats moves --limit 20, or pullboard stats time --window 7d');
+  if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
   if (first === 'time') {
-    if (second !== undefined || rest?.length || ['since', 'window', 'compare', 'limit', 'transcripts'].some(key => values[key] !== undefined)) throw new Refused('USAGE', 'use pullboard stats time to report every landed item');
+    if (second !== undefined || rest?.length || values.since !== undefined || values.compare) throw new Refused('USAGE', 'show where item time went with pullboard stats time --window 7d [--checkpoint weekly|release]');
+    const kind = values.checkpoint;
+    if (kind !== undefined && !['weekly', 'release'].includes(kind)) throw new Refused('USAGE', 'record a checkpoint with --checkpoint weekly or --checkpoint release');
+    const days = flowWindowMinutes(values.window ?? '7d') / 1440;
+    const now = ctx.clock.now().getTime();
+    const receipts = gateReceipt.retainedReceipts(ctx.info.root, { from: '1970-01-01T00:00:00.000Z', to: new Date(now + 1).toISOString() });
     const catalog = criterionCells(ctx.info.root);
-    const time = withBoard(ctx, board => timeStats(store.events(board), store.listItems(board, { all: true }), catalog, criterionSize));
-    io.result?.({ time });
+    const time = withBoard(ctx, board => {
+      const history = store.events(board);
+      const phases = timeStats(history, { now, days, receipts });
+      const builds = buildTimeStats(history, store.listItems(board, { all: true }), catalog, criterionSize);
+      return { ...phases, builds };
+    });
+    let checkpoint = null;
+    if (kind) {
+      const file = join(ctx.info.commonDir, 'pullboard', 'stats-history.jsonl');
+      if (kind === 'release' || weeklyDue(readTimeHistory(file), now)) { appendTimeCheckpoint(file, checkpointLine(time, { reason: kind })); checkpoint = file; }
+    }
+    io.result?.({ time, checkpoint });
     for (const line of timeLines(time)) io.say(line);
+    for (const line of buildTimeLines(time.builds)) io.say(line);
+    if (kind) io.say(checkpoint ? `checkpoint recorded in ${checkpoint}` : 'a weekly checkpoint is not due yet');
     return 0;
   }
-  if (values.transcripts !== undefined && first !== 'moves') throw new Refused('USAGE', '--transcripts belongs to pullboard stats moves');
   if (first === 'moves') {
     if (second !== undefined || rest?.length || values.since !== undefined || values.window !== undefined || values.compare) throw new Refused('USAGE', 'select landed items with pullboard stats moves --limit 20');
     const limit = pipelineLimit(values.limit);
