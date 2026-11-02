@@ -24,7 +24,7 @@ import { RELAY_REQUEST_BOUND_MS } from './relay-budget.js';
 const SMOKE = resolve(import.meta.dirname, '../relay/smoke.mjs');
 const SERVER = resolve(import.meta.dirname, '../relay/server.mjs');
 const DOCKERFILE = resolve(import.meta.dirname, '../relay/Dockerfile');
-const README = resolve(import.meta.dirname, '../relay/README.md');
+const README = resolve(import.meta.dirname, '../apps/relay/src/shell/README.md');
 const ROOT = resolve(import.meta.dirname, '..');
 const SHIPPED = new Set(packageFiles(ROOT));
 const DAMAGED_SERVER_FAILURE_FLOOR_MS = 5000;
@@ -691,8 +691,8 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
     'src/machine.js',
     'src/view.css',
     'packages/kernel/src/core/seal.js',
-    'relay/browser-client.js',
-    'relay/browser-model.js',
+    'apps/relay/src/shell/browser-client.js',
+    'apps/relay/src/shell/browser-model.js',
     'packages/kernel/src/core/refused.js',
   ]) {
     const damagedImage = copiedImage(t, [omitted]);

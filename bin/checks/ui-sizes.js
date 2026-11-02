@@ -39,7 +39,7 @@ function scaleOf(property) {
  */
 export function uiSizeProblems(root) {
   const problems = [];
-  for (const path of walk(root, /^(src|relay)\/.*\.css$/u)) {
+  for (const path of walk(root, /^(src|relay|apps\/relay)\/.*\.css$/u)) {
     const source = readText(root, path);
     // Blank out comments, keeping their length, so offsets still map to lines.
     const code = source.replace(/\/\*[\s\S]*?\*\//gu, (comment) => comment.replace(/[^\n]/gu, ' '));
@@ -61,7 +61,7 @@ export function uiSizeProblems(root) {
 
 /** Count the same raw sizes per actual stylesheet, retaining files with no problems [N26]. */
 export function uiSizeCounts(root) {
-  const counts = Object.fromEntries(walk(root, /^(src|relay)\/.*\.css$/u).map(path => [path, 0]));
+  const counts = Object.fromEntries(walk(root, /^(src|relay|apps\/relay)\/.*\.css$/u).map(path => [path, 0]));
   for (const problem of uiSizeProblems(root)) counts[problem.path] += 1;
   return counts;
 }

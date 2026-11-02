@@ -1,4 +1,4 @@
-/** @pullboard-test-loads relay/browser-page.js */
+/** @pullboard-test-loads apps/relay/src/shell/browser-page.js */
 /** @pullboard-test-input src/view.css src/view/dashboard.css src/view/item-rows.css src/view/stage.css */
 /** Check the real public module routes used by the relay browser client [H5,H16]. */
 import assert from 'node:assert/strict';

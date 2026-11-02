@@ -5,9 +5,9 @@ import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
 import { approvalContext, openApproval, sealApproval, verifyApprovalIntent } from './relay-approval.js';
 import { devicePublicKey } from './device-keys.js';
-import { approvalCardText, approvalNames, deletedText, phoneApprovalStatus, forgetPhoneApprovals } from './browser-approval-card.js';
-import { withBrowserDeadline } from './browser-deadline.js';
-import { readExcludedInventories } from './browser-excluded.js';
+import { approvalCardText, approvalNames, deletedText, phoneApprovalStatus, forgetPhoneApprovals } from '../core/browser-approval-card.js';
+import { withBrowserDeadline } from '../core/browser-deadline.js';
+import { readExcludedInventories } from '../core/browser-excluded.js';
 
 const PENDING = 'pullboard.relay.device-pair.v1';
 

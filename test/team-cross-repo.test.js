@@ -2,7 +2,7 @@ import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { openBoard } from '../src/native-board.js';
 import * as linkStore from '../packages/store/index.js';
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import {
   boardLinkRequest,

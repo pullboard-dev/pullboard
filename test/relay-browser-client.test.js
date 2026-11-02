@@ -23,7 +23,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 const RELAY_PRESENTATION_PORTS = relayPresentationNativePorts().presentation;
 
 
-const CLIENT = new URL('../relay/browser-client.js', import.meta.url);
+const CLIENT = new URL('../apps/relay/src/shell/browser-client.js', import.meta.url);
 
 /** Two real sealed-snapshot payloads, gzipped as src/relay.js does: a tiny document and a board of 3000 items. */
 function snapshotInputs() {
