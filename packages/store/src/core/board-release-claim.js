@@ -14,6 +14,7 @@ import {
 } from "../../../../src/machine.js";
 import { firstRefusal } from "./board-item-read.js";
 import { GONE_CLAIM_ENGINE } from "../../../../src/gone-claim-engine.js";
+import { RELEASE_TWICE_HOLD_ENGINE } from "../../../../src/release-twice-hold-engine.js";
 import { RELEASE_REASONS_ENGINE } from "../../../state/index.js";
 
 /** Validate frozen maintenance evidence without reading a replica's private presence cache. */
@@ -92,6 +93,26 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       upsert.run(`blocked_release_waiting:${id}`, JSON.stringify(blockedOn));
     }
     logEvent(board, agentId, 'release', id, blockedOn ? { reasonCode, blockedOn, ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}), ...(exitHandoff ? { exitHandoff } : {}) } : exitHandoff ? { exitHandoff, reason: note, ...(reasonCode === undefined ? {} : { reasonCode }) } : stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
+    // Count only ordinary coded claim releases since the coordinator last lifted a hold.
+    if (!stale && !gone && !exitHandoff && reasonCode && !item.item_hold_reason
+      && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
+      const releases = board.db.prepare(`SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'release'
+        AND event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE item_id = ? AND event_kind = 'unhold_item'), 0)
+        ORDER BY event_id DESC`).all(id, id).filter(row => {
+          const detail = JSON.parse(row.event_detail);
+          return detail.reasonCode && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff;
+        }).slice(0, 2);
+      if (releases.length === 2) {
+        const reasons = releases.reverse().map(row => {
+          const detail = JSON.parse(row.event_detail);
+          return `${row.event_by}: ${detail.reasonCode}${detail.reason ? ` (${detail.reason})` : ''}`;
+        }).join('; ');
+        const reason = `Released twice: ${reasons}`;
+        setItem(board, id, { item_hold_reason: reason, item_hold_by: 'coordinator', item_hold_at: board.clock.now().toISOString() });
+        logEvent(board, 'coordinator', 'hold_item', id, { reason, automatic: 'release-twice' });
+        insertShout(board, { from: 'sentinel', to: 'coordinator', text: `#${id} held after two releases: ${reasons}`, lanes: [], detail: { item: id } });
+      }
+    }
     if (stale) insertShout(board, { from: 'sentinel', to: stale.holder,
       text: `Coordinator released your stale claim on #${id}: ${stale.reason.slice(0, 180)}. Last activity ${stale.lastActivity}.`, lanes: [], detail: { item: id } });
     return false;
