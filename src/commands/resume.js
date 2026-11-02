@@ -37,7 +37,7 @@ import {
 } from '../git.js';
 import {
   recordedHealthFindings,
-} from '../health-sentinel.js';
+} from '../../packages/sentinels/index.js';
 import {
   unwiredHookProblems,
 } from '../../packages/commits/index.js';
@@ -64,7 +64,7 @@ import {
 } from '../../packages/items/index.js';
 import {
   resumeSentinels,
-} from '../sentinel-command.js';
+} from '../../packages/sentinels/index.js';
 import {
   withStarterWork,
 } from '../../packages/spec/index.js';

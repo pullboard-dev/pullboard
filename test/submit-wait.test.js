@@ -1,7 +1,7 @@
 import { withBoardRead } from '../src/cli-context.js';
 import { retrySync } from '../src/cli-sync.js';
 /** Submission verdict delivery and deterministic rejected-work return [V2,V4,B5,B13,A6]. */
-import { dispatchHealth } from '../src/dispatch-health.js';
+import { dispatchHealth } from '../packages/sentinels/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
@@ -16,7 +16,7 @@ import { waitForSubmissionVerdict } from '../packages/items/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyRelayMove } from '../packages/state/index.js';
 import { REJECTED_WORK_RETURN_ENGINE } from '../src/rejected-work-return-engine.js';
-import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { firstRefusal } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

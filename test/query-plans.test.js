@@ -4,7 +4,7 @@
  * seeded board of 1,000 items, 45,000 events and 23,000 shouts [C7]. The commands run as the real CLI
  * with a preload that records each statement they prepare; each is then planned with EXPLAIN QUERY PLAN.
  */
-import { dispatchHealth } from '../src/dispatch-health.js';
+import { dispatchHealth } from '../packages/sentinels/index.js';
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

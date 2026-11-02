@@ -1056,6 +1056,7 @@ export async function takeResource(options) {
   // Capture once: requeueing or editing the machine setting cannot restart this run's clock.
   let runnerDeadlineAt = resume?.runnerDeadlineAt ?? options.runnerDeadlineAt ?? 0;
   let runnerDispatched = resume?.runnerDispatched === true;
+  let readinessFailover = resume?.readinessFailover === true;
   let lateAdmissionClosed = resume?.lateAdmissionClosed === true;
   let lateRunnerDispatch = resume?.lateRunnerDispatch ?? null;
   let priorWaitMs = resume?.priorWaitMs ?? 0;
@@ -1162,7 +1163,7 @@ export async function takeResource(options) {
         // The marker follows this poll's setting, so a change mid-wait reaches every process's ranking.
         // A first free runner gets one admission opportunity at the expired queue boundary.
         // A previous dispatch or a prior fallback decision never restarts the runner wait.
-        const remoteEligible = remote && (!runnerDeadlinePassed || !runnerDispatched && !lateAdmissionClosed);
+        const remoteEligible = remote && (!runnerDeadlinePassed || readinessFailover || !runnerDispatched && !lateAdmissionClosed);
         db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
           .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
         waiter.remote = Number(remoteEligible);
@@ -1222,6 +1223,8 @@ export async function takeResource(options) {
         return { acquired: false, state: { ...spot, position: reportPosition, ...(runnerWait ? { runnerWait } : {}), ...(memoryHeld ? { memory } : {}), ...(runnerDeadline ? { runnerDeadline } : {}) } };
       }));
       lateAdmissionClosed ||= Boolean(acquired.state.runnerDeadline);
+      // A missed READY grants one immediate ordered admission, never another queue wait budget.
+      if (!acquired.state.rejoined) readinessFailover = false;
       if (acquired.acquired) {
         if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe);
         runnerDispatched ||= Boolean(acquired.runner);
@@ -1324,14 +1327,18 @@ export async function takeResource(options) {
             startHeartbeat();
             throw error;
           }
+          if (reason === 'worker-unresponsive' && runnerProvider) {
+            startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe);
+          }
           db.close();
-          const retryingInfrastructure = infrastructureRetryCount > 0;
+          const retryingInfrastructure = infrastructureRetryCount > 0 && reason !== 'worker-unresponsive';
           return takeResource({ ...options, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
             queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
             runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,
             runnerDispatched: retryingInfrastructure ? false : runnerDispatched,
             lateAdmissionClosed: retryingInfrastructure ? false : lateAdmissionClosed,
             lateRunnerDispatch: retryingInfrastructure ? null : lateRunnerDispatch,
+            readinessFailover: reason === 'worker-unresponsive',
             priorWaitMs: acquiredWaitMs, waitStartedAt: Date.now(), infrastructureRetryCount,
             infrastructureAttempts: priorInfrastructureAttempts } });
         };

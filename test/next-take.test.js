@@ -22,7 +22,7 @@ import { Refused } from '../packages/kernel/core.js';
 import { repoInfo } from '../src/git.js';
 import { bindLocalSession } from '../packages/seats/index.js';
 import { recordItemSession } from '../packages/items/index.js';
-import { dispatchHealth } from '../src/dispatch-health.js';
+import { dispatchHealth } from '../packages/sentinels/index.js';
 import { deliverHealthNotices } from '../src/board-health-receipts.js';
 import { proveRequiredReviewFamily } from './required-review-family-fixture.js';
 import { assertSpecCorrectionRefreezesCitations, assertSpecRefreezeReplay } from './spec-refreeze-fixture.js';
@@ -56,7 +56,7 @@ test('a free seat is handed one eligible item without screening [N2,V1,B3]', asy
   assert.equal(claims().length, 0, 'review reservation and build claim are mutually exclusive');
 });
 
-test('ordinary next prefers its own lane, then claims foreign work in that laneâ€™s clean checkout [N2,B13,L2]', t => {
+test('ordinary next prefers its own lane, then names foreign work without claiming it [N2,B13,L2]', t => {
   const box = crossLaneFixture(t);
   const web = box.seat('own-web', 'web', box.session);
   const foreign = box.add('api', 'Earlier foreign work');
@@ -67,18 +67,15 @@ test('ordinary next prefers its own lane, then claims foreign work in that laneâ
   assert.equal(first.item.item_owner, web.agent);
   box.json(box.runAs(box.session, web.root, 'release', String(own), '--reason', 'BLOCKED', '--no-next', '--json'));
   box.json(box.run(box.repo, 'hold', String(own), '--reason', 'Blocked own-lane fixture', '--json'));
-  const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
-  assert.equal(next.item.item_id, foreign);
-  assert.equal(next.seat.lane, 'api');
-  assert.equal(next.seat.created, true);
-  assert.equal(next.item.item_owner, next.seat.agent);
-  assert.equal(box.git(next.seat.path, 'status', '--porcelain'), '');
-  const who = box.json(box.runAs(box.session, next.seat.path, 'whoami', '--json'));
-  assert.equal(who.lane, 'api');
-  assert.equal(who.id, next.seat.agent);
+  const worktrees = box.git(box.repo, 'worktree', 'list', '--porcelain');
+  const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
+  assert.equal(next.code, 1, next.out);
+  assert.match(JSON.parse(next.out).error.message, new RegExp(`#${foreign}\\b.*api lane`, 'u'));
+  assert.equal(box.json(box.run(box.repo, 'show', String(foreign), '--json')).item_status, 'open');
+  assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), worktrees, 'next opens no seat or worktree');
 });
 
-test('ordinary next never reuses a dirty or occupied target-lane seat or a peerâ€™s checkout [N2,B13,L2]', t => {
+test('ordinary next never claims for a dirty, occupied or peer target-lane seat [N2,B13,L2]', t => {
   const box = crossLaneFixture(t);
   const web = box.seat('idle-web', 'web', box.session);
   const dirty = box.seat('dirty-api', 'api', box.session);
@@ -89,10 +86,9 @@ test('ordinary next never reuses a dirty or occupied target-lane seat or a peerâ
   box.json(box.runAs(box.session, busy.root, 'claim', String(occupied), '--json'));
   const free = box.add('api', 'Ready unowned work');
   const bindings = [dirty, busy, peer].map(seat => box.binding(seat.root));
-  const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
-  assert.equal(next.item.item_id, free);
-  assert.equal(next.seat.created, true);
-  for (const seat of [dirty, busy, peer]) assert.notEqual(next.seat.path, seat.root);
+  const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
+  assert.equal(next.code, 1, next.out);
+  assert.equal(box.json(box.run(box.repo, 'show', String(free), '--json')).item_status, 'open', 'the foreign item is named, not claimed');
   assert.deepEqual([dirty, busy, peer].map(seat => box.binding(seat.root)), bindings);
   assert.equal(box.git(dirty.root, 'status', '--porcelain'), '?? uncommitted.txt');
   assert.equal(box.json(box.run(box.repo, 'show', String(occupied), '--json')).item_owner, busy.agent);

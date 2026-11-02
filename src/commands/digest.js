@@ -22,7 +22,7 @@ import {
 } from '../cli.js';
 import { healthReport } from '../../packages/health/index.js';
 import { loadMachineSettings } from '../../packages/config/index.js';
-import { dispatchHealth } from '../dispatch-health.js';
+import { dispatchHealth } from '../../packages/sentinels/index.js';
 
 /** Bind the upper dispatch operation while preserving the digest reader's exact SQLite snapshot. */
 function digestHealth(options) {
