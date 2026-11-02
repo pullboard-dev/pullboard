@@ -15,6 +15,7 @@ import { bindLocalSession } from '../../packages/seats/index.js';
 import { HOOK_CHECKOUT_WAIT_MS } from '../../packages/seats/index.js';
 import { localSessionMatches } from '../../packages/seats/index.js';
 import { repoInfo } from '../git.js';
+import { seatAt } from '../item-folder-identity.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { relayLinked } from '../../packages/link/index.js';
 
@@ -34,7 +35,7 @@ export async function bindWriteSession(io, positionals, values) {
     if (first === 'accept') return;
     const ctx = context(io);
     const renewsOwnClaim = withBoard(ctx, (board) => {
-      const agentId = ctx.info.isMain ? COORDINATOR : store.agentAt(board, ctx.info.root)?.agent_id;
+      const agentId = ctx.info.isMain ? COORDINATOR : seatAt(board, ctx.info.root)?.agent_id;
       const item = first ? store.getItem(board, idArg(first)) : store.listItems(board)
         .find((entry) => entry.item_status === 'claimed' && entry.item_owner === agentId && entry.item_parent_id === null);
       return Boolean(agentId && item?.item_status === 'claimed' && item.item_owner === agentId);
@@ -48,7 +49,7 @@ export async function bindWriteSession(io, positionals, values) {
   if (!info.isMain) {
     const ctx = context(io);
     const ownsLandingRoot = command === 'hook' ? (await import('../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
-    agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id
+    agent = withBoard(ctx, (board) => seatAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw withBoard(ctx, (board) => seatCheckout.unjoinedRefusal(info, store.listAgents(board), personIdentity.agentSessionDigest));
   }

@@ -92,4 +92,28 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   box.git(box.repo, 'add', 'src/new.js');
   const accepted = box.run(box.repo, 'hook', 'pre-commit');
   assert.equal(accepted.code, 0, accepted.out + accepted.err);
+  mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
+  writeFileSync(join(box.repo, 'bin/cells-plan/temporary-edges.json'), JSON.stringify({ version: 1,
+    edges: [{ importer: 'web/new.js', target: 'src/git.js', contractItem: 123, expires: '2099-01-01' }] }));
+  box.git(box.repo, 'add', 'src/new.js', 'bin/cells-plan/temporary-edges.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: retain a bounded temporary edge [G1]');
+  const folders = [];
+  for (const [title, criterion] of [['Allowed edge', 'Temporary edge web/new.js -> src/git.js until contract #123 lands.'],
+    ['No edge exception', 'Use the canonical front door.']]) {
+    const added = box.run(box.repo, 'add', 'web', title, '--specs', 'G1', '--criterion', criterion, '--check', 'true', '--wait', '--json');
+    assert.equal(added.code, 0, added.out + added.err);
+    const id = JSON.parse(added.out).item.item_id;
+    const claimed = box.run(box.web, 'claim', String(id), '--json');
+    assert.equal(claimed.code, 0, claimed.out + claimed.err);
+    folders.push(JSON.parse(claimed.out).itemFolder);
+  }
+  for (const folder of folders) {
+    writeFileSync(join(folder, 'web/new.js'), "import { git } from '../src/git.js';\n");
+    box.git(folder, 'add', 'web/new.js');
+  }
+  const ownBar = box.run(folders[0], 'hook', 'pre-commit');
+  assert.equal(ownBar.code, 0, ownBar.out + ownBar.err);
+  const siblingBar = box.run(folders[1], 'hook', 'pre-commit');
+  assert.notEqual(siblingBar.code, 0, 'a sibling claim never lends its exception to this folder');
+  assert.match(siblingBar.out + siblingBar.err, /web\/new\.js:1:.*src\/git\.js.*packages\/git\/index\.js/u);
 });
