@@ -1,5 +1,5 @@
-import { flakeLedger as nativeFlakeLedger } from '../../../src/flakes.js';
-import { recordFlakeObservation as nativeRecordFlakeObservation } from '../../../src/flakes.js';
+import { flakeLedger as nativeFlakeLedger } from '../../flakes/index.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../../flakes/index.js';
 /** Synthetic public-store/replay fixtures: these receipt inputs do not claim a gate was executed [H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
