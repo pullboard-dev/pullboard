@@ -478,7 +478,17 @@ test('the repository test-tree guards list only source scanners and launch no br
   assert.deepEqual(await browserBoundFiles(root, guards, { byLaunch: true }), [], 'no guard path or import graph launches a browser');
   const forbiddenImports = new Set(['../src/board.js', '../src/serve.js', '../src/gate.js', './board-fixture.js',
     './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
-  for (const file of guards) {
+  const scanFiles = [
+    'packages/gate/tests/gui-marker-guard.test.js',
+    'test/board-file-guard.test.js',
+    'test/cell-lint-guard.test.js',
+    'test/privacy-scan-guard.test.js',
+    'test/shared-wait-guard.test.js',
+    'test/view-test-policy.test.js',
+    'test/wall-clock-budgets.test.js',
+  ];
+  assert.deepEqual(guards, scanFiles, 'the scanned paths are the selected guards');
+  for (const file of scanFiles) {
     const source = readFileSync(join(root, file), 'utf8');
     const imports = importsIn([source])[0];
     assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${file} imports no board, server or browser fixture`);
