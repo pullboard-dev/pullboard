@@ -1,7 +1,9 @@
 /** Observe dirty primary tooling without granting it execution authority or blocking checks [O5,C7]. */
 import { gitSpawnSync } from '../../../git/index.js';
 import { lstatSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const TOOL_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');

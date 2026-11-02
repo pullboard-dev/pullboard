@@ -1,9 +1,16 @@
 /** Export runner controllers from immutable Git objects, independently of checkout edits [O5,C7]. */
 import { gitSpawnSync } from '../../../git/index.js';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 
 const OID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;

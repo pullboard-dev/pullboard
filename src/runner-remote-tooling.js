@@ -1,4 +1,5 @@
-import { archivedToolingSource, committedRunnerController } from '../packages/runners/index.js';
+import { archivedToolingSource } from '../packages/runners/index.js';
+import { committedRunnerController } from '../packages/runners/index.js';
 import { runnerPackage } from './runner-package.js';
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
 import { runnerSource } from './gate-policy-load.js';
@@ -135,8 +136,16 @@ export function trustedTooling() {
 export function remoteWorkerCommand(runner, worker, tooling, runtime, extra = '', recovery = null) {
   const files = Object.fromEntries(Object.entries({ ...runtime.files, [runtime.entry]: worker }).sort(([a], [b]) => a.localeCompare(b)));
   const payload = gzipSync(Buffer.from(JSON.stringify(files))).toString('base64');
-  const installer = `import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, renameSync, rmSync } from 'node:fs';
-import { dirname, isAbsolute, join } from 'node:path';
+  const installer = `import { chmodSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { isAbsolute } from 'node:path';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 ${installRunnerPackage.toString()}
