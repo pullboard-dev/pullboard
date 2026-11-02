@@ -59,7 +59,7 @@ test('a clean submit precheck completes without starting proof [V4,C7]', t => {
   const elapsed = Date.now() - start;
   assert.equal(result.code, 0, result.out + result.err);
   assert.equal(JSON.parse(result.out).precheck, true);
-  assert.ok(elapsed < 15_000, `precheck completed in ${elapsed}ms`); // Frozen precheck budget.
+  assert.ok(elapsed < 15_000, `precheck completed in ${elapsed}ms`); // budget: declared frozen precheck bound.
   for (const marker of Object.values(markers)) assert.equal(existsSync(marker), false, 'no check or gate ran');
 });
 
