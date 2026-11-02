@@ -210,6 +210,7 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../packages/codemap/index.js';
+import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { cachedBindingMetadata } from '../packages/codemap/src/shell/cell-binding-uses.js';
 import { exportReachability } from '../packages/codemap/src/shell/cell-lint-exports.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
@@ -692,4 +693,6 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
   assert.ok(calls >= 2);
   always = true;
   assert.throws(() => bindingReadsForModules(modules), /compiler timeout after retry.*load .*cores/u);
+  const fixture = fixtureSourceEdits(modules[0].source, { file: 'test/fixture.js', moves: [['src/old.js', 'packages/new.js']] });
+  assert.match(fixture.problems.join(' '), /compiler timeout after retry.*load .*cores/u);
 });

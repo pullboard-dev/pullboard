@@ -32,7 +32,7 @@ function compiles(sources) {
       const load = loadavg()[0], cores = availableParallelism();
       const timeout = Math.min(120_000, Math.max(30_000, Math.ceil(10_000 * (1 + load / cores))));
       result = run(timeout);
-      if (result.error?.code === 'ETIMEDOUT') throw new Error(`cell binding compiler timeout after retry (${timeout} ms; load ${load.toFixed(2)}, ${cores} cores)`);
+      if (result.error?.code === 'ETIMEDOUT') throw Object.assign(new Error(`cell binding compiler timeout after retry (${timeout} ms; load ${load.toFixed(2)}, ${cores} cores)`), { code: 'CELL_BINDING_TIMEOUT' });
     }
     if (result.status !== 0) throw new Error('cell binding compiler setup failed: ' + (result.error?.message ?? result.stderr));
     return JSON.parse(result.stdout);

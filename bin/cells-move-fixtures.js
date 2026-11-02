@@ -191,7 +191,7 @@ function sourceExportPorts(readSource) {
       if (pending.some(([file]) => rows.get(file)?.get('__source_port_probe')?.opaque)) return false;
       for (const [, value] of pending) compiled.add(value.object);
       return true;
-    } catch { return false; }
+    } catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; return false; }
   }
   return { named: (file, name) => { const row = named(file, name); return row && row !== unresolved && stable() ? row : null; },
     all: file => Boolean(all(file) && stable()) };
@@ -232,7 +232,7 @@ function imports(source, scanned, problems, file, { producer = false, dynamicPor
 }
 
 /** Return nonoverlapping source-only edits and explicit unsupported sites; never execute candidate code. */
-export function fixtureSourceEdits(source, { file, moves, readSource, dataReads = [], mentionsOnly = false }) {
+function fixtureSourceEditsImpl(source, { file, moves, readSource, dataReads = [], mentionsOnly = false }) {
   const moved = new Map(moves), edits = [], problems = [], excluded = [];
   if (source.length > 1024 ** 2) return { edits, problems: [`${file}: fixture source analysis exceeds its byte budget`] };
   const scanned = lex(source);
@@ -249,7 +249,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       if (!copierReads) {
         try {
           copierReads = bindingReadsForModules([{ file, source, body: real.body, bindings: [...copierNames].map(local => ({ local })) }]).get(file);
-        } catch { copierReads = new Map(); }
+        } catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; copierReads = new Map(); }
       }
       const row = copierReads.get(name);
       return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
@@ -264,7 +264,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       if (!readerReads) {
         try {
           readerReads = bindingReadsForModules([{ file, source, body: real.body, bindings: [...operationNames].map(local => ({ local })) }]).get(file);
-        } catch { readerReads = new Map(); }
+        } catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; readerReads = new Map(); }
       }
       const row = readerReads.get(name);
       return Boolean(row && !row.opaque && !row.potentialShadow && row.reads.includes(at));
@@ -391,7 +391,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
   let reads;
   try {
     reads = bindingReadsForModules([{ file, source, body: probeBody, bindings: names.map(local => ({ local })) }]).get(file);
-  } catch (error) { return { edits: [], problems: [...problems, `${file}: ${error.message.includes('cell binding compiler timeout') ? error.message : 'fixture binding compiler unavailable'}`] }; }
+  } catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; return { edits: [], problems: [...problems, `${file}: fixture binding compiler unavailable`] }; }
 
   const unsafeModules = new Set();
   for (const [name, binding] of imported.bindings) {
@@ -450,7 +450,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       let body = blank(blank(code, 0, start), end, code.length);
       body = blank(body, declaration.at, declaration.at + name.length);
       try { scopedReads.set(key, bindingReadsForModules([{ file, source, body, scopeBraces: true, bindings: [{ local: name }] }]).get(file).get(name)); }
-      catch { scopedReads.set(key, null); }
+      catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; scopedReads.set(key, null); }
     }
     const row = scopedReads.get(key);
     return row && !row.opaque && !row.potentialShadow && row.reads.includes(at) ? declaration.range : null;
@@ -573,7 +573,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     body = blank(body, loop.end, body.length);
     let result;
     try { result = bindingReadsForModules([{ file, source, body, bindings: [{ local: name }] }]).get(file).get(name); }
-    catch { return null; }
+    catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; return null; }
     if (result.opaque || result.potentialShadow || !result.reads.includes(at)) return null;
     return values(loop.input, loop.at);
   }
@@ -656,7 +656,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       .filter(([, row]) => row.module === 'path' && row.imported === '*').map(([name]) => name)])];
     let rows;
     try { rows = bindingReadsForModules([{ file: origin.file, source: snapshot.source, body, scopeBraces: true,
-      bindings: names.map(local => ({ local })) }]).get(origin.file); } catch { return null; }
+      bindings: names.map(local => ({ local })) }]).get(origin.file); } catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; return null; }
     if (names.some(name => !rows.get(name) || rows.get(name).opaque || rows.get(name).potentialShadow)
       || !rows.get(returned[1]).reads.includes(callAt)) return null;
     for (const [name, row] of identity.bindings) if (row.module === 'path' && row.imported === '*') {
@@ -789,7 +789,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
       const body = blank(blank(code, 0, fn.bodyStart), fn.bodyEnd, code.length);
       let row;
       try { row = bindingReadsForModules([{ file, source, body, scopeBraces: true, bindings: [{ local: name }] }]).get(file).get(name); }
-      catch { row = null; }
+      catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; row = null; }
       parameterProofs.set(key, row && !row.opaque && !row.potentialShadow
         && row.reads.every(at => nativePathOperand(at, name.length, fn)) ? row : null);
     }
@@ -832,7 +832,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     const key = `${name}:${entry.at}:${scope.start}:${scope.end}`;
     if (!receiverProofs.has(key)) {
       try { receiverProofs.set(key, readOnlyMemberRanges(source, ranges)); }
-      catch { receiverProofs.set(key, new Set()); } // Unavailable compiler evidence never authorizes a receiver.
+      catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; receiverProofs.set(key, new Set()); } // Unavailable compiler evidence never authorizes a receiver.
     }
     return ranges.every(range => receiverProofs.get(key).has(range.start));
   }
@@ -977,4 +977,13 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
     if (edits[at].start < edits[at - 1].end) return { edits: [], problems: [...new Set([...problems, `${file}: overlapping fixture source edits`])] };
   }
   return { edits, problems: [...new Set(problems)], ...excluded.length ? { excluded } : {}, ...matchedDataReads.length ? { matchedDataReads } : {} };
+}
+
+/** Preserve a timed-out compiler as a named refusal through every conservative probe. */
+export function fixtureSourceEdits(source, options) {
+  try { return fixtureSourceEditsImpl(source, options); }
+  catch (error) {
+    if (error?.code !== 'CELL_BINDING_TIMEOUT') throw error;
+    return { edits: [], problems: [`${options.file}: ${error.message}`] };
+  }
 }
