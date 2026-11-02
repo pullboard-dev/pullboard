@@ -52,8 +52,10 @@ export async function bindWriteSession(io, positionals, values) {
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw withBoard(ctx, (board) => seatCheckout.unjoinedRefusal(info, store.listAgents(board), personIdentity.agentSessionDigest));
   }
-  if (['shout', 'fact'].includes(command) && localSessionMatches(info, { agent: agent ?? 'unjoined agent', digest })) {
-    CHECKOUT_BOARD_ONLY.set(io, command);
+  // Comparison observes immutable Git objects and records facts; it never owns the builder checkout.
+  const boardOnly = ['shout', 'fact'].includes(command) ? command : command === 'verify' && values.compare ? 'fact' : null;
+  if (boardOnly && localSessionMatches(info, { agent: agent ?? 'unjoined agent', digest })) {
+    CHECKOUT_BOARD_ONLY.set(io, boardOnly);
     return;
   }
   const lease = await bindLocalSession(info, { agent: agent ?? 'unjoined agent', digest, takeover: command === 'takeover', keepLease: !['run', 'next', 'land'].includes(command), waitLimitMs: command === 'hook' ? HOOK_CHECKOUT_WAIT_MS : 0,
