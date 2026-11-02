@@ -7,7 +7,7 @@ import { caughtFrom } from '../../../items/index.js';
 
 /** Identify a registered agent seat without counting board-owned actors. */
 export function isProofAgent({ agent_id: id, agent_lane: lane }) {
-  return lane !== 'coordinator' && !['board', 'person', 'clock', 'coordinator', 'rigor', 'sentinel'].includes(id) && !id.startsWith('sentinel-');
+  return lane !== 'coordinator' && !['board', 'person', 'clock', 'coordinator', 'rigor', 'sentinel'].includes(id);
 }
 
 /** Return registered agent seats, excluding the board's system actors. */
