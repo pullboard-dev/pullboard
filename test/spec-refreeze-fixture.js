@@ -20,7 +20,7 @@ import { submitFixture } from './board-submit-fixture.js';
 export function assertSpecCorrectionRefreezesCitations(t) {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => {
     store.closeBoard(board);
     helpers.cleanup();
