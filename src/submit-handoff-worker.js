@@ -143,7 +143,7 @@ export async function superviseSubmitHandoffWorker(requestFile, { nativeBoard })
     jobGit(request.commonDir, ['worktree', 'add', '--detach', root, request.commit]);
     attached = true;
     ctx = workerContext(request, directory, root, nativeBoard).ctx;
-    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), requestFile, '--execute'],
+    const child = spawn(process.execPath, [realpathSync(fileURLToPath(import.meta.url)), requestFile, '--execute'],
       { cwd: root, stdio: 'inherit', env: { ...process.env } });
     const [code, signal] = await workerExit(child);
     const job = withBoard(ctx, board => submitHandoff(board, request.item));
@@ -174,7 +174,7 @@ export async function superviseSubmitHandoffWorker(requestFile, { nativeBoard })
 /** Expose the real worker module as a declared import dependency of its launcher. */
 export function submitHandoffWorkerEntrypoint() { return fileURLToPath(import.meta.url); }
 
-if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const nativeBoard = await import('./native-board.js');
   const run = process.argv[3] === '--execute' ? runSubmitHandoffWorker : superviseSubmitHandoffWorker;
   run(process.argv[2], { nativeBoard, prepared: process.argv[3] === '--execute' }).catch(error => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
