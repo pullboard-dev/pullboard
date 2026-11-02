@@ -10,7 +10,7 @@ import { rawOutputObserver } from '../packages/gate/src/shell/legacy-watchdog-ou
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
-test('protocol-only frames never count as output, including split headers', () => {
+test('protocol-only frames never count as output, including split headers [C7,V10]', () => {
   const serializer = new DefaultSerializer();
   serializer.writeHeader();
   const header = serializer.releaseBuffer();
@@ -59,9 +59,9 @@ async function runLegacy(t, mode, duration = 8000) {
   assert.match(output, /noisy child/u);
 }
 
-test('coverage attributes descendant output to the correct worker', t => runLegacy(t, 'coverage'));
-test('watch attributes descendant output to the correct worker', t => runLegacy(t, 'watch'));
+test('coverage attributes descendant output to the correct worker [C7,V10]', t => runLegacy(t, 'coverage'));
+test('watch attributes descendant output to the correct worker [C7,V10]', t => runLegacy(t, 'watch'));
 
-test('two-minute output children stay alive in watch and coverage while quiet peers stop', async t => {
+test('two-minute output children stay alive in watch and coverage while quiet peers stop [C7,V10]', async t => {
   await Promise.all([runLegacy(t, 'coverage', 120000), runLegacy(t, 'watch', 120000)]);
 });
