@@ -1162,6 +1162,10 @@
     {
       "path": "src/move-history/196.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/blocked-dependencies-engine.js",
+      "reason": "canonical engine identity retained in src during package moves"
     }
   ],
   "retired": [
@@ -2871,6 +2875,14 @@
         "src/bar-corrections.js",
         "packages/verify/src/core/bar-corrections.js",
         "seed"
+      ]
+    },
+    {
+      "cell": "state",
+      "row": [
+        "src/blocked-dependencies-engine.js",
+        "packages/state/src/shell/blocked-dependencies-engine.js",
+        "rule"
       ]
     }
   ]

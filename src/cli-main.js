@@ -72,6 +72,7 @@ const OPTIONS = {
   watch: { type: 'boolean' },
   'runner-only': { type: 'boolean' },
   after: { type: 'string' },
+  on: { type: 'string' },
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
   private: { type: 'boolean' },

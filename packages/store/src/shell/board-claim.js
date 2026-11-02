@@ -1,3 +1,4 @@
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../src/blocked-dependencies-engine.js';
 import { EXIT_RULES_ENGINE } from "../../../state/index.js";
 import { capturedExitRules } from "../core/exit-rules-state.js";
 import {
@@ -94,7 +95,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
         if (foreign) return new Refused('BLOCKED', `#${id} waits on ${itemDependencies.dependencyLabel(foreign)} (${foreign.status} on its own board); refresh that board before claiming`);
         for (const dependency of itemDependencies.localDependencyIds(found)) {
           const before = itemById(board, dependency);
-          if (before.item_status !== 'verified') {
+          if (before.item_status !== 'verified' && !((board.executionEngineVersion ?? ENGINE_VERSION) >= BLOCKED_DEPENDENCIES_ENGINE && before.item_status === 'withdrawn')) {
             return new Refused(
               'BLOCKED',
               `#${id} waits on #${dependency} (${current(board, before).item_status}, ${before.item_lane} lane); claim another item, or shout ${before.item_lane} if it is stuck`,
