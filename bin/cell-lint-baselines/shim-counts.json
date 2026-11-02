@@ -24,7 +24,7 @@
     "store": 114,
     "sync": 1,
     "temporary": 1,
-    "unmapped": 3,
-    "verify": 2
+    "unmapped": 2,
+    "verify": 3
   }
 }

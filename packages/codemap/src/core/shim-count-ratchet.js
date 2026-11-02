@@ -18,7 +18,7 @@ export function shimCountProblems({ before, after, beforeInventory, afterInvento
 export function shimCountBaseline(report) {
   const cells = {};
   for (const row of report.metrics.shims.findings) {
-    const target = report.pathMap?.[row.key] ?? row.key;
+    const target = report.pathMap?.[row.key] ?? report.shimTargets?.[row.key] ?? row.key;
     const cell = /^(?:packages|apps)\/([^/]+)\//u.exec(target)?.[1]
       ?? (row.key.startsWith('temporary:') ? 'temporary' : 'unmapped');
     cells[cell] = (cells[cell] ?? 0) + row.count;

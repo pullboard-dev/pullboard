@@ -17,6 +17,7 @@ import { withMainCheckout } from '../packages/landing/index.js';
 import { computePlan, writePlan } from '../bin/cells-plan.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
+import { runFixtureGit } from './fixture-child.js';
 
 const COUNTS = 'bin/cell-lint-baselines/shim-counts.json';
 const parsers = { importsIn, commonJsIn };
@@ -25,6 +26,7 @@ const parsers = { importsIn, commonJsIn };
 function fixture(t) {
   const box = planFixture(t);
   box.root = realpathSync(box.root);
+  box.put('package.json', JSON.stringify({ type: 'module', bin: 'src/cli.js' }));
   writePlan(box.root, computePlan(box.root));
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-qm', 'plan actual shim fixture');
@@ -73,8 +75,8 @@ test('a real cells move may land with its new shim count committed [C7,CD64]', a
 
 test('a stray shim refuses even when the builder updates the count snapshot [C7,CD64]', async t => {
   const box = fixture(t);
-  box.put('src/stray.js', "export { Refused } from './refused.js';\n");
-  await assert.rejects(inspect(box), error => error.code === 'CELLS_SUBMIT' && /shim count rose without a cells move: src\/stray.js/u.test(error.message));
+  box.put('src/stats-flow.js', "export { stats as flow } from './stats.js';\n");
+  await assert.rejects(inspect(box), error => error.code === 'CELLS_SUBMIT' && /shim count rose without a cells move: src\/stats-flow.js/u.test(error.message));
 });
 
 test('a cells move must record its actual shim count before landing [C7,CD64]', async t => {
@@ -102,4 +104,36 @@ test('native health names an aged shim, its cell and the removal item at the con
   assert.equal(finding.detail.removalItem, removal);
   assert.ok(healthLines(report).some(line => line.includes('src/refused.js') && line.includes(`#${removal}`)));
   assert.equal(observe(9).stuck.some(row => row.cause === 'CELL_SHIM_OVERDUE'), false);
+});
+
+
+test('each shim records its own Git landing when a cell gains a later move [C7,CD64]', async t => {
+  const box = fixture(t);
+  move(box, t);
+  const commit = await inspect(box);
+  git(box.root, 'checkout', '-q', 'main');
+  git(box.root, 'merge', '--no-ff', '-qm', 'land first history fixture', commit);
+  const firstDate = git(box.root, 'log', '-1', '--format=%cI').trim();
+  git(box.root, 'checkout', '-qb', 'later-move');
+  const source = 'src/stats-flow.js';
+  const target = 'packages/kernel/src/core/stats-flow.js';
+  git(box.root, 'mv', source, target);
+  box.put(target, readFileSync(join(box.root, target), 'utf8').replace("'./stats.js'", "'../../../../src/stats.js'"));
+  box.put(source, "export { flow } from '../packages/kernel/index.js';\n");
+  box.put('packages/kernel/index.js', readFileSync(join(box.root, 'packages/kernel/index.js'), 'utf8') + "export { flow } from './src/core/stats-flow.js';\n");
+  const mapFile = 'bin/cells-plan/path-map/kernel.json';
+  box.put(mapFile, JSON.stringify({ ...JSON.parse(readFileSync(join(box.root, mapFile))), [source]: target }));
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-qm', 'move another actual module for history observation');
+  git(box.root, 'checkout', '-q', 'main');
+  const laterDate = new Date(Date.parse(firstDate) + 86_400_000).toISOString();
+  runFixtureGit(['merge', '--no-ff', '-qm', 'land later history fixture', 'later-move'], {
+    cwd: box.root, env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+      GIT_AUTHOR_NAME: 'Shim history', GIT_AUTHOR_EMAIL: 'history@example.invalid',
+      GIT_COMMITTER_NAME: 'Shim history', GIT_COMMITTER_EMAIL: 'history@example.invalid',
+      GIT_AUTHOR_DATE: laterDate, GIT_COMMITTER_DATE: laterDate },
+  });
+  const dates = new Map(shimLifecycle(box.root).map(row => [row.path, Date.parse(row.moveLandedAt)]));
+  assert.equal(dates.get('src/refused.js'), Date.parse(firstDate));
+  assert.equal(dates.get(source), Date.parse(laterDate), 'a later map row does not inherit the first move date');
 });

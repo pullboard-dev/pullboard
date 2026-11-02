@@ -6,10 +6,10 @@ import { tryGit } from '../../../git/index.js';
 import { lex } from '../../../kernel/index.js';
 
 /** Read all old mapped paths in one Git batch; missing paths are completed removals. */
-function mappedSources(root, commit, paths) {
+function readObjects(root, paths) {
   if (!paths.length) return new Map();
   const bytes = gitExecFileSync(['cat-file', '--batch'], { cwd: root, env: cleanGitEnvironment(),
-    input: paths.map(path => `${commit}:${path}\n`).join(''), encoding: null, maxBuffer: 64 * 1024 * 1024 });
+    input: paths.map(path => `${path}\n`).join(''), encoding: null, maxBuffer: 64 * 1024 * 1024 });
   const sources = new Map();
   let at = 0;
   for (const path of paths) {
@@ -34,26 +34,38 @@ export function shimLifecycle(root, { commit = 'HEAD', items = [] } = {}) {
   if (metadata.status !== 0 || !metadata.stdout) return [];
   const map = readPathMap(root, { commit });
   if (!map.size) return [];
-  const history = tryGit(root, ['log', '--first-parent', '--diff-filter=A', '--name-only', '--format=SHIM-DATE:%cI', commit,
-    '--', 'path-map.json', 'bin/cells-plan/path-map']);
+  const history = tryGit(root, ['log', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--raw', '--no-abbrev',
+    '--format=SHIM-DATE:%cI', commit, '--', 'path-map.json', 'bin/cells-plan/path-map']);
   if (history.status !== 0) throw new Error('cannot read landed shim history');
-  const dates = new Map();
+  const edits = [], objects = new Set(), dates = new Map();
   let date = null;
   for (const line of history.stdout.split('\n')) {
-    if (line.startsWith('SHIM-DATE:')) date = line.slice('SHIM-DATE:'.length);
-    else if (date && line) dates.set(line, date);
+    if (line.startsWith('SHIM-DATE:')) { date = line.slice('SHIM-DATE:'.length); continue; }
+    const row = /^:[0-7]{6} [0-7]{6} ([a-f0-9]+) ([a-f0-9]+) [AMD]\t/u.exec(line);
+    if (!row || !date) continue;
+    const before = /^0+$/u.test(row[1]) ? null : row[1];
+    const after = /^0+$/u.test(row[2]) ? null : row[2];
+    for (const oid of [before, after]) if (oid) objects.add(oid);
+    edits.push({ before, after, date });
   }
-  const sources = mappedSources(root, commit, [...map.keys()]);
+  const maps = readObjects(root, [...objects]);
+  for (const edit of edits) {
+    const before = edit.before ? JSON.parse(maps.get(edit.before)) : {};
+    const after = edit.after ? JSON.parse(maps.get(edit.after)) : {};
+    for (const path of Object.keys(after)) if (!Object.hasOwn(before, path) && !dates.has(path)) dates.set(path, edit.date);
+  }
+  const refs = [...map.keys()].map(path => `${commit}:${path}`);
+  const sources = readObjects(root, refs);
   const result = [];
   for (const [path, target] of map) {
-    const source = sources.get(path);
+    const source = sources.get(`${commit}:${path}`);
     if (!source || !/^(?:export(?:\*|\{[^}]*\})from(?:''|"");?)+$/u.test(lex(source).code.replace(/\s/gu, ''))) continue;
     const cell = /^(?:packages|apps)\/([^/]+)\//u.exec(target)?.[1];
     if (!cell) continue;
     const candidates = items.filter(item => /shim/iu.test(item.item_title ?? '')
       && `${item.item_title ?? ''}\n${item.item_criterion ?? ''}`.includes(path));
     candidates.sort((a, b) => Number(['verified', 'withdrawn'].includes(a.item_status)) - Number(['verified', 'withdrawn'].includes(b.item_status)) || b.item_id - a.item_id);
-    result.push({ path, cell, moveLandedAt: dates.get(`bin/cells-plan/path-map/${cell}.json`) ?? dates.get('path-map.json') ?? null,
+    result.push({ path, cell, moveLandedAt: dates.get(path) ?? null,
       removalItem: candidates[0]?.item_id ?? null });
   }
   return result;
