@@ -1,6 +1,7 @@
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
+import { receiptLine as cellsReceiptLine } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
 import { runnerPhaseFields } from '../timing.js';
@@ -393,7 +394,8 @@ export async function submitHere(ctx, id, infra) {
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
-  if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
+  // A reused cells receipt never ran on a runner, so it has no slot; the check-receipt line cites it without one.
+  if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
