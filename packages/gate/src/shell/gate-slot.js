@@ -84,6 +84,14 @@ export async function withGateSlot(root, action, options = {}) {
   options = { ...options, executionServices: requireGateExecutionServices(options.executionServices) };
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
+    if (error?.code === 'RUNNER_BROWSER_SLOT_REQUIRED' && options.remote !== false && !options.browser
+      && (options.runnerOnly || options.requiredExecutor?.kind === 'ssh')) {
+      const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
+      process.stderr.write(`${error.message}; retrying on an eligible runner with a browser slot\n`);
+      const result = await withOneGateSlot(root, action, { ...options, browser: true });
+      if (result && typeof result === 'object') result.runnerAttempt = attempt;
+      return result;
+    }
     if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
     // The runner's red attempt stays on record beside the local rerun.
     const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };

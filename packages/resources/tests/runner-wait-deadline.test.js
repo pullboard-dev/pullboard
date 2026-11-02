@@ -421,14 +421,17 @@ test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1
     const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
       runnerProvider: () => settings.runners };
     let held = await takeResource(options), admitted;
-    let signalQueued, releaseQueue;
+    let signalQueued, releaseQueue, observedWait;
     const queued = new Promise(done => { signalQueued = done; });
     const barrier = new Promise(done => { releaseQueue = done; });
     const older = takeResource({ ...options, runnerWaitMs: 5_000, agent: 'older-runner-waiter', onWait: async state => {
-      if (!state.admitted) { signalQueued(); await barrier; }
+      if (!state.admitted) { observedWait = state.runnerWait; signalQueued(); await barrier; }
     } });
     try {
       await queued;
+      assert.equal(observedWait.runners[0].slots.free, 0);
+      assert.equal(observedWait.runners[0].holders.length, 1);
+      assert.equal(observedWait.runners[0].browser.total, 1);
       let waited = false;
       await assert.rejects(takeResource({ ...options, runnerWaitMs: 60, agent: 'later-runner-waiter', onWait: async state => {
         if (state.admitted || waited) return;
@@ -446,4 +449,59 @@ test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1
       admitted?.release();
     }
   });
+});
+
+test('a waiting older ticket reserves only one of two free runner slots [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
+      runnerProvider: () => settings.runners.map(runner => ({ ...runner, slots: 2 })) };
+    let first = await takeResource(options), second = await takeResource(options), later, admitted;
+    let signalQueued, releaseQueue;
+    const queued = new Promise(done => { signalQueued = done; });
+    const barrier = new Promise(done => { releaseQueue = done; });
+    const older = takeResource({ ...options, runnerWaitMs: 5_000, agent: 'older-idle-slot', onWait: async state => {
+      if (!state.admitted) { signalQueued(); await barrier; }
+    } });
+    try {
+      await queued;
+      first.release(); first = null;
+      second.release(); second = null;
+      later = await takeResource({ ...options, runnerWaitMs: 1_000, agent: 'later-idle-slot' });
+      assert.equal(later.runner.host, settings.runners[0].host, 'the spare slot starts the later eligible request');
+      releaseQueue();
+      admitted = await older;
+      assert.equal(admitted.runner.host, later.runner.host, 'one slot remains reserved for the earlier ticket');
+    } finally {
+      first?.release(); second?.release(); later?.release(); releaseQueue();
+      admitted ??= await older;
+      admitted?.release();
+    }
+  });
+});
+
+test('runner-only browser refusal retries with a browser lease [C7,Q1,Q2]', async () => {
+  const box = fixture({ dropFirst: false });
+  const gateUrl = pathToFileURL(join(process.cwd(), 'src/gate.js')).href;
+  const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}
+let calls = 0;
+const result = await withGateSlot(process.cwd(), lease => {
+  calls += 1;
+  if (calls === 1) {
+    if (lease.browser) throw new Error('first attempt unexpectedly has browser capacity');
+    const error = new Error('authenticated runner refusal');
+    error.code = 'RUNNER_BROWSER_SLOT_REQUIRED';
+    error.runnerAttempt = { host: lease.runner.host, exitCode: 1, output: 'refused' };
+    throw error;
+  }
+  return { browser: lease.browser, host: lease.runner.host };
+}, { executionServices, remote: true, runnerOnly: true, browser: false, runnerWaitMs: 5000 });
+process.stdout.write(JSON.stringify({ calls, result }));`;
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env });
+  assert.equal(result.status, 0, result.stderr);
+  const outcome = JSON.parse(result.stdout);
+  assert.equal(outcome.calls, 2);
+  assert.equal(outcome.result.browser, true);
+  assert.equal(outcome.result.runnerAttempt.output, 'refused');
 });
