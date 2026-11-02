@@ -214,6 +214,9 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
       timed(lease).tracker.mark('actionAt');
       try {
         const result = await action(lease);
+        if (lease.runner && runnerOnly && (itemCheck || kind === 'review') && result?.timedOut === true) {
+          throw new RunnerDropped(lease.runner.host, { reason: 'run-timeout' });
+        }
         if (infrastructureAttempts.length) {
           infrastructureAttempts.push({ kind: 'retry', code: null, runner: lease.runner?.host ?? 'local',
             outcome: result?.isGreen === false || result?.state === 'red' ? 'check-red' : 'completed', at: new Date().toISOString() });

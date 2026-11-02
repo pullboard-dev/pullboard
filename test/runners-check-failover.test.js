@@ -11,7 +11,7 @@ import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 const SOURCE = join(import.meta.dirname, '..');
 
 /** Exercise the real gate slot and SQLite retry queue with deterministic transport failure ports. */
-function failover(t, { review = false, dropped = false, exhausted = false, first = true } = {}) {
+function failover(t, { review = false, dropped = false, timedOut = false, exhausted = false, first = true } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-check-failover-'));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const root = join(home, 'repo');
@@ -50,6 +50,7 @@ try { result = await withGateSlot(process.cwd(), async lease => {
   attempts.push(host);
   if (host === 'local') { writeFileSync(${JSON.stringify(marker)}, 'ran'); return host; }
   if (${JSON.stringify(exhausted)} || host === 'failed-runner') {
+    if (${JSON.stringify(timedOut)}) return { isGreen: false, timedOut: true };
     if (${JSON.stringify(dropped)}) throw new RunnerDropped(host, { reason: 'admission-deadline' });
     throw new Refused('RUNNER_CLEANUP_TIMEOUT', 'the timed-out runner did not prove cleanup');
   }
@@ -81,6 +82,16 @@ for (const review of [false, true]) {
 
 test('a dropped submit runner retries remotely and records that runner [C7]', t => {
   const run = failover(t, { dropped: true });
+  assert.equal(run.result, 'next-runner');
+  assert.deepEqual(run.attempts, ['failed-runner', 'next-runner']);
+  assert.equal(run.localRan, false);
+  assert.equal(run.receipts.at(-1).runner.id, 'next-runner');
+  assert.equal(run.holders.length, 0);
+});
+
+test('a timed-out remote check result retries on another runner [C7]', t => {
+  const run = failover(t, { timedOut: true });
+  assert.equal(run.failure, undefined);
   assert.equal(run.result, 'next-runner');
   assert.deepEqual(run.attempts, ['failed-runner', 'next-runner']);
   assert.equal(run.localRan, false);
