@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { mainRedBuildRouting } from '../packages/store/index.js';
 import { exportBoard } from '../packages/store/index.js';
-import { nextTake } from '../packages/sandbox/src/shell/next-take.js';
+import { nextTake } from '../packages/sandbox/index.js';
 import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyRelayMove } from '../packages/state/index.js';
