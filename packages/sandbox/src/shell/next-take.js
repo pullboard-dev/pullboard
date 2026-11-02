@@ -72,7 +72,7 @@ export async function nextTake(ctx, values = {}, services) {
     try {
       await claimOrdered(ctx, board, [picked.item.item_id, {
         agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
-        freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root),
+        freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root), autoNext: true,
       }]);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: picked.item.item_id, rows: error.rows } };

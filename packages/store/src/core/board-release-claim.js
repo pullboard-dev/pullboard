@@ -1,3 +1,4 @@
+import { UNTOUCHED_CLAIM_ENGINE } from '../../../../src/untouched-claim-engine.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../src/blocked-dependencies-engine.js';
 import { validateNativeDependencies } from '../../../seats/core.js';
 import { localDependencyIds } from '../../../seats/core.js';
@@ -40,6 +41,11 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
   const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies } = dependencies;
   // A string fourth argument is the release reason code; an object is a coordinator's frozen observation.
   if (typeof observation === 'string') { reasonCode = observation; observation = undefined; }
+  const cleanHead = observation?.cleanHead;
+  if (observation && Object.hasOwn(observation, 'cleanHead')) {
+    const { cleanHead: ignored, ...other } = observation;
+    observation = Object.keys(other).length ? other : undefined;
+  }
   const blockedOn = observation?.blockedOn;
   let combinedAfter;
   if (blockedOn !== undefined) {
@@ -92,7 +98,11 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
       upsert.run(`claim_waiting:${id}`, JSON.stringify(blockedOn));
       upsert.run(`blocked_release_waiting:${id}`, JSON.stringify(blockedOn));
     }
-    logEvent(board, agentId, 'release', id, blockedOn ? { reasonCode, blockedOn, ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}), ...(exitHandoff ? { exitHandoff } : {}) } : exitHandoff ? { exitHandoff, reason: note, ...(reasonCode === undefined ? {} : { reasonCode }) } : stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
+    const lastClaim = board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'claim' ORDER BY event_id DESC LIMIT 1").get(id);
+    const claimDetail = JSON.parse(lastClaim?.event_detail ?? '{}');
+    const untouchedAutoClaim = (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && !stale && !gone && !exitHandoff
+      && lastClaim?.event_by === agentId && typeof cleanHead === 'string' && cleanHead === claimDetail.autoNextCleanHead;
+    logEvent(board, agentId, 'release', id, blockedOn ? { reasonCode, blockedOn, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}), ...(exitHandoff ? { exitHandoff } : {}) } : exitHandoff ? { exitHandoff, reason: note, ...(reasonCode === undefined ? {} : { reasonCode }) } : stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
     // Count only ordinary coded claim releases since the coordinator last lifted a hold.
     if (!stale && !gone && !exitHandoff && reasonCode && !item.item_hold_reason
       && (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_TWICE_HOLD_ENGINE) {
@@ -100,7 +110,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
         AND event_id > COALESCE((SELECT MAX(event_id) FROM event WHERE item_id = ? AND event_kind = 'unhold_item'), 0)
         ORDER BY event_id DESC`).all(id, id).filter(row => {
           const detail = JSON.parse(row.event_detail);
-          return detail.reasonCode && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff;
+          return detail.reasonCode && !detail.untouchedAutoClaim && !detail.review && !detail.staleClaim && !detail.goneSeat && !detail.exitHandoff;
         }).slice(0, 2);
       if (releases.length === 2) {
         const reasons = releases.reverse().map(row => {

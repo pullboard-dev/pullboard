@@ -1,3 +1,4 @@
+import { cleanClaimHead } from '../untouched-claim-observation.js';
 import {
   submitHandoffActor,
   isSubmitHandoffWorker,
@@ -194,7 +195,8 @@ export async function claimOrdered(ctx, board, args) {
   if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
   const exitRules = mainPolicy(ctx.info.root).config.exitRules;
-  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
+  const autoNextCleanHead = args[1].autoNext ? cleanClaimHead(ctx.info.root) : null;
+  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(autoNextCleanHead ? { autoNextCleanHead } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);
