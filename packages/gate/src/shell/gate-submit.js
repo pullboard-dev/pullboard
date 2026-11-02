@@ -110,6 +110,18 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
     proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner };
 }
 
+/** Decide whether a planned submit needs a browser or GUI slot; a remote analysis runs this beside its plan. */
+export async function submitGateAdmission(root, plan, { allowBrowserFreeChecks, onBrowserFallback }) {
+  const { check, selection, deferFullFallback, deferSelection, proofFiles } = plan;
+  const checkUsesBrowser = check ? (!allowBrowserFreeChecks || await checkNeedsBrowser(root, check, { onFallback: onBrowserFallback })) : false;
+  const proofUsesBrowser = deferFullFallback || deferSelection
+    ? (proofFiles.length > 0 && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })))
+    : (selection.full || !allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback }));
+  const gui = (check ? await checkNeedsGui(root, check) : false)
+    || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
+  return { browser: checkUsesBrowser || proofUsesBrowser, gui };
+}
+
 /** Retain all phase identities; conflicting observations never become an arbitrary file binding [V4,H16]. */
 function submitTestOutcomes(profiles) {
   const combined = new Map();
@@ -136,7 +148,7 @@ function submitTestOutcomes(profiles) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission }) {
 
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
@@ -144,7 +156,8 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     throw new Refused('SUBMIT_PIN_NOT_MAIN', `submit pinned main ${trunk.slice(0, 12)}, which is not an ancestor of main; run pullboard submit again so it captures main`);
   }
   if (!staticChecked) await runStaticChecks(root, config, { agent, item, onWait, onBrowserFallback, runnerAdmission, executionServices, artifactDirectory: outputLog ? dirname(outputLog) : undefined });
-  const plan = submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance });
+  // A queued submit's trusted runner analysis already planned this exact source; the controller does no selection.
+  const plan = planned ?? submitGatePlan(root, config, { base, trunk, changed, check, sourceAdvance });
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
@@ -155,14 +168,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
     if (!file) throw new Refused('BAD_CONFIG', `${invariants.includes(path) ? 'submitInvariants' : 'registryGuards'} file ${path} is missing or unreadable; restore it or update the list on accepted main`);
   }
-  const allowBrowserFreeChecks = browserFreeChecksEnabled();
-  const checkUsesBrowser = check ? (!allowBrowserFreeChecks || await checkNeedsBrowser(root, check, { onFallback: onBrowserFallback })) : false;
-  const proofUsesBrowser = deferFullFallback || deferSelection
-    ? (proofFiles.length > 0 && (!allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback })))
-    : (selection.full || !allowBrowserFreeChecks || await testsNeedBrowser(root, proofFiles, { onFallback: onBrowserFallback }));
-  const browser = checkUsesBrowser || proofUsesBrowser;
-  const gui = (check ? await checkNeedsGui(root, check) : false)
-    || ((selection.full && !deferFullFallback && !deferSelection) && projectNeedsGui(root)) || testsNeedGui(root, proofFiles);
+  const { browser, gui } = admission ?? await submitGateAdmission(root, plan, { allowBrowserFreeChecks: browserFreeChecksEnabled(), onBrowserFallback });
   return await withGateSlot(root, async (lease) => {
     lease.timingOperation = 'submit';
     // Observe the real grant before proof; both callbacks share the admission object and preserve its first witness.
