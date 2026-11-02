@@ -61,6 +61,7 @@ function fixture(t, { missingRunner = false } = {}) {
   if (!missingRunner) writeFileSync(join(box.repo, 'web/runner.js'), RUNNER);
   writeFileSync(join(box.repo, 'web/value.js'), 'export const value={newRed:true,fixed:false,known:false,skip:false};\n');
   writeFileSync(join(box.repo, 'web/a space.test.js'), CASES);
+  writeFileSync(join(box.repo, 'web/journey.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {spawnSync} from 'node:child_process';import {value} from './value.js';test('deferred journey [V4,C7]',()=>{void value;assert.equal(spawnSync('false').status,0)});\n");
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: comparison base [G1]');
   const base = box.git(box.repo, 'rev-parse', 'HEAD');
@@ -119,7 +120,7 @@ test('verify --compare selects importing tests and reports only new reds and act
 
 test('verify --compare treats an added test file as new and does not execute its missing base path [V4,C7]', async t => {
   const box = fixture(t);
-  writeFileSync(join(box.web, 'web/added.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';test('added red [V4,C7]',()=>assert.ok(false));\n");
+  writeFileSync(join(box.web, 'web/added.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {value} from './value.js';test('added red [V4,C7]',()=>assert.equal(value.newRed,false));\n");
   submit(box);
   const result = await compare(box);
   assert.deepEqual(result.newFiles, ['web/added.test.js']);
