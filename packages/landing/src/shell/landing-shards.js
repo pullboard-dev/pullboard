@@ -553,6 +553,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   const acquire = (entry) => {
     const localOnly = entry.localOnly;
     const running = withLandingGateSlot(root, async lease => {
+      lease.timingOperation = 'landing-shard';
       if (entry.claimed || entry.done) return;
       // A host quarantined in this landing gets no more shards; queue again for a local slot.
       if (lease.runner && quarantined.has(lease.runner.host)) {
