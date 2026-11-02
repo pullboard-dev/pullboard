@@ -33,6 +33,9 @@ import { shardFile } from './cells-plan.js';
 import { unplanned } from './cells-plan.js';
 import { stalePlanRows } from './cells-plan.js';
 import { engineStayTransition } from './cells-engine-stays.js';
+import { scriptMentions } from './cells-remove-shims.js';
+import { testFile } from '../packages/codemap/index.js';
+import { posix } from 'node:path';
 
 /** Exact multiset subtraction keeps duplicate diagnostics from borrowing one old allowance. */
 function additions(before, after) {
@@ -206,6 +209,20 @@ function candidatePlan(candidateRoot) {
   });
 }
 
+/**
+ * A deleted module that a test still names inside a string, such as a generated child script's import: import checks
+ * cannot see it, so the deletion would turn main red the first time that test runs.
+ */
+function deletedScriptMentions(mainRoot, candidateRoot, changed) {
+  const deleted = changed.filter(file => /\.[cm]?js$/u.test(file) && existsSync(join(mainRoot, file)) && !existsSync(join(candidateRoot, file)));
+  if (!deleted.length) return [];
+  const tests = git(candidateRoot, ['ls-files', '-z']).split('\0').filter(file => file && testFile(file) && /\.[cm]?js$/u.test(file));
+  const files = new Map(tests.filter(file => lstatSync(join(candidateRoot, file)).isFile()).map(file => [file, readFileSync(join(candidateRoot, file))]));
+  const resolve = (file, text) => text.startsWith('.') ? posix.join(posix.dirname(file), text) : null;
+  return scriptMentions(files, deleted, resolve)
+    .map(row => `${row.file}:${row.line} names deleted ${row.path} inside a string; point it at the moved file or front door`);
+}
+
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
 function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers, inventories } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
@@ -217,8 +234,9 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));
   policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
-  if (policy.length) return { cells: [], problems: policy };
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
+  policy.push(...deletedScriptMentions(mainRoot, candidateRoot, changed));
+  if (policy.length) return { cells: [], problems: policy };
   const direct = touchedCells(changed, before, after, []);
   if (!direct.length) return { cells: [], problems: [] };
   const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
