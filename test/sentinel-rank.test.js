@@ -40,4 +40,7 @@ test('a takeable earlier item still raises one inversion [N2,B13]', async t => {
   box.claim(later, box.seats.actor);
   const result = inversion(box, later);
   assert.equal(result?.detail.ahead, earlier);
+  const first = box.scan();
+  assert.ok(first?.findings?.some(row => row.key === `RANK_INVERSION:item:${later}`));
+  assert.equal(box.scan(), null, 'an unchanged inversion is not reported twice');
 });
