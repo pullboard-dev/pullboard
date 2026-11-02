@@ -31,11 +31,9 @@ function rawOutputObserver(notify) {
 
 /** Only the native test parent observes its own Node workers; each marker is keyed by worker PID. */
 function observeLegacyWorkers(directory) {
-  if (process.env.PULLBOARD_LEGACY_DEBUG) process.stderr.write(`legacy parent ${process.pid} ctx=${process.env.NODE_TEST_CONTEXT} args=${JSON.stringify(process.execArgv)} dir=${directory}\n`);
   if (!directory || process.env.NODE_TEST_CONTEXT === 'child-v8' || !process.execArgv.includes('--test')) return;
   channel('child_process').subscribe(({ process: child }) => {
     child.once('spawn', () => {
-      if (process.env.PULLBOARD_LEGACY_DEBUG) process.stderr.write(`legacy spawn ${child.pid} args=${JSON.stringify(child.spawnargs)}\n`);
       if (child.spawnfile !== process.execPath || !Number.isSafeInteger(child.pid)
         || !/\.[cm]?js$/u.test(child.spawnargs?.at(-1) ?? '')) return;
       const marker = join(directory, String(child.pid));
@@ -44,7 +42,6 @@ function observeLegacyWorkers(directory) {
         const now = Date.now();
         if (now - last < 250) return;
         last = now;
-        if (process.env.PULLBOARD_LEGACY_DEBUG) process.stderr.write(`legacy output ${marker}\n`);
         try { writeFileSync(marker, ''); } catch { /* Supervision remains conservative when a marker cannot be written. */ }
       };
       child.stdout?.on('data', rawOutputObserver(output));

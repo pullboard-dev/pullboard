@@ -35,7 +35,7 @@ async function runLegacy(t, mode, duration = 8000) {
   const flags = mode === 'watch' ? ['--watch'] : ['--experimental-test-coverage'];
   const child = spawn(process.execPath, [runner, ...flags, '--test-concurrency=2', join(root, 'a-noisy.test.js'), join(root, 'b-hung.test.js')], {
     cwd: root, detached: true, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'),
-      PULLBOARD_LEGACY_DEBUG: '1', PULLBOARD_TEST_IDLE_TIMEOUT_MS: '3000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: String(duration + 15000), PULLBOARD_TEST_TIMEOUT_MS: String(duration + 10000) },
+      PULLBOARD_TEST_IDLE_TIMEOUT_MS: '3000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: String(duration + 15000), PULLBOARD_TEST_TIMEOUT_MS: String(duration + 10000) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -61,3 +61,7 @@ async function runLegacy(t, mode, duration = 8000) {
 
 test('coverage attributes descendant output to the correct worker', t => runLegacy(t, 'coverage'));
 test('watch attributes descendant output to the correct worker', t => runLegacy(t, 'watch'));
+
+test('two-minute output children stay alive in watch and coverage while quiet peers stop', async t => {
+  await Promise.all([runLegacy(t, 'coverage', 120000), runLegacy(t, 'watch', 120000)]);
+});
