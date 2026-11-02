@@ -250,7 +250,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
 }
 
 /** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
-function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories }) {
+function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations, cacheEligible, onCellObservation = () => {} }) {
   if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [] };
   const before = readPlan(baseRoot), after = candidatePlan(sourceRoot);
   const changed = git(sourceRoot, ['diff', '--name-only', '--no-renames', '-z', cutBase, 'HEAD']).split('\0').filter(Boolean);
@@ -261,7 +261,20 @@ function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers,
   const candidateMap = readPathMap(sourceRoot);
   for (const name of cells) {
     const previous = before.cells.some(cell => cell.name === name);
-    const oldCuts = previous ? checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
+    const cacheKey = `cell-base-cuts:${cutBase}:${name}`;
+    const cached = previous && cacheEligible?.() ? observations?.get(cacheKey)?.value : null;
+    let oldCuts;
+    if (Array.isArray(cached) && cached.every(value => typeof value === 'string')) {
+      oldCuts = [...cached];
+      onCellObservation('base-reused', name);
+    } else {
+      oldCuts = previous ? checkCuts(baseRoot, before, name, { allLaterCells: true, temporaryExceptions: false, inventory: oldInventory, acceptedInventory: oldInventory }) : [];
+      if (previous && cacheEligible?.() && observations instanceof Map && observations.size < 32768) {
+        const bytes = Buffer.byteLength(cacheKey) + Buffer.byteLength(JSON.stringify(oldCuts));
+        if (bytes <= 1024 * 1024) observations.set(cacheKey, { value: [...oldCuts], bytes });
+      }
+      onCellObservation('base-checked', name);
+    }
     existingCuts.push(...oldCuts.map(problem => `${name} --cuts: ${problem}`));
     if (!landedCells.has(name) || !after.cells.some(cell => cell.name === name)) continue;
     const newCuts = checkCuts(sourceRoot, after, name, { allLaterCells: true, temporaryExceptions: false, inventory: newInventory, acceptedInventory: oldInventory });
@@ -341,7 +354,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
     const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: Boolean(receiptKey) });
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
-      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories }));
+      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations: observations.values, cacheEligible: samePreloads, onCellObservation: services.onCellObservation }));
       unchangedSnapshot(baseRoot, cutBase);
       unchangedSnapshot(sourceRoot, source);
       return cuts;
