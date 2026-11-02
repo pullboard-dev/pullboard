@@ -39,6 +39,8 @@ test('long assertion evidence is explicitly truncated [C7,B22]', () => {
   const [failure] = landingFailures(output, '/project');
   assert.match(failure.assertion, /truncated at 2 KB/u);
   assert.ok(Buffer.byteLength(failure.assertion) < 2100);
+  const [unicode] = landingFailures(output.replace('x'.repeat(3000), '😀'.repeat(1000)), '/project');
+  assert.doesNotMatch(unicode.assertion, /\uFFFD/u, 'truncation never splits a UTF-8 character');
 });
 
 test('the spec reporter preserves the assertion with its source case [C7,B22]', () => {
@@ -55,4 +57,12 @@ test('nested TAP failures retain their parent and subtest names [C7,B22]', () =>
   assert.deepEqual(failure.caseNames, ['parent case', 'child case']);
   assert.match(failure.assertion, /expected: 7/u);
   assert.match(failure.assertion, /actual: 9/u);
+});
+
+test('equally named failures in different parent cases remain distinct [C7,B22]', () => {
+  const output = ['first', 'second'].map(parent => `# Subtest: ${parent}\n    # Subtest: child\n    not ok 1 - child\n      location: /project/test/a.test.js:1:1\n      error: ${parent} failure\n      ...\n`).join('');
+  const failures = landingFailures(output, '/project');
+  assert.deepEqual(failures.map(row => row.caseNames), [['first', 'child'], ['second', 'child']]);
+  assert.match(failures[0].assertion, /first failure/u);
+  assert.match(failures[1].assertion, /second failure/u);
 });

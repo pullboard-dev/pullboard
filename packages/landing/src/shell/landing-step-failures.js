@@ -52,8 +52,10 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
   }
   const unique = new Map(failures.filter(entry => !entry.omit).map(({ file, name, caseNames, detailLines }) => {
     const bytes = Buffer.from((detailLines ?? []).join('\n'));
-    const assertion = bytes.length > 2048 ? `${bytes.subarray(0, 2048).toString('utf8')}\n[assertion truncated at 2 KB]` : bytes.toString('utf8');
-    return [`${file}\0${name}`, { name, file, ...(caseNames ? { caseNames } : {}), ...(assertion ? { assertion } : {}) }];
+    let end = Math.min(bytes.length, 2048);
+    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end -= 1;
+    const assertion = bytes.length > 2048 ? `${bytes.subarray(0, end).toString('utf8')}\n[assertion truncated at 2 KB]` : bytes.toString('utf8');
+    return [`${file}\0${JSON.stringify(caseNames ?? [name])}`, { name, file, ...(caseNames ? { caseNames } : {}), ...(assertion ? { assertion } : {}) }];
   }));
   return [...unique.values()];
 }
