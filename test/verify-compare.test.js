@@ -1,3 +1,4 @@
+import { installSshStandIn, HOST } from './runner-ssh-fixture.js';
 /** Real persisted items compare actual Node tests at immutable Git sources [V4,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -16,17 +17,40 @@ test('fixed case [V4,C7]',()=>assert.equal(value.fixed,true));
 test('known red case [V4,C7]',()=>assert.equal(value.known,true));
 test('skip is no fix [V4,C7]',{skip:value.skip},()=>assert.ok(false));
 `;
-const RUNNER = `import {spawnSync} from 'node:child_process';
-const env={...process.env};delete env.NODE_TEST_CONTEXT;
-const ran=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});
-process.stdout.write(ran.stdout??'');process.stderr.write(ran.stderr??'');process.exitCode=ran.status??1;
+const RUNNER = `import {run} from 'node:test';
+import {relative,sep} from 'node:path';
+delete process.env.NODE_TEST_CONTEXT;
+const events=run({files:process.argv.slice(2),concurrency:1});
+const rows=[];let failed=false;
+for await(const event of events){
+ if(!['test:pass','test:fail'].includes(event.type)||event.data.details?.type==='suite')continue;
+ const {file,name,skip,todo}=event.data;
+ if(!file)throw Error('native case event has no file');
+ rows.push({file:relative(process.cwd(),file).split(sep).join('/'),name,passed:event.type==='test:pass',skipped:skip!==undefined||todo!==undefined});
+ if(event.type==='test:fail')failed=true;
+}
+process.stdout.write('# pullboard test outcomes '+JSON.stringify({version:1,id:process.env.PULLBOARD_TIMING_RUN_ID,tests:rows})+'\\n');
+process.stdout.write('TAP version 13\\n1..'+rows.length+'\\n');
+for(const [i,row] of rows.entries())process.stdout.write((row.passed?'ok ':'not ok ')+(i+1)+' - '+row.name+(row.skipped?' # SKIP':'')+'\\n');
+process.stdout.write('# tests '+rows.length+'\\n# pass '+rows.filter(row=>row.passed&&!row.skipped).length+'\\n# fail '+rows.filter(row=>!row.passed&&!row.skipped).length+'\\n# skipped '+rows.filter(row=>row.skipped).length+'\\n');
+process.exitCode=failed?1:0;
 `;
 
 /** Build real Git histories and declare synthetic board lifecycle data without claiming a gate ran. */
 function fixture(t, { missingRunner = false } = {}) {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
-  const box = helpers.project('true', helpers.sandbox());
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'Comparison fixture';
+  sandbox.env.TMPDIR = sandbox.dir;
+  const box = helpers.project('true', sandbox);
+  const worker = join(box.dir, 'worker');
+  const workerHome = join(box.dir, 'worker-home');
+  const workerMachine = join(box.dir, 'worker-machine');
+  for (const path of [worker, workerHome, workerMachine]) mkdirSync(path, { recursive: true });
+  installSshStandIn({ bin: join(box.dir, 'bin'), worker, home: workerHome, machineHome: workerMachine, requests: join(box.dir, 'requests') });
+  const registered = box.run(box.repo, 'runner', 'add', HOST, '--slots', '2', '--browser', '0', '--json');
+  assert.equal(registered.code, 0, registered.out + registered.err);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG,
@@ -56,10 +80,11 @@ function submit(box) {
 /** Execute the public diagnostic and check its durable execution identities and unchanged item state. */
 async function compare(box) {
   const result = await runFixtureChildAsync(process.execPath,
-    [box.helpers.BIN, 'verify', String(box.id), '--compare', '--json'], { cwd: box.web, env: box.env });
+    [box.helpers.BIN, 'verify', String(box.id), '--compare', '--json'], { cwd: box.web, env: box.env, timeout: 120000 }); // budget: real private comparison subprocess ceiling.
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const compared = JSON.parse(result.stdout);
   for (const side of ['head', 'base']) {
+    if (!compared[side].files.length) { assert.equal(compared[side].id, null); continue; }
     assert.match(compared[side].id, /^[a-f0-9-]{36}$/u);
     const recorded = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/check-output', `compare-${compared[side].id}.json`), 'utf8'));
     assert.equal(recorded.commit, compared[side + 'Commit']);
@@ -111,4 +136,35 @@ test('verify --compare falls back from an unrunnable base to composed head versu
   assert.deepEqual(result.newRed.map(row => row.name), ['new red case [V4,C7]']);
   assert.deepEqual(result.fixed.map(row => row.name), ['fixed case [V4,C7]']);
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), head);
+});
+
+test('a green submission records its background comparison without a reviewer command [V4,C7]', async t => {
+  const box = fixture(t);
+  writeFileSync(join(box.web, 'web/value.js'), 'export const value={newRed:true,fixed:true,known:true,skip:true};\n');
+  const head = box.helpers.attackCommit(box, box.web);
+  const result = await runFixtureChildAsync(process.execPath, [box.helpers.BIN, 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, timeout: 120000 }); // budget: real private comparison subprocess ceiling.
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  let comparison, thread;
+  // budget: bounded wait for real private runner completion; never an elapsed-time assertion.
+  await box.helpers.waitFor(() => {
+    const shown = box.run(box.repo, 'show', String(box.id), '--json');
+    assert.equal(shown.code, 0, shown.err);
+    const item = JSON.parse(shown.out);
+    assert.equal(item.item_status, 'submitted');
+    comparison = item.comparison; thread = item.thread;
+    if (comparison?.status === 'unavailable') assert.fail(JSON.stringify(comparison));
+    return comparison?.status === 'complete';
+  }, 'automatic comparison result', 120000); // budget: real private SSH workers, parallel immutable sources, no elapsed-time assertion.
+  assert.ok(thread.some(entry => entry.type === 'fact' && entry.text.includes('\"status\":\"pending\"')), 'submit records pending before its detached comparison');
+  assert.equal(comparison.source, head);
+  assert.deepEqual(comparison.newRed, []);
+  assert.ok(comparison.head.id && comparison.base.id);
+  const reviewer = join(box.dir, 'reviewer');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
+  const joined = box.run(reviewer, 'join', 'api', '--model', 'Comparison reviewer', '--json');
+  assert.equal(joined.code, 0, joined.err);
+  const offered = box.run(reviewer, 'next', '--verify', '--json');
+  assert.equal(offered.code, 0, offered.err);
+  assert.equal(JSON.parse(offered.out).comparison.status, 'complete');
 });

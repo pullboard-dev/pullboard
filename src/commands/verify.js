@@ -1,7 +1,12 @@
+import { launchComparisonWorker } from '../../packages/verify/index.js';
+import { generateTestTiers } from '../../packages/gate/index.js';
+import { fileURLToPath } from 'node:url';
 import { selectTestTiers } from '../../packages/gate/index.js';
 import { compareVerification } from '../../packages/verify/index.js';
 import { comparisonCommand } from '../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../packages/verify/index.js';
+import { recordedVerificationComparison } from '../../packages/verify/index.js';
+import { VERIFICATION_COMPARISON_PREFIX } from '../../packages/verify/index.js';
 import { withMainCheckout } from '../../packages/landing/index.js';
 import { runProfiledShellAsync } from '../../packages/gate/index.js';
 import { testsNeedBrowser } from '../../packages/gate/index.js';
@@ -372,25 +377,67 @@ export async function run(io, args) {
     const item = withBoardRead(ctx, board => store.getItem(board, id));
     const policy = mainPolicy(ctx.info.root);
     const executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
-    const compared = await compareVerification(ctx.info.root, item, { main: policy.commit,
-      selectTests: selectAffectedTests,
-      runTests: (commit, files, { profileFile, artifactDirectory }) => withMainCheckout(ctx.info.root, commit, async checkout => {
-        const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
-        const browser = files.length > 0 && await testsNeedBrowser(checkout, files);
-        return withGateSlot(checkout, lease => {
-          lease.testTiers = true;
-          return runProfiledShellAsync(checkout, command,
-            { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true });
+    if (process.env.PULLBOARD_COMPARE_SOURCE && (process.env.PULLBOARD_COMPARE_SOURCE !== item.item_commit
+      || process.env.PULLBOARD_COMPARE_DIGEST !== item.item_frozen_digest)) {
+      io.result?.({ item: id, status: 'superseded' }); return 0;
+    }
+    let compared;
+    try {
+      compared = await compareVerification(ctx.info.root, item, { main: policy.commit,
+        selectTests: async (root, pair) => {
+          const selected = selectAffectedTests(root, pair);
+          const tiered = selectTestTiers(root, pair);
+          const units = tiered?.units ?? await withMainCheckout(root, pair.commit, checkout =>
+            generateTestTiers(checkout).files.filter(row => row.tier === 'T1').map(row => row.file));
+          const allowed = new Set(units);
+          return { ...selected, files: selected.files.filter(file => allowed.has(file)) };
         },
-        { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
-          browser, gui: testsNeedGui(checkout, files), shortEligible: true, item: String(id), kind: 'compare' });
-      }),
-    });
+        runTests: (commit, files, { profileFile, artifactDirectory }) => withMainCheckout(ctx.info.root, commit, async checkout => {
+          const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
+          const browser = await testsNeedBrowser(checkout, files);
+          return withGateSlot(checkout, lease => {
+            lease.testTiers = true;
+            return runProfiledShellAsync(checkout, command,
+              { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true });
+          }, { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
+            browser, gui: testsNeedGui(checkout, files), shortEligible: true, item: String(id), kind: 'compare' });
+        }),
+      });
+      compared = { ...compared, status: 'complete', source: item.item_commit, digest: item.item_frozen_digest };
+    } catch (error) {
+      compared = { item: id, status: 'unavailable', source: item.item_commit, digest: item.item_frozen_digest,
+        error: error.message };
+    }
+    await recordComparison(ctx, item, compared);
     io.result?.(compared);
     io.say(renderVerificationComparison(compared));
-    return 0;
+    return compared.status === 'unavailable' ? 1 : 0;
   }
   const code = await verifyHere(ctx, id, args);
   if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
+}
+
+/** Store observation facts only while the exact submitted source and frozen bar are still current. */
+async function recordComparison(ctx, item, result) {
+  return withBoard(ctx, async board => {
+    const current = store.getItem(board, item.item_id);
+    if (current.item_commit !== item.item_commit || current.item_frozen_digest !== item.item_frozen_digest) return;
+    await ordered(ctx, board, 'appendFact', [item.item_id, { agentId: whoAmI(ctx, board).id, kind: 'measurement',
+      text: VERIFICATION_COMPARISON_PREFIX + JSON.stringify(result) }]);
+  });
+}
+
+/** A green submission records pending before detaching work; no comparison grants gate or verdict authority. */
+export async function startAutomaticComparison(ctx, id) {
+  const item = withBoardRead(ctx, board => store.getItem(board, id));
+  const previous = withBoardRead(ctx, board => recordedVerificationComparison(store.itemThread(board, id), item));
+  if (previous && ['pending', 'complete'].includes(previous.status)) return;
+  const pending = { item: id, status: 'pending', source: item.item_commit, digest: item.item_frozen_digest };
+  await recordComparison(ctx, item, pending);
+  try {
+    await launchComparisonWorker({ origin: ctx.info.root, commonDir: ctx.info.commonDir,
+      toolRoot: fileURLToPath(new URL('../../', import.meta.url)), entry: 'bin/pullboard.js',
+      item: id, source: item.item_commit, digest: item.item_frozen_digest });
+  } catch (error) { await recordComparison(ctx, item, { ...pending, status: 'unavailable', error: error.message }); }
 }

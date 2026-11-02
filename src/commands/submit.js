@@ -679,6 +679,10 @@ export async function submitHere(ctx, id, infra) {
     }
     return submittedMove;
   });
+  if (gate.isGreen && !waived && !criterionMatched) {
+    try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
+    catch (error) { ctx.io.err(`comparison could not start for #${id}: ${error.message}`); }
+  }
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).
   const sizeNote = oversizeNote(measuredLines, acceptedMain.config.itemSizeBudget);
   if (sizeNote) ctx.io.say(`note: ${sizeNote}`);

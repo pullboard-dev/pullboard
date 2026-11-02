@@ -8,6 +8,20 @@ import { mkdirSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+export const VERIFICATION_COMPARISON_PREFIX = 'Review comparison: ';
+
+/** Read well-formed observation records only for the current submitted source and frozen bar. */
+export function recordedVerificationComparison(thread, item) {
+  for (const fact of [...thread].reverse()) {
+    if (fact.type !== 'fact' || !fact.text?.startsWith(VERIFICATION_COMPARISON_PREFIX)) continue;
+    try {
+      const result = JSON.parse(fact.text.slice(VERIFICATION_COMPARISON_PREFIX.length));
+      if (result.source === item.item_commit && result.digest === item.item_frozen_digest) return result;
+    } catch { /* An ordinary prose fact cannot masquerade as a comparison. */ }
+  }
+  return null;
+}
+
 /** Keep argument boundaries, including spaces and shell punctuation in committed test paths. */
 export function comparisonCommand(runner, files) {
   const word = value => "'" + value.replaceAll("'", "'\\''") + "'";
@@ -23,17 +37,10 @@ function sourceFiles(root, commit) {
   }));
 }
 
-/** Prefer native accounts; plain TAP profiles remain usable, with skipped titles excluded conservatively. */
+/** Accept complete source-bound Node-event accounts; plain TAP titles never invent case locations. */
 export function comparisonOutcomes(run, files) {
   if (!files.length) return [];
-  const native = testOutcomeFields(run.testOutcomes ?? run.profile?.testOutcomes);
-  if (native) return native;
-  const skipped = new Set((run.output ?? '').split('\n').flatMap(line => {
-    const match = /^\s*(?:not )?ok \d+\s*-\s*(.*?)\s+#\s*(?:SKIP|TODO)\b/iu.exec(line);
-    return match ? [match[1]] : [];
-  }));
-  const rows = testOutcomeFields((run.profile?.tests ?? []).filter(row => files.includes(row.file))
-    .map(row => ({ file: row.file, name: row.name, passed: row.passed, skipped: skipped.has(row.name) })));
+  const rows = testOutcomeFields(run.testOutcomes ?? run.profile?.testOutcomes);
   if (!rows || files.some(file => !rows.some(row => row.file === file))) return null;
   return rows.filter(row => files.includes(row.file));
 }
@@ -58,17 +65,20 @@ export async function compareVerification(root, item, { main, selectTests, runTe
   mkdirSync(directory, { recursive: true });
   /** Give each actual execution a durable source-bound identity beside its native timing profile. */
   const runAt = async (commit, files) => {
-    const id = randomUUID();
-    const profileFile = join(directory, `compare-${id}.profile.json`);
-    const run = await runTests(commit, files, { id, profileFile, artifactDirectory: directory });
+    if (!files.length) return { id: null, files: [], tests: [], skipped: 'no tests at source' };
+    const request = randomUUID();
+    const profileFile = join(directory, `compare-${request}.profile.json`);
+    const run = await runTests(commit, files, { profileFile, artifactDirectory: directory });
     if (run.unavailable) throw new Error(run.unavailable);
+    const id = run.id;
+    if (!/^[a-f0-9-]{36}$/u.test(id ?? '')) throw new Error('comparison execution has no native run identity');
     writeFileSync(join(directory, `compare-${id}.json`), JSON.stringify({ id, commit, files, profileFile,
       green: run.isGreen, runner: run.executionRunner ?? run.profile?.receipt?.runner?.id ?? null }) + '\n');
     return { ...run, id, files, profileFile };
   };
   /** Recompute affected tests for this pair and drain both real executions before deciding on fallback. */
   const pair = async (head, base, additional = []) => {
-    const selected = selectTests(root, { base, commit: head });
+    const selected = await selectTests(root, { base, commit: head });
     if (!Array.isArray(selected.files)) throw new Refused('COMPARE_SELECTION', 'the changed test closure could not be selected');
     const headFiles = sourceFiles(root, head), baseFiles = sourceFiles(root, base);
     const files = [...new Set([...selected.files, ...additional])].filter(file => headFiles.has(file)).sort();
@@ -91,7 +101,7 @@ export async function compareVerification(root, item, { main, selectTests, runTe
   if (result.head.tests === null || result.base.tests === null) {
     throw new Refused('COMPARE_UNVERIFIED', 'the comparison could not run both selected test accounts; restore the runner or source and retry');
   }
-  const summary = side => ({ id: side.id, files: side.files, profileFile: side.profileFile });
+  const summary = side => ({ id: side.id, files: side.files, ...(side.profileFile ? { profileFile: side.profileFile } : {}), ...(side.skipped ? { skipped: side.skipped } : {}) });
   return { item: item.item_id, files: result.files, newFiles: result.newFiles,
     headCommit: result.headCommit, baseCommit: result.baseCommit,
     head: summary(result.head), base: summary(result.base),
@@ -100,9 +110,11 @@ export async function compareVerification(root, item, { main, selectTests, runTe
 
 /** Show only changed red cases and fixed cases, retaining the two execution identities. */
 export function renderVerificationComparison(result) {
+  if (result.status === 'pending') return `comparison pending for #${result.item}`;
+  if (result.status === 'unavailable') return `comparison unavailable: ${result.error}; rerun pullboard verify ${result.item} --compare`;
   const lines = [`comparison #${result.item}${result.fallback ? ' (main fallback)' : ''}`,
-    `head ${result.headCommit}: run ${result.head.id}`,
-    `base ${result.baseCommit}: run ${result.base.id}`];
+    `head ${result.headCommit}: ${result.head.id ? `run ${result.head.id}` : 'no tests at head'}`,
+    `base ${result.baseCommit}: ${result.base.id ? `run ${result.base.id}` : 'no tests at base'}`];
   for (const row of result.newRed) lines.push(`new red: ${row.file}: ${row.name}`);
   for (const row of result.fixed) lines.push(`fixed: ${row.file}: ${row.name}`);
   if (!result.newRed.length && !result.fixed.length) lines.push('No new red or fixed cases.');
