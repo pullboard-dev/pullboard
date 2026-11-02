@@ -1,0 +1,814 @@
+{
+  "version": 1,
+  "engine": 210,
+  "name": "QUEUE_PREEMPT_ENGINE",
+  "engines": [
+    {
+      "file": "activity-delivery-engine.js",
+      "name": "ACTIVITY_DELIVERY_ENGINE",
+      "number": 115
+    },
+    {
+      "file": "activity-news-engine.js",
+      "name": "ACTIVITY_NEWS_ENGINE",
+      "number": 110
+    },
+    {
+      "file": "agent-grant-engine.js",
+      "name": "AGENT_GRANT_ENGINE",
+      "number": 127
+    },
+    {
+      "file": "auto-escalate-engine.js",
+      "name": "AUTO_ESCALATE_ENGINE",
+      "number": 50
+    },
+    {
+      "file": "auto-submit-quarantine-engine.js",
+      "name": "AUTO_SUBMIT_QUARANTINE_ENGINE",
+      "number": 178
+    },
+    {
+      "file": "automatic-dispatch-engine.js",
+      "name": "AUTOMATIC_DISPATCH_ENGINE",
+      "number": 142
+    },
+    {
+      "file": "bar-check-engine.js",
+      "name": "BAR_CHECK_ENGINE",
+      "number": 108
+    },
+    {
+      "file": "bar-ready-engine.js",
+      "name": "BAR_READY_ENGINE",
+      "number": 96
+    },
+    {
+      "file": "bar-sign-grant-engine.js",
+      "name": "BAR_SIGN_GRANT_ENGINE",
+      "number": 134
+    },
+    {
+      "file": "blocked-dependencies-engine.js",
+      "name": "BLOCKED_DEPENDENCIES_ENGINE",
+      "number": 197
+    },
+    {
+      "file": "board-members-engine.js",
+      "name": "BOARD_MEMBERS_ENGINE",
+      "number": 121
+    },
+    {
+      "file": "board-progress-engine.js",
+      "name": "BOARD_PROGRESS_ENGINE",
+      "number": 190
+    },
+    {
+      "file": "check-timing-engine.js",
+      "name": "CHECK_TIMING_ENGINE",
+      "number": 163
+    },
+    {
+      "file": "check-widen-self-engine.js",
+      "name": "CHECK_WIDEN_SELF_ENGINE",
+      "number": 166
+    },
+    {
+      "file": "ci-flake-engine.js",
+      "name": "CI_FLAKE_ENGINE",
+      "number": 65
+    },
+    {
+      "file": "claim-idle-engine.js",
+      "name": "CLAIM_IDLE_ENGINE",
+      "number": 188
+    },
+    {
+      "file": "claim-progress-engine.js",
+      "name": "CLAIM_PROGRESS_ENGINE",
+      "number": 189
+    },
+    {
+      "file": "claim-returns-engine.js",
+      "name": "CLAIM_RETURNS_ENGINE",
+      "number": 196
+    },
+    {
+      "file": "clause-inspection-engine.js",
+      "name": "CLAUSE_INSPECTION_ENGINE",
+      "number": 198
+    },
+    {
+      "file": "companion-engine.js",
+      "name": "COMPANION_ENGINE",
+      "number": 123
+    },
+    {
+      "file": "computer-name-engine.js",
+      "name": "COMPUTER_NAME_ENGINE",
+      "number": 116
+    },
+    {
+      "file": "coordinator-actions-engine.js",
+      "name": "COORDINATOR_ACTIONS_ENGINE",
+      "number": 194
+    },
+    {
+      "file": "coordinator-hold-engine.js",
+      "name": "COORDINATOR_HOLD_ENGINE",
+      "number": 72
+    },
+    {
+      "file": "coordinator-shout-kinds-engine.js",
+      "name": "COORDINATOR_SHOUT_KINDS_ENGINE",
+      "number": 155
+    },
+    {
+      "file": "cost-engine.js",
+      "name": "COST_ENGINE",
+      "number": 171
+    },
+    {
+      "file": "cost-input-split-engine.js",
+      "name": "COST_INPUT_SPLIT_ENGINE",
+      "number": 172
+    },
+    {
+      "file": "cpu-sentinel-engine.js",
+      "name": "CPU_SENTINEL_ENGINE",
+      "number": 120
+    },
+    {
+      "file": "critical-path-engine.js",
+      "name": "CRITICAL_PATH_ENGINE",
+      "number": 126
+    },
+    {
+      "file": "cross-repo-dependency-engine.js",
+      "name": "CROSS_REPO_DEPENDENCY_ENGINE",
+      "number": 128
+    },
+    {
+      "file": "decision-origin-engine.js",
+      "name": "DECISION_ORIGIN_ENGINE",
+      "number": 111
+    },
+    {
+      "file": "decision-queue-engine.js",
+      "name": "DECISION_QUEUE_ENGINE",
+      "number": 119
+    },
+    {
+      "file": "exit-rules-engine.js",
+      "name": "EXIT_RULES_ENGINE",
+      "number": 183
+    },
+    {
+      "file": "expected-build-engine.js",
+      "name": "EXPECTED_BUILD_ENGINE",
+      "number": 208
+    },
+    {
+      "file": "family-alias-engine.js",
+      "name": "FAMILY_ALIAS_ENGINE",
+      "number": 162
+    },
+    {
+      "file": "family-declare-engine.js",
+      "name": "FAMILY_DECLARE_ENGINE",
+      "number": 170
+    },
+    {
+      "file": "file-growth-notice-engine.js",
+      "name": "FILE_GROWTH_NOTICE_ENGINE",
+      "number": 99
+    },
+    {
+      "file": "flake-engine.js",
+      "name": "NATIVE_FLAKE_ENGINE",
+      "number": 61
+    },
+    {
+      "file": "flow-size-engine.js",
+      "name": "FLOW_SIZE_ENGINE",
+      "number": 117
+    },
+    {
+      "file": "focus-boundary-engine.js",
+      "name": "FOCUS_BOUNDARY_ENGINE",
+      "number": 207
+    },
+    {
+      "file": "focus-milestone-engine.js",
+      "name": "FOCUS_MILESTONE_ENGINE",
+      "number": 107
+    },
+    {
+      "file": "gate-run-engine.js",
+      "name": "GATE_RUN_ENGINE",
+      "number": 67
+    },
+    {
+      "file": "generated-docs-engine.js",
+      "name": "GENERATED_DOCS_ENGINE",
+      "number": 154
+    },
+    {
+      "file": "gone-claim-engine.js",
+      "name": "GONE_CLAIM_ENGINE",
+      "number": 139
+    },
+    {
+      "file": "handoff-engine.js",
+      "name": "HANDOFF_ENGINE",
+      "number": 104
+    },
+    {
+      "file": "health-cap-engine.js",
+      "name": "HEALTH_CAP_ENGINE",
+      "number": 62
+    },
+    {
+      "file": "health-sentinel-engine.js",
+      "name": "HEALTH_SENTINEL_ENGINE",
+      "number": 42
+    },
+    {
+      "file": "historical-authors-engine.js",
+      "name": "HISTORICAL_AUTHORS_ENGINE",
+      "number": 80
+    },
+    {
+      "file": "item-folder-engine.js",
+      "name": "ITEM_FOLDER_ENGINE",
+      "number": 199
+    },
+    {
+      "file": "item-notes-engine.js",
+      "name": "ITEM_NOTES_ENGINE",
+      "number": 112
+    },
+    {
+      "file": "item-patch-engine.js",
+      "name": "ITEM_PATCH_ENGINE",
+      "number": 144
+    },
+    {
+      "file": "item-patch-submit-engine.js",
+      "name": "ITEM_PATCH_SUBMIT_ENGINE",
+      "number": 160
+    },
+    {
+      "file": "item-shout-engine.js",
+      "name": "ITEM_SHOUT_ENGINE",
+      "number": 93
+    },
+    {
+      "file": "item-slice-engine.js",
+      "name": "ITEM_SLICE_ENGINE",
+      "number": 205
+    },
+    {
+      "file": "job-engine.js",
+      "name": "RECURRING_JOB_ENGINE",
+      "number": 63
+    },
+    {
+      "file": "known-main-autofile-engine.js",
+      "name": "KNOWN_MAIN_AUTOFILE_ENGINE",
+      "number": 180
+    },
+    {
+      "file": "known-main-failures-engine.js",
+      "name": "KNOWN_MAIN_FAILURES_ENGINE",
+      "number": 124
+    },
+    {
+      "file": "known-main-owner-pattern-engine.js",
+      "name": "KNOWN_MAIN_OWNER_PATTERN_ENGINE",
+      "number": 179
+    },
+    {
+      "file": "known-main-reworks-engine.js",
+      "name": "KNOWN_MAIN_REWORKS_ENGINE",
+      "number": 151
+    },
+    {
+      "file": "land-engine.js",
+      "name": "LOCAL_LANDING_ENGINE",
+      "number": 64
+    },
+    {
+      "file": "landing-collision-engine.js",
+      "name": "LAND_COLLISION_ENGINE",
+      "number": 101
+    },
+    {
+      "file": "landing-environment-engine.js",
+      "name": "LANDING_ENVIRONMENT_ENGINE",
+      "number": 85
+    },
+    {
+      "file": "landing-lease-engine.js",
+      "name": "LANDING_LEASE_ENGINE",
+      "number": 74
+    },
+    {
+      "file": "landing-local-lease-engine.js",
+      "name": "LANDING_LOCAL_LEASE_ENGINE",
+      "number": 94
+    },
+    {
+      "file": "lane-lead-engine.js",
+      "name": "LANE_LEAD_ENGINE",
+      "number": 125
+    },
+    {
+      "file": "lease-lapse-engine.js",
+      "name": "LEASE_LAPSE_ENGINE",
+      "number": 177
+    },
+    {
+      "file": "line-capacity-engine.js",
+      "name": "LINE_CAPACITY_ENGINE",
+      "number": 103
+    },
+    {
+      "file": "line-order-engine.js",
+      "name": "LINE_ORDER_ENGINE",
+      "number": 100
+    },
+    {
+      "file": "line-settings-engine.js",
+      "name": "LINE_SETTINGS_ENGINE",
+      "number": 98
+    },
+    {
+      "file": "live-route-engine.js",
+      "name": "LIVE_ROUTE_ENGINE",
+      "number": 153
+    },
+    {
+      "file": "main-audit-engine.js",
+      "name": "MAIN_AUDIT_ENGINE",
+      "number": 138
+    },
+    {
+      "file": "mechanical-merge-engine.js",
+      "name": "MECHANICAL_MERGE_ENGINE",
+      "number": 132
+    },
+    {
+      "file": "merge-only-verdict-engine.js",
+      "name": "MERGE_ONLY_VERDICT_ENGINE",
+      "number": 129
+    },
+    {
+      "file": "milestone-limit-engine.js",
+      "name": "MILESTONE_LIMIT_ENGINE",
+      "number": 113
+    },
+    {
+      "file": "milestone-placement-engine.js",
+      "name": "MILESTONE_PLACEMENT_ENGINE",
+      "number": 193
+    },
+    {
+      "file": "milestone-rank-engine.js",
+      "name": "MILESTONE_RANK_ENGINE",
+      "number": 34
+    },
+    {
+      "file": "next-idle-engine.js",
+      "name": "NEXT_IDLE_ENGINE",
+      "number": 169
+    },
+    {
+      "file": "no-eligible-reviewer-engine.js",
+      "name": "NO_ELIGIBLE_REVIEWER_ENGINE",
+      "number": 168
+    },
+    {
+      "file": "outside-intake-engine.js",
+      "name": "OUTSIDE_INTAKE_ENGINE",
+      "number": 97
+    },
+    {
+      "file": "parent-session-engine.js",
+      "name": "PARENT_SESSION_ENGINE",
+      "number": 90
+    },
+    {
+      "file": "patch-author-identity-engine.js",
+      "name": "PATCH_AUTHOR_IDENTITY_ENGINE",
+      "number": 158
+    },
+    {
+      "file": "patch-follow-engine.js",
+      "name": "PATCH_FOLLOW_ENGINE",
+      "number": 165
+    },
+    {
+      "file": "patch-review-custody-engine.js",
+      "name": "PATCH_REVIEW_CUSTODY_ENGINE",
+      "number": 157
+    },
+    {
+      "file": "people-engine.js",
+      "name": "PEOPLE_ENGINE",
+      "number": 73
+    },
+    {
+      "file": "person-signing-engine.js",
+      "name": "PERSON_SIGNING_ENGINE",
+      "number": 133
+    },
+    {
+      "file": "pipeline-cause-engine.js",
+      "name": "PIPELINE_CAUSE_ENGINE",
+      "number": 184
+    },
+    {
+      "file": "plan-merge-engine.js",
+      "name": "PLAN_MERGE_ENGINE",
+      "number": 187
+    },
+    {
+      "file": "pr-bridge-engine.js",
+      "name": "PR_BRIDGE_ENGINE",
+      "number": 95
+    },
+    {
+      "file": "private-rehome-engine.js",
+      "name": "PRIVATE_REHOME_ENGINE",
+      "number": 135
+    },
+    {
+      "file": "proof-run-engine.js",
+      "name": "PROOF_RUN_ENGINE",
+      "number": 122
+    },
+    {
+      "file": "quarantine-core-engine.js",
+      "name": "QUARANTINE_CORE_ENGINE",
+      "number": 167
+    },
+    {
+      "file": "quarantine-verdict-engine.js",
+      "name": "QUARANTINE_VERDICT_ENGINE",
+      "number": 176
+    },
+    {
+      "file": "queue-preempt-engine.js",
+      "name": "QUEUE_PREEMPT_ENGINE",
+      "number": 210
+    },
+    {
+      "file": "quoted-landing-failure-engine.js",
+      "name": "QUOTED_LANDING_FAILURE_ENGINE",
+      "number": 105
+    },
+    {
+      "file": "reference-engine.js",
+      "name": "REFERENCE_ENGINE",
+      "number": 131
+    },
+    {
+      "file": "reject-clause-engine.js",
+      "name": "REJECT_CLAUSE_ENGINE",
+      "number": 156
+    },
+    {
+      "file": "rejected-work-return-engine.js",
+      "name": "REJECTED_WORK_RETURN_ENGINE",
+      "number": 147
+    },
+    {
+      "file": "rejection-return-engine.js",
+      "name": "REJECTION_RETURN_ENGINE",
+      "number": 191
+    },
+    {
+      "file": "release-reasons-engine.js",
+      "name": "RELEASE_REASONS_ENGINE",
+      "number": 185
+    },
+    {
+      "file": "release-twice-hold-engine.js",
+      "name": "RELEASE_TWICE_HOLD_ENGINE",
+      "number": 200
+    },
+    {
+      "file": "reopen-cause-engine.js",
+      "name": "REOPEN_CAUSE_ENGINE",
+      "number": 137
+    },
+    {
+      "file": "reopen-first-refusal-engine.js",
+      "name": "REOPEN_FIRST_REFUSAL_ENGINE",
+      "number": 66
+    },
+    {
+      "file": "review-default-engine.js",
+      "name": "REVIEW_DEFAULT_ENGINE",
+      "number": 175
+    },
+    {
+      "file": "review-family-relax-engine.js",
+      "name": "REVIEW_FAMILY_RELAX_ENGINE",
+      "number": 201
+    },
+    {
+      "file": "review-family-seat-engine.js",
+      "name": "REVIEW_FAMILY_SEAT_ENGINE",
+      "number": 203
+    },
+    {
+      "file": "review-grant-engine.js",
+      "name": "REVIEW_GRANT_ENGINE",
+      "number": 130
+    },
+    {
+      "file": "review-independence-engine.js",
+      "name": "REVIEW_INDEPENDENCE_ENGINE",
+      "number": 148
+    },
+    {
+      "file": "review-request-engine.js",
+      "name": "REVIEW_REQUEST_ENGINE",
+      "number": 206
+    },
+    {
+      "file": "review-routing-engine.js",
+      "name": "REVIEW_ROUTING_ENGINE",
+      "number": 150
+    },
+    {
+      "file": "review-skip-engine.js",
+      "name": "REVIEW_SKIP_ENGINE",
+      "number": 69
+    },
+    {
+      "file": "review-tier-engine.js",
+      "name": "REVIEW_TIER_ENGINE",
+      "number": 159
+    },
+    {
+      "file": "rework-same-family-engine.js",
+      "name": "REWORK_SAME_FAMILY_ENGINE",
+      "number": 186
+    },
+    {
+      "file": "rigor-auto-engine.js",
+      "name": "RIGOR_AUTO_ENGINE",
+      "number": 102
+    },
+    {
+      "file": "rigor-instructions-engine.js",
+      "name": "RIGOR_INSTRUCTIONS_ENGINE",
+      "number": 209
+    },
+    {
+      "file": "rigor-notice-engine.js",
+      "name": "RIGOR_NOTICE_ENGINE",
+      "number": 43
+    },
+    {
+      "file": "row-draft-engine.js",
+      "name": "ROW_DRAFT_ENGINE",
+      "number": 55
+    },
+    {
+      "file": "ruling-owner-engine.js",
+      "name": "RULING_OWNER_ENGINE",
+      "number": 143
+    },
+    {
+      "file": "run-timing-engine.js",
+      "name": "RUN_TIMING_ENGINE",
+      "number": 161
+    },
+    {
+      "file": "same-family-refusal-engine.js",
+      "name": "SAME_FAMILY_REFUSAL_ENGINE",
+      "number": 195
+    },
+    {
+      "file": "sentinel-engine.js",
+      "name": "BOARD_SENTINEL_ENGINE",
+      "number": 56
+    },
+    {
+      "file": "source-advance-engine.js",
+      "name": "SOURCE_ADVANCE_ENGINE",
+      "number": 152
+    },
+    {
+      "file": "spec-approval-engine.js",
+      "name": "SPEC_APPROVAL_ENGINE",
+      "number": 68
+    },
+    {
+      "file": "spec-draft-refreeze-engine.js",
+      "name": "SPEC_DRAFT_REFREEZE_ENGINE",
+      "number": 149
+    },
+    {
+      "file": "spec-revision-engine.js",
+      "name": "SPEC_REVISION_ENGINE",
+      "number": 109
+    },
+    {
+      "file": "spec-verdict-engine.js",
+      "name": "SPEC_VERDICT_ENGINE",
+      "number": 118
+    },
+    {
+      "file": "stale-state-engine.js",
+      "name": "STALE_STATE_ENGINE",
+      "number": 146
+    },
+    {
+      "file": "strict-composition-engine.js",
+      "name": "STRICT_COMPOSITION_ENGINE",
+      "number": 174
+    },
+    {
+      "file": "strong-rejection-notice-engine.js",
+      "name": "STRONG_REJECTION_NOTICE_ENGINE",
+      "number": 54
+    },
+    {
+      "file": "submit-admission-engine.js",
+      "name": "SUBMIT_ADMISSION_ENGINE",
+      "number": 136
+    },
+    {
+      "file": "submit-handoff-engine.js",
+      "name": "SUBMIT_HANDOFF_ENGINE",
+      "number": 182
+    },
+    {
+      "file": "submit-proof-reuse-engine.js",
+      "name": "SUBMIT_PROOF_REUSE_ENGINE",
+      "number": 202
+    },
+    {
+      "file": "submitted-conflict-engine.js",
+      "name": "SUBMITTED_CONFLICT_ENGINE",
+      "number": 60
+    },
+    {
+      "file": "test-economics-engine.js",
+      "name": "TEST_ECONOMICS_ENGINE",
+      "number": 141
+    },
+    {
+      "file": "train-check-repoint-engine.js",
+      "name": "TRAIN_CHECK_REPOINT_ENGINE",
+      "number": 181
+    },
+    {
+      "file": "train-landing-engine.js",
+      "name": "TRAIN_LANDING_ENGINE",
+      "number": 164
+    },
+    {
+      "file": "trunk-conflict-engine.js",
+      "name": "CONFLICT_ENGINE",
+      "number": 52
+    },
+    {
+      "file": "typed-requests-engine.js",
+      "name": "TYPED_REQUESTS_ENGINE",
+      "number": 140
+    },
+    {
+      "file": "unchanged-refreeze-engine.js",
+      "name": "UNCHANGED_REFREEZE_ENGINE",
+      "number": 145
+    },
+    {
+      "file": "untouched-claim-engine.js",
+      "name": "UNTOUCHED_CLAIM_ENGINE",
+      "number": 204
+    },
+    {
+      "file": "usage-batch-engine.js",
+      "name": "USAGE_BATCH_ENGINE",
+      "number": 173
+    },
+    {
+      "file": "vendor-family-engine.js",
+      "name": "VENDOR_FAMILY_ENGINE",
+      "number": 192
+    },
+    {
+      "file": "verdict-withdraw-engine.js",
+      "name": "VERDICT_WITHDRAW_ENGINE",
+      "number": 106
+    },
+    {
+      "file": "withdraw-milestone-engine.js",
+      "name": "WITHDRAW_MILESTONE_ENGINE",
+      "number": 51
+    },
+    {
+      "file": "work-order-engine.js",
+      "name": "WORK_ORDER_ENGINE",
+      "number": 114
+    }
+  ],
+  "declarations": {
+    "acceptCheck.js": "/** Compatibility shim: acceptCheck.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/acceptCheck.js\";\n",
+    "actOnActivity.js": "/** Compatibility shim: actOnActivity.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/actOnActivity.js\";\n",
+    "addItem.js": "/** Compatibility shim: addItem.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/addItem.js\";\n",
+    "addMilestone.js": "/** Compatibility shim: addMilestone.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/addMilestone.js\";\n",
+    "advanceItemSource.js": "/** Compatibility shim: advanceItemSource.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/advanceItemSource.js\";\n",
+    "answerDecision.js": "/** Compatibility shim: answerDecision.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/answerDecision.js\";\n",
+    "answerTypedRequests.js": "/** Compatibility shim: answerTypedRequests.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/answerTypedRequests.js\";\n",
+    "appendFact.js": "/** Compatibility shim: appendFact.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/appendFact.js\";\n",
+    "applyRehomeItem.js": "/** Compatibility shim: applyRehomeItem.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/applyRehomeItem.js\";\n",
+    "applyRowDecisions.js": "/** Compatibility shim: applyRowDecisions.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/applyRowDecisions.js\";\n",
+    "approveOutside.js": "/** Compatibility shim: approveOutside.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/approveOutside.js\";\n",
+    "attachItemPatch.js": "/** Compatibility shim: attachItemPatch.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/attachItemPatch.js\";\n",
+    "beginSentinelRun.js": "/** Compatibility shim: beginSentinelRun.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/beginSentinelRun.js\";\n",
+    "claim.js": "/** Compatibility shim: claim.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/claim.js\";\n",
+    "completeCheckBaseline.js": "/** Compatibility shim: completeCheckBaseline.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/completeCheckBaseline.js\";\n",
+    "completeSubmitHandoff.js": "/** Compatibility shim: completeSubmitHandoff.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/completeSubmitHandoff.js\";\n",
+    "decideSentinel.js": "/** Compatibility shim: decideSentinel.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/decideSentinel.js\";\n",
+    "decideSpecRevisions.js": "/** Compatibility shim: decideSpecRevisions.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/decideSpecRevisions.js\";\n",
+    "declareJob.js": "/** Compatibility shim: declareJob.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/declareJob.js\";\n",
+    "draftSpecRow.js": "/** Compatibility shim: draftSpecRow.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/draftSpecRow.js\";\n",
+    "editItem.js": "/** Compatibility shim: editItem.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/editItem.js\";\n",
+    "editMilestone.js": "/** Compatibility shim: editMilestone.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/editMilestone.js\";\n",
+    "editMilestoneItems.js": "/** Compatibility shim: editMilestoneItems.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/editMilestoneItems.js\";\n",
+    "ensureCoordinator.js": "/** Compatibility shim: ensureCoordinator.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/ensureCoordinator.js\";\n",
+    "escalate.js": "/** Compatibility shim: escalate.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/escalate.js\";\n",
+    "fileTypedRequest.js": "/** Compatibility shim: fileTypedRequest.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/fileTypedRequest.js\";\n",
+    "finishLandingBatch.js": "/** Compatibility shim: finishLandingBatch.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/finishLandingBatch.js\";\n",
+    "finishSentinelRun.js": "/** Compatibility shim: finishSentinelRun.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/finishSentinelRun.js\";\n",
+    "followItemPatches.js": "/** Compatibility shim: followItemPatches.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/followItemPatches.js\";\n",
+    "holdItem.js": "/** Compatibility shim: holdItem.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/holdItem.js\";\n",
+    "holdLane.js": "/** Compatibility shim: holdLane.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/holdLane.js\";\n",
+    "intakeOutside.js": "/** Compatibility shim: intakeOutside.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/intakeOutside.js\";\n",
+    "landingLeaseMove.js": "/** Compatibility shim: landingLeaseMove.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/landingLeaseMove.js\";\n",
+    "maintainStaleState.js": "/** Compatibility shim: maintainStaleState.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/maintainStaleState.js\";\n",
+    "merged.js": "/** Compatibility shim: merged.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/merged.js\";\n",
+    "moveMilestone.js": "/** Compatibility shim: moveMilestone.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/moveMilestone.js\";\n",
+    "openHandoff.js": "/** Compatibility shim: openHandoff.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/openHandoff.js\";\n",
+    "orderMilestoneItems.js": "/** Compatibility shim: orderMilestoneItems.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/orderMilestoneItems.js\";\n",
+    "passDecision.js": "/** Compatibility shim: passDecision.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/passDecision.js\";\n",
+    "proposePersonMove.js": "/** Compatibility shim: proposePersonMove.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/proposePersonMove.js\";\n",
+    "proposeSentinel.js": "/** Compatibility shim: proposeSentinel.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/proposeSentinel.js\";\n",
+    "queueSubmitHandoff.js": "/** Compatibility shim: queueSubmitHandoff.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/queueSubmitHandoff.js\";\n",
+    "recordActivityDelivery.js": "/** Compatibility shim: recordActivityDelivery.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordActivityDelivery.js\";\n",
+    "recordAttempt.js": "/** Compatibility shim: recordAttempt.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordAttempt.js\";\n",
+    "recordExitProgress.js": "/** Compatibility shim: recordExitProgress.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordExitProgress.js\";\n",
+    "recordFlakeObservation.js": "/** Compatibility shim: recordFlakeObservation.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordFlakeObservation.js\";\n",
+    "recordGateRun.js": "/** Compatibility shim: recordGateRun.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordGateRun.js\";\n",
+    "recordHealthFindings.js": "/** Compatibility shim: recordHealthFindings.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordHealthFindings.js\";\n",
+    "recordJobRun.js": "/** Compatibility shim: recordJobRun.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordJobRun.js\";\n",
+    "recordLandingBatch.js": "/** Compatibility shim: recordLandingBatch.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordLandingBatch.js\";\n",
+    "recordLandingFlake.js": "/** Compatibility shim: recordLandingFlake.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordLandingFlake.js\";\n",
+    "recordLandingTestDefect.js": "/** Compatibility shim: recordLandingTestDefect.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordLandingTestDefect.js\";\n",
+    "recordLandingWaiver.js": "/** Compatibility shim: recordLandingWaiver.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordLandingWaiver.js\";\n",
+    "recordNextIdle.js": "/** Compatibility shim: recordNextIdle.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordNextIdle.js\";\n",
+    "recordProofRun.js": "/** Compatibility shim: recordProofRun.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordProofRun.js\";\n",
+    "recordPublishFinding.js": "/** Compatibility shim: recordPublishFinding.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordPublishFinding.js\";\n",
+    "recordRowDecisions.js": "/** Compatibility shim: recordRowDecisions.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordRowDecisions.js\";\n",
+    "recordRowVerification.js": "/** Compatibility shim: recordRowVerification.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordRowVerification.js\";\n",
+    "recordSharedUsage.js": "/** Compatibility shim: recordSharedUsage.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/shell/moves/recordSharedUsage.js\";\n",
+    "recordSpecApprovalBaseline.js": "/** Compatibility shim: recordSpecApprovalBaseline.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordSpecApprovalBaseline.js\";\n",
+    "recordTrainLanding.js": "/** Compatibility shim: recordTrainLanding.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/recordTrainLanding.js\";\n",
+    "recordUsage.js": "/** Compatibility shim: recordUsage.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/shell/moves/recordUsage.js\";\n",
+    "recordUsageBatch.js": "/** Compatibility shim: recordUsageBatch.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/shell/moves/recordUsageBatch.js\";\n",
+    "refreeze.js": "/** Compatibility shim: refreeze.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/refreeze.js\";\n",
+    "register.js": "/** Compatibility shim: register.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/register.js\";\n",
+    "rehomeItem.js": "/** Compatibility shim: rehomeItem.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/rehomeItem.js\";\n",
+    "release.js": "/** Compatibility shim: release.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/release.js\";\n",
+    "releaseItemHold.js": "/** Compatibility shim: releaseItemHold.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/releaseItemHold.js\";\n",
+    "releaseLane.js": "/** Compatibility shim: releaseLane.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/releaseLane.js\";\n",
+    "removeItemPatch.js": "/** Compatibility shim: removeItemPatch.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/removeItemPatch.js\";\n",
+    "removeMilestone.js": "/** Compatibility shim: removeMilestone.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/removeMilestone.js\";\n",
+    "reopen.js": "/** Compatibility shim: reopen.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/reopen.js\";\n",
+    "requestCompanion.js": "/** Compatibility shim: requestCompanion.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/requestCompanion.js\";\n",
+    "reserveNextReview.js": "/** Compatibility shim: reserveNextReview.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/reserveNextReview.js\";\n",
+    "reserveRehomeItemId.js": "/** Compatibility shim: reserveRehomeItemId.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/reserveRehomeItemId.js\";\n",
+    "reserveReview.js": "/** Compatibility shim: reserveReview.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/reserveReview.js\";\n",
+    "setBarReady.js": "/** Compatibility shim: setBarReady.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/setBarReady.js\";\n",
+    "setBoardMembers.js": "/** Compatibility shim: setBoardMembers.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/setBoardMembers.js\";\n",
+    "setLaneLead.js": "/** Compatibility shim: setLaneLead.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/setLaneLead.js\";\n",
+    "setLineSetting.js": "/** Compatibility shim: setLineSetting.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/setLineSetting.js\";\n",
+    "setPersonSigning.js": "/** Compatibility shim: setPersonSigning.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/setPersonSigning.js\";\n",
+    "shipMilestone.js": "/** Compatibility shim: shipMilestone.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/shipMilestone.js\";\n",
+    "shout.js": "/** Compatibility shim: shout.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/shout.js\";\n",
+    "signBar.js": "/** Compatibility shim: signBar.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/signBar.js\";\n",
+    "startSubmitHandoff.js": "/** Compatibility shim: startSubmitHandoff.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/startSubmitHandoff.js\";\n",
+    "submit.js": "/** Compatibility shim: submit.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/submit.js\";\n",
+    "takeCoordinator.js": "/** Compatibility shim: takeCoordinator.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/takeCoordinator.js\";\n",
+    "takeHandoff.js": "/** Compatibility shim: takeHandoff.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/takeHandoff.js\";\n",
+    "verify.js": "/** Compatibility shim: verify.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/verify.js\";\n",
+    "withdraw.js": "/** Compatibility shim: withdraw.js now lives in the moves cell [C7]. */\nexport { default } from \"../../packages/moves/src/core/moves/withdraw.js\";\n"
+  }
+}

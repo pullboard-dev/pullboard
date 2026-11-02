@@ -12,3 +12,4 @@ export { remoteShell, personCommand, requirePersonChannel, requireRelayOnChannel
 export { PAIR_PACKAGE_BYTES } from './src/shell/person-pairing-limit.js';
 export { requestIntentDigest } from './src/shell/person-request-digest.js';
 export * from './core.js';
+export { realRelayAdapter, createFakeRelayAdapter, withRelayAdapter, relayFetch } from './src/shell/relay-adapter.js';

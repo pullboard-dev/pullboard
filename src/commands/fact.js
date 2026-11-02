@@ -26,6 +26,7 @@ export async function run(io, { first, second, rest, values }) {
   const id = idArg(first);
   const implies = parseImplies(values.implies);
   const asPerson = values.as === 'person' && personMode(ctx, me, values);
+  if (second === 'urgent' && !asPerson) throw new Refused('B26_PERSON_APPROVAL', 'only the person marks urgency from the main checkout: pullboard fact <id> urgent on --as person');
   if (asPerson || values['never-again'] || values.cause !== undefined) {
     const confirmed = await requireSignedPerson(ctx, board, me, { verb: 'fact', item: id, args: { kind: second, text: rest[0], as: 'person',
       ...(values.supersedes === undefined ? {} : { supersedes: String(values.supersedes) }), ...(values.ref === undefined ? {} : { ref: String(values.ref) }),
