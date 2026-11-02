@@ -75,11 +75,18 @@ function warmFiles(ctx, board, me) {
 export async function nextOnce(ctx, values) {
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
-  const looked = values.verify ? { claim: true } : withBoardRead(ctx, (board) => nextPick(ctx, board, values));
+  if (values.verify) return withBoardRead(ctx, board => {
+    checkMainVerifier(ctx, board, values);
+    return nextReview(ctx, board, whoAmI(ctx, board), values, {
+      ordered: (operation, args) => withBoard(ctx, writable => ordered(ctx, writable, operation,
+        operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
+      nextFor: store.nextFor, idArg, trunkMerge, listItems: store.listItems,
+      itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
+    });
+  });
+  const looked = withBoardRead(ctx, (board) => nextPick(ctx, board, values));
   if (!looked.claim) return looked;
   return await withBoard(ctx, async (board) => {
-    if (values.verify) checkMainVerifier(ctx, board, values);
-    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest });
     const picked = nextPick(ctx, board, values);
     if (!picked.claim) return picked;
     // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
