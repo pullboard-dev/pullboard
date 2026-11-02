@@ -21,12 +21,25 @@ function sourceAt(root, file, allowed) {
 
 /** Return only a complete finite declaration closure; opaque or unbounded source grants no exception. */
 export function moveDeclarationFiles(root, { importsIn, commonJsIn, files }) {
-  const allowed = new Set(files);
   const directory = join(root, 'src/moves');
   if (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) throw new Error('unproven moves directory');
-  let pending = discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
+  const pending = discovered(readdirSync(directory), MOVE_CANDIDATE, MOVE_FILE, 'move')
     .map(name => `src/moves/${name}`);
   if (!pending.length) throw new Error('no move declarations');
+  return literalClosure(root, pending, { importsIn, commonJsIn, files }, 'move');
+}
+
+/**
+ * The runner worker's bounded literal import closure, read through the repository inventory rather than the runners
+ * cell, so the verify-side move check never imports a later cell (#1699). Opaque or unbounded source throws.
+ */
+export function runnerWorkerFiles(root, { importsIn, commonJsIn, files }, entry = 'src/runner-worker.js') {
+  return literalClosure(root, [entry], { importsIn, commonJsIn, files }, 'runner worker');
+}
+
+/** Walk relative literal imports from the starting files, refusing loaders, bare or non-module dependencies and size overruns. */
+function literalClosure(root, pending, { importsIn, commonJsIn, files }, label) {
+  const allowed = new Set(files);
   const reached = new Set();
   let bytes = 0;
   while (pending.length) {
@@ -36,16 +49,16 @@ export function moveDeclarationFiles(root, { importsIn, commonJsIn, files }) {
       reached.add(file);
       const source = sourceAt(root, file, allowed);
       bytes += Buffer.byteLength(source);
-      if (reached.size > 4096 || bytes > 1_048_576) throw new Error('move closure exceeds source bounds');
+      if (reached.size > 4096 || bytes > 1_048_576) throw new Error(`${label} closure exceeds source bounds`);
       return source;
     });
-    if (commonJsIn(sources).some(Boolean)) throw new Error('opaque move loader');
+    if (commonJsIn(sources).some(Boolean)) throw new Error(`opaque ${label} loader`);
     const edges = importsIn(sources);
     for (const [index, imports] of edges.entries()) for (const specifier of imports) {
       if (isBuiltin(specifier)) continue;
-      if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error('non-literal relative move import');
+      if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error(`non-literal relative ${label} import`);
       const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
-      if (!/\.[cm]?js$/u.test(target)) throw new Error('unproven executable move dependency');
+      if (!/\.[cm]?js$/u.test(target)) throw new Error(`unproven executable ${label} dependency`);
       pending.push(target);
     }
   }
