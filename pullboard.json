@@ -6,8 +6,9 @@
   "affectedTests": "node bin/run-tests.js",
   "submitGate": "landing",
   "submitDeferAbove": 20,
-  "landingShards": 6,
+  "landingShards": 1,
   "submit": { "requireInfraNote": true, "handoff": true },
+  "landing": { "manualOverride": true },
   "claim": { "reopenFirstRefusalMinutes": 30 },
   "submitInvariants": [
     "test/refusal-next-steps.test.js",
