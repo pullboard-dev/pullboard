@@ -18,7 +18,7 @@ import { tryGit } from '../packages/git/index.js';
 import { lex } from '../packages/kernel/index.js';
 import { laneOf } from '../packages/seats/index.js';
 import { outOfLane } from '../packages/seats/index.js';
-import { runnerPackage } from '../src/runner-package.js';
+import { runnerPackage } from '../packages/runners/index.js';
 import { moveDeclarationFiles } from './cells-move-closure.js';
 import { Refused } from '../packages/kernel/index.js';
 import { checkCuts, entryPlacementProblems, retiredProblems } from './cells-plan-cuts.js';

@@ -1,6 +1,6 @@
 import { failureSignatures } from '../../packages/landing/index.js';
 /** The pullboard test command, in its own module so an item adding another command never edits these lines. */
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { mainFailureNotices } from '../../packages/landing/index.js';
 import { listItems } from '../../packages/store/index.js';

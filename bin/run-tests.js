@@ -1243,7 +1243,7 @@ async function main(args) {
     if (!args.length && !process.env.PULLBOARD_GATE_SLOT_HELD && !process.env.PULLBOARD_GATE_SLOT_POOL
       && !process.env.PULLBOARD_GATE_SLOT_TOKEN && !process.env[LANDING_SHARD_ENV]) {
       const [{ runFullSuite }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../src/test-run.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+        import('../src/test-run.js'), import('../packages/runners/index.js'), import('../src/landing-shards.js'),
       ]);
       const direct = await runFullSuite(process.cwd(), runner, { runners: runnerExecutionServices(), landing: landingExecutionServices() });
       if (direct) {
@@ -1369,7 +1369,7 @@ async function main(args) {
     async function acquire() {
       // Direct runs use the public queue, requesting gate and browser capacity atomically when needed.
       const [{ withGateSlot }, { loadMachineSettings }, { runnerExecutionServices }, { landingExecutionServices }] = await Promise.all([
-        import('../src/gate-slot.js'), import('../packages/config/index.js'), import('../src/runners.js'), import('../src/landing-shards.js'),
+        import('../src/gate-slot.js'), import('../packages/config/index.js'), import('../packages/runners/index.js'), import('../src/landing-shards.js'),
       ]);
       const capacity = loadMachineSettings().gateSlots;
       let announced = false;
@@ -1378,7 +1378,7 @@ async function main(args) {
       if (runnerOnly && !canShipRunner) throw new Error('Runner-only tests require a committed runner inside the checkout; no local fallback is allowed');
       await withGateSlot(process.cwd(), async (lease) => {
         if (!lease.runner) return run(gateSlotEnvironment(lease));
-        const { runOnRunner } = await import('../src/runners.js');
+        const { runOnRunner } = await import('../packages/runners/index.js');
         /** Quote the unchanged runner arguments for the remote command shell. */
         const word = value => `'${String(value).replaceAll("'", "'\\''")}'`;
         const command = ['node', `./${runnerPath}`, ...actions.args].map(word).join(' ');

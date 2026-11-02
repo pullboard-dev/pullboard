@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/runner-dispatch.js */
-/** @pullboard-test-loads src/runner-health.js */
+/** @pullboard-test-loads packages/runners/src/shell/runner-dispatch.js */
+/** @pullboard-test-loads packages/runners/src/shell/runner-health.js */
 /** @pullboard-test-loads src/runner-transport.js */
 /** @pullboard-test-loads src/runner-worker.js */
 /** @pullboard-test-loads bin/runner-controller.js */
@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { runnerJobReply } from '../src/runner-transport.js';
+import { runnerJobReply } from '../packages/runners/index.js';
 import { processCensus } from '../src/runner-custody.js';
 import { isolateTestMachine } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';

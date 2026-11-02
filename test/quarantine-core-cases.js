@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import { testOutcomeFields } from '../src/test-outcomes.js';
 import { testOutcomeCollector } from '../src/test-outcomes.js';
 import { formatTestOutcomes } from '../src/test-outcomes.js';

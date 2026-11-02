@@ -29,7 +29,7 @@ import { readPathMap } from '../packages/codemap/index.js';
 import { mappedPath } from '../packages/codemap/index.js';
 import { tryGit } from '../src/git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { runnerPackage } from '../src/runner-package.js';
+import { runnerPackage } from '../packages/runners/index.js';
 import { retainEnginePaths } from './cells-engine-stays.js';
 import { cachedCellsRun } from '../src/cells-cache.js';
 import { checkCuts } from './cells-plan-cuts.js';

@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import './main-audit-cases.js';
 import './main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */

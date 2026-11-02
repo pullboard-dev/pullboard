@@ -33,7 +33,7 @@ import {
   withTestOutput,
 } from '../test-output-summary.js';
 import { checkAtCommit } from '../runner-private-check.js';
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { compareMainFailures } from '../../packages/landing/index.js';
 import { failureSignatures } from '../../packages/landing/index.js';

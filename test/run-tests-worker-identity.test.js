@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Prove a landing worker obtains a bounded identity receipt before its body [C7,V4]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

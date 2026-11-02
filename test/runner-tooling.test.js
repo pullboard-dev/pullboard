@@ -8,7 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
@@ -101,7 +101,7 @@ test('archived tooling still refuses modified archive bytes [O5,C7]', async t =>
   const worker = join(archive.root, 'src/runner-worker.js');
   writeFileSync(worker, readFileSync(worker, 'utf8') + '\n// altered archive bytes\n');
   const script = `import assert from 'node:assert/strict';
-const {trustedTooling}=await import(${JSON.stringify(pathToFileURL(join(archive.root, 'src/runner-remote-tooling.js')).href)});
+const {trustedTooling}=await import(${JSON.stringify(pathToFileURL(join(archive.root, 'packages/runners/index.js')).href)});
 assert.throws(()=>trustedTooling(),{code:'RUNNER_TOOLING_CHANGED'});`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context);

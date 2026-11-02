@@ -13,11 +13,11 @@ import {
   runnerResourceStatus,
 } from '../../packages/resources/index.js';
 import { validateRunner } from '../../packages/config/index.js';
-import { probeRunnerTransport } from '../runner-transport.js';
+import { probeRunnerTransport } from '../../packages/runners/index.js';
 import {
   computeRunnerSlots,
   effectiveRunner,
-} from '../runner-slots.js';
+} from '../../packages/runners/index.js';
 
 /** Describe one runner's measured size and the slots the gate offers from it. */
 function sizeLine(runner, settings) {

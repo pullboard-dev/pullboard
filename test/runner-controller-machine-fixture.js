@@ -9,12 +9,12 @@ export function runnerControllerCallees(file, body, source) {
   if (file === '../packages/runners/src/shell/runner-dispatch.js'
     && /\b(?:spawn|spawnSync)\(process\.execPath,\s*\[fileURLToPath\(new URL\('\.\.\/\.\.\/\.\.\/\.\.\/bin\/runner-controller\.js', import\.meta\.url\)\),\s*'--pullboard-runner-controller'\]/u.test(body)
     && source.includes('export async function serveRunnerController(ports)')
-    && entrySource.includes("import { serveRunnerController } from '../src/runners.js'")
+    && entrySource.includes("import { serveRunnerController } from '../packages/runners/index.js'")
     && entrySource.includes("import { privateCheckEnvelope } from '../src/runner-private-mode.js'")
     && entrySource.includes("import { privateCheckPhases } from '../src/runner-private-mode.js'")
     && entrySource.includes("import { runnerItemState } from '../packages/resources/index.js'")
     && entrySource.includes("import { controllerDeadline } from '../packages/resources/index.js'")
-    && entrySource.includes("import { probeRunnerJob } from '../src/runners.js'")
+    && entrySource.includes("import { probeRunnerJob } from '../packages/runners/index.js'")
     && entrySource.includes('if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, controllerDeadline, probeRunnerJob })')) {
     return ['runners.js#serveRunnerController'];
   }

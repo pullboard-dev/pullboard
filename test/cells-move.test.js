@@ -7,7 +7,7 @@ import { mkdtempSync, mkdirSync, readFileSync, realpathSync, writeFileSync, rmSy
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import { readPathMap, inventoryBuildCount } from '../packages/codemap/index.js';
 import { cellsMove } from '../bin/cells-move-tool.js';
 import { checkMoved } from '../bin/cells-plan.js';

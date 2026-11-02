@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runnerPackage } from '../../../src/runner-package.js';
+import { runnerPackage } from '../../runners/index.js';
 
 test('runnerPackage resolves and the worker closure does not reach the sandbox front door or engine bodies [C7,CD60]', () => {
   const root = dirname(fileURLToPath(new URL('../../../package.json', import.meta.url)));

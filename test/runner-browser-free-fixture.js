@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** A runner registered with no browser slots runs browser-free test files and never browser-bound ones [C7]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';

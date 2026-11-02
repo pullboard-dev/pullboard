@@ -10,7 +10,7 @@ import { boardBusyError } from '../../packages/store/index.js';
 import { openBoardReadOnly } from '../../packages/store/index.js';
 import { rowDecisions } from '../../packages/spec/index.js';
 import { checkLoosening } from '../../packages/doctrine/index.js';
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };

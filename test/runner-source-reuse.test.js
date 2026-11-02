@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { settleReceipt } from '../packages/gate/index.js';
 import { startReceipt } from '../packages/gate/index.js';
-import { sourcePreparationFields } from '../src/runner-overhead.js';
+import { sourcePreparationFields } from '../packages/runners/index.js';
 import { writeTimingProfile } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServices } from './gate-execution-fixture.js';

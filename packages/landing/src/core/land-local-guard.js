@@ -1,5 +1,5 @@
 /** Run a named local-trunk floor without reading or writing a full-gate tree stamp [B3,R3,C7]. */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from '../shell/landing-shards.js';
 import { runProfiledShell } from '../../../../src/gate.js';
 import { pinRunMain } from '../../../../src/gate.js';

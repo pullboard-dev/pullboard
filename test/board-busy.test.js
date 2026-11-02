@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';

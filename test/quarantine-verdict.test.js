@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/src/shell/package-files.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
 import { runFixtureChildAsync } from './fixture-child.js';
