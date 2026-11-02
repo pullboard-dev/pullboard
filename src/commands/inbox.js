@@ -1,14 +1,18 @@
 /** The pullboard inbox command separates canonical interrupts from break-time summaries [R2,N26]. */
 import { activityDeliveryLines } from '../../packages/activity/index.js';
 import { deliverActivity } from '../../packages/activity/index.js';
-import { context } from '../cli.js';
-import { agentDisplayName } from '../cli.js';
-import { evidenceLine } from '../cli.js';
-import { ordered } from '../cli.js';
-import { whoAmI } from '../cli.js';
-import { withBoard } from '../cli.js';
-import { withBoardRead } from '../cli.js';
+import { agentDisplayName, context, withBoard, withBoardRead } from '../cli-context.js';
+import { evidenceLine } from '../cli/shout.js';
+import { whoAmI } from '../cli/join.js';
 import { Refused } from '../../packages/kernel/index.js';
+
+/**
+ * Load the ordered writer only when a read must record something.
+ * Why: its module graph pins runner tooling at load, about a second per call that a quiet read never needs (#2421).
+ */
+async function ordered(...args) {
+  return (await import('../cli/claim.js')).ordered(...args);
+}
 
 /** Read the feed, or explicitly mark only this recipient's delivered interrupt ids acted on. */
 export async function run(io, { values = {} } = {}) {
