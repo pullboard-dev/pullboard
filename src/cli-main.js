@@ -428,7 +428,7 @@ async function runMain(argv, streams) {
   if (parsed?.positionals[0] === 'hook' && !parsed.values.help && !parsed.values.version
       && !['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'].includes(parsed.positionals[1])) {
     await io.prepareProcessPorts();
-    return (await import('./agent-hook.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
+    return (await import('../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
   const git = needsRepo ? await import('./git.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');

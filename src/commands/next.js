@@ -25,7 +25,7 @@ import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { seatLeadLine } from '../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
 import {
   agentDisplayName,
@@ -144,7 +144,7 @@ async function nextWithProgress(io, values, progress) {
         // The packet the green gate stored: read it instead of rerunning what the gate already ran (#2451).
         for (const line of await reviewPacketLines(ctx, item.item_id, (work) => withBoardRead(ctx, (board) => work(board, store)))) io.say(line);
       } else {
-        if (found.seat && found.seat.path !== origin) io.say(seatCheckout.seatLeadLine(found.seat, item, found.held));
+        if (found.seat && found.seat.path !== origin) io.say(seatLeadLine(found.seat, item, found.held));
         if (found.reviewSkipped) io.say(`${reviewQueueLine(ctx, found.reviewSkipped, span)}; explicit build intent recorded with this claim`);
         io.say(`${found.held ? (found.seat && found.seat.path !== origin ? `${found.seat.agent} holds` : 'you hold') : 'claimed'} #${item.item_id}: ${item.item_title}`);
         if (found.seat) io.say(`${found.seat.created ? 'opened' : 'work in'} ${found.seat.agent}, ${found.seat.lane} lane: ${here}`);
