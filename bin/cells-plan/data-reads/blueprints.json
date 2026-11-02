@@ -3,7 +3,7 @@
   "reads": [
     {
       "file": "test/api-catalog.test.js",
-      "line": 851,
+      "line": 856,
       "expression": "join(source.repo, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
@@ -805,6 +805,20 @@
       "expression": "join(box.repo, 'pullboard.json')",
       "kind": "config",
       "why": "Reads the private e2e fixture's generated board configuration, not the bundled src/blueprints/pullboard.json asset."
+    },
+    {
+      "file": "test/verify-compare.test.js",
+      "line": 98,
+      "expression": "join(box.repo, '.git/pullboard/check-output', `compare-${run.id}.json`)",
+      "kind": "marker",
+      "why": "Reads this fixture's generated comparison execution manifest to check its actual source and native run identity, not bundled blueprint source."
+    },
+    {
+      "file": "test/verify-compare.test.js",
+      "line": 100,
+      "expression": "recorded.profileFile",
+      "kind": "marker",
+      "why": "Reads the native execution timing profile named by this fixture's generated comparison manifest, not bundled blueprint source."
     },
     {
       "file": "test/project-git-timeout-fixture.js",

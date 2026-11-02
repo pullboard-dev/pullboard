@@ -34,6 +34,7 @@ export function toolBuildLocation(cwd) {
     { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   if (result.status !== 0) return null;
   const [root, commonDir] = result.stdout.trim().split('\n');
+  if (!root || !commonDir) return null;
   return { root, commonDir, directory: join(commonDir, 'pullboard', 'tool-builds') };
 }
 
