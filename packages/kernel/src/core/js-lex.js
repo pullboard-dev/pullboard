@@ -260,4 +260,3 @@ export function commonJsWithCompiler(sources, parse) {
     return found;
   });
 }
-

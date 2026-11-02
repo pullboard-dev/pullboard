@@ -18,7 +18,7 @@ import {
 } from '../../../../src/git.js';
 import {
   outOfLane,
-} from '../../../../src/lanes.js';
+} from '../../../seats/index.js';
 import {
   Refused,
 } from '../../../kernel/index.js';
