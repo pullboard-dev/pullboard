@@ -146,6 +146,7 @@ export async function ordered(ctx, board, operation, args) {
     const requestedCommand = ctx.io.relayCommand?.cliOperation ?? (ctx.privateBoard ? ctx.io.requestedCommand : undefined);
     const requested = requestedCommandMove(requestedCommand, operation);
     const heartbeat = requested ? (await import('../cli-presence.js')).heartbeatCommand : null;
+    if (requested && operation === 'submit') heartbeat(ctx.io, { ctx, board });
     /** Observe a committed requested write before its relay checkpoint captures the presentation. */
     const observeRequested = () => {
       ctx.io.recordedMove = true;
