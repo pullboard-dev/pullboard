@@ -60,7 +60,7 @@ function fixture() {
   mkdirSync(directory, { recursive: true });
   const file = join(directory, 'board.sqlite');
   let now = new Date('2026-10-24T12:00:00Z');
-  const board = openBoard(file, { now: () => new Date(now) });
+  const board = openBoard(file, { now: () => new Date(now) }, { gitRoot: root });
   store.ensureCoordinator(board, root);
   const builder = store.register(board, { lane: 'app', path: join(root, 'builder'), model: 'Fixture builder' });
   const reviewer = store.register(board, { lane: 'app', path: join(root, 'reviewer'), model: 'Fixture reviewer' });
