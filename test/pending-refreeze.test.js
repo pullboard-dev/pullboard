@@ -18,7 +18,7 @@ import {
 } from '../packages/state/index.js';
 import { MILESTONE_SHIP_ENGINE } from '../src/move-engine-constants.js';
 import { WITHDRAW_MILESTONE_ENGINE } from '../src/withdraw-milestone-engine.js';
-import { BOARD_SENTINEL_ENGINE } from '../src/sentinels.js';
+import { BOARD_SENTINEL_ENGINE } from '../packages/sentinels/index.js';
 import { RIGOR_NOTICE_ENGINE } from '../src/board-rigor-source.js';
 import { HEALTH_SENTINEL_ENGINE } from '../src/board-health-receipts.js';
 import { CONFLICT_ENGINE } from '../packages/merge/index.js';

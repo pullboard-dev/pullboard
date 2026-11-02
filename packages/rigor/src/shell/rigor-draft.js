@@ -19,7 +19,7 @@ import {
 import { draftRow } from '../../../spec/index.js';
 import { proveCauseCheck } from './rigor-proof.js';
 import { rigorSource } from '../../../../src/board-rigor-source.js';
-import { rigorSentinelName } from '../../../../src/sentinels.js';
+import { rigorSentinelName } from '../../../sentinels/index.js';
 
 /**
  * Draft the rows for a repeated cause, after proving its check. Refused when the key is malformed,
