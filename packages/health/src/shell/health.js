@@ -1,3 +1,4 @@
+import { rankInversionHistory } from './rank-inversion-history.js';
 import { landingFailureFindings } from './landing-failure.js';
 import { firstRefusal } from '../../../store/index.js';
 import { compositionFamilyFallback } from '../../../verify/index.js';
@@ -501,6 +502,7 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     return last?.event_kind === 'reject' ? active.find(agent => agent.id === item.item_built_by && agent.lane === item.item_lane && canTake(agent.route, item.item_route)) : null;
   };
   const returned = new Set();
+  const rankedWhenClaimed = rankInversionHistory(board);
 
   // A lapsed claim is CLAIM_LAPSED's to report; only a live claim can rank behind free work.
   for (const claim of items.filter((item) => item.item_status === 'claimed' && Date.parse(item.item_lease_until ?? '') > at)) {
@@ -518,7 +520,7 @@ function queueFaults(board, { items, at, retired = [], gone = new Set() }) {
     const freeToHolder = (entry) => entry.waits.every((wait) => wait.startsWith(`#${entry.id} waits for #${claim.item_id} (claimed) on `));
     const ahead = open.filter((entry) => freeToHolder(entry) && entry.lane === holder.lane && canTake(holder.route, entry.route))
       .map((entry) => raw.get(entry.id))
-      .filter((item) => item && compare(item, claim) < 0)
+      .filter((item) => item && compare(item, claim) < 0 && rankedWhenClaimed(claim, item))
       .filter(item => {
         const builder = reworkBuilder(item);
         if (!builder) return true;
