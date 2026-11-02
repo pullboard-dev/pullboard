@@ -1,3 +1,6 @@
+import { saveExpectedBuildMinutes } from './expected-build-state.js';
+import { validateExpectedBuildMinutes } from '../../../items/index.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { createHash } from 'node:crypto';
 import { notifyFileGrowth as applyFileGrowthNotice } from "../../../items/index.js";
 import { reviewPolicyChange } from "../../../verify/index.js";
@@ -43,11 +46,11 @@ import { persistShout } from "./board-shout.js";
  * @param {number} id
  * @param {{ agentId: string, brief?: string, route?: string, criterion?: string, check?: string, after?: (number | string)[] }} change
  */
-export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming }) {
+export function editItem(board, id, { agentId, brief, route, criterion, check, after, checkBaseline, reason, barActor, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes }) {
   atomic(board, () => {
     const stored = itemById(board, id);
     const expiredHolder = stored.item_status === 'claimed' && !isHeld(board, stored) ? stored.item_owner : null;
-    const { item, next, command, unfreeze, bar, widened } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming });
+    const { item, next, command, unfreeze, bar, widened } = validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, correction, freeze, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes });
     const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, id, { sensitive, reviewFamily, reviewTier }) : null;
     const baseline = normalizeCheckBaseline(agentId, command, checkBaseline, { authorized: Boolean(widened) });
     const { pendingFields, frozen, pendingRefreeze, clearFrozen } = itemEditBar(board, item, next, { command, agentId, correction, freeze, unfreeze, expiredHolder,
@@ -65,6 +68,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       }
     }
     saveCheckTiming(board, id, checkTiming);
+    saveExpectedBuildMinutes(board, id, expectedBuildMinutes);
     setItem(board, id, { ...storedNext, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     reviewFamilies.saveReviewFamily(board, id, reviewFamily);
     if (baseline || next.item_check !== item.item_check) saveCheckBaseline(board, id, baseline);
@@ -77,6 +81,7 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       ...(next.item_criterion !== item.item_criterion ? { criterion: next.item_criterion } : {}),
       ...(command !== undefined ? { check: next.item_check } : {}),
       ...(checkTiming === undefined ? {} : { checkTiming }),
+      ...(expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes }),
       ...(next.item_after !== item.item_after ? { after: itemDependencies.dependencyValues(next) } : {}),
       ...(baseline ? { checkBaseline: baseline } : {}),
       ...(pendingRefreeze ? { pendingRefreeze: pendingFields } : {}),
@@ -108,9 +113,11 @@ function notifyFileGrowth(board, before, after) {
 }
 
 /** Validate an edit without side effects, so a refused change never starts a shell baseline; a bar correction needs a reason [B31]. */
-export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming }) {
+export function validateItemEdit(board, id, { agentId, brief, route, criterion, check, after, reason, referenceAuthors, referenceAuthority, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
   validateCheckTiming(board, agentId, checkTiming);
+  validateExpectedBuildMinutes(expectedBuildMinutes);
+  if (expectedBuildMinutes !== undefined && engine < EXPECTED_BUILD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring expected build time');
   if (after !== undefined && engine < 10) {
     throw new Refused('ENGINE_VERSION', `editing item dependencies requires engine 10; this board uses engine ${engine}; upgrade Pullboard before using --after`);
   }
@@ -124,8 +131,8 @@ export function validateItemEdit(board, id, { agentId, brief, route, criterion, 
     throw new Refused('HELD', `item #${id} is claimed; only the coordinator may edit it while held; shout coordinator`);
   }
   const command = checkWiden.editCheck(agentId, check, widened);
-  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming].every((value) => value === undefined)) {
-    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>" or --after <ids|none>');
+  if ([brief, route, criterion, check, after, sensitive, reviewFamily, reviewTier, checkTiming, expectedBuildMinutes].every((value) => value === undefined)) {
+    throw new Refused('USAGE', 'say what changes: --brief "...", --brief-file <file>, --route light|mid|strong, --criterion "...", --check "<command>", --after <ids|none> or --expected-minutes <minutes|unknown>');
   }
   item ??= current(board, itemById(board, id));
   if (agentId !== COORDINATOR && agentId !== item.item_created_by && !widened) {

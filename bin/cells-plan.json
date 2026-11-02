@@ -1286,6 +1286,14 @@
     {
       "path": "src/move-history/207.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/expected-build-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/208.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

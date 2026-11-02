@@ -1,3 +1,5 @@
+import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
 import { withDerivedFamily } from "../../../../src/family-declaration.js";
 import { withDerivedFamilies } from "../../../../src/family-declaration.js";
 import { effectiveItemHead } from "../../../verify/index.js";
@@ -148,14 +150,16 @@ export function itemHold(board, id) {
 export function listItems(board, { lane, all = false } = {}) {
   const hasLane = lane !== undefined && lane !== null;
   const rows = board.db
-    .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family
+    .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build
       FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
       LEFT JOIN board_meta family ON family.meta_key='item_review_family:' || item.item_id
+      LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id
       WHERE NOT EXISTS (SELECT 1 FROM board_meta redirect WHERE redirect.meta_key='item_redirect:' || item.item_id)
       AND ${all ? '1' : "item_status NOT IN ('verified','withdrawn')"}${hasLane ? ' AND item_lane=?' : ''} ORDER BY item_id DESC`)
     .all(...(hasLane ? [lane] : []));
-  const items = rows.map(({ imported_rehome: imported, review_family: family, ...item }) => ({
+  const items = rows.map(({ imported_rehome: imported, review_family: family, expected_build: expected, ...item }) => ({
     ...current(board, item, family),
+    ...((board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE || expected === null ? {} : { item_expected_build_minutes: JSON.parse(expected) }),
     ...(imported ? { item_rehome_import: JSON.parse(imported) } : {}) }));
   return items;
 }

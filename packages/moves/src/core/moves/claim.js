@@ -1,3 +1,4 @@
+import { EXPECTED_BUILD_ENGINE } from '../../../../../src/expected-build-engine.js';
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../../src/blocked-dependencies-engine.js';
 import { localDependencyIds } from '../../../../seats/core.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
@@ -45,7 +46,8 @@ function minimumEngine(args, board, at) {
   const item = board && validId ? board.db.prepare('SELECT item_after FROM item WHERE item_id=?').get(id) : null;
   const foreign = item && hasForeignDependencies(item);
   const withdrawn = item && localDependencyIds(item).some(dependency => board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(dependency)?.item_status === 'withdrawn');
-  return Math.max(withdrawn ? BLOCKED_DEPENDENCIES_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.itemFolder === true ? ITEM_FOLDER_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
+  const expected = board && validId && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_expected_build_minutes:${id}`);
+  return Math.max(expected || args[1]?.buildBudgetMinutes !== undefined ? EXPECTED_BUILD_ENGINE : 1, withdrawn ? BLOCKED_DEPENDENCIES_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.itemFolder === true ? ITEM_FOLDER_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
     foreign ? CROSS_REPO_DEPENDENCY_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 

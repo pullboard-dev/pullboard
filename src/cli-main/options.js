@@ -5,6 +5,7 @@ const OPTIONS = {
   criterion: { type: 'string' },
   files: { type: 'string' },
   'force-size': { type: 'string' },
+  'expected-minutes': { type: 'string' },
   sensitive: { type: 'boolean' },
   'review-tier': { type: 'string' },
   'review-family': { type: 'string' },
