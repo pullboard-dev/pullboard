@@ -139,7 +139,7 @@ function choose(box, shim, file, use) {
   const pure = pureReason(box, file);
   if (pure) {
     if (core && covers(core)) return { path: core, adds: [] };
-    const missing = names.filter(name => !core || !exportsOf(box, core).has(name));
+    const missing = names.filter(name => !core || !exportsOf(box, core).has(name) || !same(core, name));
     const named = missing.length > 8 ? `${missing.slice(0, 8).join(', ')} +${missing.length - 8} more` : missing.join(', ');
     return { refuse: `${pure} ${file} would reach past ${cell.name} core.js, which lacks ${named || 'a pure front door'}` };
   }
