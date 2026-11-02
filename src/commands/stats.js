@@ -1,3 +1,7 @@
+import { buildTimeStats } from '../../packages/stats/index.js';
+import { buildTimeLines } from '../../packages/stats/index.js';
+import { criterionCells } from '../../packages/items/index.js';
+import { criterionSize } from '../../packages/items/index.js';
 import { appendTimeCheckpoint } from '../../packages/stats/index.js';
 import { checkpointLine } from '../../packages/stats/index.js';
 import { readTimeHistory } from '../../packages/stats/index.js';
@@ -66,7 +70,13 @@ export function run(io, { first, second, rest, values }) {
     const days = flowWindowMinutes(values.window ?? '7d') / 1440;
     const now = ctx.clock.now().getTime();
     const receipts = gateReceipt.retainedReceipts(ctx.info.root, { from: '1970-01-01T00:00:00.000Z', to: new Date(now + 1).toISOString() });
-    const time = withBoard(ctx, board => timeStats(store.events(board), { now, days, receipts }));
+    const catalog = criterionCells(ctx.info.root);
+    const time = withBoard(ctx, board => {
+      const history = store.events(board);
+      const phases = timeStats(history, { now, days, receipts });
+      const builds = buildTimeStats(history, store.listItems(board, { all: true }), catalog, criterionSize);
+      return { ...phases, builds };
+    });
     let checkpoint = null;
     if (kind) {
       const file = join(ctx.info.commonDir, 'pullboard', 'stats-history.jsonl');
@@ -74,6 +84,7 @@ export function run(io, { first, second, rest, values }) {
     }
     io.result?.({ time, checkpoint });
     for (const line of timeLines(time)) io.say(line);
+    for (const line of buildTimeLines(time.builds)) io.say(line);
     if (kind) io.say(checkpoint ? `checkpoint recorded in ${checkpoint}` : 'a weekly checkpoint is not due yet');
     return 0;
   }

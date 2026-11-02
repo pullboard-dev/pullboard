@@ -1,7 +1,7 @@
 import { flakeQuarantines as nativeFlakeQuarantines } from '../src/quarantine.js';
 import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
-import { landingWaiverFor as nativeLandingWaiverFor } from '../src/landing-waivers.js';
-import { waivedLandingProof as nativeWaivedLandingProof } from '../src/landing-waivers.js';
+import { landingWaiverFor as nativeLandingWaiverFor } from '../packages/landing/index.js';
+import { waivedLandingProof as nativeWaivedLandingProof } from '../packages/landing/index.js';
 import { landingPorts } from './landing-ports-fixture.js';
 import './item-patch-journey.test.js';
 /** Exercise landing against real private Git worktrees, hooks, SQLite and bare remotes [B3,R3]. */
@@ -13,7 +13,7 @@ import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
-import { landingFailures, landingSubject } from '../src/land.js';
+import { landingFailures, landingSubject } from '../packages/landing/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild, runFixtureChild } from './fixture-child.js';
 import { stopGroup } from './runner-process-group.js';

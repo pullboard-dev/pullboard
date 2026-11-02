@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
+import { Script } from 'node:vm';
 import { cellInventory, updateCellInventory } from '../packages/codemap/index.js';
 import { importCuts, readPathMap } from '../packages/codemap/index.js';
 import { repositoryImport } from '../packages/codemap/index.js';
@@ -251,6 +252,67 @@ function hitsByShim(box, shims) {
   return hits;
 }
 
+/** A string token that is a whole module path: no whitespace, a module extension, nothing after the path. */
+const PATH_TOKEN = /^[^\s'"`]+\.[cm]?js$/u;
+/** Code just before a literal that hands it to a module or path call: import(), require(), new URL() or path.join(). */
+const PATH_ARGUMENT = /(?<![\w$.])(?:(?:import|require)\s*|new\s+URL\s*|path\s*\.\s*join\s*)\(\s*(?:[^()'"`]*,\s*)?$/u;
+const STATIC_IMPORT = /(?:^|[;\n{}])\s*(?:import|export)\s+(?:[^;\n]*?\s+from\s+)?$/u;
+
+/**
+ * Whether one path-shaped string names `path`: ./ or ../ relative, absolute, a file: URL, a template root such as
+ * `${ROOT}/src/x.js`, or a bare repository path handed to a path call. A longer repository path that merely ends the
+ * same way, like ./packages/a/src/x.js, is another module.
+ */
+function pathToken(token, path, argument) {
+  if (!PATH_TOKEN.test(token) || !token.endsWith(path)) return false;
+  const fileUrl = token.startsWith('file:');
+  const prefix = token.slice(0, -path.length).replace(/^file:/u, '');
+  if (prefix && !prefix.endsWith('/')) return false;
+  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || prefix.startsWith('/') || /^\$\{[^}]*\}\//u.test(prefix) : fileUrl || argument;
+}
+
+/**
+ * Whether a string literal names `path` as a module: the whole literal is a path, or a quoted string inside it is, as in a
+ * generated child script's `import ... from './src/x.js'`. A sentence that mentions a path is prose and never counts.
+ */
+function namesPath(text, path, argument) {
+  if (pathToken(text, path, argument)) return text.lastIndexOf(path);
+  // Compile only source-shaped embedded scripts; this never runs the string or its imports.
+  let script = false;
+  if (text.length <= 1024 * 1024 && /\b(?:const|let|var|import|export|require|return|function|class|new)\b|[=;(){}]/u.test(text)) {
+    try { new Script(text); script = true; } catch { /* Static module syntax is handled below. */ }
+  }
+  const nestedStrings = new Set(lex(text).strings.map(row => row.start));
+  for (const quoted of text.matchAll(/(['"])([^'"\s]*)\1/gu)) {
+    const before = text.slice(Math.max(0, quoted.index - 200), quoted.index);
+    if (nestedStrings.has(quoted.index) && (script || PATH_ARGUMENT.test(before) || STATIC_IMPORT.test(before)) && pathToken(quoted[2], path, true)) return quoted.index + 1 + quoted[2].lastIndexOf(path);
+  }
+  return -1;
+}
+
+/**
+ * Every place a test source names one of `paths` in a string literal (see namesPath): a generated child script importing
+ * `./src/x.js`, `/abs/root/src/x.js` or `file:///abs/root/src/x.js` is invisible to import checks, so deleting a named
+ * path turns main red. A literal that `resolve` maps to the path is an ordinary import the repoint already handles;
+ * comments and prose sentences never hold a path.
+ */
+export function scriptMentions(files, paths, resolve = () => null) {
+  const rows = [], wanted = [...new Set(paths)];
+  for (const [file, bytes] of files) {
+    if (!testFile(file) || !/\.[cm]?js$/u.test(file)) continue;
+    const source = bytes.toString('utf8');
+    if (!wanted.some(path => source.includes(path))) continue;
+    const info = lex(source);
+    for (const literal of info.strings) for (const path of wanted) {
+      if (!literal.text.includes(path) || resolve(file, literal.text) === path) continue;
+      const at = namesPath(literal.text, path, PATH_ARGUMENT.test(info.code.slice(Math.max(0, literal.start - 200), literal.start)));
+      if (at < 0) continue;
+      rows.push({ file, line: source.slice(0, literal.start + 1 + at).split('\n').length, path });
+    }
+  }
+  return rows;
+}
+
 /** Apply the surviving edits and door additions to the original bytes, returning each changed file's new source. */
 function materialize(box, plans, excluded) {
   const out = materializeAll(box, plans, excluded);
@@ -384,7 +446,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     applyToDisk(box, new Map(), touched);
     throw error;
   }
-  const deleted = [];
+  const deleted = [], named = scriptMentions(after.files, live, (file, text) => text.startsWith('.') ? resolveSpec(box, file, text) : null);
   for (const shim of live) {
     if (kept.has(shim)) continue;
     const users = [...after.edges].filter(([, rows]) => rows.some(row => row.target === shim)).map(([file]) => file);
@@ -392,6 +454,7 @@ export function removeShims(root, plan, name, { parsers, lane = 'core', planFile
     // Ownership first: a shim this lane may not delete is reported as such before the importers that also hold it.
     if (outOfLane(settings, lane, [shim]).length) why.push(`${shim} is owned by the ${laneOf(settings, shim)} lane; a removal there deletes it`);
     if (foreignPlan.length) why.push(`deleting ${shim} rewrites ${foreignPlan.join(', ')}, outside the ${lane} lane`);
+    why.push(...named.filter(row => row.path === shim).map(row => `${row.file}:${row.line} names ${shim} inside a string; point it at the moved file or front door`));
     why.push(...held.filter(row => !row.startsWith('imported by ')), ...held.filter(row => row.startsWith('imported by ')));
     if (!held.length && users.length) why.push(`still imported by ${users.slice(0, 3).join(', ')}${users.length > 3 ? ` +${users.length - 3} more` : ''}`);
     if (why.length) { kept.set(shim, `${why.slice(0, 3).join('; ')}${why.length > 3 ? `; +${why.length - 3} more` : ''}`); continue; }

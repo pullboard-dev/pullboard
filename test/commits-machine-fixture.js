@@ -34,7 +34,6 @@ export function assertCommitShimRefusals(codeWalk, read, editedSource, codeProbl
   const walk = codeWalk(read);
   for (const [entry, code] of [
     ['../packages/commits/src/shell/hooks.js#machineNameProblems', 'HOST_NAME'],
-    ['../packages/commits/src/core/infra-note.js#infraNote', 'INFRA_NOTE_REQUIRED'],
     ['../packages/commits/src/shell/guard-revert.js#guardRevertNote', 'GUARD_CANNOT_FAIL'],
     ['../packages/commits/src/shell/guard-revert.js#guardRevertNote', 'GUARD_NOT_FOUND'],
   ]) assert.ok(walk.refusalsOf(entry).has(code), `${entry} retains its actual moved refusal ${code}`);

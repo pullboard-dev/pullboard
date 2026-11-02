@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { failureSignatures, matchingMainFailures, cachedFailureSignatures, MAIN_FAILURE_SIGNATURE_VERSION } from '../src/main-failure-matches.js';
+import { failureSignatures, matchingMainFailures, cachedFailureSignatures, MAIN_FAILURE_SIGNATURE_VERSION } from '../packages/landing/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 /** A real committed private test generates a nested failing child with native elapsed/path/UUID/port diagnostics. */

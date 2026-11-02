@@ -26,7 +26,7 @@ import { viewProofSummary as presentation_viewProofSummary } from '../src/view-s
 import { fitFile as presentation_fitFile } from '../packages/blueprints/index.js';
 import { boardEnginePorts } from '../src/board-engine-ports.js';
 import { validPresence } from '../packages/person/index.js';
-import { recordTrainLanding } from '../src/record-train-landing.js';
+import { recordTrainLanding } from '../packages/landing/index.js';
 /** Native construction binds all capabilities before guards and preserves the public board API [C7,B1,B2]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

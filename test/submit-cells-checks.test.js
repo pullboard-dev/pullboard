@@ -6,6 +6,8 @@ import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { fixture } from './cells-plan-fixture.js';
@@ -55,7 +57,7 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
 });
 
 import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
-import { withMainCheckout } from '../src/main-red.js';
+import { withMainCheckout } from '../packages/landing/index.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { cellLintReport } from '../packages/codemap/index.js';
@@ -458,6 +460,30 @@ test('outside-cell changes do not widen touched cells but still refuse unplaced 
   assert.deepEqual(result.problems, []);
   box.put('src/unplanned.js', 'export const value = 1;\n');
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
+});
+
+/** The refusal text a candidate draws, or an empty string when submit accepts it. */
+async function refusal(promise) {
+  try { await promise; return ''; } catch (error) { return error.message; }
+}
+
+test('submit refuses deleting a module a test names inside a generated script, never for a comment or prose mention [C7,D3]', async t => {
+  for (const form of [() => './src/doomed.js', () => '${ROOT}/src/doomed.js', root => join(root, 'src/doomed.js'), root => pathToFileURL(join(root, 'src/doomed.js')).href]) {
+    const box = plannedFixture(t, fixture => {
+      fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
+      fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
+      fixture.put('test/child.test.js', `const script = \`import('${form(fixture.root)}').then(m => m.doomed);\`;\n// src/quiet.js once held the quiet value\nconst note = 'the old src/quiet.js held the quiet value';\nexport { script, note };\n`);
+    });
+    const remove = file => { git(box.root, 'rm', '-q', '--', file); writePlan(box.root, computePlan(box.root)); };
+    remove('src/doomed.js');
+    const named = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
+    assert.match(named, /test\/child\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
+    assert.doesNotMatch(named, /stale/u, 'the plan follows the deletion, so the string mention alone refuses');
+    git(box.root, 'checkout', '-q', box.main, '--', 'src/doomed.js', 'bin');
+    remove('src/quiet.js');
+    assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)), /names deleted/u,
+      'a comment or prose mention never holds a deletion');
+  }
 });
 
 test('submit cell receipt reuses exact input and invalidates changed cut authority [C7,D3,CD64]', async t => {
