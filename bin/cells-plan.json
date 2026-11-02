@@ -1262,6 +1262,10 @@
     {
       "path": "src/move-history/204.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/rigor-instructions-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
