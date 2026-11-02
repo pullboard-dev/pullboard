@@ -24,13 +24,13 @@ import { exactStart } from './child-journal-preload.js';
 const safePath = [dirname(process.execPath), process.env.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
 
 /** Read one all-process POSIX census; a failed or malformed census is never interpreted as an empty machine. */
-export function processCensus() {
+export function processCensus({ includeCommand = false } = {}) {
   const result = spawnSync('/bin/ps', ['-axo', 'pid=,ppid=,pgid=,lstart=,stat=,comm='], {
     encoding: 'utf8', timeout: 2_000, maxBuffer: 8 * 1024 * 1024,
     env: { PATH: safePath, LANG: 'C', LC_ALL: 'C', TZ: 'UTC' },
   });
   if (result.error || result.status !== 0 || typeof result.stdout !== 'string') return null;
-  return parseProcessCensus(result.stdout);
+  return parseProcessCensus(result.stdout, { includeCommand });
 }
 
 /** Add a kernel start-time identity when procfs is available; otherwise retain a conservative census tuple. */
@@ -72,7 +72,7 @@ function writeChildJournalPreload(directory) {
  *   tick?: () => void, timedOut?: () => boolean, warn?: (reason: string) => void, intervalMs?: number,
  *   startOf?: (pid: number) => string }} [hooks]
  */
-export function createDescendantTracker(directory, { census: processCensusHook = processCensus, kill = (pid, signal) => process.kill(pid, signal),
+export function createDescendantTracker(directory, { census: processCensusHook = () => processCensus({ includeCommand: true }), kill = (pid, signal) => process.kill(pid, signal),
   selfPid = process.pid, tick = () => {}, timedOut = () => false, warn = () => {}, intervalMs = 250, startOf = exactStart } = {}) {
   const initial = processCensusHook();
   if (!initial) throw new Error('initial process identity census failed');
@@ -374,6 +374,7 @@ export function createDescendantTracker(directory, { census: processCensusHook =
     } finally { busy = false; }
   }
 
+  /** Bind the launched leader now, retaining its executable and OS start for a later pipe drain. */
   function registerRoot(pid) {
     if (!Number.isSafeInteger(pid) || pid < 1) return;
     roots.add(pid);
@@ -381,7 +382,11 @@ export function createDescendantTracker(directory, { census: processCensusHook =
     // group membership alone is never sufficient to adopt an unknown process.
     const census = processCensusHook();
     const row = census?.get(pid);
-    if (row && row.ppid === selfPid && row.pgid === pid) rootLaunchIdentities.set(pid, processIdentity(row));
+    if (row && row.ppid === selfPid && row.pgid === pid) {
+      const identity = processIdentity(row);
+      rootLaunchIdentities.set(pid, identity);
+      return identity;
+    }
   }
 
   function liveDescendants() {
@@ -516,8 +521,12 @@ export function createDescendantTracker(directory, { census: processCensusHook =
     /** Describe the last observed cleanup state without treating it as a fresh ownership proof. */
     cleanupState() {
       return { reason: uncertainReason || reason, uncertain, censusFailure, knownCount: known.size,
-        pending: [...pendingIdentities].slice(0, 16).map(([pid, identity]) => ({ pid, birth: identity.birth })),
-        live: liveDescendants().slice(0, 16).map(({ pid, birth, group }) => ({ pid, birth, group })) };
+        pending: [...pendingIdentities].map(([pid, identity]) => ({ ...current.get(pid), ...identity, pid })),
+        live: liveDescendants().map(identity => ({ ...identity, command: current.get(identity.pid)?.command ?? identity.command })),
+        roots: [...rootLaunchIdentities.values()].filter(identity => {
+          const row = current.get(identity.pid);
+          return row && row.birth === identity.birth && !/^Z/u.test(row.state);
+        }).map(identity => ({ ...identity, command: current.get(identity.pid).command })) };
     },
     registerRoot,
     /** Take one census now; a test drives custody through it. */
