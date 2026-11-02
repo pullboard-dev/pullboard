@@ -29,7 +29,7 @@ import { testOutcomeCollector } from './test-outcomes.js';
 import { readTestFileBudgets } from './test-file-budget-policy.js';
 import { testFileRelative } from './test-file-budget-policy.js';
 import { testFileBudgetFailure } from '../core/test-file-budget.js';
-import { repoInfo } from '../../../../src/git.js';
+import { repoInfo } from '../../../git/index.js';
 import { TEST_FILE_POOL_ENV } from './test-file-pool.js';
 import {
   bindTestRuntime,
