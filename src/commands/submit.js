@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
@@ -18,6 +20,7 @@ import {
 import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
+import { gateRuns } from '../quarantine.js';
 import { withImportParseCache } from '../module-import-cache.js';
 import { foreignNodeOptions } from '../test-isolation.js';
 import { importsIn } from '../module-imports.js';
@@ -402,6 +405,15 @@ export async function submitHere(ctx, id, infra) {
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
+  // The repository's per-file lint subset is cheap; keep its full static stage later.
+  if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+    await withItemPatchSubmit(root, companion, gateRoot => {
+      const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+      const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
+      const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
+      if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
+    });
+  }
   let cells;
   const cellsStart = performance.now();
   try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
@@ -477,6 +489,7 @@ export async function submitHere(ctx, id, infra) {
   if (criterionCases) {
     try {
       comparison = await compareMainFailures(root, criterionRed.profile, gateWaitReporter(ctx.io), criterionRed.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: criterionRed.executionRunner ? { kind: 'ssh', host: criterionRed.executionRunner } : { kind: 'local' }, environment: criterionRed.environment } });
       rememberComparison(comparison);
       criterionNotices = mainFailureNotices(root, criterionCases, comparison,
@@ -530,6 +543,7 @@ export async function submitHere(ctx, id, infra) {
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
