@@ -7,7 +7,7 @@ import {
   renewLocalLanding,
 } from '../../../../src/board-landing-lease.js';
 import { Refused } from '../../../kernel/index.js';
-import { coordinatorHolder } from '../../../../src/coordinator-hold.js';
+import { coordinatorHolder } from '../../../seats/index.js';
 import {
   localLandingEntry,
   rememberLocalLanding,

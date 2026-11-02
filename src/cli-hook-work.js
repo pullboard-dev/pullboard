@@ -1,7 +1,7 @@
 /** @pullboard-module-loads src/submit-handoff-worker.js */
 /** The native hook worker process: the seats cell's hook order composed with CLI and board steps [I6,C7]. */
 import { fileURLToPath } from 'node:url';
-import { work } from './agent-hook-work.js';
+import { work } from '../packages/seats/index.js';
 
 /** Refresh only the private presence sidecar before ordinary read-only context. */
 async function heartbeat() {

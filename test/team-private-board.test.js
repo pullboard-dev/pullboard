@@ -16,7 +16,7 @@ import {
   teamBoard,
   test,
 } from './team-scenarios.fixture.js';
-import { checkoutSessionFile } from '../src/agent-session.js';
+import { checkoutSessionFile } from '../packages/seats/index.js';
 import { repoInfo } from '../src/git.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

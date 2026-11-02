@@ -2,8 +2,8 @@
 import { Refused } from '../../../kernel/core.js';
 import { proofEventDetail } from '../../../kernel/src/core/event-detail.js';
 import { NEXT_IDLE_ENGINE } from '../../../../src/next-idle-engine.js';
-import { flowWindowBounds } from '../../../../src/flow-window-bounds.js';
-export { flowWindowBounds } from '../../../../src/flow-window-bounds.js';
+import { flowWindowBounds } from '../../../seats/core.js';
+export { flowWindowBounds } from '../../../seats/core.js';
 
 const MINUTE = 60_000;
 export const WINDOW_STAGES = ['build', 'reviewWait', 'review', 'sendBackIdle', 'mergeWait'];
