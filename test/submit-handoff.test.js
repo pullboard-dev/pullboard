@@ -200,17 +200,25 @@ test('a queued red retains the exact canonical refusal and builder first refusal
 });
 
 
-test('cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]', async t => {
+for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
   const box = fixture(t, { cells: true });
   mkdirSync(join(box.web, 'src'), { recursive: true });
   assert.equal(helpersCommit(box, 'src/unplaced.js', 'export const unsafe = true;\n').status, 0);
+  if (kind === 'ownership') {
+    writeFileSync(join(box.web, 'bin/cells-plan.json'), JSON.stringify({ version: 1, cells: [],
+      stays: [{ path: 'src/unplaced.js', reason: 'Fixture placement remains explicitly covered.' }],
+      entries: [{ path: 'src/unplaced.js', cell: 'app:missing' }] }) + '\n');
+    box.git(box.web, 'add', 'bin/cells-plan.json');
+    box.git(box.web, 'commit', '-qm', 'feat(web): invalid process ownership control [G1]');
+  }
+
   const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
   assert.equal(queued.queued, true, 'foreground submission does not compile or refuse the new unplaced cell');
   document(box.run(box.web, 'claim', String(box.second), '--json'));
   await waitJob(box, 'red');
   const completed = state(box, box.id);
-  assert.equal(completed.job.error.code, 'CELLS_PLAN_UNPLACED');
-  assert.match(completed.job.error.message, /src\/unplaced.js/u);
+  assert.equal(completed.job.error.code, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');
+  assert.match(completed.job.error.message, kind === 'placement' ? /src\/unplaced.js/u : /existing app cell/u);
   assert.equal(completed.item.item_status, 'open');
   assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
   assert.equal(existsSync(box.started), false, 'the ordinary gate never executes a source refused by cell checks');
