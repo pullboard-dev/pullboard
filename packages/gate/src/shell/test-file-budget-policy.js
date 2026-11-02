@@ -8,7 +8,6 @@ import { gitChildEnv } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { carriedRunnerTrunk } from '../../../sandbox/index.js';
-import { readPlacementIndex } from './test-economics-index.js';
 import { DEFAULT_TEST_FILE_BUDGET_MS } from '../core/test-file-budget.js';
 import { requireTestFileRatchet } from '../core/test-file-budget.js';
 import { testFileLimit } from '../core/test-file-budget.js';
@@ -30,8 +29,9 @@ function rowAt(root, ref, path, env) {
   const result = tryGit(root, ['show', `${ref}:${path}`], { env });
   if (result.status !== 0) throw new Error(`cannot read test file budget row ${path}`);
   const value = JSON.parse(result.stdout);
-  if (value?.version !== 1 || typeof value.file !== 'string' || testFileBudgetPath(value.file) !== path) throw new Error(`invalid test file budget row ${path}`);
-  return { file: value.file, ms: testFileLimit(value.ms) };
+  if (value?.version !== 1 || typeof value.file !== 'string' || testFileBudgetPath(value.file) !== path
+    || value.placement !== undefined && value.placement !== 'audit') throw new Error(`invalid test file budget row ${path}`);
+  return { file: value.file, ms: testFileLimit(value.ms), audit: value.placement === 'audit' };
 }
 
 /** Compare changed rows and read only the selected files, not the repository-wide table. */
@@ -51,10 +51,8 @@ export function readTestFileBudgets(root, files) {
   const inside = portable.filter(file => file !== '..' && !file.startsWith('../') && !posix.isAbsolute(file));
   const insideSet = new Set(inside);
   for (const file of inside) testFileBudgetPath(posix.normalize(file));
-  const placement = readPlacementIndex(root, inside);
-  const audits = new Set(placement.files.filter(row => row.tier === 'audit').map(row => row.file));
   return new Map(portable.map(file => {
     const row = insideSet.has(file) ? rowAt(root, 'HEAD', testFileBudgetPath(file), env) : null;
-    return [file, { ms: row?.ms ?? DEFAULT_TEST_FILE_BUDGET_MS, audit: audits.has(file) }];
+    return [file, { ms: row?.ms ?? DEFAULT_TEST_FILE_BUDGET_MS, audit: row?.audit === true }];
   }));
 }

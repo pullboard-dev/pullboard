@@ -13,6 +13,7 @@ import { runFixtureChild } from './fixture-child.js';
 import { readTestFileBudgets } from '../packages/gate/src/shell/test-file-budget-policy.js';
 import { testFileBudgetPath } from '../packages/gate/src/shell/test-file-budget-policy.js';
 import { writePlacementIndex } from '../packages/gate/src/shell/test-economics-index.js';
+import { indexedStageSelection } from '../packages/gate/src/shell/test-economics-index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
@@ -47,6 +48,13 @@ test('an over-budget file fails with its observed runtime, while audit placement
   assert.equal(red.status, 1, output);
   assert.match(output, /slow\.test\.js took \d+ms, over its 1ms test file budget/u);
   writePlacementIndex(box.candidate, { version: 1, files: [{ file: 'slow.test.js', tier: 'audit', testInputs: [] }] });
+  const derived = box.run();
+  assert.equal(derived.status, 1, 'a derived placement cannot grant a budget exemption');
+  writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: 1, placement: 'audit' }));
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'move to audit');
+  writePlacementIndex(box.candidate, { version: 1, files: [{ file: 'slow.test.js', tier: 'submit', testInputs: [] }] });
+  assert.deepEqual(indexedStageSelection(box.candidate, ['slow.test.js'], 'submit'), []);
+  assert.deepEqual(indexedStageSelection(box.candidate, ['slow.test.js'], 'audit'), ['slow.test.js']);
   const green = box.run();
   assert.equal(green.status, 0, `${green.stdout ?? ''}${green.stderr ?? ''}`);
 });
