@@ -293,7 +293,10 @@ test('a pure binding with another definition keeps the runner importer and names
   box.put('src/worker-step.js', step);
   const plan = withClosures(box, {
     core: 'export { pure } from "./src/core/rebound.js";\n',
-    extra: { 'packages/stats/src/core/rebound.js': 'export const pure = 2;\n' },
+    extra: {
+      'packages/stats/src/core/rebound.js': 'export const pure = 2;\n',
+      'src/stats.js': 'export { pure } from "../packages/stats/src/core/pure.js";\nexport { shell, extra } from "../packages/stats/src/shell/shell.js";\n',
+    },
   });
   const result = removeShims(box.root, plan, 'stats', { parsers: PARSERS });
   assert.equal(read(box, 'src/worker-step.js'), step, 'a same-name export cannot replace the original definition');
