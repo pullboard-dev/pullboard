@@ -282,10 +282,10 @@ function namesPath(text, path, argument) {
   if (text.length <= 1024 * 1024 && /\b(?:const|let|var|import|export|require|return|function|class|new)\b|[=;(){}]/u.test(text)) {
     try { new Script(text); script = true; } catch { /* Static module syntax is handled below. */ }
   }
-  const scriptStrings = script ? new Set(lex(text).strings.map(row => row.start)) : null;
+  const nestedStrings = new Set(lex(text).strings.map(row => row.start));
   for (const quoted of text.matchAll(/(['"])([^'"\s]*)\1/gu)) {
     const before = text.slice(Math.max(0, quoted.index - 200), quoted.index);
-    if ((script ? scriptStrings.has(quoted.index) : PATH_ARGUMENT.test(before) || STATIC_IMPORT.test(before)) && pathToken(quoted[2], path, true)) return quoted.index + 1 + quoted[2].lastIndexOf(path);
+    if (nestedStrings.has(quoted.index) && (script || PATH_ARGUMENT.test(before) || STATIC_IMPORT.test(before)) && pathToken(quoted[2], path, true)) return quoted.index + 1 + quoted[2].lastIndexOf(path);
   }
   return -1;
 }

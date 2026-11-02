@@ -331,6 +331,11 @@ test('comments inside generated scripts do not name a deleted module [C7,D3]', (
   assert.deepEqual(scriptMentions(new Map([['test/comment-script.test.js', Buffer.from(source)]]), ['src/stats.js']), []);
 });
 
+test('comments inside generated modules do not name a deleted module [C7,D3]', () => {
+  const source = "const script = `// require('./src/stats.js')\nexport const value = 1;`;\n";
+  assert.deepEqual(scriptMentions(new Map([['test/comment-module.test.js', Buffer.from(source)]]), ['src/stats.js']), []);
+});
+
 test('a multiline generated script reports the line containing the module path [C7,D3]', () => {
   const source = "const script = `\nimport './src/stats.js';\n`;\n";
   assert.deepEqual(scriptMentions(new Map([['test/multiline.test.js', Buffer.from(source)]]), ['src/stats.js']),
