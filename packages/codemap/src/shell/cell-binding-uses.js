@@ -115,11 +115,11 @@ function apply(row, at, valid, qualified) {
 const bindingReadScopes = new AsyncLocalStorage();
 
 /** Reuse only real compiler observations inside one explicitly eligible higher-level census. */
-export function withBindingReadCache(work, { eligible, observations, warmAll = false } = {}) {
+export function withBindingReadCache(work, { eligible, observations, warmAll = false, onProbe } = {}) {
   if (typeof eligible !== 'function') return work();
   const values = observations instanceof Map ? observations : new Map();
   const bytes = [...values.values()].reduce((sum, row) => sum + row.bytes, 0);
-  return bindingReadScopes.run({ eligible, values, bytes, warmAll }, work);
+  return bindingReadScopes.run({ eligible, values, bytes, warmAll, onProbe }, work);
 }
 
 /** Only a durable, eligible census may prepare currently unreachable production modules. */
@@ -204,7 +204,7 @@ export function cachedBindingMetadata(source, edges, work) {
 /** Exact ordered probe inputs and runtime context identify a real immutable compiler result. */
 export function bindingReadsForModules(modules) {
   const scope = bindingReadScopes.getStore();
-  if (!reusable(scope)) return buildBindingReads(modules);
+  if (!reusable(scope)) { scope?.onProbe?.({ requested: modules.length, computed: modules.length }); return buildBindingReads(modules); }
   if (!cacheableModules(modules) || new Set(modules.map(row => row.file)).size !== modules.length) return buildBindingReads(modules);
   const entries = modules.map(row => ({ row, key: bindingCacheKey([row]) }));
   if (entries.some(entry => entry.key === null)) return buildBindingReads(modules);
@@ -216,6 +216,7 @@ export function bindingReadsForModules(modules) {
     }
     missing.push(entry);
   }
+  scope.onProbe?.({ requested: modules.length, computed: missing.length });
   if (missing.length) {
     const fresh = buildBindingReads(missing.map(entry => entry.row));
     for (const entry of missing) {

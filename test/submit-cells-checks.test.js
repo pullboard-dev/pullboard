@@ -396,25 +396,33 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   });
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
   const candidate = commitCandidate(box), observed = {}, calls = bindingCompilerCalls(t, observed);
+  let requested = 0, computed = 0;
+  const run = item => preflight(box.root, box.main, candidate, item, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+    readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+    onBindingProbe: row => { requested += row.requested; computed += row.computed; } });
   let cached;
-  try { await requireSubmitCells(box.root, box.main, candidate, box.item); }
+  try { await run(box.item); }
   catch (error) { cached = error; }
   assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
-  const first = { ...observed }, before = process.env.NODE_OPTIONS;
+  const first = { ...observed, requested, computed }, before = process.env.NODE_OPTIONS;
   observed.imports = 0; observed.bindings = 0;
+  requested = 0; computed = 0;
   const changedCriterion = { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries with another criterion.' }) };
-  await assert.rejects(requireSubmitCells(box.root, box.main, candidate, changedCriterion), /kernel --cuts: kernel still imports later stats/u);
-  assert.equal(observed.bindings, 0, 'a refused candidate still preserves complete snapshot observations for a later criterion');
+  await assert.rejects(run(changedCriterion), /kernel --cuts: kernel still imports later stats/u);
+  assert.equal(computed, 0, 'a refused candidate still preserves complete binding observations for a later criterion');
   observed.imports = 0; observed.bindings = 0;
+  requested = 0; computed = 0;
   try {
     process.env.NODE_OPTIONS = '--no-warnings';
     assert.equal(bindingCacheEligible(), false);
     let uncached;
-    try { await requireSubmitCells(box.root, box.main, candidate, box.item); }
+    try { await run(box.item); }
     catch (error) { uncached = error; }
     assert.equal(uncached?.message, cached.message, 'the exact full diagnostics do not change when canonical policy bypasses both caches');
     assert.ok(observed.imports > first.imports, 'actual submit entry bypasses import-parser reuse');
-    assert.ok(observed.bindings > first.bindings, 'actual submit entry bypasses repeated binding-probe reuse');
+    assert.ok(first.requested > first.computed, 'eligible actual submit reuses binding probes within the census');
+    assert.equal(computed, requested, 'canonical bypass recompiles every requested binding probe');
+    assert.ok(computed > first.computed, 'actual submit entry bypasses repeated binding-probe reuse');
     assert.ok(calls() > 0);
   } finally { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; }
 });
