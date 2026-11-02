@@ -8,6 +8,7 @@ import { Refused } from '../packages/kernel/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { readBoardKey } from '../packages/keys/index.js';
 import { request } from '../packages/link/index.js';
+import { relayFetch } from '../packages/person/index.js';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 
 const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -70,7 +71,7 @@ function snapshotDocument(bytes) {
 /** Read one authenticated event and prove that the smoke-created item reached the relay. */
 async function readMirroredMove({ address, board, token, key, after, item, title }) {
   const path = `/api/v1/boards/${board}/events?after=${after}`;
-  const response = await fetch(new URL(path, address), { headers: { authorization: `Bearer ${token}`, 'x-pullboard-engine': String(ENGINE_VERSION) } });
+  const response = await relayFetch(new URL(path, address), { headers: { authorization: `Bearer ${token}`, 'x-pullboard-engine': String(ENGINE_VERSION) } });
   if (!response.ok) {
     const refusal = await response.json().catch(() => ({}));
     if (refusal.error?.code === 'SNAPSHOT_REQUIRED') {

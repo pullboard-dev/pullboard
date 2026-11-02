@@ -22,7 +22,7 @@ import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { linkKnownMainReworks } from '../../packages/store/index.js';
-import { sealQuarantineVerdict } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
 import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
