@@ -536,3 +536,21 @@ test('an older flexible waiter leaves a scarce browser host for a browser waiter
     }
   });
 });
+
+test('a suite starts promptly on a mostly idle runner fleet [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = Array.from({ length: 5 }, (_, index) => ({ ...settings.runners[0], host: `${HOST}-fleet-${index}`, slots: 9, browser: 9 }));
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true,
+      runnerOnly: true, runnerProvider: () => runners };
+    const held = [];
+    let suite;
+    try {
+      for (let index = 0; index < 12; index += 1) held.push(await takeResource(options));
+      const start = Date.now();
+      suite = await takeResource({ ...options, browser: true, kind: 'suite', runnerWaitMs: 5_000 });
+      assert.ok(Date.now() - start < 5_000, 'a fleet with 33 free gate slots admits the suite without waiting for a holder');
+      assert.ok(suite.runner);
+    } finally { suite?.release(); for (const lease of held) lease.release(); }
+  });
+});
