@@ -1230,6 +1230,14 @@
     {
       "path": "src/move-history/201.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/untouched-claim-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/untouched-claim-observation.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
