@@ -1,3 +1,4 @@
+import { seatAt } from '../item-folder-identity.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
@@ -56,7 +57,7 @@ export async function run(io, { first, second, rest, values }) {
   if (first === 'accept') return checkAcceptCommand(io, second, rest, { context, withBoard, whoAmI, ordered, idArg, requirePersonChannel });
   const ctx = context(io);
   const { item, author, caller, agents } = withBoard(ctx, (board) => {
-    const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: store.agentAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
+    const me = first ? (ctx.info.isMain ? { id: COORDINATOR } : { id: seatAt(board, ctx.info.root)?.agent_id }) : whoAmI(ctx, board);
     const held = first ? store.getItem(board, idArg(first))
       : store.listItems(board).find((entry) => entry.item_status === 'claimed' && entry.item_owner === me.id && entry.item_parent_id === null);
     if (!held) throw new Refused('NOT_HOLDING', 'you hold no item; name one, pullboard check <id>, or run the project gate: pullboard gate');

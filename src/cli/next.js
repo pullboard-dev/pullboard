@@ -1,3 +1,4 @@
+import { mainPolicy } from '../../packages/sandbox/index.js';
 import { claimWorktrees } from '../../packages/activity/index.js';
 import { claimOverlapLines } from '../../packages/activity/index.js';
 import { claimOverlaps } from '../../packages/items/index.js';
@@ -6,9 +7,7 @@ import { agentSessionDigest } from '../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
-import { laneSeatContext } from '../../packages/seats/index.js';
 import { nextSessionSeats } from '../../packages/seats/index.js';
-import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
 import { mainRedReviewItems } from '../../packages/landing/index.js';
 import { computedReturnArgs } from '../../packages/landing/index.js';
@@ -19,7 +18,6 @@ import { mainLaneWork } from '../next-steps.js';
 import * as store from '../board.js';
 import { withBoardRead } from '../cli-context.js';
 import { agentDisplayName } from '../cli-context.js';
-import { context } from '../cli-context.js';
 import { idArg } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
 import { COORDINATOR } from '../../packages/config/index.js';
@@ -77,27 +75,39 @@ function warmFiles(ctx, board, me) {
 export async function nextOnce(ctx, values) {
   if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
-  const looked = values.verify ? { claim: true } : withBoardRead(ctx, (board) => nextPick(ctx, board, values));
+  if (values.verify) return withBoardRead(ctx, board => {
+    checkMainVerifier(ctx, board, values);
+    return nextReview(ctx, board, whoAmI(ctx, board), values, {
+      ordered: (operation, args) => withBoard(ctx, writable => ordered(ctx, writable, operation,
+        operation === 'reopen' ? computedReturnArgs(writable, args) : args)),
+      nextFor: store.nextFor, idArg, trunkMerge, listItems: store.listItems,
+      itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest,
+    });
+  });
+  const looked = withBoardRead(ctx, (board) => nextPick(ctx, board, values));
   if (!looked.claim) return looked;
   return await withBoard(ctx, async (board) => {
-    if (values.verify) checkMainVerifier(ctx, board, values);
-    if (values.verify) return nextReview(ctx, board, whoAmI(ctx, board), values, { ordered: (operation, args) => ordered(ctx, board, operation, operation === 'reopen' ? computedReturnArgs(board, args) : args), idArg, trunkMerge, listItems: store.listItems, itemById: store.itemById, getItem: store.getItem, mainRedReviewItems, agentSessionDigest });
     const picked = nextPick(ctx, board, values);
     if (!picked.claim) return picked;
-    const { me, item, held, shared, reasons, reviewSkipped, seats } = picked;
-    const routed = seats ? await laneSeatContext(ctx, board, me, item, seats, context, seatRoutingPorts) : { context: ctx };
-    const target = routed.context;
-    const holder = whoAmI(target, board);
+    // Claims belong to the seat that ran next, in its own item folder; next never routes a claim to another seat or opens one.
+    const { me: holder, item, held, shared, reasons, reviewSkipped } = picked;
+    const target = ctx;
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
       await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true }]);
     } catch (error) {
-      if (error instanceof MainSpecMerged) return { retry: true, ...routed, specMerged: { item: item.item_id, rows: error.rows } };
+      if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons, ...routed };
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons };
   });
+}
+
+/** Name the best item in another lane without claiming it; that lane's own seat builds it [N2,B13]. */
+function otherLaneWork(me, item, reasons) {
+  const line = `#${item.item_id} (${item.item_title}) is next, in the ${item.item_lane} lane; this seat builds the ${me.lane} lane, so it stays unclaimed for a ${item.item_lane} seat: pullboard worktree ${item.item_lane} --model "<model name>"`;
+  return { reasons: [...(reasons ?? []), line], idleReason: 'nothing-eligible', otherLane: { item: item.item_id, lane: item.item_lane } };
 }
 
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
@@ -113,7 +123,7 @@ function nextPick(ctx, board, values) {
   const heldItem = seats ? store.listItems(board).find((item) => item.item_status === 'claimed'
     && item.item_parent_id === null && item.item_owner === me.id && !pendingSubmitHandoff(board, item)
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
-  const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
+  const selection = { buildBudgetMinutes: mainPolicy(ctx.info.root).config.itemBuildBudgetMinutes ?? 30, agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
     policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
     skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }),
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
@@ -141,6 +151,7 @@ function nextPick(ctx, board, values) {
   if (!item) return { reasons, ...(values.observeIdle ? { idleReason: [picked.idleReason, !values.build && offer?.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? picked.idleReason ?? 'unknown' } : {}), laneWork: ctx.info.isMain ? mainLaneWork(store.listItems(board)) : null };
   const reviewSkipped = values.build && !held
     ? { offeredItem: offer?.item?.item_id ?? null, ratio: offer?.ratio ?? ctx.config.verify.reviewRatio, ...store.reviewQueue(board) } : null;
-  return { claim: true, me, item, held, shared, reasons, reviewSkipped, seats };
+  if (!held && item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
+  return { claim: true, me, item, held, shared, reasons, reviewSkipped };
 }
 

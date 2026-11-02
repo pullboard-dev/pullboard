@@ -23,8 +23,8 @@ export function getShout(board, id) {
 }
 
 /** Read every shout in creation order without marking it read, for addressed history and exports. */
-export function allShouts(board) {
-  return board.db.prepare('SELECT * FROM shout ORDER BY shout_id').all();
+export function allShouts(board, { from = null, since = null } = {}) {
+  return board.db.prepare('SELECT * FROM shout WHERE (? IS NULL OR shout_from = ?) AND (? IS NULL OR shout_at >= ?) ORDER BY shout_id').all(from, from, since, since);
 }
 
 /** Read one shout with the current open or answered state of its decision, if it is one. */

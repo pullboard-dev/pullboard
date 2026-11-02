@@ -18,9 +18,9 @@ import {
 } from "../../../../src/reopen-cause.js";
 
 /** The kinds of cause key and their shapes, in the order help and refusals name them. */
-export const CAUSE_FORMS = Object.freeze(['test:<file>::<title>', 'refusal:<CODE>', 'row:<id>', 'doctrine:<id>', 'sentinel:<name>', 'conflict:<file>']);
+export const CAUSE_FORMS = Object.freeze(['test:<file>::<title>', 'refusal:<CODE>', 'row:<id>', 'doctrine:<id>', 'sentinel:<name>', 'conflict:<file>', 'instruction:<kind>']);
 
-const CAUSE = /^(?:test:(?<file>[^\s:][^\r\n:]*)::(?<title>\S[^\r\n]*)|refusal:(?<code>[A-Z][A-Z0-9_]*)|row:(?<row>[A-Z][A-Za-z0-9.]*)|doctrine:(?<doctrine>[A-Z][A-Za-z0-9.]*)|sentinel:(?<sentinel>[a-z0-9][a-z0-9._-]{0,63})|conflict:(?<conflict>[^\r\n\0]+))$/u;
+const CAUSE = /^(?:test:(?<file>[^\s:][^\r\n:]*)::(?<title>\S[^\r\n]*)|refusal:(?<code>[A-Z][A-Z0-9_]*)|row:(?<row>[A-Z][A-Za-z0-9.]*)|doctrine:(?<doctrine>[A-Z][A-Za-z0-9.]*)|sentinel:(?<sentinel>[a-z0-9][a-z0-9._-]{0,63})|conflict:(?<conflict>[^\r\n\0]+)|instruction:(?:assignment|focus|freeze|merge-main|refreeze|routing))$/u;
 
 /** Refusal codes that name a merge conflict: a collision between branches, never a repeated error. */
 const CONFLICT_CODES = new Set(['MERGE_CONFLICT']);
@@ -94,7 +94,7 @@ export function isMergeConflict(key) {
  */
 export function causeReading(key) {
   if (key.startsWith('doctrine:') || key.startsWith('refusal:')) return 'work';
-  if (key.startsWith('row:')) return 'product';
+  if (key.startsWith('row:') || key.startsWith('instruction:')) return 'product';
   return 'both';
 }
 
