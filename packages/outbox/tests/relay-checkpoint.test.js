@@ -128,7 +128,7 @@ test('publishers that find a dead holder\'s claim together upload one checkpoint
   writeFileSync(join(directory, 'relay-checkpoint.pid'), '999999\n');
   writeFileSync(join(directory, 'relay-checkpoint.due'), `${Date.now() - 60_000}\n`);
   const from = box.calls.length;
-  const worker = fileURLToPath(new URL('../../../src/relay-checkpoint-worker.js', import.meta.url));
+  const worker = fileURLToPath(new URL('../../../apps/lib/src/shell/relay-checkpoint-worker.js', import.meta.url));
   const exits = Array.from({ length: 4 }, () => new Promise(done => {
     spawn(process.execPath, [worker, box.root, box.linkFile], { cwd: box.root, env: box.env, stdio: 'ignore' }).once('exit', done);
   }));
