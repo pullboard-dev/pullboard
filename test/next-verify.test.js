@@ -58,7 +58,7 @@ async function project(t) {
   box.builder = join(dir, 'builder'); box.reviewer = join(dir, 'reviewer');
   git(root, 'worktree', 'add', '-q', box.builder, '-b', 'web/one');
   git(root, 'worktree', 'add', '-q', box.reviewer, '-b', 'review/one');
-  box.board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock);
+  box.board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock, { gitRoot: root });
   t.after(() => store.closeBoard(box.board));
   box.builderId = store.register(box.board, { lane: 'web', path: box.builder, family: 'Fixture Builder Vendor' });
   box.reviewerId = store.register(box.board, { lane: 'review', path: box.reviewer, family: 'Fixture Reviewer Vendor' });
