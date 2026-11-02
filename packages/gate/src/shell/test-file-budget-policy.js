@@ -21,17 +21,22 @@ export function testFileBudgetPath(file) {
   return `${DIRECTORY}/${createHash('sha256').update(file).digest('hex')}.json`;
 }
 
-/** Read a Git object; a nonexistent row means the immutable default, not unlimited time. */
-function rowAt(root, ref, path, env) {
-  const entry = tryGit(root, ['ls-tree', '--format=%(objectname)', ref, '--', path], { env });
-  if (entry.status !== 0) throw new Error(`cannot read test file budget tree at ${ref}`);
-  if (!entry.stdout.trim()) return null;
-  const result = tryGit(root, ['show', `${ref}:${path}`], { env });
-  if (result.status !== 0) throw new Error(`cannot read test file budget row ${path}`);
-  const value = JSON.parse(result.stdout);
-  if (value?.version !== 1 || typeof value.file !== 'string' || testFileBudgetPath(value.file) !== path
-    || value.placement !== undefined && value.placement !== 'audit') throw new Error(`invalid test file budget row ${path}`);
-  return { file: value.file, ms: testFileLimit(value.ms), audit: value.placement === 'audit' };
+/** Read only reached rows, batching tree lookups so absent defaults do not each launch Git. */
+function rowsAt(root, ref, paths, env) {
+  const rows = new Map(), unique = [...new Set(paths)];
+  for (let start = 0; start < unique.length; start += 200) {
+    const entry = tryGit(root, ['ls-tree', '-r', '-z', '--name-only', ref, '--', ...unique.slice(start, start + 200)], { env });
+    if (entry.status !== 0) throw new Error(`cannot read test file budget tree at ${ref}`);
+    for (const path of entry.stdout.split('\0').filter(Boolean)) {
+      const result = tryGit(root, ['show', `${ref}:${path}`], { env });
+      if (result.status !== 0) throw new Error(`cannot read test file budget row ${path}`);
+      const value = JSON.parse(result.stdout);
+      if (value?.version !== 1 || typeof value.file !== 'string' || testFileBudgetPath(value.file) !== path
+        || value.placement !== undefined && value.placement !== 'audit') throw new Error(`invalid test file budget row ${path}`);
+      rows.set(path, { file: value.file, ms: testFileLimit(value.ms), audit: value.placement === 'audit' });
+    }
+  }
+  return rows;
 }
 
 /** Compare changed rows and read only the selected files, not the repository-wide table. */
@@ -43,16 +48,19 @@ export function readTestFileBudgets(root, files) {
   if (!main) throw new Error('cannot determine accepted main for test file budgets');
   const diff = tryGit(root, ['diff', '--no-renames', '--name-only', '-z', main, 'HEAD', '--', DIRECTORY], { env });
   if (diff.status !== 0) throw new Error('cannot compare test file budgets to accepted main');
-  for (const path of diff.stdout.split('\0').filter(Boolean)) {
-    const before = rowAt(root, main, path, env), after = rowAt(root, 'HEAD', path, env);
+  const changed = diff.stdout.split('\0').filter(Boolean);
+  const inside = portable.filter(file => file !== '..' && !file.startsWith('../') && !posix.isAbsolute(file));
+  const insideSet = new Set(inside);
+  const selected = inside.map(file => testFileBudgetPath(posix.normalize(file)));
+  const previous = rowsAt(root, main, changed, env);
+  const current = rowsAt(root, 'HEAD', [...changed, ...selected], env);
+  for (const path of changed) {
+    const before = previous.get(path), after = current.get(path);
     if (before && after && before.file !== after.file) throw new Error(`test file budget identity changed at ${path}`);
     requireTestFileRatchet(after?.file ?? before?.file ?? path, before?.ms, after?.ms);
   }
-  const inside = portable.filter(file => file !== '..' && !file.startsWith('../') && !posix.isAbsolute(file));
-  const insideSet = new Set(inside);
-  for (const file of inside) testFileBudgetPath(posix.normalize(file));
   return new Map(portable.map(file => {
-    const row = insideSet.has(file) ? rowAt(root, 'HEAD', testFileBudgetPath(file), env) : null;
+    const row = insideSet.has(file) ? current.get(testFileBudgetPath(file)) : null;
     return [file, { ms: row?.ms ?? DEFAULT_TEST_FILE_BUDGET_MS, audit: row?.audit === true }];
   }));
 }
