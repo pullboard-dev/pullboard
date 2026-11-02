@@ -7,6 +7,10 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addSigner } from '../packages/spec/index.js';
 import { runFixtureChild, runFixtureGit, fixtureChildMessage } from './fixture-child.js';
+import { boardStorageBytes } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { serveRelay } from '../apps/relay/index.js';
 
 /** Create an isolated native board with its established SSH signer authority. */
 export function signedBoard(t, name, clock) {
@@ -42,9 +46,6 @@ export async function consent(api, authority, parent, child, linkId, disclosure 
 /** Start the existing authenticated relay with real stand-in OAuth and private native snapshots. */
 export async function linkRelay(t, boards, authority) {
   const { githubFixture } = await import('./relay-fixture.js');
-  const { createGitHubClient } = await import('../apps/relay/index.js');
-  const { createRelayAuth } = await import('../apps/relay/index.js');
-  const { serveRelay } = await import('../apps/relay/index.js');
   const { request } = await import('../src/relay.js');
   const { generateBoardKey, seal } = await import('../packages/kernel/src/core/seal.js');
   const { exportBoard } = await import('../packages/store/index.js');
@@ -90,7 +91,6 @@ export async function linkRelay(t, boards, authority) {
       for (const state of states.values()) state.url = origin;
     },
     async storedBytes() {
-      const { boardStorageBytes } = await import('../apps/relay/index.js');
       return boards.reduce((total, box) => total + boardStorageBytes(join(directory, 'relay'), box.reference.boardId), 0);
     },
   };
