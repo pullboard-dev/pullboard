@@ -1178,6 +1178,22 @@
     {
       "path": "src/move-history/197.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/seat-timing.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/seat-ledger.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/command-docs/seats.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-test-placement.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
