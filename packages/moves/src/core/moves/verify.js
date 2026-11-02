@@ -1,3 +1,9 @@
+import { REVIEW_REQUEST_ENGINE } from '../../../../../src/review-request-engine.js';
+import {
+  frozenBar,
+  namedClause,
+  wording,
+} from '../../../../verify/src/core/frozen-clause.js';
 import { REJECTION_RETURN_ENGINE } from '../../../../../src/rejection-return-engine.js';
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../../src/review-family-relax-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
@@ -39,10 +45,14 @@ function minimumEngine(args, board, at) {
   const reservation = board?.db.prepare("SELECT event_detail FROM event WHERE item_id=? AND event_kind='reserve' ORDER BY event_id DESC LIMIT 1").get(args[0]);
   let relaxed = false;
   try { relaxed = JSON.parse(reservation?.event_detail ?? '{}').familyRelaxation?.version === 1; } catch { /* malformed events grant nothing */ }
+  const item = board && typeof args[1]?.clause === 'string' ? board.db.prepare('SELECT item_frozen FROM item WHERE item_id=?').get(args[0]) : null;
+  const quote = wording(args[1]?.clause);
+  const bar = item && frozenBar(item, true);
+  const checkClause = quote && bar && !namedClause(bar, quote) && namedClause(bar, quote, true);
   const sourceAdvance = args[1]?.sourceAdvanceHead !== undefined ? SOURCE_ADVANCE_ENGINE : 1;
   const outside = args[1]?.sandbox !== undefined || board && Boolean(outsideSource(board, args[0]));
   const patches = args[1]?.companionDigest !== undefined || board && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`item_patches:${args[0]}`);
-  return Math.max(relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
+  return Math.max(checkClause ? REVIEW_REQUEST_ENGINE : 1, relaxed ? REVIEW_FAMILY_RELAX_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofId') ? QUARANTINE_VERDICT_ENGINE : 1, checkTimingEngine(board, args[0]), sourceAdvance, itemReviewPolicyEngine(board, args[0]), requiredReviewFamilyEngine(board, args[0]), patches ? ITEM_PATCH_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, existingEngine(args, board, at),
     args[1] && Object.hasOwn(args[1], 'clause') ? REJECT_CLAUSE_ENGINE : 1);
 }
 
