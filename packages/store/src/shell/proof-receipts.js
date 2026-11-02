@@ -1,5 +1,6 @@
 import { EXIT_RULES_ENGINE } from "../../../state/index.js";
-import { proofReceipts, hasAgent } from "./board-query.js";
+import { proofReceipts } from "./board-query.js";
+import { hasAgent } from "./board-query.js";
 export { proofReceipts };
 /** Stamp the gate's own immutable receipt with the board's seat and recorded parent [C7,H16]. */
 import {
