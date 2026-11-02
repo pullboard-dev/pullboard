@@ -604,7 +604,7 @@ function checkStagedChange({ root, isMain, config, agent, boardFile, preMergeHoo
 }
 
 /**
- * A commit that deletes or renames a test file an approved must-row names must point that row at its new
+ * A commit that deletes or changes a renamed test file an approved must-row names must point that row at its new
  * home in the same commit, or the rule loses its test silently (#809). The row is read from HEAD's spec
  * and again from the staged one, so a repoint in this commit counts and a missing row does not.
  *
@@ -620,7 +620,11 @@ export function deletedGateProblems(root, config) {
   for (const line of status.stdout.split('\n').filter(Boolean)) {
     const [code, from, to] = line.split('\t');
     if (code.startsWith('D')) gone.set(from, 'deletes');
-    else if (code.startsWith('R')) gone.set(from, `renames to ${to}`);
+    else if (code.startsWith('R')) {
+      const before = tryGit(root, ['rev-parse', `HEAD:${from}`]);
+      const after = tryGit(root, ['rev-parse', `:${to}`]);
+      if (before.status !== 0 || after.status !== 0 || before.stdout.trim() !== after.stdout.trim()) gone.set(from, `renames to ${to} with changed content`);
+    }
   }
   if (!gone.size) return [];
   const head = tryGit(root, ['show', `HEAD:${config.spec}`]);
