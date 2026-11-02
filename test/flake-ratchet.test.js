@@ -1,7 +1,7 @@
 /** Quarantine counts are a per-landing ratchet, with named flake evidence [C7,T12]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { flakeRatchet, pairedFlakeObservations } from '../packages/flakes/index.js';
+import { flakeRatchet, pairedFlakeObservations, quarantinesAt } from '../packages/flakes/index.js';
 
 const observed = (file, eventId) => ({ file, name: 'case', status: 'active', count: 1, lastEventId: eventId });
 const quarantine = (file, item, eventId) => ({ file, name: 'case', status: 'quarantined', item, eventId });
@@ -46,4 +46,18 @@ test('native paired test verdicts identify new flakes without mixing trees [C7,T
   assert.deepEqual(pairedFlakeObservations([red, green], { afterEvent: 6 }), [observed('test/a.test.js', 8)]);
   assert.deepEqual(pairedFlakeObservations([red, green], { afterEvent: 8 }), []);
   assert.deepEqual(pairedFlakeObservations([red, { ...green, id: 'red' }]), []);
+});
+
+/** A later repair must not rewrite the count that was true at an earlier landing. */
+test('historical quarantines use the landing boundary, including later reopens and merges [C7,T12]', () => {
+  const event = (event_id, event_kind, item_id, event_detail = {}) => ({ event_id, event_kind, item_id, event_detail });
+  const history = [event(1, 'test-quarantine', 7, { file: 'test/a.test.js', name: 'case', engine: 2 }),
+    event(2, 'accept', 7), event(3, 'reopen', 7), event(4, 'test-quarantine', 8, { file: 'test/b.test.js', name: 'case', engine: 3, autoSubmit: true }),
+    event(5, 'accept', 8), event(6, 'merged', 8)];
+  const at = throughEvent => quarantinesAt(history, [], { throughEvent, quarantineCoreEngine: 2, autoSubmitEngine: 3 });
+  assert.equal(at(1)[0].status, 'quarantined');
+  assert.equal(at(2)[0].status, 'lifted');
+  assert.equal(at(3)[0].status, 'quarantined');
+  assert.equal(at(5)[1].status, 'quarantined');
+  assert.equal(at(6)[1].status, 'lifted');
 });

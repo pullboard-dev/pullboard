@@ -54,3 +54,42 @@ export function pairedFlakeObservations(runs, { afterEvent = 0 } = {}) {
   }
   return [...observations.values()];
 }
+
+/** Reconstruct quarantines at a landing boundary from the ordered native event history. */
+export function quarantinesAt(events, runs, { throughEvent, quarantineCoreEngine, autoSubmitEngine }) {
+  if (!Number.isSafeInteger(throughEvent) || throughEvent < 0) throw new TypeError('a historical snapshot needs an event boundary');
+  const states = new Map(), latest = new Map();
+  for (const event of events) {
+    if (event.event_id > throughEvent) break;
+    const detail = typeof event.event_detail === 'string' ? JSON.parse(event.event_detail) : event.event_detail ?? {};
+    if (event.event_kind === 'test-quarantine') {
+      latest.set(key(detail), { file: detail.file, name: detail.name, item: event.item_id, eventId: event.event_id,
+        nativeCore: detail.engine >= quarantineCoreEngine, autoSubmit: detail.engine >= autoSubmitEngine && detail.autoSubmit === true });
+    }
+    if (event.item_id == null) continue;
+    const state = states.get(event.item_id) ?? { verified: false, withdrawn: false, merged: false };
+    if (event.event_kind === 'accept') { state.verified = true; state.withdrawn = false; }
+    if (['reject', 'reopen', 'claim'].includes(event.event_kind)) { state.verified = false; state.withdrawn = false; }
+    if (event.event_kind === 'submit') { state.verified = Boolean(detail.mergeOnly); state.withdrawn = false; }
+    if (event.event_kind === 'withdraw') { state.verified = false; state.withdrawn = true; }
+    if (event.event_kind === 'merged') state.merged = true;
+    states.set(event.item_id, state);
+  }
+  return [...latest.values()].map(entry => {
+    const state = states.get(entry.item) ?? { verified: false, withdrawn: false, merged: false };
+    let streak = 0;
+    const seen = new Set();
+    if (entry.nativeCore && !entry.autoSubmit) for (const run of runs) {
+      if (run.eventId <= entry.eventId || run.eventId > throughEvent || seen.has(run.id)
+        || ['suite', 'main-red'].includes(run.kind) || !Array.isArray(run.testOutcomes)
+        || !(run.version === 1 || run.version === 2 && run.proof?.sourceClean === true && [0, 1].includes(run.proof?.exitCode))) continue;
+      seen.add(run.id);
+      const outcome = run.testOutcomes.find(row => row.file === entry.file && row.name === entry.name);
+      if (!outcome || outcome.skipped) continue;
+      streak = outcome.passed ? streak + 1 : 0;
+      if (streak === 20) break;
+    }
+    const lifted = entry.autoSubmit ? state.merged : state.verified || !entry.nativeCore && state.withdrawn || streak === 20;
+    return { ...entry, status: lifted ? 'lifted' : 'quarantined' };
+  });
+}
