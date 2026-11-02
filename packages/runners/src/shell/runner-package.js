@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 /** Build a bounded worker import closure inside the package's shipped-file manifest [C7,P3]. */
 import { isBuiltin } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -127,4 +128,42 @@ function derivePackage(root, entry, previous, parse) {
     }
   }
   return { runtime: { entry, files: Object.fromEntries(Object.entries(files).sort(([a], [b]) => a.localeCompare(b))) }, analyses };
+}
+
+
+/** Fingerprint locally initialized controller modules; these bytes never enter the worker transfer payload. */
+export function controllerPolicyFingerprints(root) {
+  const allowed = new Set(packageFiles(root));
+  const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const fingerprints = new Map();
+  const parser = createRunnerModuleParser();
+  let bytes = 0;
+  let pending = ['bin/runner-controller.js', 'package.json'];
+  if (allowed.has('src/gate-policy-load.js')) pending.push('src/gate-policy-load.js');
+  try {
+    while (pending.length) {
+      const level = [...new Set(pending)].filter(file => !fingerprints.has(file)).sort();
+      pending = [];
+      const modules = [], sources = [];
+      for (const file of level) {
+        if (!allowed.has(file)) unavailable(file, 'the controller import leaves package.json files');
+        const source = readFileSync(join(root, file));
+        bytes += source.length;
+        // This is a bounded local fingerprint, independent of the unchanged 1 MiB worker capsule ceiling.
+        if (fingerprints.size >= 4096 || bytes > 16 * 1024 ** 2) unavailable(file, 'the local controller fingerprint exceeds its source bound');
+        fingerprints.set(file, createHash('sha256').update(source).digest('hex'));
+        if (/\.[cm]?js$/u.test(file)) { modules.push(file); sources.push(source.toString('utf8')); }
+      }
+      // V8 exposes actual static imports and re-exports without linking or evaluating any controller code.
+      const records = sources.length ? parser.parse(sources) : [];
+      for (const [index, file] of modules.entries()) {
+        if (!records[index].compiles) unavailable(file, 'the controller module does not compile');
+        for (const specifier of records[index].imports) {
+          const target = dependency(file, specifier, manifest);
+          if (target !== null) pending.push(target);
+        }
+      }
+    }
+    return Object.freeze(Object.fromEntries([...fingerprints].sort(([a], [b]) => a.localeCompare(b))));
+  } finally { parser.close(); }
 }

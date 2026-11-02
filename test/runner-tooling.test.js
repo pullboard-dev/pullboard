@@ -131,7 +131,7 @@ test('warmed controller refuses changed policy bytes and a fresh run uses each n
   writeFileSync(helper, "export const policyEpoch = 'ORIGINAL';\n");
   writeFileSync(policy, baseline);
   const runner = JSON.stringify({ host: HOST, slots: 1, browser: 0 });
-  const entry = JSON.stringify(pathToFileURL(join(tooling, 'src/runners.js')).href);
+  const entry = JSON.stringify(pathToFileURL(join(tooling, 'packages/runners/index.js')).href);
   const facade = JSON.stringify(pathToFileURL(join(tooling, 'packages/runners/index.js')).href);
   const script = `
 import assert from 'node:assert/strict';
