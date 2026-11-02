@@ -53,6 +53,17 @@ function compilerExit(directory) {
     { code: 'CELL_BINDING_WORKER_EXIT', workerExitCode: exit.code, workerSignal: exit.signal, stderr });
 }
 
+/** A clean supervisor rotation witnesses that its last compiler has closed. */
+function supervisorRotation(directory, pid) {
+  const file = join(directory, 'supervisor-rotation.json');
+  let stat;
+  try { stat = lstatSync(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 65536) throw failure();
+  const rotation = JSON.parse(readFileSync(file, 'utf8'));
+  if (rotation?.version !== 1 || rotation.pid !== pid || !Number.isSafeInteger(rotation.sequence) || rotation.sequence < 1) throw failure();
+  return rotation;
+}
+
 /** Read an atomically published, bounded ordinary reply; absence means this batch is still compiling. */
 function replyAt(file, id, count) {
   let stat;
@@ -74,11 +85,16 @@ export function withCellLintParser(work) {
   function close() {
     closed = true;
     if (child) {
+      let rotation = null;
+      try { rotation = supervisorRotation(directory, child.pid); } catch { /* Invalid evidence cannot prove cleanup. */ }
       child.kill('SIGTERM');
       // budget: five seconds to observe the owned supervisor's terminal journal before removing its transport.
       const deadline = process.hrtime.bigint() + 5_000_000_000n;
-      let terminal = !Number.isSafeInteger(child.pid);
+      let terminal = !Number.isSafeInteger(child.pid) || Boolean(rotation);
       while (Number.isSafeInteger(child.pid) && process.hrtime.bigint() < deadline) {
+        if (terminal) break;
+        try { terminal = Boolean(supervisorRotation(directory, child.pid)); } catch { /* A malformed record is not a terminal witness. */ }
+        if (terminal) break;
         try { terminal = Boolean(compilerExit(directory)); } catch { /* A malformed record is not a terminal witness. */ }
         if (terminal) break;
         Atomics.wait(sleeper, 0, 0, 2);
@@ -93,6 +109,26 @@ export function withCellLintParser(work) {
     }
     if (directory) { rmSync(directory, { recursive: true, force: true }); directory = null; }
   }
+  /** Start an owned supervisor at the last completed sequence, never before a rotation witness. */
+  function startSupervisor(previous) {
+    child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning',
+      fileURLToPath(new URL('./cell-parser-worker.js', import.meta.url)), directory, String(process.pid), '--supervise', String(previous)],
+    { stdio: 'ignore' });
+    child.on('error', error => { failed ??= error; });
+    child.unref();
+    if (!Number.isSafeInteger(child.pid)) throw failure();
+  }
+  /** Move to a new supervisor only after its predecessor recorded the exact completed request. */
+  function rotateSupervisor(expected) {
+    const rotation = supervisorRotation(directory, child.pid);
+    if (!rotation) return false;
+    if (rotation.sequence !== expected) throw failure();
+    child.unref();
+    child = null;
+    rmSync(join(directory, 'supervisor-rotation.json'));
+    startSupervisor(expected);
+    return true;
+  }
   /** Compile the next bounded batch without linking, evaluating or retaining repository modules. */
   function parseBatch(sources) {
     if (failed) throw failed;
@@ -102,12 +138,7 @@ export function withCellLintParser(work) {
     if (Buffer.byteLength(input) > MAX_BYTES) throw failure();
     if (!child) {
       directory = mkdtempSync(join(tmpdir(), 'pullboard-cell-parser-'));
-      child = spawn(process.execPath, ['--disable-warning=ExperimentalWarning',
-        fileURLToPath(new URL('./cell-parser-worker.js', import.meta.url)), directory, String(process.pid), '--supervise'],
-      { stdio: 'ignore' });
-      child.on('error', error => { failed ??= error; });
-      child.unref();
-      if (!Number.isSafeInteger(child.pid)) throw failure();
+      startSupervisor(id - 1);
     }
     const request = join(directory, `request-${id}.json`), reply = join(directory, `reply-${id}.json`);
     const temporary = request + '.tmp';
@@ -120,6 +151,7 @@ export function withCellLintParser(work) {
       while (process.hrtime.bigint() < deadline) {
         const results = replyAt(reply, id, sources.length);
         if (results) return results;
+        if (rotateSupervisor(id - 1)) continue;
         const exited = compilerExit(directory);
         if (exited) throw exited;
         // Budget: poll only this private reply; the bounded extension accommodates a loaded machine.

@@ -50,6 +50,26 @@ test('one owned parser controller serves import and multiple binding batches, th
   finally { clearInterval(keepAlive); }
 });
 
+test('compiler rotations hand off to a fresh supervisor without losing replies [C7,P3]', t => {
+  const original = childProcess.spawn;
+  let starts = 0;
+  t.mock.method(childProcess, 'spawn', (...args) => {
+    if (args[0] === process.execPath && args[1].includes('--supervise')) starts++;
+    return original(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const sources = Array.from({ length: 128 }, (_, index) => `import value from './leaf-${index}.js'; export default value;`);
+  withCellLintParser(parse => {
+    for (let batch = 0; batch < 260; batch++) {
+      const rows = parse(sources);
+      assert.equal(rows.length, 128);
+      assert.deepEqual(rows[0], { compiles: true, imports: ['./leaf-0.js'] });
+    }
+  });
+  assert.equal(starts, 2, 'the controller replaces its supervisor after the bounded rotation count');
+});
+
 test('the real lint CLI starts one parser controller per cold run and prints unchanged report bytes [C7,P3]', t => {
   const box = fixture(t);
   const files = privateFixtureFiles('pullboard-parser-count-');
