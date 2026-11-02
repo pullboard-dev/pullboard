@@ -110,6 +110,7 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
     folders.push(JSON.parse(claimed.out).itemFolder);
   }
   for (const folder of folders) {
+    mkdirSync(join(folder, 'web'), { recursive: true });
     writeFileSync(join(folder, 'web/new.js'), "import { git } from '../src/git.js';\n");
     box.git(folder, 'add', 'web/new.js');
   }
