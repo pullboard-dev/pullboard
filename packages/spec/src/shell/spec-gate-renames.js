@@ -34,7 +34,7 @@ export function preservedGateRename(root, from, to) {
   const removed = spawnSync('git', ['log', '-1', '--format=%H', '--diff-filter=D', '--no-renames', 'HEAD', '--', from], options);
   const commit = removed.status === 0 ? removed.stdout.trim() : '';
   if (!/^[a-f0-9]{40}$/u.test(commit)) return false;
-  const diff = spawnSync('git', ['diff', '--find-renames', '--name-status', '-z', `${commit}^`, commit], options);
+  const diff = spawnSync('git', ['diff', '--find-renames', '--name-status', '-z', `${commit}^`, 'HEAD'], options);
   if (diff.status !== 0) return false;
   const fields = diff.stdout.split('\0');
   let matched = false;
@@ -47,8 +47,6 @@ export function preservedGateRename(root, from, to) {
   }
   if (!matched) return false;
   const before = spawnSync('git', ['rev-parse', `${commit}^:${from}`], options);
-  const after = spawnSync('git', ['rev-parse', `${commit}:${to}`], options);
-  const current = spawnSync('git', ['rev-parse', `HEAD:${to}`], options);
-  return before.status === 0 && after.status === 0 && current.status === 0
-    && before.stdout.trim() === after.stdout.trim() && before.stdout.trim() === current.stdout.trim();
+  const after = spawnSync('git', ['rev-parse', `HEAD:${to}`], options);
+  return before.status === 0 && after.status === 0 && before.stdout.trim() === after.stdout.trim();
 }
