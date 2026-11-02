@@ -95,8 +95,21 @@ export function computedConflictProblem(board, item, actor, receipt) {
   const problem = bindingProblem(board, item, actor, receipt);
   if (problem) return problem;
   const fields = requireComputedConflict(board, receipt);
-  if (!isRecordedConflictContext(board, item, actor, receipt)) requireCurrentConflict(board, fields);
+  if (!isRecordedConflictContext(board, item, actor, receipt)) {
+    // Checked inside the reopen write, so a reservation taken after the caller's snapshot still holds (#1356).
+    // A recorded replay skips it, like the current-conflict check, so history replays unchanged.
+    const held = heldReviewProblem(board, item, actor);
+    if (held) return held;
+    requireCurrentConflict(board, fields);
+  }
   return null;
+}
+
+/** Refuse an automatic return while a different reviewer holds a live reservation on the head [C7,V4]. */
+function heldReviewProblem(board, item, actor) {
+  const holder = item.item_review_by;
+  if (!holder || holder === actor || !(Date.parse(item.item_review_until ?? '') > board.clock.now().getTime())) return null;
+  return new Refused('REVIEW_HELD', `${holder} holds the review of #${item.item_id} until ${item.item_review_until}; its conflict return waits for that review to end; take another: pullboard next --verify`);
 }
 
 /** Derive merge fields from canonical evidence; malformed evidence remains a merge request that authority refuses. */

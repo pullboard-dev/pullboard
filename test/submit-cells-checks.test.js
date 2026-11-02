@@ -210,6 +210,7 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../packages/codemap/index.js';
+import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { cachedBindingMetadata } from '../packages/codemap/src/shell/cell-binding-uses.js';
 import { exportReachability } from '../packages/codemap/src/shell/cell-lint-exports.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
@@ -669,4 +670,33 @@ test('unchanged accepted cell cut evidence is reused across different candidate 
   box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(preflight(box.root, box.main, commitCandidate(box), box.item, services), /kernel --cuts: kernel still imports later stats/u,
     'cached accepted evidence cannot hide a new candidate cut');
+});
+
+test('fixture binding compiler retries timeouts and names persistent timeouts [C7,D3]', t => {
+  const original = childProcess.spawnSync;
+  let calls = 0, always = false, firstTimeout;
+  t.mock.method(childProcess, 'spawnSync', (...args) => {
+    if (args[0] === process.execPath && args[1]?.includes('--experimental-vm-modules')) {
+      calls++;
+      if (always || calls === 1) {
+        firstTimeout ??= args[2].timeout;
+        return { status: null, error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }) };
+      }
+      if (calls === 2) assert.ok(args[2].timeout > firstTimeout);
+    }
+    return original(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const source = "import { readFileSync } from 'node:fs'; const constructor = URL; readFileSync(new URL('../src/old.js', import.meta.url));";
+  const options = { file: 'test/fixture.js', moves: [['src/old.js', 'packages/new.js']] };
+  const retried = fixtureSourceEdits(source, options);
+  assert.ok(calls >= 2, 'fixture analysis reached and retried its compiler');
+  assert.deepEqual(retried.problems, [], 'fixture analysis passes after the retry');
+  const modules = bindingModules();
+  assert.ok(bindingReadsForModules(modules).get('binding-cache.js').get('join').reads.length > 0);
+  always = true;
+  assert.throws(() => bindingReadsForModules(modules), /compiler timeout after retry.*load .*cores/u);
+  const fixture = fixtureSourceEdits(source, options);
+  assert.match(fixture.problems.join(' '), /compiler timeout after retry.*load .*cores/u);
 });

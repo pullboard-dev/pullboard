@@ -1,3 +1,4 @@
+import { claimWorktrees } from '../../packages/activity/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
@@ -21,6 +22,7 @@ import {
   Refused,
 } from '../../packages/kernel/index.js';
 import * as seatCheckout from '../seat-checkout.js';
+import { cleanItemFolders } from '../item-folder.js';
 import {
   agentDisplayName,
   MainSpecMerged,
@@ -77,8 +79,9 @@ export async function nextHere(io, values) {
 async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
+  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), store.listItems));
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
-    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest };
+    whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
     throw new Refused('USAGE', 'run pullboard next --take without an item id, --build, --verify or --as');
   }

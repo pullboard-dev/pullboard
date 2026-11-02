@@ -10,6 +10,11 @@ import { execFileSync } from 'node:child_process';
 import { channel } from 'node:diagnostics_channel';
 import { performance } from 'node:perf_hooks';
 import { createWriteStream } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { availableParallelism } from 'node:os';
 import { resolve } from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -21,6 +26,10 @@ import { testsNeedBrowser } from './browser-admission.js';
 import { takeResource } from '../../../resources/index.js';
 import { reserveTestFileToken } from './test-file-pool.js';
 import { testOutcomeCollector } from './test-outcomes.js';
+import { readTestFileBudgets } from './test-file-budget-policy.js';
+import { testFileRelative } from './test-file-budget-policy.js';
+import { testFileBudgetFailure } from '../core/test-file-budget.js';
+import { repoInfo } from '../../../git/index.js';
 import { TEST_FILE_POOL_ENV } from './test-file-pool.js';
 import {
   bindTestRuntime,
@@ -40,12 +49,13 @@ function acquisitionQueue() {
 }
 
 /** Set only this actual worker's legitimately reserved admission before its ordinary runner preload. */
-function admissionImport(value, browser, runner) {
+function admissionImport(value, browser, runner, outputMarker) {
   const recorder = testRuntimeImport();
   const source = (recorder ? `await import(${JSON.stringify(recorder)});` : '') + `process.env[${JSON.stringify(TEST_FILE_POOL_ENV)}]=${JSON.stringify(value)};`
     + (browser ? `process.env.PULLBOARD_TEST_BROWSER_OWNER_PID=${JSON.stringify(String(process.pid))};`
       + "if(process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH==='1')process.env.PULLBOARD_TEST_BROWSER_SLOT='held';"
       + 'delete process.env.PULLBOARD_TEST_BROWSER_BY_LAUNCH;' : '')
+    + `process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT=${JSON.stringify(outputMarker)};`
     + `await import(${JSON.stringify(pathToFileURL(runner).href)});`;
   return `data:text/javascript,${encodeURIComponent(source)}`;
 }
@@ -87,6 +97,10 @@ export function dispatchTestFiles(options, env) {
   else options.signal?.addEventListener('abort', abort, { once: true });
   const signal = controller.signal;
   const files = options.selectedFiles ?? options.files ?? [];
+  const cwd = process.cwd();
+  let budgetRoot = cwd;
+  try { budgetRoot = repoInfo(cwd).root; } catch { /* A non-repository test run uses the default limit. */ }
+  const budgets = readTestFileBudgets(budgetRoot, files.map(file => resolve(cwd, file)));
   const limit = options.concurrency === false ? 1 : options.concurrency === true
     ? Math.max(1, availableParallelism() - 1) : options.concurrency ?? 1;
   const acquire = acquisitionQueue();
@@ -130,6 +144,8 @@ export function dispatchTestFiles(options, env) {
     let unlock;
     let drained;
     let fileExited;
+    const outputDirectory = mkdtempSync(join(tmpdir(), 'pullboard-test-output-'));
+    const outputMarker = join(outputDirectory, 'activity');
     try {
       browser = await browserLease(file);
       signal.throwIfAborted();
@@ -140,7 +156,7 @@ export function dispatchTestFiles(options, env) {
       const execArgv = [...options.execArgv];
       const preload = execArgv.indexOf('--import');
       if (preload < 0 || !execArgv[preload + 1]) throw new Error('test-file dispatch requires its ordinary runner preload');
-      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1]);
+      execArgv[preload + 1] = admissionImport(token.value, browser, execArgv[preload + 1], outputMarker);
       fileExited = fileExitObserver(execArgv[preload + 1], file);
       const source = run({ ...options, files: [file], shard: undefined, concurrency: 1, signal,
         setup: undefined, execArgv });
@@ -150,6 +166,7 @@ export function dispatchTestFiles(options, env) {
       let afterPlan = false;
       drained = (async () => {
         for await (const event of source) {
+          if ((event.type === 'test:stdout' || event.type === 'test:stderr') && event.data.message?.length) writeFileSync(outputMarker, String(Date.now()));
           if (event.type === 'test:plan' && event.data.nesting === 0) { afterPlan = true; continue; }
           if (event.type === 'test:summary' && !event.data.file) { summary = event.data; continue; }
           if (trailer(event, afterPlan)) continue;
@@ -160,6 +177,14 @@ export function dispatchTestFiles(options, env) {
         if (!summary) throw new Error(`test file ended without a native summary: ${file}`);
         const actualWorkers = await fileExited();
         if (summary.success && actualWorkers !== 1) throw new Error(`test file has no actual worker exit receipt: ${file}`);
+        const portableFile = testFileRelative(budgetRoot, resolve(cwd, file));
+        const budget = budgets.get(portableFile);
+        const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit);
+        if (over) {
+          process.stderr.write(`test file budget: ${over}\n`);
+          events.push({ type: 'test:diagnostic', data: { nesting: 0, message: over } });
+          summary.success = false;
+        }
         summaries.push(summary);
         blocks.set(index, { events, summary });
         flush();
@@ -175,7 +200,7 @@ export function dispatchTestFiles(options, env) {
       try { if (drained) await drained; }
       finally {
         try { await fileExited?.(); await token?.drained(); token?.release(); }
-        finally { unlock?.(); browser?.release(); }
+        finally { unlock?.(); browser?.release(); rmSync(outputDirectory, { recursive: true, force: true }); }
       }
     }
   }

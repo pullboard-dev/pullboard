@@ -430,3 +430,29 @@ test('replay of a version-three receipt keeps the older policy for plan rows [H1
   assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 3 }), [], 'the recorded version-three answer is unchanged');
   assert.deepEqual(mechanicalConflictFiles(root, heads[0], heads[1], { version: 4 }), [SHARD_FILE]);
 });
+
+test('moved shim exceptions require a live edge or trusted historical import [C7,D3,CD64]', t => {
+  for (const mode of ['live', 'expired', 'history', 'uncommitted-history', 'unreferenced', 'wrong-leaf']) {
+    const { root, put } = fixture(t);
+    put('package.json', JSON.stringify({ type: 'module', bin: 'bin/tool.js' }));
+    if (mode === 'history') {
+      put('src/move-history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
+      git(root, 'add', 'src/move-history/152.json');
+      git(root, 'commit', '-q', '-m', 'seal history');
+    }
+    const plan = computePlan(root);
+    writePlan(root, plan);
+    put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {}\n');
+    put('packages/kernel/src/core/other.js', 'export class Refused extends Error {}\n');
+    put('packages/kernel/index.js', "export { Refused } from './src/core/refused.js';\n");
+    put('src/board.js', "import { Refused } from '../packages/kernel/index.js';\nexport const board = () => Refused;\n");
+    put('src/refused.js', `export { Refused } from '../packages/kernel/src/core/${mode === 'wrong-leaf' ? 'other' : 'refused'}.js';\n`);
+    if (['live', 'expired', 'wrong-leaf'].includes(mode)) put('bin/cells-plan/temporary-edges.json', JSON.stringify({ version: 1, edges: [{ importer: 'src/refused.js', target: 'packages/kernel/src/core/refused.js', contractItem: 42, expires: mode === 'expired' ? '2000-01-01' : '2999-01-01' }] }));
+    if (mode === 'uncommitted-history') put('src/move-history/152.json', JSON.stringify({ version: 1, engine: 152, declarations: { 'fixtureMove.js': "import '../refused.js';\n" } }));
+    const notes = [], problems = checkMoved(root, plan, 'kernel', { notes });
+    if (mode === 'live' || mode === 'history') {
+      assert.deepEqual(problems, [], `${mode}: ${problems.join('\n')}`);
+      assert.match(notes.join('\n'), mode === 'live' ? /live temporary edge #42/u : /sealed move history/u);
+    } else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
+  }
+});

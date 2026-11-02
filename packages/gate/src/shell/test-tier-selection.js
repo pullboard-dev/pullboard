@@ -1,5 +1,5 @@
 /** Select testing tiers from immutable source; caller hints never hide a changed package [C7,CS4,V4]. */
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
 import { mkdtempSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,7 +18,7 @@ const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
 
 /** Read exact Git objects or construct an isolated read view without executing project hooks. */
 function sourceGit(root, args, optional = false) {
-  const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
+  const result = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
     cwd: root, env: { ...cleanGitEnvironment(), GIT_OPTIONAL_LOCKS: '0' }, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024,
   });
   if (result.status === 0) return result.stdout;

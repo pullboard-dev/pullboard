@@ -27,6 +27,9 @@ import {
   requireExitActive,
 } from './exit-rules-state.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
+import { policyAt } from '../packages/sandbox/index.js';
+import { trunkRef } from '../packages/sandbox/index.js';
+import { tryGit } from './git.js';
 
 /** Read only the same regular native transcript and verify its complete claim prefix. */
 function sourceBytes(source, previous) {
@@ -91,7 +94,17 @@ export async function enforceExitBoundary(io, command) {
   let ctx;
   try { ctx = context(io); }
   catch (error) { if (['NO_REPO', 'NOT_A_REPO', 'NO_CONFIG'].includes(error.code)) return; throw error; }
-  if (ctx.info.isMain || mainPolicy(ctx.info.root).config.exitRules?.enabled !== true) return;
+  if (ctx.info.isMain) return;
+  let policy;
+  try { policy = mainPolicy(ctx.info.root); }
+  catch (error) {
+    if (!(error instanceof Refused) || error.code !== 'NO_POLICY') throw error;
+    const ref = trunkRef(ctx.info.root);
+    const resolved = ref && tryGit(ctx.info.root, ['rev-parse', '--verify', `${ref}^{commit}`]);
+    if (!resolved || resolved.status !== 0) throw error;
+    policy = policyAt(ctx.info.root, resolved.stdout.trim());
+  }
+  if (policy.config.exitRules?.enabled !== true) return;
   const { withBoard } = await import('./cli-context.js');
   await io.prepareProcessPorts?.();
   ctx.nativeBoard = io.nativeBoard ??= await io.loadNativeBoard();
