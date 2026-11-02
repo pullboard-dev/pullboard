@@ -32,6 +32,9 @@ import { moveItem } from "./board.js";
 import { escalate } from "./board.js";
 import { postRigorNotices } from "./board.js";
 import { reviewerChecks } from "./board.js";
+import { reservedRelaxation } from './board-review-family.js';
+import { itemReviewPolicy } from '../../../verify/index.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
 import { holdItem } from "./board-hold-item.js";
 import { persistShout } from "./board-shout.js";
 import { shout } from "./board-shout.js";
@@ -67,7 +70,11 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
   // Without the new sealed metadata, old moves keep their exact submitted-only semantics.
   const transition = newReview ? declaration : { ...declaration, from: ['submitted'],
     guards: declaration.guards.filter(guard => !['notMerged', 'verdictReviewRecorded', 'reviewTreeCurrent'].includes(guard)) };
+  const suppliedNote = note.trim();
   return atomic(board, () => {
+    const relaxedItem = engine >= REVIEW_FAMILY_RELAX_ENGINE ? getItem(board, id) : null;
+    const relaxation = relaxedItem && itemReviewPolicy(board, id).tier === 'standard' ? reservedRelaxation(board, relaxedItem, agentId) : null;
+    if (relaxation) note += `\nreview family relaxed at reservation: ${relaxation.queueLength} waiting, threshold ${relaxation.threshold}; active seats: ${relaxation.activeSeats.join(', ') || 'none'}`;
     let proofKnown;
     if (knownMainFailures !== undefined) {
       if (!isAccept || !review || knownMainFailures.main !== review.trunk) throw new Refused('SUBMISSION_PROOF', 'known main failures must match the accepting review trunk');
@@ -93,7 +100,7 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
           : new Refused('ALREADY_MERGED', `item #${id} already landed; only unlanded acceptances can be re-reviewed`),
         verdictReviewRecorded: found => verdictReviewProblem(review, found.item_commit, { checked: engine >= VERDICT_REVIEW_ENGINE }),
         reviewTreeCurrent: null,
-        ...reviewerChecks(board, { agentId, policy, familyPolicy }),
+        ...reviewerChecks(board, { agentId, policy, familyPolicy, ...(engine >= REVIEW_FAMILY_RELAX_ENGINE ? { relaxationFor: () => relaxation } : {}) }),
         criterionUnchanged: (found) =>
           digest === found.item_frozen_digest
             ? isAccept ? itemPatchReviewProblem(board, found, companionDigest, { getItem }) : null
@@ -104,11 +111,11 @@ export function verify(board, id, { agentId, decision, reason, note = '', cause,
         itemCheckGreen: found => isAccept ? outsideSandboxProblem(board, found, sandbox) : null,
         proofRecorded: null, // The native verifier records the gate receipt before this ordered outcome.
         proofNoted: () =>
-          note.trim()
+          suppliedNote
             ? null
             : new Refused('PROOF_REQUIRED', 'an accept says how you proved it: --note "what you broke or which edge you tried, and what happened"; passing tests alone are not proof'),
         reasonCoded: () => (reason && REJECT_REASONS.includes(reason) ? null : new Refused('BAD_REASON', `a reject names one of: ${REJECT_REASONS.join(', ')}`)),
-        noteGiven: () => (note.trim() ? null : new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."')),
+        noteGiven: () => (suppliedNote ? null : new Refused('NOTE_REQUIRED', 'a reject says what failed: --note "..."')),
         causeWellFormed: () => causeProblem(cause),
         clauseWellFormed: found => isAccept ? null : rejectClause.rejectionClauseProblem(found, clause, engine),
       },
