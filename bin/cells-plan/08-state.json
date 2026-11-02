@@ -89,8 +89,7 @@
   ["src/engine-move-apply-row-decisions.js","packages/state/src/core/engine-move-apply-row-decisions.js","rule"],
   ["src/engine-move-queue-submit-handoff.js","packages/state/src/shell/engine-move-queue-submit-handoff.js","rule"],
   ["src/plan-merge-engine.js","packages/state/src/shell/plan-merge-engine.js","rule"],
-  ["src/inspection-clauses.js","packages/state/src/core/inspection-clauses.js","rule"],
-  ["src/focus-boundary-engine.js","packages/state/src/shell/focus-boundary-engine.js","rule"]
+  ["src/inspection-clauses.js","packages/state/src/core/inspection-clauses.js","rule"]
  ],
  "reexports": ["src/engine.js","src/machine.js"],
  "imports": [

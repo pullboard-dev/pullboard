@@ -46,7 +46,7 @@ import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 import { lineSettings } from "../../../state/index.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
-import { FOCUS_BOUNDARY_ENGINE } from '../../../../src/focus-boundary-engine.js';
+import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
 
 /**
  * The next item an agent can take (N2): for a builder, the oldest open item in its lane whose

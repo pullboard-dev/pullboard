@@ -12,7 +12,7 @@ import { Refused } from '../../../kernel/core.js';
 import { REVIEW_INDEPENDENCE_ENGINE } from '../../../../src/review-independence-engine.js';
 import { LIVE_ROUTE_ENGINE } from '../../../../src/live-route-engine.js';
 import { REWORK_SAME_FAMILY_ENGINE } from '../../../../src/rework-same-family-engine.js';
-import { FOCUS_BOUNDARY_ENGINE } from '../../../../src/focus-boundary-engine.js';
+import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
 
 const PREFIX = 'line_setting:';
 
