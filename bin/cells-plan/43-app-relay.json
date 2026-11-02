@@ -6,7 +6,6 @@
  "frontDoor": "apps/relay/index.js",
  "dryRunName": "app:relay-server",
  "paths": [
-  ["relay/README.md","apps/relay/src/shell/README.md","seed"],
   ["relay/app.webmanifest","apps/relay/src/shell/app.webmanifest","seed"],
   ["relay/auth-http.js","apps/relay/src/shell/auth-http.js","seed"],
   ["relay/auth.js","apps/relay/src/shell/auth.js","seed"],

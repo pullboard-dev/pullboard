@@ -1,5 +1,4 @@
 {
-  "relay/README.md": "apps/relay/src/shell/README.md",
   "relay/app.webmanifest": "apps/relay/src/shell/app.webmanifest",
   "relay/auth-http.js": "apps/relay/src/shell/auth-http.js",
   "relay/auth.js": "apps/relay/src/shell/auth.js",
