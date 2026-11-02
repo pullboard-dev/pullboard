@@ -448,6 +448,21 @@ test('kept shims write complete fact and cut drafts; an empty run writes nothing
   assert.equal(existsSync(empty), false);
 });
 
+test('remove-shims CLI prints and writes its kept-shim handoff [C7,D3]', t => {
+  const box = shimmed(t);
+  box.put('src/view/panel.js', "import { shell } from '../stats.js'; export { shell };\n");
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'view importer');
+  const out = mkdtempSync(join(tmpdir(), 'shim-handoff-test-'));
+  t.after(() => rmSync(out, { recursive: true, force: true }));
+  const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats', '--output-dir', out], { cwd: box.root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /src\/view\/panel\.js/u);
+  assert.match(run.stdout, /pullboard .*--after/u);
+  assert.match(readFileSync(join(out, 'fact.txt'), 'utf8'), /src\/view\/panel\.js/u);
+  assert.match(readFileSync(join(out, 'cut-item.txt'), 'utf8'), /--after/u);
+});
+
 test('file-cut records the kept fact and shouts its cut draft on a real fixture board [C7,D3]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
