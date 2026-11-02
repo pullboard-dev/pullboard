@@ -371,7 +371,7 @@ test('accessor arrays and generator callers retain ordinary real binding computa
 
 test('eligible runtime context changes require a fresh real binding compiler observation [C7,D3]', t => {
   const calls = bindingCompilerCalls(t), before = process.env.NODE_OPTIONS;
-  const owned = new URL('../src/browser-slot-guard.js', import.meta.url).href;
+  const owned = new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url).href;
   const next = `${before ?? ''} --import=${owned}`.trim();
   try {
     withBindingReadCache(() => {
