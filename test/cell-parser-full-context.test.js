@@ -2,9 +2,7 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { withMainCheckout } from '../packages/landing/index.js';
-import { importsIn, commonJsIn } from '../src/module-imports.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../packages/gate/index.js';
 import { git } from '../src/git.js';
 
 test('full source cell analysis completes under runner custody [C7,P3]', { timeout: 650_000 }, async () => {
