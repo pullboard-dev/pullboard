@@ -1,0 +1,61 @@
+/** Real file dispatch enforces a committed per-file budget and its accepted-main ratchet [C7]. */
+import assert from 'node:assert/strict';
+import { mkdtempSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { test } from 'node:test';
+import { runFixtureChild } from './fixture-child.js';
+import { readTestFileBudgets } from '../packages/gate/src/shell/test-file-budget-policy.js';
+import { testFileBudgetPath } from '../packages/gate/src/shell/test-file-budget-policy.js';
+import { writePlacementIndex } from '../packages/gate/src/shell/test-economics-index.js';
+
+const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
+
+function fixture(t) {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-file-budget-'));
+  const main = join(directory, 'main'), candidate = join(directory, 'candidate');
+  mkdirSync(main);
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const git = (cwd, ...args) => {
+    const result = runFixtureChild('git', args, { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
+  };
+  git(main, 'init', '-q', '-b', 'main');
+  git(main, 'config', 'user.name', 'Fixture'); git(main, 'config', 'user.email', 'fixture@example.test');
+  writeFileSync(join(main, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
+  writeFileSync(join(main, 'package.json'), JSON.stringify({ type: 'module' }));
+  writeFileSync(join(main, 'slow.test.js'), "import {test} from 'node:test'; test('slow fixture [C7]', async()=>{await new Promise(done=>setTimeout(done,40));});\n");
+  const path = testFileBudgetPath('slow.test.js');
+  mkdirSync(dirname(join(main, path)), { recursive: true });
+  writeFileSync(join(main, path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: 1 }));
+  git(main, 'add', '-A'); git(main, 'commit', '-qm', 'fixture main');
+  git(main, 'worktree', 'add', '-qb', 'candidate', candidate);
+  const run = () => runFixtureChild(process.execPath, [runner, 'slow.test.js'], {
+    cwd: candidate, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine') }, encoding: 'utf8', detached: true,
+  });
+  return { candidate, git, path, run };
+}
+
+test('an over-budget file fails with its observed runtime, while audit placement passes [C7]', t => {
+  const box = fixture(t);
+  const red = box.run(), output = `${red.stdout ?? ''}${red.stderr ?? ''}`;
+  assert.equal(red.status, 1, output);
+  assert.match(output, /slow\.test\.js took \d+ms, over its 1ms test file budget/u);
+  writePlacementIndex(box.candidate, { version: 1, files: [{ file: 'slow.test.js', tier: 'audit', testInputs: [] }] });
+  const green = box.run();
+  assert.equal(green.status, 0, `${green.stdout ?? ''}${green.stderr ?? ''}`);
+});
+
+test('a candidate cannot loosen or remove an accepted file limit [C7]', t => {
+  const box = fixture(t);
+  writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: 2 }));
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'loosen');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /may not increase from 1ms to 2ms/u);
+  box.git(box.candidate, 'rm', '-q', box.path); box.git(box.candidate, 'commit', '-qm', 'remove');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /may not increase from 1ms/u);
+});
