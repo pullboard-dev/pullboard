@@ -366,7 +366,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
   } else {
     assert.equal(ended.item.item_status, 'submitted');
     assert.equal(ended.item.item_commit, box.commit);
-    assert.equal(readFileSync(box.started, 'utf8').trim().split('\n').length, 1, 'concurrent recovery runs exactly one real gate');
+    assert.equal(readFileSync(join(box.dir, 'started.jsonl'), 'utf8').trim().split('\n').length, 1, 'concurrent recovery runs exactly one real gate');
   }
 });
 
