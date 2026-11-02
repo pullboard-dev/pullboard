@@ -1067,7 +1067,7 @@ function answerCommandCase(t, separateGitDir) {
 
 test('landing repoints only Git-renamed gate paths and keeps deleted gates missing [S4,B3]', (t) => {
   const source = '# Demo\n\n## G · Goals\n- G1 [approved, must] Original text stays exact. | gate: node test/old.test.js | serves: G2\n- G2 [approved, must] Deleted proof stays required. | gate: test/gone.test.js\n- G3 [approved, must] Untouched proof. | gate: test/still.test.js\n';
-  const box = specBox(t, { specSource: source });
+  const box = specBox(t, { specSource: SPEC });
   mkdirSync(join(box.root, 'test'));
   for (const file of ['old', 'gone', 'still']) writeFileSync(join(box.root, `test/${file}.test.js`), `export const ${file} = true;\n`);
   box.git('add', '-A'); box.git('commit', '-q', '-m', 'test: add gate proofs');
@@ -1076,6 +1076,7 @@ test('landing repoints only Git-renamed gate paths and keeps deleted gates missi
   box.git('rm', '-q', 'test/gone.test.js');
   box.git('commit', '-q', '-m', 'test: move one proof');
   const tip = box.git('rev-parse', 'HEAD').trim();
+  writeFileSync(join(box.root, box.specName), source);
   const changes = repointLandingGates(box.root, { spec: box.specName }, base, tip);
   assert.deepEqual(changes, [{ row: 'G1', from: 'test/old.test.js', to: 'test/new.test.js' }]);
   const actual = readFileSync(join(box.root, box.specName), 'utf8');
