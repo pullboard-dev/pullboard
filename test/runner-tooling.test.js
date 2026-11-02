@@ -1,4 +1,7 @@
-import { committedRunnerController, observeDirtyRunnerTooling, dirtyToolingFindings } from '../packages/runners/index.js';
+/** @pullboard-test-input source-tree */
+import { committedRunnerController } from '../packages/runners/index.js';
+import { observeDirtyRunnerTooling } from '../packages/runners/index.js';
+import { dirtyToolingFindings } from '../packages/runners/index.js';
 import { utimesSync } from 'node:fs';
 /** Dirty tooling is never execution authority; registered protocol checks use committed bytes [O5,C7]. */
 import assert from 'node:assert/strict';
@@ -7,7 +10,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { HOST, installSshStandIn } from './runner-ssh-fixture.js';
 
@@ -102,4 +105,63 @@ const {trustedTooling}=await import(${JSON.stringify(pathToFileURL(join(archive.
 assert.throws(()=>trustedTooling(),{code:'RUNNER_TOOLING_CHANGED'});`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { env: box.env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context);
+});
+
+
+test('warmed controller refuses changed policy bytes and a fresh run uses each new helper [C7]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.sandbox();
+  const tooling = join(box.dir, 'tooling'), project = join(box.dir, 'project');
+  const worker = join(box.dir, 'worker'), home = join(box.dir, 'worker-home');
+  const machineHome = join(home, '.pullboard'), requests = join(box.dir, 'requests.jsonl');
+  for (const root of [tooling, project, worker, home, machineHome]) mkdirSync(root, { recursive: true });
+  copyPackageFiles(resolve(import.meta.dirname, '..'), tooling);
+  writeFileSync(join(project, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
+  box.git(project, 'init', '-q', '-b', 'main');
+  box.git(project, 'add', '-A');
+  box.git(project, 'commit', '-q', '-m', 'test: controller policy project');
+  installSshStandIn({ bin: join(box.dir, 'bin'), worker, home, machineHome, requests });
+  const policy = join(tooling, 'packages/gate/src/core/gate-policy-load.js');
+  const helper = join(tooling, 'packages/gate/src/core/fixture-policy-epoch.js');
+  const original = readFileSync(policy, 'utf8');
+  const baseline = "import { policyEpoch } from './fixture-policy-epoch.js';\n" + original.replace(
+    'export function runnerSource(root) {',
+    "export function runnerSource(root) { if (policyEpoch !== 'ORIGINAL') throw new Error(policyEpoch);");
+  writeFileSync(helper, "export const policyEpoch = 'ORIGINAL';\n");
+  writeFileSync(policy, baseline);
+  const runner = JSON.stringify({ host: HOST, slots: 1, browser: 0 });
+  const entry = JSON.stringify(pathToFileURL(join(tooling, 'src/runners.js')).href);
+  const facade = JSON.stringify(pathToFileURL(join(tooling, 'packages/runners/index.js')).href);
+  const script = `
+import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+const api = await import(${entry});
+const {loadedToolingFiles} = await import(${facade});
+assert.ok(api.runnerSource(process.cwd()).commit);
+loadedToolingFiles({rescan:false});
+const baseline = ${JSON.stringify(baseline)};
+const epochs = [
+  [${JSON.stringify(policy)}, baseline.replace('export function runnerSource(root) {', 'export function runnerSource(root) { throw new Error("DIRECT_POLICY_NEW");'), 'DIRECT_POLICY_NEW'],
+  [${JSON.stringify(helper)}, ${JSON.stringify("export const policyEpoch = 'NESTED_POLICY_NEW';\n")}, 'NESTED_POLICY_NEW'],
+];
+for (const [path, source, marker] of epochs) {
+  const before = readFileSync(path, 'utf8');
+  try {
+    writeFileSync(path, source);
+    assert.throws(() => loadedToolingFiles({rescan:false}), error => error.code === 'RUNNER_TOOLING_CHANGED', path);
+    const next = 'const api = await import(' + ${JSON.stringify(entry)} + '); await api.runOnRunnerAsync(process.cwd(), "true", {runner:' + ${JSON.stringify(runner)} + '});';
+    const ran = spawnSync(process.execPath, ['--input-type=module', '-e', next], {cwd:process.cwd(),env:process.env,encoding:'utf8'});
+    assert.notEqual(ran.status, 0, marker);
+    assert.ok(ran.stderr.includes(marker), ran.stderr);
+  } finally { writeFileSync(path, before); }
+  loadedToolingFiles({rescan:false});
+}
+console.log('FRESH_POLICY_BYTES_CONFIRMED');`;
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: project, env: box.env, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.context);
+  assert.match(result.stdout, /FRESH_POLICY_BYTES_CONFIRMED/u);
 });
