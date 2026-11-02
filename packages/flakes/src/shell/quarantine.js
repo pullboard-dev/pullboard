@@ -81,6 +81,8 @@ export function flakeQuarantines(board) {
 
 /** Capture the current ratchet against the last landed batch, reconstructing its original event boundary once. */
 export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLedger = flakeLedger, readRuns = gateRuns } = {}) {
+  const stamp = () => ({ version: board.db.prepare('PRAGMA data_version').get().data_version, changes: board.db.prepare('SELECT total_changes() AS n').get().n });
+  const before = stamp();
   const eventId = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
   const row = board.db.prepare(`SELECT event_id, event_detail FROM event WHERE event_kind='landing_batch'
     AND json_valid(event_detail) AND json_extract(event_detail, '$.batch.state')='landed' ORDER BY event_id DESC LIMIT 1`).get();
@@ -97,9 +99,17 @@ export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines,
       previous = { version: 1, eventId: row.event_id, count: active.length, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
     }
   }
-  const observations = [...readLedger(board), ...pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 })]
-    .sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
-  return flakeRatchet({ previous, eventId, observations, quarantines: readQuarantines(board) });
+  const quarantines = readQuarantines(board);
+  const latest = new Map(quarantines.map(row => [testKey(row.file, row.name), row]));
+  const pairs = pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 }).filter(row => {
+    const quarantine = latest.get(testKey(row.file, row.name));
+    return quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId);
+  });
+  const observations = [...readLedger(board), ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
+  const result = flakeRatchet({ previous, eventId, observations, quarantines });
+  const after = stamp();
+  if (after.version !== before.version || after.changes !== before.changes) throw new Refused('BOARD_BUSY', 'the board changed while capturing the flake ratchet; retry from its current state');
+  return result;
 }
 
 /** Only executed, source-bound native per-test observations can advance the new quarantine core. */

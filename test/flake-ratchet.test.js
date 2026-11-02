@@ -89,3 +89,16 @@ test('native event adapter reconstructs and advances the previous landing snapsh
   assert.equal(next.allowed, true, 'a newly observed, filed native pair justifies the increase');
   assert.equal(next.snapshot.count, 1);
 });
+
+/** A changed board never produces a mixed event boundary and quarantine snapshot. */
+test('native ratchet refuses a concurrently changed board [C7,T12]', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
+  const readers = { readRuns: () => [], readQuarantines: () => [], readLedger: () => {
+    db.prepare('INSERT INTO event VALUES (1, ?, NULL, ?)').run('fact', '{}');
+    return [];
+  } };
+  assert.throws(() => landingFlakeRatchet({ db }, readers), { code: 'BOARD_BUSY' });
+});
