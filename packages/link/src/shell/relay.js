@@ -1266,7 +1266,7 @@ export async function relayCommandReceipt(root, command, io) {
     if (!state) {
       const recovered = deletedRecovery(root, io);
       if (!recovered || recovered.marker.recovered.commandIntent !== intentDigest(operationIntent('cli:' + command.cliOperation, command))) return null;
-      const expected = { add: 'addItem', companion: 'requestCompanion', patch: command.positionals?.[0] === 'attach' ? 'attachItemPatch' : 'removeItemPatch', edit: 'editItem', merged: 'merged', move: 'rehomeItem' }[command.cliOperation];
+      const expected = { add: 'addItem', companion: 'requestCompanion', slice: 'createItemSlice', patch: command.positionals?.[0] === 'attach' ? 'attachItemPatch' : 'removeItemPatch', edit: 'editItem', merged: 'merged', move: 'rehomeItem' }[command.cliOperation];
       if (recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command receipt before retrying');
       if (recovered.receipt.outcome.error) {
         clearDeletedRecovery(root, recovered.marker);
@@ -1280,7 +1280,7 @@ export async function relayCommandReceipt(root, command, io) {
     if (recovered.commandIntent !== operationIntent('cli:' + recovered.command?.cliOperation, recovered.command)) {
       throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
     }
-    const expected = { add: 'addItem', companion: 'requestCompanion', patch: command.positionals?.[0] === 'attach' ? 'attachItemPatch' : 'removeItemPatch', edit: 'editItem', merged: 'merged', move: 'rehomeItem' }[command.cliOperation];
+    const expected = { add: 'addItem', companion: 'requestCompanion', slice: 'createItemSlice', patch: command.positionals?.[0] === 'attach' ? 'attachItemPatch' : 'removeItemPatch', edit: 'editItem', merged: 'merged', move: 'rehomeItem' }[command.cliOperation];
     if (!recovered.move || recovered.move.operation !== expected) throw new Refused('RELAY_STORAGE', 'restore the interrupted command metadata before retrying');
     const move = recoveredMove(root, state, recovered.move.operation, recovered.move.args, command, io);
     const receipt = localRecords(io.openBoard, root, board => engineReceipt(board, move.id));

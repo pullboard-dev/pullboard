@@ -68,6 +68,8 @@ export const workHelp = `Work
                                         coordinator: bind a companion patch to the exact submitted source
   pullboard patch list <item>            read its ordered native patches and patch-set digest
   pullboard patch remove <item> <key>    coordinator: stop applying a patch; retain its author history
+  pullboard slice <parent> "<title>" --files <paths> [--lane <lane>] [--check "<command>"]
+                                        holder or coordinator: create a child with the parent’s frozen bar
   pullboard companion <parent> <lane> "<title>" --key <key> [--criterion "<criterion>"] [--specs <ids>]
                                         create one child in another lane; repeat the same parent, lane and key to find it
                                         --brief "<brief>"; --route strong|mid|light; only the coordinator sets --check "<command>"
