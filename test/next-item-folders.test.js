@@ -1,6 +1,6 @@
 /** next opens and prints each claimed item's own folder; one seat lands two items from two folders [B5,N2]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -20,7 +20,8 @@ test('one seat builds, submits and lands two items from the folders next prints 
   box.git(repo, 'init', '-q', '-b', 'main');
   assert.equal(box.run(repo, 'init').code, 0);
   const configFile = join(repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  box.git(repo, 'add', 'pullboard.json');
+  const config = JSON.parse(box.git(repo, 'show', ':pullboard.json')); // read the staged config through Git
   writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), '# Folder fixture\n\n## Goals\n- G1 [approved, must] Each result exists. | gate: true\n');
   box.git(repo, 'add', '-A');
