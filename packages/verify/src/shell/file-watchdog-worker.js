@@ -4,10 +4,15 @@ import { workerData } from 'node:worker_threads';
 import { writeSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { fileIdleHung } from '../core/file-watchdog-policy.js';
+import { processTreeCpu } from './file-watchdog-tree.js';
+import { treeCpuDelta } from './file-watchdog-tree.js';
+import { statSync } from 'node:fs';
 
 const tests = new Map();
 let quietAt = performance.now();
-let cpuAt = process.cpuUsage();
+let tree = processTreeCpu(process.pid);
+let treeMicros = 0;
+let outputStamp = 0;
 let killed = false;
 
 /** Signal only this worker's own process; the existing runner custody drains its descendants. */
@@ -22,7 +27,7 @@ function hung(reason) {
 /** Output begins a fresh quiet/CPU window; a lifecycle name alone is not output. */
 function activity() {
   quietAt = performance.now();
-  cpuAt = process.cpuUsage();
+  treeMicros = 0;
 }
 
 parentPort.on('message', message => {
@@ -34,9 +39,19 @@ parentPort.on('message', message => {
 });
 setTimeout(() => hung(`whole-file wall limit ${workerData.wallMs}ms`), workerData.wallMs);
 setInterval(() => {
+  const beforeSample = process.cpuUsage();
+  const current = processTreeCpu(process.pid);
+  const sampling = process.cpuUsage(beforeSample);
+  if (!current || !tree) { tree = current; activity(); return; }
+  treeMicros += Math.max(0, treeCpuDelta(tree, current) - sampling.user - sampling.system);
+  tree = current;
+  if (workerData.outputMarker) {
+    try {
+      const stamp = statSync(workerData.outputMarker).mtimeMs;
+      if (stamp !== outputStamp) { outputStamp = stamp; activity(); }
+    } catch { /* No forwarded descendant output yet. */ }
+  }
   const quietMs = performance.now() - quietAt;
-  if (quietMs < workerData.idleMs) return;
-  const cpu = process.cpuUsage(cpuAt);
-  if (fileIdleHung({ quietMs, cpuMicros: cpu.user + cpu.system }, workerData.idleMs)) hung(`silent and under 1% CPU for ${workerData.idleMs}ms`);
-  else activity();
-}, Math.max(1, Math.min(1000, Math.ceil(workerData.idleMs / 4))));
+  if (fileIdleHung({ quietMs, cpuMicros: treeMicros }, workerData.idleMs)) hung(`silent and under 1% CPU for ${workerData.idleMs}ms`);
+  else if (quietMs >= workerData.idleMs) activity();
+}, Math.max(250, Math.min(1000, Math.ceil(workerData.idleMs / 4))));
