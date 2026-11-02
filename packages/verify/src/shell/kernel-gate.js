@@ -6,6 +6,20 @@ import { scanSource } from '../../../codemap/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 const DOORS = ['packages/kernel/index.js', 'packages/kernel/core.js'];
+const CHANGES = new Map();
+
+/** Retain only immutable source analysis; live person decisions are deliberately never cached. */
+function remember(key, result) {
+  if (result) {
+    for (const row of result.changes) { Object.freeze(row.names); Object.freeze(row); }
+    Object.freeze(result.changes); Object.freeze(result);
+  }
+  if (key !== null) {
+    CHANGES.set(key, result);
+    if (CHANGES.size > 32) CHANGES.delete(CHANGES.keys().next().value);
+  }
+  return result;
+}
 
 /** Read regular committed modules only; missing files stay distinct from unreadable Git objects. */
 function sourcesAt(root, commit) {
@@ -45,7 +59,9 @@ function exportedBindings(read, file, seen = new Set()) {
 
 /** Bind approval to the exact before/after public contract, retaining moved or rebound names. */
 export function kernelGateChange(root, base, commit) {
-  if (!git(root, ['diff', '--name-only', '-z', base, commit, '--', 'packages/kernel']).trim()) return null;
+  const key = /^[a-f0-9]{40,64}$/u.test(base) && /^[a-f0-9]{40,64}$/u.test(commit) ? JSON.stringify([root, base, commit]) : null;
+  if (key !== null && CHANGES.has(key)) return CHANGES.get(key);
+  if (!git(root, ['diff', '--name-only', '-z', base, commit, '--', 'packages/kernel']).trim()) return remember(key, null);
   const before = sourcesAt(root, base), after = sourcesAt(root, commit);
   const changes = [];
   for (const file of DOORS) {
@@ -57,9 +73,9 @@ export function kernelGateChange(root, base, commit) {
     changes.push({ file, names: names.length ? names : [...new Set([...left.keys(), ...right.keys()])].sort(),
       before: before(file), after: after(file), previousBindings: [...left].sort(([a], [b]) => a.localeCompare(b)), bindings: [...right].sort(([a], [b]) => a.localeCompare(b)) });
   }
-  if (!changes.length) return null;
+  if (!changes.length) return remember(key, null);
   const digest = createHash('sha256').update(JSON.stringify(changes)).digest('hex');
-  return { digest, changes: changes.map(({ file, names }) => ({ file, names })) };
+  return remember(key, { digest, changes: changes.map(({ file, names }) => ({ file, names })) });
 }
 
 /** The person's exact response is a contract-scoped approval, never a prose keyword search. */
