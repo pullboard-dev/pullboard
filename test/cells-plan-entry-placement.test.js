@@ -20,7 +20,7 @@ import { writeCellLintBaseline } from '../packages/codemap/index.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { landedCutItemRows } from '../bin/cells-submit-checks.js';
 import { fixtureBoard } from './board-fixture.js';
-import { withMainCheckout } from '../src/main-red.js';
+import { withMainCheckout } from '../packages/landing/index.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import { withImportParseCache } from '../src/module-import-cache.js';

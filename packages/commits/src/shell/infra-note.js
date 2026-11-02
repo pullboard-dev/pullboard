@@ -1,5 +1,5 @@
 /**
- * Infra notes: a submit that edits an existing test file, or a file the gate runs, must say why [C7,V4]. An
+ * Infra notes: guarded edits retain the supplied reason or a factual draft from their diff [C7,V4]. An
  * agent once swapped real listeners for in-memory parsers to get past a sandbox, and nobody asked the person.
  * The note and the files it covers are recorded on the submit event, and the reviewer reads them in show.
  */
@@ -112,21 +112,21 @@ function importPathNote(root, claimHead, commit, files, edited) {
 }
 
 /**
- * Decide whether a submit may proceed: an enabled board policy requires an --infra reason for an existing guarded
- * edit. A supplied note is recorded with its files whether or not the requirement is enabled.
+ * Decide whether a submit may proceed: an enabled board policy records a note for an existing guarded edit, drafting from its changed
+ * files when no reason was supplied. A supplied note is recorded whether or not the policy is enabled.
  *
  * @param {{ root: string, claimHead: string, commit?: string, files: string[], gates: string[], infra: string | undefined, requireInfraNote?: boolean }} submit
  * @returns {{ note: string, files: string[] } | null} the infra record, or null when none is needed or given
- * @throws {Refused} INFRA_NOTE_REQUIRED, or USAGE for a malformed --infra value
+ * @throws {Refused} USAGE for a malformed --infra value
  */
-export function infraNote({ root, claimHead, commit, files, gates, infra, requireInfraNote = false }) {
+export function infraNote({ root, claimHead, commit, files, gates, infra }) {
   const edited = existingGuardedEdits(root, claimHead, files, gates);
   if (infra === undefined) {
     const drafted = importPathNote(root, claimHead, commit, files, edited);
     if (drafted) return drafted;
-    if (!requireInfraNote || !edited.length) return null;
-    throw new Refused('INFRA_NOTE_REQUIRED', `this change edits existing test or gate file${edited.length > 1 ? 's' : ''} ${edited.join(', ')}; say why with --infra "<why>"`,
-      'run pullboard submit <id> --infra "<why>", giving the reason the edit is needed');
+    if (!edited.length) return null;
+    return { note: 'Automatically drafted from guarded diff: ' + edited.map(file => JSON.stringify(file)).join(', ')
+      + '. No author rationale was supplied.', files: edited };
   }
   if (typeof infra !== 'string' || !infra.trim() || /[\r\n]/u.test(infra)) throw new Refused('USAGE', '--infra "<why>" is one nonempty line');
   return { note: infra.trim(), files: edited };

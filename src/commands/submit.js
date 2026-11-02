@@ -48,7 +48,7 @@ import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
 import { submitGateConfig } from '../gate-submit.js';
 import { createHash } from 'node:crypto';
 import { prepareItemPatchSubmit } from '../item-patch-submit.js';
@@ -112,13 +112,13 @@ import {
   accountedFailures,
   waivedFailures,
   waiverLine,
-} from '../land.js';
+} from '../../packages/landing/index.js';
 import {
   withMainCheckout,
   compareMainFailures,
   companionMainFailuresUntouched,
   mainRedMessage,
-} from '../main-red.js';
+} from '../../packages/landing/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   Refused,
@@ -167,10 +167,10 @@ import {
   withBoard,
 } from '../cli.js';
 import { recordedRecovery } from '../../packages/state/index.js';
-import { failureSignatures } from '../main-failure-matches.js';
-import { MAIN_FAILURE_SIGNATURE_VERSION } from '../main-failure-matches.js';
-import { matchingMainFailures } from '../main-failure-matches.js';
-import { mainFailureNotices } from '../main-red.js';
+import { failureSignatures } from '../../packages/landing/index.js';
+import { MAIN_FAILURE_SIGNATURE_VERSION } from '../../packages/landing/index.js';
+import { matchingMainFailures } from '../../packages/landing/index.js';
+import { mainFailureNotices } from '../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../packages/store/index.js';
 import { unownedMainReds } from '../../packages/store/index.js';
 import { ambiguousMainReds } from '../../packages/store/index.js';

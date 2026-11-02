@@ -15,7 +15,7 @@ import { source } from './submit-outcome-fixture.js';
 import { TIMING_RUN_ID_ENV } from '../src/run-timing.js';
 import { SUITE_TIMING_PREFIX } from '../src/run-timing.js';
 import { timingAccountingStages } from '../src/run-timing.js';
-import { accountedFailures } from '../src/landing-step-failures.js';
+import { accountedFailures } from '../packages/landing/index.js';
 import { testOutputSummary } from '../src/test-output-summary.js';
 
 /** A portable copy of the production collector observes real Node events inside the worker's source tree. */

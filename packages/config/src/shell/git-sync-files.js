@@ -12,6 +12,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../../../../src/git.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Keep the shared marker and its recovery evidence beside this repository's board. */
 export function gitSyncFiles(root) {
@@ -19,9 +20,12 @@ export function gitSyncFiles(root) {
   return { folder, marker: join(folder, 'git-sync.json'), quarantine: join(folder, 'quarantine') };
 }
 
-/** Read a bounded regular file; a malformed or replaced marker never selects a transport. */
+/**
+ * Read a bounded regular file; a malformed or replaced marker never selects a transport. A board folder replaced by a
+ * file (ENOTDIR) is damage no read can repair, so it refuses with the next step instead of throwing a raw error.
+ */
 export function readGitSyncMarker(root) {
-  const { marker } = gitSyncFiles(root);
+  const { folder, marker } = gitSyncFiles(root);
   let stat, fd;
   try {
     stat = lstatSync(marker);
@@ -42,6 +46,8 @@ export function readGitSyncMarker(root) {
   } catch (error) {
     if (error.code === 'ENOENT') return { exists: false, valid: false };
     if (error.code === 'ELOOP') return { exists: true, valid: false, stat };
+    if (error.code === 'ENOTDIR') throw new Refused('GIT_SYNC_FOLDER', `${folder} is not a directory, so the board folder is damaged`,
+      `move ${folder} aside, then run pullboard doctor`);
     throw error;
   } finally { if (fd !== undefined) closeSync(fd); }
 }

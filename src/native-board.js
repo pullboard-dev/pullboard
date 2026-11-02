@@ -108,11 +108,11 @@ import {
   landingWaivers,
   landingWaiverFor,
   waivedLandingProof,
-} from './landing-waivers.js';
+} from '../packages/landing/index.js';
 import {
   prepareTrainLanding,
   prepareNativeTrainLanding,
-} from './train-landing.js';
+} from '../packages/landing/index.js';
 import {
   sealItemPatchSubmit,
   sealItemPatchFollow,
@@ -121,20 +121,20 @@ import {
   sealSourceAdvance,
   sealSourceAdvanceReturn,
 } from '../packages/sandbox/index.js';
-import { computedReturnArgs } from './computed-conflict-return.js';
+import { computedReturnArgs } from '../packages/landing/index.js';
 import {
   requirePreparedComputedConflict,
   preflightComputedConflict,
   conflictValue,
-} from './computed-conflict-receipt.js';
+} from '../packages/landing/index.js';
 import { validPresence } from '../packages/person/index.js';
-import { recordTrainLanding } from './record-train-landing.js';
+import { recordTrainLanding } from '../packages/landing/index.js';
 import {
   newRigorNotices,
   rigorNoticeText,
 } from '../packages/rigor/index.js';
 import { NEXT_STEPS } from './next-step-words.js';
-import * as landingEnvironment from './landing-environment-guards.js';
+import * as landingEnvironment from '../packages/landing/index.js';
 import {
   deriveRigorCause,
   recordAutomaticRigorDrafts,
@@ -256,7 +256,7 @@ import {
 } from '../packages/verify/index.js';
 import {
   computedConflictProblem,
-} from './computed-conflict-receipt.js';
+} from '../packages/landing/index.js';
 import {
   firstRefusal,
 } from '../packages/store/index.js';
@@ -371,6 +371,6 @@ export { flakeLedger, recordFlakeObservation } from './flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from './quarantine.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from '../packages/person/index.js';
 export { recordPublishFinding } from './pr-findings.js';
-export { landingWaivers, landingWaiverFor, waivedLandingProof } from './landing-waivers.js';
+export { landingWaivers, landingWaiverFor, waivedLandingProof } from '../packages/landing/index.js';
 
-export { recordTrainLanding } from './record-train-landing.js';
+export { recordTrainLanding } from '../packages/landing/index.js';

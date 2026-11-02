@@ -19,7 +19,7 @@ import {
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { invalidateGitFacts } from '../src/git.js';
-import { runLandingBatch } from '../src/land.js';
+import { runLandingBatch } from '../packages/landing/index.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
 
 /** Run an ordinary fixture command and retain its full refusal on failure. */
