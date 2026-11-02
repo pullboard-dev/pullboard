@@ -33,7 +33,7 @@ import {
 } from '../bar-corrections.js';
 import * as store from '../../packages/store/index.js';
 import { caughtLines } from '../../packages/items/index.js';
-import * as gateReceipt from '../gate-receipt.js';
+import * as gateReceipt from '../../packages/gate/index.js';
 import { readRunnerStage } from '../runner-stage-read.js';
 import {
   compareFlowWindows,
@@ -136,13 +136,13 @@ export function run(io, { first, second, rest, values }) {
       if (windowMinutes !== undefined) board.db.exec('RELEASE stats_window_read');
     }
   });
-  const waits = gateReceipt.gateWaitStats(ctx.info.root);
+  const waits = gateReceipt.gateWaitStats(ctx.info.root, now);
   const boardHolds = boardHoldStats({ since: window?.since ?? stats.since ?? undefined, until: now });
   const holdBaseline = readBoardHoldBaseline();
   boardHolds.allowance = { ...holdBaseline, status: holdBaseline.allowancePerDay === null ? 'unmeasured'
     : boardHolds.todayCount > holdBaseline.allowancePerDay ? 'exceeded'
       : !boardHolds.available || boardHolds.truncated || boardHolds.invalidLines ? 'incomplete' : 'within' };
-  io.result?.({ stats, usage, coordinatorActions: coordinator, gateWaits: waits.stats, boardHolds, ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
+  io.result?.({ stats, usage, coordinatorActions: coordinator, gateWaits: waits.stats, testWallBudgets: waits.testWallBudgets, boardHolds, ...(window ? { window } : {}), ...(comparison ? { comparison } : {}) });
   io.say(`${stats.submissions} submissions · ${stats.rejections} rejections · ${(stats.rejectionShare * 100).toFixed(1)}% sent back`);
   io.say(`${stats.merged} items merged · ${stats.mergedWithoutAccept} merged without an accept`);
   io.say(`${stats.agentCount} agents · ${stats.familyCount} family buckets: ${stats.families.map((family) => `${family.name} (${family.agents} agents, ${family.moves} moves)`).join('; ') || 'none'}`);
