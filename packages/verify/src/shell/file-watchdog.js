@@ -10,7 +10,7 @@ export function installFileWatchdog(file) {
   const path = relative(realpathSync(process.cwd()), realpathSync(resolve(file))).replaceAll('\\', '/');
   const limits = fileWatchdogLimits(path);
   const worker = new Worker(new URL('./file-watchdog-worker.js', import.meta.url), {
-    workerData: { file, ...limits }, execArgv: [], env: { ...process.env, NODE_OPTIONS: '' },
+    workerData: { file, ...limits, outputMarker: process.env.PULLBOARD_TEST_WATCHDOG_OUTPUT }, execArgv: [], env: { ...process.env, NODE_OPTIONS: '' },
   });
   for (const stream of [process.stdout, process.stderr]) {
     const write = stream.write;
