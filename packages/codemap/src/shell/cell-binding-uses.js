@@ -11,7 +11,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lex } from '../../../kernel/index.js';
 import { currentCellLintParser } from './cell-parser.js';
-import { availableParallelism, loadavg } from 'node:os';
+import { availableParallelism } from 'node:os';
+import { loadavg } from 'node:os';
 
 const COMPILER = `import vm from 'node:vm'; import {readFileSync} from 'node:fs';
 const sources=JSON.parse(readFileSync(process.argv[1],'utf8'));
