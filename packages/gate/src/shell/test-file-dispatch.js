@@ -176,7 +176,10 @@ export function dispatchTestFiles(options, env) {
         const portableFile = testFileRelative(process.cwd(), file);
         const budget = budgets.get(portableFile);
         const over = testFileBudgetFailure(portableFile, summary.duration_ms, budget.ms, budget.audit);
-        if (over) throw new Error(over);
+        if (over) {
+          events.push({ type: 'test:diagnostic', data: { nesting: 0, message: over } });
+          summary.success = false;
+        }
         summaries.push(summary);
         blocks.set(index, { events, summary });
         flush();

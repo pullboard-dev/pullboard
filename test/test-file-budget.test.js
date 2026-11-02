@@ -31,12 +31,13 @@ function fixture(t) {
   writeFileSync(join(main, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
   writeFileSync(join(main, 'package.json'), JSON.stringify({ type: 'module' }));
   writeFileSync(join(main, 'slow.test.js'), "import {test} from 'node:test'; test('slow fixture [C7]', async()=>{await new Promise(done=>setTimeout(done,40));});\n");
+  writeFileSync(join(main, 'later.test.js'), "import {test} from 'node:test'; test('later fixture [C7]',()=>{});\n");
   const path = testFileBudgetPath('slow.test.js');
   mkdirSync(dirname(join(main, path)), { recursive: true });
   writeFileSync(join(main, path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: 1 }));
   git(main, 'add', '-A'); git(main, 'commit', '-qm', 'fixture main');
   git(main, 'worktree', 'add', '-qb', 'candidate', candidate);
-  const run = () => runFixtureChild(process.execPath, [runner, 'slow.test.js'], {
+  const run = () => runFixtureChild(process.execPath, [runner, 'slow.test.js', 'later.test.js'], {
     cwd: candidate, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine') }, encoding: 'utf8', detached: true,
   });
   return { candidate, git, path, run };
@@ -47,6 +48,7 @@ test('an over-budget file fails with its observed runtime, while audit placement
   const red = box.run(), output = `${red.stdout ?? ''}${red.stderr ?? ''}`;
   assert.equal(red.status, 1, output);
   assert.match(output, /slow\.test\.js took \d+ms, over its 1ms test file budget/u);
+  assert.match(output, /later fixture \[C7\]/u, 'a budget failure does not discard other test output');
   writePlacementIndex(box.candidate, { version: 1, files: [{ file: 'slow.test.js', tier: 'audit', testInputs: [] }] });
   const derived = box.run();
   assert.equal(derived.status, 1, 'a derived placement cannot grant a budget exemption');
