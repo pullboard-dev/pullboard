@@ -1,7 +1,8 @@
 /** Routing for an observational queued-submit move; no gate authority is added [C7,V4,H16]. */
 import { SUBMIT_HANDOFF_ENGINE } from "../../../../../src/submit-handoff-engine.js";
-/** New queued moves never replay as an older synchronous submission. */
-function minimumEngine() { return SUBMIT_HANDOFF_ENGINE; }
+import { QUEUED_RED_RETURN_ENGINE } from "../../../../../src/queued-red-return-engine.js";
+/** New queued moves never replay as an older synchronous submission; a red result keeps its builder only on a replica that knows it. */
+function minimumEngine(args) { return args?.[1]?.result?.code === 1 ? QUEUED_RED_RETURN_ENGINE : SUBMIT_HANDOFF_ENGINE; }
 /** Retain the existing sender-to-actor binding. */
 function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: 'completeSubmitHandoff', engine: SUBMIT_HANDOFF_ENGINE,

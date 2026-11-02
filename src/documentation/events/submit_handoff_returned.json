@@ -4,7 +4,7 @@
     {
       "order": 1001,
       "actor": "queued builder",
-      "detail": "Captured `commit` and original builder `reopenFirstRefusal`; only the failed queued item returns open, without releasing another claim."
+      "detail": "Captured `commit`; from the queued red return engine, the failed item stays claimed by its builder with a fresh `leaseUntil` (its refusal stays in private board metadata) and opens for anyone only when that lease lapses. Older engines carried the builder `reopenFirstRefusal` and returned the item open. No other claim is released."
     }
   ]
 }

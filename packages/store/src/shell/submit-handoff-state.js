@@ -20,6 +20,8 @@ import {
   proofReceipts,
 } from "./board-query.js";
 import { Refused } from "../../../kernel/index.js";
+import { ENGINE_VERSION } from "../../../state/index.js";
+import { QUEUED_RED_RETURN_ENGINE } from "../../../../src/queued-red-return-engine.js";
 
 const PREFIX = 'submit_handoff:';
 const PREPARED = new WeakMap();
@@ -158,7 +160,10 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
       throw new Refused('BAD_SUBMIT_HANDOFF', 'retain the exact canonical refusal document before completing this queued gate');
     }
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
-    if (state === 'red' && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+    const keeps = (board.executionEngineVersion ?? ENGINE_VERSION) >= QUEUED_RED_RETURN_ENGINE;
+    if (state === 'red' && keeps && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
+      returnToBuilder(board, id, job, result.error);
+    } else if (state === 'red' && item.item_status === 'claimed' && item.item_owner === job.agentId && item.item_frozen_digest === job.digest) {
       const reservation = reopenFirstRefusalMinutes > 0
         ? board.enginePorts.firstRefusalDetail(board, { ...item, item_built_by: job.agentId }, reopenFirstRefusalMinutes)
         : { reopenFirstRefusal: { builder: job.agentId, until: new Date(board.clock.now().getTime() + job.leaseMs).toISOString() } };
@@ -168,4 +173,16 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     }
     return record(board, id, { ...job, state, error: { ...result.error }, completedAt: now(board) });
   });
+}
+
+/**
+ * Keep a red queued item claimed by the seat that submitted it, with a fresh lease from now.
+ * Why: a released red sat open with no holder while the cause was unread (#2454); the builder fixes it first,
+ * and only a lease that lapses without action frees the item for anyone.
+ */
+function returnToBuilder(board, id, job, error) {
+  const leaseUntil = new Date(board.clock.now().getTime() + job.leaseMs).toISOString();
+  board.db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run(leaseUntil, id);
+  logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, leaseUntil });
+  insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it stays claimed by you until ${leaseUntil}. Fix it, commit and submit again; pullboard show ${id} prints the refusal and its next step.`, lanes: [] });
 }
