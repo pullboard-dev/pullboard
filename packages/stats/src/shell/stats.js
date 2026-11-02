@@ -106,7 +106,7 @@ export function proofStats(board, { since, now = Date.now(), onFallback } = {}, 
   // A SAVEPOINT is read-only until a write occurs, and nests inside callers' transactions.
   // Hold one snapshot across the cursor, projection shards, and verdicts while other seats append.
   board.db.exec('SAVEPOINT proof_stats_read');
-  try { return { ...proofStatsSnapshot(board, boundary, now, onFallback, reads), notesPerSubmit: notesPerSubmit(board, boundary), workFreeReleases: readWorkFreeReleases(board.db).filter(row => !boundary || row.day >= boundary.slice(0, 10)) }; }
+  try { return { ...proofStatsSnapshot(board, boundary, now, onFallback, reads), notesPerSubmit: notesPerSubmit(board, boundary), workFreeReleases: readWorkFreeReleases(board.db, { since: boundary }) }; }
   finally { board.db.exec('RELEASE proof_stats_read'); }
 }
 

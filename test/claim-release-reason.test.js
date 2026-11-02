@@ -36,4 +36,8 @@ test('renewals retain a claim, while work and review releases never count as wor
     event(2, 'claim', 'web-2'), event(2, 'release', 'reviewer', { review: true }), event(2, 'release', 'coordinator', { reasonCode: 'BLOCKED' }),
     event(3, 'release', 'web-3', { reasonCode: 'BUDGET' })];
   assert.deepEqual(workFreeReleases(history), [{ day: '2026-11-02', seat: 'web-2', reason: 'BLOCKED', count: 1 }]);
+  assert.deepEqual(workFreeReleases(history, { since: '2026-11-02T12:00:01.000Z' }), []);
+  assert.deepEqual(workFreeReleases([event(4, 'claim', 'web-1'), event(4, 'submit', 'web-1'), event(4, 'lapse', 'clock'),
+    event(4, 'claim', 'web-1'), event(4, 'release', 'web-1', { reasonCode: 'BUDGET' })]),
+  [{ day: '2026-11-02', seat: 'web-1', reason: 'BUDGET', count: 1 }]);
 });
