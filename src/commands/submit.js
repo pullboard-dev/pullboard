@@ -1,5 +1,6 @@
 import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
+import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../packages/merge/index.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -466,8 +467,13 @@ export async function submitHere(ctx, id, infra) {
   } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
   let cells;
   const cellsStart = performance.now();
-  try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
-    readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
+  const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
+  try { cells = runnerAdmission.runnerOnly
+    ? await withGateSlot(root, lease => remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput),
+      { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
+        agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build') })
+    : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+    readCutItems,
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
     onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
