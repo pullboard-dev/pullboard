@@ -88,6 +88,28 @@ test('overflow checks focused builds and reviews together [B26,C7]', t => {
   assert.equal(store.getItem(board, laterBuild).item_status, 'open');
 });
 
+test('an available focused build prevents an outside review with overflow on [B26,C7]', t => {
+  const { board, builder, set } = setup(t);
+  const actor = store.register(board, { lane: 'core', path: '/mixed-review', route: 'strong' });
+  const later = submitted(board, builder, 'Later review', 'strong', 4);
+  const focus = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Focused build' });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Set up focus', name: '0.9.3', items: [focus] });
+  set('focusMilestone', { name: '0.9.3', overflow: true });
+  assert.equal(store.nextFor(board, { agentId: actor, lane: 'core', verify: true }).item, null);
+  assert.equal(store.nextFor(board, { agentId: actor, lane: 'core' }).item.item_id, focus);
+  assert.equal(store.getItem(board, later).item_status, 'submitted');
+});
+
+test('focus does not displace work already held by the seat [B26,C7]', t => {
+  const { board, builder, set } = setup(t);
+  const held = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Already claimed' });
+  const focus = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Focused' });
+  store.claim(board, held, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Set up focus', name: '0.9.3', items: [focus] });
+  set('focusMilestone', { name: '0.9.3', overflow: false });
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, held);
+});
+
 test('milestone focus records the one-line idle observation and clearing restores ordering [B26,C7]', t => {
   const box = crossLaneFixture(t);
   const actor = box.seat('focus-owner', 'web', box.session);
