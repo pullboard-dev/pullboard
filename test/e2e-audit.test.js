@@ -10,17 +10,17 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { repoInfo } from '../src/git.js';
 import { loadConfig } from '../packages/config/index.js';
-import { refreshTestPlacement } from '../src/test-placement-report.js';
-import { testValueReport } from '../src/test-value.js';
+import { refreshTestPlacement } from '../packages/gate/index.js';
+import { testValueReport } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { indexedStageSelection, readPlacementIndex, readPlacementReport, writePlacementIndex } from '../src/test-economics-index.js';
+import { indexedStageSelection, readPlacementIndex, readPlacementReport, writePlacementIndex } from '../packages/gate/index.js';
 import {
   mainAuditFixture,
   readAuditJob,
 } from './main-audit-project.js';
 import { runFixtureGit } from './fixture-child.js';
-import { paidTests, placementLandingGate, placementLandingPlan, placementSubmitSelection, VALUE_GATE, valueGateCommand } from '../src/test-placement.js';
-import { packageBranchCoverage } from '../src/audit-coverage.js';
+import { paidTests, placementLandingGate, placementLandingPlan, placementSubmitSelection, VALUE_GATE, valueGateCommand } from '../packages/gate/index.js';
+import { packageBranchCoverage } from '../packages/gate/index.js';
 import {
   auditFailureItem,
   auditInterval,
@@ -29,7 +29,7 @@ import {
   placementReport,
   placeTest,
   testsAtStage,
-} from '../src/test-economics.js';
+} from '../packages/gate/index.js';
 
 /** A complete audit inventory with known unit, landing-only and CLI journey inputs. */
 function inventory() {

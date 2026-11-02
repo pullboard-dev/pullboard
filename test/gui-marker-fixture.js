@@ -1,7 +1,7 @@
 /** Read literal module edges for the explicit Chrome GUI annotation guard without running any source [C7,V4]. */
 import { readFileSync } from 'node:fs';
 import { posix, resolve } from 'node:path';
-import { importsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 
 const LAUNCHERS = new Set(['test/chrome-fixture.js', 'test/chrome-launch-args.js', 'test/cockpit/fixture.js']);
 

@@ -4,8 +4,8 @@
 /** Observed value controls conversion priority; missing metrics remain unknown [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { testConversionPlan } from '../src/test-conversion.js';
-import { capacitySummary, declaredTestBoundary, landedBatchCount } from '../src/capacity-summary.js';
+import { testConversionPlan } from '../packages/gate/index.js';
+import { capacitySummary, declaredTestBoundary, landedBatchCount } from '../packages/gate/index.js';
 
 /** Build an input report, never a gate receipt or authority witness. */
 function report(files = []) {

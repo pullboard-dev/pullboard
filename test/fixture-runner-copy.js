@@ -4,7 +4,7 @@ import { isBuiltin } from 'node:module';
 import { join, posix } from 'node:path';
 import { copyPackageFiles } from '../src/package-files.js';
 import { runnerPackage } from '../src/runner-package.js';
-import { importsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 import { createRunnerModuleParser } from '../src/runner-module-parser.js';
 import { runtimeUrls } from '../src/runner-runtime-urls.js';
 

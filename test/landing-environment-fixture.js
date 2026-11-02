@@ -5,8 +5,8 @@ import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { readGateReceipt, receiptBinds, receiptBody, receiptFields, receiptStore } from '../src/gate-run-receipt.js';
-import { gateRuns } from '../src/gate-control.js';
+import { readGateReceipt, receiptBinds, receiptBody, receiptFields, receiptStore } from '../packages/gate/index.js';
+import { gateRuns } from '../packages/gate/index.js';
 
 /** Read the private board through its public store without rewriting historical receipts. */
 function boardRead(box, action, clock) {

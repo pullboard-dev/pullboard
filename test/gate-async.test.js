@@ -7,7 +7,7 @@ import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { runProfiledShellAsync } from '../src/gate.js';
+import { runProfiledShellAsync } from '../packages/gate/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 test('the asynchronous gate backend runs its child and writes a terminal profile [C7]', async t => {

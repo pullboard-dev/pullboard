@@ -25,7 +25,7 @@ import {
   boardReceiptStore,
   receiptBinds,
   receiptFields,
-} from "../../../../src/gate-run-receipt.js";
+} from "../../../gate/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { flakeLedger } from "./flakes.js";
 import { ENGINE_VERSION } from "../../../state/index.js";

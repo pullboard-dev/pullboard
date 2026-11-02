@@ -9,7 +9,7 @@ import { requireOutsideOwner } from '../../../items/index.js';
 import * as store from '../../../../src/board.js';
 import { headCommit } from '../../../../src/git.js';
 import { mainCheckout } from '../../../../src/git.js';
-import { runStaticChecks } from '../../../../src/gate.js';
+import { runStaticChecks } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { gateGroup } from './landing-step-gate.js';
 import { waivedProof } from './landing-step-failures.js';

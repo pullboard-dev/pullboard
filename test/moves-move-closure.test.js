@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { importsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 import { readPathMap } from '../packages/codemap/index.js';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { packageFiles } from '../src/package-files.js';

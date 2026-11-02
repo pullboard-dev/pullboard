@@ -1,6 +1,6 @@
 /** A genuinely checked main merge passes the complete native/relay reader oracle [C7,V4,H16]. */
-import { selectAffectedTests } from '../src/affected-tests.js';
-import { selectTestTreeGuards } from '../src/affected-tests.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { selectTestTreeGuards } from '../packages/gate/index.js';
 import { executionServices } from './gate-execution-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -9,12 +9,12 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from '../src/git.js';
-import { runSubmitGate } from '../src/gate.js';
+import { runSubmitGate } from '../packages/gate/index.js';
 import { mainPolicy } from '../packages/sandbox/index.js';
 import { withSourceComposition } from '../packages/merge/index.js';
 import { captureSourceAdvanceBasis } from '../packages/sandbox/index.js';
-import { boardReceiptStore } from '../src/gate-run-receipt.js';
-import { readGateReceipt } from '../src/gate-run-receipt.js';
+import { boardReceiptStore } from '../packages/gate/index.js';
+import { readGateReceipt } from '../packages/gate/index.js';
 import { prepareSourceAdvance } from '../packages/sandbox/index.js';
 
 /** Build real fixture commits and execute the declared exact-tree test before covering the native move. */

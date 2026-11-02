@@ -4,11 +4,11 @@ import { parseArgs } from 'node:util';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verifyHostedRelease } from '../src/release-hosted.js';
-import { releaseReceiptFields } from '../src/release-gate-receipt.js';
-import { releaseReceiptProblem } from '../src/release-gate-receipt.js';
-import { latestGitHubReleaseRun } from '../src/release-transport.js';
-import { readGitHubReleaseReceipt } from '../src/release-transport.js';
-import { ReleaseTransportError } from '../src/release-transport.js';
+import { releaseReceiptFields } from '../packages/gate/index.js';
+import { releaseReceiptProblem } from '../packages/gate/index.js';
+import { latestGitHubReleaseRun } from '../packages/gate/index.js';
+import { readGitHubReleaseReceipt } from '../packages/gate/index.js';
+import { ReleaseTransportError } from '../packages/gate/index.js';
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) try {
   const { values } = parseArgs({ options: { repository: { type: 'string' }, head: { type: 'string' }, run: { type: 'string' } }, allowPositionals: false });

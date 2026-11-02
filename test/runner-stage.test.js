@@ -8,7 +8,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { localRunnerDescriptor } from '../src/runner-load.js';
-import { recordReceipt } from '../src/gate-receipt.js';
+import { recordReceipt } from '../packages/gate/index.js';
 import * as runnerApi from '../src/runners.js';
 import { runFixtureGit } from './fixture-child.js';
 import { takeResource } from '../packages/resources/index.js';

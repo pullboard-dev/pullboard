@@ -1,5 +1,5 @@
 /** Synthetic historical receipts exercise report arithmetic; they are not engineering proof [C7]. */
-import { testCapacityReport } from '../src/test-capacity.js';
+import { testCapacityReport } from '../packages/gate/index.js';
 import { flakeLedger } from '../src/flakes.js';
 import { eventCauses } from '../src/board-rigor.js';
 import assert from 'node:assert/strict';
@@ -13,9 +13,9 @@ import { openBoard } from '../src/native-board.js';
 import { main } from './native-cli-fixture.js';
 import { defaults, configFromSource } from '../packages/config/index.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
-import { boardReceiptStore } from '../src/gate-run-receipt.js';
-import { readTestValueTimings, retainTestValueTimings } from '../src/test-value-timing.js';
-import { testValueReport } from '../src/test-value.js';
+import { boardReceiptStore } from '../packages/gate/index.js';
+import { readTestValueTimings, retainTestValueTimings } from '../packages/gate/index.js';
+import { testValueReport } from '../packages/gate/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 const NOW = '2026-10-27T00:00:00.000Z';

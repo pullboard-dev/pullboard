@@ -1,6 +1,6 @@
 /** @pullboard-test-loads bin/run-tests.js src/test-isolation.js src/child-journal-preload.js packages/resources/src/shell/machine-home.js packages/config/src/shell/settings.js packages/resources/index.js packages/config/src/shell/config.js */
 /** A test's verdict never depends on the machine it runs on: settings, resources, runners, host markers, ports [C7]. */
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -9,8 +9,8 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChildAsync } from './fixture-child.js';
-import { childJournalPreloadSource } from '../src/child-journal-preload.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { childJournalPreloadSource } from '../packages/gate/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
