@@ -5,7 +5,10 @@ import { once } from 'node:events';
 import { test } from 'node:test';
 import { browserJSON } from '../relay/browser-deadline.js';
 import { relayBoundaryProblems } from '../bin/checks/relay-boundary.js';
-import { createFakeRelayAdapter, realRelayAdapter, relayFetch, withRelayAdapter } from '../packages/person/index.js';
+import { createFakeRelayAdapter } from '../packages/person/index.js';
+import { realRelayAdapter } from '../packages/person/index.js';
+import { relayFetch } from '../packages/person/index.js';
+import { withRelayAdapter } from '../packages/person/index.js';
 
 async function contract(adapter, origin) {
   const response = await adapter.request(new URL('/echo', origin), {
