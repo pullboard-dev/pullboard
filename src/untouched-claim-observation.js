@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitExecFileSync } from '../packages/git/index.js';
 
