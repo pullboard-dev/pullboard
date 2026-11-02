@@ -12,7 +12,7 @@ import { ENGINE_VERSION } from "../../../state/index.js";
 import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../../src/submit-proof-reuse-engine.js';
 import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
 import { Refused } from "../../../kernel/index.js";
-import * as seats from "../../../../src/seats.js";
+import { agentParent } from "../../../seats/index.js";
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../src/quarantine-verdict-engine.js";
 
 /** Read the native gate's file before sealing a replayable move; caller-supplied fields are not evidence. */
@@ -48,7 +48,7 @@ function proofReceiptFields(board, request, run) {
     && (!existing || Object.hasOwn(existing, 'failures'));
   const receipt = { id: run.id, kind: run.kind, item: itemId, commit: run.head, tree: run.tree,
     frozenDigest: run.proof.frozenDigest, environment: run.proof.environment, runner: run.proof.runner,
-    seat: agentId, parentSession: seats.agentParent?.(board, agentId) ?? null, exitCode: run.proof.exitCode,
+    seat: agentId, parentSession: agentParent?.(board, agentId) ?? null, exitCode: run.proof.exitCode,
     counts: run.proof.counts, durationMs: run.proof.durationMs, sourceClean: run.proof.sourceClean, at: run.at,
     ...(Object.hasOwn(run.proof, 'testRuntimes') ? { testRuntimes: run.proof.testRuntimes } : {}) };
   if (Object.hasOwn(run, 'blockingVerdict')) {
