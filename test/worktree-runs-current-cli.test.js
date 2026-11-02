@@ -1,0 +1,123 @@
+/** A worktree behind the main checkout runs the main checkout's CLI, hooks included [B17,B3,B34]. */
+import assert from 'node:assert/strict';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { test } from 'node:test';
+import { register } from '../packages/store/index.js';
+import { closeBoard, openBoard } from '../apps/lib/index.js';
+import { main } from './native-cli-fixture.js';
+import { loadConfig } from '../packages/config/index.js';
+import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+
+const SOURCE = resolve(import.meta.dirname, '..');
+const MAIN_MARK = 'fixture-main-cli-ran';
+const OWN_MARK = 'fixture-worktree-cli-ran';
+
+/** Put a stderr marker as the entry's first statement, so a run counts each start of that entry. */
+function mark(entry, text) {
+  const [shebang, ...rest] = readFileSync(entry, 'utf8').split('\n');
+  writeFileSync(entry, [shebang, `process.stderr.write(${JSON.stringify(`${text}\n`)});`, ...rest].join('\n'));
+}
+
+/** Put a stderr marker right before the entry dispatches, so a run names whose code ran the command. */
+function markDispatch(entry, text) {
+  const source = readFileSync(entry, 'utf8');
+  const at = source.indexOf('process.exitCode = await main(');
+  assert.ok(at > 0, 'the entry dispatches through main');
+  writeFileSync(entry, `${source.slice(0, at)}process.stderr.write(${JSON.stringify(`${text}\n`)});\n${source.slice(at)}`);
+}
+
+/**
+ * A real repo holding this checkout's entry, entry hook launchers and its source (linked), with a
+ * board, and a joined worktree one commit behind main: main's commit adds only a marker.
+ */
+async function project(t) {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-current-cli-')));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const root = join(dir, 'repo');
+  mkdirSync(join(root, 'bin'), { recursive: true });
+  mkdirSync(join(root, '.githooks'));
+  for (const file of ['bin/pullboard.js', 'bin/current-cli.js', '.githooks/pre-commit', 'package.json']) copyFileSync(join(SOURCE, file), join(root, file));
+  for (const folder of ['src', 'packages', 'apps']) symlinkSync(join(SOURCE, folder), join(root, folder));
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_') && name !== 'PULLBOARD_OWN_CLI'));
+  Object.assign(env, { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Current fixture', GIT_AUTHOR_EMAIL: 'current@example.invalid',
+    GIT_COMMITTER_NAME: 'Current fixture', GIT_COMMITTER_EMAIL: 'current@example.invalid' });
+  /** Git in the fixture, with a synthetic identity and no inherited GIT_* variables. */
+  const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, stdio: 'pipe', encoding: 'utf8' });
+  git(root, 'init', '-q', '-b', 'main');
+  const clock = { now: () => new Date('2026-11-02T12:00:00.000Z') };
+  const quiet = { write: () => {} };
+  assert.equal(await main(['init', '--no-hooks'], { cwd: root, clock, stdout: { isTTY: false, write: () => {} }, stderr: quiet }), 0);
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
+  writeFileSync(join(root, 'SPEC.md'), '# Current fixture\n## G\n- G1 [approved, must] Every move keeps its evidence. | gate: true\n');
+  writeFileSync(join(root, loadConfig(root).practice), '');
+  // Fixture commits run no board hooks; the test calls the hook launcher itself.
+  mkdirSync(join(dir, 'no-hooks'));
+  git(root, 'config', 'core.hooksPath', join(dir, 'no-hooks'));
+  git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'chore: initialize current-cli fixture');
+  const worktree = join(dir, 'web');
+  git(root, 'worktree', 'add', '-q', worktree, '-b', 'web/one');
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), clock, { gitRoot: root });
+  const seat = register(board, { lane: 'web', path: worktree, family: 'Fixture Vendor' });
+  closeBoard(board);
+  mark(join(root, 'bin', 'pullboard.js'), MAIN_MARK);
+  git(root, 'commit', '-q', '-am', 'chore: main moves one commit ahead');
+  /** Run an entry or launcher with cwd and env, as an agent's shell would. */
+  const run = (cwd, command, args, extra = {}) => runFixtureChild(command, args, { cwd, env: { ...env, ...extra }, encoding: 'utf8' });
+  return { root, worktree, seat, git, run };
+}
+
+test('[B17,B3,B34] a worktree behind main runs main\'s CLI with its own seat; hooks too; PULLBOARD_OWN_CLI=1 keeps its code', async (t) => {
+  const box = await project(t);
+  markDispatch(join(box.worktree, 'bin', 'pullboard.js'), OWN_MARK);
+  const entry = join(box.worktree, 'bin', 'pullboard.js');
+
+  const behind = box.run(box.worktree, process.execPath, [entry, 'whoami']);
+  assert.equal(behind.status, 0, behind.context);
+  assert.equal(behind.stderr.split(MAIN_MARK).length - 1, 1, `main's code ran exactly once, never re-handing itself over\n${behind.context}`);
+  assert.doesNotMatch(behind.stderr, new RegExp(OWN_MARK, 'u'), 'the worktree\'s stale code never ran the command');
+  assert.match(behind.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'), 'the seat is still resolved from the worktree');
+
+  const hook = box.run(box.worktree, 'sh', [join(box.worktree, '.githooks', 'pre-commit')]);
+  assert.equal(hook.stderr.split(MAIN_MARK).length - 1, 1, `the hook launcher ran main's code\n${hook.context}`);
+  assert.doesNotMatch(hook.stderr, new RegExp(OWN_MARK, 'u'));
+
+  const own = box.run(box.worktree, process.execPath, [entry, 'whoami'], { PULLBOARD_OWN_CLI: '1' });
+  assert.equal(own.status, 0, own.context);
+  assert.match(own.stderr, new RegExp(OWN_MARK, 'u'), 'PULLBOARD_OWN_CLI=1 runs the worktree\'s own code');
+  assert.doesNotMatch(own.stderr, new RegExp(MAIN_MARK, 'u'));
+  assert.match(own.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'));
+
+  box.git(box.worktree, 'checkout', '-q', '--', 'bin/pullboard.js');
+  box.git(box.worktree, 'merge', '-q', '--ff-only', 'main');
+  markDispatch(entry, OWN_MARK);
+  const current = box.run(box.worktree, process.execPath, [entry, 'whoami']);
+  assert.equal(current.status, 0, current.context);
+  assert.match(current.stderr, new RegExp(OWN_MARK, 'u'), 'a worktree at or ahead of main runs its own code');
+  assert.equal(current.stderr.split(MAIN_MARK).length - 1, 1, 'its entry carries main\'s marker once, from its own copy');
+});
+
+test('[B17] the main checkout and a CLI run against another repo keep their own code', async (t) => {
+  const box = await project(t);
+  markDispatch(join(box.worktree, 'bin', 'pullboard.js'), OWN_MARK);
+  const fromMain = box.run(box.root, process.execPath, [join(box.root, 'bin', 'pullboard.js'), 'whoami']);
+  assert.equal(fromMain.stderr.split(MAIN_MARK).length - 1, 1, `the main checkout runs its entry once\n${fromMain.context}`);
+  const elsewhere = box.run(box.root, process.execPath, [join(box.worktree, 'bin', 'pullboard.js'), 'whoami']);
+  assert.match(elsewhere.stderr, new RegExp(OWN_MARK, 'u'), 'a stale entry run from another checkout keeps its own code, as test fixtures do');
+  assert.doesNotMatch(elsewhere.stderr, new RegExp(MAIN_MARK, 'u'));
+  assert.doesNotMatch(fromMain.stderr + elsewhere.stderr, /main checkout CLI not found/u, 'neither case is a fallback worth a line');
+});
+
+test('[B17] a worktree whose main checkout CLI is missing runs its own code and says why in one line', async (t) => {
+  const box = await project(t);
+  markDispatch(join(box.worktree, 'bin', 'pullboard.js'), OWN_MARK);
+  renameSync(join(box.root, 'bin', 'pullboard.js'), join(box.root, 'bin', 'pullboard.js.gone'));
+  const missing = box.run(box.worktree, process.execPath, [join(box.worktree, 'bin', 'pullboard.js'), 'whoami']);
+  assert.equal(missing.status, 0, `the command never fails because the handover could not happen\n${missing.context}`);
+  assert.match(missing.stderr, new RegExp(OWN_MARK, 'u'), 'the worktree\'s own code ran the command');
+  assert.equal(missing.stderr.split('\n').filter(line => line.includes('main checkout CLI not found; running this worktree\'s code')).length, 1, missing.context);
+  assert.match(missing.stderr, /pullboard\.js is missing or unreadable/u, 'the line says why');
+  assert.match(missing.stdout, new RegExp(`\\b${box.seat}\\b`, 'u'));
+});
