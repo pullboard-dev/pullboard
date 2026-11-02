@@ -452,7 +452,7 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'a never-ranked board retains its old oldest-first tie-break');
   orderMilestoneItems(board, 'release', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, ranked);
-  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, ranked, 'an automatic rework tie-break does not overtake an explicit coordinator rank');
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, oldest, 'a main-red priority takes precedence over an explicit coordinator rank');
   const replica = openBoard(':memory:');
   t.after(() => store.closeBoard(replica));
   importBoard(replica, exportBoard(board));
