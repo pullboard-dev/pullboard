@@ -1,6 +1,6 @@
 /** Bind test admission to the same real canonical providers as the production composition roots [C7]. */
 import { runnerExecutionServices } from '../src/runners.js';
-import { landingExecutionServices } from '../src/landing-shards.js';
+import { landingExecutionServices } from '../packages/landing/index.js';
 
 export const executionServices = Object.freeze({ runners: runnerExecutionServices(), landing: landingExecutionServices() });
 

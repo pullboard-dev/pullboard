@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { amendLandingEngines } from '../src/landing-step-merge.js';
+import { amendLandingEngines } from '../packages/landing/index.js';
 import { computePlan, placePath, readPlan, writePlan } from '../bin/cells-plan.js';
 import { git } from './cells-plan-fixture.js';
 import { runFixtureChild } from './fixture-child.js';

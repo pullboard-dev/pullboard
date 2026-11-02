@@ -9,7 +9,7 @@ import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { requireSubmitCells } from '../bin/cells-submit-checks.js';
-import { withMainCheckout } from '../src/main-red.js';
+import { withMainCheckout } from '../packages/landing/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
