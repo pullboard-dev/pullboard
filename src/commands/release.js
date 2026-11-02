@@ -1,4 +1,4 @@
-import { relayRecovered } from '../relay.js';
+import { relayRecovered } from '../../packages/link/index.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { prepareStaleObservation } from '../../packages/health/index.js';
 import { pinClaimHandoff } from '../../packages/health/index.js';
@@ -7,7 +7,7 @@ import { Refused } from '../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../release-reasons.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import * as seatCheckout from '../seat-checkout.js';
 import {
   nextOnce,

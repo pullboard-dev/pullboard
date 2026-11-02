@@ -8,12 +8,12 @@ import {
   permanentUploadRefusal,
   uploadPauseType,
   uploadRetryReady,
-} from '../../../../src/relay-upload-pause.js';
+} from '../../../link/index.js';
 import {
   presentationDigest,
   relaySnapshot,
 } from '../../../pages/index.js';
-import { locked } from '../../../../src/relay-lock.js';
+import { locked } from '../../../link/index.js';
 import {
   outboxGeneration,
   outboxWaiting,

@@ -1,8 +1,8 @@
-import { agentSessionDigest } from '../person.js';
+import { agentSessionDigest } from '../../packages/person/index.js';
 import { nextTake } from '../../packages/sandbox/index.js';
-import { mainRedReviewItems } from '../main-red.js';
-import { mainRedReworkItems } from '../main-red.js';
-import { computedReturnArgs } from '../computed-conflict-return.js';
+import { mainRedReviewItems } from '../../packages/landing/index.js';
+import { mainRedReworkItems } from '../../packages/landing/index.js';
+import { computedReturnArgs } from '../../packages/landing/index.js';
 import {
   MainSpecMerged,
   checkMainVerifier,

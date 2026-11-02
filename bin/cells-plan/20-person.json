@@ -40,23 +40,7 @@
   ["src/person-pairing-limit.js","packages/person/src/shell/person-pairing-limit.js","rule"],
   ["src/person-request-digest.js","packages/person/src/shell/person-request-digest.js","rule"]
  ],
- "reexports": [
-  "src/pairing.js",
-  "src/person-authority-schema.js",
-  "src/person-bar-cli.js",
-  "src/person-bar-effect.js",
-  "src/person-enrollment.js",
-  "src/person-presence.js",
-  "src/person-request.js",
-  "src/person-row-proof.js",
-  "src/person-signing-cli.js",
-  "src/person-signing-presentation.js",
-  "src/person-signing-words.js",
-  "src/person-signing.js",
-  "src/person.js",
-  "src/qr.js",
-  "src/seal.js"
- ],
+ "reexports": ["src/person-signing-cli.js","src/person-signing.js","src/person.js"],
  "imports": [
   {"cell":"kernel","imports":13,"before":true},
   {"cell":"git","imports":1,"before":true},

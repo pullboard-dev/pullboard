@@ -213,8 +213,8 @@ test('health names each stuck cause with its next step and owner [A6]', async (t
   const parentItem = built('Parent in review', builders[11], parent);
   const conflictHold = built('Conflict hold', builders[0], cleared, 'REJECT');
   store.holdItem(board, conflictHold, { agentId: 'coordinator', reason: 'conflicts with the a.txt batch' });
-  addMilestone(board, { agentId: 'coordinator', name: '0.1.1', items: [lapsed, rejected, reopened] });
-  addMilestone(board, { agentId: 'coordinator', name: '0.1.2', items: [later] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.1.1', items: [lapsed, rejected, reopened] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.1.2', items: [later] });
   store.closeBoard(board); // Health opens its own read-only connection.
 
   const beforeBoard = boardDigest(box.file);

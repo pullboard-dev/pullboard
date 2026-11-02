@@ -9,12 +9,14 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
+import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone, orderMilestoneItems } from '../src/board-milestones.js';
 import { proofStats } from '../packages/stats/index.js';
 import { flowStats } from '../packages/stats/index.js';
+import { FLOW_REPORT_VERSION } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { MILESTONE_PLACEMENT_ENGINE } from '../src/milestone-placement-engine.js';
 
 /** Native read operations explicitly supplied to the statistics under test. */
 const statsReadPorts = { events: readStatsEvents, counterProofStats: readStatsCounter };
@@ -77,6 +79,7 @@ test('an older writer cannot make retained report capability look current [R1,R2
   const board = fixture(t);
   const reportKeys = 'local:proof-stats:v2:report-*';
   const retained = board.db.prepare('SELECT meta_key,meta_value FROM board_meta WHERE meta_key GLOB ?').all(reportKeys);
+  const previousEvents = store.events(board);
   store.addItem(board, { by: 'coordinator', lane: 'api', title: 'An older writer advances native history' });
   // Emulate an older writer's exact derived-state boundary: ordinary counters advance; report shards do not.
   board.db.prepare('DELETE FROM board_meta WHERE meta_key GLOB ?').run(reportKeys);
@@ -91,7 +94,8 @@ test('an older writer cannot make retained report capability look current [R1,R2
   ensureProofCounters(board);
   assert.equal(proofStats(board, {}, statsReadPorts).flow.report.items.length, 2);
   assert.deepEqual(proofEvents, [], 'report catch-up never rebuilds or recounts the existing proof statistics');
-  assert.deepEqual(reportEvents, [before.at(-1).event_id], 'only the one missed native event is folded into the report');
+  assert.deepEqual(reportEvents, before.slice(previousEvents.length).map(event => event.event_id),
+    'only the missed native events are folded into the report');
   assert.deepEqual(store.events(board), before, 'repair changes derived counters only');
 });
 
@@ -147,6 +151,8 @@ test('cached flow retains every native milestone membership through edits remova
   const base = Date.parse('2026-10-10T00:00:00Z');
   let minute = 0;
   const board = fixture(t, { now: () => new Date(base + minute * 60_000) });
+  // Multiple manual memberships were legal before automatic placement; retain that history.
+  board.executionEngineVersion = MILESTONE_PLACEMENT_ENGINE - 1;
   const who = { agentId: 'coordinator' };
   addMilestone(board, { ...who, name: 'A', items: [1] });
   addMilestone(board, { ...who, name: 'B', items: [1] });
@@ -197,6 +203,33 @@ test('cached flow retains every native milestone membership through edits remova
   assert.deepEqual(report.milestones.map(row => row.milestone), [null]);
 });
 
+test('automatic placement overrides agree in cached and replayed flow after shipping [R1,R2]', t => {
+  const board = fixture(t);
+  const who = { agentId: 'coordinator' };
+  const id = 1;
+  addMilestone(board, { ...who, name: 'A', items: [id], reason: 'place in A' });
+  for (const name of ['B', 'C']) addMilestone(board, { ...who, name });
+  const observe = expected => {
+    const now = Date.now() + 60_000;
+    const stats = proofStats(board, { now }, statsReadPorts);
+    const replay = flowStats(store.events(board), null, now, stats).report;
+    const live = store.milestones(board).filter(row => row.items.includes(id)).map(row => row.name);
+    assert.deepEqual(live, expected);
+    assert.deepEqual(stats.flow.report, replay);
+    assert.deepEqual(replay.items.find(row => row.id === id).milestones, expected);
+  };
+  observe(['A']);
+  editMilestoneItems(board, 'B', { ...who, add: [id], reason: 'move to B' });
+  observe(['B']);
+  orderMilestoneItems(board, 'B', { ...who, items: [id], reason: 'rank within B' });
+  observe(['B']);
+  shipMilestone(board, 'A', { ...who, commit: 'a'.repeat(40), next: 'C' });
+  observe(['B']);
+  board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:report-summary');
+  ensureProofCounters(board);
+  observe(['B']);
+});
+
 test('repeated native landing receipts preserve the first measured landing interval [R1,R2]', t => {
   const base = Date.parse('2026-10-10T00:00:00Z');
   let minute = 0;
@@ -223,4 +256,33 @@ test('repeated native landing receipts preserve the first measured landing inter
   const repeated = proofStats(board, { now: base + minute * 60_000 }, statsReadPorts).flow.report;
   assert.deepEqual(repeated, first, 'another valid receipt cannot turn measured history into a gap or double its elapsed time');
   assert.deepEqual(repeated, flowStats(store.events(board), null, base + minute * 60_000, { submissions: 1, rejections: 0, rejectionShare: 0 }).report);
+});
+
+test('writers alternating between an older and a newer report version rebuild the report once in total [R1,R2]', t => {
+  const board = fixture(t);
+  const key = 'local:proof-stats:v2:report-summary';
+  const stored = () => JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+  const stamp = version => board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?')
+    .run(JSON.stringify({ ...stored(), data: { ...stored().data, version } }), key);
+  board.db.exec(`CREATE TABLE temp.report_resets(id INTEGER PRIMARY KEY, why TEXT);
+    CREATE TEMP TRIGGER report_deleted AFTER DELETE ON main.board_meta WHEN OLD.meta_key='${key}' BEGIN INSERT INTO report_resets(why) VALUES ('deleted'); END;
+    CREATE TEMP TRIGGER report_zeroed AFTER UPDATE ON main.board_meta WHEN NEW.meta_key='${key}' AND json_extract(NEW.meta_value,'$.data.last')=0 BEGIN INSERT INTO report_resets(why) VALUES ('zeroed'); END;
+    CREATE TEMP TRIGGER report_created AFTER INSERT ON main.board_meta WHEN NEW.meta_key='${key}' BEGIN INSERT INTO report_resets(why) VALUES ('created'); END;`);
+  const resets = () => board.db.prepare('SELECT COUNT(*) AS n FROM temp.report_resets').get().n;
+  // The older writer sees a stored report from older code and upgrades it: the one rebuild.
+  stamp(FLOW_REPORT_VERSION - 1);
+  store.addItem(board, { by: 'coordinator', lane: 'core', title: 'The older report upgrades once' });
+  assert.equal(stored().data.version, FLOW_REPORT_VERSION);
+  const upgrade = resets();
+  assert.ok(upgrade > 0, 'the upgrade reset the report');
+  // Then a newer writer stamps its version, and sometimes drops the proof summary so this code takes the full rebuild path.
+  for (let round = 1; round <= 12; round += 1) {
+    stamp(FLOW_REPORT_VERSION + 1);
+    if (round % 2) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:summary');
+    const newer = stored();
+    store.addItem(board, { by: 'coordinator', lane: 'core', title: `Alternating writer ${round}` });
+    ensureProofCounters(board);
+    assert.deepEqual(stored(), newer, `round ${round}: the older code leaves the newer report exactly as stored`);
+  }
+  assert.equal(resets(), upgrade, 'after the one upgrade no write resets, deletes or rebuilds the report');
 });

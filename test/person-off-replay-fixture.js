@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import * as signing from '../src/person-signing.js';
-import { presenceAttestation } from '../src/person-presence.js';
-import { preparePersonRequest } from '../src/person-request.js';
+import { presenceAttestation } from '../packages/person/index.js';
+import { preparePersonRequest } from '../packages/person/core.js';
 import { loadConfig } from '../packages/config/index.js';
 import {
   applyRelayMove,
@@ -21,7 +21,7 @@ import {
   personRequestRecords,
   requestIntentDigest,
   requestStageText,
-} from '../src/relay-requests.js';
+} from '../packages/link/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { relayStampKey } from './person-relay-stamp.js';
 

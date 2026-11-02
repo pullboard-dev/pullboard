@@ -59,7 +59,10 @@
   ["src/item-patch-submit.js","packages/items/src/shell/item-patch-submit.js","rule"],
   ["src/lifecycle-move.js","packages/items/src/core/lifecycle-move.js","imports"],
   ["src/family-declaration.js","packages/items/src/shell/family-declaration.js","imports"],
-  ["src/audit-failure-item.js","packages/items/src/core/audit-failure-item.js","imports"]
+  ["src/audit-failure-item.js","packages/items/src/core/audit-failure-item.js","imports"],
+  ["src/criterion-size.js","packages/items/src/core/criterion-size.js","rule"],
+  ["src/criterion-cells.js","packages/items/src/shell/criterion-cells.js","rule"],
+  ["test/item-size.test.js","packages/items/tests/item-size.test.js","rule"]
  ],
  "reexports": ["src/item-dependencies.js","src/item-files.js","src/item-list.js","src/reopen-cause.js"],
  "imports": [

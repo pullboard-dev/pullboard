@@ -3,7 +3,7 @@ import { viewApiPorts } from '../src/view-api-ports.js';
 import { withApiCommandEnvironment } from './api-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
 
-import { relayRecovered } from '../src/relay.js';
+import { relayRecovered } from '../packages/link/index.js';
 import assert from 'node:assert/strict';
 import { runFixtureChild as spawnSync, cleanupFixtureChildren, runFixtureChildAsync, runFixtureGit, safeFixtureDiagnostic } from './fixture-child.js';
 import { createServer } from 'node:http';
@@ -29,7 +29,7 @@ import { ENGINE_VERSION } from '../packages/state/index.js';
 import { presentationShout } from '../packages/pages/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { relayResetSample } from './relay-reset-fixture.js';
-import { request as relayRequest } from '../src/relay.js';
+import { request as relayRequest } from '../packages/link/index.js';
 import { openPagedSnapshot } from '../packages/pages/index.js';
 import { initialSpecApprovalBaseline } from '../packages/spec/index.js';
 import { captureSpecApprovalBaseline } from '../packages/spec/index.js';

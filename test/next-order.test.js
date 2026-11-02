@@ -44,8 +44,8 @@ test('next offers the item on the longest remaining path first [N2,B13,N20]', t 
   const outsideMiddle = add('Outside middle', [outside]);
   const outsideEnd = add('Outside end', [outsideMiddle]);
   const outsideLast = add('Outside last', [outsideEnd]);
-  addMilestone(board, { agentId: 'coordinator', name: 'later', items: [outside, outsideMiddle, outsideEnd, outsideLast] });
-  addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, wide, ...wideChildren, longest, middle, end] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'later', items: [outside, outsideMiddle, outsideEnd, outsideLast] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'focus', items: [independent, wide, ...wideChildren, longest, middle, end] });
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
     reason: 'Synthetic focused DAG scheduling fixture.', window: { items: 14 } });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, wide,
@@ -65,7 +65,7 @@ test('equal primary scores use the longer remaining path before age [N2,B13,N20]
   const long = add('Newer chain with the same two descendants');
   const middle = add('Chain middle', [long]);
   const end = add('Chain end', [middle]);
-  addMilestone(board, { agentId: 'coordinator', name: 'equal-score focus', items: [wide, ...children, long, middle, end] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'equal-score focus', items: [wide, ...children, long, middle, end] });
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'equal-score focus',
     reason: 'Equal-score critical-path tie fixture under ruling 29931.', window: { items: 6 } });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, long,
@@ -96,7 +96,7 @@ test('historical review paths replay while modern reviews use age [C7,N2,B13,H16
   const independent = submitted(board, builder, 'Older independent submission', 'strong', 1);
   const root = submitted(board, builder, 'Newer submission unlocks follow-up work', 'strong', 2);
   const follower = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Follow-up waits for review', after: [root] });
-  addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, root, follower] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'focus', items: [independent, root, follower] });
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
     reason: 'Synthetic review critical-chain fixture.', window: { items: 3 } });
   board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
@@ -109,16 +109,17 @@ test('historical review paths replay while modern reviews use age [C7,N2,B13,H16
 
 test('recorded review selection keeps its historical path priority on replay [N2,H16]', t => {
   for (const engine of [CRITICAL_PATH_ENGINE - 1, REVIEW_ROUTING_ENGINE - 1, ENGINE_VERSION]) {
-    const { board, builder, reviewer } = boardFixture();
+    const { board, builder, reviewer } = boardFixture(engine);
     const replica = openBoard(':memory:');
     t.after(() => { store.closeBoard(board); store.closeBoard(replica); });
     const independent = submitted(board, builder, 'Older independent review', 'strong', 1);
     const root = submitted(board, builder, 'Review that unlocks a longer path', 'strong', 2);
     const follower = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Blocked follow-up', after: [root] });
-    addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [independent, root, follower] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'focus', items: [independent, root, follower] });
     setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
       reason: 'Synthetic old/current selection replay fixture.', window: { items: 3 } });
     importBoard(replica, exportBoard(board));
+    delete board.executionEngineVersion;
     const prepared = prepareEngineMove(board, 'reserveNextReview', [{ agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
     const move = { ...prepared, engine };
     const receipt = { sequence: 1, at: '2026-10-25T12:00:00Z' };
@@ -143,8 +144,8 @@ test('historical reviewers keep earliest-milestone submissions first [B16,H16]',
   const laterStrong = submitted(board, builder, 'later milestone strong', 'strong', 1);
   const earliestMid = submitted(board, builder, 'earliest milestone mid', 'mid', 2);
   const unlistedStrong = submitted(board, builder, 'unlisted strong', 'strong', 3);
-  addMilestone(board, { agentId: 'coordinator', name: '0.8.4', items: [earliestMid] });
-  addMilestone(board, { agentId: 'coordinator', name: '0.8.5', items: [laterStrong] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.8.4', items: [earliestMid] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.8.5', items: [laterStrong] });
 
   const first = store.reserveNextReview(board, { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' });
   assert.equal(first.item.item_id, earliestMid, 'roadmap position precedes the stronger later release');
@@ -159,10 +160,10 @@ test('historical reviewers keep earliest-milestone submissions first [B16,H16]',
   assert.equal(held.item.item_id, unlistedStrong, 'a reviewer still resumes its own held review');
 
   const sameMilestoneStrong = submitted(board, builder, 'same milestone strong', 'strong', 4);
-  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [sameMilestoneStrong] });
+  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [sameMilestoneStrong] });
   const thirdReviewer = store.register(board, { lane: 'review', path: '/reviewer-3', route: 'strong' });
   const newerStrong = submitted(board, builder, 'newer same milestone strong', 'strong', 5);
-  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [newerStrong] });
+  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [newerStrong] });
   const sameRelease = store.nextFor(board, { agentId: thirdReviewer, lane: 'review', verify: true });
   assert.equal(sameRelease.item.item_id, sameMilestoneStrong, 'route-tier then oldest order remains within one milestone');
 });
@@ -176,18 +177,26 @@ test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
     by: 'coordinator', lane: 'core', title: 'earliest milestone mid', route: 'mid', ...MID_ITEM_DETAILS,
   });
   const unlistedStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'unlisted strong', route: 'strong' });
-  addMilestone(board, { agentId: 'coordinator', name: '0.8.4', items: [earliestMid] });
-  addMilestone(board, { agentId: 'coordinator', name: '0.8.5', items: [laterStrong] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.8.4', items: [earliestMid] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.8.5', items: [laterStrong] });
 
   const first = store.nextFor(board, { agentId: builder, lane: 'core' });
   assert.equal(first.item.item_id, earliestMid, 'roadmap position precedes the stronger later release');
 
   const sameMilestoneStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'same milestone strong', route: 'strong' });
-  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [sameMilestoneStrong] });
+  if (!store.milestones(board).find(m => m.name === '0.8.4').items.includes(sameMilestoneStrong)) {
+    editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [sameMilestoneStrong] });
+  }
   const newerStrong = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'newer same milestone strong', route: 'strong' });
-  editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', add: [newerStrong] });
+  if (!store.milestones(board).find(m => m.name === '0.8.4').items.includes(newerStrong)) {
+    editMilestoneItems(board, '0.8.4', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [newerStrong] });
+  }
+  assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, earliestMid,
+    'current selection keeps the coordinator-ranked item first');
+  board.executionEngineVersion = MILESTONE_RANK_ENGINE - 1;
   const sameRelease = store.nextFor(board, { agentId: builder, lane: 'core' });
   assert.equal(sameRelease.item.item_id, sameMilestoneStrong, 'route-tier then oldest order remains within one milestone');
+  delete board.executionEngineVersion;
 
   store.claim(board, sameMilestoneStrong, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
   const resumed = store.nextFor(board, { agentId: builder, lane: 'core' });
@@ -198,12 +207,13 @@ test('a builder gets the earliest milestone\'s open items first [B16]', (t) => {
 test('recorded reserve-next moves retain their versioned ordering [B16,H16]', (t) => {
   assert.ok(ENGINE_VERSION >= 8, 'roadmap selection is carried by engine 8 or newer');
   for (const version of [1, 2, 3, 4, 5, 6, 7, ENGINE_VERSION]) {
-    const { board, builder, reviewer } = boardFixture();
+    const { board, builder, reviewer } = boardFixture(version);
     t.after(() => store.closeBoard(board));
     const laterStrong = submitted(board, builder, 'later strong', 'strong', 1);
     const earliestMid = submitted(board, builder, 'earliest mid', 'mid', 2);
-    addMilestone(board, { agentId: 'coordinator', name: 'first', items: [earliestMid] });
-    addMilestone(board, { agentId: 'coordinator', name: 'later', items: [laterStrong] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'first', items: [earliestMid] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'later', items: [laterStrong] });
+    delete board.executionEngineVersion;
     const move = prepareEngineMove(board, 'reserveNextReview', [{ agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' }]);
     assert.equal(move.engine, ENGINE_VERSION, 'new moves carry the current engine');
     const outcome = applyEngineMove(board, { ...move, engine: version }, { sequence: 1, at: new Date().toISOString() });
@@ -356,10 +366,12 @@ test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t
   const first = box.add('api', 'Ranked mid API work', 'mid');
   const second = box.add('web', 'Second ranked strong work');
   const later = box.add('api', 'Later release work');
-  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--items', `${oldest},${first},${second}`, '--json'));
+  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${first},${second}`, '--json'));
   box.milestone('later', later);
   const ordered = box.runAs(box.session, box.web, 'milestone', 'order', 'current', `${first},${second}`, '--json');
-  assert.equal(ordered.code, 0, `an agent can order the milestone through the real CLI\n${ordered.out}\n${ordered.err}`);
+  assert.notEqual(ordered.code, 0, 'an agent cannot override automatic placement');
+  assert.equal(JSON.parse(ordered.out).error.code, 'MILESTONE_PLACED');
+  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${first},${second}`, '--reason', 'Set fixture priority', '--json'));
   const next = box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
   assert.equal(next.item.item_id, first, 'explicit rank precedes route and age within the seat’s own lane');
   assert.equal(next.item.item_owner, api.agent);
@@ -383,9 +395,9 @@ test('pullboard queue lists releases as breakpoints and items in pull order [N2,
   const waiting = box.add('web', 'Work after the claimed item');
   const later = box.add('api', 'Later release work');
   const loose = box.add('web', 'Work in no release');
-  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--items', `${oldest},${ranked},${claimed},${waiting}`, '--json'));
+  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${oldest},${ranked},${claimed},${waiting}`, '--json'));
   box.milestone('later', later);
-  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${ranked}`, '--json'));
+  box.json(box.run(box.repo, 'milestone', 'order', 'current', `${ranked}`, '--reason', 'Set fixture priority', '--json'));
   box.json(box.run(box.repo, 'edit', String(waiting), '--after', String(claimed), '--json'));
   box.json(box.runAs(box.session, holder.root, 'claim', String(claimed), '--json'));
 
@@ -418,7 +430,7 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const strongWork = box.add('web', 'Strong release work');
   const midWork = box.add('api', 'Mid release work', 'mid');
   const lightWork = box.add('api', 'Light release work', 'light');
-  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
+  box.json(box.run(box.repo, 'milestone', 'add', 'current', '--reason', 'Arrange fixture release', '--items', `${lightWork},${midWork},${strongWork}`, '--json'));
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
   const text = box.run(box.repo, 'queue');
@@ -438,9 +450,9 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   const oldest = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Oldest ordinary item', route: 'strong' });
   const middle = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Middle ordinary item', route: 'strong' });
   const ranked = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Newest ranked item', route: 'strong' });
-  addMilestone(board, { agentId: 'coordinator', name: 'release', items: [ranked, middle, oldest] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'release', items: [ranked, middle, oldest] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'a never-ranked board retains its old oldest-first tie-break');
-  orderMilestoneItems(board, 'release', { agentId: 'coordinator', items: [ranked] });
+  orderMilestoneItems(board, 'release', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, ranked);
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core', priority: [oldest] }).item.item_id, ranked, 'an automatic rework tie-break does not overtake an explicit coordinator rank');
   const replica = openBoard(':memory:');
@@ -450,29 +462,32 @@ test('an unranked item follows the ranked ones [N2,B13]', (t) => {
   const ordered = [oldest, middle, ranked].map(id => store.getItem(board, id)).sort(store.buildOrder(board));
   assert.deepEqual(ordered.map(item => item.item_id), [ranked, oldest, middle], 'unranked items retain age order after explicit ranks');
   editMilestoneItems(board, 'release', { agentId: 'coordinator', remove: [ranked] });
-  editMilestoneItems(board, 'release', { agentId: 'coordinator', add: [ranked] });
+  editMilestoneItems(board, 'release', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [ranked] });
   assert.equal(store.nextFor(board, { agentId: builder, lane: 'core' }).item.item_id, oldest, 'removing and readding an item does not retain a ghost rank');
 });
 
 test('milestone rank moves replay identically and preserve historical next selection [N2,B13,H16]', (t) => {
   assert.equal(MILESTONE_RANK_ENGINE, 34, 'milestone ranking retains its allocated minimum after later writer upgrades');
   for (const version of new Set([8, 24, 31, 32, 33, MILESTONE_RANK_ENGINE, ENGINE_VERSION])) {
-    const source = boardFixture();
+    const source = boardFixture(version);
     const replica = openBoard(':memory:');
     const fixtures = [source, { ...source, board: replica }];
     t.after(() => fixtures.forEach(({ board }) => store.closeBoard(board)));
     for (const { board, builder } of [source]) {
       submitted(board, builder, 'oldest submitted work', 'strong', 1);
       submitted(board, builder, 'newer ranked work', 'strong', 2);
-      addMilestone(board, { agentId: 'coordinator', name: 'release', items: [1, 2] });
+      addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'release', items: [1, 2] });
     }
     importBoard(replica, exportBoard(source.board));
-    const move = prepareEngineMove(fixtures[0].board, 'orderMilestoneItems', ['release', { agentId: fixtures[0].builder, items: [2, 1] }]);
+    delete source.board.executionEngineVersion;
+    const move = prepareEngineMove(fixtures[0].board, 'orderMilestoneItems', ['release', { agentId: 'coordinator', items: [2, 1], reason: 'Arrange fixture order' }]);
     assert.equal(move.engine, ENGINE_VERSION, 'the envelope carries the current engine; milestone order starts at34');
     // Historical review receipts need a prefix before modern review activation, not a newer snapshot.
-    const recorded = version < REVIEW_ROUTING_ENGINE ? { ...move, engine: MILESTONE_RANK_ENGINE } : move;
+    const recorded = version < REVIEW_ROUTING_ENGINE
+      ? { ...move, engine: MILESTONE_RANK_ENGINE, args: ['release', { agentId: 'coordinator', items: [2, 1] }] }
+      : move;
     const outcomes = fixtures.map(({ board }) => applyRelayMove(board, recorded, {
-      sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: fixtures[0].builder },
+      sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: 'coordinator' },
     }));
     assert.equal(outcomes[0].error, undefined, JSON.stringify(outcomes[0]));
     assert.deepEqual(outcomes[0], outcomes[1]);
@@ -491,14 +506,14 @@ test('milestone order refuses invalid membership and unauthenticated ranking [N2
   t.after(() => store.closeBoard(board));
   const one = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Listed', route: 'strong' });
   const other = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Elsewhere', route: 'strong' });
-  addMilestone(board, { agentId: 'coordinator', name: 'release', items: [one] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'release', items: [one] });
   const original = JSON.stringify(store.milestones(board));
   for (const items of [[], [one, one], [other], ['missing#1']]) {
-    assert.throws(() => orderMilestoneItems(board, 'release', { agentId: builder, items }), { code: 'MILESTONE_ITEMS' });
+    assert.throws(() => orderMilestoneItems(board, 'release', { agentId: 'coordinator', items, reason: 'Validate fixture membership' }), { code: 'MILESTONE_ITEMS' });
     assert.equal(JSON.stringify(store.milestones(board)), original);
   }
   for (const agentId of ['person', 'unknown-seat']) {
-    assert.throws(() => orderMilestoneItems(board, 'release', { agentId, items: [one] }), { code: 'NO_AGENT' });
+    assert.throws(() => orderMilestoneItems(board, 'release', { agentId, items: [one] }), { code: 'MILESTONE_PLACED' });
   }
   const forged = prepareEngineMove(board, 'orderMilestoneItems', ['release', { agentId: 'coordinator', items: [one] }]);
   const refusal = applyRelayMove(board, forged, { sequence: 1, at: '2026-10-18T01:00:00Z', kind: 'move', sender: { kind: 'agent', userId: 'fixture', agent: builder } });
@@ -772,7 +787,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   store.verify(home.board, returned, { agentId: home.reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
     clause: returnedItem.item_title, note: 'Synthetic rejected lifecycle record; no gate execution claimed.', head: returnedItem.item_commit,
     digest: returnedItem.item_frozen_digest, policy: 'any', reopenFirstRefusalMinutes: 15 });
-  addMilestone(home.board, { agentId: 'coordinator', name: 'first', items: [older] });
+  addMilestone(home.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'first', items: [older] });
   assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, older, 'off retains release order before rework');
   assert.equal(store.lineSettings(home.board).reviewsFirst, false, 'review-versus-build selection is a separate control');
   home.order(true);
@@ -780,7 +795,7 @@ test('line order sends a send-back home first and gives the scarcest review firs
   home.order(false);
   assert.equal(store.nextFor(home.board, { agentId: home.builder, lane: 'core' }).item.item_id, older, 'recorded off restores the prior order');
 
-  const scarce = lineOrderFixture(t);
+  const scarce = lineOrderFixture(t, LINE_ORDER_ENGINE - 1);
   const otherAuthor = store.register(scarce.board, { lane: 'core', path: join(scarce.root, 'author-Q'), parent: 'author-Q', session: 'author-Q-child' });
   for (let index = 0; index < 2; index++) store.register(scarce.board, { lane: 'review', path: join(scarce.root, `sibling-${index}`),
     parent: 'builder-P', session: `builder-sibling-${index}` });
@@ -816,8 +831,8 @@ test('line order sends a send-back home first and gives the scarcest review firs
   const dependency = store.addItem(ranked.board, { by: 'coordinator', lane: 'core', title: 'another item waits for this' });
   store.addItem(ranked.board, { by: 'coordinator', lane: 'core', title: 'blocked follower', after: [dependency] });
   const ready = store.addItem(ranked.board, { by: 'coordinator', lane: 'core', title: 'ready bar', criterion: 'a real condition is observable', check: 'true', brief: 'Files: src/ready.js\nTest: the condition is checked' });
-  addMilestone(ranked.board, { agentId: 'coordinator', name: 'early', items: [ordinary, dependency, ready] });
-  orderMilestoneItems(ranked.board, 'early', { agentId: 'coordinator', items: [ordinary, ready, dependency] });
+  addMilestone(ranked.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'early', items: [ordinary, dependency, ready] });
+  orderMilestoneItems(ranked.board, 'early', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [ordinary, ready, dependency] });
   assert.equal(store.nextFor(ranked.board, { agentId: ranked.builder, lane: 'core' }).item.item_id, ordinary, 'off preserves coordinator rank');
   ranked.order(true);
   assert.equal(store.nextFor(ranked.board, { agentId: ranked.builder, lane: 'core' }).item.item_id, dependency, 'being waited on precedes ready-bar and coordinator rank');
@@ -916,8 +931,8 @@ test('historical focus reviews retain reservations and modern reviews use age [C
   t.after(() => store.closeBoard(board));
   const outside = submitted(board, builder, 'Outside earlier roadmap review', 'strong', 1);
   const focused = submitted(board, builder, 'Named focus review', 'strong', 2);
-  addMilestone(board, { agentId: 'coordinator', name: '0.9.4', items: [outside] });
-  addMilestone(board, { agentId: 'coordinator', name: '0.9.3', items: [focused] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.9.4', items: [outside] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: '0.9.3', items: [focused] });
   assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true, policy: 'any' }).item.item_id,
     outside, 'unset review selection keeps the roadmap order');
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: '0.9.3',
@@ -972,7 +987,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   const focusedReview = box.add('api', 'Focused review before focused build');
   const updated = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
-    editMilestoneItems(updated, '0.9.3', { agentId: 'coordinator', add: [focusedReview] });
+    editMilestoneItems(updated, '0.9.3', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [focusedReview] });
     store.claim(updated, focusedReview, { agentId: author.agent, lane: 'api', leaseMs: HOUR, freeze: FREEZE });
     submitFixture(updated, focusedReview, { agentId: author.agent, commit: box.git(box.repo, 'rev-parse', 'HEAD'),
       tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') });
@@ -988,12 +1003,12 @@ test('next offers the focus milestone first across review and build modes [N2,B1
 
 /** A newer recorded control must not alter historical selection when replaying an older move. */
 test('focus milestone policy survives export while old reserve-next retains its ordering [N2,B16,H16]', t => {
-  const { board, builder, reviewer } = boardFixture();
+  const { board, builder, reviewer } = boardFixture(FOCUS_MILESTONE_ENGINE);
   t.after(() => store.closeBoard(board));
   const outside = submitted(board, builder, 'Old roadmap review', 'strong', 1);
   const focused = submitted(board, builder, 'New focus review', 'strong', 2);
-  addMilestone(board, { agentId: 'coordinator', name: 'outside', items: [outside] });
-  addMilestone(board, { agentId: 'coordinator', name: 'focus', items: [focused] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'outside', items: [outside] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'focus', items: [focused] });
   const change = { agentId: 'coordinator', key: 'focusMilestone', value: 'focus',
     reason: 'Recorded focus for replay', window: { activeReviews: 2 } };
   const settingMove = prepareEngineMove(board, 'setLineSetting', [change]);

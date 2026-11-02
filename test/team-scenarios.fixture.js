@@ -1,6 +1,6 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
-import { request as boardLinkRequest } from '../src/relay.js';
+import { request as boardLinkRequest } from '../packages/link/index.js';
 import {
   personSigningCase,
 } from './person-signing-case.js';
@@ -95,7 +95,7 @@ import {
 } from './person-first-pin-fixture.js';
 import {
   refuseNamedSigners,
-} from '../src/person-signing-cli.js';
+} from '../packages/person/index.js';
 import {
   createE2eHelpers,
 } from './e2e-helpers.js';

@@ -1,3 +1,7 @@
+import { requireTestTierAccount } from './test-tier-selection.js';
+import { selectTestTiers } from './test-tier-selection.js';
+import { testTierProofFiles } from './test-tier-selection.js';
+import { testTierReport } from './test-tier-selection.js';
 import { startReceipt } from './gate-receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -78,29 +82,31 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   if (sourceAdvance && commit !== 'HEAD') throw new Refused('BAD_CONFIG', 'source-advance planning requires its actual execution checkout');
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
-  const selection = advancePlan?.selection ?? (config.affectedTests
+  const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests });
+  const selection = testTiers ? { full: false, reason: 'T1 units of changed packages; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
-  const deferred = !sourceAdvance && config.submitGate === 'landing';
-  const deferFullFallback = deferred && selection.full;
+  const deferred = Boolean(testTiers) || !sourceAdvance && config.submitGate === 'landing';
+  const deferFullFallback = !testTiers && deferred && selection.full;
   // A selection over submitDeferAbove files moves to the landing gate, which runs every recorded file before the item lands.
-  const deferSelection = deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
-  const invariants = advancePlan?.invariants ?? (deferred ? [...new Set(config.submitInvariants ?? [])].sort() : []);
-  const registryGuards = advancePlan?.registryGuards ?? [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, commit, changed, git }),
+  const deferSelection = !testTiers && deferred && !selection.full && Number.isSafeInteger(config.submitDeferAbove) && selection.files.length > config.submitDeferAbove;
+  const invariants = testTiers ? [] : advancePlan?.invariants ?? (deferred ? [...new Set(config.submitInvariants ?? [])].sort() : []);
+  const registryGuards = testTiers ? [] : advancePlan?.registryGuards ?? [...new Set([...selectRegistryGuards(root, config.registryGuards, { base, trunk, commit, changed, git }),
     ...selectTestTreeGuards(root, { base, trunk, commit, changed })])].sort();
   if ((invariants.length || registryGuards.length) && !config.affectedTests?.trim()) {
     throw new Refused('BAD_CONFIG', 'submitInvariants and repository guards require the project affectedTests runner');
   }
-  const proofFiles = [...new Set([...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards])].sort();
-  const guardCommand = registryGuards.length ? `${config.affectedTests.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
+  const testRunner = testTiers?.runner ?? config.affectedTests;
+  const proofFiles = testTiers ? testTierProofFiles(testTiers, check) : [...new Set([...(deferFullFallback || deferSelection ? [] : selection.files), ...invariants, ...registryGuards])].sort();
+  const guardCommand = registryGuards.length ? `${testRunner.trimEnd()} ${registryGuards.map(path => commandWord('./' + path)).join(' ')}` : '';
   const fullConfig = guardCommand ? { ...config, gate: `(${config.gate}) && ${guardCommand}` } : config;
   const hasFinalProof = !deferFullFallback && !deferSelection && selection.full || proofFiles.length > 0;
   const proofCommand = !deferFullFallback && !deferSelection && selection.full ? fullConfig.gate
-    : proofFiles.length ? `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}` : '';
+    : proofFiles.length ? `${testRunner.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}` : '';
   const phases = [...(check ? [{ role: 'criterion', command: check }] : []),
     ...(hasFinalProof ? [{ role: 'proof', command: proofCommand }] : [])];
   return { check, selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
-    proofFiles, fullConfig, hasFinalProof, proofCommand, phases };
+    proofFiles, fullConfig, hasFinalProof, proofCommand, phases, testTiers, testRunner };
 }
 
 /** Retain all phase identities; conflicting observations never become an arbitrary file binding [V4,H16]. */
@@ -141,6 +147,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
+  if (plan.testTiers) config = { ...config, affectedTests: plan.testRunner };
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
@@ -160,6 +167,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     // Immediate admission may have no queue poll; retain the existing quarantine callback when no witness exists yet.
     if (proofContext?.admission && !proofContext.admission.id) await onWait?.({ admitted: true });
     if (signatureCapture) lease.signatureCapture = signatureCapture;
+    lease.testTiers = Boolean(plan.testTiers);
     lease.quarantines = proofContext?.quarantines ?? [];
     if (proofContext) lease.proof = { ...proofContext, kind: 'submit',
       ...(proofContext.companion ? { submitPhase: 'criterion' } : {}),
@@ -186,6 +194,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       const command = `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`;
       const run = { ...await runProfiledShellAsync(root, command, { waitMs: proofWait, profileFile: `${proofLog}.profile.json`, gateLease: proofLease, stages: true }), isCached: false, log: proofLog };
       writeFileSync(proofLog, run.output);
+      if (plan.testTiers) requireTestTierAccount(run, proofFiles);
       return run;
     };
     lease.tracker?.mark('runAt');
@@ -228,7 +237,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           executionSource: profiles.find(value => value.executionSource)?.executionSource } : {}),
       });
       refuseSandboxBlocked(proof);
-      return { ...proof, executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: Math.round((Date.now() - startedAt) / 1000), ...selection, files: proofFiles, registryGuards, ...(deferred ? { submitInvariants: invariants } : {}),
+      return { ...proof, executionRoot: proof.executionRoot ?? root, ...(criterion.cleanupUnverified || proof.cleanupUnverified ? { cleanupUnverified: true } : {}), log, seconds: Math.round((Date.now() - startedAt) / 1000), ...selection, files: proofFiles, registryGuards, ...(plan.testTiers ? { testTiers: plan.testTiers } : {}), ...(deferred ? { submitInvariants: invariants } : {}),
         ...(deferSelection ? { deferredFiles: selection.files, deferAbove: config.submitDeferAbove } : {}), deferred, deferFullFallback, check: receipt,
         profile, profilePath, proofProfilePath: proof.profilePath, proofLog: proof.log,
         ...(criterion.blockingVerdict || proof.blockingVerdict ? { phaseVerdicts: [criterion, proof].flatMap((phase, index) => phase.blockingVerdict ? [{
@@ -238,7 +247,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
           ...(proof.profile ? [proof.proofReceiptId ?? null] : [])] };
     };
     if (!criterion.isGreen && onFailure) await onFailure({ ...criterion, log: checkLog }, { root, command: check, lease: criterionLease });
-    const phase = deferFullFallback || deferSelection
+    const phase = plan.testTiers ? testTierReport(plan.testTiers) : deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
     writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);

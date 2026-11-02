@@ -1,4 +1,5 @@
 import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
+import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { claimProgress } from '../../../items/index.js';
 /** Apply captured expiry decisions atomically without consulting replica-private liveness [B4,C7]. */
 import { Refused } from "../../../kernel/core.js";
@@ -10,6 +11,8 @@ import { CLAIM_IDLE_ENGINE } from "../../../../src/claim-idle-engine.js";
 
 /** A claim shows as stalled after 20 idle minutes and is released at 40 (#1225); kept beside the health reader's copy. */
 const CLAIM_STALL_MS = 20 * 60_000;
+/** A holder who committed this recently is never returned by the progress rule. */
+const RECENT_COMMIT_MS = 30 * 60_000;
 const CLAIM_IDLE_RELEASE_MS = 40 * 60_000;
 import { RELEASE_REASONS_ENGINE } from "../../../state/index.js";
 import {
@@ -102,7 +105,10 @@ function idleClaim(board, row, snapshot, agentId, itemById) {
   }
   const observed = Date.parse(snapshot.observedAt);
   if (row.idle === 'progress' && (board.executionEngineVersion ?? ENGINE_VERSION) < CLAIM_PROGRESS_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade before automatic progress-claim release');
-  const progress = row.idle === 'progress' ? claimProgress(board, item, observed) : null;
+  const progress = row.idle === 'progress' ? claimProgress(board, item, observed, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }) : null;
+  // A holder who committed in the last 30 minutes is working, whatever the failures or the clock say [B4,B5].
+  if (progress && (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && row.commitAt != null
+    && observed - Date.parse(row.commitAt) < RECENT_COMMIT_MS) invalid();
   if (progress && (!progress.trigger || JSON.stringify(progress) !== JSON.stringify(row.progress))) invalid();
   const last = staleInstant(row.workActivity, observed);
   const limit = row.idle === 'release' ? CLAIM_IDLE_RELEASE_MS : CLAIM_STALL_MS;

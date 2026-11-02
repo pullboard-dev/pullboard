@@ -1,8 +1,13 @@
+import { inventoryCache } from '../bin/cells-inventory-cache.js';
+import { observationCache } from '../bin/cells-inventory-cache.js';
+import { cellInventory } from '../packages/codemap/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { fixture } from './cells-plan-fixture.js';
@@ -52,7 +57,8 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
 });
 
 import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
-import { withMainCheckout } from '../src/main-red.js';
+import { touchedCells } from '../bin/cells-submit-checks.js';
+import { withMainCheckout } from '../packages/landing/index.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { cellLintReport } from '../packages/codemap/index.js';
@@ -201,6 +207,8 @@ import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { lex } from '../packages/kernel/index.js';
 import { bindingReadsForModules } from '../packages/codemap/index.js';
+import { cachedBindingMetadata } from '../packages/codemap/src/shell/cell-binding-uses.js';
+import { exportReachability } from '../packages/codemap/src/shell/cell-lint-exports.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
 
@@ -249,6 +257,72 @@ test('one eligible binding census reuses real probes and returns independent Map
   }, { eligible: bindingCacheEligible });
   bindingReadsForModules(modules);
   assert.equal(calls(), 4, 'the completed census cannot lend its result to another caller');
+});
+
+test('lexical metadata reuse is isolated and keyed by source and resolved edges [C7,D3]', () => {
+  const observations = new Map(), edges = [{ specifier: './a.js', target: 'a.js' }];
+  let calls = 0;
+  const run = (source, rows) => cachedBindingMetadata(source, rows, () => ({ exports: new Map([['x', ++calls]]) }));
+  withBindingReadCache(() => {
+    const first = run('source', edges); first.exports.set('forged', 1);
+    assert.deepEqual([...run('source', edges).exports], [['x', 1]]);
+    assert.equal(run('changed', edges).exports.get('x'), 2);
+    assert.equal(run('source', [{ ...edges[0], target: 'b.js' }]).exports.get('x'), 3);
+  }, { eligible: () => true, observations });
+  withBindingReadCache(() => assert.equal(run('source', edges).exports.get('x'), 1), { eligible: () => true, observations });
+  assert.equal(calls, 3);
+});
+
+test('a newly reachable unchanged module reuses its cold census observation [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), observations = new Map();
+  const files = new Map([['a.js', Buffer.from("import { value } from './b.js'; export const a = value;\n")],
+    ['b.js', Buffer.from('export const value = 1;\n')]]);
+  const edges = new Map([['a.js', [{ specifier: './b.js', target: 'b.js' }]], ['b.js', []]]);
+  withBindingReadCache(() => exportReachability(files, edges, new Set(['a.js'])),
+    { eligible: () => true, observations, warmAll: true });
+  const cold = calls();
+  let warm;
+  withBindingReadCache(() => { warm = exportReachability(files, edges, new Set(['a.js', 'b.js'])); },
+    { eligible: () => true, observations, warmAll: true });
+  assert.equal(calls(), cold, 'new reach does not compile an unchanged module');
+  assert.deepEqual(warm, exportReachability(files, edges, new Set(['a.js', 'b.js'])), 'reachability diagnostics remain canonical');
+});
+
+test('real compiler observations survive a checked same-main census only [C7,D3]', t => {
+  const { root } = fixture(t), calls = bindingCompilerCalls(t);
+  const key = { checkDigest: 'checker', config: { acceptedMain: 'main', preloads: [] } };
+  const cache = observationCache(root, key, () => true), modules = bindingModules();
+  withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: cache.values });
+  assert.equal(calls(), 1);
+  cache.commit();
+  const restored = observationCache(root, key, () => true);
+  const reconstructed = structuredClone(modules);
+  reconstructed[0].source = JSON.parse(JSON.stringify(reconstructed[0].source));
+  reconstructed[0].body = JSON.parse(JSON.stringify(reconstructed[0].body));
+  withBindingReadCache(() => bindingReadsForModules(reconstructed), { eligible: () => true, observations: restored.values });
+  assert.equal(calls(), 1, 'a later process scope reuses equal reconstructed input values');
+  const changed = observationCache(root, { ...key, checkDigest: 'changed' }, () => true);
+  withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: changed.values });
+  assert.equal(calls(), 2, 'checker identity invalidates the durable observations');
+  const preloadChanged = observationCache(root, { ...key, config: { ...key.config, preloads: ['new bytes'] } }, () => true);
+  withBindingReadCache(() => bindingReadsForModules(modules), { eligible: () => true, observations: preloadChanged.values });
+  assert.equal(calls(), 3, 'changed preload identity invalidates durable observations');
+  const ineligible = observationCache(root, key, () => false);
+  assert.equal(ineligible.values.size, 0, 'untrusted runtime context cannot read prior observations');
+});
+
+test('changed module recompiles without probing unchanged modules in one eligible census [C7,D3]', t => {
+  const calls = bindingCompilerCalls(t), first = bindingModules(), second = bindingModules();
+  second[0].file = 'other.js';
+  withBindingReadCache(() => {
+    const old = bindingReadsForModules([...first, ...second]);
+    assert.equal(calls(), 1);
+    const changed = structuredClone(second);
+    changed[0].source = changed[0].source.replace('state.json', 'other.json');
+    const next = bindingReadsForModules([...first, ...changed]);
+    assert.equal(calls(), 2);
+    assert.deepEqual(next.get(first[0].file), old.get(first[0].file));
+  }, { eligible: bindingCacheEligible });
 });
 
 test('foreign runtime options invalidate binding reuse inside the current census [C7,D3]', t => {
@@ -325,6 +399,10 @@ test('cached and canonically bypassed complete submit diagnostics agree with act
   assert.match(cached?.message ?? '', /kernel --cuts: kernel still imports later stats/u);
   const first = { ...observed }, before = process.env.NODE_OPTIONS;
   observed.imports = 0; observed.bindings = 0;
+  const changedCriterion = { item_frozen: JSON.stringify({ criterion: 'Preserve actual cell boundaries with another criterion.' }) };
+  await assert.rejects(requireSubmitCells(box.root, box.main, candidate, changedCriterion), /kernel --cuts: kernel still imports later stats/u);
+  assert.equal(observed.bindings, 0, 'a refused candidate still preserves complete snapshot observations for a later criterion');
+  observed.imports = 0; observed.bindings = 0;
   try {
     process.env.NODE_OPTIONS = '--no-warnings';
     assert.equal(bindingCacheEligible(), false);
@@ -383,4 +461,174 @@ test('outside-cell changes do not widen touched cells but still refuse unplaced 
   assert.deepEqual(result.problems, []);
   box.put('src/unplanned.js', 'export const value = 1;\n');
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
+});
+
+/** The refusal text a candidate draws, or an empty string when submit accepts it. */
+async function refusal(promise) {
+  try { await promise; return ''; } catch (error) { return error.message; }
+}
+
+test('submit refuses deleting a module a test names inside a generated script, never for a comment or prose mention [C7,D3]', async t => {
+  for (const form of [() => './src/doomed.js', () => '${ROOT}/src/doomed.js', root => join(root, 'src/doomed.js'), root => pathToFileURL(join(root, 'src/doomed.js')).href]) {
+    const box = plannedFixture(t, fixture => {
+      fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
+      fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
+      fixture.put('test/child.test.js', `const script = \`import('${form(fixture.root)}').then(m => m.doomed);\`;\n// src/quiet.js once held the quiet value\nconst note = 'the old src/quiet.js held the quiet value';\nexport { script, note };\n`);
+    });
+    const remove = file => { git(box.root, 'rm', '-q', '--', file); writePlan(box.root, computePlan(box.root)); };
+    remove('src/doomed.js');
+    const named = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
+    assert.match(named, /test\/child\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
+    assert.doesNotMatch(named, /stale/u, 'the plan follows the deletion, so the string mention alone refuses');
+    git(box.root, 'checkout', '-q', box.main, '--', 'src/doomed.js', 'bin');
+    remove('src/quiet.js');
+    assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)), /names deleted/u,
+      'a comment or prose mention never holds a deletion');
+  }
+});
+
+test('submit cell receipt reuses exact input and invalidates changed cut authority [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  let checkouts = 0, rows = [];
+  const services = { parsers: { importsIn, commonJsIn }, withImportParseCache,
+    cacheEligible: () => true, readCutItems: () => rows,
+    withMainCheckout: (root, commit, run) => { checkouts++; return withMainCheckout(root, commit, run); } };
+  const first = await preflight(box.root, box.main, box.main, box.item, services);
+  assert.deepEqual(first.problems, []);
+  const afterFirst = checkouts;
+  const second = await preflight(box.root, box.main, box.main, box.item, services);
+  assert.equal(second.reused, true, 'the exact green check reads its receipt');
+  assert.equal(checkouts, afterFirst, 'reuse avoids snapshot checks');
+  rows = [{ item_id: 1, item_lane: 'core', item_title: 'different cut', item_status: 'verified', item_merged_commit: box.main }];
+  const changed = await preflight(box.root, box.main, box.main, box.item, services);
+  assert.notEqual(changed.reused, true, 'changed board authority cannot reuse the old receipt');
+  assert.ok(checkouts > afterFirst);
+});
+
+test('shared cell inventory updates changed modules and reports structural fallback [C7,D3]', t => {
+  const box = fixture(t);
+  const main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const modes = [], key = { checkDigest: 'fixture-checker' };
+  const first = inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode));
+  const baseline = first.base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full');
+  const second = inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode));
+  const restored = second.base(box.root, main);
+  assert.equal(modes.at(-1), 'base-cache');
+  assert.deepEqual(restored.edges, baseline.edges);
+  const changedPreload = inventoryCache(box.root, { ...key, config: { preloads: [{ token: 'fixture', digest: 'changed' }] } },
+    { importsIn, commonJsIn }, mode => modes.push(mode));
+  changedPreload.base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full', 'different preload bytes do not borrow a cached inventory');
+  box.put('src/refused.js', 'export class Refused extends Error { value = 1; }\n');
+  const updated = second.candidate(box.root, restored, ['src/refused.js']);
+  assert.equal(modes.at(-1), 'candidate-incremental');
+  const full = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.deepEqual(updated.files, full.files);
+  assert.deepEqual(updated.edges, full.edges);
+  assert.deepEqual(updated.unknown, full.unknown);
+  box.put('src/extra.js', 'export const extra = true;\n');
+  second.candidate(box.root, restored, ['src/extra.js']);
+  assert.equal(modes.at(-1), 'candidate-full-fallback');
+});
+
+test('one changed cell selects its importers without unrelated cells [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
+  const result = await requireSubmitCells(box.root, box.main, commitCandidate(box), box.item);
+  assert.deepEqual(result.cells.sort(), ['app:cli', 'stats']);
+});
+
+test('changed immutable source cannot poison the shared cell inventory [C7,D3]', t => {
+  const box = fixture(t), main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const key = { checkDigest: 'snapshot-custody' };
+  const changing = { commonJsIn, importsIn(sources) {
+    const result = importsIn(sources);
+    box.put('src/refused.js', 'export const changed = true;\n');
+    return result;
+  } };
+  const first = inventoryCache(box.root, key, changing);
+  assert.throws(() => first.base(box.root, main), /immutable analysis snapshot changed/u);
+  git(box.root, 'checkout', '--', 'src/refused.js');
+  const modes = [];
+  inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full', 'the interrupted census did not publish cache evidence');
+});
+
+test('only direct importing cells join a touched cell, including another file in that cell [C7,D3,CD64]', () => {
+  const cell = (name, paths) => ({ name, root: `packages/${name}`, frontDoor: `packages/${name}/index.js`, paths });
+  const plan = { cells: [cell('a', [['src/a.js', 'packages/a/src/a.js'], ['src/a-other.js', 'packages/a/src/other.js']]),
+    cell('b', [['src/b.js', 'packages/b/src/b.js']]), cell('c', [['src/c.js', 'packages/c/src/c.js']])] };
+  const inventory = { edges: new Map([['src/b.js', [{ target: 'src/a-other.js' }]], ['src/c.js', [{ target: 'src/b.js' }]]]) };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [inventory]), ['a', 'b']);
+  const forwarding = { ...inventory, files: new Map([['src/b.js', Buffer.from("export * from './a-other.js';\n")]]) };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [forwarding]), ['a', 'b', 'c'], 'effective importers through forwarding shims remain checked');
+  const declared = { edges: new Map([['src/c.js', [{ target: 'src/b.js' }]]]),
+    files: new Map([['src/a-other.js', Buffer.from('export const a = 1;')],
+      ['src/b.js', Buffer.from('/** @pullboard-module-loads src/a-other.js */\nawait import(name);\n')]]),
+    unknown: [{ file: 'src/b.js', specifier: '(computed)', reason: 'computed loader' }] };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [declared]), ['a', 'b', 'c'], 'declared computed forwarders use the same edges as cut checking');
+  assert.deepEqual(touchedCells(['bin/cells-plan.json'], plan, plan, [inventory]), ['a', 'b', 'c'], 'shared authority invalidates every cell');
+  const withStay = { ...plan, stays: [{ path: 'bin/shared.js' }] };
+  assert.deepEqual(touchedCells(['bin/shared.js'], withStay, withStay, [inventory]), ['a', 'b', 'c'], 'unowned shared tool changes fail safely');
+});
+
+test('forwarding chains select every cell whose cut can change [C7,D3,CD64]', t => {
+  const box = fixture(t);
+  box.put('src/stats.js', "import './board.js'; export const stats = true;\n");
+  box.put('src/board.js', "export * from './refused.js';\n");
+  box.put('src/refused.js', 'export class Refused extends Error {}\n');
+  const plan = computePlan(box.root);
+  const oldInventory = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.deepEqual(checkCuts(box.root, plan, 'stats', { allLaterCells: true, inventory: oldInventory }), []);
+  box.put('src/refused.js', "export * from './cli.js';\n");
+  const newInventory = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.ok(touchedCells(['src/refused.js'], plan, plan, [oldInventory, newInventory]).includes('stats'));
+  assert.ok(checkCuts(box.root, plan, 'stats', { allLaterCells: true, inventory: newInventory, acceptedInventory: oldInventory })
+    .some(problem => problem.includes('stats still imports later app:cli')), 'the upstream cut really changes through the forwarding chain');
+});
+
+test('a one-cell submit on a many-cell board stays under a minute and still refuses a new cut [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t, ({ put }) => {
+    const cells = { kernel: ['src/refused.js'], store: ['src/board.js'], items: ['src/claims.js'],
+      stats: ['src/stats.js'], 'app:cli': ['src/cli.js'] };
+    for (let index = 0; index < 32; index++) {
+      const name = `extra${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + index % 26)}`, file = `src/${name}.js`;
+      cells[name] = [file];
+      put(file, `export const ${name} = ${index};\n`);
+    }
+    put('bin/cells-plan/seed.json', JSON.stringify({ source: 'many-cell fixture', sha256: 'none', order: Object.keys(cells), cells, tests: {} }));
+    put('bin/cells-plan/transition.json', JSON.stringify({ version: 1, deleteItem: 1770 }));
+    moveFixtureKernel({ put }, 'export class Refused extends Error {}\n');
+  });
+  assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
+  box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {} // one-cell change\n');
+  const candidate = commitCandidate(box);
+  const started = performance.now();
+  const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
+  const elapsed = performance.now() - started;
+  t.diagnostic(`many-cell candidate stage: ${elapsed.toFixed(1)}ms`);
+  assert.ok(elapsed < 60_000, `the complete cell stage took ${elapsed.toFixed(1)}ms; limit 60000ms`); // budget: ceiling from the #2313 bar (60 s for an ordinary change)
+  assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
+  box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,
+    'the same many-cell board still refuses a new cut in a touched cell');
+});
+
+test('unchanged accepted cell cut evidence is reused across different candidate trees [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t), events = [];
+  const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+    readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => true,
+    onCellObservation: (mode, name) => events.push([mode, name]) };
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
+  await preflight(box.root, box.main, commitCandidate(box), box.item, services);
+  assert.ok(events.some(([mode, name]) => mode === 'base-checked' && name === 'stats'));
+  events.length = 0;
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 2];\n");
+  const second = await preflight(box.root, box.main, commitCandidate(box), box.item, services);
+  assert.ok(events.some(([mode, name]) => mode === 'base-reused' && name === 'stats'), 'the actual accepted-base result survives a changed candidate tree');
+  assert.deepEqual(second.problems, []);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  await assert.rejects(preflight(box.root, box.main, commitCandidate(box), box.item, services), /kernel --cuts: kernel still imports later stats/u,
+    'cached accepted evidence cannot hide a new candidate cut');
 });

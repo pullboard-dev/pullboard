@@ -169,6 +169,7 @@ function reviewedCall(source, code, call, end, executors) {
       const body = parameters + 1 + code.slice(parameters + 1).search(/\S/u);
       if (code[body] !== '{') continue;
       const last = closing(code, body);
+      if (executor.body && (last === null || compact(source.slice(body + 1, last)) !== compact(executor.body))) continue;
       if (last !== null && call.at > body && end < last) return true;
     }
   }
@@ -274,7 +275,14 @@ export function sourceLaunchesBrowser(source, reviewedExecutors = []) {
     }
   }
   // Computed/dynamic process access has no complete static call binding: keep Chrome-capable sources bound.
-  if (/\b(?:getBuiltinModule|eval|Function)\s*\(|\b(?:process|require)\s*\[|\]\s*(?:\?\.)?\s*\(|\.\s*(?:call|apply|bind)\s*\(|\\u(?:[\da-f]{4}|\{[\da-f]+\})/iu.test(code)
+  let dynamicCode = code;
+  for (const match of code.matchAll(/\b[$A-Z_a-z][$\w]*\s*\.\s*(?:call|apply|bind)\s*\(/gu)) {
+    const end = closing(code, match.index + match[0].length - 1);
+    if (end !== null && reviewedCall(source, code, { at: match.index }, end, reviewedExecutors)) {
+      dynamicCode = dynamicCode.slice(0, match.index) + ' '.repeat(end + 1 - match.index) + dynamicCode.slice(end + 1);
+    }
+  }
+  if (/\b(?:getBuiltinModule|eval|Function)\s*\(|\b(?:process|require)\s*\[|\]\s*(?:\?\.)?\s*\(|\.\s*(?:call|apply|bind)\s*\(|\\u(?:[\da-f]{4}|\{[\da-f]+\})/iu.test(dynamicCode)
       && CHROME.test(source)) return true;
   return false;
 }

@@ -1,3 +1,4 @@
+import { landingFailureObservation } from '../../packages/health/index.js';
 import { scheduleAutomaticLanding } from '../../packages/landing/index.js';
 import { mainCheckout } from '../../packages/git/index.js';
 import { automaticLandingEnabled } from '../../packages/merge/index.js';
@@ -19,7 +20,7 @@ import { postLandSuitePorts } from '../post-land-suite-ports.js';
 import { parseProcessCensus } from '../../packages/kernel/src/core/process-census.js';
 import { fileURLToPath } from 'node:url';
 import { codeIsFromMain } from '../git.js';
-import { syncRelay } from '../relay.js';
+import { syncRelay } from '../../packages/link/index.js';
 /** The pullboard land command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {
@@ -30,14 +31,14 @@ import {
 } from '../gate-wait.js';
 import {
   land,
-} from '../land.js';
+} from '../../packages/landing/index.js';
 import {
   agentSessionDigest,
   requirePersonChannel,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   requireSignedPerson,
-} from '../person-signing-cli.js';
+} from '../../packages/person/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -81,10 +82,16 @@ export async function executeBoardLanding(ctx, board, io, values = {}) {
     const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
     await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
   }
-  const result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
+  let result;
+  try { result = await land({ landingPorts: { badgeCounts, writeBadges, flakeLedger, flakeSource, observeNativeFailure, quarantineWaivers, parseProcessCensus, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns, postLandSuite: postLandSuitePorts() }, root: ctx.info.root, board,
     landingWorkerFile: fileURLToPath(new URL('../../bin/landing-worker.js', import.meta.url)),
     write: (operation, parameters) => ordered(ctx, board, operation, parameters), refresh: () => syncRelay(ctx.info.root, io), say: io.say, owner: agentSessionDigest() ?? `pid-${process.pid}`,
     maximum: values.max === undefined ? Infinity : Number(values.max), dryRun: Boolean(values['dry-run']), adopt: Boolean(values.adopt), due: Boolean(values.due), onWait: gateWaitReporter(io) });
+  } catch (error) {
+    await recordLandingNotices(ctx, board, io);
+    throw error;
+  }
+  if (!values['dry-run']) await recordLandingNotices(ctx, board, io);
   io.result?.(result);
   for (const blocked of result.blocked ?? []) if (blocked.code === 'STALE_VERDICT') io.say(staleVerdictRefusal({ item_id: blocked.id }, blocked).message);
   if (!result.batch && !result.deferredUntil && !result.cadence) io.say(result.items ? `would land: ${result.items.map((id) => `#${id}`).join(', ') || 'none'}` : 'no verified items ready to land');
@@ -113,4 +120,12 @@ export async function landAfterAcceptance(ctx, { schedule = scheduleAutomaticLan
     await schedule(root, result.deferredUntil, new URL('../../bin/automatic-landing.js', import.meta.url));
   }
   return true;
+}
+
+/** Use the existing ordered health move so a refusal reaches the inbox without a new replay effect. */
+async function recordLandingNotices(ctx, board, io) {
+  try {
+    const observation = landingFailureObservation(board);
+    if (observation) await ordered(ctx, board, 'recordHealthFindings', [{ agentId: 'coordinator', ...observation }]);
+  } catch (error) { io.err?.('landing refusal notice deferred: ' + (error.code ?? 'ERROR')); }
 }

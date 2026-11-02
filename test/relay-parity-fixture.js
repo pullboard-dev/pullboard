@@ -9,7 +9,7 @@ import { addMilestone } from '../src/board-milestones.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { relayPresentation } from '../packages/pages/index.js';
 import { presentationDigest } from '../packages/pages/index.js';
-import { observeRelayHealth } from '../src/relay-canary-health.js';
+import { observeRelayHealth } from '../packages/link/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 export { assertReaderParity } from './relay-parity-reader.js';

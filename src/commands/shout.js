@@ -16,7 +16,7 @@ import {
 } from '../lanes.js';
 import {
   personShout,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   actOn,
   agentDisplayName,

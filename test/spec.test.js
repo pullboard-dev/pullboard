@@ -27,7 +27,7 @@ import { configFromSource } from '../packages/config/index.js';
 import { preCommitProblems } from '../packages/commits/index.js';
 import { standardDoctrine } from '../src/doctrine.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { requireRelayOnChannel } from '../src/person.js';
+import { requireRelayOnChannel } from '../packages/person/index.js';
 import { RECORDED_GENERIC_NEXT } from '../packages/state/index.js';
 import {
   citedIds,

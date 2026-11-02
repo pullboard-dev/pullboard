@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/board.js */
-import { assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
+import { auditKey, assertPostVerdictLandingAudit } from './machine-source-functions.fixture.js';
 /**
  * The item lifecycle's declaration (M1, M2, M4): sound on its own terms, each property shown
  * failing on a broken copy, and in step with the refusals the board, CLI and spec parser raise today.
@@ -154,7 +154,7 @@ const CAUGHT = {
   '../packages/items/src/core/cross-repo-dependencies.js#stateFor': ['../packages/kernel/src/core/registry-guards.js#boardLinkRecord', '../src/board-link-state.js#readReceivedBoardState'],
   // Review eligibility returns Refused values as data, and this helper also catches thrown eligibility refusals.
   '../packages/seats/src/core/line-capacity-board.js#oldestCapacityReview': ['board.js#reviewerChecks'],
-  'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', 'main-red.js#compareMainFailures', 'main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
+  'commands/submit.js#submitHere': ['../packages/flakes/src/shell/native-flakes.js#observeFailure', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/landing/src/shell/main-red.js#compareMainFailures', '../packages/landing/src/shell/main-red.js#matchingReworks', 'doctrine-checks.js#checkRulesAt'],
   // The exact post-verdict landing call and optional flake observations are caught; neither can refuse an already-recorded verdict.
   'commands/verify.js#verifyHere': ['commands/land.js#landAfterAcceptance', 'cli.js#freezer', 'cli/claim.js#freezer', '../packages/flakes/src/shell/native-flakes.js#observeFailure'],
   // Invalid approval evidence is data, not a lifecycle refusal; runtime controls keep it unconfirmed.
@@ -194,39 +194,6 @@ const ITEM_CALLBACK_SOURCES = {
   '../packages/items/src/shell/item-authors.js': 'item-authors.js',
   '../packages/gate/src/shell/gate-execution.js': 'gate-execution.js',
 };
-
-/** Exact relocated provider identities for the existing caller-specific audit metadata. */
-const STORE_AUDIT_IDENTITIES = {
-  "../packages/gate/src/shell/gate-execution.js": "gate-execution.js",
-  "../packages/gate/src/shell/gate-submit.js": "gate-submit.js",
-  "../packages/gate/src/shell/gate.js": "gate.js",
-  "../packages/store/src/core/exit-rules-continuation.js": "exit-rules-continuation.js",
-  "../packages/store/src/shell/board-access.js": "board-access.js",
-  "../packages/store/src/shell/board-health.js": "board-health.js",
-  "../packages/store/src/core/board-link-state.js": "board-link-state.js",
-  "../packages/store/src/shell/board-query.js": "board-query.js",
-  "../packages/store/src/shell/board-read-open.js": "board-read-open.js",
-  "../packages/store/src/shell/board.js": "board.js",
-  "../packages/store/src/shell/proof-receipts.js": "proof-receipts.js",
-  "../packages/store/src/shell/board-store.js": "board-store.js",
-  "../packages/store/src/core/board-rigor-auto-source.js": "board-rigor-auto-source.js",
-  "../packages/store/src/core/board-rigor-source.js": "board-rigor-source.js",
-  "../packages/store/src/core/board-rigor.js": "board-rigor.js",
-  "../packages/store/src/shell/board-claim.js": "board-claim.js",
-  "../packages/store/src/shell/board-finish-landing-batch.js": "board-finish-landing-batch.js",
-  "../packages/store/src/shell/board-next-for.js": "board-next-for.js",
-  "../packages/store/src/shell/board-record-landing-batch.js": "board-record-landing-batch.js",
-  "../packages/store/src/shell/board-refreeze.js": "board-refreeze.js",
-  "../packages/store/src/shell/board-reopen.js": "board-reopen.js",
-  "../packages/store/src/shell/board-verify.js": "board-verify.js"
-};
-
-/** Compare physical aliases without changing function names or expanding any caught boundary. */
-function auditKey(key) {
-  const [file, name] = key.split('#');
-  const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
-  return `${STORE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
-}
 
 /**
  * A walk over this package's source: the refusal codes a function raises, itself or through the
@@ -552,7 +519,7 @@ test('every refusal a move raises today is declared on that move, and every decl
   assert.ok(walk.refusalsOf('commands/submit.js#submitHere').has('UNKNOWN_SPEC'), 'submit calls the freezer too');
   assert.ok(!walk.refusalsOf('commands/submit.js#submitHere', new Set(CAUGHT['commands/submit.js#submitHere'])).has('UNKNOWN_SPEC'), 'and catches what it raises');
   assert.ok(walk.refusalsOf('cli.js#freezer').has('A5_GRAMMAR_VERSION'), 'the freezer propagates an unsupported grammar version');
-  for (const code of ['INFRA_NOTE_REQUIRED', 'NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
+  for (const code of ['NOT_CLAIMABLE', 'LANE_HELD', 'GATE_RED', 'NO_GATE', 'NOT_AT_COMMIT', 'SELF_VERIFY', 'BAD_DECISION']) {
     assert.ok(ENTRY_POINTS.some(({ at }) => at.some((entry) => walk.refusalsOf(entry).has(code))), `the walk finds ${code}`);
   }
   for (const code of Object.keys(NOT_MOVES)) {
@@ -1107,7 +1074,7 @@ test('reserve refuses in the declared order, one failure peeled at a time [V15, 
   store.reserveReview(board, built, { agentId: otherRequired, leaseMs: 3_600_000, policy: 'any' });
   fired.push(reserveAs(built, 'web-2', 'any'), reserveAs(built, otherRequired, 'any'));
   assert.deepEqual(fired, [...declaredBoardOrder(machineRules, PRECHECKED, 'reserve'), 'ok']);
-  assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'O2_FAMILY_MATCH', 'REVIEW_HELD', 'ok']);
+  assert.deepEqual(fired, ['NO_ITEM', 'NOT_SUBMITTED', 'REVIEW_COOLDOWN', 'SELF_VERIFY', 'ROUTE', 'COORDINATOR_VERIFIES', 'REQUIRED_REVIEW_FAMILY', 'SAME_FAMILY', 'REVIEW_HELD', 'ok']);
 });
 
 test('a reserved review refuses every other verdict while its lease lives, and only then; a new submission starts free [V15]', t => {

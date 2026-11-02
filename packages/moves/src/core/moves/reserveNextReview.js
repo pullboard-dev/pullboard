@@ -33,6 +33,7 @@ export default Object.freeze({ operation: "reserveNextReview", order: 17, engine
   "NOT_SUBMITTED": "see its state with pullboard show <id>; verify only submitted items: pullboard next --verify",
   "NO_ITEM": "find the item id: pullboard list --all",
   "O2_FAMILY_MATCH": "ask the coordinator for a verifier from another family: pullboard shout coordinator --kind question \"#<id> needs a verifier from another family\"",
+  "SAME_FAMILY": "ask the coordinator for a verifier from another family: pullboard shout coordinator --kind question \"#<id> needs a verifier from another family\"",
   "REVIEW_COOLDOWN": "take another review: pullboard next --verify",
   "REVIEW_HELD": "take another review: pullboard next --verify",
   "ROUTE": "take an item your route covers: pullboard next",

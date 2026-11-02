@@ -6,14 +6,14 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createPairingCode, openPairingBundle, parsePairingCode, sealPairingBundle } from '../src/pairing.js';
+import { createPairingCode, openPairingBundle, parsePairingCode, sealPairingBundle } from '../packages/person/index.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { createPairingStore } from '../relay/pairing-store.js';
 import { createPairingHandler } from '../relay/pairing-http.js';
 import { createRelayHandler } from '../relay/service.js';
 import { Refused } from '../packages/kernel/core.js';
-import { PAIR_PACKAGE_BYTES } from '../src/relay-limits.js';
+import { PAIR_PACKAGE_BYTES } from '../packages/link/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const BOARD = '0123456789abcdef0123456789abcdef';

@@ -13,7 +13,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { SEALED_SNAPSHOT_BYTES as RELAY_LIMIT, SNAPSHOT_BODY_BYTES as BODY_LIMIT } from '../src/relay-limits.js';
+import { SEALED_SNAPSHOT_BYTES as RELAY_LIMIT, SNAPSHOT_BODY_BYTES as BODY_LIMIT } from '../packages/link/index.js';
 import { presentationDigest, relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';

@@ -2,7 +2,7 @@
 import * as personIdentity from '../person.js';
 import { identifyCaller } from '../cli-identity.js';
 import { gitSyncLinked } from '../../packages/store/index.js';
-import { environmentAgent } from '../relay-environment.js';
+import { environmentAgent } from '../../packages/link/index.js';
 import * as seatCheckout from '../seat-checkout.js';
 import * as store from '../board.js';
 import { context } from '../cli-context.js';
@@ -16,7 +16,7 @@ import { HOOK_CHECKOUT_WAIT_MS } from '../agent-session.js';
 import { localSessionMatches } from '../agent-session.js';
 import { repoInfo } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { relayLinked } from '../relay.js';
+import { relayLinked } from '../../packages/link/index.js';
 
 /**
  * Bind this checkout to the session behind a write command, which the command line has already told apart from a
@@ -47,7 +47,7 @@ export async function bindWriteSession(io, positionals, values) {
   let agent = info.isMain ? COORDINATOR : null;
   if (!info.isMain) {
     const ctx = context(io);
-    const ownsLandingRoot = command === 'hook' ? (await import('../landing-candidates.js')).landingBatchOwnsRoot : () => false;
+    const ownsLandingRoot = command === 'hook' ? (await import('../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
     agent = withBoard(ctx, (board) => store.agentAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
     if (!agent && command !== 'join') throw withBoard(ctx, (board) => seatCheckout.unjoinedRefusal(info, store.listAgents(board), personIdentity.agentSessionDigest));

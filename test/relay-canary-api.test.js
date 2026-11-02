@@ -11,7 +11,7 @@ import test from 'node:test';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { relaySnapshot } from '../packages/pages/index.js';
-import { observeRelayHealth } from '../src/relay-canary-health.js';
+import { observeRelayHealth } from '../packages/link/index.js';
 import { main } from './native-cli-fixture.js';
 import { apiFetch } from './api-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
