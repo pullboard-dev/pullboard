@@ -27,6 +27,8 @@ export async function remoteSubmitCells(root, main, source, item, lease, readCut
     browser: lease.browser, checkedSource, privateCheck: policy,
     metadata: { ...lease.runMetadata, testStage: 'cells' }, rawOutputPath: join(directory, 'raw.log'),
   });
+  lease.executionAdmission = result.executionAdmission ?? null;
+  lease.executionPhases = result.executionPhases ?? null;
   const receipt = result.privateCheck?.receipt;
   const phase = receipt?.phases?.check;
   if (result.executionRunner !== lease.runner.host || result.executionSource?.commit !== source
