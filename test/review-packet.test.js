@@ -91,8 +91,7 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   const elapsedMs = performance.now() - started;
   const packet = JSON.parse(ok(box, box.repo, 'show', String(id), '--review', '--json').out);
   box.env.PATH = path;
-  // budget: the 2 s ceiling is the approved bar's own declared limit for show --review on a stored packet.
-  assert.ok(elapsedMs < 2000, `show --review took ${Math.round(elapsedMs)} ms`);
+  assert.ok(elapsedMs < 2000, `show --review took ${Math.round(elapsedMs)} ms`); // budget: declared ceiling of the frozen bar
   const calls = existsSync(git.log) ? readFileSync(git.log, 'utf8').split('\n').filter(Boolean) : [];
   assert.deepEqual(calls.filter(call => /(?:^| )(?:checkout|switch|read-tree|clone|diff|cat-file|worktree add)(?: |$)/u.test(call)), [],
     'show --review reads the stored packet: no checkout and no diff');

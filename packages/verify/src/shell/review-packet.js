@@ -55,14 +55,15 @@ function readBlobs(root, specs) {
 
 /** Where the board keeps the packet for one item head. */
 function reviewPacketPath(commonDir, id, head) {
-  if (!Number.isSafeInteger(Number(id)) || !SHA.test(head ?? '')) throw new Refused('NO_REVIEW_PACKET', `item #${id} has no submitted head to review; submit it first`);
+  if (!Number.isSafeInteger(Number(id)) || !SHA.test(head ?? '')) return null;
   return join(commonDir, 'pullboard', 'review-packets', String(id), `${head}.json`);
 }
 
 /** The stored packet for this head, or null when none was built. */
 function readReviewPacket(commonDir, id, head) {
   try {
-    const packet = JSON.parse(readFileSync(reviewPacketPath(commonDir, id, head), 'utf8'));
+    const path = reviewPacketPath(commonDir, id, head);
+    const packet = path && JSON.parse(readFileSync(path, 'utf8'));
     return packet?.version === VERSION && packet.item === Number(id) && packet.head === head ? packet : null;
   } catch { return null; }
 }
@@ -70,6 +71,7 @@ function readReviewPacket(commonDir, id, head) {
 /** Write through a temporary file, so a reader never sees half a packet. */
 function storeReviewPacket(commonDir, packet) {
   const path = reviewPacketPath(commonDir, packet.item, packet.head);
+  if (!path) return null;
   mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${process.pid}.tmp`;
   writeFileSync(temporary, JSON.stringify(packet) + '\n');
@@ -165,15 +167,14 @@ function cellsAt(root, commit) {
 }
 
 /**
- * Build the packet for an item whose gate went green at its head. Reads Git objects only (diff,
- * ls-tree, cat-file), so it never checks anything out and never starts a test.
+ * Build the packet for an item whose gate went green at its head, or null when it has not. Reads
+ * Git objects only (diff, ls-tree, cat-file), so it never checks anything out and never starts a test.
+ * It returns rather than refuses because submit and verify reach it; only show names the refusal.
  */
 function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = new Date() } = {}) {
   const id = Number(item.item_id);
   const head = item.item_commit;
-  if (!submit || submit.gateGreen !== true) {
-    throw new Refused('NO_REVIEW_PACKET', `item #${id}'s gate is not green at ${String(head ?? 'no head').slice(0, 12)}; the packet is built when its queued gate goes green`);
-  }
+  if (!submit || submit.gateGreen !== true || !SHA.test(head ?? '')) return null;
   const main = SHA.test(submit.policyCommit ?? '') ? submit.policyCommit : null;
   const base = main ? gitRead(root, ['merge-base', main, head]).trim() : gitRead(root, ['rev-parse', `${head}^`]).trim();
   const stat = gitRead(root, ['diff', '--stat', '--no-color', base, head]).trimEnd();
@@ -279,7 +280,7 @@ function loadReviewPacket(root, commonDir, inputs) {
   const stored = readReviewPacket(commonDir, inputs.item.item_id, inputs.item.item_commit);
   if (stored) return stored;
   const packet = buildReviewPacket(root, inputs);
-  storeReviewPacket(commonDir, packet);
+  if (packet) storeReviewPacket(commonDir, packet);
   return packet;
 }
 
@@ -287,8 +288,8 @@ function loadReviewPacket(root, commonDir, inputs) {
 export async function recordReviewPacket(ctx, id, readBoard) {
   try {
     const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
-    if (inputs.submit?.gateGreen !== true) return null;
-    return storeReviewPacket(ctx.info.commonDir, buildReviewPacket(ctx.info.root, inputs));
+    const packet = buildReviewPacket(ctx.info.root, inputs);
+    return packet && storeReviewPacket(ctx.info.commonDir, packet);
   } catch (error) {
     ctx.io.err(`review packet for #${id} was not stored (${error.message}); pullboard show ${id} --review builds it`);
     return null;
@@ -298,8 +299,8 @@ export async function recordReviewPacket(ctx, id, readBoard) {
 /** Print the packet for `show <id> --review`; it reads the stored packet and runs no checkout or test. */
 export async function showReviewPacket(ctx, id, readBoard, { json = false } = {}) {
   const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
-  if (!inputs.item.item_commit) throw new Refused('NO_REVIEW_PACKET', `item #${id} has no submitted head; its packet is built when its gate goes green`);
   const packet = loadReviewPacket(ctx.info.root, ctx.info.commonDir, inputs);
+  if (!packet) throw new Refused('NO_REVIEW_PACKET', `item #${id} has no green gate at ${String(inputs.item.item_commit ?? 'no head').slice(0, 12)}; its packet is stored when its queued gate goes green, so read pullboard show ${id} until then`);
   if (json) ctx.io.result?.(packet);
   else for (const line of renderReviewPacket(packet)) ctx.io.say(line);
   return 0;
@@ -310,13 +311,9 @@ export async function showReviewPacket(ctx, id, readBoard, { json = false } = {}
  * head gets one line saying so, because the offer itself must still print.
  */
 export async function reviewPacketLines(ctx, id, readBoard) {
-  try {
-    const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
-    return renderReviewPacket(loadReviewPacket(ctx.info.root, ctx.info.commonDir, inputs));
-  } catch (error) {
-    if (!(error instanceof Refused)) throw error;
-    return [`review packet: none (${error.message})`];
-  }
+  const inputs = await readBoard((board, store) => reviewPacketInputs(board, store, id));
+  const packet = loadReviewPacket(ctx.info.root, ctx.info.commonDir, inputs);
+  return packet ? renderReviewPacket(packet) : [`review packet: none; the gate is not green at ${String(inputs.item.item_commit ?? 'no head').slice(0, 12)}, so review it the usual way`];
 }
 
 /**
@@ -327,7 +324,7 @@ export function reviewPacketReadNote(commonDir, item, read, decision) {
   if (read === undefined) return '';
   if (decision !== 'ACCEPT') throw new Refused('USAGE', '--read records the packet clauses an accept read; a reject names its clause with --clause');
   const packet = readReviewPacket(commonDir, item.item_id, item.item_commit);
-  if (!packet) throw new Refused('NO_REVIEW_PACKET', `no review packet for #${item.item_id} at ${item.item_commit.slice(0, 12)}; read pullboard show ${item.item_id} --review first`);
+  if (!packet) throw new Refused('USAGE', `no review packet for #${item.item_id} at ${item.item_commit.slice(0, 12)}; read pullboard show ${item.item_id} --review first`);
   const all = packet.clauses.map(clause => clause.n);
   const numbers = String(read).trim() === 'all' ? all : String(read).split(',').map(part => Number(part.trim()));
   if (!numbers.length || numbers.some(n => !all.includes(n))) {
