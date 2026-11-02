@@ -535,9 +535,27 @@ test('only direct importing cells join a touched cell, including another file in
     cell('b', [['src/b.js', 'packages/b/src/b.js']]), cell('c', [['src/c.js', 'packages/c/src/c.js']])] };
   const inventory = { edges: new Map([['src/b.js', [{ target: 'src/a-other.js' }]], ['src/c.js', [{ target: 'src/b.js' }]]]) };
   assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [inventory]), ['a', 'b']);
+  const forwarding = { ...inventory, files: new Map([['src/b.js', Buffer.from("export * from './a-other.js';\n")]]) };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [forwarding]), ['a', 'b', 'c'], 'effective importers through forwarding shims remain checked');
   assert.deepEqual(touchedCells(['bin/cells-plan.json'], plan, plan, [inventory]), ['a', 'b', 'c'], 'shared authority invalidates every cell');
   const withStay = { ...plan, stays: [{ path: 'bin/shared.js' }] };
   assert.deepEqual(touchedCells(['bin/shared.js'], withStay, withStay, [inventory]), ['a', 'b', 'c'], 'unowned shared tool changes fail safely');
+});
+
+test('forwarding chains select every cell whose cut can change [C7,D3,CD64]', async t => {
+  const { touchedCells } = await import('../bin/cells-submit-checks.js');
+  const box = fixture(t);
+  box.put('src/stats.js', "import './board.js'; export const stats = true;\n");
+  box.put('src/board.js', "export * from './refused.js';\n");
+  box.put('src/refused.js', 'export class Refused extends Error {}\n');
+  const plan = computePlan(box.root);
+  const oldInventory = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.deepEqual(checkCuts(box.root, plan, 'stats', { allLaterCells: true, inventory: oldInventory }), []);
+  box.put('src/refused.js', "export * from './cli.js';\n");
+  const newInventory = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.ok(touchedCells(['src/refused.js'], plan, plan, [oldInventory, newInventory]).includes('stats'));
+  assert.ok(checkCuts(box.root, plan, 'stats', { allLaterCells: true, inventory: newInventory, acceptedInventory: oldInventory })
+    .some(problem => problem.includes('stats still imports later app:cli')), 'the upstream cut really changes through the forwarding chain');
 });
 
 test('a one-cell submit on a many-cell board stays under a minute and still refuses a new cut [C7,D3,CD64]', async t => {

@@ -25,7 +25,7 @@ import { mappedPath } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { cutTitle } from '../packages/codemap/index.js';
-import { frontDoorBypasses } from './cells-plan-cuts.js';
+import { frontDoorBypasses, onlyForwards } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
@@ -172,10 +172,20 @@ export function touchedCells(files, before, after, inventories) {
   };
   const touched = new Set(files.flatMap(owners));
   const selected = new Set(touched);
-  // Only importers of an originally touched cell count; never feed discovered importers back in.
-  for (const inventory of inventories) for (const [file, imports] of inventory.edges) {
-    if (imports.some(edge => owners(edge.target).some(name => touched.has(name)))) {
+  // A cut follows pure re-export shims across cell boundaries. Treat the effective
+  // importer through those shims as direct; never traverse a real implementation.
+  for (const inventory of inventories) {
+    const reverse = new Map();
+    for (const [file, imports] of inventory.edges) for (const edge of imports) {
+      if (!reverse.has(edge.target)) reverse.set(edge.target, []);
+      reverse.get(edge.target).push(file);
+    }
+    const pending = [...reverse.keys()].filter(file => owners(file).some(name => touched.has(name)));
+    const seen = new Set(pending);
+    while (pending.length) for (const file of reverse.get(pending.pop()) ?? []) {
       for (const name of owners(file)) selected.add(name);
+      const forwards = onlyForwards(inventory.files?.get(file)?.toString('utf8') ?? '', inventory.computed?.has(file) ?? false);
+      if ((forwards || !owners(file).length) && !seen.has(file)) { seen.add(file); pending.push(file); }
     }
   }
   return [...selected].sort();

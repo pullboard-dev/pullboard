@@ -116,7 +116,7 @@ export function entryPlacementProblems(root, plan, files, sharedMap = undefined)
 const forwardsMemo = new Map();
 
 /** Recognize a module that only passes imports onward, including an unresolved computed loader. */
-function onlyForwards(source, computed) {
+export function onlyForwards(source, computed) {
   const key = `${computed ? 1 : 0}${source}`;
   if (!forwardsMemo.has(key)) forwardsMemo.set(key, onlyForwardsUncached(source, computed));
   return forwardsMemo.get(key);
