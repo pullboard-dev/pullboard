@@ -99,16 +99,21 @@ export function legacyFlakeObservations(runs, { afterEvent = 0 } = {}) {
   const eligible = runs.filter(run => run.by === 'coordinator' && typeof run.id === 'string' && run.id
     && Number.isSafeInteger(run.eventId) && typeof run.tree === 'string' && typeof run.green === 'boolean'
     && !Array.isArray(run.testOutcomes) && !['suite', 'main-red'].includes(run.kind));
+  const greens = new Map();
+  for (const run of eligible.filter(row => row.green)) {
+    const candidates = [...(greens.get(run.tree) ?? []), run].sort((a, b) => b.eventId - a.eventId);
+    greens.set(run.tree, candidates.filter((row, index) => candidates.findIndex(other => other.id === row.id) === index).slice(0, 2));
+  }
   const result = new Map();
   for (const red of eligible.filter(run => !run.green && Array.isArray(run.failures))) {
-    for (const green of eligible.filter(run => run.green && run.tree === red.tree && run.id !== red.id)) {
-      const lastEventId = Math.max(red.eventId, green.eventId);
-      if (lastEventId <= afterEvent) continue;
-      for (const failure of red.failures) {
-        if (typeof failure.file !== 'string' || typeof failure.name !== 'string') continue;
-        const id = key(failure), prior = result.get(id);
-        if (!prior || prior.lastEventId < lastEventId) result.set(id, { file: failure.file, name: failure.name, status: 'active', count: 1, lastEventId });
-      }
+    const green = greens.get(red.tree)?.find(run => run.id !== red.id);
+    if (!green) continue;
+    const lastEventId = Math.max(red.eventId, green.eventId);
+    if (lastEventId <= afterEvent) continue;
+    for (const failure of red.failures) {
+      if (typeof failure.file !== 'string' || typeof failure.name !== 'string') continue;
+      const id = key(failure), prior = result.get(id);
+      if (!prior || prior.lastEventId < lastEventId) result.set(id, { file: failure.file, name: failure.name, status: 'active', count: 1, lastEventId });
     }
   }
   return [...result.values()];
