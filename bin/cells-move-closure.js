@@ -3,6 +3,7 @@ import { isBuiltin } from 'node:module';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { discovered, MOVE_CANDIDATE, MOVE_FILE } from '../packages/kernel/index.js';
+import { lex } from '../packages/kernel/index.js';
 
 /** Refuse symlinks, absent modules and paths outside the finite repository source capability. */
 function sourceAt(root, file, allowed) {
@@ -34,11 +35,32 @@ export function moveDeclarationFiles(root, { importsIn, commonJsIn, files }) {
  * cell, so the verify-side move check never imports a later cell (#1699). Opaque or unbounded source throws.
  */
 export function runnerWorkerFiles(root, { importsIn, commonJsIn, files }, entry = 'src/runner-worker.js') {
-  return literalClosure(root, [entry], { importsIn, commonJsIn, files }, 'runner worker');
+  return literalClosure(root, [entry], { importsIn, commonJsIn, files }, 'runner worker', urlSpecifiers);
+}
+
+/**
+ * The relative files a source loads as `new URL('<literal>', import.meta.url)`, the runner package's runtime edges.
+ * A two-argument URL whose base or first argument is not that exact literal shape is opaque and throws.
+ */
+function urlSpecifiers(source) {
+  const { code, strings } = lex(source), found = [];
+  for (const match of code.matchAll(/\bnew\s+URL\s*\(/gu)) {
+    const start = match.index + match[0].length;
+    let depth = 1, end = start;
+    for (; end < code.length && depth; end += 1) depth += code[end] === '(' ? 1 : code[end] === ')' ? -1 : 0;
+    const args = code.slice(start, end - 1);
+    if (depth) throw new Error('opaque runner worker loader');
+    if (!args.includes(',')) continue; // A one-argument URL names no source-relative file.
+    const tail = /,\s*import\s*\.\s*meta\s*\.\s*url\s*$/u.exec(args);
+    const literal = tail && strings.find(entry => entry.start === start + args.search(/\S/u));
+    if (!literal || !['"', "'"].includes(source[literal.start]) || code.slice(literal.end, start + tail.index).trim()) throw new Error('opaque runner worker loader');
+    found.push(literal.text);
+  }
+  return found;
 }
 
 /** Walk relative literal imports from the starting files, refusing loaders, bare or non-module dependencies and size overruns. */
-function literalClosure(root, pending, { importsIn, commonJsIn, files }, label) {
+function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, extra = () => []) {
   const allowed = new Set(files);
   const reached = new Set();
   let bytes = 0;
@@ -54,7 +76,7 @@ function literalClosure(root, pending, { importsIn, commonJsIn, files }, label) 
     });
     if (commonJsIn(sources).some(Boolean)) throw new Error(`opaque ${label} loader`);
     const edges = importsIn(sources);
-    for (const [index, imports] of edges.entries()) for (const specifier of imports) {
+    for (const [index, imports] of edges.entries()) for (const specifier of [...imports, ...extra(sources[index])]) {
       if (isBuiltin(specifier)) continue;
       if (!specifier.startsWith('./') && !specifier.startsWith('../')) throw new Error(`non-literal relative ${label} import`);
       const target = posix.normalize(posix.join(posix.dirname(level[index]), specifier));
