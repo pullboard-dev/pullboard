@@ -117,12 +117,12 @@ async function producer(box, checks) {
 import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/src/release-gate.js';
+import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/packages/gate/index.js';
 import {runnerExecutionServices} from './.tooling/src/runners.js';
 import {landingExecutionServices} from './.tooling/src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {isStampedGreen} from './.tooling/src/gate.js';
-import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/src/release-gate-receipt.js';
+import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/packages/gate/index.js';
 import {closeBoard} from './.tooling/src/board.js';
 import {openBoard} from './.tooling/src/native-board.js';
 const root=process.cwd();
