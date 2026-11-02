@@ -281,10 +281,12 @@ test('modern multi-claim retains legacy guards and lane holds [B5, B12]', () => 
 
 test('modern claims enforce the approved ten-item cap without blocking renewal [B5,H16]', () => {
   const ids = Array.from({ length: 11 }, (_, index) => store.addItem(board, { by: 'coordinator', lane: 'web', title: `Item ${index}` }));
+  const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'Child', parentId: ids[0] });
   const options = { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze, itemFolder: true };
   for (const id of ids.slice(0, 10)) assert.equal(store.claim(board, id, options).renewed, false);
   assert.equal(store.claim(board, ids[0], options).renewed, true);
   assert.throws(() => store.claim(board, ids[10], options), /ONE_CLAIM.*ten live claims/);
+  assert.throws(() => claimAs(child, 'web-1', 'web'), /ONE_CLAIM.*ten live claims/, 'legacy-shaped children cannot bypass the modern cap');
   assert.equal(store.getItem(board, ids[10]).item_status, 'open');
 });
 
