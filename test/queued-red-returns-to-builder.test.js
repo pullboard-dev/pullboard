@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../apps/lib/index.js';
+import { captureLapsedClaims } from '../packages/health/index.js';
+import { loadConfig } from '../packages/config/index.js';
+import { maintainStaleState } from '../packages/store/index.js';
 import { claim, firstRefusal, getItem, queuedRedLines, register, submitHandoff } from '../packages/store/index.js';
 
 /** Require authentic command success before reading its JSON document. */
@@ -58,6 +61,12 @@ function fixture(t) {
   return { ...box, helpers, ids };
 }
 
+/** Wait for a real queued worker to remove its private source checkout. */
+async function cleaned(box, id) {
+  const source = join(box.repo, '.git', 'pullboard', 'submit-handoffs', read(box, id).job.id, 'source');
+  await box.helpers.waitFor(() => !existsSync(source), `queued worker #${id} cleans up`, 120000); // budget: hang ceiling for the real detached worker's cleanup; no elapsed-time assertion.
+}
+
 /** Wait for a real queued job to reach a terminal state. */
 async function terminal(box, id) {
   const done = () => ['red', 'green', 'submitted', 'incomplete'].includes(read(box, id).job?.state);
@@ -65,7 +74,7 @@ async function terminal(box, id) {
   return read(box, id);
 }
 
-test('a refused queued gate stays claimed by its seat, leads next, inbox and claim, shows in show, and opens only after its lease [V4,H16,N2,R2]', async t => {
+test('a refused queued gate stays claimed by its seat, leads next, inbox and claim, shows in show, survives idle maintenance, and opens only after its lease [V4,H16,N2,R2,B4]', async t => {
   const box = fixture(t);
   const [refused, green, later] = box.ids;
   const first = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
@@ -98,6 +107,19 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
   const shown = lines(box.run(box.web, 'show', String(refused))).join('\n');
   assert.match(shown, new RegExp(`queued gate: red at ${red.job.executionCommit}\\nCELLS_PLAN_UNPLACED: ${red.job.error.message.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\nnext: `, 'u'));
   assert.deepEqual(lines(box.run(box.web, 'claim', String(later))).slice(0, 2), expected);
+
+  // Idle maintenance at 41 minutes, inside the fresh lease, leaves the claim with its builder.
+  for (const id of [refused, green]) await cleaned(box, id);
+  const idle = { now: () => new Date(Date.parse(red.job.completedAt) + 41 * 60_000) };
+  const returned = read(box, refused).item;
+  assert.ok(idle.now().getTime() < Date.parse(returned.item_lease_until), 'maintenance runs before the fresh lease ends');
+  const maintained = openBoard(box.boardFile, idle);
+  try {
+    const snapshot = captureLapsedClaims({ clock: idle, config: loadConfig(box.repo) }, maintained, 'coordinator');
+    if (snapshot) maintainStaleState(maintained, { agentId: 'coordinator', snapshot, health: {}, claimsOnly: true });
+    assert.equal(getItem(maintained, refused).item_status, 'claimed');
+    assert.equal(getItem(maintained, refused).item_owner, red.job.agentId, 'the builder keeps its returned claim');
+  } finally { maintained.db.close(); }
 
   // Only after the seat's lease lapses without action may anyone else take it.
   const held = read(box, refused).item;
