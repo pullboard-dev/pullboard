@@ -391,9 +391,11 @@ export async function submitHere(ctx, id, infra) {
   const cellsStart = performance.now();
   try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
-    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
+    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
+    onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
   if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
+  if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();

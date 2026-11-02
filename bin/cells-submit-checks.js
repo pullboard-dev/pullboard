@@ -151,11 +151,15 @@ function sharedPolicy(file) {
     || file === 'bin/cell-lint-transition.json';
 }
 
+function allCellsReason(files, plans) {
+  return files.find(file => sharedPolicy(file) || plans.some(plan => plan.stays?.some(row => row.path === file)));
+}
+
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
   const plans = [before, after];
   // Shared metadata or an unowned root-tool stay can alter every reachable cell.
-  if (files.some(file => sharedPolicy(file) || plans.some(plan => plan.stays?.some(row => row.path === file)))) {
+  if (allCellsReason(files, plans)) {
     return after.cells.map(cell => cell.name);
   }
   const byPath = new Map();
@@ -212,7 +216,7 @@ function candidatePlan(candidateRoot) {
 }
 
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
-function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers, inventories } = {}) {
+function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers, inventories, onAllCells = () => {} } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
   if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
   const before = readPlan(mainRoot);
@@ -224,6 +228,8 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
   if (policy.length) return { cells: [], problems: policy };
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
+  const fallback = allCellsReason(changed, [before, after]);
+  if (fallback) onAllCells(fallback);
   const direct = touchedCells(changed, before, after, []);
   if (!direct.length) return { cells: [], problems: [] };
   const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
@@ -246,7 +252,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
     const newMoved = checkMoved(candidateRoot, after, name, { acceptedBase: acceptedMain, lintReport: newReport, lintBaseline: baseline });
     problems.push(...additions(oldMoved, newMoved).map(problem => `${name} --moved: ${problem}`));
   }
-  return { cells, problems };
+  return { cells, problems, allCellsReason: fallback ?? null };
 }
 
 /** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
@@ -351,7 +357,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
       ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
-    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: Boolean(receiptKey) });
+    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: Boolean(receiptKey), onAllCells: services.onAllCells });
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
       const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories, observations: observations.values, cacheEligible: samePreloads, onCellObservation: services.onCellObservation }));
