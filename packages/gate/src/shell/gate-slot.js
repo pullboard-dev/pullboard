@@ -12,6 +12,7 @@ import {
 } from '../../../resources/index.js';
 import {
   browserFreeChecksEnabled,
+  browserByLaunchEnabled,
   gateRunnersFirstEnabled,
   gateRunnerWaitMs,
   gateQueueSettings,
@@ -84,6 +85,14 @@ export async function withGateSlot(root, action, options = {}) {
   options = { ...options, executionServices: requireGateExecutionServices(options.executionServices) };
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
+    if (error?.code === 'RUNNER_BROWSER_SLOT_REQUIRED' && options.remote !== false && !options.browser
+      && (options.runnerOnly || options.requiredExecutor?.kind === 'ssh')) {
+      const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
+      process.stderr.write(`${error.message}; retrying on an eligible runner with a browser slot\n`);
+      const result = await withOneGateSlot(root, action, { ...options, browser: true });
+      if (result && typeof result === 'object') result.runnerAttempt = attempt;
+      return result;
+    }
     if (!['RUNNER_BROWSER_SLOT_REQUIRED', 'RUNNER_GUI_SESSION_REQUIRED'].includes(error?.code) || options.remote === false || options.runnerOnly || options.requiredExecutor?.kind === 'ssh') throw error;
     // The runner's red attempt stays on record beside the local rerun.
     const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
@@ -97,6 +106,7 @@ export async function withGateSlot(root, action, options = {}) {
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
 async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false } = {}) {
+  const browserByLaunch = browserByLaunchEnabled();
   const { localRunnerDescriptor, sampleRunnerLoad, carriedRunnerTrunk, probeRunnerTransport, probeRunnerHealth, effectiveRunners, refreshRunnerMeasurements } = executionServices.runners;
   const restriction = requiredExecutorOf(requiredExecutor);
   const tracker = startReceipt();
@@ -104,7 +114,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   /** Hand the run its receipt tracker and slot, then record its receipt once the slot is released (#836). */
   const timed = lease => {
     Object.defineProperty(lease, 'executionServices', { value: executionServices });
-    return Object.assign(lease, { tracker, receiptKind,
+    return Object.assign(lease, { tracker, receiptKind, browserByLaunch,
     ...(!lease.runner ? { startLoad: lease.startLoad ?? sampleRunnerLoad(),
       localDescriptor: localRunnerDescriptor(lease.capacity ?? null, loadMachineSettings().browserSlots > 0) } : {}),
     slot: slotOf(lease, { browserFree: browserFreeChecksEnabled() }) });
