@@ -806,6 +806,9 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.equal((await json(source, source.repo, 'milestone', ['lift', 'Catalog', String(catalog.item_id)], 'lift')).milestone.sunk, undefined, 'a lift returns the item to the computed order');
   await json(source, source.repo, 'milestone', ['add', 'Later'], 'add');
   await json(source, source.repo, 'milestone', ['move', 'Later', '--before', 'Catalog'], 'move');
+  const focused = await json(source, source.repo, 'milestone', ['focus', 'Catalog'], 'focus');
+  assert.deepEqual([focused.focus, focused.overflow], ['Catalog', false], 'focus names the release seats hold to');
+  assert.equal((await json(source, source.repo, 'milestone', ['focus', 'off'], 'focus')).focus, null, 'focus off clears it before later moves');
   await json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
   await json(source, source.repo, 'milestone', ['edit', 'Release', '--target', '2026-10-20T18:00Z'], 'edit');
   const shippedLater = await json(source, source.repo, 'milestone', ['ship', 'Later'], 'ship');
@@ -943,6 +946,15 @@ catalogCase('[A1,H11] sync shares a board through a real Git remote without an a
   assert.equal(result.sequence, 0);
   assert.equal(result.pending, null);
   assert.match(await source.git(remote, 'rev-parse', result.ref), /^[0-9a-f]{40,64}$/u);
+});
+
+catalogCase('[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON', async () => {
+  const source = await project();
+  const parent = (await json(source, source.repo, 'add', ['coordinator', 'Slice parent', '--criterion', 'Every slice inherits this bar.', '--check', 'true'], 'add')).item;
+  await json(source, source.repo, 'check', ['accept', String(parent.item_id)], 'accept');
+  await json(source, source.repo, 'claim', [String(parent.item_id)]);
+  const { item } = await uncataloguedRootJSON(source, source.repo, 'slice', [String(parent.item_id), 'Slice part', '--files', 'app/part.js', '--check', 'true']);
+  assert.deepEqual([item.item_parent_id, item.item_criterion], [parent.item_id, 'Every slice inherits this bar.'], 'the slice inherits its parent and frozen criterion');
 });
 
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', () =>
