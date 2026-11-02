@@ -51,7 +51,7 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'docs', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps/lib', 'docs', 'package.json'],
     { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['-xf', '-', '-C', box.repo], { input: archive.stdout, env });
@@ -74,7 +74,7 @@ function project(disableRefresh) {
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd(), undefined, { openBoard }), [], 'stale generated files: ' + generatedDocDrift(process.cwd(), undefined, { openBoard }).join(', ')); });`,
   ].join('\n') + '\n');
   if (disableRefresh) {
-    const file = join(box.repo, 'src/landing-step-merge.js');
+    const file = join(box.repo, 'packages/landing/src/shell/landing-step-merge.js');
     const source = readFileSync(file, 'utf8');
     const call = 'for (const file of refreshLandingDocs(root)) if (!engines.files.includes(file)) engines.files.push(file);';
     assert.equal(source.split(call).length, 2, 'the private mutation removes exactly the actual landing refresh call');
