@@ -88,3 +88,5 @@ export { RIGOR_NOTICE_ENGINE } from "../../src/rigor-notice-engine.js";
 export { rejectionReturnEnabled } from './src/core/rework-family-routing.js';
 
 export { createItemSlice } from "./src/shell/board-item-slice.js";
+
+export { nextIdleChanged } from './src/core/board-stats.js';

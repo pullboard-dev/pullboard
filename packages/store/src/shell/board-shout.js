@@ -1,6 +1,7 @@
 import { reviewRequestClause } from '../core/review-request.js';
 import { REVIEW_REQUEST_ENGINE } from '../../../../src/review-request-engine.js';
 import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
+import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../state/index.js';
 import { restatesBoardState } from '../../../roadmap/index.js';
 import { routeLaneMessage } from "../../../seats/index.js";
 import * as itemDecisions from "../../../items/index.js";
@@ -98,6 +99,9 @@ export function persistShout(board, { from, to, text, decision = false, answers 
     .run(from, to, text.trim(), now(board), decision ? 1 : 0, answers, evidence?.kind ?? null, evidence ? evidence.outcome.trim() : null, evidence?.item ?? null, evidence?.commit ?? null, request ? 1 : 0, outcome);
   const id = Number(result.lastInsertRowid);
   logEvent(board, from, answers === null ? (news ? 'shout_news' : 'shout') : decision ? 'pass' : 'answer', detail.item ?? null, { shout: id, to, decision: Boolean(decision), request: Boolean(request), answers, ...(outcome ? { outcome } : {}), ...(personAnswer ? { channel } : {}), ...detail });
+  if (from === COORDINATOR && answers === null && (board.executionEngineVersion ?? ENGINE_VERSION) >= RIGOR_INSTRUCTIONS_ENGINE) {
+    board.nativePorts.recordAutomaticRigorDrafts(board, board.lastEvent, persistShout);
+  }
   itemDecisions.recordItemDecision(board, id, { decision, answers, record: decisionRecord });
   return id;
 }
