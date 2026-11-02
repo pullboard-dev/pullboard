@@ -391,7 +391,10 @@ function fixtureSourceEditsImpl(source, { file, moves, readSource, dataReads = [
   let reads;
   try {
     reads = bindingReadsForModules([{ file, source, body: probeBody, bindings: names.map(local => ({ local })) }]).get(file);
-  } catch (error) { if (error?.code === 'CELL_BINDING_TIMEOUT') throw error; return { edits: [], problems: [...problems, `${file}: fixture binding compiler unavailable`] }; }
+  } catch (error) {
+    if (error?.code === 'CELL_BINDING_TIMEOUT') throw error;
+    return { edits: [], problems: [...problems, `${file}: fixture binding compiler unavailable: ${error?.code ?? error?.name ?? 'Error'}: ${error?.message ?? String(error)}`] };
+  }
   if ([...reads.values()].some(row => row.opaque === 'original module does not compile within the source budget'))
     return { edits: [], problems: [...problems, `${file}: fixture source does not compile`] };
 
