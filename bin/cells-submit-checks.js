@@ -91,8 +91,20 @@ function refuse(problems) {
   if (problems.length) throw new Refused('CELLS_SUBMIT', problems.join('; '));
 }
 
+/**
+ * An accepted row may leave its cell as a plan stay only when the item's frozen criterion, written by the coordinator,
+ * names it exactly as `plan stay <path>`, the file still sits at its old path and nothing occupies its old target.
+ * The candidate's own stays list never authorizes itself (#2446).
+ */
+function approvedStay(after, row, candidateRoot, criterion) {
+  const [from, to] = row;
+  if (!criterion.includes(`plan stay ${from}`) || !(after.stays ?? []).some(stay => stay.path === from)) return false;
+  try { if (!lstatSync(join(candidateRoot, from)).isFile()) return false; } catch { return false; }
+  return !existsSync(join(candidateRoot, to));
+}
+
 /** Preserve accepted ownership; candidate metadata may not hide an existing implementation in a stay or later cell. */
-function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot) {
+function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainRoot, criterion = '') {
   const problems = [], cells = new Map(after.cells.map(cell => [cell.name, cell]));
   const engineStays = engineStayTransition({ beforeRoot: mainRoot, afterRoot: candidateRoot, before, after, afterMap });
   problems.push(...engineStays.problems);
@@ -132,7 +144,7 @@ function policyProblems(before, after, beforeMap, afterMap, candidateRoot, mainR
     for (const row of cell.paths) {
       const current = rows.get(row[0]);
       const retired = after.retired?.some(entry => entry.cell === cell.name && JSON.stringify(entry.row) === JSON.stringify(row));
-      if (!current && !retired && !engineStays.rows.has(row[0])) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
+      if (!current && !retired && !engineStays.rows.has(row[0]) && !approvedStay(after, row, candidateRoot, criterion)) problems.push(`${cell.name}: accepted row ${row[0]} disappeared without exact retirement`);
       if (current && current.cell.order > cell.order && !entries.has(row[0])) problems.push(`${cell.name}: ${row[0]} was relabeled as later ${current.cell.name}`);
     }
   }
@@ -253,7 +265,7 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const before = readPlan(mainRoot);
   const after = candidatePlan(candidateRoot);
   const mainMap = readPathMap(mainRoot), candidateMap = readPathMap(candidateRoot);
-  const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot);
+  const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot, criterion);
   policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));
   policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));

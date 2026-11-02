@@ -1,0 +1,94 @@
+/** @pullboard-test-input source-tree */
+/** The trusted cells checker accepts coordinator-approved plan stays and served URLs, never a real deletion [C7,D3,CD64]. */
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import { acceptedCutItems } from './cells-plan-fixture.js';
+import { fixture } from './cells-plan-fixture.js';
+import { git } from './cells-plan-fixture.js';
+import { computePlan } from '../bin/cells-plan.js';
+import { readPlan } from '../bin/cells-plan.js';
+import { writePlan } from '../bin/cells-plan.js';
+import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { cellLintBaseline } from '../packages/codemap/index.js';
+import { cellLintReport } from '../packages/codemap/index.js';
+import { writeCellLintBaseline } from '../packages/codemap/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
+import { importsIn } from '../packages/gate/index.js';
+import { withImportParseCache } from '../packages/gate/index.js';
+
+const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+  readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
+
+/** Commit the actual small plan and canonical baseline, with no production-source substitution. */
+function plannedFixture(t, prepare = () => {}) {
+  const box = fixture(t);
+  prepare(box);
+  writePlan(box.root, computePlan(box.root));
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'plan actual fixture');
+  writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, { importsIn, commonJsIn })), { initialize: true });
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '-m', 'snapshot actual fixture debt');
+  return { ...box, main: git(box.root, 'rev-parse', 'HEAD').trim() };
+}
+
+/** Commit the exact candidate the real immutable-snapshot preflight inspects. */
+function commitCandidate(box) {
+  git(box.root, 'add', '-A');
+  git(box.root, 'commit', '-q', '--allow-empty', '-m', 'candidate composition');
+  return git(box.root, 'rev-parse', 'HEAD').trim();
+}
+
+/** The refusal text a candidate draws, or an empty string when submit accepts it. */
+async function refusal(promise) {
+  try { await promise; return ''; } catch (error) { return error.message; }
+}
+
+/** A frozen item whose coordinator-written criterion carries `text`. */
+const item = text => ({ item_frozen: JSON.stringify({ criterion: text }) });
+
+/** Move the kernel cell's first accepted row into stays, as a deploy-entry ruling does, and return its old path. */
+function stayFirstKernelRow(box) {
+  const plan = readPlan(box.root), kernel = plan.cells.find(cell => cell.name === 'kernel');
+  const [from] = kernel.paths.shift();
+  plan.stays.push({ path: from, reason: 'deployed entry keeps its path' });
+  writePlan(box.root, plan);
+  return from;
+}
+
+test('an accepted row the frozen criterion names as a plan stay may stay in place [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  const from = stayFirstKernelRow(box);
+  const candidate = commitCandidate(box);
+  assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from} for the deploy.`))), /disappeared/u);
+  assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item('Preserve actual cell boundaries.'))),
+    new RegExp(`accepted row ${from.replaceAll('.', '\\.')} disappeared`, 'u'), 'the candidate stays list alone never authorizes itself');
+});
+
+test('a named plan stay still refuses when its file was deleted or also sits at its target [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t);
+  const plan = readPlan(box.root), row = plan.cells.find(cell => cell.name === 'kernel').paths[0];
+  const from = stayFirstKernelRow(box);
+  const approved = item(`Keep plan stay ${from} for the deploy.`);
+  box.put(row[1], 'export const copy = 1;\n');
+  assert.match(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), approved)), /disappeared/u,
+    'a stay whose body also appears at its old target is a hidden move');
+  git(box.root, 'rm', '-q', '--', row[1], from);
+  assert.match(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), approved)), /disappeared/u,
+    'a deleted file is not a stay');
+});
+
+test('a root-relative served URL is not a deleted path, while a relative one still refuses [C7,D3]', async t => {
+  const box = plannedFixture(t, fixture => {
+    fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
+    fixture.put('test/served.test.js', "const page = `await import('/src/doomed.js');`;\nconst url = 'http://127.0.0.1' + '/src/doomed.js';\nexport { page, url };\n");
+  });
+  git(box.root, 'rm', '-q', '--', 'src/doomed.js');
+  writePlan(box.root, computePlan(box.root));
+  assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), item('Remove doomed.'))), /names deleted/u);
+  box.put('test/served.test.js', "const page = `await import('./src/doomed.js');`;\nexport { page };\n");
+  assert.match(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), item('Remove doomed.'))),
+    /test\/served\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
+});
