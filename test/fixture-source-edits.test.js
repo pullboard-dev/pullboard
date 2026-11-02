@@ -4,6 +4,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { withCellLintParser } from '../packages/codemap/index.js';
+import { mkdtempSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { runFixtureChildAsync } from './fixture-child.js';
 
 const PREFIX = "import { cpSync, readFileSync } from 'node:fs'; import { join } from 'node:path';\n";
 const options = { file: 'test/data-reads.test.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']], readSource: () => null };
@@ -274,4 +281,47 @@ test('a real syntax error names its fixture file through the batch parser [C7,P3
   const result = withCellLintParser(() => fixtureSourceEdits("import { readFileSync } from 'node:fs';\nconst broken = ;\n",
     { file: 'test/broken-fixture.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] }));
   assert.match(result.problems.join('\n'), /test\/broken-fixture\.js: fixture source does not compile/u);
+});
+
+test('a real compiler process failure retains its exit, stderr and fixture name [C7,P3]', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'pullboard-probe-failure-'));
+  const preload = join(directory, 'fail-compiler.mjs');
+  writeFileSync(preload, "if(process.argv.includes('--compile')){process.stderr.write('owned fixture compiler failed\\n');process.exit(23);}\n");
+  const previous = process.env.NODE_OPTIONS;
+  process.env.NODE_OPTIONS = [previous, `--import=${pathToFileURL(preload).href}`].filter(Boolean).join(' ');
+  try {
+    withCellLintParser(() => {
+      const source = PREFIX + "readFileSync('src/git.js');\n";
+      for (const file of ['test/first-probe.js', 'test/later-probe.js']) {
+        const result = fixtureSourceEdits(source, { ...options, file });
+        assert.deepEqual(result.edits, [], 'a crashed compiler authorizes no source rewrite');
+        assert.ok(result.problems.some(problem => problem.startsWith(file + ': fixture binding compiler unavailable: CELL_BINDING_WORKER_EXIT:')));
+        assert.match(result.problems.join('\n'), /exited 23, signal none; stderr: owned fixture compiler failed/u);
+      }
+    });
+  } finally {
+    if (previous === undefined) delete process.env.NODE_OPTIONS;
+    else process.env.NODE_OPTIONS = previous;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('shared compiler rotations complete every request under a bounded heap [C7,P3]', async () => {
+  const entry = new URL('../packages/codemap/index.js', import.meta.url).href;
+  const script = `import {withCellLintParser} from ${JSON.stringify(entry)};
+const source='export const values=['+Array.from({length:1000},(_,i)=>i).join(',')+'];';
+let requests=0,compiled=0;
+withCellLintParser(parse=>{for(let i=0;i<128;i++){
+  const rows=parse(Array(64).fill(source));
+  if(rows.some(row=>!row.compiles))throw new Error('a valid module failed compilation');
+  requests++;compiled+=rows.length;
+}});
+console.log(JSON.stringify({requests,compiled}));`;
+  // budget: the existing owned-child hang ceiling; completion is asserted by request and module counts.
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], {
+    env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS, '--max-old-space-size=96'].filter(Boolean).join(' ') },
+    encoding: 'utf8', timeout: 120_000,
+  });
+  assert.equal(result.status, 0, result.context);
+  assert.deepEqual(JSON.parse(result.stdout), { requests: 128, compiled: 8192 });
 });
