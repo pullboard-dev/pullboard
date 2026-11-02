@@ -162,6 +162,11 @@ async function nextWithProgress(io, values, progress) {
       lastIdleReason = idleReason;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
+      if (idleReason === 'focus' && found.reasons?.length === 1 && found.reasons[0].endsWith('overflow is off.')) {
+        io.result?.({ item: null, idleReason, reasons: found.reasons });
+        io.say(found.reasons[0]);
+        return 0;
+      }
       if (values.verify) refuseWhileBuilding(ctx);
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       const agents = withBoardRead(ctx, (board) => store.listAgents(board));
