@@ -1,4 +1,4 @@
-import { realRelayAdapter } from '../packages/kernel/core.js';
+import { realRelayAdapter } from './browser-adapter.js';
 import { browserPersonBarEffect } from './person-bar-effect.js';
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15,H16,H17]. */
 import {
