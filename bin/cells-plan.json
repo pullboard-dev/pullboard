@@ -1240,6 +1240,14 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/untouched-claim-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/untouched-claim-observation.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/review-family-seat-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1249,6 +1257,10 @@
     },
     {
       "path": "src/move-history/203.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/204.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

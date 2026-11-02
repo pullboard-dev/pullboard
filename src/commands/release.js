@@ -1,3 +1,4 @@
+import { claimWorktreeSnapshot } from '../untouched-claim-observation.js';
 import { relayRecovered } from '../../packages/link/index.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { prepareStaleObservation } from '../../packages/health/index.js';
@@ -33,7 +34,7 @@ async function releaseOnSessionEnd(io) {
       const shown = handoff.changedFiles.slice(0, 8);
       const more = handoff.changedCount - shown.length;
       const note = `session ended; ${handoff.pin ? `work kept at ${handoff.pin} (${handoff.changedCount} file(s): ${shown.join(', ')}${more > 0 ? `, +${more} more` : ''})` : `no work could be pinned: ${handoff.unpinned}`}`;
-      await ordered(ctx, board, 'release', [item.item_id, me.id, note, 'OTHER']);
+      await ordered(ctx, board, 'release', [item.item_id, me.id, note, { worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root) }, 'OTHER']);
       released.push(item.item_id);
     }
     cleanItemFolders(ctx, board, me, store.listItems);
@@ -69,8 +70,7 @@ export async function run(io, args) {
     seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release', agentSessionDigest);
     const missing = releaseReasonProblem(values.reason, args[2]);
     if (missing) throw missing;
-    if (blockedOn) args.push({ blockedOn }, values.reason);
-    else args.push(values.reason);
+    args.push({ ...(blockedOn ? { blockedOn } : {}), worktreeSnapshot: claimWorktreeSnapshot(ctx.info.root) }, values.reason);
   }
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;
