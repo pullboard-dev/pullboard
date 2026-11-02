@@ -36,7 +36,7 @@ function fixture(t, rewind) {
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
   const config = join(box.repo, 'pullboard.json');
-  writeFileSync(config, JSON.stringify({ ...JSON.parse(readFileSync(config, 'utf8')),
+  writeFileSync(config, JSON.stringify({ ...helpers.CONFIG,
     gate: 'node bin/run-tests.js test/feature.test.js', affectedTests: 'node bin/run-tests.js', submit: { handoff: true } }));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: enable private queued gate [G1]');
@@ -101,7 +101,7 @@ test('queued submit accepts a forward main move during native preflight [V4,H16,
   const completed = state(box);
   assert.equal(completed.job.state, 'green', JSON.stringify(completed.job));
   assert.equal(completed.item.item_status, 'submitted');
-  const advanced = JSON.parse(readFileSync(box.marker, 'utf8')).main;
+  const advanced = JSON.parse(readFileSync(join(box.dir, 'main-moved.json'), 'utf8')).main;
   box.git(box.repo, 'merge-base', '--is-ancestor', advanced, completed.item.item_commit);
   box.git(box.repo, 'merge-base', '--is-ancestor', box.commit, completed.item.item_commit);
 });
