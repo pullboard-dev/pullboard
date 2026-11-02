@@ -117,7 +117,7 @@ import {
 } from '../cli.js';
 import { recordedRecovery } from '../../packages/state/index.js';
 import { retryReviewCommit } from '../../packages/verify/index.js';
-import { knownMainCheck, knownMainCheckNote } from '../../packages/verify/index.js';
+import { knownMainCheck, knownMainCheckNote } from '../verify-known-main-check.js';
 
 /** Preserve policy refusals while representing unusable cited criteria as a changed digest. */
 export function verificationCriterionDigest(freeze, item) {

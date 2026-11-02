@@ -38,4 +38,3 @@ export { blockingFailures, landingGateRecords, nativeProofBlockingGreen, quarant
 export { CHECK_ACCEPT_ENGINE } from '../../src/move-engine-constants.js';
 
 export { refuseManualCheckBaseline } from './src/core/check-baseline-automatic.js';
-export { knownMainCheck, knownMainCheckNote } from './src/shell/known-main-check.js';

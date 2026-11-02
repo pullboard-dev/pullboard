@@ -1,7 +1,7 @@
 /** Exact current-main failures with live repair owners may accompany an accept [V4,B3]. */
 import { readFileSync } from 'node:fs';
-import { compareMainFailures, failureSignatures, matchingMainFailures } from '../../../landing/index.js';
-import { linkKnownMainReworks } from '../../../store/index.js';
+import { compareMainFailures, failureSignatures, matchingMainFailures } from '../packages/landing/index.js';
+import { linkKnownMainReworks } from '../packages/store/index.js';
 
 /** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
 export async function knownMainCheck(root, check, { main, item, items, onWait, onMeasuredReceipt, runnerAdmission }) {
