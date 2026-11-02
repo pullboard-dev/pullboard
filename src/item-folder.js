@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { git } from './git.js';
-import { tryGit } from './git.js';
+import { git } from '../packages/git/index.js';
+import { tryGit } from '../packages/git/index.js';
 import { primaryCheckoutRoot } from './cli/worktree.js';
 
 /** A seat's folders are siblings of its checkout, never inside its working tree. */
