@@ -102,16 +102,20 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
     // Preserve the real aliases and mapped bodies, so entry claims inspect the same source as the real plan.
     const map = readPathMap(join(import.meta.dirname, '..'));
     const entryMap = {};
+    const entryFiles = new Set();
     for (const { path } of PLAN.entries ?? []) {
       const target = mappedPath(map, path);
       if (target !== path) entryMap[path] = target;
       for (const file of new Set([path, target])) {
+        entryFiles.add(file);
         const destination = join(box.repo, file);
         mkdirSync(join(destination, '..'), { recursive: true });
         copyFileSync(new URL(`../${file}`, import.meta.url), destination);
       }
     }
     writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify(entryMap));
+    box.git(box.repo, 'add', '--', 'path-map.json', ...entryFiles);
+    box.git(box.repo, 'commit', '-q', '-m', 'test: preserve real entry aliases [C7,D3]');
     writePlan(box.repo, PLAN);
     const dry = runFixtureChild(process.execPath, [BIN, '--file-cuts'], { cwd: box.repo, env: box.env, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     assert.equal(dry.status, 0, dry.stdout + dry.stderr);
