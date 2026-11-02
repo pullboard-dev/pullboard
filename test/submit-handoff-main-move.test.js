@@ -127,7 +127,8 @@ for (const mode of ['unrelated', 'twice', 'policy']) test(`queued gate handles $
   const box = fixture(t, false, mode);
   const result = submit(box);
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  await box.helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), 'queued gate completion', 120000);
+  await box.helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), // budget: real queued worker completion hang ceiling, no elapsed-time assertion.
+    'queued gate completion', 120000); // budget: owned-worker hang ceiling, no throughput claim.
   assert.ok(existsSync(join(box.dir, 'gate-moved')), 'main moved while the queued check ran');
   const completed = state(box);
   if (mode !== 'policy') {
