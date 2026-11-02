@@ -18,6 +18,7 @@ import {
   claimFreezer,
   claimOrdered,
   idArg,
+  ordered,
   whoAmI,
   wrongLaneGuidance,
 } from '../cli.js';
@@ -40,7 +41,11 @@ export async function run(io, { first }) {
     }
   }
   const warnings = itemFileCollisions(getItem(board, id), listItems(board, { all: true }));
-  const itemFolder = openItemFolder(ctx, me, id);
+  const itemFolder = await openItemFolder(ctx, me, id, { board,
+    onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
+      text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover; HEAD ${archive.manifest.head} retained at ${archive.manifest.ref}; staged, unstaged and untracked bytes are recoverable.`,
+      ref: archive.directory }]),
+  });
   const commitRules = `Commit headers must be at most ${ctx.config.commits.maxHeader} characters. Submit drafts --infra for test import-path-only edits; explain assertion or other guarded edits with --infra "<why>".`;
   io.result?.({ id, ...result, ...(itemFolder ? { itemFolder } : {}), ...(warnings.length ? { warnings } : {}) });
   for (const warning of warnings) io.say(`warning: ${warning}; explicit claim retained`);
