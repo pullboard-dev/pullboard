@@ -18,7 +18,10 @@ import {
 import { testsNeedBrowser } from './browser-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
-import { mainPolicy, carriedRunnerTrunk, runnerPolicyRecord, RUNNER_POLICY_FILE } from '../../../sandbox/index.js';
+import { mainPolicy } from '../../../sandbox/index.js';
+import { runnerPolicyRecord } from '../../../sandbox/index.js';
+import { RUNNER_POLICY_FILE } from '../../../sandbox/index.js';
+import { acceptedBudgetTrunk } from './test-file-budget-policy.js';
 import {
   runProfiledShellAsync,
   withGateSlot,
@@ -27,7 +30,6 @@ import {
   cleanGitEnvironment,
   git as readGit,
   headCommit,
-  mainCheckout,
 } from '../../../../src/git.js';
 import {
   projectNeedsGui,
@@ -116,7 +118,7 @@ function snapshotCommit(root) {
 export async function inCleanCheckout(root, work, withMainCheckout) {
   const { commit, clean } = snapshotCommit(root);
   if (clean) return work(root);
-  const accepted = mainCheckout(root) ?? carriedRunnerTrunk(root);
+  const accepted = acceptedBudgetTrunk(root);
   const result = await withMainCheckout(root, commit, async checkout => {
     if (accepted?.commit) {
       const trunk = { ref: accepted.branch ?? accepted.ref, commit: accepted.commit };
