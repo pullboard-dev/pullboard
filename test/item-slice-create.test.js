@@ -35,6 +35,8 @@ test('holder and coordinator create slices, others are refused, and old engines 
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const holder = store.agentAt(board, box.web).agent_id;
+    const saved = JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`item-slice:${made.item_id}`).meta_value);
+    assert.equal(saved.frozenBar, store.getItem(board, parent).item_frozen, 'the whole frozen bar is retained');
     const before = store.listItems(board, { all: true }).length;
     const request = { agentId: holder, parentId: parent, parentDigest: store.getItem(board, parent).item_frozen_digest,
       title: 'Replay control', files: ['web/replay.js'], lane: 'web', check: 'true' };
@@ -42,6 +44,9 @@ test('holder and coordinator create slices, others are refused, and old engines 
     const transport = { sequence: 1, at: new Date().toISOString(), kind: 'move', sender: { kind: 'agent', agent: holder, userId: 'fixture-person' } };
     assert.throws(() => applyRelayMove(board, { ...move, engine: ITEM_SLICE_ENGINE - 1 }, transport), /RELAY_MOVE/u);
     assert.equal(store.listItems(board, { all: true }).length, before);
+    const replayed = applyRelayMove(board, move, transport);
+    assert.equal(store.getItem(board, replayed.result.item).item_criterion, 'The whole feature works');
+    assert.equal(store.listItems(board, { all: true }).length, before + 1);
     assert.throws(() => store.createItemSlice(board, { ...request, parentDigest: 'stale' }), /SLICE_BAR_MOVED/u);
   } finally { store.closeBoard(board); }
 });
