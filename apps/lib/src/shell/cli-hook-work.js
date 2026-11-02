@@ -45,6 +45,7 @@ async function inspect() {
 export const HOOK_WORKER = fileURLToPath(import.meta.url);
 
 if (process.argv[1] === HOOK_WORKER) {
-  try { await work(process.argv[2], { heartbeat, dispatch, inspect }); }
-  catch { process.exitCode = 1; }
+  // Dispatch can re-enter the lib front door; it must not hold this module's evaluation open.
+  Promise.resolve().then(() => work(process.argv[2], { heartbeat, dispatch, inspect }))
+    .catch(() => { process.exitCode = 1; });
 }
