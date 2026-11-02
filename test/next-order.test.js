@@ -349,7 +349,7 @@ test('next names the seat to open for a lane the agent lacks [N2,B13]', (t) => {
   assert.deepEqual(box.binding(peer.root), peerBinding);
   const later = box.add('web', 'Later mid web work', 'mid');
   box.milestone('later', later);
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     assert.equal(store.getItem(board, tooStrong).item_status, 'open', 'the new mid seat never claims above its route');
     assert.equal(store.getItem(board, later).item_status, 'open');
@@ -434,6 +434,7 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
   const document = box.json(box.run(box.repo, 'queue', '--json'));
   assert.deepEqual(document.first, { strong: strongWork, mid: midWork, light: lightWork }, 'each route gets the top item at or below it, its own tier first');
   const text = box.run(box.repo, 'queue');
+  text.out = text.out.replace(/\nnext: pullboard next --wait 1\s*$/u, '');
   assert.match(text.out.trim().split('\n').at(-1), new RegExp(`^next now: strong → #${strongWork}, mid → #${midWork}, light → #${lightWork}$`, 'u'));
   // The queue's answer is what next actually serves each route.
   for (const [route, lane, id] of [['light', 'api', lightWork], ['mid', 'api', midWork], ['strong', 'web', strongWork]]) {
@@ -441,7 +442,8 @@ test('the queue names the first item each route would pull [N2,B13]', (t) => {
     const next = box.json(box.runAs(`queue-${route}-session`, seat.root, 'next', '--build', '--json'));
     assert.equal(next.item.item_id, id, `a ${route} agent's next is the queue's ${route} item`);
   }
-  assert.match(box.run(box.repo, 'queue').out.trim().split('\n').at(-1), /^next now: strong → nothing, mid → nothing, light → nothing$/u, 'claimed work leaves the routes nothing to pull');
+  const queueWithoutHint = box.run(box.repo, 'queue').out.replace(/\nnext: pullboard next --wait 1\s*$/u, '');
+  assert.match(queueWithoutHint.trim().split('\n').at(-1), /^next now: strong → nothing, mid → nothing, light → nothing$/u, 'claimed work leaves the routes nothing to pull');
 });
 
 test('an unranked item follows the ranked ones [N2,B13]', (t) => {
@@ -532,7 +534,7 @@ test('next in a fresh unbound checkout of a seated session claims nothing and na
   const error = JSON.parse(next.out).error;
   assert.match(error.message, new RegExp(`${web.agent}.*${box.web.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'), 'it names the seat and its checkout');
   assert.match(`${error.message} ${error.next ?? ''}`, /pullboard join <lane>|pullboard join web/u, 'and the join command for this checkout');
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try { assert.equal(store.getItem(board, item).item_status, 'open', 'nothing was claimed'); }
   finally { store.closeBoard(board); }
 });
@@ -571,7 +573,7 @@ test('next --verify skips an item whose builder seat shares the reviewer\'s sess
   box.milestone('first', own);
   box.milestone('later', outside);
   const commit = box.git(box.repo, 'rev-parse', 'HEAD').trim(), tree = box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim();
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     for (const [id, builder] of [[own, mine.agent], [outside, other.agent]]) {
       store.claim(board, id, { agentId: builder, lane: 'web', leaseMs: HOUR, freeze: FREEZE });
@@ -580,7 +582,7 @@ test('next --verify skips an item whose builder seat shares the reviewer\'s sess
   } finally { store.closeBoard(board); }
   const next = box.json(box.runAs(box.session, reviewer.root, 'next', '--verify', '--json'));
   assert.equal(next.item.item_id, outside, 'the review goes to an item this session did not build');
-  const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try { assert.equal(store.getItem(after, own).item_review_by, null, 'the session\'s own item is never reserved'); }
   finally { store.closeBoard(after); }
 });
@@ -588,7 +590,7 @@ test('next --verify skips an item whose builder seat shares the reviewer\'s sess
 test('a reserve-next move with skipIds needs engine 69 and older engines replay it as before [N2,B13]', () => {
   /** Apply one reserve-next move, stamped with `engine`, to a board holding two submissions; report the outcome. */
   const replay = (engine, withSkip) => {
-    const { board, builder, reviewer } = boardFixture();
+    const { board, builder, reviewer } = boardFixture(engine ?? null);
     const own = submitted(board, builder, 'own session item', 'strong', 1);
     const other = submitted(board, builder, 'other session item', 'strong', 2);
     const request = { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any', ...(withSkip ? { skipIds: [own] } : {}) };
@@ -724,7 +726,7 @@ test("a claimed item whose files grow into another claimed item's files names th
   box.json(box.runAs('growth-right-session', right.root, 'claim', String(b), '--json'));
   /** Read only this fixture's public board state and close before the next native command. */
   function onBoard(work) {
-    const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+    const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
     try { return work(board); } finally { store.closeBoard(board); }
   }
   /** The coordinator's normal edit is allowed even when it creates a collision. */
@@ -911,7 +913,7 @@ test('next offers the focus milestone first and explains a claimable outside fal
   assert.equal(fallback.code, 0, `${fallback.out}\n${fallback.err}`);
   const focusLines = fallback.out.split('\n').filter(line => /focus.*0\.9\.3|0\.9\.3.*focus/iu.test(line));
   assert.equal(focusLines.length, 1, 'one line explains why next leaves the named focus');
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     assert.equal(store.getItem(board, outside).item_owner, owner.agent, 'a peer-held focus does not starve claimable outside work');
     assert.equal(store.getItem(board, focused).item_owner, peer.agent, 'focus never steals another seat’s claim');
@@ -963,7 +965,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   const focused = box.add('web', 'Focused build');
   box.milestone('0.9.4', outside);
   box.milestone('0.9.3', focused);
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     for (const id of [outside, ...moreOutside]) {
       store.claim(board, id, { agentId: author.agent, lane: 'api', leaseMs: HOUR, freeze: FREEZE });
@@ -985,7 +987,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   assert.equal(review.review, true);
   box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--reason', 'BLOCKED', '--note', 'Continue the private focus ordering control', '--no-next', '--json'));
   const focusedReview = box.add('api', 'Focused review before focused build');
-  const updated = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const updated = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
     editMilestoneItems(updated, '0.9.3', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [focusedReview] });
     store.claim(updated, focusedReview, { agentId: author.agent, lane: 'api', leaseMs: HOUR, freeze: FREEZE });
