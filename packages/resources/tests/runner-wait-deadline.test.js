@@ -42,6 +42,8 @@ import {
 } from '../src/shell/resources.js';
 
 const e2e = createE2eHelpers();
+// budget: measured stand-in boot allowance already used by runner-transport-lost; the actual deadline and fallback assertions remain exercised.
+const STAND_IN_BOOT_BUDGET_MS = 8_000;
 after(e2e.cleanup);
 after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
@@ -83,7 +85,7 @@ async function observe(predicate, description) {
 }
 
 test('a gate run waiting for an unreachable runner falls back to a local slot after the deadline and names the runner [C7,Q1,Q2]', async () => {
-  const box = fixture({ runnerWaitMs: 1_000, healthDown: true });
+  const box = fixture({ runnerWaitMs: STAND_IN_BOOT_BUDGET_MS, healthDown: true });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -104,7 +106,7 @@ test('a gate run waiting for an unreachable runner falls back to a local slot af
     const queue = () => listResources({ scope: 'machine' }).find(resource => resource.name === 'gate');
     await observe(() => queue()?.line.some(row => row.item === 'deadline-case'), 'the original run requeued after transport loss');
     const first = queue().line.find(row => row.item === 'deadline-case');
-    await new Promise(resolve => setTimeout(resolve, 1_100)); // budget: pass the private one-second deadline while the real local holder stays held.
+    await new Promise(resolve => setTimeout(resolve, STAND_IN_BOOT_BUDGET_MS + 100)); // budget: cross the declared private deadline while the real local holder stays held.
     const resources = cli(box.repo, box.env, 'resources');
     assert.equal(resources.status, 0, fixtureResultContext(resources));
     assert.match(resources.stdout, /runner wait deadline/iu, 'public resources names the overdue run');
@@ -153,7 +155,7 @@ catch(error) { console.log(JSON.stringify({code:error.code,message:error.message
 });
 
 test('a registered runner that never answers is canceled at the deadline and the original run executes locally [C7,Q1,Q2]', async () => {
-  const box = fixture({ hold: 'dispatch', runnerWaitMs: 1_000 });
+  const box = fixture({ hold: 'dispatch', runnerWaitMs: STAND_IN_BOOT_BUDGET_MS });
   const previous = [process.env.PULLBOARD_HOME, process.env.PULLBOARD_MACHINE_HOME];
   process.env.PULLBOARD_HOME = box.env.PULLBOARD_HOME;
   process.env.PULLBOARD_MACHINE_HOME = box.env.PULLBOARD_MACHINE_HOME;
@@ -411,7 +413,8 @@ test('a missed READY readmits the original ticket on a free runner without await
       assert.equal(probeStarted, true, 'the unready worker is probed independently of admission');
       const pool = listResources({ scope: 'machine' }).find(row => row.name === 'gate');
       assert.equal(pool.line.length, 0, 'the free compatible runner is taken in the first dispatch cycle');
-      assert.equal(pool.holders.length, 1);
+      const remote = listResources({ scope: 'machine' }).find(row => row.name === `runner:${lease.runner.host}`);
+      assert.equal(remote.holders.length, 1, 'the actual remote slot remains reserved');
     } finally { lease.release(); finishProbe({ healthy: false, reason: 'worker still unready' }); }
   });
 });
