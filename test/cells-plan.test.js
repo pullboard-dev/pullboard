@@ -465,49 +465,80 @@ test('moved shim exceptions require a live edge or trusted historical import [C7
 });
 
 
-/** Render one of the two authoritative row-based manifests with its actual row identity. */
-function dataManifest(data, rows) {
-  return JSON.stringify({ version: 1, ...data.extra, [data.field]: rows }, null, 2) + '\n';
-}
+/** Render the plan index's actual keyed placement rows. */
+function planIndex(stays) { return JSON.stringify({ version: 1, cells: [], stays }, null, 2) + '\n'; }
 
-const DATA_MANIFESTS = [
-  { label: 'plan index', file: 'bin/cells-plan.json', field: 'stays', key: 'path', value: 'reason', extra: { cells: [] } },
-  { label: 'test tiers', file: 'packages/gate/test-tiers.json', field: 'files', key: 'file', value: 'tier', extra: {} },
-];
+/** Render the test-tier manifest's actual file-keyed rows. */
+function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
 
-for (const data of DATA_MANIFESTS) {
-  test(`${data.label} disjoint additions compose identically in both orders [C7,D3]`, async t => {
-    const row = path => ({ [data.key]: path, [data.value]: 'T1' });
-    const base = [row('test/base.test.js')];
-    const { root, heads } = divergent(t, data.file, dataManifest(data, base),
-      dataManifest(data, [...base, row('test/zeta.test.js')]), dataManifest(data, [...base, row('test/alpha.test.js')]));
-    const sources = [];
-    for (const [ours, theirs] of [heads, [...heads].reverse()]) {
-      await withSourceComposition(root, ours, theirs, async composition => {
-        const source = readFileSync(join(composition.directory, data.file), 'utf8');
-        const rows = JSON.parse(source)[data.field];
-        assert.deepEqual(rows.map(entry => entry[data.key]), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
-        assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
-        sources.push(source);
-      });
-      const review = retryReviewCommit(root, ours, { commit: theirs });
-      assert.equal(git(root, 'show', `${review}:${data.file}`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
-    }
-    assert.equal(sources.length, 2);
-    assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
-  });
 
-  test(`${data.label} same-row edits refuse and name the row [C7,D3]`, async t => {
-    const path = 'test/shared.test.js';
-    const row = value => [{ [data.key]: path, [data.value]: value }];
-    const { root, heads } = divergent(t, data.file, dataManifest(data, row('T1')),
-      dataManifest(data, row('T2')), dataManifest(data, row('T3')));
-    for (const [ours, theirs] of [heads, [...heads].reverse()]) {
-      await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
-        assert.fail('a conflicting row must not reach the composed-source controller');
-      }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
-      assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
-        error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
-    }
-  });
-}
+test('plan index disjoint additions compose identically in both orders [C7,D3]', async t => {
+  const row = path => ({ path: path, reason: 'T1' });
+  const base = [row('test/base.test.js')];
+  const { root, heads } = divergent(t, 'bin/cells-plan.json', planIndex(base),
+    planIndex([...base, row('test/zeta.test.js')]), planIndex([...base, row('test/alpha.test.js')]));
+  const sources = [];
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await withSourceComposition(root, ours, theirs, async composition => {
+      const source = readFileSync(join(composition.directory, 'bin/cells-plan.json'), 'utf8');
+      const rows = JSON.parse(source).stays;
+      assert.deepEqual(rows.map(entry => entry.path), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
+      sources.push(source);
+    });
+    const review = retryReviewCommit(root, ours, { commit: theirs });
+    assert.equal(git(root, 'show', `${review}:bin/cells-plan.json`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
+  }
+  assert.equal(sources.length, 2);
+  assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
+});
+
+test('plan index same-row edits refuse and name the row [C7,D3]', async t => {
+  const path = 'test/shared.test.js';
+  const row = value => [{ path: path, reason: value }];
+  const { root, heads } = divergent(t, 'bin/cells-plan.json', planIndex(row('T1')),
+    planIndex(row('T2')), planIndex(row('T3')));
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
+      assert.fail('a conflicting row must not reach the composed-source controller');
+    }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+    assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
+      error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+  }
+});
+
+
+test('test tiers disjoint additions compose identically in both orders [C7,D3]', async t => {
+  const row = path => ({ file: path, tier: 'T1' });
+  const base = [row('test/base.test.js')];
+  const { root, heads } = divergent(t, 'packages/gate/test-tiers.json', tierManifest(base),
+    tierManifest([...base, row('test/zeta.test.js')]), tierManifest([...base, row('test/alpha.test.js')]));
+  const sources = [];
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await withSourceComposition(root, ours, theirs, async composition => {
+      const source = readFileSync(join(composition.directory, 'packages/gate/test-tiers.json'), 'utf8');
+      const rows = JSON.parse(source).files;
+      assert.deepEqual(rows.map(entry => entry.file), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
+      sources.push(source);
+    });
+    const review = retryReviewCommit(root, ours, { commit: theirs });
+    assert.equal(git(root, 'show', `${review}:packages/gate/test-tiers.json`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
+  }
+  assert.equal(sources.length, 2);
+  assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
+});
+
+test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
+  const path = 'test/shared.test.js';
+  const row = value => [{ file: path, tier: value }];
+  const { root, heads } = divergent(t, 'packages/gate/test-tiers.json', tierManifest(row('T1')),
+    tierManifest(row('T2')), tierManifest(row('T3')));
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
+      assert.fail('a conflicting row must not reach the composed-source controller');
+    }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+    assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
+      error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+  }
+});
