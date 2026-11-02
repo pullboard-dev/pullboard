@@ -37,3 +37,23 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.match(liveClaimCollisions(items[2], items, observations).join('\n'), /#3 waits for #1 \(one\) on shared\.js/);
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
 });
+
+test('next skips a named file being edited and offers it after release', async t => {
+  const { openBoard } = await import('../src/native-board.js');
+  const store = await import('../src/board.js');
+  const board = openBoard(':memory:');
+  t.after(() => store.closeBoard(board));
+  const holder = store.register(board, { lane: 'core', path: '/tmp/overlap-holder', route: 'strong' });
+  const worker = store.register(board, { lane: 'core', path: '/tmp/overlap-worker', route: 'strong' });
+  const edited = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Edit unrelated task' });
+  const waiting = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Repair shared.js' });
+  store.claim(board, edited, { agentId: holder, lane: 'core', leaseMs: 3600000,
+    freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' }) });
+  const workingFiles = new Map([[edited, { files: ['shared.js'], unknown: false }]]);
+  const blocked = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles });
+  assert.notEqual(blocked.item?.item_id, waiting);
+  assert.ok(blocked.reasons.some(reason => reason.includes(`#${edited}`) && reason.includes('shared.js')));
+  store.release(board, edited, { agentId: holder, reason: 'ROUTED_ELSEWHERE', note: 'fixture' });
+  const offered = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles });
+  assert.equal(offered.item?.item_id, waiting);
+});
