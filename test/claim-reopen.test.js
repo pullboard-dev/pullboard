@@ -13,6 +13,7 @@ import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
 import { saveAgentSession, saveAgentParent } from '../packages/seats/index.js';
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../src/blocked-dependencies-engine.js';
 
 const COMMIT = 'a'.repeat(40);
 const TRUNK = 'b'.repeat(40);
@@ -380,7 +381,7 @@ test('blocked release records prerequisites and withdrawn blockers free the item
   assert.throws(() => store.release(f.board, work, f.builder, '', { blockedOn: [work] }, 'BLOCKED'), error => error.code === 'DEPENDENCY_CYCLE');
   assert.equal(store.getItem(f.board, work).item_status, 'claimed', 'refused release rolls back');
   const move = prepareEngineMove(f.board, 'release', [work, f.builder, 'waiting', { blockedOn: [blocker] }, 'BLOCKED'], { id: 'blocked-release-fixture', actor: f.builder });
-  assert.throws(() => applyEngineMove(f.board, { ...move, engine: move.engine - 1 }, { sequence: 1, at: '2026-01-01T00:00:00Z' }), /engine/u, 'older replicas cannot flatten blocked dependencies');
+  assert.throws(() => applyEngineMove(f.board, { ...move, engine: BLOCKED_DEPENDENCIES_ENGINE - 1 }, { sequence: 1, at: '2026-01-01T00:00:00Z' }), /engine/u, 'older replicas cannot flatten blocked dependencies');
   assert.equal(applyEngineMove(f.board, move, { sequence: 1, at: '2026-01-01T00:00:00Z' }).error, undefined);
   assert.equal(store.getItem(f.board, work).item_after, String(blocker));
   assert.notEqual(store.nextFor(f.board, { agentId: f.other, lane: 'core' }).item?.item_id, work);
