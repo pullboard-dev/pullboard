@@ -1,3 +1,4 @@
+import { itemFolderIdentity } from '../item-folder.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../../packages/landing/index.js';
@@ -88,7 +89,7 @@ export async function hookCommand(io, { first, second }) {
   let problems = [];
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
-    const agent = info.isMain ? null : hookRead(ctx, (board) => store.agentAt(board, info.root)
+    const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
     if (landing) io.caller('coordinator', info.root);
@@ -97,13 +98,14 @@ export async function hookCommand(io, { first, second }) {
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
-      const agent = store.agentAt(board, info.root);
+      const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
       const items = store.listItems(board, { all: true });
+      const folderItem = itemFolderIdentity(board, info.root)?.item;
       const landing = info.isMain || store.landingBatches(board).some(batch => landingBatchOwnsRoot(batch, info.root));
       return {
         migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
           ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
-        claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && !pendingSubmitHandoff(board, item)),
+        claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem) && !pendingSubmitHandoff(board, item)),
         landings: landing ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit) : [],
       };
     }) ?? {};
@@ -115,7 +117,7 @@ export async function hookCommand(io, { first, second }) {
     commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
       .forEach((warning) => io.say(`pullboard commit-msg: warning: ${warning}`));
     const claimedItems = spec.rows.some(row => row.status === 'approved') ? [] : (hookRead(ctx, board => {
-      const agent = store.agentAt(board, info.root);
+      const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
       return agent ? store.listItems(board, { lane: agent.agent_lane }).filter(item =>
         item.item_status === 'claimed' && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item)).map(item => item.item_id) : [];
     }) ?? []);

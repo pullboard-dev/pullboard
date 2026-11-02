@@ -1,4 +1,7 @@
+import { itemFolderIdentity } from '../item-folder.js';
 import { heartbeatCommand } from '../cli-presence.js';
+import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
+import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../packages/merge/index.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -42,6 +45,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gateRunnerAdmission } from '../../packages/config/index.js';
+import { loadMachineSettings } from '../../packages/config/index.js';
+import { effectiveRunners } from '../runner-slots.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
   retainTestOutput,
@@ -307,11 +312,15 @@ export async function submitHere(ctx, id, infra) {
         { green: true, report: 'recovered the original submission; its gate ran before the original send' });
     }
   }
+  const preflightStart = performance.now();
+  const preflightWallStart = Date.now();
   const runnerAdmission = gateRunnerAdmission();
   const held = await withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
-    if (!isSubmitHandoffWorker(ctx)) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
+    const folder = itemFolderIdentity(board, ctx.info.root);
+    if (folder && folder.item !== id) throw new Refused('NOT_YOURS', `this folder belongs to item #${folder.item}; submit that item from here`);
+    if (!isSubmitHandoffWorker(ctx) && !folder) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);
@@ -425,6 +434,7 @@ export async function submitHere(ctx, id, infra) {
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
+  reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
   try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
@@ -438,20 +448,45 @@ export async function submitHere(ctx, id, infra) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
-  requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
+  const placementStart = performance.now();
+  try {
+    const planned = await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
+      code: [fileURLToPath(new URL('../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
+    () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit));
+    if (planned.reused) ctx.io.say(cellsReceiptLine(planned.receipt));
+  } finally { reportSubmitStage(ctx, 'placement', placementStart); }
   // The repository's per-file lint subset is cheap; keep its full static stage later.
-  if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
-    await withItemPatchSubmit(root, companion, gateRoot => {
-      const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
-      const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
-      const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
-      if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
-    });
-  }
+  const changedStaticStart = performance.now();
+  try {
+    if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+      await withItemPatchSubmit(root, companion, async gateRoot => {
+        const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
+        const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
+          source: companion?.commit ?? commit, code: [checker] }, () => {
+          const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+          const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
+          if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
+        });
+        if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
+      });
+    }
+  } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
   let cells;
   const cellsStart = performance.now();
-  try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
-    readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
+  const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
+  try { cells = runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
+    ? await withGateSlot(root, async lease => {
+      try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput); }
+      finally {
+        const admitted = Date.parse(lease.executionAdmission?.admittedAt ?? '');
+        if (Number.isFinite(admitted)) ctx.io.say(`submit runner admitted: ${lease.executionAdmission.admittedAt} (approximately ${((admitted - preflightWallStart) / 1000).toFixed(2)}s from controller start; runner clock)`);
+      }
+    },
+      { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
+        agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, remote: true, runnerOnly: true,
+        onWait: queuedItemLease(ctx, held, me.id, 'build') })
+    : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+    readCutItems,
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
     onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }

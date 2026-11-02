@@ -52,7 +52,7 @@ export function unjoinedRefusal(info, agents, sessionDigest) {
 export function refuseHeldElsewhere(info, agents, item, command, sessionDigest) {
   if (item.item_status !== 'claimed') return;
   const holder = sessionSeats(info, agents, sessionDigest).find((seat) => seat.agent_id === item.item_owner);
-  if (!holder) return;
+  if (!holder || info.root === `${holder.agent_path}-item-${item.item_id}`) return; // the holder's own item folder [B5]
   throw new Refused('NOT_YOURS', `#${item.item_id} is held by ${holder.agent_id} in ${holder.agent_path}, not by this checkout`,
     `${command} it from that seat's checkout: ${cdTo(holder.agent_path)} pullboard ${command} ${item.item_id}`);
 }
@@ -82,8 +82,11 @@ export async function laneSeatContext(ctx, board, me, item, seats, contextAt, { 
   }
   const available = seats.filter((agent) => agent.agent_lane === item.item_lane
     && store.ROUTES.indexOf(agent.agent_route) >= store.ROUTES.indexOf(item.item_route) && freeCheckout(agent));
-  let agent = held ? available.find((seat) => seat.agent_id === item.item_owner)
-    : available.find((seat) => seat.agent_id === me.id) ?? available[0];
+  // B5: the invoking seat takes several claims, each in its own item folder, so its live claims never send it to a new seat.
+  const own = store.agentById(board, me.id);
+  const ownFits = own && own.agent_lane === item.item_lane && store.ROUTES.indexOf(own.agent_route) >= store.ROUTES.indexOf(item.item_route)
+    && (held ? item.item_owner === own.agent_id : true) && repoInfo(own.agent_path).commonDir === ctx.info.commonDir;
+  let agent = ownFits ? own : held ? available.find((seat) => seat.agent_id === item.item_owner) : available[0];
   let created = false;
   if (!agent) {
     let opened;
