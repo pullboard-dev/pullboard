@@ -1,5 +1,6 @@
 import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../src/blocked-dependencies-engine.js';
-import { validateNativeDependencies, localDependencyIds } from '../../../seats/core.js';
+import { validateNativeDependencies } from '../../../seats/core.js';
+import { localDependencyIds } from '../../../seats/core.js';
 import { releaseReasonProblem } from "./release-reasons.js";
 import { releaseExitClaim } from "./exit-rules-state.js";
 import { staleClaimRelease } from "./board-stale-claim-release.js";
