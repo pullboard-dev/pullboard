@@ -68,7 +68,7 @@ test('explicit news follows normal CLI and API argument authority [R2,N26,H16,A2
   } finally { store.closeBoard(board); }
 });
 
-test('an unchanged inbox read takes no board write while another seat holds a claim [R2,N26,B3]', () => {
+test('an unchanged inbox read never waits on the board write lock while another seat holds a claim [R2,N26,B3]', () => {
   const box = fixtures.project('true');
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   for (const [lane, title] of [['web', 'Quiet inbox'], ['api', 'Busy neighbour']]) {
@@ -81,19 +81,22 @@ test('an unchanged inbox read takes no board write while another seat holds a cl
     const done = box.run(root, ...args);
     assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
   }
-  // A held connection's data_version moves whenever any other connection commits a change to the file.
-  const watcher = new DatabaseSync(file, { readOnly: true });
+  // Another writer holds the board for the whole read: a read that takes no write answers at once instead of
+  // queueing behind it for the busy timeout, as every agent's inbox did behind lapsed-claim maintenance (#2421).
+  const writer = new DatabaseSync(file);
   try {
-    const version = () => watcher.prepare('PRAGMA data_version').get().data_version;
-    const before = version();
+    writer.exec('BEGIN IMMEDIATE');
+    const started = Date.now();
     const read = box.run(box.web, 'inbox', '--json');
+    const waited = Date.now() - started;
+    writer.exec('ROLLBACK');
     assert.equal(read.code, 0, read.err || read.out);
-    assert.equal(version(), before, 'a repeat inbox with nothing new commits nothing, not even lapsed-claim maintenance');
+    assert.ok(waited < store.BOARD_BUSY_TIMEOUT_MS, `a repeat inbox with nothing new waited ${waited} ms for the board write lock`);
     const sent = box.run(box.repo, 'shout', 'web', 'something new for the web lane');
     assert.equal(sent.code, 0, sent.err);
     const delivered = JSON.parse(box.run(box.web, 'inbox', '--json').out);
     assert.ok(delivered.shouts.some(shout => shout.shout_text === 'something new for the web lane'), 'new shouts are still delivered');
-  } finally { watcher.close(); }
+  } finally { writer.close(); }
 });
 
 test('a seat whose session spans many seats derives its family without a per-seat event scan [R2,N26]', () => {
