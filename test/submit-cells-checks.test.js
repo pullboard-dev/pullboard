@@ -537,6 +537,11 @@ test('only direct importing cells join a touched cell, including another file in
   assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [inventory]), ['a', 'b']);
   const forwarding = { ...inventory, files: new Map([['src/b.js', Buffer.from("export * from './a-other.js';\n")]]) };
   assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [forwarding]), ['a', 'b', 'c'], 'effective importers through forwarding shims remain checked');
+  const declared = { edges: new Map([['src/c.js', [{ target: 'src/b.js' }]]]),
+    files: new Map([['src/a-other.js', Buffer.from('export const a = 1;')],
+      ['src/b.js', Buffer.from('/** @pullboard-module-loads src/a-other.js */\nawait import(name);\n')]]),
+    unknown: [{ file: 'src/b.js', specifier: '(computed)', reason: 'computed loader' }] };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [declared]), ['a', 'b', 'c'], 'declared computed forwarders use the same edges as cut checking');
   assert.deepEqual(touchedCells(['bin/cells-plan.json'], plan, plan, [inventory]), ['a', 'b', 'c'], 'shared authority invalidates every cell');
   const withStay = { ...plan, stays: [{ path: 'bin/shared.js' }] };
   assert.deepEqual(touchedCells(['bin/shared.js'], withStay, withStay, [inventory]), ['a', 'b', 'c'], 'unowned shared tool changes fail safely');
