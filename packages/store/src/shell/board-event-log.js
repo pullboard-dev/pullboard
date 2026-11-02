@@ -23,6 +23,13 @@ import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
 import { notifyUnblocked } from '../core/board-progress-notices.js';
 
 const TRANSACTION_DEPTH = new WeakMap();
+const AFTER_COMMIT = new WeakMap();
+
+/** Defer sidecar work until the outer writer is released; rolled-back savepoints discard it. */
+export function afterBoardWrite(board, work) {
+  if ((TRANSACTION_DEPTH.get(board) ?? 0) > 0) AFTER_COMMIT.get(board).push(work);
+  else work();
+}
 
 /**
  * Run `work` in one immediate transaction: the write lock is taken before the first read, so two
@@ -39,34 +46,79 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
   const savepoint = `pullboard_atomic_${depth}`;
   if (!depth) prepareBoardWriteIdentity();
   const startedAt = Date.now();
-  let policy;
+  let policy, writeRecord;
   if (depth) board.db.exec(`SAVEPOINT ${savepoint}`);
   else {
     for (let attempt = 0; ; attempt++) {
       policy = board.prepareWritePolicy?.();
       beginImmediateQueued(board.db, startedAt);
-      if (!policy || policy.current()) break;
+      const bookkeepingAt = performance.now();
+      writeRecord = beginBoardWrite(board.db, board.writeContext);
+      writeRecord.phase = 'write-bookkeeping';
+      writeRecord.phaseMs = performance.now() - bookkeepingAt;
+      let current;
+      const policyAt = performance.now();
+      try { current = !policy || policy.current(); }
+      catch (error) {
+        const elapsed = performance.now() - policyAt;
+        if (elapsed > writeRecord.phaseMs) { writeRecord.phase = 'policy-admission'; writeRecord.phaseMs = elapsed; }
+        board.db.exec('ROLLBACK');
+        writeRecord.releasedAt = performance.now();
+        finishBoardWrite(writeRecord, true, 'rolled-back');
+        throw error;
+      }
+      const elapsed = performance.now() - policyAt;
+      if (elapsed > writeRecord.phaseMs) { writeRecord.phase = 'policy-admission'; writeRecord.phaseMs = elapsed; }
+      if (current) {
+        const activateAt = performance.now();
+        try { policy?.enter(); }
+        catch (error) {
+          const elapsed = performance.now() - activateAt;
+          if (elapsed > writeRecord.phaseMs) { writeRecord.phase = 'policy-activation'; writeRecord.phaseMs = elapsed; }
+          board.db.exec('ROLLBACK');
+          writeRecord.releasedAt = performance.now();
+          finishBoardWrite(writeRecord, true, 'rolled-back');
+          throw error;
+        }
+        const elapsed = performance.now() - activateAt;
+        if (elapsed > writeRecord.phaseMs) { writeRecord.phase = 'policy-activation'; writeRecord.phaseMs = elapsed; }
+        break;
+      }
       board.db.exec('ROLLBACK');
+      writeRecord.releasedAt = performance.now();
+      finishBoardWrite(writeRecord, true, 'rolled-back');
       if (attempt >= 3) throw new Refused('POLICY_SNAPSHOT_STALE', 'accepted policy changed before this write; retry the command against current main');
     }
-    policy?.enter();
   }
+  if (!depth) AFTER_COMMIT.set(board, []);
+  const deferred = AFTER_COMMIT.get(board);
+  const deferredStart = deferred.length;
   TRANSACTION_DEPTH.set(board, depth + 1);
-  const writeRecord = depth ? null : beginBoardWrite(board.db, board.writeContext);
+  const origin = new Error().stack?.split('\n').slice(1).map(line => /\/([^/\s()]+\.js):(\d+):\d+/u.exec(line)).find(match => match && match[1] !== 'board-event-log.js');
+  const workPhase = origin ? `work:${origin[1]}:${origin[2]}` : 'work';
   // A local-first move records the rows it changed, so the relay's order can take it back later (#1013).
   let capture;
   let released = false;
   let outcome = 'release-failed';
+  /** Measure only synchronous transaction phases; the log is written after release. */
+  const phase = (name, fn) => {
+    const start = performance.now();
+    try { return fn(); } finally {
+      const elapsed = performance.now() - start;
+      const unmeasured = name.startsWith('work') ? Math.max(0, elapsed - (writeRecord?.workAccountedMs ?? 0)) : elapsed;
+      if (writeRecord && unmeasured > (writeRecord.phaseMs ?? 0)) { writeRecord.phase = name; writeRecord.phaseMs = unmeasured; }
+    }
+  };
   const lastEvent = board.lastEvent;
   const reviewDefaultNotice = board.reviewDefaultNotice;
   const emitted = board.emittedEvents?.length ?? 0;
   try {
-    capture = depth ? null : beginCapture(board.db);
-    const result = work();
-    if (reviewPolicy) board.runtimePorts.lifecycle.normalizeReviewDefaults(board);
-    policy?.assertCurrent();
-    capture?.prepare();
-    board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT');
+    capture = depth ? null : phase('capture', () => beginCapture(board.db));
+    const result = phase(workPhase, work);
+    if (reviewPolicy) phase('review-policy', () => board.runtimePorts.lifecycle.normalizeReviewDefaults(board));
+    if (policy) phase('policy-validation', () => policy.assertCurrent());
+    if (capture) phase('capture-prepare', () => capture.prepare());
+    phase('commit', () => board.db.exec(depth ? `RELEASE ${savepoint}` : 'COMMIT'));
     if (writeRecord) writeRecord.releasedAt = performance.now();
     released = true;
     outcome = 'committed';
@@ -94,6 +146,11 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
       policy?.leave();
       TRANSACTION_DEPTH.set(board, depth);
       finishBoardWrite(writeRecord, released, outcome);
+      if (outcome !== 'committed') deferred.length = deferredStart;
+      if (!depth) {
+        AFTER_COMMIT.delete(board);
+        if (outcome === 'committed') for (const work of deferred) work();
+      }
     }
   }
 }
