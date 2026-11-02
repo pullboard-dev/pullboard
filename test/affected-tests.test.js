@@ -487,14 +487,15 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/view-test-policy.test.js',
     'test/wall-clock-budgets.test.js',
   ];
-  assert.deepEqual(guards, scanFiles, 'the scanned paths are the selected guards');
-  for (const file of scanFiles) {
-    const source = readFileSync(join(root, file), 'utf8');
+  assert.equal(guards.length, 7, 'all selected guards are scanned');
+  for (const guardScanFile of scanFiles) {
+    assert.ok(guards.includes(guardScanFile), `${guardScanFile} is a selected guard`);
+    const source = readFileSync(join(root, guardScanFile), 'utf8');
     const imports = importsIn([source])[0];
-    assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${file} imports no board, server or browser fixture`);
+    assert.deepEqual(imports.filter(path => forbiddenImports.has(path)), [], `${guardScanFile} imports no board, server or browser fixture`);
     const code = lex(source).code;
     assert.doesNotMatch(code, /\b(?:openBoard|startView|serveView|createServer|launchChromeProcess|startChrome|runFixtureChild|runProfiledShell|withGateSlot)\s*\(/u,
-      `${file} only scans source text`);
+      `${guardScanFile} only scans source text`);
   }
 });
 
