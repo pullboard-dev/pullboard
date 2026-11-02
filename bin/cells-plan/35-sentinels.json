@@ -15,17 +15,7 @@
   ["src/sentinels.js","packages/sentinels/src/shell/sentinels.js","seed"],
   ["src/serve-sentinel.js","packages/sentinels/src/shell/serve-sentinel.js","seed"]
  ],
- "reexports": [
-  "src/dispatch-health.js",
-  "src/gone-claims.js",
-  "src/health-sentinel.js",
-  "src/rejected-work-return.js",
-  "src/sentinel-command.js",
-  "src/sentinel-cpu.js",
-  "src/sentinel-runner.js",
-  "src/sentinels.js",
-  "src/serve-sentinel.js"
- ],
+ "reexports": ["src/dispatch-health.js","src/gone-claims.js","src/rejected-work-return.js","src/sentinel-cpu.js","src/sentinels.js"],
  "imports": [
   {"cell":"kernel","imports":6,"before":true},
   {"cell":"git","imports":2,"before":true},

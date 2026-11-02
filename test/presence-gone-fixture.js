@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
-import { sentinelCommand } from '../src/sentinel-command.js';
+import { sentinelCommand } from '../packages/sentinels/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Create normal registered seats and expose the real sentinel command over ordered engine moves. */

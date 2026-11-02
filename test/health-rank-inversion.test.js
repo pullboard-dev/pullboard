@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { healthReport } from '../packages/health/index.js';
-import { dispatchHealth } from '../src/dispatch-health.js';
+import { dispatchHealth } from '../packages/sentinels/index.js';
 import { fixture, cli } from './next-take-fixture.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 

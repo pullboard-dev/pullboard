@@ -4,7 +4,7 @@ import { digestNativePorts } from './digest-native-ports.fixture.js';
  * real SQLite board in a real git repo with an injected clock, and never changes either [A6].
  */
 import { executionServices } from './gate-execution-fixture.js';
-import { dispatchHealth } from '../src/dispatch-health.js';
+import { dispatchHealth } from '../packages/sentinels/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -23,7 +23,7 @@ import { fixture as dispatchFixture, cli as dispatchCli } from './next-take-fixt
 import { readDigest } from '../packages/items/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { recurringJobs } from '../src/board-recurring-jobs.js';
-import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { gateRuns } from '../packages/gate/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
