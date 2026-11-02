@@ -3,6 +3,7 @@ export const workHelp = `Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
+    [--expected-minutes <minutes|unknown>]  authored build time; above itemBuildBudgetMinutes (default 30), cut into children
     [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
@@ -18,6 +19,7 @@ export const workHelp = `Work
                                         with --criterion and a brief, --check is needed below strong
                                         only the coordinator sets --check-timing; it freezes exclusive timing admission
   pullboard edit <id> [--brief "..." | --brief-file <file>] [--route light|mid|strong] [--criterion "..."] [--check "..."] [--check-timing true|false]
+                     [--expected-minutes <minutes|unknown>]
                 [--review-family <family>]   require the declared reviewer family
                 [--review-tier strict --reason "<risk>"]   coordinator marks additional Strict work; no downgrade
                 [--wait]                wait for a new check's baseline; otherwise it runs in the background

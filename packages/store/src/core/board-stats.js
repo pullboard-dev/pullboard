@@ -27,17 +27,29 @@ export function recordNextIdle(board, { agentId, reason }, { atomic, logEvent, a
     if (!['nothing-eligible', 'held', 'review-family', 'main-red', 'focus', 'unknown'].includes(reason)) {
       throw new Refused('BAD_IDLE_REASON', 'record the structured reason returned by next, not guessed historical eligibility');
     }
-    const now = board.clock.now().toISOString();
-    const working = board.db.prepare(`SELECT 1 FROM item WHERE
-      (item_status='claimed' AND item_owner=? AND item_lease_until>?) OR
-      (item_status='submitted' AND item_review_by=? AND item_review_until>?) LIMIT 1`).get(agentId, now, agentId, now);
-    if (working) return { recorded: false, reason: 'seat-working' };
-    const latest = board.db.prepare('SELECT event_kind,event_detail FROM event WHERE event_by=? ORDER BY event_id DESC LIMIT 1').get(agentId);
-    if (latest?.event_kind === 'next-idle') {
-      const detail = JSON.parse(latest.event_detail);
-      if (detail.version === 1 && detail.engine === NEXT_IDLE_ENGINE && detail.reason === reason) return { recorded: true, unchanged: true };
-    }
+    const unchanged = nextIdleUnchanged(board, { agentId, reason });
+    if (unchanged) return unchanged;
     logEvent(board, agentId, 'next-idle', null, { version: 1, engine: NEXT_IDLE_ENGINE, reason });
     return { recorded: true };
   });
+}
+
+/** Read whether the persisted idle interval already describes this seat, without taking a writer. */
+function nextIdleUnchanged(board, { agentId, reason }) {
+  const now = board.clock.now().toISOString();
+  const working = board.db.prepare(`SELECT 1 FROM item WHERE
+    (item_status='claimed' AND item_owner=? AND item_lease_until>?) OR
+    (item_status='submitted' AND item_review_by=? AND item_review_until>?) LIMIT 1`).get(agentId, now, agentId, now);
+  if (working) return { recorded: false, reason: 'seat-working' };
+  const latest = board.db.prepare('SELECT event_kind,event_detail FROM event WHERE event_by=? ORDER BY event_id DESC LIMIT 1').get(agentId);
+  if (latest?.event_kind === 'next-idle') {
+    const detail = JSON.parse(latest.event_detail);
+    if (detail.version === 1 && detail.engine === NEXT_IDLE_ENGINE && detail.reason === reason) return { recorded: true, unchanged: true };
+  }
+  return null;
+}
+
+/** Open an idle writer only for a real observation change; the ordered move rechecks it. */
+export function nextIdleChanged(board, options) {
+  return nextIdleUnchanged(board, options) === null;
 }

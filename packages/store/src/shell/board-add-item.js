@@ -1,3 +1,6 @@
+import { saveExpectedBuildMinutes } from './expected-build-state.js';
+import { validateExpectedBuildMinutes } from '../../../items/index.js';
+import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { reviewPolicyChange } from "../../../verify/index.js";
 import { saveItemReviewPolicy } from "../../../verify/index.js";
 import { twoTierReviews } from "../../../verify/index.js";
@@ -31,9 +34,9 @@ import * as checkWiden from "../../../verify/src/shell/check-widen.js";
  * @param {{ by: string, lane: string, title: string, criterion?: string, specIds?: string[], parentId?: number | null, after?: (number | string)[], brief?: string, route?: string, check?: string, checkTiming?: boolean }} item
  * @returns {number} The new item's id.
  */
-export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming }) {
+export function addItem(board, { by, lane, title, criterion = '', specIds = [], parentId = null, after = [], brief = '', route = 'strong', check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes }) {
   return atomic(board, () => {
-    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming };
+    const item = { by, lane, title, criterion, specIds, parentId, after, brief, route, check, checkBaseline, barActor, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes };
     const id = insertItem(board, item, validateItemAddition(board, item));
     placeNewItem(board, id, item);
     return id;
@@ -55,20 +58,23 @@ export function insertItem(board, item, { command, cleanTitle }) {
   const id = Number(result.lastInsertRowid);
   saveCheckBaseline(board, id, baseline);
   saveCheckTiming(board, id, item.checkTiming);
+  saveExpectedBuildMinutes(board, id, item.expectedBuildMinutes);
   const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, null, item) : null;
   saveItemReviewPolicy(board, id, reviewPolicy);
   reviewFamilies.saveReviewFamily(board, id, reviewFamily);
-  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
+  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(item.expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes: item.expectedBuildMinutes }), ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
   recordBarRevision(board, itemById(board, id), by, null, barActor);
   return id;
 }
 
 /** Validate an addition before its sender runs a new check, and again when the ordered move applies. */
-export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming }, { sourceMove = null } = {}) {
+export function validateItemAddition(board, { by, lane, title, criterion = '', parentId = null, after = [], brief = '', route = 'strong', check, referenceAuthors, referenceAuthority, sensitive, reviewFamily, checkTiming, expectedBuildMinutes }, { sourceMove = null } = {}) {
   const command = sourceMove
     ? validateRehomeCheck(by, check, sourceMove)
     : checkWiden.editCheck(by, check) ?? '';
   validateCheckTiming(board, by, checkTiming);
+  validateExpectedBuildMinutes(expectedBuildMinutes);
+  if (expectedBuildMinutes !== undefined && (board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade Pullboard before authoring expected build time');
   reviewPolicyChange(board, null, { sensitive, reviewFamily });
   const cleanTitle = title.trim();
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');

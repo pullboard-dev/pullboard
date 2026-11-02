@@ -52,6 +52,7 @@ export function defaults() {
     toolBuild: { enabled: false, autoGate: false, refreshMs: 3_600_000 },
     testEconomics: { costOfEscape: 3600, costOfWaiting: 1, costOfFalseRed: 300 },
     itemSizeBudget: 100,
+    itemBuildBudgetMinutes: 30,
     submitInvariants: [],
     registryGuards: [],
     staticChecks: '',
@@ -258,6 +259,9 @@ export function configProblems(config) {
     || Object.keys(config.inbox).some(key => key !== 'tokenBudget')
     || !Number.isSafeInteger(config.inbox.tokenBudget) || config.inbox.tokenBudget < 1024) {
     problems.push('"inbox.tokenBudget" is a whole number of at least 1024 UTF-8 bytes; 8192 by default');
+  }
+  if (typeof config.itemBuildBudgetMinutes !== 'number' || !Number.isFinite(config.itemBuildBudgetMinutes) || config.itemBuildBudgetMinutes <= 0) {
+    problems.push('"itemBuildBudgetMinutes" is positive finite minutes; 30 by default');
   }
   if (!Number.isSafeInteger(config.itemSizeBudget) || config.itemSizeBudget < 1) {
     problems.push('"itemSizeBudget" is a positive whole number of changed lines; 100 by default');
