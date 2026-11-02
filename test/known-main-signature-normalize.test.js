@@ -6,8 +6,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { failureSignatures, matchingMainFailures } from '../src/main-failure-matches.js';
-import { normalizedFailureDiagnostics } from '../src/main-failure-noise.js';
+import { failureSignatures, matchingMainFailures } from '../packages/landing/index.js';
+import { normalizedFailureDiagnostics } from '../packages/landing/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
 /** Commit a real private test, then retain the actual failing TAP with that repository's source identity. */

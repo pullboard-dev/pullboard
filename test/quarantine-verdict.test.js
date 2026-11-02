@@ -1,5 +1,5 @@
-import { landingWaiverProjection } from '../src/landing-test-policy.js';
-import { landingFailureWaived } from '../src/landing-test-policy.js';
+import { landingWaiverProjection } from '../packages/landing/index.js';
+import { landingFailureWaived } from '../packages/landing/index.js';
 /** Structured native quarantine keeps actual red results and counts only executed identities [C7,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
