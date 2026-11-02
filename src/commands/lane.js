@@ -7,7 +7,7 @@ import {
 } from '../git.js';
 import {
   addLane,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

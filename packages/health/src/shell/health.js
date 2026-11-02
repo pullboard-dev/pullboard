@@ -57,7 +57,7 @@ import { staleRowDecisions } from '../../../spec/index.js';
 import { localReleaseRank } from '../../../landing/index.js';
 import { workQueue } from '../../../items/index.js';
 import { trunkRef } from '../../../sandbox/index.js';
-import { routeWorkShortages } from '../../../../src/route-capacity.js';
+import { routeWorkShortages } from '../../../seats/index.js';
 import { readRelayHealth } from '../../../link/index.js';
 
 /** Each threshold's pullboard.json key under "health" and its default. */

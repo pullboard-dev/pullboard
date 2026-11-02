@@ -40,7 +40,7 @@ import { installHooks } from '../packages/commits/index.js';
 import {
   configureAgentHooks,
   LEGACY_RESUME_HOOK,
-} from './agent-hooks.js';
+} from '../packages/seats/index.js';
 import {
   detectGate,
   settingCommand,

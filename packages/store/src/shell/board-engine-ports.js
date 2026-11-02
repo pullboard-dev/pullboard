@@ -8,7 +8,7 @@ import { withSeatPresence } from "./seat-presence.js";
 import { boundProofReceipt } from "./proof-receipts.js";
 import { requireOutsideReceipt } from "../../../items/index.js";
 
-import { requireCoordinatorHold } from "../../../../src/coordinator-hold.js";
+import { requireCoordinatorHold } from "../../../seats/index.js";
 
 import { relaySenderPolicy } from "../../../state/src/core/relay-sender-policy.js";
 

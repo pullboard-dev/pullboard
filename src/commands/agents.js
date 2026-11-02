@@ -2,7 +2,7 @@
 import {
   agentTree,
   agentsReport,
-} from '../agent-tree.js';
+} from '../../packages/seats/index.js';
 import {
   boardId,
   listAgents,

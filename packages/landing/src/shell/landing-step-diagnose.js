@@ -10,7 +10,7 @@ import { headTree } from '../../../../src/git.js';
 import { isClean } from '../../../../src/git.js';
 import { runProfiledShell } from '../../../gate/index.js';
 import { withLandingGateSlot } from '../../../gate/index.js';
-import { laneOf } from '../../../../src/lanes.js';
+import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { quote } from './landing-step-gate.js';
 import { save } from './landing-step-merge.js';

@@ -19,7 +19,7 @@ import { ENGINE_VERSION } from "../../../state/index.js";
 import {
   saveAgentParent,
   saveAgentSession,
-} from "../../../../src/seats.js";
+} from "../../../seats/index.js";
 
 /** Accept an opaque identity, never a path, whitespace, credential or arbitrary session metadata. */
 export function parentIdentity(value) {

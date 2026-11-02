@@ -4,7 +4,7 @@ import { recordRun } from "../../../../src/gate-execution.js";
 import { readFileSync } from 'node:fs';
 import { COORDINATOR } from "../../../config/index.js";
 import { mappedCheck } from "../../../codemap/index.js";
-import { laneOf } from "../../../../src/lanes.js";
+import { laneOf } from "../../../seats/index.js";
 import {
   mainPolicy,
   policyAt,

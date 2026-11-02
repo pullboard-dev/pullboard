@@ -9,7 +9,7 @@ import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import {
   bindLocalSession,
   CHECKOUT_SESSION_TOKEN_ENV,
-} from '../src/agent-session.js';
+} from '../packages/seats/index.js';
 import { repoInfo } from '../src/git.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');

@@ -12,7 +12,7 @@ import { openBoard } from '../src/native-board.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
-import { registerProject } from '../src/projects.js';
+import { registerProject } from '../packages/seats/index.js';
 import { serveView } from '../src/commands/view.js';
 import { runFixtureChild } from './fixture-child.js';
 

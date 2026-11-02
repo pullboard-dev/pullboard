@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { main } from '../cli-main.js';
 import { COORDINATOR } from '../../packages/config/index.js';
-import { outOfLane } from '../lanes.js';
+import { outOfLane } from '../../packages/seats/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { briefFiles } from '../../packages/items/index.js';
 import { startCheckBaseline } from '../../packages/gate/index.js';
