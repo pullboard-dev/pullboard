@@ -140,7 +140,6 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(helpersCommit(box, 'web/second.txt', 'second\n').status, 0, 'real commit hooks select only the ordinary second claim');
   const secondQueued = document(box.run(box.web, 'submit', String(box.second), '--no-next', '--json'));
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
-  await box.helpers.waitFor(() => state(box, box.second).job?.state === 'green', 'second native submit completes independently', 120000); // budget: owned-worker cleanup ceiling, not a performance assertion.
   document(box.run(box.web, 'claim', String(box.third), '--json'));
   const fourth = document(box.run(box.repo, 'add', 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
   const third = box.run(box.web, 'claim', String(fourth), '--json');
@@ -149,7 +148,8 @@ test('queued submit returns before its gate and remains bound when the builder c
   const duplicate = state(box, box.id).job;
   assert.equal(duplicate.commit, box.commit);
   writeFileSync(box.release, 'release\n');
-  await box.helpers.waitFor(() => state(box, box.id).job?.state === 'green', 'native proved submission', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
+  await waitJob(box, 'green');
+  await box.helpers.waitFor(() => state(box, box.second).job?.state === 'green', 'second native submit completes independently', 120000); // budget: owned-worker cleanup ceiling, not a performance assertion.
   const completed = state(box, box.id);
   assert.equal(completed.item.item_status, 'submitted');
   assert.equal(completed.item.item_commit, box.commit);
@@ -194,7 +194,7 @@ test('a queued red retains the exact canonical refusal and builder first refusal
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'REOPEN_HELD_FOR_BUILDER');
-  document(box.run(box.web, 'release', String(box.second), '--no-next', '--json'));
+  document(box.run(box.web, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json'));
   document(box.run(box.web, 'claim', String(box.id), '--json'));
   assert.equal(state(box, box.id).item.item_owner, completed.job.agentId, 'the same seat resumes at a natural break');
 });
