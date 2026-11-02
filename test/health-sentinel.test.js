@@ -1,4 +1,4 @@
-import { dirtyToolingFinding } from '../packages/runners/index.js';
+import { dirtyToolingFindings } from '../packages/runners/index.js';
 /** Real board, ordered replay and background lifetime controls for the health sentinel [A6,H16]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -249,8 +249,7 @@ test('dirty runner tooling warns the coordinator once after five minutes and res
   let files = [{ path: 'src/runner-worker.js', changedAt: base }];
   /** Feed the real sentinel a deterministic primary-tooling observation, never a gate decision. */
   const tooling = (now, previous) => {
-    const finding = dirtyToolingFinding('/private/primary-tooling', files, now, previous);
-    return finding ? [finding] : [];
+    return dirtyToolingFindings('/private/primary-tooling', files, now, previous);
   };
   /** Count actual persisted warnings, excluding the separate resolution notice. */
   const notices = () => store.allShouts(box.board).filter(row => row.shout_text.startsWith('Stuck:') && row.shout_text.includes('[PRIMARY_TOOLING_DIRTY]'));

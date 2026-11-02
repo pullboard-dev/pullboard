@@ -4,4 +4,4 @@ export { captureSubmitTooling, prepareSubmitToolingRetry, retrySubmitTooling } f
 export { cleanupTimeoutDetails, readCleanupTimeoutDetails, cleanupProcessText } from './src/core/cleanup-diagnostics.js';
 
 export { committedRunnerController, archivedToolingSource } from './src/shell/committed-tooling.js';
-export { dirtyToolingFinding, observeDirtyRunnerTooling } from './src/shell/dirty-tooling.js';
+export { dirtyToolingFindings, observeDirtyRunnerTooling } from './src/shell/dirty-tooling.js';
