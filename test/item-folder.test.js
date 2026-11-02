@@ -22,9 +22,9 @@ test('claim opens a folder; release removes a clean folder and the next claim re
   assert.equal(released.code, 0, released.err || released.out);
   assert.equal(existsSync(path), false, 'release removes the clean item folder');
   assert.equal(box.git(box.repo, 'rev-parse', `refs/heads/web/item-${id}`), box.git(box.repo, 'rev-parse', 'main'), 'release retains the branch');
-  const again = box.run(box.web, 'claim', String(id), '--json');
+  const again = box.run(box.web, 'claim', String(id));
   assert.equal(again.code, 0, again.err || again.out);
-  assert.equal(JSON.parse(again.out).itemFolder, path);
+  assert.ok(again.out.includes(`item folder: ${path}`), 'text output names the reused folder');
   writeFileSync(join(path, 'uncommitted.txt'), 'preserve me\n');
   const dirty = box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'retain dirty work', '--no-next');
   assert.equal(dirty.code, 0, dirty.err || dirty.out);
