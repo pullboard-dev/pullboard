@@ -48,6 +48,11 @@ function actor(move) { return move.args[1]?.agentId ?? null; }
 export default Object.freeze({ operation: "verify", order: 18, engine: 1,
   itemIdFirstArgument: true, minimumEngine, actor,
   nextSteps: Object.freeze({
+  "TEST_SELECTION_SOURCE": "restore Git history and retry the selected test run",
+  "TEST_TIER_MANIFEST": "regenerate and commit the testing tier manifest",
+  "TEST_SELECTION_INCOMPLETE": "derive test selection from the complete committed diff",
+  "TEST_SELECTION_UNVERIFIED": "make the focused runner execute and report the selected tests",
+
   "RUNNER_UNAVAILABLE": "inspect the unavailable runner and its exact cleanup generation; restore it before another attempt",
   "RUNNER_JOB_LOST": "inspect the exact runner and job named in the diagnostic; cleanup remains unknown until the pinned worker proves it, then retry",
   "REQUIRED_REVIEW_FAMILY": "ask a reviewer whose declared family matches the item review-family requirement",
