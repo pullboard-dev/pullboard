@@ -693,6 +693,6 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
   assert.ok(calls >= 2);
   always = true;
   assert.throws(() => bindingReadsForModules(modules), /compiler timeout after retry.*load .*cores/u);
-  const fixture = fixtureSourceEdits(modules[0].source, { file: 'test/fixture.js', moves: [['src/old.js', 'packages/new.js']] });
+  const fixture = fixtureSourceEdits("import { readFileSync } from 'node:fs'; const reader = readFileSync; reader(new URL('../src/old.js', import.meta.url));", { file: 'test/fixture.js', moves: [['src/old.js', 'packages/new.js']] });
   assert.match(fixture.problems.join(' '), /compiler timeout after retry.*load .*cores/u);
 });
