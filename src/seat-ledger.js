@@ -1,5 +1,7 @@
 /** Local timing and board events projected into bounded seat states [C7,N2]. */
 import { readFileSync } from 'node:fs';
+import { statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 
 /** Ignore malformed or partially written tail records rather than inventing time. */
@@ -8,8 +10,22 @@ export function readSeatTiming(common) {
   catch { return []; }
 }
 
+/** Most recent tracked or untracked edit visible in a seat's local worktree. */
+export function worktreeActivity(path) {
+  if (!path) return null;
+  try {
+    const files = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all'], { cwd: path, encoding: 'utf8', timeout: 5000 }).split('\0');
+    let latest = null;
+    for (const row of files) {
+      if (row.length < 4) continue;
+      try { const at = statSync(join(path, row.slice(3))).mtimeMs; latest = Math.max(latest ?? 0, at); } catch { /* Deleted files have no mtime. */ }
+    }
+    return latest;
+  } catch { return null; }
+}
+
 /** Compute each seat's current state and 24-hour split from actual events and measured spans. */
-export function seatLedger(agents, items, events, records, now = Date.now()) {
+export function seatLedger(agents, items, events, records, now = Date.now(), activity = new Map()) {
   const start = now - 24 * 60 * 60 * 1000;
   const history = [...events].sort((a, b) => Date.parse(a.event_at) - Date.parse(b.event_at));
   const spans = new Map();
@@ -33,7 +49,7 @@ export function seatLedger(agents, items, events, records, now = Date.now()) {
     const awaiting = items.find(item => item.item_status === 'submitted' && item.item_built_by === agent.agent_id && !item.item_review_by);
     const waiting = active.find(span => ['lock-wait', 'runner-wait'].includes(span.kind));
     const state = waiting ? (waiting.kind === 'lock-wait' ? 'waiting on lock' : 'waiting on runner slot')
-      : review ? 'reviewing' : held ? (['queued', 'running'].includes(handoff.state) ? 'waiting on gate' : lastAt && now - lastAt >= 20 * 60 * 1000 && !active.length ? 'silent' : 'building')
+      : review ? 'reviewing' : held ? (['queued', 'running'].includes(handoff.state) ? 'waiting on gate' : lastAt && now - Math.max(lastAt, activity.get(agent.agent_id) ?? 0) >= 20 * 60 * 1000 && !active.length ? 'silent' : 'building')
         : awaiting ? 'waiting on review' : 'idle';
     const transitionKinds = state === 'building' || state === 'silent' ? ['claim'] : state === 'reviewing' ? ['reserve'] : state === 'waiting on review' ? ['submit'] : ['release', 'withdraw', 'accept', 'reject'];
     const transition = [...mine].reverse().find(event => transitionKinds.includes(event.event_kind) && (!held || event.item_id === held.item_id));

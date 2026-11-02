@@ -1,13 +1,13 @@
 /** A real checkout binds local timing to its joined seat without board writes [C7,N2]. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { beginSeatTiming } from '../src/seat-timing.js';
-import { seatLedger, seatLines } from '../src/seat-ledger.js';
+import { seatLedger, seatLines, worktreeActivity } from '../src/seat-ledger.js';
 import { beginImmediateQueued } from '../packages/store/src/shell/board-busy.js';
 
 test('local command record binds joined seat, item, start and end [C7,N2]', t => {
@@ -115,4 +115,18 @@ test('overlapping command, test and wait spans split observed claim time without
   assert.equal(row.split.states.test, 0.75 * m);
   assert.equal(row.split.states.lockWait, 0.25 * m);
   assert.equal(Object.values(row.split.states).reduce((a, b) => a + b, 0), 24 * 60 * m);
+});
+
+
+test('recent uncommitted work keeps a held seat building [C7,N2]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'seat-activity-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q', '-b', 'main', root]);
+  writeFileSync(join(root, 'work.txt'), 'editing');
+  const now = Date.now();
+  const agents = [{ agent_id: 'builder', agent_path: root }];
+  const items = [{ item_id: 7, item_status: 'claimed', item_owner: 'builder' }];
+  const events = [{ event_by: 'builder', item_id: 7, event_kind: 'claim', event_at: new Date(now - 30 * 60000).toISOString() }];
+  assert.equal(seatLedger(agents, items, events, [], now)[0].state, 'silent');
+  assert.equal(seatLedger(agents, items, events, [], now, new Map([['builder', worktreeActivity(root)]]))[0].state, 'building');
 });

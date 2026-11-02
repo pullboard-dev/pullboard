@@ -1172,10 +1172,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/commands/seats.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/command-docs/seats.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
