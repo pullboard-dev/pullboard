@@ -1,4 +1,3 @@
-import { clauseInspectionEnabled } from '../../packages/config/index.js';
 import { clauseInspectionProblem } from '../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../packages/state/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
@@ -262,8 +261,8 @@ function doctrineRunnerChecks(root, mainCommit, lease, artifactDirectory) {
  * @returns {Promise<number>}
  */
 export async function submitHere(ctx, id, infra) {
-  const inspectClauses = clauseInspectionEnabled();
   const { root } = ctx.info;
+  const inspectClauses = (submitHandoffPolicy(ctx) ?? mainPolicy(root)).config.verify.inspectClauses === true;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
   const recovered = relayRecovered(root, {}, ctx.io);
   if (recovered?.operation === 'submit' && recovered.args[0] === id) {

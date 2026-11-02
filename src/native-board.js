@@ -17,6 +17,7 @@ import {
 import { itemFileCollisions } from '../packages/items/index.js';
 import { withLocalSeatPresence } from '../packages/store/index.js';
 import { policyAt } from '../packages/sandbox/index.js';
+import { mainPolicy } from '../packages/sandbox/index.js';
 import {
   frozenCheck,
   itemPolicy,
@@ -306,7 +307,7 @@ export function nativeBoardPorts() {
   const enginePorts = boardEnginePorts({
     conditionalHoldFloor,
     recordFamilyDeclareActivation, withDerivedFamily,
-    sandboxPolicyReads: Object.freeze({ policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
+    sandboxPolicyReads: Object.freeze({ mainPolicy, policyAt, frozenCheck, itemPolicy, requireTrunkMerge }),
     submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest,
     MOVE_REGISTRY, MOVE_OPERATIONS, minimumMoveEngine, declaredMoveActor,
     recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel,

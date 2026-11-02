@@ -91,7 +91,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     sayDescribed(io, `gate.runnersOnly: ${runnersOnly} (submit and verify wait for runners, with no local fallback when on)`, values.detail === true);
     sayDescribed(io, `gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`, values.detail === true);
     const clauses = settings.inspection?.clauses === true;
-    if (clauses || values.detail === true) sayDescribed(io, `inspection.clauses: ${clauses} (${clauses ? 'submit refuses a numbered criterion until every clause is ticked with evidence' : 'numbered criteria are not inspected clause by clause'})`, values.detail === true);
+    if (clauses || values.detail === true) sayDescribed(io, `inspection.clauses: ${clauses} (legacy machine value; submit uses verify.inspectClauses from accepted main)`, values.detail === true);
     const budget = workerBudget();
     sayDescribed(io, `workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
     return 0;
@@ -124,7 +124,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     if (!['on', 'off'].includes(second)) throw new Refused('BAD_MACHINE_SETTINGS', 'inspection.clauses must be on or off; run pullboard settings inspection.clauses on|off');
     const settings = setClauseInspection(second === 'on');
     io.result?.({ settings });
-    io.say(`inspection.clauses set to ${second}`);
+    io.say(`inspection.clauses set to ${second} (legacy machine value; submit uses verify.inspectClauses from accepted main)`);
     return 0;
   }
   if (first === 'gate.runnersOnly') {

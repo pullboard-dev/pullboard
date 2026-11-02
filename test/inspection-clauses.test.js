@@ -1,14 +1,18 @@
 import { CLAUSE_INSPECTION_ENGINE } from '../src/clause-inspection-engine.js';
 /** Prove clause inspection: an unticked clause refuses submit and is named, free text is unaffected [#2050]. */
 import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
+import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
 import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { clauseInspectionProblem } from '../packages/state/index.js';
 import { clauseInspectionSummary } from '../packages/state/index.js';
 import { criterionClauses } from '../packages/state/index.js';
+import { configFromSource } from '../packages/config/index.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
@@ -28,6 +32,12 @@ function fixture(t, criterion) {
 }
 const problem = ({ board, id }) => clauseInspectionProblem(store.getItem(board, id), store.itemThread(board, id));
 const tick = ({ board, id }, text) => store.appendFact(board, id, { agentId: 'core-1', kind: 'note', text });
+
+test('inspection policy is a board setting that defaults off and validates booleans [V4,B3]', () => {
+  assert.equal(configFromSource('{}').verify.inspectClauses, false);
+  assert.equal(configFromSource('{"verify":{"inspectClauses":true}}').verify.inspectClauses, true);
+  assert.throws(() => configFromSource('{"verify":{"inspectClauses":"on"}}'), /verify\.inspectClauses/u);
+});
 
 test('a three-clause criterion refuses submit with one unticked and names it, then accepts when all carry evidence [V4,B3]', t => {
   const f = fixture(t, THREE);
@@ -84,7 +94,14 @@ test('a real CLI submit refuses an unticked clause and accepts once every clause
   const added = box.run(box.repo, 'add', 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
-  assert.equal(box.run(box.repo, 'settings', 'inspection.clauses', 'on').code, 0, 'the setting is on for this machine');
+  const configPath = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  config.verify = { policy: 'any', inspectClauses: true };
+  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore(web): enable clause inspection [G1]');
+  box.git(box.web, 'merge', '--no-edit', 'main');
+  assert.equal(box.run(box.repo, 'settings', 'inspection.clauses', 'off').code, 0, 'machine setting cannot disable board policy');
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   assert.equal(e2e.commitFile(box, box.web, 'web/page.html', '<h1>Page</h1>\n', 'feat(web): add page [G1]').status, 0);
   const tick = (n, kind, evidence) => box.run(box.web, 'fact', '1', 'note', `clause ${n} [${kind}]: ${evidence}`);
@@ -122,9 +139,9 @@ test('settings prints inspection.clauses only with --detail or once it is on, so
   assert.doesNotMatch(plain.out, line, 'off by default and not printed');
   const detail = box.run(box.repo, 'settings', '--detail');
   assert.equal(detail.code, 0, detail.err);
-  assert.match(detail.out, /^inspection\.clauses: false /mu, '--detail still shows the off setting');
+  assert.match(detail.out, /^inspection\.clauses: false .*legacy machine value; submit uses verify\.inspectClauses from accepted main/mu);
   assert.equal(box.run(box.repo, 'settings', 'inspection.clauses', 'on').code, 0);
-  assert.match(box.run(box.repo, 'settings').out, /^inspection\.clauses: true /mu, 'printed once on');
+  assert.match(box.run(box.repo, 'settings').out, /^inspection\.clauses: true .*legacy machine value; submit uses verify\.inspectClauses from accepted main/mu);
 });
 
 
@@ -161,4 +178,31 @@ test('versioned native submit enforces declared kinds while older engines retain
   older.board.executionEngineVersion = CLAUSE_INSPECTION_ENGINE - 1;
   store.submit(older.board, older.id, { ...submission, inspectClauses: undefined });
   assert.equal(store.getItem(older.board, older.id).item_status, 'submitted');
+});
+
+
+test('accepted board policy overrides a false caller flag at the store and move boundary [V4,H16]', t => {
+  const f = fixture(t, THREE);
+  const main = 'c'.repeat(40);
+  f.board.gitRoot = '/fixture/policy';
+  const reads = { ...f.board.enginePorts.sandboxPolicyReads,
+    mainPolicy: () => ({ commit: main, config: { verify: { inspectClauses: true } } }),
+    policyAt: (_root, commit) => ({ commit, config: { verify: { inspectClauses: true } } }) };
+  f.board.enginePorts = { ...f.board.enginePorts, sandboxPolicyReads: reads };
+  const options = { agentId: 'core-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40),
+    policyCommit: main, inspectClauses: false,
+    submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private policy test' } };
+  assert.throws(() => store.submit(f.board, f.id, options), { code: 'CLAUSE_UNTICKED' });
+  const move = prepareEngineMove(f.board, 'submit', [f.id, options], { id: 'clause-policy-sealed' });
+  assert.equal(move.args[1].inspectClauses, true);
+  assert.equal(move.args[1].clausePolicyCommit, main);
+  const policyAt = reads.policyAt;
+  reads.policyAt = () => { throw new Error('missing immutable policy'); };
+  assert.throws(() => applyEngineMove(f.board, move, { sequence: 1, at: new Date().toISOString() }), /missing immutable policy/u);
+  assert.equal(appliedSequence(f.board), 0, 'missing Git data cannot consume a relay position');
+  reads.policyAt = policyAt;
+  reads.mainPolicy = () => ({ commit: 'd'.repeat(40), config: { verify: { inspectClauses: false } } });
+  const result = applyEngineMove(f.board, move, { sequence: 1, at: new Date().toISOString() });
+  assert.equal(result.error?.code, 'CLAUSE_UNTICKED');
+  assert.equal(store.getItem(f.board, f.id).item_status, 'claimed');
 });
