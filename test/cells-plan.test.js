@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import { sourceAdvancePlan } from '../packages/codemap/index.js';
+import { withSourceComposition } from '../packages/merge/index.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { selectTestTreeGuards } from '../src/affected-tests.js';
 import { importsIn } from '../src/module-imports.js';
@@ -457,3 +458,47 @@ test('moved shim exceptions require a live edge or trusted historical import [C7
     } else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
   }
 });
+
+
+/** Render one of the two authoritative row-based manifests with its actual row identity. */
+function dataManifest(data, rows) {
+  return JSON.stringify({ version: 1, ...data.extra, [data.field]: rows }, null, 2) + '\n';
+}
+
+const DATA_MANIFESTS = [
+  { label: 'plan index', file: 'bin/cells-plan.json', field: 'stays', key: 'path', value: 'reason', extra: { cells: [] } },
+  { label: 'test tiers', file: 'packages/gate/test-tiers.json', field: 'files', key: 'file', value: 'tier', extra: {} },
+];
+
+for (const data of DATA_MANIFESTS) {
+  test(`${data.label} disjoint additions compose identically in both orders [C7,D3]`, async t => {
+    const row = path => ({ [data.key]: path, [data.value]: 'T1' });
+    const base = [row('test/base.test.js')];
+    const { root, heads } = divergent(t, data.file, dataManifest(data, base),
+      dataManifest(data, [...base, row('test/zeta.test.js')]), dataManifest(data, [...base, row('test/alpha.test.js')]));
+    const sources = [];
+    for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+      await withSourceComposition(root, ours, theirs, async composition => {
+        const source = readFileSync(join(composition.directory, data.file), 'utf8');
+        const rows = JSON.parse(source)[data.field];
+        assert.deepEqual(rows.map(entry => entry[data.key]), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+        assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
+        sources.push(source);
+      });
+    }
+    assert.equal(sources.length, 2);
+    assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
+  });
+
+  test(`${data.label} same-row edits refuse and name the row [C7,D3]`, async t => {
+    const path = 'test/shared.test.js';
+    const row = value => [{ [data.key]: path, [data.value]: value }];
+    const { root, heads } = divergent(t, data.file, dataManifest(data, row('T1')),
+      dataManifest(data, row('T2')), dataManifest(data, row('T3')));
+    for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+      await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
+        assert.fail('a conflicting row must not reach the composed-source controller');
+      }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+    }
+  });
+}
