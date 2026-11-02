@@ -3,7 +3,7 @@ import { testClosures } from '../../../../src/affected-tests.js';
 import { selectAffectedTests } from '../../../../src/affected-tests.js';
 import { runnerExecutionServices } from '../../../../src/runners.js';
 import { landingExecutionServices } from './landing-shards.js';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../../../git/index.js';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
 import {
@@ -104,7 +104,7 @@ function failingFiles(root, profile, output) {
 
 /** The common Git directory holds local machine evidence shared by this repo's worktrees. */
 function cacheFile(root) {
-  const result = spawnSync('git', ['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], {
+  const result = gitSpawnSync(['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
   });
   if (result.status !== 0) throw new Refused('NO_POLICY', 'the repository common Git directory cannot be read for the local main comparison cache');
@@ -152,7 +152,7 @@ function writeCache(file, value) {
 
 /** Run Git with repository selectors cleared, keeping the main snapshot isolated. */
 function gitCall(cwd, args, env) {
-  return spawnSync('git', ['--no-replace-objects', ...args], {
+  return gitSpawnSync(['--no-replace-objects', ...args], {
     cwd, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024,
   });
 }
@@ -250,7 +250,7 @@ export function comparisonExecutor(root, execution) {
 export function companionMainFailuresUntouched(root, { base, source, composed }, failures) {
   if (!base || !source || !composed || !Array.isArray(failures) || !failures.length) return false;
   try {
-    const diff = spawnSync('git', ['diff', '--name-only', '-z', '--no-renames', source, composed, '--'],
+    const diff = gitSpawnSync(['diff', '--name-only', '-z', '--no-renames', source, composed, '--'],
       { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     if (diff.status !== 0) return false;
     const changed = new Set(diff.stdout.split('\0').filter(Boolean));

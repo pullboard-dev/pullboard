@@ -1,5 +1,5 @@
 /** Preserve exact local work before maintenance may reset or remove a checkout [B3,C7]. */
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../packages/git/index.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
@@ -29,7 +29,7 @@ const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
 /** A failed observation supplies neither a recoverable archive nor permission to erase source. */
 export function maintenanceGit(root, args, { binary = false } = {}) {
-  const result = spawnSync('git', args, { cwd: root, env: { ...cleanGitEnvironment(), GIT_OPTIONAL_LOCKS: '0' },
+  const result = gitSpawnSync(args, { cwd: root, env: { ...cleanGitEnvironment(), GIT_OPTIONAL_LOCKS: '0' },
     encoding: binary ? undefined : 'utf8', timeout: 10_000, maxBuffer: MAX_OBSERVATION_BYTES });
   if (result.status !== 0 || result.error || result.signal) throw new Error('maintenance Git observation failed: ' + args[0]);
   return result.stdout;

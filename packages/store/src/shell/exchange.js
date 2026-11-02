@@ -1,3 +1,4 @@
+import { withDerivedFamilies } from "../../../items/index.js";
 import { suspendStoreGuards } from "./board-store-guards.js";
 import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import { LANDING_LOCAL_PREFIX } from "../core/board-landing-local-lease.js";
@@ -172,7 +173,7 @@ function hasOnlyInitCoordinator(db, names) {
   try { baseline = specApprovalBaseline({ db }); }
   catch (error) { if (!(error instanceof Refused)) throw error; return false; }
   if (!names.includes('sqlite_sequence') || !hasOnlyIdentity(db, { baseline: Boolean(baseline) })) return false;
-  const agents = db.prepare('SELECT * FROM agent').all();
+  const agents = withDerivedFamilies({ db }, db.prepare('SELECT * FROM agent').all());
   const events = db.prepare('SELECT * FROM event ORDER BY event_id').all();
   const sequence = db.prepare('SELECT name, seq FROM sqlite_sequence ORDER BY name').all();
   if (agents.length !== 1 || events.length !== (baseline ? 2 : 1) || sequence.length !== 1) return false;
