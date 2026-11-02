@@ -108,6 +108,7 @@
   "src/gate-run-receipt.js",
   "src/gate-slot.js",
   "src/gate-stages.js",
+  "src/gate-wait.js",
   "src/gate.js",
   "src/gui-admission.js",
   "src/gui-session.js",
@@ -122,8 +123,10 @@
   "src/test-concurrency.js",
   "src/test-file-dispatch.js",
   "src/test-file-pool.js",
+  "src/test-isolation.js",
   "src/test-result-store.js",
   "src/test-run.js",
+  "src/test-selection.js",
   "src/test-value-timing.js",
   "src/timing.js"
  ],
