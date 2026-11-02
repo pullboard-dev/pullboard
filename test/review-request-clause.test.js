@@ -2,6 +2,8 @@
 /** Review requests bind to the frozen bar without changing older replay [V6,R2,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
+import { crossLaneFixture } from './e2e-helpers.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -55,4 +57,27 @@ test('review request arguments preserve the literal bar quote [V6,A2,H16]', () =
   const args = moveArgs({ verb: 'shout', args: { to: 'web-1', text: 'Please repair #1 title.', kind: 'request', clause } });
   assert.ok(args.includes('--kind=request'));
   assert.ok(args.includes(`--clause=${clause}`));
+});
+
+test('the CLI sends a quoted reviewer request through the ordered board [V6,A2,H16]', t => {
+  const box = crossLaneFixture(t);
+  const builder = box.seat('request-builder', 'web', 'request-builder-session');
+  const reviewer = box.seat('request-reviewer', 'api', 'request-reviewer-session');
+  const id = box.add('web', 'Render the title');
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
+  try {
+    const freeze = () => ({ text: JSON.stringify({ criterion, check: 'true', rows: [],
+      policy: { version: 1, commit: box.git(box.repo, 'rev-parse', 'HEAD').trim(), verify: { policy: 'any', family: 'off' } } }), digest: 'cli-request-bar' });
+    store.claim(board, id, { agentId: builder.agent, lane: 'web', leaseMs: 3_600_000, freeze });
+    submitFixture(board, id, { agentId: builder.agent, commit: box.git(box.repo, 'rev-parse', 'HEAD').trim(), tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}').trim() });
+    store.reserveReview(board, id, { agentId: reviewer.agent, lane: 'api', leaseMs: 3_600_000, policy: 'any' });
+  } finally { store.closeBoard(board); }
+  const missing = box.runAs('request-reviewer-session', reviewer.root, 'shout', '--item', String(id), 'Please repair the title.', '--kind', 'request', '--json');
+  assert.equal(missing.code, 1, missing.err + missing.out);
+  assert.equal(JSON.parse(missing.out).error.code, 'BAR_CLAUSE_REQUIRED');
+  const accepted = box.runAs('request-reviewer-session', reviewer.root, 'shout', '--item', String(id), 'Please repair the title.', '--kind', 'request', '--clause', clause, '--json');
+  assert.equal(accepted.code, 0, accepted.err + accepted.out);
+  const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
+  try { assert.match(store.getShout(after, JSON.parse(accepted.out).id).shout_text, /Bar: The page renders its title\./u); }
+  finally { store.closeBoard(after); }
 });
