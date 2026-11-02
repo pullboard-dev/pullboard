@@ -20,6 +20,7 @@ import {
   setGateShortSlots,
   setGateSlots,
   setGateRunnersFirst,
+  setClauseInspection,
   setGateMeasuredSlots,
   setGateLoadDispatch,
   setGateRunnersOnly,
@@ -39,7 +40,7 @@ import {
 import { boardId } from '../../packages/store/index.js';
 import { describeSetting } from '../../packages/config/index.js';
 
-const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget'];
+const PRINTED = ['gateSlots', 'browserSlots', 'gate.queue.reviewsFirst', 'gate.queue.currentReleaseFirst', 'gate.queue.agingMinutes', 'gate.memoryFloorMB', 'view.background', 'relay.offerAtInit', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'inspection.clauses'];
 
 /** Print one setting line; with --detail also its plain label and sentence beneath it. */
 function sayDescribed(io, line, detail) {
@@ -89,6 +90,8 @@ export function settingsCommand(io, { first, second, rest, values }) {
     sayDescribed(io, `gate.measuredSlots: ${measuredSlots} (${measuredSlots ? 'each measured runner offers slots from its own cores and memory unless declared fixed' : 'runners offer the slot counts they were registered with'})`, values.detail === true);
     sayDescribed(io, `gate.runnersOnly: ${runnersOnly} (submit and verify wait for runners, with no local fallback when on)`, values.detail === true);
     sayDescribed(io, `gate.runnerWaitMs: ${gateRunnerWaitMs()} (runner-only submit/review refuses; other runs retain ordinary local admission)`, values.detail === true);
+    const clauses = settings.inspection?.clauses === true;
+    if (clauses || values.detail === true) sayDescribed(io, `inspection.clauses: ${clauses} (legacy machine value; submit uses verify.inspectClauses from accepted main)`, values.detail === true);
     const budget = workerBudget();
     sayDescribed(io, `workers.budget: ${budget?.seatHours ? `${budget.seatHours}/${budget.window} (seat-hours pullboard run --scale may spend across every live seat on this machine)` : 'off (pullboard run --scale launches no workers)'}`, values.detail === true);
     return 0;
@@ -115,6 +118,13 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const settings = setGateMeasuredSlots(second === 'on');
     io.result?.({ settings });
     io.say(`gate.measuredSlots set to ${second}`);
+    return 0;
+  }
+  if (first === 'inspection.clauses') {
+    if (!['on', 'off'].includes(second)) throw new Refused('BAD_MACHINE_SETTINGS', 'inspection.clauses must be on or off; run pullboard settings inspection.clauses on|off');
+    const settings = setClauseInspection(second === 'on');
+    io.result?.({ settings });
+    io.say(`inspection.clauses set to ${second} (legacy machine value; submit uses verify.inspectClauses from accepted main)`);
     return 0;
   }
   if (first === 'gate.runnersOnly') {

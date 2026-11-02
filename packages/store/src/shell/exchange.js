@@ -9,6 +9,8 @@ import {
   beginBoardWrite,
   finishBoardWrite,
   prepareBoardWriteIdentity,
+  prepareBoardWriteMarker,
+  discardBoardWriteMarker,
 } from "./board-write-lock.js";
 /**
  * Export and import whole board files (A7), including their AUTOINCREMENT counters, so a copy can
@@ -253,8 +255,10 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
   const names = tableNames(db);
   validateDocument(db, document, names);
   prepareBoardWriteIdentity();
-  db.exec('PRAGMA defer_foreign_keys = ON; BEGIN IMMEDIATE');
-  const writeRecord = beginBoardWrite(db, board.writeContext);
+  const marker = prepareBoardWriteMarker(db, board.writeContext);
+  try { db.exec('PRAGMA defer_foreign_keys = ON; BEGIN IMMEDIATE'); }
+  catch (error) { discardBoardWriteMarker(marker); throw error; }
+  const writeRecord = beginBoardWrite(db, board.writeContext, marker);
   let released = false;
   let outcome = 'release-failed';
   try {
