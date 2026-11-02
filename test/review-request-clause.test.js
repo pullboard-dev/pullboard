@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
+import { REVIEW_REQUEST_ENGINE } from '../src/review-request-engine.js';
 
 const criterion = 'The page renders its title. The page renders its footer.';
 const clause = 'The page renders its title.';
@@ -35,7 +36,10 @@ test('a reviewer request to a builder without a bar clause is refused [V6,R2,H16
   assert.ok(sent > 0, 'a real frozen clause permits the request');
   assert.match(store.getShout(board, sent).shout_text, /Bar: The page renders its title\./u, 'the builder sees the quoted clause');
   assert.ok(store.shout(board, { ...message, kind: 'question' }) > 0, 'ordinary questions do not need a clause');
-  assert.ok(store.shout(board, { ...message, item: undefined, text: `Please fix #${id}.`, clause: 'true' }) > 0, 'a direct builder request may quote the frozen check');
+  board.executionEngineVersion = REVIEW_REQUEST_ENGINE - 1;
+  assert.ok(store.shout(board, { ...message, kind: undefined }) > 0, 'older untyped item messages retain their meaning');
+  delete board.executionEngineVersion;
+  assert.ok(store.shout(board, { ...message, item: undefined, text: `Please fix the title in #${id} before the next review.`, clause: 'true' }) > 0, 'a direct builder request may quote the frozen check');
 });
 
 test('a send-back may quote its frozen check [V6,R2,H16]', t => {
