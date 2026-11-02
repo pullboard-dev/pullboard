@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { receiptLine as cellsReceiptLine } from '../packages/git/index.js';
-import { receiptLine as gateReceiptLine } from '../src/gate-receipt.js';
+import { receiptLine as gateReceiptLine } from '../packages/gate/index.js';
 
 /** A reused cells receipt as the check-receipt store writes it: it has no runner slot, since nothing ran. */
 const reused = { kind: 'cells', id: 'r1', tree: 'a'.repeat(40), by: 'core-1', at: '2026-11-01T00:00:00.000Z' };
