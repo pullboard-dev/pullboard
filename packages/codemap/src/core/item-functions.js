@@ -6,18 +6,28 @@ function mentioned(text, name) {
   return new RegExp(`(?:\\bfunction\\s+|#|\\x60)${escaped}(?:\\x60|\\s*\\(|(?=$|[^\\w$]))|\\b${escaped}\\s*\\(`, 'u').test(text);
 }
 
+const predictions = new WeakMap();
+
 /** Unqualified paths cover all bodies; only explicit function references narrow a path. */
 export function predictItemFunctions(map, item) {
   const text = [item.item_title, item.item_criterion, item.item_brief, item.item_files].filter(Boolean).join('\n');
+  let cache = predictions.get(map);
+  if (!cache) { cache = new Map(); predictions.set(map, cache); }
+  if (cache.has(text)) return cache.get(text);
   const paths = [...new Set([...text.matchAll(/\b(?:src|bin|packages|apps)\/[\w./-]+\.m?js\b/gu)].map(match => match[0]))];
   const modules = map.modules.filter(module => paths.includes(module.path));
-  const importsOnly = /\b(?:imports?[- ]only|import block)\b/iu.test(text);
-  const named = map.modules.flatMap(module => module.functions.filter(fn => mentioned(text, fn.name)));
+  const importHint = /\bimports?[- ]only\b/iu.test(text);
+  const pool = paths.length ? modules : map.modules;
+  const named = pool.flatMap(module => module.functions.filter(fn => mentioned(text, fn.name)));
+  const importsOnly = importHint && named.length === 0;
   const functions = importsOnly ? [] : paths.length
-    ? modules.flatMap(module => { const selected = module.functions.filter(fn => mentioned(text, fn.name)); return selected.length ? selected : module.functions; })
+    ? modules.flatMap(module => { const selected = module.functions.filter(fn => named.includes(fn)); return selected.length ? selected : module.functions; })
     : named;
-  return { functions, paths, unknown: paths.some(path => !modules.some(module => module.path === path))
+  const result = { functions, paths, unknown: paths.some(path => !modules.some(module => module.path === path))
     || (!importsOnly && modules.some(module => !module.functions.length)) || (!paths.length && !functions.length) };
+  if (cache.size >= 512) cache.clear();
+  cache.set(text, result);
+  return result;
 }
 
 /** Distinguish a body collision from one-hop call adjacency and retain the map's actual importer tests. */
