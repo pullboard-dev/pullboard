@@ -53,7 +53,7 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   const {readGateReceipt,receiptStore}=await import(pathToFileURL(join(installed,'src/gate-run-receipt.js')));
   const boardFile=join(repo,'.git/pullboard/board.sqlite');
   /** Close board ownership before any process execution or native admission. */
-  function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true});try{return action(db);}finally{store.closeBoard(db);}}
+  function board(action){const db=native.openBoard(boardFile,undefined,{isMain:true,gitRoot:repo});try{return action(db);}finally{store.closeBoard(db);}}
   const actors=board(db=>{db.executionEngineVersion=1;try{return[store.register(db,{lane:'coordinator',path:repo}),store.register(db,{lane:'alpha',path:join(scratch,'builder')}),store.register(db,{lane:'beta',path:join(scratch,'reviewer')})];}finally{delete db.executionEngineVersion;}});
   const identity=board(db=>({id:store.boardId(db),after:store.events(db).at(-1).event_id}));await activateMainAudits(repo,identity.after,identity.id);
   const candidate=join(scratch,'candidate');git(repo,env,'worktree','add','--detach',candidate,base);
