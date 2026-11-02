@@ -25,7 +25,7 @@ export function testFileBudgetPath(file) {
 function rowsAt(root, ref, paths, env) {
   const rows = new Map(), unique = [...new Set(paths)];
   for (let start = 0; start < unique.length; start += 200) {
-    const entry = tryGit(root, ['ls-tree', '-r', '-z', '--name-only', ref, '--', ...unique.slice(start, start + 200)], { env });
+    const entry = tryGit(root, ['ls-tree', '-r', '-z', '--name-only', ref, '--', ...unique.slice(start, start + 200).map(path => `:(literal)${path}`)], { env });
     if (entry.status !== 0) throw new Error(`cannot read test file budget tree at ${ref}`);
     for (const path of entry.stdout.split('\0').filter(Boolean)) {
       const result = tryGit(root, ['show', `${ref}:${path}`], { env });
