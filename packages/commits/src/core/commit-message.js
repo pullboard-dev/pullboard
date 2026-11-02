@@ -50,13 +50,15 @@ function bracket(rows, room) {
  * then the rows fill what is left. It never refuses for how many rows an item
  * cites: every row is in the `Pullboard-Rows` trailer whatever the header shows.
  *
- * @param {{ type: string, scope?: string, title: string, item?: number | null, rows?: string[], fallback?: string, body?: string }} message
- *   rows must already be in spec order; fallback is the subject when no title word fits.
+ * @param {{ type: string, scope?: string, title: string, item?: number | null, rows?: string[], fallback?: string, body?: string, preferRows?: boolean }} message
+ *   rows must already be in spec order; preferRows reserves all header ids when they fit; fallback is for an empty title.
  * @returns {{ header: string, body: string, trailers: string, message: string }}
  */
-export function buildCommitMessage({ type, scope = '', title, item = null, rows = [], fallback = '', body = '' }) {
+export function buildCommitMessage({ type, scope = '', title, item = null, rows = [], fallback = '', body = '', preferRows = false }) {
   const prefix = `${type}${scope ? `(${scope})` : ''}: `;
-  const reserve = rows.length ? ` [${rows.length === 1 ? rows[0] : `${rows[0]},+${rows.length - 1}`}]`.length : 0;
+  const allRows = rows.length ? ` [${rows.join(',')}]`.length : 0;
+  const minimumReserve = rows.length ? ` [${rows.length === 1 ? rows[0] : `${rows[0]},+${rows.length - 1}`}]`.length : 0;
+  const reserve = preferRows && allRows < HEADER_LIMIT - prefix.length ? allRows : minimumReserve;
   const budget = HEADER_LIMIT - prefix.length - reserve;
   let subject = '';
   for (const word of titleWords(title)) {
@@ -65,7 +67,7 @@ export function buildCommitMessage({ type, scope = '', title, item = null, rows 
     subject = next;
   }
   subject = subject.replace(/\.+$/u, '');
-  if (!subject) subject = (fallback || (item ? `item ${item}` : 'update')).slice(0, Math.max(1, budget));
+  if (!subject) subject = (titleWords(title).join(' ') || fallback || (item ? `item ${item}` : 'update')).slice(0, Math.max(1, budget));
   const head = `${prefix}${subject}`;
   const header = `${head}${bracket(rows, HEADER_LIMIT - head.length)}`;
   const trailers = [
