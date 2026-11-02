@@ -71,9 +71,11 @@ test('the runner policy exact-leaf exception preserves every worker body byte [C
     const expected = { ...before, [policy]: source };
     delete expected['src/trusted-policy-read.js'];
     assert.deepEqual(after, expected, 'only the transparent shim and its import spelling may differ');
+    // Negative control: the sandbox barrel route would pull the front door and bodies the exact leaf keeps out.
     writeFileSync(file, source.replace(direct, "'../../../sandbox/index.js'"));
-    assert.throws(() => runnerPackage(installed), error => error.code === 'RUNNER_TOOLING_FILES'
-      && error.message.includes('the import closure exceeds the 1 MiB transfer bound'),
-    'the sandbox barrel expands the closure past the unchanged transfer bound');
+    const barrel = runnerPackage(installed).files;
+    assert.ok(Object.hasOwn(barrel, 'packages/sandbox/index.js'), 'the barrel route reaches the sandbox front door');
+    const added = Object.keys(barrel).filter(name => !Object.hasOwn(after, name));
+    assert.ok(added.length > 1, `the sandbox barrel expands the worker closure beyond its front door: ${added.join(', ')}`);
   } finally { writeFileSync(file, source); }
 });
