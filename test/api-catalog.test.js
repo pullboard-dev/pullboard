@@ -806,6 +806,9 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.equal((await json(source, source.repo, 'milestone', ['lift', 'Catalog', String(catalog.item_id)], 'lift')).milestone.sunk, undefined, 'a lift returns the item to the computed order');
   await json(source, source.repo, 'milestone', ['add', 'Later'], 'add');
   await json(source, source.repo, 'milestone', ['move', 'Later', '--before', 'Catalog'], 'move');
+  const focused = await json(source, source.repo, 'milestone', ['focus', 'Catalog'], 'focus');
+  assert.deepEqual([focused.focus, focused.overflow], ['Catalog', false], 'focus names the release seats hold to');
+  assert.equal((await json(source, source.repo, 'milestone', ['focus', 'off'], 'focus')).focus, null, 'focus off clears it before later moves');
   await json(source, source.repo, 'milestone', ['edit', 'Catalog', '--name', 'Release', '--note', 'Catalog coverage'], 'edit');
   await json(source, source.repo, 'milestone', ['edit', 'Release', '--target', '2026-10-20T18:00Z'], 'edit');
   const shippedLater = await json(source, source.repo, 'milestone', ['ship', 'Later'], 'ship');
