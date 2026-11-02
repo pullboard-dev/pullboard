@@ -32,7 +32,9 @@ export function seatLedger(agents, items, events, records, now = Date.now()) {
     const state = waiting ? (waiting.kind === 'lock-wait' ? 'waiting on lock' : 'waiting on runner slot')
       : review ? 'reviewing' : held ? (['queued', 'running'].includes(handoff.state) ? 'waiting on gate' : lastAt && now - lastAt >= 20 * 60 * 1000 && !active.length ? 'silent' : 'building')
         : awaiting ? 'waiting on review' : 'idle';
-    const since = waiting?.start ?? (state === 'waiting on gate' ? Date.parse(lastHandoff.event_at) : null) ?? lastAt ?? now;
+    const transitionKinds = state === 'building' || state === 'silent' ? ['claim'] : state === 'reviewing' ? ['reserve'] : state === 'waiting on review' ? ['submit'] : ['release', 'withdraw', 'accept', 'reject'];
+    const transition = [...mine].reverse().find(event => transitionKinds.includes(event.event_kind) && (!held || event.item_id === held.item_id));
+    const since = waiting?.start ?? (state === 'waiting on gate' ? Date.parse(lastHandoff.event_at) : null) ?? (transition ? Date.parse(transition.event_at) : null) ?? lastAt ?? now;
     // Replay only observed intervals; earlier unobserved history remains explicitly unknown.
     const states = { building: 0, reviewing: 0, gate: 0, reviewWait: 0, lockWait: 0, runnerWait: 0, silent: 0, idle: 0, unknown: 0 };
     let index = 0, current = 'idle', observedAt = null, owned = null;

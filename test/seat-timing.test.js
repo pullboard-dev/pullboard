@@ -8,6 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { beginSeatTiming } from '../src/seat-timing.js';
 import { seatLedger, seatLines } from '../src/seat-ledger.js';
+import { beginImmediateQueued } from '../packages/store/src/shell/board-busy.js';
 
 test('local command record binds joined seat, item, start and end [C7,N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'seat-timing-'));
@@ -64,4 +65,16 @@ test('seat ledger prints each observed live state and elapsed minutes [C7,N2]', 
     ['building', 5], ['reviewing', 5], ['waiting on gate', 3], ['waiting on review', 5],
     ['waiting on lock', 2], ['waiting on runner slot', 2], ['silent', 25], ['idle', 5],
   ]);
+});
+
+/** The measured lock span closes even when acquisition fails for a reason unrelated to contention. */
+test('board lock timing closes on success and refusal [C7,N2]', () => {
+  const port = Symbol.for('pullboard.seat-timing.lock');
+  const prior = globalThis[port]; let started = 0, ended = 0;
+  globalThis[port] = () => { started++; return () => { ended++; }; };
+  try {
+    beginImmediateQueued({ exec() {} }, Date.now());
+    assert.throws(() => beginImmediateQueued({ exec() { throw new Error('broken'); } }, Date.now()), /broken/u);
+    assert.equal(started, 2); assert.equal(ended, 2);
+  } finally { if (prior) globalThis[port] = prior; else delete globalThis[port]; }
 });
