@@ -12,5 +12,5 @@ export function checkedSubmitOutcome(board, id, actor, value, admission) {
     || value.digest !== item.item_frozen_digest) throw new Refused('ITEM_LEASE_LOST', 'a submit outcome needs its original live claim and unchanged frozen bar');
   if (!/^[A-Z][A-Z0-9_]*$/u.test(value.code ?? '') || typeof value.text !== 'string' || !value.text.trim() || value.text.length > 4000)
     throw new Refused('USAGE', 'a submit outcome retains its actual refusal code and bounded explanation');
-  return { code: value.code, text: value.text, digest: value.digest, pipelineCause: pipelineCause({ code: value.code, note: value.text }) };
+  return { code: value.code, text: value.text, digest: value.digest, ...(value.stage === 'fast' ? { stage: 'fast' } : {}), pipelineCause: pipelineCause({ code: value.code, note: value.text }) };
 }

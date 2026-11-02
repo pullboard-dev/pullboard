@@ -1,4 +1,6 @@
 import { claimProgress } from '../../../items/index.js';
+import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
+import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 /** Indexed read-only stale-state observations; no Git scanner or write-board import on status [B4,C7]. */
 import { withSeatPresence } from '../../../../src/seat-presence.js';
 import {
@@ -62,13 +64,15 @@ function activity(board, item, actor, anchor, kind, seats, workObservation, now,
   const workSeen = work?.available === true && (work.at === null || staleInstant(work.at, now) !== null);
   const workActivity = workSeen && staleInstant(episodeAt, now) !== null
     ? latestStaleActivity([episodeAt, work.at, proof?.event_at, detailOf(proof)?.receipt?.at, move?.event_at], now) : null;
-  return { lastActivity, workActivity, evidence: { complete: unknown.length === 0, unknown } };
+  return { lastActivity, workActivity, commitAt: work?.available === true ? work.commitAt ?? null : null, evidence: { complete: unknown.length === 0, unknown } };
 }
 
 /** Board events that renew or restate a claim; none of them is work on it. */
 const RENEWALS = "'claim','renew','heartbeat','claim_stalled'";
 /** A claim shows as stalled after this much idle time, and is released at the second (#1225). */
 export const CLAIM_STALL_MS = 20 * 60_000;
+/** A holder who committed this recently is never returned by the progress rule (#2251). */
+export const CLAIM_RECENT_COMMIT_MS = 30 * 60_000;
 export const CLAIM_IDLE_RELEASE_MS = 40 * 60_000;
 
 /** When the holder's current claim began: its first claim since the item last left that holder's hands. Renewals do not move it. */
@@ -136,7 +140,7 @@ function claimRow(board, item, limits, now, seats, options) {
   const age = staleStateAge('claim', item.item_id, item.item_owner, observed.lastActivity ?? event?.event_at, limit, now);
   return { ...age, ...observed, blocker: classificationUnknown ? null : blocker === true, classificationUnknown, leaseUntil: item.item_lease_until, claimEventId: event?.event_id ?? null,
     leaseEventId: lease?.event_id ?? null, leaseStartedAt: lease?.event_at ?? null, leaseMs: Date.parse(item.item_lease_until) - Date.parse(lease?.event_at),
-    progress: claimProgress(board, item, now), episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
+    progress: claimProgress(board, item, now, { runnerOnly: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE }), commitAt: observed.commitAt ?? null, episodeEventId: episode?.event_id ?? null, ...claimHealth(board, item, observed, now), expiryAuthorized: false };
 }
 
 /** Building, stalled (20 idle minutes) or waiting on an unlanded item, from real work signals only (#1225). */

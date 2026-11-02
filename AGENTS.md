@@ -31,6 +31,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 4. Commit, then `pullboard submit <id>`. It needs a clean tree and the gate green at HEAD.
 5. A different agent verifies: it checks out the submitted commit and runs `pullboard verify <id> accept`, or `pullboard verify <id> reject --reason TEST_FAILURE --note "what failed"`.
 6. A reject reopens the item. Fix it, commit, claim, submit again; the same head is refused.
+7. Never end your turn. Whenever you finish, submit, or get blocked, run `pullboard next --wait 30` and act on what it returns. A shout reaches you only while a command runs.
 
 **Talk.** `pullboard shout <lane|agent|all> "<text>"`. Read `pullboard inbox` before you start and after you submit.
 
