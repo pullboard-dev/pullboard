@@ -1,4 +1,4 @@
-import { flakeLedger } from '../flakes.js';
+import { flakeLedger } from '../../packages/flakes/index.js';
 import { eventCauses } from '../board-rigor.js';
 /** The requested fourteen-day test economics report [C7]. */
 import {
