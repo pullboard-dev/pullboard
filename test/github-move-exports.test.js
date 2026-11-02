@@ -6,9 +6,7 @@ import * as provider0 from '../packages/github/src/shell/ci-flakes.js';
 import * as provider1 from '../packages/github/src/shell/intake-github.js';
 import * as provider2 from '../packages/github/src/shell/pr-findings.js';
 import * as provider3 from '../packages/github/src/shell/pr-github.js';
-import * as provider4 from '../packages/github/src/shell/pr-proof-graph.js';
 import * as provider5 from '../packages/github/src/core/pr-proof-snapshot.js';
-import * as provider6 from '../packages/github/src/shell/pr-publish.js';
 import * as provider7 from '../packages/github/src/shell/pr-verification.js';
 import * as provider8 from '../packages/github/src/core/private-board.js';
 import * as provider9 from '../packages/github/src/shell/publish.js';
@@ -18,9 +16,7 @@ const surfaces = [
   ["src/intake-github.js", "packages/github/src/shell/intake-github.js", ["githubSource", "outsideURL"], provider1],
   ["src/pr-findings.js", "packages/github/src/shell/pr-findings.js", ["recordPublishFinding"], provider2],
   ["src/pr-github.js", "packages/github/src/shell/pr-github.js", ["githubPullClient", "githubRepository"], provider3],
-  ["src/pr-proof-graph.js", "packages/github/src/shell/pr-proof-graph.js", ["readProofGraph"], provider4],
   ["src/pr-proof-snapshot.js", "packages/github/src/core/pr-proof-snapshot.js", ["capturePrProof"], provider5],
-  ["src/pr-publish.js", "packages/github/src/shell/pr-publish.js", ["publishPullRequests"], provider6],
   ["src/pr-verification.js", "packages/github/src/shell/pr-verification.js", ["PR_VERIFICATION_CONTEXT", "publishVerificationStatuses", "pullRequestVerification", "verificationPulls"], provider7],
   ["src/private-board.js", "packages/github/src/core/private-board.js", ["runPrivateBoard"], provider8],
   ["src/publish.js", "packages/github/src/shell/publish.js", ["publishTrunk"], provider9]
