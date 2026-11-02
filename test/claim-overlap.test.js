@@ -53,7 +53,7 @@ test('next skips a named file being edited and offers it after release', async t
   const blocked = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles });
   assert.notEqual(blocked.item?.item_id, waiting);
   assert.ok(blocked.reasons.some(reason => reason.includes(`#${edited}`) && reason.includes('shared.js')));
-  store.release(board, edited, holder, 'fixture');
+  store.release(board, edited, holder, 'fixture', undefined, 'ROUTED_ELSEWHERE');
   const offered = store.nextFor(board, { agentId: worker, lane: 'core', workingFiles, omitIds: [edited] });
   assert.equal(offered.item?.item_id, waiting);
 });
