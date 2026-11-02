@@ -1,3 +1,4 @@
+import { legacyFlakeObservations } from '../core/flake-ratchet.js';
 import { flakeRatchet } from '../core/flake-ratchet.js';
 import { pairedFlakeObservations } from '../core/flake-ratchet.js';
 import { quarantinesAt } from '../core/flake-ratchet.js';
@@ -101,7 +102,8 @@ export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines,
   }
   const quarantines = readQuarantines(board);
   const latest = new Map(quarantines.map(row => [testKey(row.file, row.name), row]));
-  const pairs = pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 }).filter(row => {
+  const pairs = [...pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 }),
+    ...legacyFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 })].filter(row => {
     const quarantine = latest.get(testKey(row.file, row.name));
     return quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId);
   });

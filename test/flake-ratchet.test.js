@@ -1,7 +1,7 @@
 /** Quarantine counts are a per-landing ratchet, with named flake evidence [C7,T12]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { flakeRatchet, pairedFlakeObservations, quarantinesAt, landingFlakeRatchet } from '../packages/flakes/index.js';
+import { flakeRatchet, pairedFlakeObservations, quarantinesAt, landingFlakeRatchet, legacyFlakeObservations } from '../packages/flakes/index.js';
 
 const observed = (file, eventId) => ({ file, name: 'case', status: 'active', count: 1, lastEventId: eventId });
 const quarantine = (file, item, eventId) => ({ file, name: 'case', status: 'quarantined', item, eventId });
@@ -101,4 +101,14 @@ test('native ratchet refuses a concurrently changed board [C7,T12]', async t => 
     return [];
   } };
   assert.throws(() => landingFlakeRatchet({ db }, readers), { code: 'BOARD_BUSY' });
+});
+
+/** Legacy proof is coordinator-owned and requires the same exact tree and distinct runs. */
+test('legacy coordinator gate pairs retain their named flake evidence [C7,T12]', () => {
+  const red = { id: 'red', by: 'coordinator', eventId: 4, tree: 'tree', kind: 'landing', green: false,
+    failures: [{ file: 'test/a.test.js', name: 'case' }] };
+  const green = { id: 'green', by: 'coordinator', eventId: 8, tree: 'tree', kind: 'landing', green: true, failures: [] };
+  assert.deepEqual(legacyFlakeObservations([red, green], { afterEvent: 6 }), [observed('test/a.test.js', 8)]);
+  assert.deepEqual(legacyFlakeObservations([red, { ...green, tree: 'other' }]), []);
+  assert.deepEqual(legacyFlakeObservations([red, { ...green, by: 'agent' }]), []);
 });

@@ -93,3 +93,23 @@ export function quarantinesAt(events, runs, { throughEvent, quarantineCoreEngine
     return { ...entry, status: lifted ? 'lifted' : 'quarantined' };
   });
 }
+
+/** Older coordinator gates prove a named failure with a later or earlier green run on the same tree. */
+export function legacyFlakeObservations(runs, { afterEvent = 0 } = {}) {
+  const eligible = runs.filter(run => run.by === 'coordinator' && typeof run.id === 'string' && run.id
+    && Number.isSafeInteger(run.eventId) && typeof run.tree === 'string' && typeof run.green === 'boolean'
+    && !Array.isArray(run.testOutcomes) && !['suite', 'main-red'].includes(run.kind));
+  const result = new Map();
+  for (const red of eligible.filter(run => !run.green && Array.isArray(run.failures))) {
+    for (const green of eligible.filter(run => run.green && run.tree === red.tree && run.id !== red.id)) {
+      const lastEventId = Math.max(red.eventId, green.eventId);
+      if (lastEventId <= afterEvent) continue;
+      for (const failure of red.failures) {
+        if (typeof failure.file !== 'string' || typeof failure.name !== 'string') continue;
+        const id = key(failure), prior = result.get(id);
+        if (!prior || prior.lastEventId < lastEventId) result.set(id, { file: failure.file, name: failure.name, status: 'active', count: 1, lastEventId });
+      }
+    }
+  }
+  return [...result.values()];
+}
