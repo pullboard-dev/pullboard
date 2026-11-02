@@ -2,8 +2,11 @@
 import * as store from '../board.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { isLane } from '../../packages/seats/index.js';
-import { relayCommandReceipt, relayCommandReceiptReported } from '../../packages/link/index.js';
-import { actOn, idArg, ordered } from '../cli.js';
+import { relayCommandReceipt } from '../../packages/link/index.js';
+import { relayCommandReceiptReported } from '../../packages/link/index.js';
+import { actOn } from '../cli.js';
+import { idArg } from '../cli.js';
+import { ordered } from '../cli.js';
 
 /** Bind the request to the exact current frozen parent bar. */
 export async function run(io, { first, second, rest, values }) {

@@ -1,8 +1,11 @@
 /** Create one ordinary child bound to its parent's frozen bar [C7,B26,H16]. */
 import { createHash } from 'node:crypto';
-import { atomic, logEvent } from './board-event-log.js';
-import { hasAgent, itemById } from './board-query.js';
-import { insertItem, validateItemAddition } from './board-add-item.js';
+import { atomic } from './board-event-log.js';
+import { logEvent } from './board-event-log.js';
+import { hasAgent } from './board-query.js';
+import { itemById } from './board-query.js';
+import { insertItem } from './board-add-item.js';
+import { validateItemAddition } from './board-add-item.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { ITEM_SLICE_ENGINE } from '../../../../src/item-slice-engine.js';
 import { Refused } from '../../../kernel/index.js';
