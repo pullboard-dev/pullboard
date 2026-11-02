@@ -70,7 +70,14 @@ function foreignBoardFixture(t, box) {
 export async function parityRoundtrip(t, { foreign = false, localHealth = false } = {}) {
   const box = await relayClientFixture(t);
   assert.equal(runFixtureChild('git', ['add', 'pullboard.json'], { cwd: box.root, env: box.env }).status, 0);
-  assert.equal(runFixtureChild('git', ['commit', '-m', 'fixture: commit parity policy'], { cwd: box.root, env: box.env }).status, 0);
+  const git = args => runFixtureChild('git', args, { cwd: box.root, env: box.env, encoding: 'utf8' });
+  const tree = git(['write-tree']);
+  const parent = git(['rev-parse', 'HEAD']);
+  assert.equal(tree.status, 0);
+  assert.equal(parent.status, 0);
+  const commit = git(['commit-tree', tree.stdout.trim(), '-p', parent.stdout.trim(), '-m', 'fixture: commit parity policy']);
+  assert.equal(commit.status, 0);
+  assert.equal(git(['update-ref', 'refs/heads/main', commit.stdout.trim(), parent.stdout.trim()]).status, 0);
   const seeded = seedParityBoard(box.root, box.lane);
   const other = foreign ? foreignBoardFixture(t, box) : null;
   assertPresentationChangeClock(box.root, seeded.item);
