@@ -36,6 +36,7 @@ async function releaseOnSessionEnd(io) {
       await ordered(ctx, board, 'release', [item.item_id, me.id, note, 'OTHER']);
       released.push(item.item_id);
     }
+    cleanItemFolders(ctx, board, me, store.listItems);
     io.result?.({ released });
     io.say(released.length ? `session ended: released ${released.map(id => `#${id}`).join(', ')}` : 'session ended: no build claim to release');
     return 0;

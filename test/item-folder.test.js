@@ -1,6 +1,6 @@
 /** Real claim and release lifecycle for isolated item worktrees [B5,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -29,4 +29,8 @@ test('claim opens a folder; release removes a clean folder and the next claim re
   const dirty = box.run(box.web, 'release', String(id), '--reason', 'OTHER', '--note', 'retain dirty work', '--no-next');
   assert.equal(dirty.code, 0, dirty.err || dirty.out);
   assert.equal(existsSync(join(path, 'uncommitted.txt')), true, 'uncommitted work prevents cleanup');
+  unlinkSync(join(path, 'uncommitted.txt'));
+  box.run(box.web, 'next', '--verify', '--no-next');
+  assert.equal(existsSync(path), false, 'next removes the released folder once its work is clean');
+  assert.ok(box.git(box.repo, 'rev-parse', `refs/heads/web/item-${id}`), 'next retains the released branch');
 });

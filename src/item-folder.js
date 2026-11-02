@@ -21,7 +21,7 @@ export function cleanItemFolders(ctx, board, me, items) {
     const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
     if (status.status !== 0 || status.stdout) continue;
     git(ctx.info.root, ['worktree', 'remove', path]);
-    if (item.item_status === 'withdrawn' || item.item_merged) tryGit(ctx.info.root, ['branch', '-d', ref]);
+    if (item.item_status === 'withdrawn' || item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', ref]);
   }
 }
 
