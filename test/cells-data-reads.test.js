@@ -1,5 +1,6 @@
 /** Exact generated-data declarations never turn a moved repository source into fixture data [C7,CD64]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
 import { checkMoved } from '../bin/cells-plan.js';
@@ -102,4 +103,24 @@ test('an untracked manifest cannot supply data-read authority [C7,CD64]', t => {
   const problems = p.check();
   assert.ok(problems.some(row => row.includes('manifest must be a committed regular file')));
   assert.ok(problems.some(row => row.startsWith(`${FILE}:3: unsupported fixture source`)));
+});
+
+/** A dynamic front door may expose unrelated unsafe names without granting them fixture authority. */
+test('named dynamic ports prove only selected safe exports [C7,CD64]', () => {
+  const sources = {
+    'packages/example/index.js': "export { safe } from './safe.js';\nexport { danger } from './danger.js';\n",
+    'packages/example/safe.js': 'export function safe() { return 1; }\n',
+    'packages/example/danger.js': "import { readFileSync } from 'node:fs';\nexport function danger(path) { return readFileSync(path); }\n",
+  };
+  const readSource = file => {
+    const source = sources[file];
+    if (source === undefined) return null;
+    return { source, object: createHash('sha1').update(`blob ${Buffer.byteLength(source)}\0`).update(source).digest('hex') };
+  };
+  const scan = binding => fixtureSourceEdits(
+    "import { readFileSync } from 'node:fs';\n" + binding + "\nreadFileSync(new URL('../src/hooks.js', import.meta.url));\n",
+    { file: FILE, moves: [['src/hooks.js', 'packages/commits/src/shell/hooks.js']], readSource });
+  assert.deepEqual(scan("const { safe } = await import('../packages/example/index.js');").problems, []);
+  assert.ok(scan("const { danger } = await import('../packages/example/index.js');").problems.some(row => row.includes('unsupported fixture source')));
+  assert.ok(scan("const all = await import('../packages/example/index.js');").problems.some(row => row.includes('unsupported fixture source')));
 });
