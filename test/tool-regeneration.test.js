@@ -105,7 +105,7 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   assert.equal(recordedToolCommits(box.root, before, original).at(-1).commands[0].tool, command);
   const currentMain = advance(main);
   assert.equal(existsSync(marker), false);
-  const submitted = box.run('submit', '1', '--json', '--infra', 'recorded tool regeneration fixture');
+  const submitted = box.run('submit', '1', '--wait', '--no-next', '--json', '--infra', 'recorded tool regeneration fixture');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const result = JSON.parse(submitted.out);
   const head = box.git('rev-parse', 'HEAD');
