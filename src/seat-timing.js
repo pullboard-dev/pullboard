@@ -1,7 +1,14 @@
 /** Machine-local seat command timing; never placed in a board move or relay [C7,N2]. */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { appendFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { dirname, join, resolve } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 /** Resolve an existing checkout and seat without creating or locking a board. */

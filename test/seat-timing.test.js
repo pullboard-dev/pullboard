@@ -22,9 +22,9 @@ test('local command record binds joined seat, item, start and end [C7,N2]', t =>
   db.close();
   const finish = beginSeatTiming(root, 'command', 'status'); finish(); finish();
   const rows = readFileSync(join(root, '.git', 'pullboard', 'seat-timing.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-  assert.equal(rows.length, 2);
+  assert.equal(rows.length, 2); // budget: declared synthetic start and end records, not elapsed time.
   assert.equal(rows[0].phase, 'start'); assert.equal(rows[1].phase, 'end');
-  assert.equal(rows[1].seat, 'core-1'); assert.equal(rows[1].item, 7);
+  assert.equal(rows[1].seat, 'core-1'); assert.equal(rows[1].item, 7); // budget: declared fixture identities, not elapsed time.
   assert.equal(rows[1].id, rows[0].id); assert.ok(rows[1].durationMs >= 0);
 });
 
@@ -35,7 +35,7 @@ test('seat ledger distinguishes held, reserved and idle seats and measured waits
   const events = agents.map(a => ({ event_by: a.agent_id, event_at: at, event_kind: 'fact' }));
   const rows = seatLedger(agents, items, events, [{ version: 1, id: 'x', seat: 'builder', kind: 'runner-wait', phase: 'end', start: now - 60000, end: now }], now);
   assert.deepEqual(rows.map(row => row.state), ['building', 'reviewing', 'idle']);
-  assert.equal(rows[0].split.runnerWaitMs, 60000);
+  assert.equal(rows[0].split.runnerWaitMs, 60000); // budget: declared synthetic one-minute span.
 });
 
 test('seat ledger prints each observed live state and elapsed minutes [C7,N2]', () => {
