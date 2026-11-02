@@ -6,3 +6,5 @@ export { Refused } from './core.js';
 export * from './src/core/registry-guards.js';
 export { PIPELINE_CAUSES, pipelineCause, pipelineCauseType } from './src/core/pipeline-cause.js';
 export { decodedProofEvent, proofEventDetail } from './src/core/event-detail.js';
+
+export { auditAdapterEnvironment } from './src/core/adapter-audit.js';
