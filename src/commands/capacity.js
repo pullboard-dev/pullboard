@@ -1,8 +1,8 @@
 import { buildCalibration } from '../../packages/stats/index.js';
 import { events } from '../../packages/store/index.js';
 import { listItems } from '../../packages/store/index.js';
-import { gateRuns } from '../quarantine.js';
-import { flakeLedger } from '../flakes.js';
+import { gateRuns } from '../../packages/flakes/index.js';
+import { flakeLedger } from '../../packages/flakes/index.js';
 import { eventCauses } from '../board-rigor.js';
 /** Observed test-work cost and explicit boundary inventory, without changing admission [C7]. */
 import { context } from '../cli.js';

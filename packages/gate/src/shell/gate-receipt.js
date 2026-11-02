@@ -13,6 +13,9 @@ import { join } from 'node:path';
 import { repoInfo } from '../../../../src/git.js';
 import { runnerPhaseLine } from './timing.js';
 
+import { testTimeBudget } from '../core/test-time-budget.js';
+import { testTimeBudgetLines } from '../core/test-time-budget.js';
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** The board's receipt log, shared by every worktree of the repo. */
@@ -161,5 +164,11 @@ export function receiptLine(receipt) {
 /** The last day's gate waits for `pullboard stats`: the numbers for --json and the lines to print. */
 export function gateWaitStats(root, now = Date.now()) {
   const stats = receiptStats(recentReceipts(root, now));
-  return { stats, lines: receiptStatsLines(stats) };
+  const file = receiptLog(root);
+  const receipts = !existsSync(file) ? [] : readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).map(line => {
+    try { const row = JSON.parse(line); return row && typeof row.kind === 'string' ? row : { malformed: true }; }
+    catch { return { malformed: true }; }
+  });
+  const testWallBudgets = testTimeBudget(receipts, now);
+  return { stats, testWallBudgets, lines: [...receiptStatsLines(stats), ...testTimeBudgetLines(testWallBudgets)] };
 }

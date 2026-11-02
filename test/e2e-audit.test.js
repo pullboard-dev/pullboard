@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** Value placement and incremental audit control contracts, without executing repository journeys [C7]. */
-import { flakeLedger } from '../src/flakes.js';
+import { flakeLedger } from '../packages/flakes/index.js';
 import { auditFailureItem as focusedAuditFailureItem } from '../packages/items/index.js';
 import { eventCauses } from '../src/board-rigor.js';
 import assert from 'node:assert/strict';

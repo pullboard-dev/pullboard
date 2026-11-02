@@ -1,7 +1,7 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
-import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
+import { gateRuns as nativeGateRuns } from '../packages/flakes/index.js';
+import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /** Rule proof counts come from trunk gate evidence, not a row merely naming a test [S1,A1,A2]. */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
