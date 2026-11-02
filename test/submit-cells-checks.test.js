@@ -708,6 +708,7 @@ test('controller source steps cache only exact green source and base [C7,D3]', a
   const code = [fileURLToPath(new URL('../src/submit-controller-cache.js', import.meta.url))];
   const run = { kind: 'fixture-submit-step', base: box.main, source: box.main, code };
   let calls = 0;
+  t.diagnostic(`node options present: ${Boolean(process.env.NODE_OPTIONS)}`);
   const first = await cachedSubmitSourceStep(box.root, run, () => { calls++; });
   assert.equal(first.reused, false);
   const second = await cachedSubmitSourceStep(box.root, run, () => { calls++; });
