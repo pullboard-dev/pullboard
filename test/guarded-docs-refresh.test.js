@@ -9,8 +9,12 @@ import { test } from 'node:test';
 function fixture(t, failing, slow = false) {
   const root = mkdtempSync(join(tmpdir(), 'guarded-docs-fixture-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  const temporary = mkdtempSync(join(tmpdir(), 'guarded-docs-long-location-'));
+  t.after(() => rmSync(temporary, { recursive: true, force: true }));
+  const longTemp = join(temporary, ...Array(5).fill('long-runner-location-'.repeat(3)));
+  mkdirSync(longTemp, { recursive: true });
   const put = (file, value) => { mkdirSync(join(root, file, '..'), { recursive: true }); writeFileSync(join(root, file), value); };
-  const command = (program, args) => spawnSync(program, args, { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
+  const command = (program, args) => spawnSync(program, args, { cwd: root, encoding: 'utf8', env: { ...process.env, TMPDIR: longTemp, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid', GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' } });
   const git = (...args) => { const result = command('git', args); assert.equal(result.status, 0, result.stderr); return result.stdout.trim(); };
   git('init', '-q', '-b', 'main');
   put('package.json', '{"type":"module"}\n');
@@ -36,6 +40,7 @@ for (const failure of ['formats', 'docs', null]) test(`generated docs ${failure 
     assert.match(readFileSync(box.shout, 'utf8'), /shout all/u, 'coordinator-origin failures broadcast without self-shout');
     assert.match(readFileSync(box.shout, 'utf8'), new RegExp(`${failure} guard`, 'u'));
     if (failure === 'formats') {
+      assert.ok(result.stdout.includes('long-runner-location-'.repeat(3)), 'the real TAP location exceeds the shout budget');
       assert.match(readFileSync(box.shout, 'utf8'), /named format guard/u);
       assert.match(readFileSync(box.shout, 'utf8'), /format fixture failure/u);
     }
