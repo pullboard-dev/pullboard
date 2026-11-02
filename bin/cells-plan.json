@@ -1286,6 +1286,10 @@
     {
       "path": "src/move-history/207.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/checks/relay-boundary.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
