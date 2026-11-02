@@ -157,3 +157,4 @@ export { coordinatorActionStats, coordinatorActionLines, coordinatorActionRise }
 export { coordinatorActions, coordinatorMilestoneRelease, previousCoordinatorMilestone } from './src/shell/coordinator-actions.js';
 
 export { recordTimeCheckpoint } from './src/shell/stats-time-checkpoint.js';
+export { buildCalibration } from './src/core/build-calibration.js';

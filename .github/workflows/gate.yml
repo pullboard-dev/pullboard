@@ -1,6 +1,5 @@
 # The gate on every push to main and every pull request, with the oldest Node pullboard supports and
-# the newest (C7). macOS runs once the repository is public: GitHub bills macOS minutes tenfold on
-# private repositories, and runs public ones free. Full history, since spec check reads it. Run it by
+# the newest (C7). Registered Mac runners prove macOS. Full history, since spec check reads it. Run it by
 # hand on any branch to prove an exact commit: gh workflow run gate.yml --ref <branch>.
 name: gate
 
@@ -29,28 +28,6 @@ jobs:
         node: ['22.13', '24']
         shard: [1, 2, 3]
         shards: [3]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-      - if: github.event_name == 'push' || github.event_name == 'pull_request'
-        run: node bin/check-signoffs.js
-      - run: node bin/pullboard.js spec check
-      - run: npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}
-
-  macos:
-    name: macos (${{ matrix.node }}) ${{ matrix.shard }}/${{ matrix.shards }}
-    if: ${{ !github.event.repository.private }}
-    runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ['22.13', '24']
-        shard: [1, 2]
-        shards: [2]
     steps:
       - uses: actions/checkout@v4
         with:

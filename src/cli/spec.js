@@ -1,3 +1,4 @@
+import { seatAt } from '../item-folder-identity.js';
 /** Helpers for `pullboard spec`: row reservations, citations and current proof. Split from src/cli.js, which re-exports it [C7]. */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -62,7 +63,7 @@ export function coordinatorFile(root, path, revision) {
  */
 export async function reserveRow(ctx, row, written) {
   if (!existsSync(ctx.file)) return row;
-  return withBoard(ctx, async (board) => ordered(ctx, board, 'draftSpecRow', [{ agentId: store.agentAt(board, ctx.info.root)?.agent_id ?? whoAmI(ctx, board).id, row, written }]));
+  return withBoard(ctx, async (board) => ordered(ctx, board, 'draftSpecRow', [{ agentId: seatAt(board, ctx.info.root)?.agent_id ?? whoAmI(ctx, board).id, row, written }]));
 }
 
 /**

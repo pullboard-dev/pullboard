@@ -125,7 +125,7 @@ function composedReservation(ctx, board, found, getItem) {
  * @param {any} values
  * @param {{ ordered: (operation: string, args: any[]) => Promise<any>, idArg: (value: any, what: string) => number, trunkMerge: Function, listItems: Function, itemById: Function, getItem: Function, mainRedReviewItems: Function }} deps
  */
-export async function nextReview(ctx, board, me, values, { ordered, idArg, trunkMerge, listItems, itemById, getItem, mainRedReviewItems, agentSessionDigest }) {
+export async function nextReview(ctx, board, me, values, { ordered, idArg, trunkMerge, listItems, itemById, getItem, mainRedReviewItems, agentSessionDigest, nextFor }) {
   for (const { id, files } of await returnUnmergeable(ctx.info.root, board, me, { ordered, trunkMerge, listItems, itemById, phase: ctx.io.nextPhase })) {
     // Stderr in every mode, so a --json caller still sees why the queue shrank.
     const line = `returned #${id} to its builder unreviewed: it no longer merges onto the trunk (${files.map(shownPath).join(', ')})`;
@@ -139,7 +139,16 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     ctx.io.nextPhase?.('review reservation', id);
     return composedReservation(ctx, board, { item: await ordered('reserveReview', [id, reservation]), reasons: [] }, getItem);
   }
-  const found = await ordered('reserveNextReview', [{ agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
-    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes, observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems }), priority: mainRedReviewItems(ctx.info.root, board) }]);
+  const selection = { agentId: me.id, lane: me.lane, leaseMs: ctx.config.reviewLeaseMs, policy: ctx.config.verify.policy,
+    familyPolicy: ctx.config.verify.family, runnable: values.runnable, routes: values.routes,
+    observeIdle: values.observeIdle, skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems }),
+    priority: mainRedReviewItems(ctx.info.root, board) };
+  // An empty read has no move to authorize. The write authority repeats selection atomically
+  // when a candidate exists, so a stale read can never reserve another reviewer's work.
+  if (nextFor) {
+    const preview = nextFor(board, { ...selection, verify: true });
+    if (!preview.item) return preview;
+  }
+  const found = await ordered('reserveNextReview', [selection]);
   return composedReservation(ctx, board, found, getItem);
 }
