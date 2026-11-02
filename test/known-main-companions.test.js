@@ -13,15 +13,15 @@ import { delimiter } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { companionMainFailuresUntouched } from '../src/main-red.js';
+import { companionMainFailuresUntouched } from '../packages/landing/index.js';
 import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../src/known-main-failures-engine.js';
-import { matchingMainFailures } from '../src/main-failure-matches.js';
-import { failureSignatures } from '../src/main-failure-matches.js';
+import { matchingMainFailures } from '../packages/landing/index.js';
+import { failureSignatures } from '../packages/landing/index.js';
 
 const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 

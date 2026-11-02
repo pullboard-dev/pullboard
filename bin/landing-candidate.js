@@ -2,7 +2,7 @@
 /** Compose only trusted checker services before the original speculative candidate IPC entry [B3,V4,Q1,Q3]. */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { landingCandidateEntry } from '../src/landing-candidates.js';
+import { landingCandidateEntry } from '../packages/landing/index.js';
 const FILE = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === FILE && process.argv[2] === 'candidate' && process.send) {
   const { openBoardForRead } = await import('../src/native-board.js');

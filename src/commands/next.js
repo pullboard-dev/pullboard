@@ -2,9 +2,9 @@ import { agentSessionDigest } from '../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { startNextProgressMonitor } from '../next-progress-monitor.js';
-import { mainRedReviewItems } from '../main-red.js';
-import { mainRedReworkItems } from '../main-red.js';
-import { computedReturnArgs } from '../computed-conflict-return.js';
+import { mainRedReviewItems } from '../../packages/landing/index.js';
+import { mainRedReworkItems } from '../../packages/landing/index.js';
+import { computedReturnArgs } from '../../packages/landing/index.js';
 import {
   mainRedBuildOffer,
   nextTake,
