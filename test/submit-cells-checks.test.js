@@ -688,11 +688,15 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
   });
   syncBuiltinESMExports();
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const source = "import { readFileSync } from 'node:fs'; const reader = readFileSync; reader(new URL('../src/old.js', import.meta.url));";
+  const options = { file: 'test/fixture.js', moves: [['src/old.js', 'packages/new.js']] };
+  const retried = fixtureSourceEdits(source, options);
+  assert.ok(calls >= 2, 'fixture analysis reached and retried its compiler');
+  assert.doesNotMatch(retried.problems.join(' '), /compiler (?:timeout|unavailable)/u);
   const modules = bindingModules();
   assert.ok(bindingReadsForModules(modules).get('binding-cache.js').get('join').reads.length > 0);
-  assert.ok(calls >= 2);
   always = true;
   assert.throws(() => bindingReadsForModules(modules), /compiler timeout after retry.*load .*cores/u);
-  const fixture = fixtureSourceEdits("import { readFileSync } from 'node:fs'; const reader = readFileSync; reader(new URL('../src/old.js', import.meta.url));", { file: 'test/fixture.js', moves: [['src/old.js', 'packages/new.js']] });
+  const fixture = fixtureSourceEdits(source, options);
   assert.match(fixture.problems.join(' '), /compiler timeout after retry.*load .*cores/u);
 });
