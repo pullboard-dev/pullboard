@@ -57,6 +57,7 @@
   ["src/view/agents-panel-model.js","apps/view/src/core/view/agents-panel-model.js","rule"],
   ["src/view/agents-panel-render.js","apps/view/src/core/view/agents-panel-render.js","rule"],
   ["src/view/group-render.js","apps/view/src/core/view/group-render.js","rule"],
+  ["src/view/claim-overlap.js","apps/view/src/core/view/claim-overlap.js","rule"],
   ["src/view/hosted-render.js","apps/view/src/core/view/hosted-render.js","rule"],
   ["src/view/items-selection.js","apps/view/src/core/view/items-selection.js","rule"],
   ["src/view/lifecycle-chart.js","apps/view/src/core/view/lifecycle-chart.js","rule"],

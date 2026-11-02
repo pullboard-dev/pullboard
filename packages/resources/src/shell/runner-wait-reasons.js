@@ -7,7 +7,8 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
     const recorded = db.prepare('SELECT detail,failure FROM runner_unavailable WHERE host = ?').get(runner.host);
     const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(runner.host);
     const gui = observed ? observed.gui === 1 : runner.gui === true;
-    const holders = db.prepare('SELECT browser, timing FROM holder WHERE name = ?').all(`runner:${runner.host}`);
+    const holders = db.prepare('SELECT agent, item, browser, timing FROM holder WHERE name = ?').all(`runner:${runner.host}`);
+    const drain = db.prepare('SELECT token, agent, item FROM runner_timing_drain WHERE singleton=1 AND host=?').get(runner.host);
     let reason = 'available';
     if (unavailable.has(runner.host) && ['TRANSPORT_LOST', 'TRANSPORT_UNVERIFIED'].includes(recorded?.detail)) reason = 'unreachable (transport lost)';
     else if (unavailable.has(runner.host) && recorded?.detail === 'WORKER_UNRESPONSIVE') reason = 'unreachable (worker did not become ready)';
@@ -21,8 +22,22 @@ export function runnerWaitReasons(db, runners, waiter, unavailable) {
       const probe = runnerRecoveryStatus(recorded.failure);
       reason += `; ${probe.step}: ${probe.reason}`;
     }
-    return { host: runner.host, reason };
+    return { host: runner.host, reason, slots: { total: runner.slots, free: Math.max(0, runner.slots - holders.length) },
+      browser: { total: runner.browser, free: Math.max(0, runner.browser - holders.filter(holder => holder.browser === 1).length) },
+      holders: holders.map(holder => ({ agent: holder.agent, item: holder.item || null, browser: holder.browser === 1, timing: holder.timing === 1 })),
+      ...(drain ? { timingDrain: { own: drain.token === waiter.token, agent: drain.agent, item: drain.item || null } } : {}) };
   });
+}
+
+/** Report the same observed capacities and holders that the local admission queue used [Q1,Q2]. */
+export function runnerWaitLine(wait) {
+  const needs = ['gate', ...(wait.browser ? ['browser'] : []), ...(wait.gui ? ['GUI'] : []), ...(wait.timing ? ['timing exclusivity'] : [])];
+  const hosts = wait.runners.map(runner => {
+    const holders = runner.holders.map(holder => `${holder.agent}${holder.item ? ` #${holder.item}` : ''}${holder.browser ? ' browser' : ''}${holder.timing ? ' exclusive' : ''}`).join(', ') || 'none';
+    const drain = runner.timingDrain ? `; timing drain ${runner.timingDrain.agent}${runner.timingDrain.item ? ` #${runner.timingDrain.item}` : ''}` : '';
+    return `${runner.host}: ${runner.reason === 'available' ? 'queue priority' : runner.reason}, gate ${runner.slots.free}/${runner.slots.total} free, browser ${runner.browser.free}/${runner.browser.total} free, leases ${holders}${drain}`;
+  });
+  return `runner wait: needs ${needs.join(' + ')}; ${hosts.join('; ') || 'no eligible registered runner'}`;
 }
 
 /** Name the local admission branch without changing queue order or creating capacity. */

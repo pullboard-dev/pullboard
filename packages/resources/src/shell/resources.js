@@ -46,6 +46,7 @@ import {
   localWaitBranch,
   runnerDeadlineLine,
   runnerWaitReasons,
+  runnerWaitLine,
 } from './runner-wait-reasons.js';
 import {
   ARRIVAL_ORDER,
@@ -405,6 +406,7 @@ function snapshot(db, name, order = ARRIVAL_ORDER, now = Date.now()) {
     ...(['gate', 'browser'].includes(name) && shortSlot === 1 ? { slot: 'short' } : {}),
     ...(['gate', 'browser'].includes(name) && shortSlot === 0 ? { slot: 'gate' } : {}),
     ...(['gate', 'browser'].includes(name) && shortEligible === 1 ? { requestedSlot: 'short-eligible' } : {}),
+    ...(remote === 1 && runnerWaitReasons !== '[]' ? { runnerWait: { browser: browser === 1, gui: gui === 1, timing: timing === 1, runners: JSON.parse(runnerWaitReasons) } } : {}),
     ...(runnerDeadlineAt > 0 && now >= runnerDeadlineAt ? { runnerDeadline: { at: runnerDeadlineAt, branch: runnerWaitBranch, runners: JSON.parse(runnerWaitReasons) } } : {}),
     ...(memoryHeld === 1 ? { memoryHeld: true } : {}), ...(timing === 1 ? { timing: true } : {}), ...(browser === 1 ? { browser: true } : {}), ...(gui === 1 ? { gui: true } : {}), ...(remote === 1 ? { remote: true } : {}),
     ...(requiredExecutor ? { requiredExecutor: JSON.parse(requiredExecutor) } : {}), ...(runnerOnly === 1 ? { runnerOnly: true } : {}), ...(runner ? { runner } : {}), ...(item ? { item } : {}), ...(kind ? { kind } : {}), ...(leaseUntil ? { leaseUntil } : {}) });
@@ -513,9 +515,9 @@ function validatedRunners(value) {
 function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirst = false, order = ARRIVAL_ORDER, now = Date.now(), memoryHeld = false, loadPolicy = {}) {
   const waiters = orderedWaiters(queuedWaiters(db, 'gate'), now, order);
   const holders = db.prepare("SELECT pid, landing, browser, short_slot AS shortSlot, timing FROM holder WHERE name = 'gate'").all();
-  const localUsed = holders.filter(holder => holder.shortSlot !== 1).length;
-  const localShortUsed = holders.filter(holder => holder.shortSlot === 1).length;
-  const localBrowsers = holders.filter(holder => holder.browser === 1).length;
+  let localUsed = holders.filter(holder => holder.shortSlot !== 1).length;
+  let localShortUsed = holders.filter(holder => holder.shortSlot === 1).length;
+  let localBrowsers = holders.filter(holder => holder.browser === 1).length;
   const browserCapacity = db.prepare("SELECT capacity FROM resource WHERE name = 'browser'").get()?.capacity ?? 1;
   const usage = new Map(runners.map(runner => {
     // The reserved namespace is authoritative even for an older generic holder that
@@ -574,6 +576,11 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
           selected = [...compatible].sort((a, b) => usage.get(a.host).slots - usage.get(b.host).slots)[0];
           dispatch = { reason: measured.length === compatible.length ? 'all compatible runners at or above CPU ceiling; falling back to free slots' : 'missing or stale runner CPU readings; falling back to free slots', ceiling };
         }
+      }
+      // Flexible work preserves browser capacity whenever a compatible browser-free host is available.
+      if (waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)) {
+        selected = compatible.find(runner => runner.browser === 0);
+        dispatch = undefined;
       }
       const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(selected.host);
       return { ...selected, ...(dispatch ? { dispatch } : {}), ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1 } : {}), shortSlot: false };
@@ -634,7 +641,21 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   for (const waiter of waiters) {
     const executor = available(waiter);
     if (executor) {
-      if (waiter.ticket !== ticket) return null;
+      if (waiter.ticket !== ticket) {
+        // Reserve one hypothetical slot for each earlier eligible waiter; an idle second slot
+        // remains usable even while that earlier process has not polled again.
+        if (executor.host) {
+          const used = usage.get(executor.host);
+          used.slots += 1;
+          used.browsers += Number(waiter.browser === 1);
+          used.timing ||= waiter.timing === 1;
+        } else {
+          if (executor.shortSlot) localShortUsed += 1; else localUsed += 1;
+          localBrowsers += Number(waiter.browser === 1);
+          holders.push({ pid: waiter.pid, landing: waiter.landing, browser: waiter.browser, timing: waiter.timing });
+        }
+        continue;
+      }
       if (drain?.token === waiter.token) {
         timingDrainEvent(db, executor.host === drain.host ? 'exclusive-admitted' : 'drain-cancel', drain, waiter, now, executor.host === drain.host ? '' : 'another executor admitted');
         if (executor.host === drain.host) db.prepare("UPDATE runner_timing_drain SET stage='exclusive' WHERE singleton=1").run();
@@ -1048,6 +1069,7 @@ export async function takeResource(options) {
   let queuedAt = resume?.queuedAt ?? new Date().toISOString();
   let leaseUntil = '';
   let initialTicket = resume?.ticket;
+  let lastRunnerWait = '';
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
     const result = await options.onWait?.(state);
@@ -1124,7 +1146,7 @@ export async function takeResource(options) {
         const runnersFirst = runnersFirstProvider?.() === true;
         if (!runnerDeadlineAt && remote && (runnerOnly || runners.length) && options.runnerWaitMs) runnerDeadlineAt = requestedAt + options.runnerWaitMs;
         const runnerDeadlinePassed = runnerDeadlineAt > 0 && now >= runnerDeadlineAt;
-        const waiter = db.prepare('SELECT ticket, remote, browser, gui, required_executor AS requiredExecutor, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
+        const waiter = db.prepare('SELECT ticket, token, remote, browser, gui, required_executor AS requiredExecutor, runner_wait_branch AS runnerWaitBranch FROM waiter WHERE token = ?').get(token);
         if (!waiter) {
           if (resume && initialTicket) {
             db.prepare('INSERT OR IGNORE INTO waiter(ticket, token, name, pid, started, agent, repo, since, heartbeat, landing, item_check, diagnostic, browser, item, kind, remote, classed, release_aware, board_key, release_rank, queue_ticket, short_eligible, gui, timing, timing_aware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(initialTicket, token, name, pid, started, agent, repo, queuedAt, Date.now(), Number(landing), Number(itemCheck || diagnostic), Number(diagnostic), Number(browser), item, kind, Number(remote), classedMarker(order), 1, boardKey, releaseRank, resume?.queueTicket ?? null, Number(shortEligible), Number(gui), Number(timing), 1);
@@ -1191,7 +1213,13 @@ export async function takeResource(options) {
           db.prepare('UPDATE holder SET runner_execution = ? WHERE token = ?').run(Number(options.runnerExecution === true), token);
           return { acquired: true, state: { ...spot, position: 0, ...(runnerDeadline ? { runnerDeadline } : {}) }, ticket: waiter.ticket, queueTicket, runner: executor.host ? executor : undefined, lateRunnerDispatch: lateDispatch, shortSlot: executor.shortSlot === true, capacity: limit, admittedAt: acquiredAt };
         }
-        return { acquired: false, state: { ...spot, position: reportPosition, ...(memoryHeld ? { memory } : {}), ...(runnerDeadline ? { runnerDeadline } : {}) } };
+        let runnerWait;
+        if (name === 'gate' && waiter.remote === 1) {
+          const diagnosticRunners = restriction?.kind === 'ssh' ? runners.filter(runner => runnerAllowed({ requiredExecutor: restriction }, runner)) : runners;
+          runnerWait = { browser, gui, timing, runners: runnerWaitReasons(db, diagnosticRunners, { ...waiter, timing: Number(timing) }, unavailable) };
+          db.prepare('UPDATE waiter SET runner_wait_reasons = ? WHERE token = ?').run(JSON.stringify(runnerWait.runners), token);
+        }
+        return { acquired: false, state: { ...spot, position: reportPosition, ...(runnerWait ? { runnerWait } : {}), ...(memoryHeld ? { memory } : {}), ...(runnerDeadline ? { runnerDeadline } : {}) } };
       }));
       lateAdmissionClosed ||= Boolean(acquired.state.runnerDeadline);
       if (acquired.acquired) {
@@ -1312,6 +1340,10 @@ export async function takeResource(options) {
           waitMs: acquiredWaitMs, ...(runnerDeadlineAt ? { runnerWaitDeadline: acquired.lateRunnerDispatch?.startupDeadlineAt ?? runnerDeadlineAt } : {}),
           ...(lateRunnerDispatch ? { lateRunnerDispatch } : {}), release, renew, timingEvidence,
           ...(acquired.runner ? { requeueRunner, cancelRunner } : {}) };
+      }
+      if (acquired.state.runnerWait) {
+        const line = runnerWaitLine(acquired.state.runnerWait);
+        if (line !== lastRunnerWait) { process.stderr.write(line + '\n'); lastRunnerWait = line; }
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
