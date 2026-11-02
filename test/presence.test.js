@@ -213,7 +213,7 @@ test('local heartbeats revive a seat without changing exported history or a remo
 
 test('a relay reader sees the same presence as the native view [B3,I6,H5,H17]', async (t) => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { relaySnapshot } = await import('../src/relay-presentation.js');
+  const { relaySnapshot } = await import('../packages/pages/index.js');
   const { exportBoard, importBoard } = await import('../packages/store/index.js');
   const { heartbeatSeat } = await import('../packages/store/index.js');
   const helpers = createE2eHelpers();
@@ -504,7 +504,7 @@ test('checkpoint fingerprints retain hidden-seat heartbeats without treating clo
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { heartbeatSeat } = await import('../packages/store/index.js');
   const { exportBoard } = await import('../packages/store/index.js');
-  const { relayPresentation, presentationDigest } = await import('../src/relay-presentation.js');
+  const { relayPresentation, presentationDigest } = await import('../packages/pages/index.js');
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
