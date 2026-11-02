@@ -25,6 +25,7 @@ const HELP_EXAMPLES = {
   intake: 'pullboard intake https://github.com/owner/repo/pull/7 --criterion "behavior" --check "npm test"',
   patch: 'pullboard patch list 12',
   companion: 'pullboard companion 12 api "Provide the API" --key api-part',
+  slice: 'pullboard slice 12 "Build the view" --files web/view.js',
   add: ADD_EXAMPLE, move: 'pullboard move ~web#3 --to web', list: 'pullboard list web', show: 'pullboard show 12',
   claim: 'pullboard claim 12', ship: 'pullboard ship --note "Checks passed"', submit: 'pullboard submit 12', 'next --verify': 'pullboard next --verify',
   fact: 'pullboard fact 12 measurement "The check passes in 8 seconds"',
