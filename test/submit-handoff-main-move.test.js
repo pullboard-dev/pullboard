@@ -109,9 +109,7 @@ test('queued submit accepts a forward main move during native preflight [V4,H16,
   const completed = state(box);
   assert.equal(completed.job.state, 'green', JSON.stringify(completed.job));
   assert.equal(completed.item.item_status, 'submitted');
-  const advanced = JSON.parse(readFileSync(join(box.dir, 'main-moved.json'), 'utf8')).main;
-  box.git(box.repo, 'merge-base', '--is-ancestor', advanced, completed.item.item_commit);
-  box.git(box.repo, 'merge-base', '--is-ancestor', box.commit, completed.item.item_commit);
+  assert.equal(completed.item.item_commit, box.commit, 'the queued proof records its captured source; landing composes later main');
 });
 
 test('queued submit still refuses a main rewind during native preflight [V4,H16,E18]', t => {

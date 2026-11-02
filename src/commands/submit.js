@@ -616,31 +616,18 @@ export async function submitHere(ctx, id, infra) {
   // A main that moved through commits touching nothing this proof depends on is merged without a rerun (#1816).
   let submitted = commit;
   let trunkMove = null;
+  // Queued proof is pinned to its captured main. Landing handles later composition.
   if (isSubmitHandoffWorker(ctx) && currentTrunk.commit !== acceptedMain.commit) {
     if (!contains(root, acceptedMain.commit, currentTrunk.commit)) throw new Refused('SUBMIT_HANDOFF_CHANGED', 'current main no longer contains the queued accepted policy');
+    currentTrunk = acceptedMain;
   }
   if (requireComposition && !companion && currentTrunk.commit !== acceptedMain.commit) {
-    if (isSubmitHandoffWorker(ctx)) await withBoard(ctx, async board => {
-      const job = submitHandoff(board, id);
-      await ordered(ctx, board, 'startSubmitHandoff', [id, { agentId: me.id, job: job.id,
-        hookProjection: { job: job.id, commit: job.executionCommit, tree: job.executionTree,
-          digest: job.digest, receipts: [...new Set(submissionReceiptIds)] } }]);
-    });
-    let composed;
-    try { composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
+    const composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
       readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles, judgeTrunkMove,
-        ...(ctx.submitHandoffOutput ? { onMergeFailure: error => writeFileSync(join(ctx.submitHandoffOutput, 'merge-failure.log'), String(error.stderr || error.stack || error.message), { mode: 0o600 }) } : {}) }); }
-    catch (error) {
-      // Retain only the exact proved source. A partially composed checkout is not proof.
-      if (!isSubmitHandoffWorker(ctx) || error.code !== 'MAIN_NOT_COMPOSED' || headCommit(root) !== commit || !isClean(root)
-        || !contains(root, acceptedMain.commit, requireTrunkMerge(root, commit).commit)) throw error;
-      currentTrunk = acceptedMain;
-    }
-    if (composed) {
-      submitted = composed.commit;
-      trunkMove = composed.evidence;
-      currentTrunk = requireTrunkMerge(root, submitted);
-    }
+        ...(ctx.submitHandoffOutput ? { onMergeFailure: error => writeFileSync(join(ctx.submitHandoffOutput, 'merge-failure.log'), String(error.stderr || error.stack || error.message), { mode: 0o600 }) } : {}) });
+    submitted = composed.commit;
+    trunkMove = composed.evidence;
+    currentTrunk = requireTrunkMerge(root, submitted);
   }
   const measuredLines = changedLines(root, currentTrunk.commit, submitted);
   const size = measuredLines === null ? undefined : {
