@@ -1,7 +1,7 @@
 /** Shared real board and Git setup for ordering regressions [N2,B13,H16]. */
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -44,8 +44,10 @@ export function lineOrderFixture(t, engine = null) {
   const root = join(box.dir, 'line-order');
   mkdirSync(root);
   box.git(root, 'init', '-q', '-b', 'main');
-  box.git(root, 'commit', '--allow-empty', '-qm', 'test: seed the private line-order repository');
-  const board = openBoard(join(root, 'board.sqlite'));
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { core: { owns: ['src/'], specs: [] } } }));
+  box.git(root, 'add', 'pullboard.json');
+  box.git(root, 'commit', '-qm', 'test: seed the private line-order repository');
+  const board = openBoard(join(root, 'board.sqlite'), undefined, { gitRoot: root });
   if (engine !== null) board.executionEngineVersion = engine;
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), route: 'strong', parent: 'builder-P', session: 'builder-child' });
