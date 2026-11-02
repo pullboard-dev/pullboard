@@ -42,7 +42,7 @@ export const MACHINE_CALLBACKS = {
   'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': '../packages/landing/src/core/landing-environment-guards.js#requireVerdict' },
   'board-reopen.js': {
     'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
-    'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
+    'board.nativePorts.conflictValue': '../packages/landing/src/shell/computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
   },
   'board-record-landing-batch.js': {
@@ -61,7 +61,7 @@ export const MACHINE_CALLBACKS = {
   // Explicit item ports preserve these canonical authority and sandbox refusal paths.
   'reopen-authority.js': {
     verdictWithdrawalTarget: '../packages/verify/src/shell/verdict-withdrawal.js#verdictWithdrawalTarget',
-    computedConflictProblem: 'computed-conflict-receipt.js#computedConflictProblem',
+    computedConflictProblem: '../packages/landing/src/shell/computed-conflict-receipt.js#computedConflictProblem',
   },
   '../packages/verify/src/shell/reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
   'board-health.js': {
@@ -85,7 +85,7 @@ export const MACHINE_CALLBACKS = {
   'board.js': {
     freeze: 'cli.js#freezer',
     'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
-    'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
+    'board.nativePorts.conflictValue': '../packages/landing/src/shell/computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
     'board.nativePorts.recordAutomaticRigorDrafts': '../packages/rigor/src/shell/rigor-auto.js#recordAutomaticRigorDrafts',
     'board.nativePorts.newRigorNotices': '../packages/rigor/src/core/rigor-notices.js#newRigorNotices',
