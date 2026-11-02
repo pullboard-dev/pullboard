@@ -10,7 +10,8 @@ import {
 import { itemFileCollisions } from '../../packages/items/index.js';
 import { sayMapSlice } from '../../packages/codemap/index.js';
 import { primaryCheckoutRoot } from '../cli/worktree.js';
-import { cleanItemFolders, openItemFolder } from '../item-folder.js';
+import { cleanItemFolders } from '../item-folder.js';
+import { openItemFolder } from '../item-folder.js';
 import {
   MainSpecMerged,
   actOn,

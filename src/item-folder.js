@@ -1,7 +1,10 @@
 /** Per-item Git worktrees for a joined seat [B5,C7]. */
 import { existsSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
-import { git, tryGit } from './git.js';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { git } from './git.js';
+import { tryGit } from './git.js';
 import { primaryCheckoutRoot } from './cli/worktree.js';
 
 /** A seat's folders are siblings of its checkout, never inside its working tree. */
