@@ -3,7 +3,7 @@
 /** Clean landing merges regenerate shared documentation before the real gate [B3,C7,V4]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -58,8 +58,11 @@ function project(disableRefresh) {
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['-xf', '-', '-C', box.repo], { input: archive.stdout, env });
   assert.equal(extracted.status, 0, extracted.context);
+  // The private project uses its own explicit gate, not this repository's generated test inventory.
+  rmSync(join(box.repo, 'packages/gate/test-tiers.json'));
   const armed = join(box.dir, 'landing-gate-armed');
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.gate = 'node --test --test-reporter=tap web/docs.test.js';
   config.lanes.web.owns.push('src/command-docs/');
   config.landing = { ...config.landing, manualOverride: true, publish: 'separate' };
   config.flakes = { rerun: false, quarantine: false };
