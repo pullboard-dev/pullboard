@@ -1,11 +1,11 @@
 /** Observe native test worker output before Node buffers reporter events [C7,V10]. */
-const { channel } = require('node:diagnostics_channel');
-const { writeFileSync } = require('node:fs');
-const { join } = require('node:path');
-const { DefaultSerializer } = require('node:v8');
+import { channel } from 'node:diagnostics_channel';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DefaultSerializer } from 'node:v8';
 
 /** Separate raw stdout from Node's length-framed test protocol, including split headers. */
-function rawOutputObserver(notify) {
+export function rawOutputObserver(notify) {
   const serializer = new DefaultSerializer();
   serializer.writeHeader();
   const header = serializer.releaseBuffer();
@@ -30,7 +30,7 @@ function rawOutputObserver(notify) {
 }
 
 /** Only the native test parent observes its own Node workers; each marker is keyed by worker PID. */
-function observeLegacyWorkers(directory) {
+export function observeLegacyWorkers(directory) {
   if (!directory || process.env.NODE_TEST_CONTEXT === 'child-v8' || !process.execArgv.includes('--test')) return;
   channel('child_process').subscribe(({ process: child }) => {
     child.once('spawn', () => {
@@ -52,4 +52,3 @@ function observeLegacyWorkers(directory) {
 
 observeLegacyWorkers(process.env.PULLBOARD_LEGACY_WATCHDOG_DIR);
 
-module.exports = { rawOutputObserver, observeLegacyWorkers };
