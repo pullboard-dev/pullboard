@@ -1,0 +1,60 @@
+/** Read shim ages from actual first-parent move history, never from a guessed file modification time [C7,CD64]. */
+import { readPathMap } from '../core/path-map.js';
+import { gitExecFileSync } from '../../../git/index.js';
+import { cleanGitEnvironment } from '../../../git/index.js';
+import { tryGit } from '../../../git/index.js';
+import { lex } from '../../../kernel/index.js';
+
+/** Read all old mapped paths in one Git batch; missing paths are completed removals. */
+function mappedSources(root, commit, paths) {
+  if (!paths.length) return new Map();
+  const bytes = gitExecFileSync(['cat-file', '--batch'], { cwd: root, env: cleanGitEnvironment(),
+    input: paths.map(path => `${commit}:${path}\n`).join(''), encoding: null, maxBuffer: 64 * 1024 * 1024 });
+  const sources = new Map();
+  let at = 0;
+  for (const path of paths) {
+    const end = bytes.indexOf(10, at);
+    if (end < 0) throw new Error('incomplete shim history batch');
+    const header = bytes.toString('utf8', at, end);
+    at = end + 1;
+    if (header.endsWith(' missing')) continue;
+    const match = /^[a-f0-9]+ blob (\d+)$/u.exec(header);
+    if (!match) throw new Error('invalid shim history batch');
+    const length = Number(match[1]);
+    if (at + length >= bytes.length || bytes[at + length] !== 10) throw new Error('truncated shim history batch');
+    sources.set(path, bytes.toString('utf8', at, at + length));
+    at += length + 1;
+  }
+  return sources;
+}
+
+/** Return each remaining shim with its Git-recorded landing date and native removal work item. */
+export function shimLifecycle(root, { commit = 'HEAD', items = [] } = {}) {
+  const metadata = tryGit(root, ['ls-tree', '--name-only', commit, '--', 'path-map.json', 'bin/cells-plan/path-map']);
+  if (metadata.status !== 0 || !metadata.stdout) return [];
+  const map = readPathMap(root, { commit });
+  if (!map.size) return [];
+  const history = tryGit(root, ['log', '--first-parent', '--diff-filter=A', '--name-only', '--format=SHIM-DATE:%cI', commit,
+    '--', 'path-map.json', 'bin/cells-plan/path-map']);
+  if (history.status !== 0) throw new Error('cannot read landed shim history');
+  const dates = new Map();
+  let date = null;
+  for (const line of history.stdout.split('\n')) {
+    if (line.startsWith('SHIM-DATE:')) date = line.slice('SHIM-DATE:'.length);
+    else if (date && line) dates.set(line, date);
+  }
+  const sources = mappedSources(root, commit, [...map.keys()]);
+  const result = [];
+  for (const [path, target] of map) {
+    const source = sources.get(path);
+    if (!source || !/^(?:export(?:\*|\{[^}]*\})from(?:''|"");?)+$/u.test(lex(source).code.replace(/\s/gu, ''))) continue;
+    const cell = /^(?:packages|apps)\/([^/]+)\//u.exec(target)?.[1];
+    if (!cell) continue;
+    const candidates = items.filter(item => /shim/iu.test(item.item_title ?? '')
+      && `${item.item_title ?? ''}\n${item.item_criterion ?? ''}`.includes(path));
+    candidates.sort((a, b) => Number(['verified', 'withdrawn'].includes(a.item_status)) - Number(['verified', 'withdrawn'].includes(b.item_status)) || b.item_id - a.item_id);
+    result.push({ path, cell, moveLandedAt: dates.get(`bin/cells-plan/path-map/${cell}.json`) ?? dates.get('path-map.json') ?? null,
+      removalItem: candidates[0]?.item_id ?? null });
+  }
+  return result;
+}
