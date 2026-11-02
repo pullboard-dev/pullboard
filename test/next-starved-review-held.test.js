@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import { fixture, cli } from './next-take-fixture.js';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 
 /** Claim through the real CLI so the seat gets its item folder, and return the folder path the CLI printed. */
 async function claimed(box, seat, id) {
