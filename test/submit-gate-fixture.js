@@ -71,8 +71,8 @@ export function builderRepo(box, additionalOwned = []) {
   config.lanes = { build: { owns: ['src/', 'test/', ...additionalOwned], specs: ['G'] } };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   commitAll(box);
-  const made = box.run('worktree', 'build', '--json');
-  assert.equal(made.code, 0, made.err);
+  const made = box.run('worktree', 'build', '--model', 'fixture-builder', '--json');
+  assert.equal(made.code, 0, `${made.err} ${made.out}`);
   const root = JSON.parse(made.out).path;
   /** Run Git only in the joined builder. */
   const git = (...args) => runFixtureGit(args, { cwd: root, env: box.env });
