@@ -51,6 +51,7 @@ function observeGates(box) {
 function runBatch(box, enabled) {
   const source = [
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
+    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/native-board.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/src/shell/config.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
@@ -238,7 +239,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   const direct = [
     `import * as store from ${JSON.stringify(url('board.js'))};`,
     `import { openBoard } from ${JSON.stringify(url("native-board.js"))};`,
-    `import { runLandingBatch } from ${JSON.stringify(url('land.js'))};`,
+    `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
     `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
@@ -251,7 +252,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
     "import assert from 'node:assert/strict';",
     `import { withGateSlot } from ${JSON.stringify(url('gate.js'))};
 ${executionServicesSource(url('gate.js'))}`,
-    `import { gateSlotEnvironment, holdsLease } from ${JSON.stringify(url('resources.js'))};`,
+    `import { gateSlotEnvironment, holdsLease } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href)};`,
     `import { runFixtureChild } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, 'fixture-child.js')).href)};`,
     'const [root, bin] = process.argv.slice(1); let owned;',
     'await withGateSlot(root, async lease => { owned = lease; const env = { ...process.env, ...gateSlotEnvironment(lease) };',

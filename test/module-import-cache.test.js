@@ -84,7 +84,7 @@ test('the real browser-slot preload retains census reuse while opaque options st
   const calls = compilerCalls(t);
   const before = process.env.NODE_OPTIONS;
   t.after(() => { if (before === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = before; });
-  process.env.NODE_OPTIONS = `--import=${new URL('../src/browser-slot-guard.js', import.meta.url).href}`;
+  process.env.NODE_OPTIONS = `--import=${new URL('../packages/gate/src/shell/browser-slot-guard.js', import.meta.url).href}`;
   withImportParseCache(() => {
     assert.deepEqual(importsIn([SOURCE]), [['./leaf.js']]);
     assert.deepEqual(importsIn([SOURCE]), [['./leaf.js']]);

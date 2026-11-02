@@ -4,7 +4,9 @@ import {
   existsSync,
   mkdtempSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import {
   isAbsolute,
@@ -17,6 +19,9 @@ import { testsNeedBrowser } from './browser-admission.js';
 import { selectAffectedTests } from './affected-tests.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
 import { mainPolicy } from '../../../sandbox/index.js';
+import { runnerPolicyRecord } from '../../../sandbox/index.js';
+import { RUNNER_POLICY_FILE } from '../../../sandbox/index.js';
+import { acceptedBudgetTrunk } from './test-file-budget-policy.js';
 import {
   runProfiledShellAsync,
   withGateSlot,
@@ -110,10 +115,21 @@ function snapshotCommit(root) {
 }
 
 /** Run the files where the work is: this clean checkout, or a clean temporary checkout of its snapshot. */
-async function inCleanCheckout(root, work, withMainCheckout) {
+export async function inCleanCheckout(root, work, withMainCheckout) {
   const { commit, clean } = snapshotCommit(root);
   if (clean) return work(root);
-  const result = await withMainCheckout(root, commit, work);
+  const accepted = acceptedBudgetTrunk(root);
+  const result = await withMainCheckout(root, commit, async checkout => {
+    if (accepted?.commit) {
+      const trunk = { ref: accepted.branch ?? accepted.ref, commit: accepted.commit };
+      const env = cleanGitEnvironment();
+      git(checkout, ['update-ref', trunk.ref, trunk.commit], env);
+      const tree = git(checkout, ['rev-parse', 'HEAD^{tree}'], env);
+      const record = runnerPolicyRecord({ id: randomUUID(), commit, tree, trunk });
+      writeFileSync(join(checkout, '.git', RUNNER_POLICY_FILE), JSON.stringify(record), { mode: 0o600 });
+    }
+    return work(checkout);
+  });
   if (result?.unavailable) throw new Refused('TEST_SNAPSHOT', `${result.unavailable}; commit the work and run pullboard test again`);
   return result;
 }
