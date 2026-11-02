@@ -32,6 +32,8 @@ function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 function fixture(t, { enabled = true, result = 'green', companion = false } = {}) {
   const helpers = createE2eHelpers();
   const box = helpers.project('true');
+  // The nested fixture owns its isolated machine pool, not the runner's outer lease.
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete box.env[key];
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
   const releases = [release];
