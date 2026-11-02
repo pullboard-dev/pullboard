@@ -183,6 +183,8 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
 function returnToBuilder(board, id, job, error) {
   const leaseUntil = new Date(board.clock.now().getTime() + job.leaseMs).toISOString();
   board.db.prepare('UPDATE item SET item_lease_until=? WHERE item_id=?').run(leaseUntil, id);
+  // The fresh deadline is lease evidence like any renewal, so lapsed-claim maintenance can free it once it ends.
+  logEvent(board, job.agentId, 'renew', id, { leaseUntil, digest: job.digest, queuedRedReturn: true });
   logEvent(board, job.agentId, 'submit_handoff_returned', id, { commit: job.commit, leaseUntil });
   insertShout(board, { from: 'coordinator', to: job.agentId, text: `Queued submit #${id} was refused (${error.code}); it stays claimed by you until ${leaseUntil}. Fix it, commit and submit again; pullboard show ${id} prints the refusal and its next step.`, lanes: [] });
 }

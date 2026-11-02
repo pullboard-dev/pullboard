@@ -8,6 +8,7 @@ import { openBoard } from '../apps/lib/index.js';
 import { captureLapsedClaims } from '../packages/health/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { maintainStaleState } from '../packages/store/index.js';
+import { staleStateLimits } from '../packages/store/index.js';
 import { claim, firstRefusal, getItem, queuedRedLines, register, submitHandoff } from '../packages/store/index.js';
 
 /** Require authentic command success before reading its JSON document. */
@@ -131,6 +132,28 @@ test('a refused queued gate stays claimed by its seat, leads next, inbox and cla
     const other = register(board, { lane: 'web', path: join(box.dir, 'other-web'), family: 'Fixture other seat' });
     claim(board, refused, { agentId: other, lane: 'web', leaseMs: 60_000, freeze: item => ({ text: item.item_title, digest: 'lapsed-red-fixture' }) });
     assert.equal(getItem(board, refused).item_owner, other);
+  } finally { board.db.close(); }
+});
+
+test('a returned red claim left untouched is freed by maintenance once its fresh lease lapses [V4,H16,B4]', async t => {
+  const box = fixture(t);
+  const [refused] = box.ids;
+  const folder = document(box.run(box.web, 'claim', String(refused), '--json')).itemFolder;
+  assert.equal(box.helpers.commitFile(box, folder, 'src/unplaced.js', 'export const unplaced = true;\n', 'feat(web): unplaced source [G1]').status, 0);
+  assert.equal(document(box.run(folder, 'submit', String(refused), '--no-next', '--json')).queued, true);
+  const red = await terminal(box, refused);
+  assert.equal(red.job.state, 'red');
+  await cleaned(box, refused);
+  // Nothing happens after the return: the fresh lease lapses and the stale interval passes.
+  const config = loadConfig(box.repo);
+  const lapsed = { now: () => new Date(Date.parse(red.item.item_lease_until) + staleStateLimits(config).claim + 60_000) };
+  const board = openBoard(box.boardFile, lapsed);
+  try {
+    const snapshot = captureLapsedClaims({ clock: lapsed, config }, board, 'coordinator');
+    assert.ok(snapshot?.claims.some(row => row.id === refused), 'the lapsed returned claim is observed');
+    maintainStaleState(board, { agentId: 'coordinator', snapshot, health: config.health ?? {}, claimsOnly: true });
+    assert.equal(getItem(board, refused).item_status, 'open', 'maintenance frees the lapsed returned claim');
+    assert.equal(getItem(board, refused).item_owner, null);
   } finally { board.db.close(); }
 });
 
