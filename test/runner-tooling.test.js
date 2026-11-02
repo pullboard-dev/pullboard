@@ -33,8 +33,8 @@ const {runOnRunnerAsync}=await import(${JSON.stringify(pathToFileURL(join(toolin
 const result=await runOnRunnerAsync(process.cwd(), 'node -e "console.log(12345)"', {runner:{host:${JSON.stringify(HOST)},slots:1,browser:0}});
 assert.equal(result.isGreen,true,JSON.stringify(result));
 assert.match(result.output,/12345/u);
-assert.equal(result.profile.executionSource.tooling.kind,'git-checkout');
-assert.equal(result.profile.executionSource.tooling.commit,${JSON.stringify(commit)});
+assert.equal(result.executionSource.tooling.kind,'git-checkout');
+assert.equal(result.executionSource.tooling.commit,${JSON.stringify(commit)});
 console.log('DIRTY_TOOLING_CHECK_PASSED');`;
   const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], {
     cwd: project, env: box.env, encoding: 'utf8', timeout: 120_000,
