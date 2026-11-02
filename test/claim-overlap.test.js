@@ -88,4 +88,7 @@ test('a merged main change is not attributed to the claimed worktree', t => {
   const observed = claimWorktrees([item], [{ agent_id: 'one', agent_path: seat }]).get(1);
   assert.equal(observed.unknown, false);
   assert.deepEqual(observed.files, ['own.js']);
+  git(seat, 'mv', 'base.js', 'renamed.js');
+  const renamed = claimWorktrees([item], [{ agent_id: 'one', agent_path: seat }]).get(1);
+  assert.deepEqual(renamed.files.toSorted(), ['base.js', 'own.js', 'renamed.js']);
 });

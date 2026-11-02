@@ -48,11 +48,11 @@ export function activityWorkingFiles(root, builds) {
   if (!builds.length) return [];
   const files = new Set();
   let unknown = false;
-  const commands = [['diff', '--no-ext-diff', '--no-textconv', '--name-only', '-z', 'HEAD'],
+  const commands = [['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-only', '-z', 'HEAD'],
     ['ls-files', '-z', '--others', '--exclude-standard']];
   for (const base of new Set(builds.map(item => item.item_claim_head))) {
     if (!/^[a-f0-9]{40}$/u.test(base ?? '')) { unknown = true; continue; }
-    commands.push(['diff', '--no-ext-diff', '--no-textconv', '--name-only', '-z', base, 'HEAD']);
+    commands.push(['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-only', '-z', base, 'HEAD']);
   }
   for (const args of commands) {
     try { for (const path of gitPaths(root, args)) files.add(path); } catch { unknown = true; }
