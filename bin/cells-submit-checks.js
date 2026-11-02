@@ -98,7 +98,9 @@ function refuse(problems) {
  */
 function approvedStay(after, row, candidateRoot, criterion) {
   const [from, to] = row;
-  if (!criterion.includes(`plan stay ${from}`) || !(after.stays ?? []).some(stay => stay.path === from)) return false;
+  // The named path must end at a boundary (a sentence's full stop counts): a ruling for relay/x.js.map never approves relay/x.js.
+  const named = new RegExp(`(?:^|[^\\w./-])plan stay ${from.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?![\\w/-]|\\.[\\w/-])`, 'u');
+  if (!named.test(criterion) || !(after.stays ?? []).some(stay => stay.path === from)) return false;
   try { if (!lstatSync(join(candidateRoot, from)).isFile()) return false; } catch { return false; }
   return !existsSync(join(candidateRoot, to));
 }

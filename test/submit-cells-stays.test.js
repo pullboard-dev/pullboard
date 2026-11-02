@@ -63,8 +63,14 @@ test('an accepted row the frozen criterion names as a plan stay may stay in plac
   const from = stayFirstKernelRow(box);
   const candidate = commitCandidate(box);
   assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from} for the deploy.`))), /disappeared/u);
+  assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Ops ruling: plan stay ${from}.`))), /disappeared/u,
+    'a sentence ending right after the path still names it');
   assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item('Preserve actual cell boundaries.'))),
     new RegExp(`accepted row ${from.replaceAll('.', '\\.')} disappeared`, 'u'), 'the candidate stays list alone never authorizes itself');
+  assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from}.map for the deploy.`))), /disappeared/u,
+    'a ruling for a longer path that merely starts with this one never approves it');
+  assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay x${from} for the deploy.`))), /disappeared/u,
+    'a ruling for a path that merely ends with this one never approves it');
 });
 
 test('a named plan stay still refuses when its file was deleted or also sits at its target [C7,D3,CD64]', async t => {
