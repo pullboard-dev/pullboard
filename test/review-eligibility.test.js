@@ -126,26 +126,10 @@ test('next offers a review only to an eligible seat [V4,B26]', t => {
   f.submit(eligible, 'core-1');
   const offered = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' });
   assert.equal(offered.item.item_id, eligible, 'the older same-vendor item is never offered');
-  assert.ok(offered.reasons.includes('skipped 1 submitted review this seat cannot render'));
-  assert.ok(offered.reasons.some(reason => reason.startsWith('1 SAME_FAMILY:')));
-  assert.equal(store.getItem(f.board, same).item_review_by, null, 'the skipped item has no reservation');
   const queue = workQueue(f.board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility }, 'core-5', { familyPolicy: 'require' });
   const ids = [...queue.releases.flatMap(r => r.items), ...queue.unreleased].map(item => item.id);
   assert.equal(ids.includes(same), false, 'the work queue uses the same vendor rule');
   assert.equal(ids.includes(eligible), true);
-});
-
-test('next counts every ineligible review when no declared seat has the required vendor [V4,B26,C7]', t => {
-  const f = fixture(t), first = f.add({ reviewFamily: 'google' }), second = f.add({ reviewFamily: 'xai' });
-  f.submit(first); f.submit(second);
-  for (const id of [first, second]) assert.deepEqual(reviewEligibility(f.board, store.getItem(f.board, id), { familyPolicy: 'require' }).eligible, []);
-  const before = store.events(f.board);
-  const result = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' });
-  assert.equal(result.item, null);
-  assert.ok(result.reasons.includes('skipped 2 submitted reviews this seat cannot render'));
-  assert.ok(result.reasons.some(reason => reason.startsWith('1 REQUIRED_REVIEW_FAMILY:') && reason.includes(`#${first} requires reviewer family google`)));
-  assert.ok(result.reasons.some(reason => reason.startsWith('1 REQUIRED_REVIEW_FAMILY:') && reason.includes(`#${second} requires reviewer family xai`)));
-  assert.deepEqual(store.events(f.board), before, 'an empty eligible queue appends no reservation');
 });
 
 test('Pre-composition: Strict permits its own reservation and verdict but an ordinary check still counts as a write [V4,B26]', t => {
@@ -982,4 +966,28 @@ test('same-vendor refusal keeps its historical code before the new engine [V4,B2
   f.submit(id, 'core-1');
   f.board.executionEngineVersion = SAME_FAMILY_REFUSAL_ENGINE - 1;
   assert.throws(() => f.reserve(id, 'core-6'), { code: 'O2_FAMILY_MATCH' });
+});
+
+test('next reports the same-vendor skip before reserving an eligible review [V4,B26,C7]', t => {
+  const f = fixture(t), same = f.add(), eligible = f.add();
+  f.submit(same, 'core-2'); f.submit(eligible, 'core-1');
+  const result = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' });
+  assert.equal(result.item.item_id, eligible);
+  assert.equal(result.item.item_review_by, 'core-5');
+  assert.ok(result.reasons.includes('skipped 1 submitted review this seat cannot render'));
+  assert.ok(result.reasons.some(reason => reason.startsWith('1 SAME_FAMILY:')));
+  assert.equal(store.getItem(f.board, same).item_review_by, null, 'the skipped item has no reservation');
+});
+
+test('next counts every ineligible review when no declared seat has the required vendor [V4,B26,C7]', t => {
+  const f = fixture(t), first = f.add({ reviewFamily: 'google' }), second = f.add({ reviewFamily: 'xai' });
+  f.submit(first); f.submit(second);
+  for (const id of [first, second]) assert.deepEqual(reviewEligibility(f.board, store.getItem(f.board, id), { familyPolicy: 'require' }).eligible, []);
+  const before = store.events(f.board);
+  const result = store.reserveNextReview(f.board, { agentId: 'core-5', lane: 'core', leaseMs: LEASE, policy: 'any', familyPolicy: 'require' });
+  assert.equal(result.item, null);
+  assert.ok(result.reasons.includes('skipped 2 submitted reviews this seat cannot render'));
+  assert.ok(result.reasons.some(reason => reason.startsWith('1 REQUIRED_REVIEW_FAMILY:') && reason.includes(`#${first} requires reviewer family google`)));
+  assert.ok(result.reasons.some(reason => reason.startsWith('1 REQUIRED_REVIEW_FAMILY:') && reason.includes(`#${second} requires reviewer family xai`)));
+  assert.deepEqual(store.events(f.board), before, 'an empty eligible queue appends no reservation');
 });
