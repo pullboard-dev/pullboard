@@ -1,3 +1,4 @@
+import { addMilestone } from '../packages/store/index.js';
 /** @pullboard-test-input source-tree */
 /** Native Next reserves aged first reviews, never inventing reviewer eligibility [B26,V4]. */
 import assert from 'node:assert/strict';
@@ -20,9 +21,11 @@ test('native next reserves the oldest eligible first review before any new build
   const build = box.add('Otherwise new build', { brief: 'Files: web/independent.js\nTest: independent work stays open.' });
   setting(box, 'reviewsFirst', true);
   box.advance(16 * 60_000);
+  const nativeOffer = store.reviewOffer(box.board, { agentId: box.seats.actor.id, lane: box.seats.actor.lane, policy: 'any', mandatoryOnly: true });
+  assert.equal(nativeOffer?.item.item_id, old, JSON.stringify(nativeOffer));
   const selected = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(selected.code, 0, selected.out + selected.err);
-  assert.equal(selected.document.review, true);
+  assert.equal(selected.document.review, true, selected.out + selected.err);
   assert.equal(selected.document.item.item_id, old);
   assert.equal(store.getItem(box.board, old).item_review_by, box.seats.actor.id, 'this is a native reservation, not an unreserved offer');
   assert.equal(store.getItem(box.board, build).item_status, 'open');
@@ -39,8 +42,8 @@ test('a self-ineligible seat builds normally while an eligible seat cannot escap
   const box = await fixture(t);
   const review = box.add('Current release first review'); box.submit(review);
   const build = box.add('Later release build', { brief: 'Files: web/later.js\nTest: ordinary ineligible-seat fallback.' });
-  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Private current release', name: 'Current', items: [review] });
-  store.addMilestone(box.board, { agentId: 'coordinator', reason: 'Private later release', name: 'Later', items: [build] });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Private current release', name: 'Current', items: [review] });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Private later release', name: 'Later', items: [build] });
   setting(box, 'focusMilestone', { name: 'Current', overflow: true });
   setting(box, 'reviewsFirst', true);
   box.advance(16 * 60_000);
