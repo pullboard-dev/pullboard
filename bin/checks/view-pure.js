@@ -120,7 +120,7 @@ export function viewPureGate(root, { roles = VIEW_TEST_ROLES, coverage = VIEW_RE
   }
   const held = new Set(declared.roots);
   for (const file of scanned) if (roles[file]?.kind === 'logic' && !held.has(file)) failures.push({ path: file, line: 1, text: 'declared logic root must be promoted into ' + ENFORCED_FILE });
-  for (const finding of viewPureReport(root, { roles, coverage })) (held.has(finding.path) || finding.path.startsWith('src/view/') ? failures : reported).push(finding);
+  for (const finding of viewPureReport(root, { roles, coverage })) (held.has(finding.path) || /^(?:src|apps\/view\/src\/(?:core|shell))\/view\//u.test(finding.path) ? failures : reported).push(finding);
   return { failures, reported, enforced: declared.roots };
 }
 

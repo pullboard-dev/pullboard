@@ -1,5 +1,5 @@
 {
-  "scope": "Literal Git process launches in src and packages/*, at their true paths, excluding the adapter files and test directories; computed executables and shell commands are not covered.",
+  "scope": "Literal Git process launches in src, packages/* and apps/*, at their true paths, excluding the adapter files and test directories; computed executables and shell commands are not covered.",
   "originalTotal": 89,
   "files": {
     "packages/activity/src/shell/activity-inbox.js": 2,
@@ -21,7 +21,7 @@
     "packages/github/src/shell/pr-publish.js": 2,
     "src/run.js": 4,
     "src/runner-history-pack.js": 3,
-    "src/serve.js": 1,
+    "apps/view/src/shell/serve.js": 1,
     "packages/gate/src/shell/test-action-cache.js": 1,
     "packages/gate/src/shell/test-run.js": 2,
     "packages/items/src/shell/resume-sources.js": 1,

@@ -76,7 +76,7 @@
   ["src/view/segmented-control.js","apps/view/src/core/view/segmented-control.js","rule"],
   ["src/view/settings-render.js","apps/view/src/core/view/settings-render.js","rule"],
   ["src/view/star-render.js","apps/view/src/core/view/star-render.js","rule"],
-  ["src/view/test-policy.js","apps/view/src/core/view/test-policy.js","rule"],
+  ["src/view/test-policy.js","apps/view/src/shell/view/test-policy.js","rule"],
   ["src/view/test-roles.js","apps/view/src/core/view/test-roles.js","rule"],
   ["src/view/timeline-render.js","apps/view/src/core/view/timeline-render.js","rule"],
   ["src/view/verdict-render.js","apps/view/src/core/view/verdict-render.js","rule"],
