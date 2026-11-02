@@ -81,6 +81,7 @@ Work
   pullboard map [<module or function>] [--for <item>] [--budget <tokens>]  source map for main, a card, or an item's one-hop slice
                                         slices default to 4k tokens and cap at 8k; effects the scan cannot see say "not detected"
   pullboard add <lane> <title> [--criterion "..."] [--specs G1.2,K3] [--after 3,4] [--parent <id>] [--private]
+    [--force-size "reason"]             override the one-cell/three-clause size hint; records a fact
                                         --sensitive or --review-family <family> selects Strict review; edit can set them while open
                 [--brief "..." | --brief-file <file>] [--route light|mid] [--review-family <family>]
                                         --after: ids or repo#id; claiming waits for verified items on their own boards
@@ -374,6 +375,7 @@ Additional commands
   pullboard maintenance [--json]      archive and prune idle worktrees when worktreeMaintenance.enabled is true
   pullboard stats moves [--limit <N>] [--transcripts <file>]  native event moves and separately supplied command transcripts per landed item
   pullboard stats pipeline [--limit <N>]  recorded stage times and retry/reopen causes for the last N landed items
+  pullboard stats time                  last claim-to-submit build minutes and criterion size for every landed item
   pullboard tool-build [promote <commit> --gate-receipt <native-full-gate-id>]  show the board's pinned tools or promote a gated build for new commands
 
 Reject reasons: TEST_FAILURE, BEHAVIOR_MISMATCH, INSUFFICIENT_EVIDENCE, STALE_HEAD, OTHER.

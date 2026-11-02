@@ -29,5 +29,7 @@
   "test/usage-publish-batch.test.js": "packages/stats/tests/usage-publish-batch.test.js",
   "src/stats-pipeline.js": "packages/stats/src/core/stats-pipeline.js",
   "src/stats-moves.js": "packages/stats/src/core/stats-moves.js",
+  "src/stats-build-time.js": "packages/stats/src/core/stats-build-time.js",
+  "test/stats-build-time.test.js": "packages/stats/tests/stats-build-time.test.js",
   "src/cost-analytics.js": "packages/stats/src/shell/cost-analytics.js"
 }

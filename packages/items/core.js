@@ -1,4 +1,5 @@
 import { VENDOR_FAMILY_ENGINE } from '../../src/vendor-family-engine.js';
+export { criterionSize } from './src/core/criterion-size.js';
 import { vendorFamilyAliases } from './src/core/vendor-families.js';
 import { ENGINE_VERSION } from '../../src/engine-metadata.js';
 import { FAMILY_ALIAS_ENGINE } from '../../src/family-alias-engine.js';
