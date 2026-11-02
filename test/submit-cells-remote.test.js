@@ -29,6 +29,7 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
     git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'trusted');
     const main = git('rev-parse', 'HEAD');
     put('bin/cells-submit-checks.js', "throw new Error('candidate tooling was executed');\n");
+    put('packages/gate/index.js', "throw new Error('candidate gate tooling was executed');\n");
     git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'candidate');
     const source = git('rev-parse', 'HEAD');
     const command = submitCellsRemoteCommand({ main, source, criterion: 'fixture', cutRows: [{ item_id: 7 }] });
