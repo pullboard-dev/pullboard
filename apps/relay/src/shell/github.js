@@ -1,5 +1,8 @@
 /** GitHub App user authorization and read-only repository checks for the relay (H8, H1). */
-import { createPrivateKey, sign } from 'node:crypto';
+import {
+  createPrivateKey,
+  sign,
+} from 'node:crypto';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 export const GITHUB_API_VERSION = '2026-03-10';

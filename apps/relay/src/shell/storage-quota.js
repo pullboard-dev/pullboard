@@ -1,6 +1,14 @@
 /** Account-wide logical sealed storage, checked under the same cross-process lifecycle lock as publication [H15,H17,H18]. */
-import { closeSync, lstatSync, mkdirSync, openSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  closeSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+} from 'node:fs';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../packages/kernel/index.js';
 

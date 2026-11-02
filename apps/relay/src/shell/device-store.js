@@ -1,5 +1,8 @@
 /** Durable account-scoped opaque device wraps and expiring enrollment transport [H5,H15,H17]. */
-import { chmodSync, existsSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../packages/kernel/index.js';

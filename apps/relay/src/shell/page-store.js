@@ -1,10 +1,25 @@
 /** Durable opaque snapshot objects, staged uploads and renewable reader pins; keys stay on devices [H15,H17,H18]. */
-import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, lstatSync, mkdirSync, openSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  createHash,
+  randomUUID,
+} from 'node:crypto';
+import {
+  closeSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+} from 'node:fs';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../../../../packages/pages/index.js';
+import {
+  PAGE_CIPHER_BYTES,
+  PAGE_FANOUT,
+  pageReference,
+} from '../../../../packages/pages/index.js';
 
 const UPLOAD_MS = 3_600_000;
 const READ_MS = 900_000;

@@ -1,9 +1,19 @@
 /** Authenticated relay API2 snapshot objects; stored data remains opaque to the relay [H15,H17]. */
 import { createHash } from 'node:crypto';
-import { apiJson, apiRefusal, apiStatus, readApiBody } from '../../../../packages/api/index.js';
+import {
+  apiJson,
+  apiRefusal,
+  apiStatus,
+  readApiBody,
+} from '../../../../packages/api/index.js';
 import { refusalDocument } from '../../../../src/next-step-words.js';
 import { Refused } from '../../../../packages/kernel/index.js';
-import { PAGE_BYTES, PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../../../../packages/pages/index.js';
+import {
+  PAGE_BYTES,
+  PAGE_CIPHER_BYTES,
+  PAGE_FANOUT,
+  pageReference,
+} from '../../../../packages/pages/index.js';
 
 const PAGE_BODY_BYTES = 600_000;
 

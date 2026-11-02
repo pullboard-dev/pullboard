@@ -1,11 +1,26 @@
 /** Keep the phone's non-extractable key in IndexedDB and receive only locally unwrapped keys [H5,H17]. */
-import { createDeviceKeys, signDeviceEnrollment, unwrapDeviceBoardKey } from './device-keys.js';
+import {
+  createDeviceKeys,
+  signDeviceEnrollment,
+  unwrapDeviceBoardKey,
+} from './device-keys.js';
 import { encodeBoardKey } from './seal.js';
 import { ENGINE_VERSION } from './engine.js';
 import { Refused } from './refused.js';
-import { approvalContext, openApproval, sealApproval, verifyApprovalIntent } from './relay-approval.js';
+import {
+  approvalContext,
+  openApproval,
+  sealApproval,
+  verifyApprovalIntent,
+} from './relay-approval.js';
 import { devicePublicKey } from './device-keys.js';
-import { approvalCardText, approvalNames, deletedText, phoneApprovalStatus, forgetPhoneApprovals } from '../core/browser-approval-card.js';
+import {
+  approvalCardText,
+  approvalNames,
+  deletedText,
+  phoneApprovalStatus,
+  forgetPhoneApprovals,
+} from '../core/browser-approval-card.js';
 import { withBrowserDeadline } from '../core/browser-deadline.js';
 import { readExcludedInventories } from '../core/browser-excluded.js';
 

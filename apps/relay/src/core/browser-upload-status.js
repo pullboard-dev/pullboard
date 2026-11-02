@@ -2,7 +2,10 @@
 import { unseal } from './seal.js';
 import { ENGINE_VERSION } from './engine.js';
 import { withBrowserDeadline } from './browser-deadline.js';
-import { SNAPSHOT_BODY_BYTES, SEALED_SNAPSHOT_BYTES } from './relay-limits.js';
+import {
+  SNAPSHOT_BODY_BYTES,
+  SEALED_SNAPSHOT_BYTES,
+} from './relay-limits.js';
 import { Refused } from './refused.js';
 
 /** An absent or older endpoint is not evidence of an oversized board. */

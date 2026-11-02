@@ -1,8 +1,19 @@
 /** Private, clock-controlled relay expiry and consistent SQLite backups, without opening seals [H18]. */
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
-import { closeSync, linkSync, lstatSync, mkdirSync, openSync, readdirSync, unlinkSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import {
+  closeSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  unlinkSync,
+} from 'node:fs';
+import {
+  join,
+  resolve,
+} from 'node:path';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { SEALED_SNAPSHOT_BYTES } from '../../../../packages/link/index.js';
 import { createRelayJournal } from './journal.js';
