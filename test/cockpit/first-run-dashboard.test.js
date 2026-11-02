@@ -189,7 +189,7 @@ test('a fresh board opens on the first-run page: three boxes, the loop, the chec
     await new Promise(done => setTimeout(done, kit.dwell(4) + 600));
     assert.equal((await tour()).step, '4', 'stepping by hand stops the tour moving on its own');
     // Live ticks: a release of three tasks ticks Map out the work without a reload.
-    box.run(alpha.repo, 'milestone', 'add', 'First release', '--items', '1,2,3');
+    box.run(alpha.repo, 'milestone', 'add', 'First release', '--reason', 'Arrange fixture release', '--items', '1,2,3');
     await chrome.waitFor('document.querySelector("#dashboard [data-first-run-check=\\"6\\"]")?.dataset.ticked === "true"');
     // Links: the tiles open the row or the Doctrine tab.
     await press(chrome, 'document.querySelector("#dashboard [data-first-run-tile=\\"Doctrine\\"] a")');
