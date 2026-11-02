@@ -76,6 +76,7 @@ test('submit composes moved main before its actual frozen check [C7,V4]', t => {
   const shown = box.run(box.repo, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err);
   assert.equal(JSON.parse(shown.out).item_commit, head);
+  assert.match(JSON.stringify(JSON.parse(shown.out)), /Builder web-1 automatic main merge/u);
 });
 
 test('a reviewer checks a builder-attributed composition when main moved [C7,V4]', t => {
@@ -118,4 +119,30 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
   assert.equal(shown.code, 0, shown.err);
   assert.match(JSON.stringify(JSON.parse(shown.out)), new RegExp(`Automatic main merge ${merged}.*builder web-1`, 'u'));
   assert.equal(box.git(review, 'rev-parse', 'HEAD'), source, 'private review composition leaves the checkout unchanged');
+});
+
+test('submit names a real main conflict and leaves the builder checkout intact [C7,V4]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const base = helpers.commitFile(box, box.repo, 'web/shared.txt', 'base\n', 'feat(web): seed conflict fixture [G1]');
+  assert.equal(base.status, 0, base.stderr);
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  const added = box.run(box.repo, 'add', 'web', 'conflicting auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', 'test -f web/shared.txt', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const sourceChange = helpers.commitFile(box, box.web, 'web/shared.txt', 'builder\n', 'feat(web): edit shared file [G1]');
+  assert.equal(sourceChange.status, 0, sourceChange.stderr);
+  const source = box.git(box.web, 'rev-parse', 'HEAD');
+  const trunkChange = helpers.commitFile(box, box.repo, 'web/shared.txt', 'main\n', 'feat(web): independently edit file [G1]');
+  assert.equal(trunkChange.status, 0, trunkChange.stderr);
+  const result = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  assert.equal(result.code, 1, result.out);
+  const refusal = JSON.parse(result.out).error;
+  assert.equal(refusal.code, 'MERGE_CONFLICT');
+  assert.match(refusal.message, /web\/shared\.txt/u);
+  assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), source);
+  assert.equal(box.git(box.web, 'status', '--porcelain'), '');
 });
