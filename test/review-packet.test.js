@@ -90,8 +90,9 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.equal(packet.head, head);
   assert.match(packet.diff.stat, /web\/packet\.test\.js/u);
   assert.match(packet.diff.patch, /^\+test\('clause 2: the visitor is named \[G1\]'/mu, 'the full hunks are in the packet');
-  assert.deepEqual(packet.clauses.map(clause => clause.n), [1, 2, 3, 4]);
-  for (const n of [1, 2]) {
+  assert.deepEqual(packet.clauses.map(clause => clause.n), [1, 2, 3, 4, 5]);
+  assert.match(packet.clauses[4].text, /^G1: /u, 'each frozen spec row is a clause after the criterion');
+  for (const n of [1, 2, 5]) {
     const clause = packet.clauses[n - 1];
     assert.ok(clause.runs.length > 0, `clause ${n} maps to a recorded run`);
     for (const run of clause.runs) {
