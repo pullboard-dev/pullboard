@@ -93,6 +93,7 @@ export async function run(io, { first, values }) {
   const agentName = (id) => displayAgentName(agents.find((agent) => agent.agent_id === id) ?? { agent_id: id }, ctx.config.agents.names);
   io.say(itemLine(item, agentName, Boolean(mainMerge)));
   io.say(progressLine(progress));
+  if (item.item_expected_build_minutes != null) io.say(`expected build: ${item.item_expected_build_minutes} min`);
   if (comparison) io.say(renderVerificationComparison(comparison));
   if (queuedSubmit) io.say(`queued gate: ${queuedSubmit.state} at ${queuedSubmit.executionCommit}`);
   if (queuedSubmit?.error) io.say(`${queuedSubmit.error.message}\nnext: ${queuedSubmit.error.next}`);

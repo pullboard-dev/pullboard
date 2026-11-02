@@ -1,3 +1,5 @@
+import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
+import { expectedBuildProblem } from '../../../items/index.js';
 import { liveClaimCollisions } from '../../../items/index.js';
 import {
   exitContinuationSummary,
@@ -64,7 +66,7 @@ import { FOCUS_BOUNDARY_ENGINE } from '../../../state/index.js';
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map(), focusOnly = false, buildBudgetMinutes = 30 }) {
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -204,6 +206,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   if (focus) mine.sort((a, b) => focusCompare(a.entry, b.entry));
   for (const { entry, shared, reworkRouting: rework } of mine) {
     if (restrictFocus && !focus.ids.has(entry.item_id)) continue;
+    const scopeProblem = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE ? expectedBuildProblem(entry, buildBudgetMinutes) : null;
+    if (scopeProblem) { reasons.push(`${scopeProblem.message}; ${scopeProblem.next ?? ''}`); continue; }
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
       .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');

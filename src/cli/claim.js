@@ -195,9 +195,11 @@ export async function claimOrdered(ctx, board, args) {
   const routingWindows = returnedRework ? currentReworkRoutingPolicy(ctx, board) : null;
   if (returnedRework && !routingWindows) throw new Refused('NO_POLICY', 'the accepted coordinator takeover and maintenance windows are unavailable; restore the current main policy before claiming returned work');
   const routingPolicy = sealReworkRoutingPolicy(routingWindows);
-  const exitRules = mainPolicy(ctx.info.root).config.exitRules;
+  const accepted = mainPolicy(ctx.info.root).config;
+  const exitRules = accepted.exitRules;
+  const estimate = store.getItem(board, args[0]).item_expected_build_minutes;
   const autoNextSnapshot = args[1].autoNext ? claimWorktreeSnapshot(ctx.info.root) : null;
-  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
+  const result = await ordered(ctx, board, 'claim', [args[0], { ...args[1], ...(estimate == null ? {} : { buildBudgetMinutes: accepted.itemBuildBudgetMinutes ?? 30 }), ...(autoNextSnapshot ? { autoNextSnapshot } : {}), ...(exitRules?.enabled ? { exitRules, exitClaimKey: randomUUID() } : {}),
     ...(adoptCorrection ? { adoptCorrection: true, freeze: freezer(ctx, { captureVerifyPolicy: true, board }) } : {}),
     ...(routingPolicy ? { reworkRoutingPolicy: routingPolicy } : {}),
     reviewPolicy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }]);

@@ -1,3 +1,6 @@
+import { buildCalibration } from '../../packages/stats/index.js';
+import { events } from '../../packages/store/index.js';
+import { listItems } from '../../packages/store/index.js';
 import { gateRuns } from '../quarantine.js';
 import { flakeLedger } from '../flakes.js';
 import { eventCauses } from '../board-rigor.js';
@@ -18,10 +21,13 @@ export function run(io, { first, second, rest, values }) {
   const ctx = context(io);
   const report = withBoardRead(ctx, board => {
     board.db.exec('SAVEPOINT capacity_read');
-    try { return testCapacityReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }, { flakeLedger, eventCauses, gateRuns }); }
+    try { const tests = testCapacityReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }, { flakeLedger, eventCauses, gateRuns });
+      return { ...tests, builds: buildCalibration(events(board), listItems(board, { all: true }), ctx.config.itemBuildBudgetMinutes) }; }
     finally { board.db.exec('RELEASE capacity_read'); }
   });
   io.result?.({ report });
+  io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} expected/actual samples`);
+  for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
   io.say(`suite test-work: ${minutes(report.suite.minutes)} (serial per-file execution work, not parallel elapsed wall time)`);
   if (report.suite.unavailableReason) io.say(report.suite.unavailableReason);
   io.say(`test-work per landing: ${minutes(report.perLanding.minutes)} (${report.perLanding.landings} landing units: explicit batches or unmatched distinct merge commits; batch grouping unknown for the latter; known subtotal ${minutes(report.perLanding.knownMinutes)}; ${report.perLanding.missingExecutions} missing executions; ${report.perLanding.unknownReceipts} unknown-file receipts)`);

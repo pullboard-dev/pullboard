@@ -106,6 +106,7 @@ const HELP_FLAG_EXPLANATIONS = {
   '--blueprint': 'start from a bundled blueprint or a JSON file; repeat it for one product, one architecture and any practice blueprints',
   '--brief': 'what a cold agent needs',
   '--check': 'the command that proves it',
+  '--expected-minutes': 'positive expected build minutes, or unknown to clear the estimate',
   '--check-timing': 'coordinator-only true|false, frozen exclusive timing admission for the check',
   '--conflict': 'one conflicting file, exactly as Git names it; repeat it for each file',
   '--doctrine': 'proposes a doctrine ruling; only the person can approve it',
