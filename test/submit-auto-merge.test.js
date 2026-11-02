@@ -76,3 +76,36 @@ test('submit composes moved main before its actual frozen check [C7,V4]', t => {
   assert.equal(shown.code, 0, shown.err);
   assert.equal(JSON.parse(shown.out).item_commit, head);
 });
+
+test('a reviewer checks a builder-attributed composition when main moved [C7,V4]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'review auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', 'test -f web/feature.txt', '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add review fixture [G1]');
+  assert.equal(committed.status, 0, committed.stderr);
+  const submitted = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  assert.equal(submitted.code, 0, `${submitted.err}\n${submitted.out}`);
+  const source = box.git(box.web, 'rev-parse', 'HEAD');
+  const review = join(box.dir, 'review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, source);
+  const joined = box.run(review, 'join', 'api');
+  assert.equal(joined.code, 0, joined.err);
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs/review-main.txt'), 'review main\n');
+  box.git(box.repo, 'add', 'docs/review-main.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance review main');
+  const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
+  const result = box.run(review, 'verify', String(id), 'accept', '--note', 'checked the merged source', '--json');
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
+  const refs = box.git(box.repo, 'for-each-ref', '--format=%(objectname)', `refs/pullboard/items/${id}/`).split('\n').filter(Boolean);
+  assert.ok(refs.length, 'the actual reviewed composition is retained');
+  const merged = refs.find(ref => box.git(box.repo, 'show', '-s', '--format=%P', ref).split(' ').includes(trunk));
+  assert.ok(merged, `review ref includes main ${trunk}`);
+  assert.equal(box.git(box.repo, 'show', '-s', '--format=%ae', merged), box.git(box.repo, 'show', '-s', '--format=%ae', source));
+  assert.equal(box.git(review, 'rev-parse', 'HEAD'), source, 'private review composition leaves the checkout unchanged');
+});

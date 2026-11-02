@@ -233,7 +233,15 @@ export async function verifyHere(ctx, id, { second, values }) {
       // Patch inputs must be composed before browser/GUI classification reads their exact source.
       let checkedCommit = companionDigest || item.item_effective_head ? prepareItemPatchReview(root, board, item, { effectiveItemHead, itemPolicy, requireTrunkMerge, retryReviewCommit, getItem: store.getItem }).commit : reReview ? head : commit;
       let checkedLabel = reReview ? 'reviewed composition' : 'submitted commit';
-      const composeNow = () => composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events: store.events });
+      const composeNow = () => {
+        const current = requireTrunkMerge(root, checkedCommit);
+        if (!contains(root, current.commit, checkedCommit) && !reReview) {
+          checkedCommit = retryReviewCommit(root, checkedCommit, current);
+          checkedLabel = 'main-composed review';
+          ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
+        }
+        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events: store.events });
+      };
       const admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
