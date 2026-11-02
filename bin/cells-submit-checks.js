@@ -98,8 +98,8 @@ function refuse(problems) {
  */
 function approvedStay(after, row, candidateRoot, criterion) {
   const [from, to] = row;
-  // The named path must end at a boundary (a sentence's full stop counts): a ruling for relay/x.js.map never approves relay/x.js.
-  const named = new RegExp(`(?:^|[^\\w./-])plan stay ${from.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?![\\w/-]|\\.[\\w/-])`, 'u');
+  // The path ends at whitespace, the text end, or one of , ; . before them: relay/x.js.map, x.js+copy and x.jsé never approve relay/x.js.
+  const named = new RegExp(`(?:^|[^\\w./-])plan stay ${from.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?=$|\\s|[.,;](?:\\s|$))`, 'u');
   if (!named.test(criterion) || !(after.stays ?? []).some(stay => stay.path === from)) return false;
   try { if (!lstatSync(join(candidateRoot, from)).isFile()) return false; } catch { return false; }
   return !existsSync(join(candidateRoot, to));

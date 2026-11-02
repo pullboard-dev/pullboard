@@ -65,6 +65,14 @@ test('an accepted row the frozen criterion names as a plan stay may stay in plac
   assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from} for the deploy.`))), /disappeared/u);
   assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Ops ruling: plan stay ${from}.`))), /disappeared/u,
     'a sentence ending right after the path still names it');
+  for (const mark of [',', ';']) {
+    assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from}${mark} then deploy.`))), /disappeared/u,
+      `a clause ending in ${mark} right after the path still names it`);
+  }
+  for (const suffix of ['+copy', 'é']) {
+    assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from}${suffix} for the deploy.`))), /disappeared/u,
+      `a ruling for ${from}${suffix} names a different path and never approves this one`);
+  }
   assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item('Preserve actual cell boundaries.'))),
     new RegExp(`accepted row ${from.replaceAll('.', '\\.')} disappeared`, 'u'), 'the candidate stays list alone never authorizes itself');
   assert.match(await refusal(requireSubmitCells(box.root, box.main, candidate, item(`Keep plan stay ${from}.map for the deploy.`))), /disappeared/u,
