@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { submitCellsRemoteCommand } from '../src/submit-cells-remote.js';
+import { remoteSubmitCells, submitCellsRemoteCommand } from '../src/submit-cells-remote.js';
 
 test('remote cells loads pinned main tooling and treats candidate tooling as data', () => {
   const root = mkdtempSync(join(tmpdir(), 'cells-remote-test-'));
@@ -33,5 +34,37 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
     const output = execFileSync('/bin/sh', ['-c', command], { cwd: root, env, encoding: 'utf8' });
     const result = JSON.parse(output.match(/^PULLBOARD_CELLS_RESULT (.*)$/mu)[1]);
     assert.deepEqual(result, { acceptedMain: main, source, cells: ['trusted-main'], existingCuts: [] });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('remote cells rejects altered output and a changed cut authority snapshot', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'cells-remote-proof-'));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  for (const key of Object.keys(env)) if (key.startsWith('GIT_') && !['GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL'].includes(key)) delete env[key];
+  const git = (...args) => execFileSync('git', args, { cwd: root, env, encoding: 'utf8' }).trim();
+  try {
+    git('init', '--quiet'); git('config', 'pullboard.trunk', 'refs/heads/main');
+    writeFileSync(join(root, 'file'), 'fixture\n'); git('add', '.');
+    git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'fixture');
+    const main = git('rev-parse', 'HEAD'), tree = git('rev-parse', 'HEAD^{tree}');
+    let changed = false, corrupt = false, reads = 0;
+    const readCuts = () => [{ item_id: changed && ++reads > 1 ? 8 : 7 }];
+    const runOnRunnerAsync = async (_root, _shell, options) => {
+      const bytes = Buffer.from(`PULLBOARD_CELLS_RESULT ${JSON.stringify({ acceptedMain: main, source: main, cells: [], existingCuts: [] })}\n`);
+      writeFileSync(options.rawOutputPath, bytes);
+      return { executionRunner: 'fixture', executionSource: { commit: main, tree }, rawOutputPath: options.rawOutputPath,
+        privateCheck: { receipt: { requestSha256: options.privateCheck.sha256, sourceUnchanged: true,
+          phases: { check: { offset: 0, length: bytes.length, code: 0, signal: null, timedOut: false,
+            sha256: corrupt ? '0'.repeat(64) : createHash('sha256').update(bytes).digest('hex') } } } } };
+    };
+    const lease = { runner: { host: 'fixture' }, source: { commit: main, tree }, executionServices: { runners: { runOnRunnerAsync } } };
+    const item = { item_frozen: JSON.stringify({ criterion: 'fixture' }) };
+    assert.equal((await remoteSubmitCells(root, main, main, item, lease, readCuts, root)).acceptedMain, main);
+    corrupt = true;
+    await assert.rejects(remoteSubmitCells(root, main, main, item, lease, readCuts, root), { code: 'RUNNER_RESULT_INVALID' });
+    corrupt = false; changed = true; reads = 0;
+    await assert.rejects(remoteSubmitCells(root, main, main, item, lease, readCuts, root), { code: 'CELLS_SUBMIT' });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
