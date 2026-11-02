@@ -67,9 +67,9 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
       const lines = source.split('\n').length - (source.endsWith('\n') ? 1 : 0);
       if (lines > 500) add('fileSize', file, lines - 500, lines > 1500 ? 'exceeds hard 1500-line maximum' : 'exceeds 500-line aim');
     }
-    if (/\.[cm]?js$/u.test(file)) {
+    if (file.startsWith('src/') && /\.[cm]?js$/u.test(file)) {
       const code = lex(source).code.replace(/\s/gu, '');
-      if (file.startsWith('src/') && /^(?:export(?:\*|\{[^}]*\})from(?:''|"");)+$/u.test(code) && edges.get(file)?.length) add('shims', file);
+      if (/^(?:export(?:\*|\{[^}]*\})from(?:''|"");)+$/u.test(code) && edges.get(file)?.length) add('shims', file);
     }
   }
   for (const [file, imports] of edges) for (const { target, specifier } of imports) {
