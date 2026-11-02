@@ -33,11 +33,16 @@ test('scheduled audit forces real Git even under a fake per-test request [C7]', 
   assert.deepEqual(auditAdapterEnvironment(false), {});
 });
 
-test('a seeded divergence first fails the shared Git contract [C7]', () => {
-  const memory = fake();
-  /** The same caller-visible contract applies to both correct and deliberately broken fake. */
-  const contract = adapter => assert.equal(adapter.spawnSync(['rev-parse', 'HEAD'], { cwd: '/virtual/switch', encoding: 'utf8' }).stdout, `${'a'.repeat(40)}\n`);
+test('a seeded divergence first fails the shared real and fake Git contract [C7]', () => {
+  const root = process.cwd();
+  const options = { cwd: root, encoding: 'utf8' };
+  const head = realGitAdapter.spawnSync(['rev-parse', 'HEAD'], options).stdout.trim();
+  assert.match(head, /^[a-f0-9]{40,64}$/u);
+  const memory = createMemoryGitAdapter([{ root, branch: 'main', head, commits: [{ oid: head, tree: 'b'.repeat(40), files: {} }] }]);
+  /** The same caller-visible contract is run against real Git and its fake. */
+  const contract = adapter => assert.equal(adapter.spawnSync(['rev-parse', 'HEAD'], options).stdout, `${head}\n`);
   const broken = { ...memory, spawnSync: (...args) => ({ ...memory.spawnSync(...args), stdout: 'wrong\n' }) };
-  assert.throws(() => contract(broken), assert.AssertionError, 'the contract records the seeded drift before a fake correction');
+  assert.doesNotThrow(() => contract(realGitAdapter));
+  assert.throws(() => contract(broken), assert.AssertionError, 'the shared contract exposes the seeded drift before correction');
   assert.doesNotThrow(() => contract(memory));
 });
