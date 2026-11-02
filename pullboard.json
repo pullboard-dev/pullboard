@@ -8,6 +8,7 @@
   "submitDeferAbove": 20,
   "landingShards": 6,
   "submit": { "requireInfraNote": true, "handoff": true },
+  "landing": { "manualOverride": true },
   "claim": { "reopenFirstRefusalMinutes": 30 },
   "submitInvariants": [
     "test/refusal-next-steps.test.js",
