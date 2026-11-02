@@ -35,8 +35,21 @@ export function activityDeliveryLines({ shouts, agents, activity, budget }, conf
   return lines;
 }
 
+/**
+ * Whether recording this observation would change nothing: no fresh interrupt and no digest past the recorded cursor.
+ *
+ * The canonical move saves only new interrupts or a later digest, so an unchanged read records nothing; skipping it
+ * spares the board lock and the lapsed-claim capture every ordered write runs first, which cost seconds per inbox (#2421).
+ */
+function deliveryUnchanged(board, agentId, observation) {
+  if (observation.fresh.length) return false;
+  if (observation.digestThrough === undefined) return true;
+  return observation.digestThrough <= store.activityDeliveryState(board, agentId).digestThrough;
+}
+
 /** Persist bounded batches without advancing past an interrupt that a later batch has not yet recorded. */
 async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
+  if (deliveryUnchanged(board, agentId, observation)) return;
   const groups = [];
   for (let offset = 0; offset < observation.fresh.length; offset += 1000) groups.push(observation.fresh.slice(offset, offset + 1000));
   if (!groups.length) groups.push([]);

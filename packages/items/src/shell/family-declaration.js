@@ -106,8 +106,10 @@ export function derivedFamily(board, id, { session = null, inserting = false } =
     seats.add(row.meta_key.slice('agent_session:'.length));
   }
   let first = null;
+  // A long-lived session spans many seats; one bulk read replaces a per-seat scan of each seat's events (#2421).
+  const snapshot = seats.size > 1 ? familySnapshot(board) : null;
   for (const seat of seats) {
-    for (const record of seatRecords(board, seat, { inserting: inserting && seat === id })) {
+    for (const record of seatRecords(board, seat, { inserting: inserting && seat === id }, snapshot)) {
       if (!first || record.order < first.order) first = record;
     }
   }
