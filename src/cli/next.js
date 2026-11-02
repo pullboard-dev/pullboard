@@ -86,7 +86,7 @@ export async function nextOnce(ctx, values) {
   });
   const looked = withBoardRead(ctx, (board) => nextPick(ctx, board, values));
   if (looked.autoReview) {
-    try { return await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id }); }
+    try { return { ...await nextOnce(ctx, { ...values, build: false, verify: true, verifyId: looked.autoReview.item_id }), review: true }; }
     catch (error) {
       if (error instanceof Refused && ['REVIEW_HELD', 'NOT_SUBMITTED'].includes(error.code)) return { retry: true,
         retryDetail: { phase: 'first-review reservation', item: looked.autoReview.item_id, code: error.code } };
