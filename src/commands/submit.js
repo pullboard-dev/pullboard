@@ -18,6 +18,7 @@ import {
 import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
+import { gateRuns } from '../quarantine.js';
 import { withImportParseCache } from '../module-import-cache.js';
 import { foreignNodeOptions } from '../test-isolation.js';
 import { importsIn } from '../module-imports.js';
@@ -477,6 +478,7 @@ export async function submitHere(ctx, id, infra) {
   if (criterionCases) {
     try {
       comparison = await compareMainFailures(root, criterionRed.profile, gateWaitReporter(ctx.io), criterionRed.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: criterionRed.executionRunner ? { kind: 'ssh', host: criterionRed.executionRunner } : { kind: 'local' }, environment: criterionRed.environment } });
       rememberComparison(comparison);
       criterionNotices = mainFailureNotices(root, criterionCases, comparison,
@@ -530,6 +532,7 @@ export async function submitHere(ctx, id, infra) {
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
