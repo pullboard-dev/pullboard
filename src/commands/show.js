@@ -82,7 +82,7 @@ export async function run(io, { first, values }) {
   // #922: moves on this item made while the relay was down wait in this machine's relay outbox until it answers.
   // Without a relay link or deleted-copy notice there is no outbox to read, so the relay client never loads.
   if (relayStateExists(ctx.info.commonDir)) await io.prepareProcessPorts?.();
-  const outbox = relayStateExists(ctx.info.commonDir) ? (await import('../relay.js')).relayStatus(ctx.info.root, io).outbox : undefined;
+  const outbox = relayStateExists(ctx.info.commonDir) ? (await import('../../packages/link/index.js')).relayStatus(ctx.info.root, io).outbox : undefined;
   const relayPending = (outbox ?? []).filter((move) => move.item === id);
   const frozen = item.item_frozen ? JSON.parse(item.item_frozen) : null;
   const checkText = frozen ? frozen.check ?? '' : item.item_check ?? '';

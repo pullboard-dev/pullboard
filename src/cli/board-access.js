@@ -15,6 +15,7 @@ import { main } from '../cli-main.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { runPrivateBoard } from '../../packages/github/index.js';
+import { relayMachineOwner, relayMachineContext } from '../../packages/link/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { claimFreezer } from './claim.js';
@@ -43,7 +44,7 @@ export function personMode(ctx, me, values) {
 export function actOn(io, work, { privateBoard = false } = {}) {
   const ctx = personCommandContext(io, { main, ordered });
   if (privateBoard) return runPrivateBoard(ctx, work, { withBoard, whoAmI,
-    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners(io) });
+    checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, relayMachineOwner, relayMachineContext, ...nativeBoardOpeners(io) });
   return withBoard(ctx, (board) => work(ctx, board, whoAmI(ctx, board)));
 }
 

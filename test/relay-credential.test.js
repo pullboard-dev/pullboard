@@ -144,7 +144,7 @@ test('every current operation selects its native actor credential without a seco
   for (let offset = 0; offset < cases.length; offset += 8) {
     const batch = cases.slice(offset, offset + 8);
     const result = await box.script(`
-    import { relayOperation } from ${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)};
+    import { relayOperation } from ${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
     import { Refused } from ${JSON.stringify(new URL('../packages/kernel/src/core/refused.js', import.meta.url).href)};
     const cases = ${JSON.stringify(batch)};
@@ -195,7 +195,7 @@ test('a person-only move is refused before the relay is asked [H2,H9,H16]', asyn
   /** Return one move's relay-call trace from the real linked CLI environment. */
   async function orderedMove(operation, args, io = {}) {
     return box.script(`
-      import { relayOperation } from ${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)};
+      import { relayOperation } from ${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
       const io = ${JSON.stringify(io)};
       Object.assign(io, apiBoardOpeners);
@@ -257,7 +257,7 @@ test('a person-only move is refused before the relay is asked [H2,H9,H16]', asyn
     ['shout', [{ from: 'coordinator', to: 'all', text: 'person request fixture', lanes: [box.lane], request: true }]],
   ];
   const personResult = await box.script(`
-    import { relayOperation } from ${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)};
+    import { relayOperation } from ${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)};
     import { apiBoardOpeners } from ${JSON.stringify(new URL('./board-fixture.js', import.meta.url).href)};
     const cases = ${JSON.stringify(personCases)};
     const results = [];

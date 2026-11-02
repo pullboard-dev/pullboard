@@ -13,7 +13,7 @@ import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
-const RELAY = new URL('../src/relay.js', import.meta.url).href;
+const RELAY = new URL('../packages/link/index.js', import.meta.url).href;
 const POLICY = new URL('../src/cli.js', import.meta.url).href;
 
 /** Commit the actual absent-setting default before real device sign-in; no environment-token shortcut is used. */

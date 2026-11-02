@@ -440,7 +440,7 @@ async function runMain(argv, streams) {
       if (parsed.values.as === 'person' && !parsed.values.help && !parsed.values.version) {
         await io.prepareProcessPorts();
         io.nativeBoard ??= await io.loadNativeBoard();
-        preflightRelay = await import('./relay.js');
+        preflightRelay = (({ DEFAULT_RELAY, relayStatus }) => ({ DEFAULT_RELAY, relayStatus }))(await import('../packages/link/index.js'));
       }
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;

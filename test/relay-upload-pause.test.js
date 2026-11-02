@@ -20,7 +20,7 @@ async function pausedCrypto(box) {
     const original = crypto.subtle.encrypt.bind(crypto.subtle);
     let encryptions = 0;
     crypto.subtle.encrypt = (...args) => { encryptions++; return original(...args); };
-    const { syncRelay } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const { syncRelay } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const lines = [], io = { err(line) { lines.push(line); } };
     await syncRelay(process.cwd(), io);
     await syncRelay(process.cwd(), io);

@@ -15,10 +15,9 @@ import { machineSettingsFile } from '../packages/config/index.js';
 /** Load the new surface dynamically so the test-only baseline reports a focused missing-feature failure. */
 async function canaryApi() {
   try {
-    const [probe, health] = await Promise.all([
-      import('../src/relay-canary-probe.js'),
-      import('../src/relay-canary-health.js'),
-    ]);
+    const { probeRelayCanary, observeRelayHealth, readRelayHealth } = await import('../packages/link/index.js');
+    const probe = { probeRelayCanary };
+    const health = { observeRelayHealth, readRelayHealth };
     assert.equal(typeof probe.probeRelayCanary, 'function', 'the real relay canary probe is exported');
     assert.equal(typeof health.observeRelayHealth, 'function', 'the durable relay health observer is exported');
     assert.equal(typeof health.readRelayHealth, 'function', 'the keyless relay health reader is exported');
@@ -228,7 +227,7 @@ async function independentCanaryHost(host, lane, name) {
 test('two paired host configurations independently alert and recover through real configured canaries [H5,H15,H17]',
   { timeout: 180_000 }, async t => { // budget: two real private clones, ordinary seat joins, eight bounded network probes and cleanup; alert cadence uses an injected health clock.
     const startedAt = new Date().toISOString();
-    const { runRelayCanary } = await import('../src/relay-canary-watch.js');
+    const { runRelayCanary } = await import('../packages/link/index.js');
     const { readRelayHealth } = await canaryApi();
     const box = await relayClientFixture(t);
     commitConfiguration(box);

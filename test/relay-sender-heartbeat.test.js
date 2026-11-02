@@ -16,8 +16,8 @@ import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
-const LOCAL_FIRST = new URL('../src/relay-local-first.js', import.meta.url).href;
-const RELAY = new URL('../src/relay.js', import.meta.url).href;
+const LOCAL_FIRST = new URL('../packages/link/index.js', import.meta.url).href;
+const RELAY = new URL('../packages/link/index.js', import.meta.url).href;
 const POLICY = new URL('../src/cli.js', import.meta.url).href;
 // Budget: each real reply waits below the unchanged production ten-second per-request deadline.
 const RESPONSE_HOLD_MS = 5000;
