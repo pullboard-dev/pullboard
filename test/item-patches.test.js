@@ -250,7 +250,7 @@ function intakeFixture(t) {
   run(box.web, 'claim', String(item));
   const source = box.git(box.web, 'rev-parse', 'HEAD');
   // @pullboard-board-file journey: real CLI intake and native composition share this private durable board.
-  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
   return { ...box, cli: box.run, run, board, item, author, source };
 }
