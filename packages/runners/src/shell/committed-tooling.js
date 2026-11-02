@@ -1,7 +1,7 @@
 /** Export runner controllers from immutable Git objects, independently of checkout edits [O5,C7]. */
 import { gitSpawnSync } from '../../../git/index.js';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
@@ -43,7 +43,16 @@ export function committedRunnerController(root) {
   }
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-committed-runner-'));
   try {
-    const archive = toolingGit(root, ['archive', '--format=tar', commit], true);
+    // A repository's local attributes and CRLF filters can alter git-archive bytes too. An
+    // isolated object view overrides every conversion without touching the user's Git settings.
+    const objects = toolingGit(root, ['rev-parse', '--path-format=absolute', '--git-path', 'objects']);
+    const metadata = join(directory, '.objects');
+    toolingGit(root, ['init', '--quiet', '--bare', metadata]);
+    writeFileSync(join(metadata, 'objects/info/alternates'), `${objects}\n`, { flag: 'wx' });
+    mkdirSync(join(metadata, 'info'), { recursive: true });
+    writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\n', { flag: 'wx' });
+    const archive = toolingGit(root, ['--git-dir', metadata, '-c', 'core.autocrlf=false',
+      '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', commit], true);
     const unpacked = spawnSync('tar', ['-xf', '-', '-C', directory], { input: archive, encoding: 'utf8' });
     if (unpacked.status !== 0 || !existsSync(join(directory, 'bin/runner-controller.js'))) {
       throw new Refused('RUNNER_TOOLING_FILES', 'the selected Git archive has no runner controller; restore committed tooling');
