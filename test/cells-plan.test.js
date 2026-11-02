@@ -2,6 +2,7 @@
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import { sourceAdvancePlan } from '../packages/codemap/index.js';
 import { withSourceComposition } from '../packages/merge/index.js';
+import { retryReviewCommit } from '../packages/verify/index.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
 import { selectTestTreeGuards } from '../src/affected-tests.js';
 import { importsIn } from '../src/module-imports.js';
@@ -342,6 +343,8 @@ test('cut refresh refuses a newly tracked unplanned endpoint without changing an
 /** Two branches off one commit that each change the same file, merged in the given order into a real conflict. */
 function divergent(t, file, base, left, right) {
   const { root, put } = fixture(t);
+  git(root, 'config', 'user.name', 'Cells plan fixture');
+  git(root, 'config', 'user.email', 'cells@example.invalid');
   put(file, base); git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'base');
   const main = git(root, 'rev-parse', 'HEAD').trim();
   const branch = (name, source) => {
@@ -485,6 +488,8 @@ for (const data of DATA_MANIFESTS) {
         assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
         sources.push(source);
       });
+      const review = retryReviewCommit(root, ours, { commit: theirs });
+      assert.equal(git(root, 'show', `${review}:${data.file}`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
     }
     assert.equal(sources.length, 2);
     assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
@@ -499,6 +504,8 @@ for (const data of DATA_MANIFESTS) {
       await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
         assert.fail('a conflicting row must not reach the composed-source controller');
       }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+      assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
+        error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
     }
   });
 }
