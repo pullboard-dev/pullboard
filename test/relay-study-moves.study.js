@@ -1,10 +1,10 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../src/native-board.js';
-import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
-import { decideSentinel as nativeDecideSentinel } from '../src/sentinels.js';
-import { beginSentinelRun as nativeBeginSentinelRun } from '../src/sentinels.js';
-import { finishSentinelRun as nativeFinishSentinelRun } from '../src/sentinels.js';
+import { proposeSentinel as nativeProposeSentinel } from '../packages/sentinels/index.js';
+import { decideSentinel as nativeDecideSentinel } from '../packages/sentinels/index.js';
+import { beginSentinelRun as nativeBeginSentinelRun } from '../packages/sentinels/index.js';
+import { finishSentinelRun as nativeFinishSentinelRun } from '../packages/sentinels/index.js';
 import { recordFlakeObservation as nativeRecordFlakeObservation } from '../packages/flakes/index.js';
 import { recordPublishFinding as nativeRecordPublishFinding } from '../packages/github/index.js';
 /** Exercise native move effects before comparing the actual relay's complete decoded projection [H5,H17]. */

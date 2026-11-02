@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { healthReport } from '../packages/health/index.js';
-import { dispatchHealth } from '../src/dispatch-health.js';
-import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { dispatchHealth } from '../packages/sentinels/index.js';
+import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { fixture, cli } from './next-take-fixture.js';
 
 /** Read actual health findings for the fixture's native board. */

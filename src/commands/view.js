@@ -22,7 +22,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   startServeSentinel,
-} from '../serve-sentinel.js';
+} from '../../packages/sentinels/index.js';
 import {
   exportView as exportProvidedView,
   serveView as serveProvidedView,
