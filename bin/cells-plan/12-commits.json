@@ -10,7 +10,7 @@
   ["src/commit-signoff.js","packages/commits/src/shell/commit-signoff.js","seed"],
   ["src/guard-revert.js","packages/commits/src/shell/guard-revert.js","seed"],
   ["src/hooks.js","packages/commits/src/shell/hooks.js","seed"],
-  ["src/infra-note.js","packages/commits/src/core/infra-note.js","seed"],
+  ["src/infra-note.js","packages/commits/src/shell/infra-note.js","seed"],
   ["src/why-file.js","packages/commits/src/core/why-file.js","seed"],
   ["test/agent-guidance.test.js","packages/commits/tests/agent-guidance.test.js","seed"],
   ["test/landing-message.test.js","packages/commits/tests/landing-message.test.js","seed"],

@@ -75,7 +75,7 @@ export async function run(io, { first, second, rest, values }) {
       const current = withBoard(context(io), board => getItem(board, item.item_id));
       const spec = loadSpec(root, ctx.config);
       const rows = landingMessage(current, { spec }).rows;
-      const message = buildCommitMessage({ type: 'feat', scope: current.item_lane, title: current.item_title, item: current.item_id, rows }).message;
+      const message = buildCommitMessage({ type: 'feat', scope: current.item_lane, title: current.item_title, item: current.item_id, rows, preferRows: true }).message;
       gitStep(root, ['commit', '-m', message], 'commit', 'fix the hook refusal without bypassing it, then run pullboard ship again');
     }
     const main = mainCheckout(root);
