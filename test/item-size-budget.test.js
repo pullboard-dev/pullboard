@@ -1,11 +1,10 @@
 /** @pullboard-test-input source-tree */
 /** Authored build scope is cut before claim, and capacity measures real build intervals against it [N2,B3]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { configFromSource } from '../packages/config/index.js';
-import { loadConfig } from '../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../packages/items/index.js';
 import { buildCalibration } from '../packages/stats/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -20,7 +19,8 @@ test('over-budget scope refuses claim, cut children build, and capacity compares
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  const config = { ...loadConfig(box.repo), submit: { handoff: false } };
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.submit = { handoff: false };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: private foreground submit [G1]');
@@ -31,6 +31,7 @@ test('over-budget scope refuses claim, cut children build, and capacity compares
       '--check', 'test -f web/result.txt', '--wait', ...(parent ? ['--parent', String(parent)] : []), '--json')).item.item_id;
   }
   const parent = add('Cut this large build', 60);
+  assert.equal(json(box.run(box.repo, 'edit', String(parent), '--expected-minutes', '50', '--json')).item.item_expected_build_minutes, 50);
   const refused = box.run(box.web, 'claim', String(parent), '--json');
   assert.notEqual(refused.code, 0);
   assert.match(refused.out + refused.err, /ITEM_BUILD_BUDGET/u);
@@ -63,7 +64,8 @@ test('over-budget scope refuses claim, cut children build, and capacity compares
   assert.match(limited.out + limited.err, /10-minute.*budget/u);
   const bounded = add('Fits the accepted budget', 10, parent);
   json(box.run(box.web, 'claim', String(bounded), '--json'));
-  json(box.run(box.web, 'release', String(bounded), '--reason', 'OTHER', '--no-next', '--json'));
+  json(box.run(box.web, 'release', String(bounded), '--reason', 'OTHER', '--note', 'The private claimability check completed.', '--no-next', '--json'));
+  assert.equal(json(box.run(box.repo, 'edit', String(parent), '--expected-minutes', 'unknown', '--json')).item.item_expected_build_minutes, undefined);
 });
 
 test('build estimates and board budgets reject invalid numbers and keep unknown duration explicit [N2,B3]', () => {
