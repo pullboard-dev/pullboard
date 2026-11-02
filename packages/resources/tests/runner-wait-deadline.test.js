@@ -421,14 +421,17 @@ test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1
     const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
       runnerProvider: () => settings.runners };
     let held = await takeResource(options), admitted;
-    let signalQueued, releaseQueue;
+    let signalQueued, releaseQueue, observedWait;
     const queued = new Promise(done => { signalQueued = done; });
     const barrier = new Promise(done => { releaseQueue = done; });
     const older = takeResource({ ...options, runnerWaitMs: 5_000, agent: 'older-runner-waiter', onWait: async state => {
-      if (!state.admitted) { signalQueued(); await barrier; }
+      if (!state.admitted) { observedWait = state.runnerWait; signalQueued(); await barrier; }
     } });
     try {
       await queued;
+      assert.equal(observedWait.runners[0].slots.free, 0);
+      assert.equal(observedWait.runners[0].holders.length, 1);
+      assert.equal(observedWait.runners[0].browser.total, 1);
       let waited = false;
       await assert.rejects(takeResource({ ...options, runnerWaitMs: 60, agent: 'later-runner-waiter', onWait: async state => {
         if (state.admitted || waited) return;
@@ -442,6 +445,35 @@ test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1
       assert.equal(admitted.lateRunnerDispatch, undefined, 'the older request retains its own unexpired clock');
     } finally {
       held?.release(); releaseQueue();
+      admitted ??= await older;
+      admitted?.release();
+    }
+  });
+});
+
+test('a waiting older ticket reserves only one of two free runner slots [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const options = { name: 'gate', root: box.repo, capacity: 0, remote: true, runnerOnly: true,
+      runnerProvider: () => settings.runners.map(runner => ({ ...runner, slots: 2 })) };
+    let first = await takeResource(options), second = await takeResource(options), later, admitted;
+    let signalQueued, releaseQueue;
+    const queued = new Promise(done => { signalQueued = done; });
+    const barrier = new Promise(done => { releaseQueue = done; });
+    const older = takeResource({ ...options, runnerWaitMs: 5_000, agent: 'older-idle-slot', onWait: async state => {
+      if (!state.admitted) { signalQueued(); await barrier; }
+    } });
+    try {
+      await queued;
+      first.release(); first = null;
+      second.release(); second = null;
+      later = await takeResource({ ...options, runnerWaitMs: 1_000, agent: 'later-idle-slot' });
+      assert.equal(later.runner.host, settings.runners[0].host, 'the spare slot starts the later eligible request');
+      releaseQueue();
+      admitted = await older;
+      assert.equal(admitted.runner.host, later.runner.host, 'one slot remains reserved for the earlier ticket');
+    } finally {
+      first?.release(); second?.release(); later?.release(); releaseQueue();
       admitted ??= await older;
       admitted?.release();
     }
@@ -472,4 +504,69 @@ process.stdout.write(JSON.stringify({ calls, result }));`;
   assert.equal(outcome.calls, 2);
   assert.equal(outcome.result.browser, true);
   assert.equal(outcome.result.runnerAttempt.output, 'refused');
+});
+
+test('a direct flexible request prefers an idle browser-free runner [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [{ ...settings.runners[0], host: HOST + '-browser', slots: 1, browser: 1 },
+      { ...settings.runners[0], host: HOST + '-plain', slots: 1, browser: 0 }];
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true, runnerOnly: true,
+      runnerProvider: () => runners };
+    const flexible = await takeResource(options);
+    let browser;
+    try {
+      assert.equal(flexible.runner.host, HOST + '-plain', 'browser capacity stays free without a queued browser waiter');
+      browser = await takeResource({ ...options, browser: true, runnerWaitMs: 1_000 });
+      assert.equal(browser.runner.host, HOST + '-browser');
+    } finally { browser?.release(); flexible.release(); }
+  });
+});
+
+test('an older flexible waiter leaves a scarce browser host for a browser waiter [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [{ ...settings.runners[0], host: HOST + '-browser', slots: 1, browser: 1 },
+      { ...settings.runners[0], host: HOST + '-plain', slots: 1, browser: 0 }];
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true, runnerOnly: true,
+      runnerProvider: () => runners };
+    let first = await takeResource(options), second = await takeResource(options), later, admitted;
+    let signalQueued, releaseQueue;
+    const queued = new Promise(done => { signalQueued = done; });
+    const barrier = new Promise(done => { releaseQueue = done; });
+    const older = takeResource({ ...options, runnerWaitMs: 5_000, onWait: async state => {
+      if (!state.admitted) { signalQueued(); await barrier; }
+    } });
+    try {
+      await queued;
+      first.release(); first = null;
+      second.release(); second = null;
+      later = await takeResource({ ...options, browser: true, runnerWaitMs: 1_000 });
+      assert.equal(later.runner.host, HOST + '-browser');
+      releaseQueue();
+      admitted = await older;
+      assert.equal(admitted.runner.host, HOST + '-plain');
+    } finally {
+      first?.release(); second?.release(); later?.release(); releaseQueue();
+      admitted ??= await older;
+      admitted?.release();
+    }
+  });
+});
+
+test('a suite starts promptly on a mostly idle runner fleet [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = Array.from({ length: 5 }, (_, index) => ({ ...settings.runners[0], host: `${HOST}-fleet-${index}`, slots: 9, browser: 9 }));
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true,
+      runnerOnly: true, runnerProvider: () => runners };
+    const held = [];
+    let suite;
+    try {
+      for (let index = 0; index < 12; index += 1) held.push(await takeResource(options));
+      suite = await takeResource({ ...options, browser: true, kind: 'suite', runnerWaitMs: 5_000,
+        onWait: state => { if (!state.admitted) assert.fail('a mostly idle fleet must admit without queueing'); } });
+      assert.ok(suite.runner);
+    } finally { suite?.release(); for (const lease of held) lease.release(); }
+  });
 });
