@@ -1,3 +1,4 @@
+import * as native from '../apps/lib/index.js';
 /** A reviewer who starts before the builder submits is told the builder is still working [C7,P4]. */
 import { submitFixture } from './board-submit-fixture.js';
 import assert from 'node:assert/strict';
@@ -174,7 +175,6 @@ test('[V15,C7] idle review cycles open no writer and a newly eligible review res
   const id = claimed(box);
   // The idle reason was already observed: an unchanged poll must not renew its event.
   await run(box, box.reviewer, ['next', '--verify']);
-  const native = await import('../apps/lib/src/core/native-board.js');
   let writers = 0;
   const before = store.events(box.board).length;
   /** Count real write-capable native connections, while leaving every production guard active. */
