@@ -1,7 +1,7 @@
 /** Synthetic private unit inputs exercise attribution policy; these are not operational evidence or board receipts. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { requireLocalGuardClassification } from '../src/land-local-guard.js';
+import { requireLocalGuardClassification } from '../packages/landing/index.js';
 import { landingPorts } from './landing-ports-fixture.js';
 import { NATIVE_FLAKE_ENGINE } from '../src/flake-engine.js';
 

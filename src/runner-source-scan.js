@@ -112,7 +112,8 @@ export function protectionAt(root, commit) {
 
 /** Apply current protection rules to all selected historical names before any anonymous cache seed. */
 export function protectHistory(root, source, policies) {
-  const paths = [...new Set(sourceGit(root, ['log', '--format=', '--name-only', '-z', '--no-renames', '--root', '-m', '--full-history', source.commit])
+  // Every historical path name, once per commit: this outgrew one blob's 8 MiB, so it gets its own bound.
+  const paths = [...new Set(sourceGit(root, ['log', '--format=', '--name-only', '-z', '--no-renames', '--root', '-m', '--full-history', source.commit], { maxBuffer: 1 << 28 })
     .split('\0').filter(Boolean))];
   if (paths.some(path => policies.some(protect => protectedHistoryPath(path, protect)))) {
     throw new Refused('RUNNER_SECRET', 'selected history includes a blocked private path; keep this run local or remove that private history');

@@ -7,7 +7,7 @@ import { COORDINATOR } from '../../packages/config/index.js';
 import { policyAt } from '../../packages/sandbox/index.js';
 import { checkNeedsBrowser } from '../browser-admission.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
 import { checkNeedsGui } from '../gui-admission.js';
 import { runProfiledShellAsync } from '../gate.js';
 import { withGateSlot } from '../gate.js';

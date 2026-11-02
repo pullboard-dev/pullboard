@@ -8,7 +8,7 @@ import {
   commitMessageProblems,
   parseCommitMessage,
 } from '../packages/commits/index.js';
-import { landingMessage } from '../src/landing-message.js';
+import { landingMessage } from '../packages/landing/index.js';
 import { commitMsgProblems } from '../packages/commits/index.js';
 import { defaults } from '../packages/config/index.js';
 import { parseSpec } from '../packages/spec/index.js';
