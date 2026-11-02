@@ -15,6 +15,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  writeFileSync,
 } from 'node:fs';
 import {
   dirname,
@@ -333,6 +334,36 @@ export function missingGateFindings(spec, root) {
     }
   }
   return findings;
+}
+
+/** Repoint only gate paths Git identifies as renames in this landing, preserving every other row byte [B23,N39]. */
+export function repointLandingGates(root, config, base, tip) {
+  const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.quotepath=false', 'diff', '--no-ext-diff', '--no-textconv', '--find-renames', '--name-status', '-z', base, tip],
+    { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  if (result.status !== 0) throw new Refused('LAND_MERGE', 'cannot inspect landing renames; restore the exact Git objects and retry');
+  const fields = result.stdout.split('\0'), renames = new Map();
+  for (let i = 0; i < fields.length && fields[i];) {
+    const status = fields[i++], from = fields[i++];
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const to = fields[i++];
+      if (status.startsWith('R')) renames.set(from, to);
+    }
+  }
+  const spec = loadSpec(root, config);
+  if (!spec.exists || !renames.size) return [];
+  const source = readFileSync(spec.file, 'utf8'), lines = source.split('\n'), changes = [];
+  for (const row of spec.rows) {
+    if (!row.gate) continue;
+    const gate = row.gate.replace(GATE_FILE_RE, (match, path) => {
+      const next = renames.get(posix.normalize(path));
+      if (!next) return match;
+      changes.push({ row: row.id, from: posix.normalize(path), to: next });
+      return match.slice(0, match.length - path.length) + next;
+    });
+    if (gate !== row.gate) lines[row.line - 1] = replaceRowGate(lines[row.line - 1], gate);
+  }
+  if (changes.length) writeFileSync(spec.file, lines.join('\n'));
+  return changes;
 }
 
 /**

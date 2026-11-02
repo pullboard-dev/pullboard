@@ -1,3 +1,5 @@
+import { repointLandingGates } from '../packages/spec/index.js';
+import { missingGateFindings } from '../packages/spec/index.js';
 /**
  * The spec (S1–S5): parsing SPEC.md rows, the lint, the frozen criterion and sign-offs.
  */
@@ -1062,6 +1064,26 @@ function answerCommandCase(t, separateGitDir) {
   assert.equal(person.status, 0, person.stdout + person.stderr);
   assert.equal(JSON.parse(person.stdout).decisions[0].answer, "Redis on the host's port");
 }
+
+test('landing repoints only Git-renamed gate paths and keeps deleted gates missing [S4,B3]', (t) => {
+  const source = '# Demo\n\n## G · Goals\n- G1 [approved, must] Original text stays exact. | gate: node test/old.test.js | serves: G2\n- G2 [approved, must] Deleted proof stays required. | gate: test/gone.test.js\n- G3 [approved, must] Untouched proof. | gate: test/still.test.js\n';
+  const box = specBox(t, { specSource: source });
+  mkdirSync(join(box.root, 'test'));
+  for (const file of ['old', 'gone', 'still']) writeFileSync(join(box.root, `test/${file}.test.js`), `export const ${file} = true;\n`);
+  box.git('add', '-A'); box.git('commit', '-q', '-m', 'test: add gate proofs');
+  const base = box.git('rev-parse', 'HEAD').trim();
+  box.git('mv', 'test/old.test.js', 'test/new.test.js');
+  box.git('rm', '-q', 'test/gone.test.js');
+  box.git('commit', '-q', '-m', 'test: move one proof');
+  const tip = box.git('rev-parse', 'HEAD').trim();
+  const changes = repointLandingGates(box.root, { spec: box.specName }, base, tip);
+  assert.deepEqual(changes, [{ row: 'G1', from: 'test/old.test.js', to: 'test/new.test.js' }]);
+  const actual = readFileSync(join(box.root, box.specName), 'utf8');
+  assert.equal(actual, source.replace('test/old.test.js', 'test/new.test.js'));
+  const findings = missingGateFindings(parseSpec(actual), box.root);
+  assert.ok(findings.some(row => row.id === 'G2' && row.level === 'error'));
+  assert.ok(!findings.some(row => row.id === 'G1' || row.id === 'G3'));
+});
 
 test('spec check fails when an approved row names a missing gate [S4]', (t) => {
   // A gate file that was committed and then removed is a lost test: an approved must-row fails spec check and
