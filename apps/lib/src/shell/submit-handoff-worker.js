@@ -175,7 +175,8 @@ export async function superviseSubmitHandoffWorker(requestFile, { nativeBoard })
 export function submitHandoffWorkerEntrypoint() { return fileURLToPath(import.meta.url); }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const nativeBoard = await import('../../../../src/native-board.js');
   const run = process.argv[3] === '--execute' ? runSubmitHandoffWorker : superviseSubmitHandoffWorker;
-  run(process.argv[2], { nativeBoard, prepared: process.argv[3] === '--execute' }).catch(error => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
+  // The board's module graph reaches this worker through the lib front door; finish evaluating before loading it.
+  import('../core/native-board.js').then(nativeBoard => run(process.argv[2], { nativeBoard, prepared: process.argv[3] === '--execute' }))
+    .catch(error => { process.stderr.write(error.message + '\n'); process.exitCode = 1; });
 }
