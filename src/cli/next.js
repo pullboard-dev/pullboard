@@ -1,3 +1,6 @@
+import { claimWorktrees } from '../../packages/activity/index.js';
+import { claimOverlapLines } from '../../packages/activity/index.js';
+import { claimOverlaps } from '../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../packages/store/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
@@ -99,6 +102,9 @@ export async function nextOnce(ctx, values) {
 /** The selection half of one next loop: the item to claim, or what to print instead. It only reads (#1047). */
 function nextPick(ctx, board, values) {
   const me = whoAmI(ctx, board);
+  const items = store.listItems(board), agents = store.listAgents(board);
+  const workingFiles = claimWorktrees(items, agents);
+  for (const line of claimOverlapLines(items, agents, me.id, claimOverlaps, workingFiles)) ctx.io.err(line);
   const warm = warmFiles(ctx, board, me);
   const seats = nextSessionSeats(ctx, board, sessionSeatReaders);
   // A claim belongs to the seat that made it: seats of one session share its environment, so a sibling's claim is
@@ -108,7 +114,7 @@ function nextPick(ctx, board, values) {
     && store.ROUTES.indexOf(item.item_route) <= store.ROUTES.indexOf(me.route)) : undefined;
   const selection = { agentId: me.id, lane: me.lane, runnable: values.runnable, routes: values.routes, warm,
     priority: mainRedReworkItems(ctx.info.root, board), omitIds: values.omitIds ?? [], observeIdle: values.observeIdle,
-    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board) };
+    reworkRoutingPolicy: currentReworkRoutingPolicy(ctx, board), workingFiles };
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });

@@ -1,3 +1,4 @@
+import { liveClaimCollisions } from '../../../items/index.js';
 import {
   exitContinuationSummary,
   exitContinuationProblem,
@@ -62,7 +63,7 @@ import { reworkFamilyRoute } from "../core/rework-family-routing.js";
  * @param {{ agentId: string, lane: string, verify?: boolean, policy?: string, familyPolicy?: string, runnable?: boolean, routes?: string[], warm?: string[], priority?: number[], lanes?: string[], skipIds?: number[], omitIds?: number[], afterRelease?: number }} who
  * @returns {{ item: any | null, reasons: string[], shared?: string[] }}
  */
-export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null }) {
+export function nextFor(board, { agentId, lane, verify = false, policy = 'any', familyPolicy = 'off', familyRelaxAt, runnable = false, routes = ROUTES, warm = [], priority = [], lanes, skipIds = [], omitIds = [], afterRelease, observeIdle = false, reworkRoutingPolicy = null, workingFiles = new Map() }) {
   /** Optional diagnostic data leaves historical query result shapes and all selection guards unchanged. */
   const empty = (reason, result) => observeIdle ? { ...result, idleReason: reason } : result;
   const focusCompare = focusOrder(board, () => 0, { milestones });
@@ -148,7 +149,8 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     if (hold) { selectedLanes.delete(name); reasons.push(`${hold.hold_by} holds the ${name} lane: ${hold.hold_reason}`); }
   }
   const compare = buildOrder(board, { warm, agentId, tierFirst: true });
-  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease && (!ownRejectionFirst || entry.item_id !== held.item_id));
+  const inFlight = listItems(board, { all: true }).filter(entry => entry.item_id !== plannedRelease && (!ownRejectionFirst || entry.item_id !== held.item_id))
+    .map(entry => ({ ...entry, item_files: [entry.item_files, ...(workingFiles.get(entry.item_id)?.files ?? [])].filter(Boolean).join('\n') }));
   const recent = new Set(warm);
   const mainRed = new Set(priority);
   const laneItems = items.filter((entry) => entry.item_status === 'open' && selectedLanes.has(entry.item_lane)
@@ -196,7 +198,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true });
     if (reserved) { reasons.push(reserved); continue; }
-    const collisions = itemFileCollisions(entry, inFlight);
+    const collisions = [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
     if (collisions.length) { reasons.push(...collisions); continue; }
     const foreign = foreignBlockers(board, entry);
     if (foreign.length) {
