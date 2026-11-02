@@ -226,6 +226,8 @@ async function json(box, cwd, command, args = [], subcommand) {
   const document = JSON.parse(result.stdout);
   if (command === 'check' && subcommand !== 'accept') {
     assert.equal(result.stderr, `check #${document.id} set by ${document.by} (unknown): ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
+  } else if (command === 'done' || command === 'submit') {
+    assert.match(result.stderr, /^(?:cells-submit receipt not reused: config changed\n)?$/, `${command} permits only the cache diagnostic on stderr`);
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);
@@ -794,10 +796,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   const companion = await json(source, source.repo, 'companion', [String(catalog.item_id), 'coordinator', 'Catalog companion', '--key', 'catalog']);
   assert.equal(companion.item.item_parent_id, catalog.item_id);
   assert.equal(companion.created, true);
-  await json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id)], 'add');
+  await json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'add');
   await json(source, source.repo, 'milestone', ['items', 'Catalog', '--remove', String(catalog.item_id)], 'items');
-  await json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id)], 'items');
-  await json(source, source.repo, 'milestone', ['order', 'Catalog', String(catalog.item_id)], 'order');
+  await json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'items');
+  await json(source, source.repo, 'milestone', ['order', 'Catalog', String(catalog.item_id), '--reason', 'Exercise catalog milestone ordering'], 'order');
   await json(source, source.repo, 'milestone', ['pin', 'Catalog', String(catalog.item_id), '--reason', 'Catalog coverage first'], 'pin');
   const sunk = await json(source, source.repo, 'milestone', ['sink', 'Catalog', String(catalog.item_id), '--reason', 'Catalog coverage last'], 'sink');
   assert.deepEqual([sunk.milestone.sunk, sunk.milestone.reasons[String(catalog.item_id)]], [[catalog.item_id], 'Catalog coverage last'], 'a sink records the item and its reason');
@@ -853,6 +855,10 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.deepEqual(runner.runner, { host: 'fixture-runner', slots: 2, browser: 1, gui: null, fixed: true });
   const projectGate = JSON.parse(readFileSync(join(source.repo, 'pullboard.json'), 'utf8')).gate;
   assert.equal((await json(source, source.repo, 'gate', ['set', projectGate], 'set')).gate, projectGate);
+  assert.equal(typeof (await json(source, source.repo, 'maintenance')).enabled, 'boolean');
+  assert.ok(Array.isArray((await json(source, source.repo, 'seats')).seats));
+  assert.equal(typeof (await json(source, source.repo, 'stats', ['time'], 'time')).time, 'object');
+  assert.ok(Object.hasOwn(await json(source, source.repo, 'tool-build'), 'build'));
 
   const handoffPath = join(source.dir, 'catalog-handoff');
   await source.git(source.repo, 'worktree', 'add', '--detach', '--quiet', handoffPath, 'HEAD');
