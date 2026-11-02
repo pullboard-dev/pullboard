@@ -1,12 +1,12 @@
 /** Shell boundary for checking actual import cuts and filing their independent board items [C7,D3]. */
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
 import { spawnSync } from 'node:child_process';
 import { cellInventory } from '../packages/codemap/index.js';
 import { testFile } from '../packages/codemap/index.js';
 import { temporaryCellEdges } from '../packages/codemap/index.js';
-import { declaredSourceLoads } from '../packages/gate/index.js';
-import { declaredSourcePatterns } from '../packages/gate/index.js';
+import { declaredSourceLoads } from '../src/affected-tests.js';
+import { declaredSourcePatterns } from '../src/affected-tests.js';
 import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutTitle } from '../packages/codemap/index.js';
 import { importCuts } from '../packages/codemap/index.js';

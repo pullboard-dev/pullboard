@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { recordToolCommand } from '../packages/git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
-import { importsIn } from '../packages/gate/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
-import { withParseScope } from '../packages/gate/index.js';
+import { importsIn } from '../src/module-imports.js';
+import { commonJsIn } from '../src/module-imports.js';
+import { withParseScope } from '../src/module-imports.js';
 import { formatJson } from '../packages/merge/index.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
