@@ -321,7 +321,7 @@ async function displayedRefusal(io, error) {
 }
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
-export async function main(argv, streams) {
+async function timedMain(argv, streams) {
   if (argv[0] === 'serve' && !startupMainTraced) {
     startupMainTraced = true;
     traceServeStartup('cli-main-enter');
@@ -346,6 +346,13 @@ export async function main(argv, streams) {
     output.flush(1);
     return 1;
   }
+}
+
+/** Record local command wall time without sending timing data to the board. */
+export async function main(argv, streams) {
+  const { beginSeatTiming } = await import('./seat-timing.js');
+  const finish = beginSeatTiming(streams.cwd ?? process.cwd(), 'command', argv[0] ?? 'help');
+  try { return await timedMain(argv, streams); } finally { finish(); }
 }
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */

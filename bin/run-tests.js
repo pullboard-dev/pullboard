@@ -1398,7 +1398,9 @@ async function main(args) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
-  await main(process.argv.slice(2));
+  const { beginSeatTiming } = await import('../src/seat-timing.js');
+  const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
+  try { await main(process.argv.slice(2)); } finally { finishSeatTiming(); }
 } else if (process.argv[1]) {
   process.env.PULLBOARD_TEST_FILE = process.argv[1];
   (await import('../src/test-action-cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.
