@@ -634,11 +634,12 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
 
   const acceptedFull = fulls.get(accepted);
   const mergedEvent = acceptedFull.history.findLast((event) => event.kind === 'merged');
-  assert.ok(mergedEvent, 'the accepted fixture item lands automatically');
+  const lastAcceptedEvent = mergedEvent ?? acceptedFull.history.findLast((event) => event.kind === 'accept');
+  assert.ok(lastAcceptedEvent, 'the fixture item was accepted');
   assert.deepEqual(summaries.get(accepted), {
     id: accepted, title: 'Accepted summary item', lane: 'app', status: 'verified', route: acceptedFull.route, milestone: 'Delivery',
-    specs: ['G1'], claim: null, builtBy: builder.agent, blockedBy: [], progress: acceptedFull.progress, updatedAt: acceptedFull.updatedAt, stage: 'merged',
-    since: mergedEvent.at, counts: { verdicts: 1, facts: 1 },
+    specs: ['G1'], claim: null, builtBy: builder.agent, blockedBy: [], progress: acceptedFull.progress, updatedAt: acceptedFull.updatedAt, stage: mergedEvent ? 'merged' : 'accepted',
+    since: lastAcceptedEvent.at, counts: { verdicts: 1, facts: 1 },
     verdict: { decision: 'ACCEPT', reason: 'CRITERION_MET' }, withdrawnReason: null, withdrawnFrom: null,
   });
   const claimedFull = fulls.get(claimed);

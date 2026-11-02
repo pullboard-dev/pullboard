@@ -1233,10 +1233,14 @@ test('[A2] SSE delivers a live move and resumes after Last-Event-ID without repl
   assert.equal(reconnect.status, 200);
   const reader = reconnect.body.getReader();
   try {
+    const pending = { text: '' };
+    const placement = await nextSseEvent(reader, pending);
+    assert.equal(placement.document.event.event_kind, 'milestone_placed');
+    assert.equal(placement.document.event.item_id, firstEvent.document.event.item_id);
     const secondMove = await apiFetch(api, `${path}/moves`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ verb: 'add', args: { lane: 'app', title: 'Live two' } }) });
     assert.equal(secondMove.status, 200);
     const expectedSecond = await secondMove.json();
-    const second = await nextSseEvent(reader);
+    const second = await nextSseEvent(reader, pending);
     assert.equal(second.id, String(expectedSecond.event.event_id));
     assert.ok(Number(second.id) > Number(firstEvent.id), 'the reconnect resumed after the delivered event without replay');
     assert.equal(second.document.event.event_kind, 'add');
