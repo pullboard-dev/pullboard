@@ -6,14 +6,14 @@ import {
 /** The pullboard join command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
-} from '../agent-names.js';
+} from '../../packages/seats/index.js';
 import {
   COORDINATOR,
 } from '../../packages/config/index.js';
 import {
   isLane,
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -21,8 +21,8 @@ import {
   relayLinked,
 } from '../../packages/link/index.js';
 import * as store from '../board.js';
-import { projectBoardIdentity } from '../projects.js';
-import { registerProject } from '../projects.js';
+import { projectBoardIdentity } from '../../packages/seats/index.js';
+import { registerProject } from '../../packages/seats/index.js';
 import {
   context,
   ordered,

@@ -9,8 +9,8 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { defaults } from '../packages/config/index.js';
 import { reworkFamilyRoute } from '../src/rework-family-routing.js';
 import { sealReworkRoutingPolicy } from '../src/rework-family-routing.js';
-import { canTake } from '../src/route-escalation.js';
-import { routeOf } from '../src/seats.js';
+import { canTake } from '../packages/seats/index.js';
+import { routeOf } from '../packages/seats/index.js';
 import { SEAT_LIVE_WINDOW_MS } from '../packages/store/index.js';
 import { maintenanceDurations } from '../packages/config/index.js';
 

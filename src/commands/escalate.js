@@ -4,7 +4,7 @@ import {
 } from '../../packages/config/index.js';
 import {
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   actOn,
   idArg,

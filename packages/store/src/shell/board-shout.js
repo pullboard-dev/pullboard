@@ -1,6 +1,6 @@
 import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
 import { restatesBoardState } from '../../../roadmap/index.js';
-import { routeLaneMessage } from "../../../../src/lane-lead.js";
+import { routeLaneMessage } from "../../../seats/index.js";
 import * as itemDecisions from "../../../items/index.js";
 import { activityNewsFlag } from "../core/board-activity-news.js";
 import { getShout } from "./board-read-auxiliary.js";

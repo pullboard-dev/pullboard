@@ -5,7 +5,7 @@ import {
 import {
   installHooks,
 } from '../../packages/commits/index.js';
-import { configureAgentHooks } from '../agent-hooks.js';
+import { configureAgentHooks } from '../../packages/seats/index.js';
 
 /** Run `pullboard hooks` and return its exit code. */
 export function run(io, { first } = {}) {

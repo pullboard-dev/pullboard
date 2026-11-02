@@ -23,7 +23,7 @@ import { REFERENCE_ENGINE } from '../src/reference-engine.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords } from '../packages/link/index.js';
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
-import { privateBoardPath } from '../src/projects.js';
+import { privateBoardPath } from '../packages/seats/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';

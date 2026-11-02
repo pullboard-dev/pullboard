@@ -7,7 +7,7 @@ import { loadSpec } from '../packages/spec/index.js';
 import { loadDoctrine } from './doctrine.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { personBlockWords } from '../packages/items/index.js';
-import { displayAgentName } from './agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import {
   projectSpecApprovals,
   specApprovalState,
