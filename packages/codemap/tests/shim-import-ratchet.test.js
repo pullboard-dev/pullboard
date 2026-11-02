@@ -78,9 +78,11 @@ test('the actual native pre-commit refuses staged shim imports and accepts the f
   writeFileSync(join(box.repo, 'src/use.js'), "import { git } from './git.js';\n");
   box.git(box.repo, 'add', 'src', 'packages');
   box.git(box.repo, 'commit', '-q', '-m', 'test: preserve pre-migration dependency [G1]');
-  mkdirSync(join(box.repo, 'bin'), { recursive: true });
-  writeFileSync(join(box.repo, 'bin/cells-plan.json'), JSON.stringify(PLAN));
-  box.git(box.repo, 'add', 'bin/cells-plan.json');
+  mkdirSync(join(box.repo, 'bin/cells-plan'), { recursive: true });
+  writeFileSync(join(box.repo, 'bin/cells-plan.json'), JSON.stringify({ cells: [
+    { order: 1, name: 'git', file: 'bin/cells-plan/00-git.json' }] }));
+  writeFileSync(join(box.repo, 'bin/cells-plan/00-git.json'), JSON.stringify(PLAN.cells[0]));
+  box.git(box.repo, 'add', 'bin/cells-plan.json', 'bin/cells-plan/00-git.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: declare existing cell migration [G1]');
   writeFileSync(join(box.repo, 'src/new.js'), "import { git } from './git.js';\n");
   box.git(box.repo, 'add', 'src/new.js');
