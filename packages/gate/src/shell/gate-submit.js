@@ -1,3 +1,4 @@
+import { submitReusePlanDigest } from '../../../verify/index.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
 import { selectTestTiers } from './test-tier-selection.js';
 import { testTierProofFiles } from './test-tier-selection.js';
@@ -147,6 +148,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
   const { selection, deferred, deferFullFallback, deferSelection, invariants, registryGuards,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
+  const reusePlan = submitReusePlanDigest({ check, files: proofFiles, full: selection.full, deferred, proofCommand: plan.proofCommand });
   if (plan.testTiers) config = { ...config, affectedTests: plan.testRunner };
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
@@ -182,8 +184,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     /** Isolate each concurrently executing phase's source context, tracker and receipt list. */
     const phaseLease = role => ({ ...lease, executionServices: lease.executionServices, tracker: startReceipt(),
       proofReceiptIds: [], ...(lease.proof ? { proof: { ...lease.proof,
-        ...(proofContext?.companion ? { submitPhase: role } : {}),
-        ...(role === 'proof' && hasFinalProof && proofContext?.admission?.id ? { submitAdmission: proofContext.admission.id } : {}) } } : {}) });
+        ...(proofContext?.admission?.id ? { submitPhase: role, submitAdmission: proofContext.admission.id, submitReuse: true, submitReusePlan: reusePlan } : {}) } } : {}) });
     const criterionLease = phaseLease('criterion');
     const proofLease = phaseLease('proof');
     const proofWait = check ? 0 : lease.waitMs;

@@ -16,7 +16,7 @@ import {
 /** The pullboard add command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import {
-  checkBaseline,
+  prepareCheckBaseline,
   refuseCheckSyntax,
   sayCheckBaseline,
 } from '../../packages/gate/index.js';
@@ -44,6 +44,8 @@ import {
   idArg,
   idList,
   ordered,
+  launchBaseline,
+  CHECKOUT_LEASES,
 } from '../cli.js';
 
 /** Run `pullboard add` and return its exit code. */
@@ -110,11 +112,24 @@ export async function run(io, args) {
   if (authors.length) item.referenceAuthors = authors;
   const { command } = store.validateItemAddition(board, item);
   if (command) refuseCheckSyntax(command);
-  if (command) item.checkBaseline = checkBaseline(ctx.info.root, command);
+  if (command) item.checkBaseline = prepareCheckBaseline(ctx.info.root, command);
   item.barActor = barActorForCommand(ctx, board, { asPerson });
   const id = await ordered(ctx, board, 'addItem', [item]);
   if (sizeReason) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
     text: `Criterion size override: ${sizeReason}\n${JSON.stringify(size)}` }]);
+  if (item.checkBaseline?.result === 'pending') {
+    await launchBaseline(ctx, board, id, item.checkBaseline);
+    if (values.wait) {
+      // The recorded move is complete; do not hold checkout authority while the worker measures.
+      CHECKOUT_LEASES.get(io)?.release();
+      CHECKOUT_LEASES.delete(io);
+      while (true) {
+        const baseline = store.getItem(board, id).item_check_baseline;
+        if (baseline?.result !== 'pending' || baseline.request !== item.checkBaseline.request) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+  }
   io.result?.({ item: store.getItem(board, id) });
   io.say(`#${id}`);
   sayCheckBaseline(io, store.getItem(board, id));
