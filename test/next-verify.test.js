@@ -167,3 +167,36 @@ test('[V1,B3] next never offers a review to a seat sharing a parent with an auth
   const independent = store.nextFor(box.board, { agentId: outsider, lane: 'review', verify: true, policy: 'any' });
   assert.equal(independent.item.item_id, id, 'another parent can reserve the same submission');
 });
+
+
+test('[V15,C7] idle review cycles open no writer and a newly eligible review reserves exactly once', async t => {
+  const box = await project(t);
+  const id = claimed(box);
+  // The idle reason was already observed: an unchanged poll must not renew its event.
+  await run(box, box.reviewer, ['next', '--verify']);
+  const native = await import('../apps/lib/src/core/native-board.js');
+  let writers = 0;
+  const before = store.events(box.board).length;
+  /** Count real write-capable native connections, while leaving every production guard active. */
+  const loadNativeBoard = async () => ({ ...native, openBoard: (...args) => {
+    writers++;
+    return native.openBoard(...args);
+  } });
+  /** Poll through the actual native CLI, with its normal reader and reservation authority. */
+  const poll = cwd => main(['next', '--verify'], { cwd, clock: box.clock, loadNativeBoard,
+    stdout: { isTTY: false, write() {} }, stderr: { write() {} } });
+  await poll(box.reviewer);
+  await poll(box.reviewer);
+  assert.equal(writers, 0, 'unchanged idle cycles never open a write-capable connection');
+  assert.equal(store.events(box.board).length, before, 'idle polls append no board events');
+  submitFixture(box.board, id, { agentId: box.builderId,
+    commit: String(id).padStart(40, 'a'), tree: String(id).padStart(40, 'b') });
+  const peer = join(box.root, '..', 'second-reviewer');
+  // A second actual worktree competes after the item becomes eligible.
+  runFixtureGit(['worktree', 'add', '-q', '--detach', peer, 'HEAD'], { cwd: box.root, encoding: 'utf8' });
+  store.register(box.board, { lane: 'review', path: peer, family: 'Fixture Independent Vendor' });
+  await Promise.all([poll(box.reviewer), poll(peer)]);
+  const reservations = store.events(box.board).filter(event => event.event_kind === 'reserve' && event.event_item_id === id);
+  assert.equal(reservations.length, 1, 'atomic reselection lets exactly one competing reviewer reserve');
+  assert.ok(store.getItem(box.board, id).item_review_by);
+});
