@@ -78,3 +78,39 @@ test('the accepted-main allowance does not permit a builder edit to the same for
   assert.notEqual(commit.status, 0, 'the real installed pre-commit hook refuses the changed foreign object');
   assert.match(commit.stdout + commit.stderr, /outside the core lane: view\/file\.js/u);
 });
+
+/** Create the mixed accepted-main and deleted-shim case seen in the archived #1673 merge. */
+function mixedMainAndShim(t) {
+  const box = fixture(t);
+  writeFileSync(join(box.main, 'core', 'new.js'), 'export const value = 1;\n');
+  writeFileSync(join(box.main, 'core', 'old.js'), "export { value } from './new.js';\n");
+  writeFileSync(join(box.main, 'view', 'file.js'), "import { value } from '../core/old.js';\nexport const accepted = value;\n");
+  assert.equal(box.git(box.main, 'add', '-A').status, 0);
+  assert.equal(box.git(box.main, 'commit', '-q', '-m', 'chore: add forwarding shim [L3]').status, 0);
+  assert.equal(box.git(box.lane, 'merge', '--ff-only', 'main').status, 0);
+  assert.equal(box.git(box.lane, 'rm', 'core/old.js').status, 0);
+  assert.equal(box.git(box.lane, 'commit', '-q', '-m', 'feat(core): remove shim [L3]').status, 0);
+  writeFileSync(join(box.main, 'view', 'file.js'), "import { value } from '../core/old.js';\nexport const accepted = value;\nexport const mainChange = true;\n");
+  assert.equal(box.git(box.main, 'add', 'view/file.js').status, 0);
+  assert.equal(box.git(box.main, 'commit', '-q', '-m', 'chore: change view on main [L3]').status, 0);
+  const merge = box.git(box.lane, 'merge', '--no-commit', '--no-ff', 'main');
+  assert.equal(merge.status, 0, merge.stderr + merge.stdout);
+  writeFileSync(join(box.lane, 'view', 'file.js'), "import { value } from '../core/new.js';\nexport const accepted = value;\nexport const mainChange = true;\n");
+  assert.equal(box.git(box.lane, 'add', 'view/file.js').status, 0);
+  return box;
+}
+
+test('a merge accepts main lines plus the deleted-shim import repoint [L3,C7]', t => {
+  const box = mixedMainAndShim(t);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): merge accepted main [L3]');
+  assert.equal(commit.status, 0, commit.stderr + commit.stdout);
+});
+
+test('a merge still refuses a builder edit beside the deleted-shim import repoint [L3,C7]', t => {
+  const box = mixedMainAndShim(t);
+  writeFileSync(join(box.lane, 'view', 'file.js'), "import { value } from '../core/new.js';\nexport const accepted = value;\nexport const mainChange = true;\nexport const foreignEdit = true;\n");
+  assert.equal(box.git(box.lane, 'add', 'view/file.js').status, 0);
+  const commit = box.git(box.lane, 'commit', '-m', 'feat(core): edit a foreign file [L3]');
+  assert.notEqual(commit.status, 0);
+  assert.match(commit.stdout + commit.stderr, /outside the core lane: view\/file\.js/u);
+});
