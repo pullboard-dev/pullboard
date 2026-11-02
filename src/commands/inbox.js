@@ -15,7 +15,7 @@ export async function run(io, { values = {} } = {}) {
   const ctx = context(io);
   if (values.history) return history(io, ctx, values);
   const actedIds = (values['acted-on'] ?? '').split(',').filter(Boolean);
-  const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard };
+  const ports = { agentDisplayName, evidenceLine, ordered, whoAmI, withBoard, withBoardRead };
   const result = await deliverActivity(ctx, { actedIds }, ports);
   const { agents, ...document } = result;
   io.result?.(document);

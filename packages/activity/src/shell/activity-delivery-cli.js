@@ -62,10 +62,16 @@ async function recordIncluded(ctx, board, agentId, observation, { ordered }) {
   }
 }
 
-/** Delivery records included interrupts through caller-owned CLI ports; explicit acknowledgement stays separate. */
+/**
+ * Delivery records included interrupts through caller-owned CLI ports; explicit acknowledgement stays separate.
+ *
+ * A read with nothing to record runs on a read-only board first, so it never queues behind another seat's write;
+ * only a read that must record delivery or mark shouts read opens the board for writing (#2421).
+ */
 export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false, directShouts = true } = {}, ports) {
-  const { withBoard, whoAmI, ordered } = ports;
-  const delivered = await withBoard(ctx, async board => {
+  const { withBoard, withBoardRead, whoAmI, ordered } = ports;
+  /** Project and, unless `quiet`, record one delivery; a quiet pass returns null where it would have to write. */
+  const deliverOn = async (board, quiet) => {
     const me = whoAmI(ctx, board);
     if (actedIds.length) await ordered(ctx, board, 'actOnActivity', [{ agentId: me.id, ids: actedIds }]);
     const local = readActivityCursor(ctx.info.root, me.id, store.boardId(board));
@@ -94,6 +100,18 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
       .map(interrupt => interrupt.eventId).filter(Number.isSafeInteger);
     const selected = { ...observation, fresh: observation.fresh.filter(interrupt => included.has(interrupt.id)),
       through: withheld.length ? Math.min(observation.through, Math.min(...withheld) - 1) : observation.through };
+    if (quiet && !retired && !deliveryUnchanged(board, me.id, selected)) return null;
+    const markThrough = () => {
+      const rendered = new Set(bounded.activity.interrupts.map(interrupt => interrupt.id));
+      const withheldShouts = observation.fresh.filter(interrupt => !rendered.has(interrupt.id))
+        .map(interrupt => interrupt.shout).filter(Number.isSafeInteger);
+      return withheldShouts.length ? Math.min(shoutCursor, Math.min(...withheldShouts) - 1) : shoutCursor;
+    };
+    if (quiet) {
+      // Marking shouts read is a write, so a quiet pass hands any unread shout to the writing pass.
+      if (directShouts && store.inbox(board, me.id, { through: markThrough(), markRead: false }).length) return null;
+      return { ...bounded, local };
+    }
     if (!retired) {
       try { await recordIncluded(ctx, board, me.id, selected, ports); }
       catch (error) {
@@ -103,15 +121,15 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
         bounded = bound();
       }
     }
-    if (directShouts && !['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(activity.receipt?.code)) {
-      const rendered = new Set(bounded.activity.interrupts.map(interrupt => interrupt.id));
-      const withheldShouts = observation.fresh.filter(interrupt => !rendered.has(interrupt.id))
-        .map(interrupt => interrupt.shout).filter(Number.isSafeInteger);
-      const through = withheldShouts.length ? Math.min(shoutCursor, Math.min(...withheldShouts) - 1) : shoutCursor;
-      store.inbox(board, me.id, { through });
-    }
+    if (directShouts && !['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(activity.receipt?.code)) store.inbox(board, me.id, { through: markThrough() });
     return { ...bounded, local };
-  });
+  };
+  let delivered = null;
+  if (!actedIds.length && withBoardRead) {
+    try { delivered = await withBoardRead(ctx, board => deliverOn(board, true)); }
+    catch (error) { if (!store.writeRefused(error)) throw error; }
+  }
+  delivered ??= await withBoard(ctx, board => deliverOn(board, false));
   if (!['RELAY_KEY_MISSING', 'AUTH_REQUIRED'].includes(delivered.activity.receipt?.code) && !saveActivityCursor(delivered.local, delivered.activity.cursor)) {
     ctx.io.err('activity cursor could not be saved; activity may repeat when you read inbox again');
   }
