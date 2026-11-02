@@ -40,9 +40,9 @@ process.stdout.on('error', (error) => {
 });
 
 // Select immutable tooling before dispatch or parsing a newer trunk's configuration.
-const { main, selectedToolEntry } = await import('../src/cli-main.js');
-// Promotion must remain reachable when the published build predates its replacement.
-if (process.argv[2] !== 'tool-build') {
+const { main, selectedToolEntry, asksVersion } = await import('../src/cli-main.js');
+// Promotion must remain reachable when the published build predates its replacement; --version asks Git nothing.
+if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   try {
     const selected = await selectedToolEntry(process.cwd(), process.argv[1]);
     if (selected) {
