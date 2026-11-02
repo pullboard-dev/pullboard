@@ -83,9 +83,18 @@ export function settleReceipt(lease) {
  * @returns {Promise<any>} The action's result after releasing its lease.
  */
 export async function withGateSlot(root, action, options = {}) {
-  options = { ...options, executionServices: requireGateExecutionServices(options.executionServices) };
+  const remoteCheck = gateRunnersFirstEnabled() && (options.itemCheck === true || options.kind === 'review');
+  options = { ...options, runnerOnly: options.runnerOnly === true || remoteCheck,
+    executionServices: requireGateExecutionServices(options.executionServices) };
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
+    if (remoteCheck && ['RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED'].includes(error?.code)) {
+      const attempts = error.infrastructureAttempts ?? (error.infrastructureAttempt ? [error.infrastructureAttempt] : []);
+      const hosts = [...new Set(attempts.flatMap(attempt => [attempt.runner, ...(attempt.runners ?? []).map(runner => runner.host)]).filter(Boolean))];
+      const refused = new Refused('RUNNER_UNAVAILABLE', `runner-first check has no available runner (${hosts.join(', ') || 'none admitted'}): ${error.message}`);
+      refused.infrastructureAttempts = attempts;
+      throw refused;
+    }
     if (error?.code === 'RUNNER_BROWSER_SLOT_REQUIRED' && options.remote !== false && !options.browser
       && (options.runnerOnly || options.requiredExecutor?.kind === 'ssh')) {
       const attempt = error.runnerAttempt ?? { host: '', exitCode: null, output: '' };
@@ -220,7 +229,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           }
           throw error;
         }
-        // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
+        // Unverified cleanup belongs to the runner; runner-only checks retain remote admission on retry.
         const cleanup = error instanceof Refused && ['RUNNER_CLEANUP_TIMEOUT', 'RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error.code);
         const boundedRetry = retryInfrastructure || ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error?.code)
           || infrastructureAttempts.some(attempt => ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(attempt.code));
