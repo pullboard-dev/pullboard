@@ -1,3 +1,4 @@
+import { receiptLine as cellReceiptLine } from '../../packages/git/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
@@ -405,7 +406,7 @@ export async function submitHere(ctx, id, infra) {
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
-  if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
+  if (cells.reused) ctx.io.say(cellReceiptLine(cells.receipt));
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
