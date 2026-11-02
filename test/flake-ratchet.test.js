@@ -7,25 +7,27 @@ const observed = (file, eventId) => ({ file, name: 'case', status: 'active', cou
 const quarantine = (file, item, eventId) => ({ file, name: 'case', status: 'quarantined', item, eventId });
 
 test('a new unquarantined flake refuses the landing by test name [C7,T12]', () => {
-  const result = flakeRatchet({ previous: { version: 1, eventId: 10, quarantines: [] }, eventId: 12,
+  const result = flakeRatchet({ previous: { version: 1, eventId: 10, count: 0, quarantines: [] }, eventId: 12,
     observations: [observed('test/new.test.js', 11)], quarantines: [] });
   assert.equal(result.allowed, false);
   assert.deepEqual(result.unprotected, [{ file: 'test/new.test.js', name: 'case' }]);
 });
 
 test('a filed newly observed quarantine can raise the count, and repair lowers it [C7,T12]', () => {
-  const previous = { version: 1, eventId: 10, quarantines: [] };
+  const previous = { version: 1, eventId: 10, count: 0, quarantines: [] };
   const first = flakeRatchet({ previous, eventId: 13, observations: [observed('test/new.test.js', 11)],
     quarantines: [quarantine('test/new.test.js', 7, 12)] });
   assert.equal(first.allowed, true);
+  assert.equal(first.snapshot.count, 1);
   assert.equal(first.snapshot.quarantines.length, 1);
   const fixed = flakeRatchet({ previous: first.snapshot, eventId: 15, observations: [], quarantines: [] });
   assert.equal(fixed.allowed, true);
+  assert.equal(fixed.snapshot.count, 0);
   assert.equal(fixed.snapshot.quarantines.length, 0);
 });
 
 test('old or unfiled quarantine cannot justify increasing the landing baseline [C7,T12]', () => {
-  const previous = { version: 1, eventId: 10, quarantines: [] };
+  const previous = { version: 1, eventId: 10, count: 0, quarantines: [] };
   const old = flakeRatchet({ previous, eventId: 12, observations: [observed('test/old.test.js', 9)],
     quarantines: [quarantine('test/old.test.js', 4, 11)] });
   assert.equal(old.allowed, false);

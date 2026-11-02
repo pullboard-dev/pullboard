@@ -9,7 +9,8 @@ const key = row => JSON.stringify([row.file, row.name]);
 export function flakeRatchet({ previous = null, observations, quarantines, eventId }) {
   if (!Number.isSafeInteger(eventId) || eventId < 0) throw new TypeError('a ratchet snapshot needs the captured native event boundary');
   if (previous !== null && (previous.version !== 1 || !Number.isSafeInteger(previous.eventId)
-    || previous.eventId > eventId || !Array.isArray(previous.quarantines))) throw new TypeError('invalid previous flake ratchet snapshot');
+    || previous.eventId > eventId || !Array.isArray(previous.quarantines)
+    || previous.count !== previous.quarantines.length)) throw new TypeError('invalid previous flake ratchet snapshot');
   const active = quarantines.filter(row => row.status === 'quarantined');
   const byTest = new Map(active.map(row => [key(row), row]));
   const known = new Map(observations.filter(row => row.status === 'active' && row.count > 0).map(row => [key(row), row]));
@@ -21,7 +22,7 @@ export function flakeRatchet({ previous = null, observations, quarantines, event
       const observed = known.get(key(row));
       return !observed || !(observed.lastEventId > previous.eventId) || !(row.eventId > previous.eventId);
     }).map(row => ({ file: row.file, name: row.name })) : [];
-  const snapshot = { version: 1, eventId, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
+  const snapshot = { version: 1, eventId, count: active.length, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
   return { snapshot, unprotected, malformed: malformed.map(({ file, name }) => ({ file, name })), unjustified: increases,
     allowed: !unprotected.length && !malformed.length && !increases.length };
 }
@@ -30,7 +31,7 @@ export function flakeRatchet({ previous = null, observations, quarantines, event
 export function pairedFlakeObservations(runs, { afterEvent = 0 } = {}) {
   const pairs = new Map(), seen = new Set();
   for (const run of runs) {
-    if (seen.has(run.id) || !Number.isSafeInteger(run.eventId) || !['string'].includes(typeof run.tree)
+    if (typeof run.id !== 'string' || !run.id || seen.has(run.id) || !Number.isSafeInteger(run.eventId) || typeof run.tree !== 'string'
       || ['suite', 'main-red'].includes(run.kind) || !Array.isArray(run.testOutcomes)
       || !(run.version === 1 || run.version === 2 && run.proof?.sourceClean === true && [0, 1].includes(run.proof?.exitCode))) continue;
     seen.add(run.id);
