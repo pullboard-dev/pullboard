@@ -1,3 +1,4 @@
+import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
 import { LEASE_LAPSE_ENGINE } from "../../../../src/lease-lapse-engine.js";
 import { CHECK_TIMING_ENGINE } from "../../../../src/check-timing-engine.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
@@ -17,9 +18,11 @@ export function itemById(board, id) {
     const target = JSON.parse(redirect.meta_value);
     throw new Refused('NO_ITEM', `item #${id} moved to ${target.destinationHandle ?? target.destinationBoardId}#${target.destinationItemId}; use that destination reference`);
   }
-  const row = board.db.prepare("SELECT item.*, timing.meta_value AS check_timing FROM item LEFT JOIN board_meta timing ON timing.meta_key='item_check_timing:' || item.item_id WHERE item_id = ?").get(id);
+  const row = board.db.prepare("SELECT item.*, timing.meta_value AS check_timing, expected.meta_value AS expected_build FROM item LEFT JOIN board_meta timing ON timing.meta_key='item_check_timing:' || item.item_id LEFT JOIN board_meta expected ON expected.meta_key='item_expected_build_minutes:' || item.item_id WHERE item_id = ?").get(id);
   if (!row) throw new Refused('NO_ITEM', `no item #${id}; see: pullboard list`);
-  const { check_timing, ...item } = row;
+  const { check_timing, expected_build, ...stored } = row;
+  const item = (board.executionEngineVersion ?? ENGINE_VERSION) >= EXPECTED_BUILD_ENGINE && expected_build !== null
+    ? { ...stored, item_expected_build_minutes: JSON.parse(expected_build) } : stored;
   return (board.executionEngineVersion ?? ENGINE_VERSION) >= CHECK_TIMING_ENGINE && check_timing !== null
     ? { ...item, item_check_timing: JSON.parse(check_timing) } : item;
 }

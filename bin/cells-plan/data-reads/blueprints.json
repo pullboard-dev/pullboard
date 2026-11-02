@@ -819,6 +819,13 @@
       "expression": "recorded.profileFile",
       "kind": "marker",
       "why": "Reads the native execution timing profile named by this fixture's generated comparison manifest, not bundled blueprint source."
+    },
+    {
+      "file": "test/item-size-budget.test.js",
+      "line": 22,
+      "expression": "join(box.repo, 'pullboard.json')",
+      "kind": "config",
+      "why": "Reads only the private native-init fixture configuration before committing foreground submission and a smaller authored build budget; no bundled blueprint source is read."
     }
   ]
 }

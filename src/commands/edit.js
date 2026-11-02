@@ -1,3 +1,4 @@
+import { parseExpectedBuildMinutes } from '../../packages/items/index.js';
 import { parseCheckTiming } from '../check-timing.js';
 import { requirePersonChannel } from '../../packages/person/index.js';
 import { githubPullClient } from '../../packages/github/index.js';
@@ -60,6 +61,7 @@ export async function run(io, args) {
     brief: brief === undefined ? undefined : briefInLane(ctx, store.getItem(board, id).item_lane, brief),
     reviewFamily: values['review-family'],
     ...(values['review-tier'] === undefined ? {} : { reviewTier: values['review-tier'] }),
+    ...(values['expected-minutes'] === undefined ? {} : { expectedBuildMinutes: parseExpectedBuildMinutes(values['expected-minutes']) }),
     route: values.route,
     ...(values.sensitive === undefined ? {} : { sensitive: values.sensitive }),
     ...(values['review-family'] === undefined ? {} : { reviewFamily: values['review-family'] }),
