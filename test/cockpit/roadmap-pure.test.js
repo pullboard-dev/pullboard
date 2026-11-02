@@ -54,8 +54,8 @@ test('milestone rows keep explicit disclosure, foreign navigation, pending detai
   assert.match(html, /<b>Prepared title<\/b>/u);
   assert.match(html, /title="Wait &lt;here&gt;">held/u);
   assert.match(html, /class="milestone-why" aria-busy="true"><p>Prepared detail<\/p>/u);
-  const accepted = milestoneRowHtml({ ...row, stage: 'accepted' }, { root: '/local', open: false });
-  assert.match(accepted, /class="chip ok">accepted/u);
+  const accepted = milestoneRowHtml({ ...row, state: 'verified', stage: 'accepted', held: '' }, { root: '/local', open: false });
+  assert.match(accepted, /class="chip ok roadmap-stage-chip">Verified/u);
   assert.match(accepted, /class="milestone-why" hidden/u);
 });
 
@@ -74,7 +74,7 @@ test('Roadmap cards preserve shipping counters, per-board folds and shipped hist
   assert.match(html, /data-roadmap-key="m:Next &lt;release&gt;"[^>]*aria-expanded="false"/u);
   assert.match(html, /Prepared header/u);
   assert.match(html, /Prepared progress/u);
-  assert.match(html, /data-shipping-stage="landing"><dt>Accepted, landing<\/dt><dd>1<\/dd>/u);
+  assert.match(html, /data-shipping-stage="landing"><dt><i class="roadmap-stage-swatch landing" aria-hidden="true"><\/i>Accepted, landing<\/dt><dd>1<\/dd>/u);
   assert.doesNotMatch(html, /class="milestone-limit"/u, 'the prepared shared header replaces the extra total-and-limit line');
   assert.doesNotMatch(html, /limit 4/u, 'a distant capacity limit is not presented beside the item count');
   assert.match(html, /<li hidden><div[^>]*data-roadmap-key="i:#1"/u);
@@ -129,8 +129,8 @@ test('Roadmap rows use the approved plain status words and quiet linked waits [N
     [{ stage: 'claimed', state: 'building' }, 'Building'],
     [{ stage: 'submitted', state: 'verify' }, 'In review'],
     [{ stage: 'open', state: 'back' }, 'Sent back'],
-    [{ stage: 'accepted', state: 'verified' }, 'Accepted'],
-    [{ stage: 'merged', state: 'verified' }, 'Landed'],
+    [{ stage: 'accepted', state: 'verified' }, 'Verified'],
+    [{ stage: 'merged', state: 'verified' }, 'Merged'],
   ];
   for (const [state, label] of cases) {
     const html = milestoneRowHtml({ label: '#7', title: 'Row title', ...state }, {});
