@@ -1030,3 +1030,19 @@ test('focus milestone policy survives export while old reserve-next retains its 
     { sequence: 1, at: '2026-10-24T00:00:00Z' });
   assert.equal(historical.result.item.item_id, outside, 'a historical reservation keeps its previous roadmap order');
 });
+
+test('blocked release --on records and coordinator edit --after none clears the wait [B5,B10,N2]', t => {
+  const box = crossLaneFixture(t);
+  box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'Cross-lane test', '--json'));
+  const blocker = box.add('web', 'Prerequisite');
+  const work = box.add('web', 'Blocked task');
+  box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));
+  box.json(box.runAs(box.session, box.web, 'release', String(work), '--reason', 'BLOCKED', '--on', String(blocker), '--no-next', '--json'));
+  const shown = box.json(box.run(box.repo, 'show', String(work), '--json'));
+  assert.equal(shown.item_after, String(blocker));
+  const before = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
+  assert.notEqual(before.item?.item_id, work);
+  box.json(box.runAs(box.session, box.web, 'release', String(blocker), '--reason', 'OTHER', '--note', 'Return fixture prerequisite', '--no-next', '--json'));
+  box.json(box.run(box.repo, 'edit', String(work), '--after', 'none', '--reason', 'Remove prerequisite', '--json'));
+  box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));
+});
