@@ -390,7 +390,6 @@ export async function submitHere(ctx, id, infra) {
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
-
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
   try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
@@ -418,10 +417,12 @@ export async function submitHere(ctx, id, infra) {
   const cellsStart = performance.now();
   try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
-    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
+    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
+    onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
   // Reused cells checks have no runner slot; use their own check-receipt formatter.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
+  if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
