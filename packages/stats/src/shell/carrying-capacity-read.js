@@ -11,8 +11,8 @@ function changedFiles(root, commit, base) {
   if (!SHA.test(commit ?? '')) return null;
   const args = SHA.test(base ?? '')
     ? ['diff', '--name-only', '--no-renames', '-z', base, commit, '--']
-    : ['diff-tree', '--root', '--first-parent', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', commit, '--'];
-  const result = gitSpawnSync(['--no-replace-objects', ...args], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    : ['diff-tree', '--root', '--diff-merges=first-parent', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', commit, '--'];
+  const result = gitSpawnSync(['--no-optional-locks', '--no-replace-objects', ...args], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   return result.status === 0 ? [...new Set(String(result.stdout ?? '').split('\0').filter(Boolean))] : null;
 }
 

@@ -55,7 +55,7 @@ function fixture(t) {
     observe(index + 0.25, 'submit', ids[index], { commit, submissionSize: { base, head: commit } });
     observe(index + 0.5, 'merged', ids[index], { commit });
   }
-  return { root, board, git, a, b, window: { from: new Date(BASE).toISOString(), to: new Date(BASE + 4 * HOUR).toISOString() } };
+  return { root, board, git, a, b, observe, window: { from: new Date(BASE).toISOString(), to: new Date(BASE + 4 * HOUR).toISOString() } };
 }
 
 test('capacity pins landings, per-file pressure, Little law, cells and held-out error on actual committed paths [R1,R2]', t => {
@@ -121,4 +121,24 @@ test('native capacity text and JSON expose the selected read-only window while r
   assert.match(text.out, /carrying capacity.*0 landings/u);
   assert.match(text.out, /held-out file conflicts/u);
   assert.deepEqual(journal(), before);
+});
+
+test('a historical landing without captured base measures the merge first parent rather than a false empty diff [R1,R2]', t => {
+  const f = fixture(t);
+  f.git(['checkout', '-qb', 'private-side']);
+  writeFileSync(join(f.root, f.a), 'side contribution\n');
+  f.git(['add', '.']); f.git(['commit', '-qm', 'side source']);
+  f.git(['checkout', '-q', 'main']);
+  writeFileSync(join(f.root, f.b), 'prior trunk contribution\n');
+  f.git(['add', '.']); f.git(['commit', '-qm', 'trunk source']);
+  f.git(['merge', '--no-ff', '-qm', 'actual merge', 'private-side']);
+  const commit = f.git(['rev-parse', 'HEAD']);
+  const id = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'Historical merge sample' });
+  f.observe(4, 'claim', id);
+  f.observe(4.25, 'submit', id, { commit });
+  f.observe(4.5, 'merged', id, { commit });
+  const report = readCarryingCapacity(f.root, store.events(f.board), { ...f.window, to: new Date(BASE + 5 * HOUR).toISOString() });
+  assert.equal(report.landings, 5);
+  assert.equal(report.files.find(row => row.file === f.a).touches, 5, 'the actual first-parent merge contribution is counted');
+  assert.equal(report.files.find(row => row.file === f.b).touches, 2, 'the prior trunk contribution is not misattributed to this item');
 });
