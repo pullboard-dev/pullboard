@@ -28,7 +28,7 @@ export async function run(io, { first }) {
   let result;
   for (;;) {
     try {
-      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
+      result = await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs, itemFolder: true, freeze: claimFreezer(ctx, board), head: headCommit(ctx.info.root) }]);
       break;
     } catch (error) {
       if (!(error instanceof MainSpecMerged)) throw await wrongLaneGuidance(ctx, board, me, id, error);
