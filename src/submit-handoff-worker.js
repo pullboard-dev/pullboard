@@ -4,13 +4,17 @@ import {
   readFileSync,
   writeFileSync,
   mkdirSync,
+  rmSync,
+  realpathSync,
 } from 'node:fs';
 import {
   dirname,
+  basename,
   join,
   resolve,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 import { gitSpawnSync } from './git-adapter.js';
 import { cleanGitEnvironment } from './git.js';
 import {
@@ -75,6 +79,12 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard }) {
     throw error;
   } finally {
     if (attached) jobGit(request.commonDir, ['worktree', 'remove', root]);
+    const tools = dirname(dirname(fileURLToPath(import.meta.url)));
+    if (basename(tools).startsWith(`pullboard-handoff-tools-${request.job}-`)
+      && dirname(realpathSync(tools)) === realpathSync(tmpdir())
+      && request.tools && realpathSync(request.tools) === realpathSync(tools)) {
+      rmSync(tools, { recursive: true, force: true });
+    }
   }
 }
 
