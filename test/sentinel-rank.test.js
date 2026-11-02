@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { healthReport } from '../packages/health/index.js';
 import { dispatchHealth } from '../src/dispatch-health.js';
+import { scanHealthSentinel } from '../src/health-sentinel.js';
 import { fixture, cli } from './next-take-fixture.js';
 
 /** Read actual health findings for the fixture's native board. */
@@ -40,7 +41,9 @@ test('a takeable earlier item still raises one inversion [N2,B13]', async t => {
   box.claim(later, box.seats.actor);
   const result = inversion(box, later);
   assert.equal(result?.detail.ahead, earlier);
-  const first = box.scan();
+  const scan = () => scanHealthSentinel(box.file, { root: box.root, config: box.config, now: box.clock.now(), cpu: () => [] });
+  const first = scan();
   assert.ok(first?.findings?.some(row => row.key === `RANK_INVERSION:item:${later}`));
-  assert.equal(box.scan(), null, 'an unchanged inversion is not reported twice');
+  box.scan();
+  assert.equal(scan(), null, 'an unchanged inversion is not reported twice');
 });
