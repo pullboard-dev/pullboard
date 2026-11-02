@@ -1,7 +1,7 @@
 /** Git adapter run/test selection and real audit policy [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { mainAuditFixture } from './main-audit-project.js';
 import { runFixtureExecFile } from './fixture-child.js';
@@ -68,9 +68,11 @@ test('a seeded divergence first fails the shared real and fake Git contract [C7]
 test('scheduled production audit runs Git real [C7]', { timeout: 180_000 }, async t => {
   const box = await mainAuditFixture(t, { requireRealGit: true });
   runFixtureExecFile('git', ['merge', '--ff-only', box.tip], { cwd: box.repo, env: box.env, encoding: 'utf8' });
+  writeFileSync(join(box.directory, 'schedule.json'), JSON.stringify({ dueAt: new Date(Date.now() - 1000).toISOString() }));
   await box.startWorker({ scheduled: true }).finish();
   const job = JSON.parse(readFileSync(join(box.directory, `${box.key}.json`), 'utf8'));
   const receipt = box.readGateReceipt(box.receiptStore(box.repo), job.receiptId);
   assert.ok(receipt.collection.files.includes('test/c.test.js'));
+  assert.equal(readFileSync(box.marker, 'utf8'), 'ran');
   assert.ok(!receipt.failures.some(failure => failure.name === 'audit uses real Git'), JSON.stringify(receipt.failures));
 });
