@@ -101,6 +101,7 @@ export const STATES = [
 
 /** @type {Guard[]} */
 export const GUARDS = [
+  { id: 'clausesInspected', refuse: 'CLAUSE_UNTICKED', rule: 'an explicitly inspected submit carries matching holder evidence for each declared criterion clause', next: 'tick each named clause with its declared evidence kind, then submit again', source: 'board' },
   { id: 'sourceAcceptance', refuse: 'REHOME_VERDICT', rule: 'the authenticated destination mover attests to an exact source board ACCEPT reference keyed by the ordered source MOVEID and result digest', next: 'preserve the imported source acceptance attribution, frozen digest, commit and verifier reference', source: 'board' },
   { id: 'mergeOnlyRecorded', refuse: 'MERGE_ONLY_PROOF', rule: 'the sealed submit records the origin’s Git-derived carry, unchanged bar and original verifier; landing re-proves its heads, trees and resolution hash before merging', next: 'submit normally for outside review if the origin cannot prove the merge', source: 'board' },
   { id: 'specRefreezeAllowed', refuse: 'CLOSED', rule: 'an unmerged acceptance is refrozen only within a validated cited-spec correction', next: 'apply the person-approved cited spec correction, or reopen through the normal review workflow', source: 'board' },
