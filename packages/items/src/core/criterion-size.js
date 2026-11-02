@@ -12,16 +12,15 @@ export function criterionSize(criterion = '', catalog = []) {
     const root = `${match[1]}/${match[2]}`;
     cells.add(catalog.find(cell => cell.root === root)?.name ?? (match[1] === 'apps' ? `app:${match[2]}` : match[2]));
   }
-  const prose = new Set(['the', 'one', 'each', 'this', 'a', 'another', 'more', 'of', 'or', 'and', 'with', 'without', 'to', 'from', 'for', 'in', 'on', 'is', 'are', 'must', 'should', 'may', 'named', 'called', 'item', 'items', 'boundary', 'boundaries']);
   // Separate scans keep "For cell alpha" from consuming the actual "cell alpha" declaration.
   for (const pattern of [/\bcells?\s+(?:named\s+|called\s+)?([\w:-]+(?:\s*(?:,|\band\b|&)\s*[\w:-]+)*)/gu,
     /\b([\w:-]+(?:\s*(?:,|\band\b|&)\s*[\w:-]+)*)\s+cells?\b/gu]) {
     for (const match of String(criterion).matchAll(pattern)) for (const rawName of match[1].split(/\s*(?:,|\band\b|&)\s*/u)) {
       const name = rawName.replace(/:+$/u, '');
-      if (catalog.some(cell => cell.name === name) || /^[a-z][\w:-]*$/u.test(name) && !prose.has(name)) cells.add(name);
+      if (catalog.some(cell => cell.name === name)) cells.add(name);
     }
   }
-  const labels = [...String(criterion).matchAll(/\((\d+)\)|(?:^|[\s;])(\d+)[.)]\s+/gu)];
+  const labels = [...String(criterion).matchAll(/\((\d+)\)|^\s*(\d+)\.\s+/gmu)];
   const clauses = labels.length || (String(criterion).trim() ? 1 : 0);
   return { version: 1, score: files.length + cells.size + clauses, files, cells: [...cells].sort(), clauses,
     oversized: cells.size > 1 || clauses > 3 };

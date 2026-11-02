@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Refused } from '../../../kernel/index.js';
 
-/** Projects without a cells plan still recognize explicit packages/apps paths and cell names. */
+/** Projects without a cells plan still recognize explicit packages/apps paths. */
 export function criterionCells(root) {
   const index = join(root, 'bin/cells-plan.json');
   if (!existsSync(index)) return [];
