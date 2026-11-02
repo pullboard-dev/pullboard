@@ -1,3 +1,4 @@
+import { itemFolderIdentity } from '../item-folder.js';
 import { heartbeatCommand } from '../cli-presence.js';
 import { mergeSubmissionMain } from '../../packages/merge/index.js';
 import { spawnSync } from 'node:child_process';
@@ -311,7 +312,9 @@ export async function submitHere(ctx, id, infra) {
   const held = await withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
     const item = store.getItem(board, id);
-    if (!isSubmitHandoffWorker(ctx)) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
+    const folder = itemFolderIdentity(board, ctx.info.root);
+    if (folder && folder.item !== id) throw new Refused('NOT_YOURS', `this folder belongs to item #${folder.item}; submit that item from here`);
+    if (!isSubmitHandoffWorker(ctx) && !folder) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);

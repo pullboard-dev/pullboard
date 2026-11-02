@@ -108,7 +108,7 @@ export async function enforceExitBoundary(io, command) {
   const { withBoard } = await import('./cli-context.js');
   await io.prepareProcessPorts?.();
   ctx.nativeBoard = io.nativeBoard ??= await io.loadNativeBoard();
-  const { agentAt } = await import('./board.js');
+  const { seatAt: agentAt } = await import('./item-folder-identity.js');
   const { ordered } = await import('./cli/claim.js');
   await withBoard(ctx, async board => {
     const native = runtimeSessionIdentity();
