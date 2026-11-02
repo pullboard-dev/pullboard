@@ -1,4 +1,4 @@
-import * as capacity from "../../../../src/line-capacity-board.js";
+import { reviewOffer as capacityReviewOffer } from "../../../seats/index.js";
 import { nextFor } from "./board-next-for.js";
 import {
   listItems,
@@ -9,5 +9,5 @@ import { overdueReview } from "../../../verify/index.js";
 
 /** Offer an eligible review at the queue ratio without claiming or reserving anything [Q1,V15]. */
 export function reviewOffer(board, who) {
-  return capacity.reviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
+  return capacityReviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
 }

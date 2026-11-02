@@ -57,7 +57,7 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
   }
   return atomic(board, () => {
     if (reasonCode !== undefined || (board.executionEngineVersion ?? ENGINE_VERSION) >= RELEASE_REASONS_ENGINE) {
-      const bad = releaseReasonProblem(reasonCode, note);
+      const bad = releaseReasonProblem(reasonCode, note, board.executionEngineVersion ?? ENGINE_VERSION);
       if (bad) throw bad;
     }
     const item = itemById(board, id);
