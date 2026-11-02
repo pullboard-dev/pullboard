@@ -325,3 +325,44 @@ test('[B4,V1,H16] takeover authorship uses the captured current runtime, preserv
   assert.equal(barReadiness(f.board,store.getItem(f.board,id), {}, f.board.runtimePorts.verification).revision.authors.item_criterion.parent,current.parent);
   assert.throws(()=>signReady(f,id,child),error=>error.code==='BAR_SELF_SIGN');
 });
+
+test('multi-claim renewal keeps its modern engine floor on replay [B5,H16]', async t => {
+  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const f = fixture(t);
+  const first = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'first', route: 'mid', criterion: 'first works', check: 'true', brief: 'Files: src/a.js\nTest: first works' });
+  const second = store.addItem(f.board, { by: 'coordinator', lane: 'core', title: 'second', route: 'mid', criterion: 'second works', check: 'true', brief: 'Files: src/b.js\nTest: second works' });
+  claim(f, first, f.builder);
+  const freeze = item => ({ text: JSON.stringify({ criterion: item.item_criterion }), digest: 'digest:bar' });
+  store.claim(f.board, second, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze, itemFolder: true });
+  const move = prepareEngineMove(f.board, 'claim', [first, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze }]);
+  assert.ok(move.engine >= ITEM_FOLDER_ENGINE);
+  assert.throws(() => applyEngineMove(f.board, { ...move, engine: ITEM_FOLDER_ENGINE - 1 }, { sequence: 1, at: '2026-01-01T00:01:00Z' }), /engine/);
+  assert.equal(store.getItem(f.board, first).item_owner, f.builder);
+  assert.equal(store.getItem(f.board, second).item_owner, f.builder);
+});
+
+test('older replay retains the one-claim guard even if an unknown modern flag is present [B5,H16]', async t => {
+  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
+  const first = add('legacy first'), second = add('legacy second');
+  claim(f, first, f.builder);
+  f.board.executionEngineVersion = ITEM_FOLDER_ENGINE - 1;
+  assert.throws(() => store.claim(f.board, second, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze: () => ({ text: '{}', digest: 'd' }), itemFolder: true }), { code: 'ONE_CLAIM' });
+  assert.equal(store.getItem(f.board, first).item_owner, f.builder);
+  assert.equal(store.getItem(f.board, second).item_owner, null);
+});
+
+test('an old modern claim does not upgrade a later legacy claim [B5,H16]', async t => {
+  const { ITEM_FOLDER_ENGINE } = await import('../src/item-folder-engine.js');
+  const f = fixture(t);
+  const add = title => store.addItem(f.board, { by: 'coordinator', lane: 'core', title, route: 'mid', criterion: 'works', check: 'true', brief: 'Files: src/a.js\nTest: works' });
+  const first = add('first'), second = add('second');
+  const freeze = () => ({ text: '{}', digest: 'digest:bar' });
+  store.claim(f.board, first, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze, itemFolder: true });
+  store.release(f.board, first, f.builder, 'Exercise a fresh legacy claim.', 'OTHER');
+  store.claim(f.board, first, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze });
+  const legacy = prepareEngineMove(f.board, 'claim', [second, { agentId: f.builder, lane: 'core', leaseMs: 7_200_000, freeze }]);
+  const replay = applyEngineMove(f.board, { ...legacy, engine: ITEM_FOLDER_ENGINE - 1 }, { sequence: 1, at: '2026-01-01T00:01:00Z' });
+  assert.equal(replay.error?.code, 'ONE_CLAIM');
+});
