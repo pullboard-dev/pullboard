@@ -61,13 +61,13 @@ test('compiler rotations hand off to a fresh supervisor without losing replies [
   t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   const sources = Array.from({ length: 128 }, (_, index) => `import value from './leaf-${index}.js'; export default value;`);
   withCellLintParser(parse => {
-    for (let batch = 0; batch < 260; batch++) {
+    for (let batch = 0; batch < 512; batch++) {
       const rows = parse(sources);
       assert.equal(rows.length, 128);
       assert.deepEqual(rows[0], { compiles: true, imports: ['./leaf-0.js'] });
     }
   });
-  assert.equal(starts, 2, 'the controller replaces its supervisor after the bounded rotation count');
+  assert.equal(starts, 2, 'the controller replaces its supervisor and can close at a rotation boundary');
 });
 
 test('the real lint CLI starts one parser controller per cold run and prints unchanged report bytes [C7,P3]', t => {
