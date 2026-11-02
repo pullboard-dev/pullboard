@@ -692,7 +692,7 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
   const options = { file: 'test/fixture.js', moves: [['src/old.js', 'packages/new.js']] };
   const retried = fixtureSourceEdits(source, options);
   assert.ok(calls >= 2, 'fixture analysis reached and retried its compiler');
-  assert.doesNotMatch(retried.problems.join(' '), /compiler (?:timeout|unavailable)/u);
+  assert.deepEqual(retried.problems, [], 'fixture analysis passes after the retry');
   const modules = bindingModules();
   assert.ok(bindingReadsForModules(modules).get('binding-cache.js').get('join').reads.length > 0);
   always = true;
