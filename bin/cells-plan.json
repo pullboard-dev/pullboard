@@ -1166,6 +1166,10 @@
     {
       "path": "src/blocked-dependencies-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/guarded-docs-refresh.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
