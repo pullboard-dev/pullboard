@@ -71,7 +71,7 @@ process.stdout.write=function(...args) {
 };\n`);
   t.after(async () => {
     const job = state(box).job;
-    if (job) await helpers.waitFor(() => {
+    if (job) await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
       const directory = join(box.repo, '.git/pullboard/submit-handoffs', job.id);
       const request = join(directory, 'request.json');
       return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
@@ -97,7 +97,7 @@ test('queued submit accepts a forward main move during native preflight [V4,H16,
   const queued = state(box).job;
   assert.equal(queued.commit, box.commit, 'queue preserves the captured candidate');
   assert.equal(queued.main, box.main, 'queue preserves the accepted preflight policy');
-  await box.helpers.waitFor(() => ['green', 'submitted', 'red', 'incomplete'].includes(state(box).job?.state),
+  await box.helpers.waitFor(() => ['green', 'submitted', 'red', 'incomplete'].includes(state(box).job?.state), // budget: actual gate completion hang ceiling; no throughput claim.
     'the actual queued gate result', 120000); // budget: real-worker hang ceiling, no elapsed-time assertion.
   const completed = state(box);
   assert.equal(completed.job.state, 'green', JSON.stringify(completed.job));
