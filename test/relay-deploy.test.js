@@ -5,8 +5,8 @@ import { startFixtureChild as spawn, reportFixtureChildFailure, safeFixtureDiagn
 import { performance } from 'node:perf_hooks';
 import { createServer } from 'node:http';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, copyFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
-import { copyPackageFiles, packageFiles } from '../src/package-files.js';
+import { dirname, join, resolve } from 'node:path';
+import { packageFiles } from '../src/package-files.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -40,7 +40,8 @@ function copyDockerSource(source, destinationPath, omitted) {
   } else {
     mkdirSync(join(destinationPath, '..'), { recursive: true });
     if (SHIPPED.has(source)) {
-      copyPackageFiles(ROOT, dirname(destinationPath), { files: [{ path: source, as: basename(destinationPath) }] });
+      // The manifest was checked once above; Docker copies this file, not its shim dependencies.
+      copyFileSync(sourcePath, destinationPath);
     } else if (/^packages\/[^/]+\/tests\//u.test(source)) {
       return; // package test folders are deliberately left out of the manifest (70e02358) and are not tool sources
     } else {
