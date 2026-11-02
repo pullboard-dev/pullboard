@@ -231,6 +231,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `stats moves` | `version:number`, `moves:object` |
 | `stats pipeline` | `version:number`, `pipeline:object` |
+| `stats time` | `version:number`, `time:object` |
 | `tool-build` | `version:number`, `build:object\|null` |
 <!-- api-command-shapes:end -->
 
