@@ -74,4 +74,8 @@ test('a candidate cannot loosen or remove an accepted file limit [C7]', t => {
   assert.throws(() => readTestFileBudgets(box.candidate, []), /may not increase from 1ms to 2ms/u, 'unselected rows cannot loosen');
   box.git(box.candidate, 'rm', '-q', box.path, 'pullboard.json'); box.git(box.candidate, 'commit', '-qm', 'remove');
   assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /may not increase from 1ms/u);
+  mkdirSync(dirname(join(box.candidate, box.path)), { recursive: true });
+  writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js' }));
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'malformed');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /invalid test file budget row/u);
 });
