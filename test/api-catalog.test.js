@@ -226,8 +226,8 @@ async function json(box, cwd, command, args = [], subcommand) {
   const document = JSON.parse(result.stdout);
   if (command === 'check' && subcommand !== 'accept') {
     assert.equal(result.stderr, `check #${document.id} set by ${document.by} (unknown): ${document.check}\n`, 'check attribution is visible before execution while stdout remains one JSON document');
-  } else if (command === 'done') {
-    assert.match(result.stderr, /^(?:cells-submit receipt not reused: config changed\n)?$/, 'done permits only the cache diagnostic on stderr');
+  } else if (command === 'done' || command === 'submit') {
+    assert.match(result.stderr, /^(?:cells-submit receipt not reused: config changed\n)?$/, `${command} permits only the cache diagnostic on stderr`);
   } else assert.equal(result.stderr, '', `${command} --json must keep stderr empty`);
   assert.equal(document.version, 1, `${command} --json has a version 1 envelope`);
   assertRequiredShape(document, shapeFor(command, subcommand).required, command);

@@ -38,6 +38,7 @@ import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
 import {
   apiError,
   apiFetch,
@@ -202,6 +203,7 @@ function sandbox() {
   delete env.PULLBOARD_STARTUP_TEST_PHASE_REACHED_FILE;
   delete env.PULLBOARD_STARTUP_TEST_RELEASE_FILE;
   for (const marker of SSH_SHELL_MARKERS) delete env[marker];
+  for (const marker of AGENT_SHELL_MARKERS) delete env[marker];
   const git = (cwd, ...args) => runFixtureGit(args, { cwd, env, encoding: 'utf8', stdio: 'pipe' });
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   return { dir, env, git, run };
@@ -1334,7 +1336,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
   const verifier = json(box, box.repo, 'worktree', ['app', '--route', 'light', '--model', 'fixture-verifier']);
   /** Execute the real CLI with only this test's private homes, Git config and PATH. */
   async function runFixtureCommand(argv, io) {
-    const keys = new Set([...Object.keys(box.env), 'PULLBOARD_RELAY_TOKEN', 'npm_config_cache']);
+    const keys = new Set([...Object.keys(box.env), ...AGENT_SHELL_MARKERS, 'PULLBOARD_RELAY_TOKEN', 'npm_config_cache']);
     const previous = new Map([...keys].map((key) => [key, process.env[key]]));
     try {
       for (const key of keys) {
@@ -1428,12 +1430,16 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     await move('claim', ids[0], {}, builder.agent);
     await move('submit', ids[0], {}, builder.agent);
     await move('next', undefined, { verify: true }, verifier.agent);
+    // Keep the fixture's trunk fixed so automatic landing cannot invalidate every item during this incremental check.
+    writeFileSync(join(box.repo, 'landing-fixture-dirty'), 'hold the trunk\n');
     await move('verify', ids[0], { decision: 'accept', reason: 'CRITERION_MET', note: 'verified dependency' }, verifier.agent);
     builds.length = 0;
     const dependencyState = await assertFreshFullState('verified dependency');
     assert.deepEqual(builds, [ids[0], ids[1]], 'the changed item and its dependent are recomputed');
     assert.deepEqual(dependencyState.items.find((item) => item.id === ids[1]).blockedBy, [],
       'the waiting item becomes unblocked when its dependency is verified');
+    await move('edit', ids[1], { after: [] });
+    await assertFreshFullState('remove the dependency before the independent expiry check');
 
     builds.length = 0;
     await move('shout', undefined, { to: 'all', text: 'Board-only change for incremental projection' });
