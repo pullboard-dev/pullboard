@@ -125,9 +125,10 @@ test('warmed controller refuses changed policy bytes and a fresh run uses each n
   const policy = join(tooling, 'packages/gate/src/core/gate-policy-load.js');
   const helper = join(tooling, 'packages/gate/src/core/fixture-policy-epoch.js');
   const original = readFileSync(policy, 'utf8');
-  const baseline = "import { policyEpoch } from './fixture-policy-epoch.js';\n" + original.replace(
+  const executed = join(box.dir, 'executed-policy.txt');
+  const baseline = "import { writeFileSync as recordPolicy } from 'node:fs';\nimport { policyEpoch } from './fixture-policy-epoch.js';\n" + original.replace(
     'export function runnerSource(root) {',
-    "export function runnerSource(root) { if (policyEpoch !== 'ORIGINAL') throw new Error(policyEpoch);");
+    `export function runnerSource(root) { if (policyEpoch !== 'ORIGINAL') recordPolicy(${JSON.stringify(executed)}, policyEpoch);`);
   writeFileSync(helper, "export const policyEpoch = 'ORIGINAL';\n");
   writeFileSync(policy, baseline);
   const runner = JSON.stringify({ host: HOST, slots: 1, browser: 0 });
@@ -143,7 +144,7 @@ assert.ok(api.runnerSource(process.cwd()).commit);
 loadedToolingFiles({rescan:false});
 const baseline = ${JSON.stringify(baseline)};
 const epochs = [
-  [${JSON.stringify(policy)}, baseline.replace('export function runnerSource(root) {', 'export function runnerSource(root) { throw new Error("DIRECT_POLICY_NEW");'), 'DIRECT_POLICY_NEW'],
+  [${JSON.stringify(policy)}, baseline.replace("if (policyEpoch !== 'ORIGINAL')", "if (true)").replace('policyEpoch);', '"DIRECT_POLICY_NEW");'), 'DIRECT_POLICY_NEW'],
   [${JSON.stringify(helper)}, ${JSON.stringify("export const policyEpoch = 'NESTED_POLICY_NEW';\n")}, 'NESTED_POLICY_NEW'],
 ];
 for (const [path, source, marker] of epochs) {
@@ -151,10 +152,10 @@ for (const [path, source, marker] of epochs) {
   try {
     writeFileSync(path, source);
     assert.throws(() => loadedToolingFiles({rescan:false}), error => error.code === 'RUNNER_TOOLING_CHANGED', path);
-    const next = 'const api = await import(' + ${JSON.stringify(entry)} + '); await api.runOnRunnerAsync(process.cwd(), "true", {runner:' + ${JSON.stringify(runner)} + '});';
+    const next = 'const api = await import(' + ${JSON.stringify(entry)} + '); const result = await api.runOnRunnerAsync(process.cwd(), "true", {runner:' + ${JSON.stringify(runner)} + '}); if (!result.isGreen) throw new Error(JSON.stringify(result));';
     const ran = spawnSync(process.execPath, ['--input-type=module', '-e', next], {cwd:process.cwd(),env:process.env,encoding:'utf8'});
-    assert.notEqual(ran.status, 0, marker);
-    assert.ok(ran.stderr.includes(marker), ran.stderr);
+    assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+    assert.equal(readFileSync(${JSON.stringify(executed)}, 'utf8'), marker, 'fresh controller executes the changed helper bytes');
   } finally { writeFileSync(path, before); }
   loadedToolingFiles({rescan:false});
 }
