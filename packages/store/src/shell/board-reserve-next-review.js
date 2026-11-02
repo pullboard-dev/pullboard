@@ -11,9 +11,9 @@ import { reserveWithin } from "./board-reserve-review.js";
  * @param {{ agentId: string, lane: string, leaseMs: number, policy: string, familyPolicy?: string, runnable?: boolean, routes?: string[], skipIds?: number[] }} who - skipIds: items the caller's own session built, never offered (verify refuses them too)
  * @returns {{ item: any | null, reasons: string[] }}
  */
-export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', runnable, routes, skipIds = [], priority = [], observeIdle = false }) {
+export function reserveNextReview(board, { agentId, lane, leaseMs, policy, familyPolicy = 'off', familyRelaxAt, runnable, routes, skipIds = [], priority = [], observeIdle = false }) {
   return atomic(board, () => {
-    const { item, reasons, idleReason } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, runnable, routes, skipIds, priority, observeIdle });
-    return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy, familyPolicy }), reasons } : { item: null, reasons, ...(observeIdle ? { idleReason } : {}) };
+    const { item, reasons, idleReason } = nextFor(board, { agentId, lane, verify: true, policy, familyPolicy, familyRelaxAt, runnable, routes, skipIds, priority, observeIdle });
+    return item ? { item: reserveWithin(board, item.item_id, { agentId, leaseMs, policy, familyPolicy, familyRelaxAt }), reasons } : { item: null, reasons, ...(observeIdle ? { idleReason } : {}) };
   });
 }

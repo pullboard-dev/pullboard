@@ -104,7 +104,7 @@ import {
   exportedMeta,
   guardRestore,
 } from '../../../../packages/person/index.js';
-import { recordPublishFinding } from '../../../../src/pr-findings.js';
+import { recordPublishFinding } from '../../../../packages/github/index.js';
 import {
   landingWaivers,
   landingWaiverFor,
@@ -371,7 +371,7 @@ export { proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun } 
 export { flakeLedger, recordFlakeObservation } from '../../../../src/flakes.js';
 export { flakeQuarantines, gateRuns, recordGateRun } from '../../../../src/quarantine.js';
 export { personProposals, personSigning, proposePersonMove, setPersonSigning } from '../../../../packages/person/index.js';
-export { recordPublishFinding } from '../../../../src/pr-findings.js';
+export { recordPublishFinding } from '../../../../packages/github/index.js';
 export { landingWaivers, landingWaiverFor, waivedLandingProof } from '../../../../packages/landing/index.js';
 
 export { recordTrainLanding } from '../../../../packages/landing/index.js';

@@ -20,9 +20,17 @@ function run(cwd, program, args, quiet = false) {
   return result;
 }
 function git(cwd, ...args) { return run(cwd, 'git', args, true); }
+/** Put the failed test and its first error line ahead of lengthy TAP location metadata. */
+function tapFailure(output) {
+  const block = output?.match(/^\s*not ok\b[^\n]*(?:\n(?!\s*\.\.\.\s*$)[^\n]*)*/mu)?.[0];
+  if (!block) return '';
+  const name = block.split('\n')[0].trim();
+  const error = block.match(/^\s*error:\s*(?:[|>]-?\s*\n\s*([^\n]+)|([^\n]+))/mu);
+  return [name, error?.[1] ?? error?.[2]].filter(Boolean).join(': ');
+}
 function requireSuccess(result, phase) {
   if (result.status !== 0) {
-    const tap = result.stdout?.match(/^\s*not ok\b[^\n]*(?:\n(?!\s*\.\.\.\s*$)[^\n]*)*/mu)?.[0];
+    const tap = tapFailure(result.stdout);
     const detail = result.error?.message || tap?.trim() || result.stderr?.trim() || result.stdout?.trim() || `exit ${result.status}`;
     throw new Error(`${phase}: ${detail.replace(/\s+/gu, ' ')}`);
   }
