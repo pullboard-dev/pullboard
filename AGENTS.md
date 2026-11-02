@@ -38,6 +38,7 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 - Submit queues the gate and returns at once. Don't wait for the result; start your next item, and `next` tells you the gate's result.
 - Never sit on a long command. Run anything over a minute in the background and keep working.
 - Read `pullboard inbox` once at the start and once after each submit, not in a loop. `show <id>` once per item.
+- Reviewers: the gate's runs on the item are the test proof. Read the diff against the bar and the gate receipts; rerun a test only when the bar's claim isn't covered by a recorded run, or when you suspect the gate.
 
 **Talk.** `pullboard shout <lane|agent|all> "<text>"`. Read `pullboard inbox` before you start and after you submit.
 
