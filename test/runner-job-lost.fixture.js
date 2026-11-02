@@ -86,7 +86,10 @@ if(command.includes(' --health ')||command.includes(' --restart ')||command.incl
  writeFileSync(${JSON.stringify(box.record)},JSON.stringify({job:spec.id,recovery:spec.recovery,owner:state.owner,owned}));
  process.stderr.write('PULLBOARD_RUNNER_READY '+spec.id+'\\n');
  if(mode==='healthy')setInterval(()=>process.stderr.write('PULLBOARD_RUNNER_HEARTBEAT '+spec.id+'\\n'),5000);
- if(mode==='cleanup')process.stderr.write('PULLBOARD_RUNNER_CLEANUP_UNVERIFIED '+spec.id+' controlled unknown cleanup\\nPULLBOARD_RUNNER_CLEANUP_TIMEOUT '+spec.id+'\\n');
+ if(mode==='cleanup'){
+  const waiter=owned.at(-1), details={id:spec.id,stage:'descendants',processes:[{pid:waiter.pid,command:process.execPath,started:waiter.started,birth:null}]};
+  process.stderr.write('PULLBOARD_RUNNER_CLEANUP_DETAILS '+spec.id+' '+Buffer.from(JSON.stringify(details)).toString('base64')+'\\nPULLBOARD_RUNNER_CLEANUP_UNVERIFIED '+spec.id+' controlled unknown cleanup\\nPULLBOARD_RUNNER_CLEANUP_TIMEOUT '+spec.id+'\\n');
+ }
  setInterval(()=>{},1000);
  });process.stdin.resume();
 }
@@ -194,6 +197,12 @@ export function registerRunnerJobLostTests() {
     assert.equal(result.diagnostic.request, recorded.job);
     assert.deepEqual(result.diagnostic.recovery, recorded.recovery);
     assert.equal(result.diagnostic.reason, 'cleanup-unverified');
+    const waited = result.diagnostic.cleanup.processes;
+    assert.equal(waited.length, 1);
+    assert.equal(waited[0].pid, recorded.owned.at(-1).pid);
+    assert.equal(waited[0].started, recorded.owned.at(-1).started);
+    assert.equal(waited[0].command, process.execPath);
+    assert.match(result.message, new RegExp(`pid=${waited[0].pid} command=`));
   });
   for (const mode of ['running', 'unknown', 'healthy']) test(`a ${mode} job observation never invents remote owner death [C7,H16]`, t => {
     const box = transport(t, mode), result = run(box, true);

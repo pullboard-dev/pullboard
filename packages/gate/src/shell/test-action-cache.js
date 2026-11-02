@@ -45,6 +45,7 @@ import {
   storeTestResult,
   validTestResult,
   validTestTap,
+  testResultOutcomes,
 } from './test-result-store.js';
 
 export const TEST_ACTIONS_ENV = 'PULLBOARD_TEST_ACTIONS';
@@ -364,11 +365,14 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   } catch { return keep; }
   const stage = env[TEST_STAGE_ENV] || (landing ? 'land' : fullSuite ? 'gate' : 'focused');
   const results = new Map();
+  const reusedTestOutcomes = [];
   const run = [];
   for (const file of selectors) {
     const entry = reusableResult(store, file.key);
-    if (!entry || entry.file !== file.path || entry.inputKey !== file.inputKey
+    const outcomes = entry && testResultOutcomes(entry);
+    if (!entry || !outcomes || entry.file !== file.path || entry.inputKey !== file.inputKey
       || env[TEST_RESULT_REQUEST_ENV] && !completedTestResult(entry)) { run.push(file); continue; }
+    reusedTestOutcomes.push(...outcomes);
     results.set(file.path, { status: 'pass', source: 'reused', key: entry.key, currentKey: file.key });
     write(`# reused ${entry.key} from ${entry.stage} ${entry.commit} (${file.path})\n`);
     write(`# result-origin ${JSON.stringify(entry.origin)}\n`);
@@ -376,7 +380,7 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   }
   if (!run.length && suiteProven(selectors.map(file => file.path), results).proven) {
     write(`# all ${selectors.length} test files reused; none ran\n`);
-    return { args, files: [], done: true };
+    return { args, files: [], done: true, reusedTestOutcomes };
   }
   const runDir = join(store, 'runs', randomUUID());
   mkdirSync(join(runDir, 'green'), { recursive: true, mode: 0o700 });
@@ -391,8 +395,8 @@ export async function planTestActions(root, args, { fullSuite, landing = false, 
   env[TEST_ACTIONS_ENV] = runDir;
   process.once('exit', code => settleTestActions(runDir, { store, stage, commit, landing, code }));
   const reused = new Set(selectors.filter(file => !run.includes(file)).map(file => file.selector));
-  if (fullSuite) return { args: [...args, ...run.map(file => file.selector)], files: run.map(file => file.selector), done: false };
-  return { args: args.filter(arg => !reused.has(arg)), files: null, done: false };
+  if (fullSuite) return { args: [...args, ...run.map(file => file.selector)], files: run.map(file => file.selector), done: false, reusedTestOutcomes };
+  return { args: args.filter(arg => !reused.has(arg)), files: null, done: false, reusedTestOutcomes };
 }
 
 /**

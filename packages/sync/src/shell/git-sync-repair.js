@@ -1,22 +1,16 @@
 /** Recover conflicting local Git-sharing artifacts without rewriting board history [H11,C7]. */
 import { randomUUID } from 'node:crypto';
-import {
-  lstatSync,
-  mkdirSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { renameSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  gitSyncCompatibility,
-  inspectGitSyncLock,
-  withGitSyncLock,
-} from '../packages/sync/index.js';
-import {
-  gitSyncFiles,
-  readGitSyncMarker,
-} from '../packages/config/index.js';
-import { Refused } from '../packages/kernel/index.js';
+import { gitSyncCompatibility } from './sync.js';
+import { inspectGitSyncLock } from './git-sync-lock.js';
+import { withGitSyncLock } from './git-sync-lock.js';
+import { gitSyncFiles } from '../../../config/index.js';
+import { readGitSyncMarker } from '../../../config/index.js';
+import { Refused } from '../../../kernel/index.js';
 
 /** Retain one exact conflicting marker under its own immutable recovery summary. */
 function quarantineMarker(root, observed, owner, lease) {
