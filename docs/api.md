@@ -185,6 +185,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `submit` | `version:number`, `id:number`, `commit:string`, `pin:string`, `gate:object` |
 | `done` | `version:number`, `id:number`, `commit:string`, `pin:string`, `gate:object` |
 | `verify` | `version:number`, `id:number`, `decision:string`, `reason:string` |
+| `verify compare` | `version:number`, `item:number`, `status:string` |
 | `merged` | `version:number`, `id:number`, `commit:string` |
 | `land` | `version:number`, `batch:object\|null`, `landed:array`, `conflicts:array`, `blocked:array`, `culprits:array`, `flakes:array` |
 | `withdraw` | `version:number`, `id:number`, `reason:string`, `milestones:array` |
