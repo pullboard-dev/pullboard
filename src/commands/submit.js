@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
@@ -18,6 +20,7 @@ import {
 import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
+import { gateRuns } from '../quarantine.js';
 import { withImportParseCache } from '../module-import-cache.js';
 import { foreignNodeOptions } from '../test-isolation.js';
 import { importsIn } from '../module-imports.js';
@@ -77,7 +80,7 @@ import {
 } from '../../packages/config/index.js';
 import {
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   hasSubmitRules,
   holdDoctrineAsync,
@@ -264,6 +267,17 @@ function reportSubmitStage(ctx, name, start) {
  * @param {number} id
  * @returns {Promise<number>}
  */
+/** Keep the full failure list in the item fact and bound the automatic decision shout. */
+export function boundedMainRedShout(id, failures, main) {
+  const prefix = `#${id}: known main red with no open Main red item: `;
+  const suffix = ` fails identically on main at ${main.slice(0, 12)}; file or assign its repair. See pullboard show ${id}.`;
+  const detail = failures.map(red => `${red.file} (${red.names.join('; ')})`).join('; ');
+  const room = Math.max(0, 400 - Array.from(prefix + suffix).length);
+  const chars = Array.from(detail);
+  const excerpt = chars.length > room ? chars.slice(0, Math.max(0, room - 1)).join('') + '…' : detail;
+  return prefix + excerpt + suffix;
+}
+
 export async function submitHere(ctx, id, infra) {
   const { root } = ctx.info;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
@@ -387,7 +401,6 @@ export async function submitHere(ctx, id, infra) {
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
-
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
   try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
@@ -402,14 +415,25 @@ export async function submitHere(ctx, id, infra) {
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
+  // The repository's per-file lint subset is cheap; keep its full static stage later.
+  if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+    await withItemPatchSubmit(root, companion, gateRoot => {
+      const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+      const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
+      const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
+      if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
+    });
+  }
   let cells;
   const cellsStart = performance.now();
   try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
-    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
+    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
+    onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
   // Reused cells checks have no runner slot; use their own check-receipt formatter.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
+  if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // Every submit proves its frozen check and reachable tests anew on this exact commit (V4,V16).
   // Empty frozen gates adopt accepted main setup; only a full fallback may stamp its tree.
@@ -477,6 +501,7 @@ export async function submitHere(ctx, id, infra) {
   if (criterionCases) {
     try {
       comparison = await compareMainFailures(root, criterionRed.profile, gateWaitReporter(ctx.io), criterionRed.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: criterionRed.executionRunner ? { kind: 'ssh', host: criterionRed.executionRunner } : { kind: 'local' }, environment: criterionRed.environment } });
       rememberComparison(comparison);
       criterionNotices = mainFailureNotices(root, criterionCases, comparison,
@@ -530,6 +555,7 @@ export async function submitHere(ctx, id, infra) {
   if (failures && mainFailureBase && companionAllowsMain(failures)) {
     try {
       comparison = await compareMainFailures(root, gate.profile, gateWaitReporter(ctx.io), gate.output, { commit: mainFailureBase, detailed: true, fresh: acceptedMain.config.submit?.autoFileMainReds === true, onMeasuredReceipt, runnerAdmission,
+        recordedRuns: withBoard(ctx, board => gateRuns(board)),
         execution: { executor: gate.executionRunner ? { kind: 'ssh', host: gate.executionRunner } : { kind: 'local' }, environment: gate.environment } });
       rememberComparison(comparison);
       proofNotices = mainFailureNotices(root, failures, comparison,
@@ -633,8 +659,12 @@ export async function submitHere(ctx, id, infra) {
       const event = store.events(board, { itemId: id }).filter(row => row.event_kind === 'submit').at(-1);
       knownMainFailures = event && JSON.parse(event.event_detail).submissionProof?.knownMainFailures;
     }
-    if (unowned.length && !autoMainReds) await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, lanes: laneNames(ctx.config), decision: true,
-      text: `#${id}: known main red with no open Main red item: ${unowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')} fails identically on main at ${unownedMain.slice(0, 12)}; file or assign its repair.` }]);
+    if (unowned.length && !autoMainReds) try {
+      await ordered(ctx, board, 'shout', [{ from: me.id, to: COORDINATOR, lanes: laneNames(ctx.config), decision: true,
+        text: boundedMainRedShout(id, unowned, unownedMain) }]);
+    } catch (error) {
+      ctx.io.err(`submitted #${id}, but its main-red notice failed: ${error.message}; read pullboard show ${id}`);
+    }
     return submittedMove;
   });
   // A large submit still goes through; the note only suggests a chain of smaller items (#1162).

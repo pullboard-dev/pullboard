@@ -25,7 +25,7 @@ import { receiptStore } from '../../../../src/gate-run-receipt.js';
 import { selectAffectedTests } from '../../../../src/affected-tests.js';
 import { selectRegistryGuards } from '../../../kernel/index.js';
 import { placementLandingPlan } from '../../../../src/test-placement.js';
-import { laneOf } from '../../../../src/lanes.js';
+import { laneOf } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { environmentLabel } from '../../../sandbox/index.js';
 import { landingFileTimes } from '../../../items/index.js';

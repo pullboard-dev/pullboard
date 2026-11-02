@@ -14,7 +14,7 @@ import {
 import {
   listApiProjects,
   registerProjectAndLink,
-} from '../projects.js';
+} from '../../packages/seats/index.js';
 import { projectLinkPorts } from '../cli/project-ports.js';
 import { assertPublicExportSupported } from '../public-export-guard.js';
 import {

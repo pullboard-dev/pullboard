@@ -8,7 +8,7 @@ import { context } from '../cli-context.js';
 import { withBoard } from '../cli-context.js';
 import { CONFIG_FILE } from '../../packages/config/index.js';
 import { COORDINATOR } from '../../packages/config/index.js';
-import { displayAgentName } from '../agent-names.js';
+import { displayAgentName } from '../../packages/seats/index.js';
 import { restoreRowApply } from '../../packages/spec/index.js';
 import { writeRowApply } from '../../packages/spec/index.js';
 import { tryGit } from '../git.js';

@@ -38,7 +38,7 @@ import {
 import {
   projectBoardIdentity,
   registerProjectAndLink,
-} from '../projects.js';
+} from '../../packages/seats/index.js';
 import { projectLinkPorts } from '../cli/project-ports.js';
 import {
   Refused,

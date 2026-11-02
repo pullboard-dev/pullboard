@@ -10,7 +10,7 @@ import {
 } from '../../packages/state/index.js';
 import {
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   requirePersonChannel,
 } from '../../packages/person/index.js';

@@ -1,7 +1,7 @@
 /** Keep each view-served board's health observer running without overlapping scans [A6]. */
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { listProjects } from "../../../../src/projects.js";
+import { listProjects } from "../../../seats/index.js";
 import { loadConfig } from "../../../config/index.js";
 import { healthSentinelEnabled } from "../../../config/index.js";
 import { startRelayCanaryWatch } from "../../../link/index.js";

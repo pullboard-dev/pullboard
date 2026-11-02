@@ -1,6 +1,6 @@
 /** Record native outcomes and report quarantine without changing any process or gate verdict [C7,H16]. */
 import { COORDINATOR } from "../../../config/index.js";
-import { laneOf } from "../../../../src/lanes.js";
+import { laneOf } from "../../../seats/index.js";
 import { readGateReceipt } from "../../../../src/gate-run-receipt.js";
 import { receiptStore } from "../../../../src/gate-run-receipt.js";
 import { flakeQuarantines } from "./quarantine.js";

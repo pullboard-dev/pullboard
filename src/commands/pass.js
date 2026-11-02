@@ -1,7 +1,7 @@
 /** The pullboard pass command, in its own module so an item adding another command never edits these lines. */
 import {
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   actOn,
   idArg,
