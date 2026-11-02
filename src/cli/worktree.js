@@ -19,6 +19,7 @@ import { mainCheckout } from '../git.js';
 import { tryGit } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { registeredProjectRootsSnapshot } from '../../packages/seats/index.js';
+import { withProjectGitTimeout } from '../../packages/git/index.js';
 
 /** Describe the active configured location for new agent worktrees. */
 export function worktreeLocation(mainRoot, config) {
@@ -90,7 +91,7 @@ export function primaryCheckoutRoot(info) {
     for (const candidate of candidates) {
       if (typeof candidate !== 'string' || !isAbsolute(candidate)) continue;
       try {
-        const result = tryGit(candidate, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']);
+        const result = withProjectGitTimeout(candidate, () => tryGit(candidate, ['rev-parse', '--path-format=absolute', '--show-toplevel', '--git-dir', '--git-common-dir']));
         const fields = result.stdout.split('\n');
         if (result.status !== 0 || fields.length !== 3 || fields.some((field) => !field)) continue;
         const [root, gitDir, candidateCommonDir] = fields;
@@ -102,7 +103,9 @@ export function primaryCheckoutRoot(info) {
     }
     return [...roots.values()];
   };
-  const worktrees = tryGit(info.root, ['worktree', 'list', '--porcelain', '-z']);
+  let worktrees;
+  try { worktrees = withProjectGitTimeout(info.root, () => tryGit(info.root, ['worktree', 'list', '--porcelain', '-z'])); }
+  catch (error) { if (error.code !== 'BOARD_UNAVAILABLE') throw error; worktrees = { status: 1, stdout: '' }; }
   if (worktrees.status === 0) {
     const candidates = worktrees.stdout.split('\0')
       .filter((field) => field.startsWith('worktree '))
