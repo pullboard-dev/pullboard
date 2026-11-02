@@ -10,10 +10,8 @@ import { localDependencyIds } from "./item-dependencies.js";
  * Pure reads over the board, so pullboard queue, next and health share one order. Recorded moves below
  * WORK_ORDER_ENGINE keep their old milestone, rank, route and age order.
  */
-import {
-  ENGINE_VERSION,
-  MILESTONE_RANK_ENGINE,
-} from "../../../../src/machine.js";
+import { engineAtLeast } from "../../../state/core.js";
+import { MILESTONE_RANK_ENGINE } from "../../../../src/milestone-rank-engine.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
 import { ROUTES } from "../../../../src/route-escalation.js";
 
@@ -22,7 +20,7 @@ export const EFFORT = Object.freeze({ light: 1, mid: 2, strong: 3 });
 
 /** Explicit item ranks belong to the same first unfinished milestone as its priority [N2,B13]. */
 export function milestoneRanks(board, priority, { milestones }) {
-  if ((board.executionEngineVersion ?? ENGINE_VERSION) < MILESTONE_RANK_ENGINE) return () => 0;
+  if (!engineAtLeast(board, MILESTONE_RANK_ENGINE)) return () => 0;
   const ranks = new Map();
   for (const [index, milestone] of milestones(board).entries()) {
     for (const [rank, id] of (milestone.order ?? []).entries()) {
@@ -34,7 +32,7 @@ export function milestoneRanks(board, priority, { milestones }) {
 
 /** True when this board's moves run at or above the self-ordering engine. */
 export function workOrderActive(board) {
-  return (board.executionEngineVersion ?? ENGINE_VERSION) >= WORK_ORDER_ENGINE;
+  return engineAtLeast(board, WORK_ORDER_ENGINE);
 }
 
 /** The item numbers an item waits on, as recorded. */

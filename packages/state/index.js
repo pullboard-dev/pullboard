@@ -28,7 +28,6 @@ export { EXIT_RULES_ENGINE } from '../../src/exit-rules-engine.js';
 export { ENGINE_VERSION } from '../../src/engine-metadata.js';
 export { agentGrantMinimum } from "./src/core/agent-grant.js";
 export { requireAgentGrant } from "./src/core/agent-grant.js";
-export { correctedBar } from "./src/shell/corrected-bar.js";
 export { engineDeclarationNames } from "./src/shell/engine-folder.js";
 export { engineFolderViolations } from "./src/shell/engine-folder.js";
 export { engineFolderProblems } from "./src/shell/engine-folder.js";

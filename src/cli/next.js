@@ -1,5 +1,6 @@
 import { rejectionReturnEnabled } from '../../packages/store/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
+import { recoverOwnSubmitHandoffs } from '../submit-handoff.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 /** Helpers for `pullboard next`: one pick-and-claim loop and its wait labels. Split from src/cli.js, which re-exports it [C7]. */
 import { laneSeatContext } from '../../packages/seats/index.js';
@@ -70,6 +71,7 @@ function warmFiles(ctx, board, me) {
  * @returns {{ item?: any, held?: boolean, retry?: boolean, reasons?: string[] }}
  */
 export async function nextOnce(ctx, values) {
+  if (!values.verify) await recoverOwnSubmitHandoffs(ctx, withBoardRead(ctx, board => whoAmI(ctx, board)).id);
   // Select on a read-only board; only a claim, or a review reservation, opens it for writing (#1047).
   const looked = values.verify ? { claim: true } : withBoardRead(ctx, (board) => nextPick(ctx, board, values));
   if (!looked.claim) return looked;
