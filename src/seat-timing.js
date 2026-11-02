@@ -40,8 +40,17 @@ export function appendSeatTiming(file, record) {
 /** Record start immediately and finish even when the caller rejects. */
 export function beginSeatTiming(cwd, kind, command, item = null, knownBinding = undefined) {
   const binding = knownBinding === undefined ? timingSeat(cwd) : knownBinding;
-  if (!binding) return () => {};
   const start = Date.now(), id = randomUUID();
+  // A successful join creates its seat during the command; retain that command's true start.
+  if (!binding) {
+    if (kind !== 'command') return () => {};
+    return () => {
+      const joined = timingSeat(cwd); if (!joined) return;
+      const end = Date.now(), base = { version: 1, id, seat: joined.seat, item: item ?? joined.item, kind, command, pid: process.pid, start };
+      appendSeatTiming(joined.file, { ...base, phase: 'start' });
+      appendSeatTiming(joined.file, { ...base, phase: 'end', end, durationMs: Math.max(0, end - start) });
+    };
+  }
   const base = { version: 1, id, seat: binding.seat, item: item ?? binding.item, kind, command, pid: process.pid, start };
   appendSeatTiming(binding.file, { ...base, phase: 'start' });
   let ended = false;

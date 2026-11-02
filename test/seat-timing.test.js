@@ -87,3 +87,15 @@ test('a queued handoff does not hide a newer active build [C7,N2]', () => {
   const [row] = seatLedger([{ agent_id: 'builder' }], items, events, [], now);
   assert.equal(row.state, 'building'); assert.equal(row.item, 2);
 });
+
+test('a successful join records the command that created its seat [C7,N2]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'seat-join-timing-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  execFileSync('git', ['init', '-q', '-b', 'main', root]); mkdirSync(join(root, '.git', 'pullboard'));
+  const db = new DatabaseSync(join(root, '.git', 'pullboard', 'board.sqlite'));
+  db.exec('CREATE TABLE agent(agent_id TEXT, agent_path TEXT); CREATE TABLE item(item_id INTEGER, item_status TEXT, item_owner TEXT)');
+  const finish = beginSeatTiming(root, 'command', 'join');
+  db.prepare('INSERT INTO agent VALUES (?,?)').run('core-1', root); db.close(); finish();
+  const rows = readFileSync(join(root, '.git', 'pullboard', 'seat-timing.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.deepEqual(rows.map(row => row.phase), ['start', 'end']); assert.equal(rows[1].seat, 'core-1');
+});
