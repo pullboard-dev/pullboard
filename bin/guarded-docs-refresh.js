@@ -25,7 +25,7 @@ function tapFailure(output) {
   const block = output?.match(/^\s*not ok\b[^\n]*(?:\n(?!\s*\.\.\.\s*$)[^\n]*)*/mu)?.[0];
   if (!block) return '';
   const name = block.split('\n')[0].trim();
-  const error = block.match(/^\s*error:\s*(?:[|>]\-?\s*\n\s*([^\n]+)|([^\n]+))/mu);
+  const error = block.match(/^\s*error:\s*(?:[|>]-?\s*\n\s*([^\n]+)|([^\n]+))/mu);
   return [name, error?.[1] ?? error?.[2]].filter(Boolean).join(': ');
 }
 function requireSuccess(result, phase) {
