@@ -1,4 +1,5 @@
 import { heartbeatCommand } from '../cli-presence.js';
+import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
 import { mergeSubmissionMain } from '../../packages/merge/index.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -307,6 +308,7 @@ export async function submitHere(ctx, id, infra) {
         { green: true, report: 'recovered the original submission; its gate ran before the original send' });
     }
   }
+  const preflightStart = performance.now();
   const runnerAdmission = gateRunnerAdmission();
   const held = await withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
@@ -425,6 +427,7 @@ export async function submitHere(ctx, id, infra) {
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
+  reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
   try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
@@ -438,16 +441,29 @@ export async function submitHere(ctx, id, infra) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
-  requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
+  const placementStart = performance.now();
+  try {
+    const planned = await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
+      code: [fileURLToPath(new URL('../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
+    () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit));
+    if (planned.reused) ctx.io.say(cellsReceiptLine(planned.receipt));
+  } finally { reportSubmitStage(ctx, 'placement', placementStart); }
   // The repository's per-file lint subset is cheap; keep its full static stage later.
-  if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
-    await withItemPatchSubmit(root, companion, gateRoot => {
-      const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
-      const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
-      const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
-      if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
-    });
-  }
+  const changedStaticStart = performance.now();
+  try {
+    if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+      await withItemPatchSubmit(root, companion, async gateRoot => {
+        const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
+        const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
+          source: companion?.commit ?? commit, code: [checker] }, () => {
+          const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+          const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
+          if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
+        });
+        if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
+      });
+    }
+  } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
   let cells;
   const cellsStart = performance.now();
   try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
