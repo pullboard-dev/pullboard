@@ -17,10 +17,10 @@ import { test } from 'node:test';
 import { configProblems } from '../src/shell/config.js';
 import { defaults } from '../src/shell/config.js';
 import { loadConfig } from '../src/shell/config.js';
-import { forgetProject } from '../../../src/projects.js';
-import { listProjects } from '../../../src/projects.js';
-import { registerProject } from '../../../src/projects.js';
-import { registryFile } from '../../../src/projects.js';
+import { forgetProject } from '../../seats/index.js';
+import { listProjects } from '../../seats/index.js';
+import { registerProject } from '../../seats/index.js';
+import { registryFile } from '../../seats/index.js';
 
 /**
  * Create an initialized temporary Git repository with a private Pullboard home.

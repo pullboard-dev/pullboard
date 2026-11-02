@@ -58,7 +58,7 @@ import {
 } from './gate-run-receipt.js';
 import {
   laneOf,
-} from '../../../../src/lanes.js';
+} from '../../../seats/index.js';
 import {
   withFileLock,
 } from '../../../outbox/index.js';
