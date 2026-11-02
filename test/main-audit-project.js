@@ -32,7 +32,7 @@ function git(root,env,...args){const ran=spawnSync('git',args,{cwd:root,env,enco
 /** Wait for an observed native ownership boundary. */
 async function observed(read,name){const deadline=Date.now()+30_000;while(Date.now()<deadline){const value=read();if(value)return value;await pause(20);}assert.fail(`missing ${name}`);}
 /** Copy actual installed source with spaces and a separate real tracked main project. */
-export async function mainAuditFixture(t, { initialGreen = false } = {}) {
+export async function mainAuditFixture(t, { initialGreen = false, requireRealGit = false } = {}) {
   const scratch=mkdtempSync(join(tmpdir(),'pullboard main audit ')),installed=join(scratch,'installed tooling'),repo=join(scratch,'repo'),machine=join(scratch,'machine');
   mkdirSync(installed);mkdirSync(repo);mkdirSync(machine);
   // This full-audit project deliberately has only its three test files; copied documentation tests are not its suite.
@@ -66,6 +66,9 @@ export async function mainAuditFixture(t, { initialGreen = false } = {}) {
   writeFileSync(join(candidate,'test/a.test.js'),"import {test} from 'node:test';test('audit failure alpha',()=>{throw new Error('actual alpha');});\n");
   writeFileSync(join(candidate,'test/b.test.js'),"import {test} from 'node:test';test('audit failure beta',()=>{throw new Error('actual beta');});\n");
   writeFileSync(join(candidate,'test/c.test.js'),`import {test} from 'node:test';import {appendFileSync} from 'node:fs';test('later green body',()=>appendFileSync(${JSON.stringify(marker)},'ran'));\n`);
+  if (requireRealGit) {
+    writeFileSync(join(candidate,'test/c.test.js'), `import {test} from 'node:test';import assert from 'node:assert/strict';import {withGitAdapter,currentGitAdapter,realGitAdapter} from '../src/git-adapter.js';test('audit uses real Git',()=>{assert.equal(process.env.PULLBOARD_TEST_REAL,'all');const fake={spawnSync(){},execFileSync(){},spawn(){}};withGitAdapter(fake,()=>assert.equal(currentGitAdapter(),realGitAdapter));});\n`);
+  }
   if (initialGreen) {
     writeFileSync(join(candidate,'test/a.test.js'),`import {test} from 'node:test';import {spawnSync} from 'node:child_process';import assert from 'node:assert/strict';test('CLI journey audit',()=>assert.equal(spawnSync(process.execPath,['bin/pullboard.js','--version']).status,0));\n`);
     writeFileSync(join(candidate,'test/b.test.js'),`import {test} from 'node:test';import {appendFileSync} from 'node:fs';test('unchanged paid unit',()=>appendFileSync(${JSON.stringify(unitMarker)},'ran'));\n`);
