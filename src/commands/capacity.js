@@ -1,3 +1,5 @@
+import { readCarryingCapacity } from '../../packages/stats/index.js';
+import { flowWindowMinutes } from '../../packages/stats/index.js';
 import { buildCalibration } from '../../packages/stats/index.js';
 import { events } from '../../packages/store/index.js';
 import { listItems } from '../../packages/store/index.js';
@@ -15,17 +17,28 @@ function minutes(value) { return value === null ? 'unknown' : `${value.toFixed(3
 
 /** Print measurements and conversion proposals; removal always needs the person's approval. */
 export function run(io, { first, second, rest, values }) {
-  if (first || second || rest.length || Object.keys(values).some(key => key !== 'json')) {
-    throw new Refused('USAGE', 'use pullboard capacity [--json] to read test execution work and conversion priority');
+  if (first || second || rest.length || Object.keys(values).some(key => !['json', 'window'].includes(key))) {
+    throw new Refused('USAGE', 'use pullboard capacity [--window 14d] [--json] to read carrying capacity and test execution work');
   }
   const ctx = context(io);
+  const to = ctx.clock.now().toISOString();
+  const from = new Date(Date.parse(to) - flowWindowMinutes(values.window ?? '14d') * 60_000).toISOString();
   const report = withBoardRead(ctx, board => {
     board.db.exec('SAVEPOINT capacity_read');
     try { const tests = testCapacityReport(board, { root: ctx.info.root, costs: ctx.config.testEconomics, now: ctx.clock.now().getTime() }, { flakeLedger, eventCauses, gateRuns });
-      return { ...tests, builds: buildCalibration(events(board), listItems(board, { all: true }), ctx.config.itemBuildBudgetMinutes) }; }
+      const history = events(board);
+      return { ...tests, builds: buildCalibration(history, listItems(board, { all: true }), ctx.config.itemBuildBudgetMinutes),
+        carryingCapacity: readCarryingCapacity(ctx.info.root, history, { from, to }) }; }
     finally { board.db.exec('RELEASE capacity_read'); }
   });
   io.result?.({ report });
+  const carrying = report.carryingCapacity;
+  io.say(`carrying capacity ${from} to ${to}: ${carrying.landings} landings, ${carrying.conflicts} conflicts; conflicts/landing ${carrying.conflictsPerLanding ?? 'unknown'}`);
+  io.say(`collision k ${carrying.k ?? 'unknown'}; 5% line ${carrying.agentsAtFivePercent ?? 'unknown'} agents; model peak ${carrying.peakAgents ?? 'unknown'} agents, ${carrying.peakOutput ?? 'unknown'} output`);
+  io.say(`changes in flight ${carrying.inFlight ?? 'unknown'}: building ${carrying.buildingInFlight ?? 'unknown'}, waiting ${carrying.waitingInFlight ?? 'unknown'}; cells/item ${carrying.cellsPerItem ?? 'unknown'}`);
+  io.say(`held-out file conflicts: predicted ${carrying.validation.predictedFileConflicts ?? 'unknown'}, actual ${carrying.validation.actualFileConflicts}; relative error ${carrying.validation.relativeError ?? 'unknown'}`);
+  for (const file of carrying.files.slice(0, 10)) io.say(`${file.file}: shared touches ${file.sharedTouches ?? 'unknown'}, conflict rate ${file.rate ?? 'unknown'}, pressure ${file.pressure ?? 'unknown'}`);
+  for (const assumption of carrying.assumptions) io.say(assumption);
   io.say(`item build budget: ${report.builds.budgetMinutes} min; ${report.builds.calibration.samples} expected/actual samples`);
   for (const row of report.builds.items.filter(item => item.expectedMinutes !== null)) io.say(`#${row.item} build: expected ${minutes(row.expectedMinutes)}; actual ${minutes(row.actualMinutes)}; ratio ${row.ratio === null ? 'unknown' : row.ratio.toFixed(3)}`);
   io.say(`suite test-work: ${minutes(report.suite.minutes)} (serial per-file execution work, not parallel elapsed wall time)`);
