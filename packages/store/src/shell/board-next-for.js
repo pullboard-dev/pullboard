@@ -57,13 +57,14 @@ function skippedReviewReasons(failures) {
   for (const failure of failures.values()) {
     if (!failure || failure.guard === 'reviewFree') continue;
     const { code, message } = failure.problem;
-    const group = groups.get(code) ?? { count: 0, message };
+    const key = JSON.stringify([code, message]);
+    const group = groups.get(key) ?? { code, count: 0, message };
     group.count++;
-    groups.set(code, group);
+    groups.set(key, group);
   }
   const count = [...groups.values()].reduce((total, group) => total + group.count, 0);
   return count ? [`skipped ${count} submitted review${count === 1 ? '' : 's'} this seat cannot render`,
-    ...[...groups].map(([code, group]) => `${group.count} ${code}: ${group.message}`)] : [];
+    ...[...groups.values()].map(group => `${group.count} ${group.code}: ${group.message}`)] : [];
 }
 
 /**
