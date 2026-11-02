@@ -4,7 +4,7 @@ import * as store from '../board.js';
 import { localBoardInventory } from '../../packages/store/index.js';
 import { resolveLocalBoard } from '../../packages/store/index.js';
 import { resolveLocalItemReference } from '../../packages/store/index.js';
-import { runPrivateBoard } from '../private-board.js';
+import { runPrivateBoard } from '../../packages/github/index.js';
 import { nativeBoardOpeners } from '../cli-context.js';
 import { projectBoardIdentity } from '../../packages/seats/index.js';
 import { registerProject } from '../../packages/seats/index.js';
