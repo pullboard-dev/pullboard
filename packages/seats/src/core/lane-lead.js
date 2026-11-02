@@ -1,3 +1,4 @@
+import { REVIEW_REQUEST_ENGINE } from '../../../../src/review-request-engine.js';
 /** Explicit lane coordination never grants coordinator or person authority [B21,B26]. */
 import { Refused } from '../../../kernel/core.js';
 import { LANE_LEAD_ENGINE } from '../../../../src/lane-lead-engine.js';
@@ -17,6 +18,7 @@ export function routeLaneMessage(board, message, engine) {
   const kind = message.kind ?? (engine >= LANE_LEAD_ENGINE && message.decision && message.answers == null
     && to === 'coordinator' && item === undefined ? 'question' : undefined);
   if (kind === undefined) return message;
+  if (engine >= REVIEW_REQUEST_ENGINE && (kind === 'request' || (kind === 'question' && item !== undefined))) return message;
   if (engine < LANE_LEAD_ENGINE) throw new Refused('ENGINE_VERSION', 'upgrade every linked device before sending typed lane coordination');
   const extended = engine >= COORDINATOR_SHOUT_KINDS_ENGINE;
   const kinds = extended ? ['question', 'blocker', 'decision', 'exception', 'idea', 'status'] : ['question', 'blocker', 'decision', 'status'];

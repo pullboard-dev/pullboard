@@ -1,3 +1,5 @@
+import { reviewRequestClause } from '../core/review-request.js';
+import { REVIEW_REQUEST_ENGINE } from '../../../../src/review-request-engine.js';
 import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
 import { restatesBoardState } from '../../../roadmap/index.js';
 import { routeLaneMessage } from "../../../seats/index.js";
@@ -26,8 +28,14 @@ import { refuseLongShout } from "./proof-receipts.js";
  * @param {{ from: string, to: string, text: string, lanes: string[], item?: number, decision?: boolean, answers?: number | null, evidence?: any, request?: boolean, news?: boolean, channel?: 'terminal' | 'view', detail?: object }} message - detail: extra event fields
  * @returns {number}
  */
-export function insertShout(board, { from, to, text, lanes, item, decision = false, answers = null, evidence = null, request = false, news = false, channel = 'terminal', detail = {}, options, effects }) {
+export function insertShout(board, { from, to, text, lanes, item, decision = false, answers = null, evidence = null, request = false, news = false, channel = 'terminal', detail = {}, options, effects, kind, clause }) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  const quote = engine >= REVIEW_REQUEST_ENGINE ? reviewRequestClause(board, { from, to, item, text, kind, clause }) : null;
+  if (quote) {
+    text = `${text.trim()}\nBar: ${quote}`;
+    refuseLongShout(text);
+    detail = { ...detail, kind, clause: quote };
+  }
   const validatedDecision = itemDecisions.itemDecisionDetail(board, { options, decision, item, from, effects }, { itemShoutReader }, engine);
   detail = { ...detail, ...validatedDecision };
   if (item !== undefined) {

@@ -28,8 +28,20 @@ function fixture(t) {
 
 test('a reviewer request to a builder without a bar clause is refused [V6,R2,H16]', t => {
   const { board, builder, reviewer, id } = fixture(t);
-  const message = { from: reviewer, to: builder, item: id, lanes: ['web'], text: 'Please fix the title.' };
+  const message = { from: reviewer, to: builder, item: id, lanes: ['web'], kind: 'request', text: 'Please fix the title.' };
   assert.throws(() => store.shout(board, message), { code: 'BAR_CLAUSE_REQUIRED' });
   assert.throws(() => store.shout(board, { ...message, clause: 'An invented requirement' }), { code: 'BAR_CLAUSE_UNKNOWN' });
-  assert.ok(store.shout(board, { ...message, clause }) > 0, 'a real frozen clause permits the request');
+  const sent = store.shout(board, { ...message, clause });
+  assert.ok(sent > 0, 'a real frozen clause permits the request');
+  assert.match(store.getShout(board, sent).shout_text, /Bar: The page renders its title\./u, 'the builder sees the quoted clause');
+  assert.ok(store.shout(board, { ...message, kind: 'question' }) > 0, 'ordinary questions do not need a clause');
+  assert.ok(store.shout(board, { ...message, item: undefined, text: `Please fix #${id}.`, clause: 'true' }) > 0, 'a direct builder request may quote the frozen check');
+});
+
+test('a send-back may quote its frozen check [V6,R2,H16]', t => {
+  const { board, reviewer, id } = fixture(t);
+  const result = store.verify(board, id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+    note: 'The frozen check failed.', clause: 'true', head: 'a'.repeat(40),
+    digest: 'request-bar', policy: 'any' });
+  assert.equal(result.clause, 'true');
 });

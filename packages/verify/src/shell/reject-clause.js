@@ -1,3 +1,4 @@
+import { REVIEW_REQUEST_ENGINE } from '../../../../src/review-request-engine.js';
 import { pipelineCause } from '../../../kernel/index.js';
 /** Identify the frozen requirement a rejection disputes and stop repeated unchanged rounds [V6,R2,B30,H16]. */
 import { createHash } from 'node:crypto';
@@ -27,8 +28,8 @@ function frozenBar(item) {
 }
 
 /** Resolve an unambiguous quotation to its containing requirement, so shorter quotes cannot reset a round. */
-function namedClause(bar, quote) {
-  const texts = [...new Set([bar.criterion, ...bar.rows.map(row => row.text)]
+function namedClause(bar, quote, includeCheck = false) {
+  const texts = [...new Set([bar.criterion, ...(includeCheck ? [bar.check] : []), ...bar.rows.map(row => row.text)]
     .flatMap(text => [text, ...text.split(/(?<=[.!?])\s+/u)])
     .filter(text => text && text.includes(quote)))];
   const clauses = texts.filter(text => !texts.some(other => other !== text && text.includes(other)));
@@ -42,7 +43,7 @@ export function rejectionClauseProblem(item, clause, engine) {
     'a reject names the failing frozen bar clause', 'add --clause "exact wording from the frozen criterion or spec row"');
   const quote = wording(clause);
   const bar = frozenBar(item);
-  if (quote.length > 4096 || !namedClause(bar, quote)) {
+  if (quote.length > 4096 || !namedClause(bar, quote, engine >= REVIEW_REQUEST_ENGINE)) {
     return new Refused('BAR_CLAUSE_UNKNOWN', 'the rejection quote does not identify one frozen bar clause',
       `read pullboard show ${item.item_id}, then quote the failing requirement with --clause`);
   }
@@ -53,7 +54,7 @@ export function rejectionClauseProblem(item, clause, engine) {
 export function rejectionClauseDetail(item, clause, engine) {
   if (engine < REJECT_CLAUSE_ENGINE) return {};
   const bar = frozenBar(item);
-  return { clause: wording(clause), clauseText: namedClause(bar, wording(clause)),
+  return { clause: wording(clause), clauseText: namedClause(bar, wording(clause), engine >= REVIEW_REQUEST_ENGINE),
     barKey: createHash('sha256').update(JSON.stringify(bar)).digest('hex') };
 }
 
@@ -74,7 +75,7 @@ export function sharpenRepeatedClause(board, item, detail, { holdItem, shout, lo
   const bar = frozenBar(item);
   const history = board.db.prepare("SELECT event_kind,event_detail FROM event WHERE item_id=? AND event_kind IN ('reject','bar-sharpen') ORDER BY event_id")
     .all(item.item_id).map(event => ({ kind: event.event_kind, ...JSON.parse(event.event_detail) }))
-    .filter(event => event.barKey === detail.barKey && namedClause(bar, event.clause ?? '') === detail.clauseText);
+    .filter(event => event.barKey === detail.barKey && namedClause(bar, event.clause ?? '', (board.executionEngineVersion ?? REVIEW_REQUEST_ENGINE) >= REVIEW_REQUEST_ENGINE) === detail.clauseText);
   if (history.filter(event => event.kind === 'reject').length !== 2 || history.some(event => event.kind === 'bar-sharpen')) return;
   const to = sharpensToPerson(board) ? 'person' : 'coordinator';
   const reason = `The bar needs sharpening after two rejects of: ${detail.clauseText}`;
