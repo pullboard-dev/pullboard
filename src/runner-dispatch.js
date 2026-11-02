@@ -1,3 +1,4 @@
+import { committedRunnerController } from '../packages/runners/index.js';
 /** Dispatch runner work through a fresh controller process and hold its SSH session [C7]. */
 import { RunnerDropped } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';
@@ -70,22 +71,27 @@ function bridgeResult(request, result, phase) {
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
   const request = { root, command, options, parentPid: process.pid };
-  const child = spawnSync(process.execPath, [fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
+  const installation = committedRunnerController(fileURLToPath(new URL('../', import.meta.url)));
+  try {
+  const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   return bridgeResult(request, child, 'sync-bridge');
+  } finally { installation?.cleanup(); }
 }
 
 /** Isolate asynchronous execution from dependencies cached before an installation upgrade. */
 export async function runOnRunnerAsync(root, command, options) {
   if (options.signal?.aborted) throw new RunnerDropped(options.runner.host);
   // Preserve the stale-controller refusal; full provenance and transfer scans run once in the fresh process.
-  loadedToolingFiles({ rescan: false });
+  const installation = committedRunnerController(fileURLToPath(new URL('../', import.meta.url)));
+  try {
+  if (!installation) loadedToolingFiles({ rescan: false });
   const { signal, ...plainOptions } = options;
   const request = { root, command, options: plainOptions, parentPid: process.pid };
   const input = JSON.stringify(request);
-  const child = spawn(process.execPath, [fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
+  const child = spawn(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, stdio: ['pipe', 'pipe', 'pipe'],
   });
   const output = [], diagnostics = [];
@@ -113,6 +119,7 @@ export async function runOnRunnerAsync(root, command, options) {
     const { status, signal: stopped } = await new Promise(resolve => child.once('close', (status, signal) => resolve({ status, signal })));
     return bridgeResult(request, { status, signal: stopped, error, stdout: Buffer.concat(output).toString('utf8'), stderr: Buffer.concat(diagnostics).toString('utf8') }, 'async-bridge');
   } finally { signal?.removeEventListener('abort', abort); }
+  } finally { installation?.cleanup(); }
 }
 
 /** Serve only a directly launched controller, whose dependency cache starts in this process. */

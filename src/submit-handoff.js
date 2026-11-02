@@ -45,7 +45,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
-    const toolRoot = dirname(dirname(ctx.io.submitHandoffWorker));
+    const toolRoot = dirname(dirname(dirname(dirname(dirname(ctx.io.submitHandoffWorker)))));
     const tools = mkdtempSync(join(tmpdir(), `pullboard-handoff-tools-${result.job.id}-`));
     cpSync(toolRoot, tools, { recursive: true, mode: constants.COPYFILE_FICLONE,
       filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
@@ -71,7 +71,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
 async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0) {
   const log = openSync(join(directory, 'worker.log'), 'a', 0o600);
   try {
-    const worker = spawn(process.execPath, [join(realpathSync(tools), 'src', 'submit-handoff-worker.js'), join(directory, 'request.json')],
+    const worker = spawn(process.execPath, [join(realpathSync(tools), 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), join(directory, 'request.json')],
       { cwd: commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
     await once(worker, 'spawn');
     const started = exactStart(worker.pid);
