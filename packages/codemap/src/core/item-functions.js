@@ -29,5 +29,6 @@ export function compareItemFunctions(map, first, second) {
     .concat(right.functions.flatMap(fn => (fn.calls ?? []).filter(id => left.functions.some(other => other.id === id)).map(id => `${fn.id} -> ${id}`))).sort();
   const modules = new Set([...left.functions, ...right.functions].map(fn => fn.id.slice(0, fn.id.lastIndexOf('#'))));
   const tests = adjacent.length ? [...new Set(map.modules.filter(module => modules.has(module.path)).flatMap(module => module.tests ?? []))].sort() : [];
-  return { known: !left.unknown && !right.unknown, shared, adjacent, tests };
+  const uncovered = adjacent.length ? map.modules.filter(module => modules.has(module.path) && !(module.tests ?? []).length).map(module => module.path).sort() : [];
+  return { known: !left.unknown && !right.unknown, shared, adjacent, tests, uncovered };
 }

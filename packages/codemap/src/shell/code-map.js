@@ -300,7 +300,7 @@ function endOfStatement(m, k) {
   return m.length;
 }
 
-const CODE_MAP_FORMAT = 2;
+const CODE_MAP_FORMAT = 3;
 const EFFECT_KINDS = ['git', 'spawn', 'fs-read', 'fs-write', 'network', 'board-write', 'board-open', 'env', 'exit', 'prints'];
 /** Quote regex syntax in an identifier before matching it as source text. */
 const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
@@ -421,8 +421,9 @@ export function buildCodeMap(root, mainCommit) {
   const commit = String(mainCommit ?? '').trim();
   if (!/^[\da-f]{40,64}$/u.test(commit)) throw new Error('a full main commit is required to stamp the map');
   requireSourcePin(sourceRoot, commit);
-  const files = ['src', 'bin', 'packages', 'apps'].flatMap(directory => listJavaScript(sourceRoot, directory)).sort();
-  const testPaths = listJavaScript(sourceRoot, 'test').filter(path => /\.test\.m?js$/u.test(path));
+  const packageFiles = ['packages', 'apps'].flatMap(directory => listJavaScript(sourceRoot, directory));
+  const files = [...listJavaScript(sourceRoot, 'src'), ...listJavaScript(sourceRoot, 'bin'), ...packageFiles.filter(path => !/\.test\.m?js$/u.test(path))].sort();
+  const testPaths = [...listJavaScript(sourceRoot, 'test'), ...packageFiles].filter(path => /\.test\.m?js$/u.test(path)).sort();
   const inputs = committedInputs(sourceRoot, commit);
   if (JSON.stringify([...inputs.keys()].sort()) !== JSON.stringify([...files, ...testPaths].sort())) {
     throw new Error('the scanned input paths differ from the committed main source');

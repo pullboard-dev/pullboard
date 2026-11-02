@@ -1,6 +1,6 @@
 /** Derive scheduler conflicts from one exact-main map; unknown source retains file-level custody [N2,N20,C7]. */
 import { compareItemFunctions } from '../../../codemap/index.js';
-import { ensureCodeMap } from '../../../codemap/index.js';
+import { readCodeMap } from '../../../codemap/index.js';
 import { git } from '../../../git/index.js';
 import { mainCheckout } from '../../../git/index.js';
 import { repoInfo } from '../../../git/index.js';
@@ -19,8 +19,11 @@ function schedulingMap(board) {
     if (root) {
       const trunk = mainCheckout(root);
       if (trunk?.branch === 'refs/heads/main' && trunk.commit) {
-        const primary = git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0')[0].slice('worktree '.length);
-        map = ensureCodeMap(primary, join(repoInfo(root).commonDir, 'pullboard', 'code-map.json'), trunk.commit);
+        const cached = readCodeMap(join(repoInfo(root).commonDir, 'pullboard', 'code-map.json'), trunk.commit);
+        const tree = git(root, ['rev-parse', `${trunk.commit}^{tree}`]).trim();
+        if (cached?.sourceTree === tree && cached.modules.every(module => typeof module.path === 'string'
+          && Array.isArray(module.functions) && module.functions.every(fn => typeof fn.id === 'string' && typeof fn.name === 'string' && Array.isArray(fn.calls))
+          && Array.isArray(module.tests))) map = cached;
       }
     }
   } catch { /* Unknown source preserves the existing file collision, never an optimistic prediction. */ }
@@ -39,7 +42,7 @@ export function itemCollisionPlan(board, item, items, observations = new Map()) 
     if (!predicted?.known) { blockers.push(...files); continue; }
     if (predicted.shared.length) {
       blockers.push(`#${item.item_id} waits for #${other.item_id} (${other.item_status}) on functions ${predicted.shared.join(', ')}`);
-    } else if (predicted.adjacent.length && !predicted.tests.length) {
+    } else if (predicted.adjacent.length && (!predicted.tests.length || predicted.uncovered.length)) {
       blockers.push(`#${item.item_id} waits for #${other.item_id}: call-adjacent functions have no mapped tests`);
     } else if (predicted.adjacent.length) {
       warnings.push(`#${item.item_id} is call-adjacent to #${other.item_id}: ${predicted.adjacent.join(', ')}; cross-run tests: ${predicted.tests.join(', ') || 'not detected'}`);

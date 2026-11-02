@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { workQueue } from '../packages/items/index.js';
+import { refreshCodeMap } from '../packages/codemap/index.js';
 import { applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION, MILESTONE_RANK_ENGINE } from '../packages/state/index.js';
 import { LINE_ORDER_ENGINE } from '../src/line-order-engine.js';
@@ -24,7 +25,9 @@ import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { submitGatePlan } from '../packages/gate/index.js';
 import { join, resolve } from 'node:path';
 
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
@@ -1041,9 +1044,11 @@ test('next does not hand out an item whose functions overlap work in progress [N
   for (const dir of ['src', 'bin', 'test', 'packages', 'apps']) mkdirSync(join(root, dir), { recursive: true });
   writeFileSync(join(root, 'src/shared.js'), 'export function alpha() { return 1; }\nexport function beta() { return 2; }\nexport function gamma() { return alpha(); }\n');
   writeFileSync(join(root, 'test/shared.test.js'), "import '../src/shared.js';\n");
+  writeFileSync(join(root, 'bin/record-args.js'), "require('node:fs').writeFileSync('ran.json', JSON.stringify(process.argv.slice(2)));\n");
   box.git(root, 'init', '-q', '-b', 'main');
-  box.git(root, 'add', 'src', 'test');
+  box.git(root, 'add', 'src', 'bin', 'test');
   box.git(root, 'commit', '-qm', 'seed function map');
+  refreshCodeMap(root, box.git(root, 'rev-parse', 'HEAD').trim());
   const board = openBoard(join(root, 'board.sqlite'), undefined, { gitRoot: root });
   t.after(() => { store.closeBoard(board); helpers.cleanup(); });
   store.register(board, { lane: 'coordinator', path: root });
@@ -1064,4 +1069,10 @@ test('next does not hand out an item whose functions overlap work in progress [N
   assert.equal(next.item.item_id, adjacent);
   assert.ok(next.reasons.some(reason => reason.includes('call-adjacent') && reason.includes('test/shared.test.js')));
   assert.deepEqual(next.crossRunTests, ['test/shared.test.js']);
+  const main = box.git(root, 'rev-parse', 'HEAD').trim();
+  const plan = submitGatePlan(root, { gate: 'true', affectedTests: 'node bin/record-args.js', submitGate: 'landing', submitInvariants: [], registryGuards: [] },
+    { base: main, trunk: main, changed: [], check: null, crossRunTests: next.crossRunTests });
+  const run = spawnSync('/bin/sh', ['-c', plan.proofCommand], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.ok(JSON.parse(readFileSync(join(root, 'ran.json'), 'utf8')).includes('./test/shared.test.js'), 'the selected cross-run test actually reaches the proof command');
 });
