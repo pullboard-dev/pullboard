@@ -2,8 +2,8 @@ import { blockingFailures } from '../../packages/verify/index.js';
 import { quarantineWaivers } from '../quarantine.js';
 import { quarantineVerdictSnapshot } from '../quarantine.js';
 import { sealQuarantineVerdict } from '../quarantine.js';
-import { boardReceiptStore } from '../gate-run-receipt.js';
-import { readGateReceipt } from '../gate-run-receipt.js';
+import { boardReceiptStore } from '../../packages/gate/index.js';
+import { readGateReceipt } from '../../packages/gate/index.js';
 import { checkAtCommit } from '../runner-private-check.js';
 /** The pullboard gate command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
@@ -14,11 +14,11 @@ import {
 import * as gateConfig from '../gate-config.js';
 import {
   gateWaitReporter,
-} from '../gate-wait.js';
+} from '../../packages/gate/index.js';
 import {
   gateReport,
   runGate,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import {
   accountedFailures,
   liveWaiverProjection,

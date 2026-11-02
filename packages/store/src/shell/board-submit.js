@@ -39,7 +39,7 @@ import { FLOW_SIZE_ENGINE } from "../../../../src/flow-size-engine.js";
 import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
 import { isDeepStrictEqual } from 'node:util';
-import { submitHandoff } from '../../../../src/submit-handoff-read.js';
+import { contains } from '../../../git/index.js';
 
 /** Name changed policy leaves without treating object key order as policy. */
 function changedPolicyKeys(before, after, prefix) {
@@ -52,7 +52,12 @@ function changedPolicyKeys(before, after, prefix) {
   return [prefix];
 }
 
-/** Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments. */
+/**
+ * Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments.
+ *
+ * The proof's policy commit may trail current main: landings move main during every long check, so a
+ * forward move whose pullboard.json policy is unchanged keeps the sealed policy; any changed field refuses [V4].
+ */
 export function sealClauseInspection(board, id, options) {
   const root = board.gitRoot;
   if (!root) {
@@ -61,16 +66,15 @@ export function sealClauseInspection(board, id, options) {
     return options; // Isolated in-memory fixtures have no board policy.
   }
   const policy = board.enginePorts.sandboxPolicyReads.mainPolicy(root);
-  if (options.policyCommit && options.policyCommit !== policy.commit) {
-    const job = submitHandoff(board, id);
-    if (!board.enginePorts.submitHandoffBoardRoot?.(board, id, options.agentId)
-      || job?.state !== 'running' || job.main !== options.policyCommit || job.agentId !== options.agentId) {
-      throw new Refused('NO_POLICY', 'accepted main changed; refresh the submit policy and retry');
-    }
+  const moved = Boolean(options.policyCommit && options.policyCommit !== policy.commit);
+  // Main moving forward during a long proof is routine; only a rewind or a policy change voids the sealed policy (#2375).
+  if (moved && !contains(root, options.policyCommit, policy.commit)) {
+    throw new Refused('NO_POLICY', 'accepted main no longer contains the submit policy commit; refresh the submit policy and retry');
   }
-  const sealed = options.policyCommit && options.policyCommit !== policy.commit
-    ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
-  const changed = ['submit', 'verify', 'gate'].flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
+  const sealed = moved ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
+  // Every pullboard.json field is policy (lanes, shared paths, static checks...), not only submit, verify and gate.
+  const changed = [...new Set([...Object.keys(sealed.config), ...Object.keys(policy.config)])].sort()
+    .flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
   if (changed.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${changed.join(', ')}; refresh and retry`);
   return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true };
 }

@@ -13,8 +13,8 @@ import {
   checkRulesAt,
   runRuleCheck,
 } from '../../../doctrine/index.js';
-import { checkNeedsBrowser } from '../../../../src/browser-admission.js';
-import { withGateSlot } from '../../../../src/gate.js';
+import { checkNeedsBrowser } from '../../../gate/index.js';
+import { withGateSlot } from '../../../gate/index.js';
 import { gateSlotEnvironment } from '../../../resources/index.js';
 import {
   git,

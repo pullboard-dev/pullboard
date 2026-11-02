@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import { cachedMainFact } from '../src/main-facts-cache.js';
 import { mainFactDigest } from '../src/main-facts-cache.js';
 import { mainCriterionFacts } from '../src/main-criterion-facts.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 import { parseSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';

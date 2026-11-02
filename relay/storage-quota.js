@@ -93,11 +93,10 @@ export function createStorageQuota({ directory, auth, limitBytes = ACCOUNT_STORA
     });
   }
 
-  /** Keep the phone informed while a refused upload still lacks space, including after a service restart. */
-  function notice(board) {
+  /** Reuse a caller's fresh locked accounting observation, or count now, when reporting quota warnings. */
+  function notice(board, current = usage(board)) {
     open();
     const saved = db.prepare('SELECT storage,needed FROM storage_warning WHERE board=?').get(board);
-    const current = usage(board);
     if (!current) return null;
     if (saved && current.usedBytes + saved.needed > limitBytes || current.usedBytes >= limitBytes) {
       return { code: 'ACCOUNT_STORAGE_LIMIT', message: storageLimitMessage(current), storage: current };

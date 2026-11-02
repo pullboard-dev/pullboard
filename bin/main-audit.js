@@ -9,9 +9,9 @@ import { eventCauses } from '../src/board-rigor.js';
 import { context } from '../src/cli.js';
 import { ordered } from '../src/cli.js';
 import { withBoard } from '../src/cli.js';
-import { runMainAudits } from '../src/main-audit-worker.js';
-import { mainAuditDirectory } from '../src/main-audit-state.js';
-import { waitMainAudit } from '../src/main-audit-scheduler.js';
+import { runMainAudits } from '../packages/gate/index.js';
+import { mainAuditDirectory } from '../packages/gate/index.js';
+import { waitMainAudit } from '../packages/gate/index.js';
 import { repoInfo } from '../src/git.js';
 import { isAbsolute } from 'node:path';
 

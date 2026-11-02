@@ -1,4 +1,4 @@
-import { recentReceipts } from '../gate-receipt.js';
+import { recentReceipts } from '../../packages/gate/index.js';
 import { runnerLossHealth } from '../runner-loss-health.js';
 import { runnerLossLines } from '../runner-loss-health.js';
 import { maintenanceTimerHealth } from '../worktree-maintenance-scheduler.js';

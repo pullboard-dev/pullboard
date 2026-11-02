@@ -7,7 +7,7 @@ import { runnerPackageReader } from './runner-package.js';
 import { Refused } from '../packages/kernel/index.js';
 import { assertRunnerModuleParserCurrent } from './runner-module-parser.js';
 import { createHash } from 'node:crypto';
-import { importsIn } from './module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 import { createRunnerModuleParser } from './runner-module-parser.js';
 
 const readers = new WeakMap();

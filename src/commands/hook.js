@@ -23,11 +23,11 @@ import {
 } from '../cli-support.js';
 import {
   gateWaitReporter,
-} from '../gate-wait.js';
+} from '../../packages/gate/index.js';
 import {
   gateReport,
   runGate,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import {
   headTree,
   headCommit,

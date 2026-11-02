@@ -13,10 +13,10 @@ import { withMainCheckout } from '../packages/landing/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
+import { withImportParseCache } from '../packages/gate/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 
 const parsers = { importsIn, commonJsIn };
 const services = { withMainCheckout, parsers, withImportParseCache, readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) };

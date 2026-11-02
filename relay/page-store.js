@@ -109,6 +109,7 @@ export function createRelayPages({ directory, boardId, now = Date.now, database,
   function graph(roots, complete) {
     const found = new Set();
     const visiting = new Set();
+    const object = db.prepare('SELECT id,children FROM page_object WHERE id=?');
     /** Walk a bounded depth without interpreting the stored cipher bytes. */
     function visit(id, depth) {
       objectId(id);
@@ -117,7 +118,7 @@ export function createRelayPages({ directory, boardId, now = Date.now, database,
         if (complete) throw new Refused('SNAPSHOT_GRAPH', 'Upload a complete, acyclic sealed page index.');
         return;
       }
-      const row = db.prepare('SELECT id,children FROM page_object WHERE id=?').get(id);
+      const row = object.get(id);
       if (!row) {
         if (complete) {
           const error = new Refused('SNAPSHOT_PAGE_MISSING', 'Upload the referenced sealed page before publishing this snapshot.');

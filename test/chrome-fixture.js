@@ -9,7 +9,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync,
 import { loadavg, tmpdir } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { join, resolve } from 'node:path';
-import { browserSlotRefusal } from '../src/browser-slot-guard.js';
+import { browserSlotRefusal } from '../packages/gate/index.js';
 
 const STARTUP_TIMEOUT_MS = 30_000;
 const COMMAND_TIMEOUT_MS = 15_000;

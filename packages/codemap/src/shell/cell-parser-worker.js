@@ -16,6 +16,8 @@ const [directory, parentText, mode, sequenceText] = process.argv.slice(2);
 const parent = Number(parentText), MAX_BYTES = 2 ** 26;
 // Bound retained V8 module records by source volume and count, then retire the entire compiler isolate.
 const SOURCE_BUDGET = 4 * 1024 * 1024, MODULE_BUDGET = 128;
+// Keep each supervisor's recorded child-spawn journal comfortably below its bounded runner limit.
+const SUPERVISOR_BUDGET = 256;
 let sequence = Number(sequenceText ?? 0), watcher = null, timer = null, sourceBytes = 0, modules = 0;
 
 /** End this owned worker when its parent or transport disappears. */
@@ -64,7 +66,7 @@ function checkParent() { if (process.ppid !== parent) stop(); }
 
 /** Observe the compiler outside its isolate, so even a fatal V8 exit leaves an actual status and stderr. */
 function supervise() {
-  let child, finished = false, terminating = false;
+  let child, finished = false, terminating = false, rotations = 0;
   /** Publish only this owned child's observed outcome, never an inferred successful reply. */
   function finish(code, signal, error) {
     if (finished) return;
@@ -100,6 +102,14 @@ function supervise() {
             && Number.isSafeInteger(rotation.sequence) && rotation.sequence > sequence) {
             sequence = rotation.sequence;
             rmSync(join(directory, 'rotation.json'));
+            if (++rotations >= SUPERVISOR_BUDGET) {
+              const temporary = join(directory, 'supervisor-rotation.tmp');
+              writeFileSync(temporary, JSON.stringify({ version: 1, pid: process.pid, sequence }), { mode: 0o600 });
+              renameSync(temporary, join(directory, 'supervisor-rotation.json'));
+              finished = true;
+              if (timer) clearInterval(timer);
+              process.exit(0);
+            }
             launch();
             return;
           }

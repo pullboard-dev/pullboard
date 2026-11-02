@@ -11,7 +11,7 @@ import { join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { closeBoard, getItem } from '../packages/store/index.js';
 import { openBoard, nativeBoardPorts } from '../src/native-board.js';
-import { checkBaseline, prepareCheckBaseline } from '../src/check-baseline.js';
+import { checkBaseline, prepareCheckBaseline } from '../packages/gate/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';

@@ -8,10 +8,10 @@ import {
 } from '../../packages/doctrine/index.js';
 import {
   gateWaitReporter,
-} from '../gate-wait.js';
+} from '../../packages/gate/index.js';
 import {
   withGateSlot,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
