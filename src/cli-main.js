@@ -72,6 +72,7 @@ const OPTIONS = {
   watch: { type: 'boolean' },
   'runner-only': { type: 'boolean' },
   after: { type: 'string' },
+  on: { type: 'string' },
   brief: { type: 'string' },
   'brief-file': { type: 'string' },
   private: { type: 'boolean' },
@@ -321,7 +322,7 @@ async function displayedRefusal(io, error) {
 }
 
 /** Run one command and emit its single versioned JSON result when requested (A1). */
-export async function main(argv, streams) {
+async function timedMain(argv, streams) {
   if (argv[0] === 'serve' && !startupMainTraced) {
     startupMainTraced = true;
     traceServeStartup('cli-main-enter');
@@ -346,6 +347,19 @@ export async function main(argv, streams) {
     output.flush(1);
     return 1;
   }
+}
+
+/** Record local command wall time without sending timing data to the board. */
+export async function main(argv, streams) {
+  const { beginSeatTiming, timingSeat } = await import('./seat-timing.js');
+  const cwd = streams.cwd ?? process.cwd();
+  const item = /^[1-9][0-9]*$/u.test(argv[1] ?? '') ? Number(argv[1]) : null;
+  const binding = timingSeat(cwd);
+  const finish = beginSeatTiming(cwd, 'command', argv[0] ?? 'help', item, binding);
+  const lockPort = Symbol.for('pullboard.seat-timing.lock');
+  const previous = globalThis[lockPort];
+  globalThis[lockPort] = () => beginSeatTiming(cwd, 'lock-wait', 'board write lock', item, binding);
+  try { return await timedMain(argv, streams); } finally { finish(); if (previous) globalThis[lockPort] = previous; else delete globalThis[lockPort]; }
 }
 
 /** Parse and execute one CLI command, binding its checkout session and Git-fact scope. */

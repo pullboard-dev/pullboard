@@ -1,3 +1,4 @@
+import { BLOCKED_DEPENDENCIES_ENGINE } from '../../../../../src/blocked-dependencies-engine.js';
 import { EXIT_RULES_ENGINE } from "../../../../../src/exit-rules-engine.js";
 import { LEASE_LAPSE_ENGINE } from "../../../../../src/lease-lapse-engine.js";
 import { RELEASE_REASONS_ENGINE } from "../../../../../src/release-reasons-engine.js";
@@ -21,7 +22,7 @@ function existingEngine(args, board, at) {
 
 /** An observation cannot be silently ignored by an older release implementation. */
 function minimumEngine(args, board, at) {
-  return Math.max(board && board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='claim' AND event_detail LIKE '%\"exitRules\"%' LIMIT 1").get(args[0]) ? EXIT_RULES_ENGINE : 1, args[4] !== undefined ? RELEASE_REASONS_ENGINE : 1, typeof args[3] === 'string' ? RELEASE_REASONS_ENGINE : args[3]?.leaseLapse === true ? LEASE_LAPSE_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
+  return Math.max(args[3]?.blockedOn !== undefined ? BLOCKED_DEPENDENCIES_ENGINE : 1, board && board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='claim' AND event_detail LIKE '%\"exitRules\"%' LIMIT 1").get(args[0]) ? EXIT_RULES_ENGINE : 1, args[4] !== undefined ? RELEASE_REASONS_ENGINE : 1, typeof args[3] === 'string' ? RELEASE_REASONS_ENGINE : args[3]?.leaseLapse === true ? LEASE_LAPSE_ENGINE : args[3]?.staleClaim !== undefined ? STALE_STATE_ENGINE : args[3] !== undefined ? GONE_CLAIM_ENGINE : 1, existingEngine(args, board, at));
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

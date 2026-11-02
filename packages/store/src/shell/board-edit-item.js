@@ -56,6 +56,14 @@ export function editItem(board, id, { agentId, brief, route, criterion, check, a
       moveItem(board, id, 'lapse', { checks: {}, set: () => ({ item_owner: null, item_lease_until: null }) });
     }
     const { item_check_timing, ...storedNext } = next;
+    // A coordinator removing prerequisites also removes the corresponding blocked-release wait.
+    if (after !== undefined) {
+      const marker = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`blocked_release_waiting:${id}`);
+      if (marker) {
+        const retained = JSON.parse(marker.meta_value).filter(value => after.includes(value));
+        board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key IN (?,?)').run(JSON.stringify(retained), `blocked_release_waiting:${id}`, `claim_waiting:${id}`);
+      }
+    }
     saveCheckTiming(board, id, checkTiming);
     setItem(board, id, { ...storedNext, ...(frozen ? { item_frozen: frozen.text, item_frozen_digest: frozen.digest } : {}), ...(clearFrozen ? { item_frozen: null, item_frozen_digest: null } : {}) });
     reviewFamilies.saveReviewFamily(board, id, reviewFamily);

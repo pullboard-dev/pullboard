@@ -267,7 +267,8 @@
   ["src/cli/view-state.js","apps/cli/src/shell/cli/view-state.js","rule"],
   ["src/commands/check-baseline.js","apps/cli/src/shell/commands/check-baseline.js","rule"],
   ["src/command-docs/stats-time.json","apps/cli/src/shell/command-docs/stats-time.json","rule"],
-  ["src/documentation/events/milestone_placed.json","apps/cli/src/shell/documentation/events/milestone_placed.json","rule"]
+  ["src/documentation/events/milestone_placed.json","apps/cli/src/shell/documentation/events/milestone_placed.json","rule"],
+  ["src/commands/seats.js","apps/cli/src/shell/commands/seats.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",

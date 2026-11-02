@@ -16,6 +16,7 @@ import {
   idArg,
   ordered,
   textArg,
+  editAfter,
 } from '../cli.js';
 
 /**
@@ -49,6 +50,9 @@ export async function run(io, args) {
   const code = await act(async (ctx, board, me) => {
   releasedContext = ctx;
   const args = [idArg(first), me.id, textArg(io, values, 'note') ?? ''];
+  if (values.on !== undefined && (values.reason !== 'BLOCKED' || values.stale)) throw new Refused('USAGE', '--on requires an ordinary release with --reason BLOCKED');
+  const blockedOn = values.on === undefined ? undefined : editAfter(values.on);
+  if (blockedOn && (!blockedOn.length || blockedOn.some(value => typeof value !== 'number'))) throw new Refused('BAD_DEPENDENCIES', '--on needs one or more local item ids');
   if (values.stale) {
     if (me.id !== 'coordinator') throw new Refused('NOT_YOURS', 'only the coordinator releases another holder with --stale');
     const reasonCode = values.reason;
@@ -63,7 +67,8 @@ export async function run(io, args) {
     seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), store.getItem(board, args[0]), 'release', agentSessionDigest);
     const missing = releaseReasonProblem(values.reason, args[2]);
     if (missing) throw missing;
-    args.push(values.reason);
+    if (blockedOn) args.push({ blockedOn }, values.reason);
+    else args.push(values.reason);
   }
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;
