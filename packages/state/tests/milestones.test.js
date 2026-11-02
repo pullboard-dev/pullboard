@@ -79,7 +79,7 @@ function fixture(t) {
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1'] } }, shared: [] }));
   git('add', '-A');
   git('commit', '-q', '-m', 'chore: initialize fixture');
-  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: repo });
   t.after(() => store.closeBoard(board));
   store.ensureCoordinator(board, repo);
   const builder = store.register(board, { lane: 'web', path: join(dir, 'builder'), model: 'Fixture Model' });
