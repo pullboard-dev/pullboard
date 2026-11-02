@@ -1,5 +1,6 @@
 import { REVIEW_REQUEST_ENGINE } from '../../../../../src/review-request-engine.js';
 import { RULING_OWNER_ENGINE } from "../../../../../src/ruling-owner-engine.js";
+import { RIGOR_INSTRUCTIONS_ENGINE } from '../../../../../src/rigor-instructions-engine.js';
 import { laneMessageFloor } from "../../../../seats/core.js";
 import { DECISION_QUEUE_ENGINE } from "../../../../../src/decision-queue-engine.js";
 import { ACTIVITY_NEWS_ENGINE } from "../../../../../src/activity-news-engine.js";
@@ -34,8 +35,13 @@ function existingMinimumEngine(args, board, at) {
 /** Read precisely the actor argument used by this operation [H2,H16]. */
 function actor(move) { return move.args[0]?.from ?? null; }
 
+/** New coordinator shouts carry the drafting engine; recorded older shouts retain their original effects. */
+function minimumEngine(args, board, at) {
+  return Math.max(existingMinimumEngine(args, board, at), args[0]?.from === 'coordinator' ? RIGOR_INSTRUCTIONS_ENGINE : 1);
+}
+
 export default Object.freeze({ operation: "shout", order: 23, engine: 1,
-  itemIdFirstArgument: false, minimumEngine: existingMinimumEngine, actor,
+  itemIdFirstArgument: false, minimumEngine, actor,
   nextSteps: Object.freeze({
   RULING_EFFECTS: 'declare one to 64 concrete effects on a decision request with --decision --effects',
   RULING_EFFECT: 'use a supported effect operation with its exact row, item or decision target; omit caller owner and status fields',

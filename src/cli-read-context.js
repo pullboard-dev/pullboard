@@ -1,3 +1,4 @@
+import { itemFolderIdentity } from './item-folder-identity.js';
 import { seatFamily } from './family-declaration.js';
 import {
   dependencyReferences,
@@ -417,7 +418,7 @@ export function identifyCaller(ctx, board, { environmentAgent, relayLinked }, re
     const agent = registered ?? readers.agentAt(board, ctx.info.root);
     return { id, lane: COORDINATOR, family: agent ? seatFamily(board, agent.agent_id) : null, model: agent?.agent_model ?? 'unknown', displayName: displayAgentName(agent ?? { agent_id: id }, ctx.config.agents.names) };
   }
-  const agent = readers.agentAt(board, ctx.info.root);
+  const agent = readers.agentAt(board, ctx.info.root) ?? itemFolderIdentity(board, ctx.info.root)?.agent;
   if (!agent) {
     throw new Refused('NOT_JOINED', 'this worktree has not joined a lane: pullboard join <lane> --model "<model name>" (see: pullboard lanes)');
   }

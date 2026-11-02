@@ -1,4 +1,5 @@
 /** Rigor drafts, counters, notices, quality and proof behind one front door [C7,CD60,CD64]. */
+export { coordinatorInstructionKinds, coordinatorInstructionReport } from './src/core/coordinator-instructions.js';
 export { planAutomaticRigorApply } from './src/shell/rigor-auto-apply.js';
 export { deriveRigorCause, recordAutomaticRigorDrafts } from './src/shell/rigor-auto.js';
 export { conflictReport, conflictLines, splitProposal, splitAlreadyProposed, conflictNoteFiles } from './src/shell/rigor-conflicts.js';

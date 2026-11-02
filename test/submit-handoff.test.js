@@ -11,6 +11,7 @@ import { openBoard } from '../src/native-board.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { shout } from '../packages/store/index.js';
 import { completeSubmitHandoff, startSubmitHandoff } from '../src/submit-handoff-state.js';
@@ -33,7 +34,7 @@ function state(box, id) {
 function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
-function fixture(t, { enabled = true, result = 'green', companion = false, cells = false } = {}) {
+function fixture(t, { enabled = true, result = 'green', companion = false, cells = false, firstFolder = false } = {}) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
   // Isolate admission before init and commit hooks, as well as the nested queued worker.
@@ -79,9 +80,12 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
     '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;
   const second = document(box.run(box.repo, 'add', 'web', 'Independent second build', '--specs', 'G1',
     '--criterion', 'The second build remains separate.', '--check', 'true', '--wait', '--json')).item.item_id;
-  document(box.run(box.web, 'claim', String(id), '--json'));
-  assert.equal(helpers.commitFile(box, box.web, 'web/snapshot.txt', result + '\n', 'feat(web): captured candidate [G1]').status, 0);
-  const commit = box.git(box.web, 'rev-parse', 'HEAD');
+  const claim = document(box.run(box.web, 'claim', String(id), '--json'));
+  const source = firstFolder ? claim.itemFolder : box.web;
+  // B5: with a second live claim, the commit hook must still stamp the folder's own item.
+  const secondFolder = firstFolder ? document(box.run(box.web, 'claim', String(second), '--json')).itemFolder : null;
+  assert.equal(helpers.commitFile(box, source, 'web/snapshot.txt', result + '\n', 'feat(web): captured candidate [G1]').status, 0);
+  const commit = box.git(source, 'rev-parse', 'HEAD');
   writeFileSync(armed, 'armed\n');
   t.after(async () => {
     for (const file of releases) writeFileSync(file, 'release\n');
@@ -92,7 +96,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
     }, `normal queued worker cleanup: ${workerDiagnostic(box, id)}`);
     helpers.cleanup();
   });
-  return { ...box, helpers, id, second, third, commit, release, releases, started, finished };
+  return { ...box, helpers, id, second, third, commit, source, secondFolder, release, releases, started, finished };
 }
 
 
@@ -162,7 +166,55 @@ test('queue preparation retries a real peer commit and still bounds continuous c
   } finally { peer.db.close(); board.db.close(); }
 });
 
-test('queued submit returns before its gate and remains bound when the builder commits and claims again [V4,H16,E18]', async t => {
+test('two item folders stamp and queue their own claims while the first gate runs [B5,V4]', async t => {
+  const box = fixture(t, { firstFolder: true });
+  assert.match(box.git(box.source, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${box.id}\\b`));
+  assert.equal(box.helpers.commitFile(box, box.secondFolder, 'web/second.txt', 'second\n', 'feat(web): second folder [G1]').status, 0);
+  assert.match(box.git(box.secondFolder, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${box.second}\\b`));
+  assert.doesNotMatch(box.git(box.secondFolder, 'log', '-1', '--format=%B'), new RegExp(`Pullboard-Item: #${box.id}\\b`));
+  const marker = box.git(box.source, 'rev-parse', '--git-path', 'pullboard-item.json');
+  rmSync(marker);
+  document(box.run(box.source, 'status', '--json'));
+  const restored = `${JSON.stringify({ version: 1, seat: state(box, box.id).item.item_owner, item: box.id })}\n`;
+  const blob = createHash('sha1').update(`blob ${Buffer.byteLength(restored)}\0${restored}`).digest('hex');
+  assert.equal(box.git(box.source, 'hash-object', marker), blob, 'pre-marker folder restores its own private identity');
+  writeFileSync(marker, '{broken');
+  assert.equal(box.run(box.source, 'status', '--json').code, 1, 'a damaged marker is never silently replaced');
+  rmSync(marker);
+  for (const command of [['status'], ['inbox'], ['show', String(box.id)]]) document(box.run(box.source, ...command, '--json'));
+  const renewed = document(box.run(box.source, 'claim', String(box.id), '--json'));
+  assert.equal(renewed.itemFolder, box.source, 'renewing inside the folder reopens the same folder beside the seat');
+  const first = document(box.run(box.source, 'submit', String(box.id), '--no-next', '--json'));
+  assert.equal(first.commit, box.commit);
+  await box.helpers.waitFor(() => existsSync(box.started), 'first folder gate started', 120000); // budget: observed worker progress ceiling, not a timing assertion.
+  const queued = document(box.run(box.secondFolder, 'submit', String(box.second), '--no-next', '--json'));
+  assert.equal(queued.queued, true);
+  assert.equal(state(box, box.second).job.commit, box.git(box.secondFolder, 'rev-parse', 'HEAD'), 'the queued seal captures the second folder, not the seat checkout');
+  assert.equal(existsSync(box.release), false);
+  writeFileSync(box.release, 'release\n');
+  await waitJob(box, 'green');
+  await box.helpers.waitFor(() => { // budget: worker cleanup hang ceiling, not a timing assertion.
+    const job = state(box, box.second).job;
+    return job && job.state === 'green' && !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source'));
+  }, 'second folder worker cleanup', 120000);
+  assert.equal(state(box, box.id).item.item_status, 'submitted');
+  assert.equal(state(box, box.second).item.item_status, 'submitted');
+});
+
+test('foreground submit from each of two item folders submits that folder\'s item [B5,V4]', t => {
+  const box = fixture(t, { enabled: false, firstFolder: true });
+  writeFileSync(box.release, 'release\n');
+  assert.equal(box.helpers.commitFile(box, box.secondFolder, 'web/second.txt', 'second\n', 'feat(web): second folder [G1]').status, 0);
+  const secondHead = box.git(box.secondFolder, 'rev-parse', 'HEAD');
+  const wrong = box.run(box.secondFolder, 'submit', String(box.id), '--no-next', '--json');
+  assert.equal(JSON.parse(wrong.out).error.code, 'NOT_YOURS', 'a folder submits only its own item');
+  document(box.run(box.secondFolder, 'submit', String(box.second), '--no-next', '--json'));
+  document(box.run(box.source, 'submit', String(box.id), '--no-next', '--json'));
+  assert.deepEqual([state(box, box.id).item.item_status, state(box, box.id).item.item_commit], ['submitted', box.commit]);
+  assert.deepEqual([state(box, box.second).item.item_status, state(box, box.second).item.item_commit], ['submitted', secondHead]);
+});
+
+test('queued submit returns before its gate and remains bound when the builder commits and claims again [B5,V4,H16,E18]', async t => {
   const box = fixture(t, { companion: true });
   const author = join(box.dir, 'companion-author');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', author, box.commit);
@@ -190,9 +242,8 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
   document(box.run(box.web, 'claim', String(box.third), '--json'));
   const fourth = document(box.run(box.repo, 'add', 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
-  const third = box.run(box.web, 'claim', String(fourth), '--json');
-  assert.equal(third.code, 1);
-  assert.equal(JSON.parse(third.out).error.code, 'ONE_CLAIM');
+  document(box.run(box.web, 'claim', String(fourth), '--json'));
+  assert.equal(state(box, fourth).item.item_owner, state(box, box.third).item.item_owner, 'B5 permits several live claims in their own folders');
   const duplicate = state(box, box.id).job;
   assert.equal(duplicate.commit, box.commit);
   writeFileSync(box.release, 'release\n');
@@ -375,7 +426,7 @@ function helpersCommit(box, path, body) {
   return box.helpers.commitFile(box, box.web, path, body, 'feat(web): independent later work [G1]');
 }
 
-test('a queued red retains the exact canonical refusal and builder first refusal while another claim stays owned [V4,H16]', async t => {
+test('a queued red retains the exact canonical refusal and builder first refusal while another claim stays owned [B5,V4,H16]', async t => {
   const box = fixture(t, { result: 'red' });
   document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
   await box.helpers.waitFor(() => existsSync(box.started), 'actual red candidate execution', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
@@ -392,15 +443,14 @@ test('a queued red retains the exact canonical refusal and builder first refusal
   assert.deepEqual(shown.queuedSubmit.error, retained.error);
   const interrupt = document(box.run(box.web, 'inbox', '--json')).shouts.find(row => row.shout_text.includes(`Queued submit #${box.id} was refused`));
   assert.ok(interrupt, 'the existing inbox channel carries the red interrupt');
-  const stillBusy = box.run(box.web, 'claim', String(box.id), '--json');
-  assert.equal(stillBusy.code, 1);
-  assert.equal(JSON.parse(stillBusy.out).error.code, 'ONE_CLAIM', 'a red interrupt never starts a second concurrent build');
   const other = join(box.dir, 'other-web');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', other, 'main');
   document(box.run(other, 'join', 'web', '--json'));
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'REOPEN_HELD_FOR_BUILDER');
+  document(box.run(box.web, 'claim', String(box.id), '--json'));
+  assert.equal(state(box, box.id).item.item_owner, state(box, box.second).item.item_owner, 'B5 permits the builder to reclaim alongside another item');
   document(box.run(box.web, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json'));
   document(box.run(box.web, 'claim', String(box.id), '--json'));
   assert.equal(state(box, box.id).item.item_owner, completed.job.agentId, 'the same seat resumes at a natural break');

@@ -31,6 +31,7 @@ import { RIGOR_AUTO_ENGINE } from '../../../../src/rigor-auto-engine.js';
 import { REOPEN_CAUSE_ENGINE } from '../../../../src/reopen-cause-engine.js';
 import { ENGINE_VERSION } from '../../../../src/engine-metadata.js';
 import { conflictCause } from '../../../items/index.js';
+import { recordCoordinatorInstructionDrafts } from './rigor-broadcasts.js';
 
 /** Prefer structured exact-head failures; a coded fallback is a coarse category, never a root-cause finding. */
 export function deriveRigorCause(board, item, { cause, reason, conflict, landingFailure, agentId }) {
@@ -76,6 +77,7 @@ function proposalSuppressed(board, history, draft, cause) {
 
 /** Draft the existing threshold's ordinary advice inside its triggering board transaction, never proving it. */
 export function recordAutomaticRigorDrafts(board, trigger, shout) {
+  if (['shout', 'shout_news'].includes(trigger.event_kind)) return recordCoordinatorInstructionDrafts(board, trigger);
   const history = events(board);
   const detail = JSON.parse(trigger.event_detail);
   const keys = new Set(eventCauses(trigger));
