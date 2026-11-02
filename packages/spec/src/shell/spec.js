@@ -351,7 +351,12 @@ export function repointLandingGates(root, config, base, tip) {
     const status = fields[i++], from = fields[i++];
     if (status.startsWith('R') || status.startsWith('C')) {
       const to = fields[i++];
-      if (status.startsWith('R')) renames.set(from, to);
+      if (status.startsWith('R')) {
+        const options = { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' };
+        const before = spawnSync('git', ['rev-parse', `${base}:${from}`], options);
+        const after = spawnSync('git', ['rev-parse', `${tip}:${to}`], options);
+        if (before.status === 0 && after.status === 0 && before.stdout.trim() === after.stdout.trim()) renames.set(from, to);
+      }
     }
   }
   const spec = loadSpec(root, config);
