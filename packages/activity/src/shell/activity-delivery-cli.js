@@ -89,7 +89,8 @@ export async function deliverActivity(ctx, { actedIds = [], afterSubmit = false,
     if (retired) activity.receipt = { recorded: false, code: retired.code, message: retired.message };
     const shouts = directShouts ? store.inbox(board, me.id, { through: shoutCursor, markRead: false })
       .filter(shout => !newsShouts.includes(shout.shout_id)) : [];
-    const agents = store.listAgents(board);
+    // Seat names render only shouts; a read with none never lists every seat on the board (#2421).
+    const agents = shouts.length ? store.listAgents(board) : [];
     const diagnostic = 'activity cursor could not be saved; activity may repeat when you read inbox again';
     /** Reserve the possible persistence warning while selecting complete public groups. */
     const bound = () => budgetInbox({ shouts, agents, activity }, ctx.config.inbox.tokenBudget,

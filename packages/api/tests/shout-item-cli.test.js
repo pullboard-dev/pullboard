@@ -5,6 +5,8 @@ import {
   test,
 } from 'node:test';
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
@@ -116,4 +118,42 @@ test('a seat whose session spans many seats derives its family without a per-sea
     finally { delete board.db.prepare; }
     assert.deepEqual(prepared.filter(sql => /event_by=\?/u.test(sql)), [], 'no query reads one seat\'s events at a time');
   } finally { store.closeBoard(board); }
+});
+
+test('a repeat inbox with nothing new never scans the event, shout, seat or metadata tables [R2,N26]', () => {
+  const box = fixtures.project('true');
+  const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const added = box.run(box.repo, 'add', 'web', 'Scan-free inbox', '--specs', 'G1', '--criterion', 'a quiet inbox reads by index');
+  assert.equal(added.code, 0, added.err);
+  for (const args of [['claim', '1'], ['inbox']]) {
+    const done = box.run(box.web, ...args);
+    assert.equal(done.code, 0, `${args.join(' ')}: ${done.err}${done.out}`);
+  }
+  // Record every statement the quiet read prepares, in the real CLI process, then ask SQLite how it would run each.
+  const log = join(box.dir, 'inbox-sql.jsonl'), preload = join(box.dir, 'record-sql.mjs');
+  writeFileSync(preload, [
+    "import { DatabaseSync } from 'node:sqlite'; import { appendFileSync } from 'node:fs';",
+    'const prepare = DatabaseSync.prototype.prepare;',
+    `DatabaseSync.prototype.prepare = function (sql) { appendFileSync(${JSON.stringify(log)}, JSON.stringify(sql) + '\\n'); return prepare.call(this, sql); };`,
+  ].join('\n'));
+  const read = box.run(box.web, 'inbox', '--json');
+  assert.equal(read.code, 0, read.err || read.out);
+  const inherited = box.env.NODE_OPTIONS;
+  box.env.NODE_OPTIONS = [inherited, `--import=${pathToFileURL(preload).href}`].filter(Boolean).join(' ');
+  const quiet = box.run(box.web, 'inbox', '--json');
+  if (inherited === undefined) delete box.env.NODE_OPTIONS; else box.env.NODE_OPTIONS = inherited;
+  assert.equal(quiet.code, 0, quiet.err || quiet.out);
+  assert.deepEqual(JSON.parse(quiet.out).shouts, [], 'the measured read had nothing new');
+  const statements = [...new Set(readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line)))]
+    .filter(sql => /^\s*(?:SELECT|WITH)\b/iu.test(sql));
+  assert.ok(statements.length > 0, 'the preload observed the quiet read');
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    // Item rows stay readable: activity interests walk the dependency and file graph of the items on the board.
+    const scans = statements.flatMap(sql => {
+      const plan = db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map(row => row.detail).join(' | ');
+      return /\bSCAN (?:event|shout|agent|board_meta)\b/u.test(plan) ? [`${plan} <- ${sql.replace(/\s+/gu, ' ').slice(0, 160)}`] : [];
+    });
+    assert.deepEqual(scans, [], 'a quiet inbox reads the event log, shouts, seats and metadata only by index');
+  } finally { db.close(); }
 });
