@@ -30,7 +30,7 @@ import {
 } from '../gate-wait.js';
 import {
   land,
-} from '../land.js';
+} from '../../packages/landing/index.js';
 import {
   agentSessionDigest,
   requirePersonChannel,

@@ -1,8 +1,8 @@
 /** A failing case defined in a helper module is known-main by the helper or the test file that runs it, and a nested copy counts once [V4,B3]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { failureSignatures } from '../src/main-failure-matches.js';
-import { matchingMainFailures } from '../src/main-failure-matches.js';
+import { failureSignatures } from '../packages/landing/index.js';
+import { matchingMainFailures } from '../packages/landing/index.js';
 import { ownersOf } from '../packages/store/index.js';
 import { fixture } from './known-main-affected.fixture.js';
 import { cli } from './known-main-affected.fixture.js';

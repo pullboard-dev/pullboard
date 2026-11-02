@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { configProblems, defaults } from '../packages/config/index.js';
 import { landingShardCount } from '../src/gate.js';
-import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../src/landing-shards.js';
+import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../packages/landing/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 

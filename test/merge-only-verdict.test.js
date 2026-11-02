@@ -5,7 +5,7 @@ const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js',
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { land, runLandingBatch } from '../src/land.js';
+import { land, runLandingBatch } from '../packages/landing/index.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

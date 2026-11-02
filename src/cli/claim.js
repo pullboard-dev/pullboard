@@ -160,14 +160,16 @@ export async function ordered(ctx, board, operation, args) {
       ctx.io.onOrderedMove?.({ operation, events: (board.emittedEvents?.slice(firstEvent) ?? []).map(event => ({ ...event })) });
       return result;
     };
+    // Select transport before the acknowledged write; a later damaged marker cannot undo its receipt.
+    const gitLinked = !ctx.privateBoard && gitSyncLinked(ctx.info.root);
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
-      : gitSyncLinked(ctx.info.root)
+      : gitLinked
         ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());
-    if (!ctx.privateBoard && requested && gitSyncLinked(ctx.info.root)) ctx.io.recordedMove = true;
+    if (requested && gitLinked) ctx.io.recordedMove = true;
     await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
   };
