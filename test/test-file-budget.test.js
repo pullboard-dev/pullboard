@@ -14,6 +14,10 @@ import { readTestFileBudgets } from '../packages/gate/src/shell/test-file-budget
 import { testFileBudgetPath } from '../packages/gate/src/shell/test-file-budget-policy.js';
 import { writePlacementIndex } from '../packages/gate/src/shell/test-economics-index.js';
 import { indexedStageSelection } from '../packages/gate/src/shell/test-economics-index.js';
+import { inCleanCheckout } from '../packages/gate/src/shell/test-run.js';
+import { withMainCheckout } from '../packages/landing/src/shell/main-red.js';
+import { runnerPolicyRecord } from '../packages/sandbox/index.js';
+import { RUNNER_POLICY_FILE } from '../packages/sandbox/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
@@ -40,8 +44,47 @@ function fixture(t) {
   const run = (cwd = candidate, files = ['slow.test.js', 'later.test.js'], flags = []) => runFixtureChild(process.execPath, [runner, ...flags, ...files], {
     cwd, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(directory, 'machine') }, encoding: 'utf8', detached: true,
   });
-  return { candidate, git, path, run };
+  return { main, candidate, git, path, run };
 }
+
+test('a dirty seat snapshot carries accepted main into its detached runner checkout [C7]', async t => {
+  const box = fixture(t);
+  writeFileSync(join(box.candidate, 'later.test.js'), "import {test} from 'node:test'; test('changed',()=>{});\n");
+  await inCleanCheckout(box.candidate, async snapshot => {
+    assert.notEqual(snapshot, box.candidate);
+    assert.equal(readTestFileBudgets(snapshot, ['slow.test.js']).get('slow.test.js').ms, 1);
+    assert.equal(box.git(snapshot, 'rev-parse', '--abbrev-ref', 'HEAD'), 'HEAD', 'snapshot is detached');
+  }, withMainCheckout);
+});
+
+test('a linked item worktree uses its runner primary admitted trunk [C7]', async t => {
+  const box = fixture(t);
+  const commit = box.git(box.main, 'rev-parse', 'HEAD^{commit}');
+  const tree = box.git(box.main, 'rev-parse', 'HEAD^{tree}');
+  box.git(box.main, 'checkout', '--quiet', '--detach');
+  writeFileSync(join(box.main, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord({ id: 'fixture', commit, tree,
+    trunk: { ref: 'refs/heads/main', commit } })));
+  assert.equal(readTestFileBudgets(box.candidate, ['slow.test.js']).get('slow.test.js').ms, 1);
+  writeFileSync(join(box.candidate, 'later.test.js'), "import {test} from 'node:test'; test('changed',()=>{});\n");
+  await inCleanCheckout(box.candidate, async snapshot => {
+    assert.equal(readTestFileBudgets(snapshot, ['slow.test.js']).get('slow.test.js').ms, 1);
+  }, withMainCheckout);
+  writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: 2 }));
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'loosen budget');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /may not increase from 1ms to 2ms/u);
+  writeFileSync(join(box.candidate, box.path), '{broken');
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'malformed budget');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), error => error.message.includes(box.path));
+  writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: -1 }));
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'invalid budget');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), error => error.message.includes(box.path));
+});
+
+test('a detached repository without trusted trunk fails closed with guidance [C7]', t => {
+  const box = fixture(t);
+  box.git(box.main, 'checkout', '--quiet', '--detach');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /restore the main checkout or run through the runner with its pinned trunk/u);
+});
 
 test('an over-budget file fails with its observed runtime, while audit placement passes [C7]', t => {
   const box = fixture(t);
