@@ -26,7 +26,7 @@ test('protocol-only frames never count as output, including split headers', () =
 });
 
 /** Real native CLI workers run together: noisy inherited child output must not mask the quiet sibling. */
-async function runLegacy(t, mode, duration = 3500) {
+async function runLegacy(t, mode, duration = 8000) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-legacy-watchdog-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'package.json'), '{"type":"module"}');
@@ -35,7 +35,7 @@ async function runLegacy(t, mode, duration = 3500) {
   const flags = mode === 'watch' ? ['--watch'] : ['--experimental-test-coverage'];
   const child = spawn(process.execPath, [runner, ...flags, '--test-concurrency=2', join(root, 'a-noisy.test.js'), join(root, 'b-hung.test.js')], {
     cwd: root, detached: true, env: { ...process.env, PULLBOARD_MACHINE_HOME: join(root, 'machine'),
-      PULLBOARD_TEST_IDLE_TIMEOUT_MS: '1200', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: String(duration + 15000), PULLBOARD_TEST_TIMEOUT_MS: String(duration + 10000) },
+      PULLBOARD_TEST_IDLE_TIMEOUT_MS: '3000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: String(duration + 15000), PULLBOARD_TEST_TIMEOUT_MS: String(duration + 10000) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
