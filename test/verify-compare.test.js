@@ -1,3 +1,6 @@
+import { openBoard } from '../src/native-board.js';
+import { closeBoard } from '../packages/store/index.js';
+import { submitFixture } from './board-submit-fixture.js';
 import { installSshStandIn, HOST } from './runner-ssh-fixture.js';
 /** Real persisted items compare actual Node tests at immutable Git sources [V4,C7]. */
 import assert from 'node:assert/strict';
@@ -73,7 +76,12 @@ function fixture(t, { missingRunner = false } = {}) {
 /** Record the exact submitted source through the existing explicitly synthetic lifecycle helper. */
 function submit(box) {
   const commit = box.helpers.attackCommit(box, box.web);
-  box.helpers.historicalCheckSubmission(box, commit);
+  box.git(box.web, 'update-ref', `refs/pullboard/items/${box.id}/${commit.slice(0, 12)}`, commit);
+  // @pullboard-board-file journey: subsequent real CLI processes read this explicitly synthetic lifecycle move.
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
+  board.gitRoot = box.repo; // Bind the real committed policy exactly as the native CLI does.
+  try { submitFixture(board, box.id, { agentId: 'web-1', commit, tree: box.git(box.web, 'rev-parse', `${commit}^{tree}`) }); }
+  finally { closeBoard(board); }
   return commit;
 }
 
@@ -147,7 +155,7 @@ test('a green submission records its background comparison without a reviewer co
   assert.equal(result.status, 0, result.stdout + result.stderr);
   let comparison, thread;
   // budget: bounded wait for real private runner completion; never an elapsed-time assertion.
-  await box.helpers.waitFor(() => {
+  await box.helpers.waitFor(() => { // budget: hang ceiling for actual background runner completion.
     const shown = box.run(box.repo, 'show', String(box.id), '--json');
     assert.equal(shown.code, 0, shown.err);
     const item = JSON.parse(shown.out);
