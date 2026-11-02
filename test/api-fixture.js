@@ -21,6 +21,7 @@ import { refusalDocument } from '../src/next-step-words.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { fetchFresh } from './http-fixture.js';
 import { safeFixtureDiagnostic } from './fixture-child.js';
+import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';
 
 /** Quote a literal executable path for the fixture hook's POSIX shim. */
 export function shellWord(value) {
@@ -86,13 +87,15 @@ export { apiFetch, apiError, assertRequiredShape, hasType, nextSseEvent, timedMs
 
 /** Build the actual HTTP fixture child's private terminal and Git identity. */
 export function apiFixtureEnvironment(directory, bin) {
-  return {
+  const env = {
     ...process.env, HOME: join(directory, 'home'), PULLBOARD_HOME: join(directory, 'home'),
     PULLBOARD_MACHINE_HOME: join(directory, 'machine-home'),
     PATH: bin + ':' + process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'HTTP Agent', GIT_AUTHOR_EMAIL: 'agent@example.invalid',
     GIT_COMMITTER_NAME: 'HTTP Agent', GIT_COMMITTER_EMAIL: 'agent@example.invalid',
   };
+  for (const marker of AGENT_SHELL_MARKERS) delete env[marker];
+  return env;
 }
 
 /** Capture one ambient pool per test, even when it creates several boards, and restore it at test teardown. */
@@ -102,10 +105,13 @@ const fixtureMachineTests = new WeakSet();
 export function bindApiFixtureMachine(t, env) {
   if (!fixtureMachineTests.has(t)) {
     const previous = process.env.PULLBOARD_MACHINE_HOME;
+    const markers = new Map(AGENT_SHELL_MARKERS.map(name => [name, process.env[name]]));
+    for (const name of AGENT_SHELL_MARKERS) delete process.env[name];
     fixtureMachineTests.add(t);
     t.after(() => {
       if (previous === undefined) delete process.env.PULLBOARD_MACHINE_HOME;
       else process.env.PULLBOARD_MACHINE_HOME = previous;
+      for (const [name, value] of markers) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
     });
   }
   process.env.PULLBOARD_MACHINE_HOME = env.PULLBOARD_MACHINE_HOME;
