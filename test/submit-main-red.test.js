@@ -9,8 +9,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { runFixtureGit } from './fixture-child.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../src/known-main-failures-engine.js';
-import { matchingMainFailures } from '../src/main-failure-matches.js';
-import { failureSignatures } from '../src/main-failure-matches.js';
+import { matchingMainFailures } from '../packages/landing/index.js';
+import { failureSignatures } from '../packages/landing/index.js';
 
 import { fixture } from './submit-main-red-fixture.js';
 import { cli } from './submit-main-red-fixture.js';
@@ -165,6 +165,29 @@ test('an exact unowned main red submits with its receipt, fact and decision shou
       && asked[0].shout_text.includes('shared failure [G1]')
       && asked[0].shout_text.includes(box.main.slice(0, 12)), 'the decision names the exact main failure');
   } finally { db.close(); }
+});
+
+test('a long infra note submits with one bounded automatic shout [V4,B3]', t => {
+  const box = fixture(t, { mainRed: false });
+  const note = 'a'.repeat(2000);
+  const result = cli(box, box.builder, 'submit', String(box.item), '--infra', note, '--no-next');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.ok(submittedProof(box));
+  const db = new DatabaseSync(join(box.root, '.git/pullboard/board.sqlite'), { readOnly: true });
+  try {
+    const shouts = db.prepare('SELECT * FROM shout').all().filter(row => row.shout_to === 'coordinator'
+      && row.shout_decision === 1 && String(row.shout_text).includes(`#${box.item}: known main red`));
+    assert.equal(shouts.length, 1);
+    assert.ok(Array.from(shouts[0].shout_text).length <= 400);
+    assert.match(shouts[0].shout_text, new RegExp(`pullboard show ${box.item}`));
+  } finally { db.close(); }
+});
+
+test('an oversized main red decision preserves the show pointer [V4,B3]', async () => {
+  const { boundedMainRedShout } = await import('../src/commands/submit.js');
+  const text = boundedMainRedShout(7, [{ file: 'test/red.test.js', names: ['🧪'.repeat(2000)] }], 'a'.repeat(40));
+  assert.ok(Array.from(text).length <= 400);
+  assert.match(text, /pullboard show 7/);
 });
 
 test('an exact main red with an open repair retains its reviewer repair link [V4,B3]', t => {

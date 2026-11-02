@@ -77,6 +77,7 @@ const CONFIG = {
   spec: 'SPEC.md',
   verify: 'any',
   lease: '2h',
+  landing: { manualOverride: true },
   lanes: { web: { owns: ['web/'], specs: ['G1'] }, api: { owns: ['api/'], specs: ['G2'] } },
   shared: ['docs/'],
 };
@@ -347,7 +348,7 @@ export function crossLaneFixture(t) {
   }
   /** Keep the test's queue order explicit without touching a production board. */
   function milestone(name, id) {
-    json(box.run(box.repo, 'milestone', 'add', name, '--items', String(id), '--json'));
+    json(box.run(box.repo, 'milestone', 'add', name, '--items', String(id), '--reason', 'Arrange fixture release', '--json'));
   }
   /** Read the local checkout binding only; a session digest must never become board metadata. */
   function binding(root) {

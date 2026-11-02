@@ -16,7 +16,7 @@ import { createRelayAuth } from '../relay/auth.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
 import { serveView } from '../src/commands/view.js';
-import { registerProject } from '../src/projects.js';
+import { registerProject } from '../packages/seats/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 
@@ -25,8 +25,8 @@ import { exportBoard, restoreRelaySnapshot, semanticBoardDigest } from '../packa
 import { appliedSequence, checkpointSequence, engineReceipt, prepareEngineMove, requireSupportedEngine } from '../packages/state/index.js';
 import { seal as sealMove, unseal as openSealed } from '../packages/kernel/src/core/seal.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
-import { relayRecover, syncRelay } from '../src/relay.js';
-import { createRelayPageCache, snapshotSourceId } from '../src/relay-page-cache.js';
+import { relayRecover, syncRelay } from '../packages/link/index.js';
+import { createRelayPageCache, snapshotSourceId } from '../packages/pages/index.js';
 
 after(cleanupFixtureChildren);
 
@@ -653,8 +653,8 @@ test('two real clients enforce the verify policy captured in the item freeze [H1
     assert.equal(refrozen.outcome.result.decision, 'ACCEPT');
   }
   assert.deepEqual(outcomes, [
-    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
-    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'O2_FAMILY_MATCH', 'NO_POLICY', 'NO_POLICY'],
+    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'SAME_FAMILY', 'NO_POLICY', 'NO_POLICY'],
+    ['COORDINATOR_VERIFIES', 'NO_POLICY', 'SAME_FAMILY', 'NO_POLICY', 'NO_POLICY'],
   ]);
 });
 

@@ -13,8 +13,8 @@ import { minimumMoveEngine } from '../src/move-registry.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { readGateReceipt, receiptStore } from '../src/gate-run-receipt.js';
-import { prepareTrainLanding, prepareNativeTrainLanding } from '../src/train-landing.js';
-import { recordTrainLanding } from '../src/record-train-landing.js';
+import { prepareTrainLanding, prepareNativeTrainLanding } from '../packages/landing/index.js';
+import { recordTrainLanding } from '../packages/landing/index.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -79,7 +79,7 @@ test('a split train landing repoints open and claimed checks and reports submitt
     const configPath = join(box.repo, 'pullboard.json');
     const config = JSON.parse(readFileSync(configPath, 'utf8'));
     writeFileSync(configPath, JSON.stringify({ ...config,
-      landing: { publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
+      landing: { manualOverride: true, publish: 'separate', requireReceipts: true }, pushReceiptCheck: { smoke: 'node -e ""' } }));
     box.git(box.repo, 'add', '--', 'package.json', 'pullboard.json', 'web/legacy.test.js');
     box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare split landing fixture');
     const base = box.git(box.repo, 'rev-parse', 'HEAD').trim();

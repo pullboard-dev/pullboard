@@ -14,7 +14,7 @@ import { cleanupToolingSnapshots, cli, fixtureResultContext, gateResult, git, ru
 after(cleanupFixtureChildren);
 after(cleanupToolingSnapshots);
 
-test('warm runner source copies a clean base and sends only the changed history [C7]', async t => {
+test('warm runner source moves a clean base and sends only the changed history [C7]', async t => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-warm-source-')));
   let completed = false;
   t.after(() => { if (completed) rmSync(dir, { recursive: true, force: true }); else t.diagnostic(`retained source fixture ${dir}`); });
@@ -56,6 +56,7 @@ test('warm runner source copies a clean base and sends only the changed history 
       a.deepEqual(c.execFileSync('git',['tag','--list'],{encoding:'utf8'}).trim().split(/\\n/).filter(Boolean),${JSON.stringify(expectedTags)});
       a.equal(c.execFileSync('git',['status','--porcelain'],{encoding:'utf8'}),'');
       a.equal(c.execFileSync('git',['rev-parse','--is-shallow-repository'],{encoding:'utf8'}).trim(),'false');
+      a.equal(c.execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),${JSON.stringify(git(repo, env, 'rev-parse', 'HEAD^{tree}'))});
       a.equal(f.existsSync('.git/objects/info/alternates'),false);
       ${forbidden ? `a.notEqual(c.spawnSync('git',['cat-file','-e',${JSON.stringify(forbidden)}],{encoding:'utf8'}).status,0);` : ''}
       ${mutate ? "f.writeFileSync('tracked.txt','command mutation');f.writeFileSync('command-poison','private job mutation');c.execFileSync('git',['tag','command-poison']);" : ''}
@@ -81,6 +82,10 @@ test('warm runner source copies a clean base and sends only the changed history 
     assert.ok(changed.sourcePreparation.packBytes > 32, 'new source sends actual new objects');
     assert.ok(changed.sourcePreparation.packBytes < cold.sourcePreparation.packBytes / 4, 'unchanged bulk objects are not resent');
     assert.ok(Number.isSafeInteger(warm.executionPhases.sourceMs));
+    // Bounded work, not elapsed time: warm and parent-held preparation reuse the base and resend no bulk history.
+    assert.ok(Number.isSafeInteger(changed.executionPhases.sourceMs));
+    assert.ok(changed.sourcePreparation.git.fetch.calls <= cold.sourcePreparation.git.fetch.calls + 1, 'parent-held preparation adds at most one delta fetch');
+    assert.ok(warm.sourcePreparation.packBytes < cold.sourcePreparation.packBytes / 4, 'same-commit preparation resends no bulk history');
     assert.ok(Number.isSafeInteger(warm.executionPhases.commandMs));
     git(repo, env, 'checkout', '--orphan', 'unrelated');
     git(repo, env, 'rm', '-rf', '.');

@@ -16,7 +16,7 @@ import {
   relative,
   resolve,
 } from 'node:path';
-import { displayAgentName } from './agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import * as store from '../packages/store/index.js';
 import {
   CONFIG_FILE,
@@ -114,6 +114,7 @@ export function context(io) {
   let doctrine;
   const ctx = { info, config, file, nativeBoard: io.nativeBoard, get allowSchemaUpgrade() { return allowSchemaUpgrade ??= codeIsFromMain(); },
     get doctrine() { return doctrine ??= loadDoctrine(info.root, config); }, io, clock: io.clock ?? store.systemClock };
+  if (existsSync(join(info.commonDir, 'pullboard', 'automatic-landing', 'pending.json'))) io.automaticLandingContext = ctx;
   if (config.worktreeMaintenance?.enabled === true) io.worktreeMaintenanceContext = ctx;
   if (config.toolBuild?.autoGate === true) io.toolBuildGateContext = ctx;
   return ctx;

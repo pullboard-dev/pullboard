@@ -163,7 +163,7 @@ test('coordinator strengthening of submitted work retains frozen proof and reser
   assert.equal(after.item_frozen, submitted.item_frozen);
   assert.equal(after.item_review_by, before.item_review_by);
   assert.throws(() => store.verify(f.board, id, { agentId: 'core-2', decision: 'ACCEPT', note: 'Synthetic guard control only.',
-    head: after.item_commit, digest: after.item_frozen_digest, policy: 'any', familyPolicy: 'off', check: 'none' }), { code: 'O2_FAMILY_MATCH' });
+    head: after.item_commit, digest: after.item_frozen_digest, policy: 'any', familyPolicy: 'off', check: 'none' }), { code: 'SAME_FAMILY' });
   const replica = fixtureBoard(t);
   importBoard(replica, exportBoard(f.board));
   assert.deepEqual(itemReviewPolicy(replica, id), itemReviewPolicy(f.board, id));
@@ -325,5 +325,145 @@ test('link move retains Strict for moved guard tests and keeps the Standard comm
     assert.equal(gateJudgmentPath(path), false, path);
     const item = f.submit(f.add(), [path]);
     assert.equal(itemReviewPolicy(f.board, item.item_id).tier, 'standard', path);
+  }
+});
+
+
+test('landing move preserves Strict on every protected provider [V4,B26,C7]', () => {
+  for (const [old, moved] of [
+  [
+    "src/land.js",
+    "packages/landing/src/shell/land.js"
+  ],
+  [
+    "src/landing-batch-history.js",
+    "packages/landing/src/core/landing-batch-history.js"
+  ],
+  [
+    "src/landing-cadence.js",
+    "packages/landing/src/core/landing-cadence.js"
+  ],
+  [
+    "src/landing-candidates.js",
+    "packages/landing/src/shell/landing-candidates.js"
+  ],
+  [
+    "src/landing-deferred-run.js",
+    "packages/landing/src/shell/landing-deferred-run.js"
+  ],
+  [
+    "src/landing-doctrine.js",
+    "packages/landing/src/shell/landing-doctrine.js"
+  ],
+  [
+    "src/landing-environment-guards.js",
+    "packages/landing/src/core/landing-environment-guards.js"
+  ],
+  [
+    "src/landing-failure-report.js",
+    "packages/landing/src/core/landing-failure-report.js"
+  ],
+  [
+    "src/landing-host.js",
+    "packages/landing/src/shell/landing-host.js"
+  ],
+  [
+    "src/landing-main-notices.js",
+    "packages/landing/src/core/landing-main-notices.js"
+  ],
+  [
+    "src/landing-message.js",
+    "packages/landing/src/core/landing-message.js"
+  ],
+  [
+    "src/landing-resource.js",
+    "packages/landing/src/shell/landing-resource.js"
+  ],
+  [
+    "src/landing-shards.js",
+    "packages/landing/src/shell/landing-shards.js"
+  ],
+  [
+    "src/landing-test-policy.js",
+    "packages/landing/src/shell/landing-test-policy.js"
+  ],
+  [
+    "src/landing-waivers.js",
+    "packages/landing/src/core/landing-waivers.js"
+  ],
+  [
+    "src/landing-worker-identity.js",
+    "packages/landing/src/core/landing-worker-identity.js"
+  ],
+  [
+    "src/landing-worker.js",
+    "packages/landing/src/shell/landing-worker.js"
+  ],
+  [
+    "src/landing-worktree-prune.js",
+    "packages/landing/src/shell/landing-worktree-prune.js"
+  ],
+  [
+    "src/main-failure-matches.js",
+    "packages/landing/src/shell/main-failure-matches.js"
+  ],
+  [
+    "src/landing-completion.js",
+    "packages/landing/src/shell/landing-completion.js"
+  ],
+  [
+    "src/landing-docs.js",
+    "packages/landing/src/shell/landing-docs.js"
+  ],
+  [
+    "src/landing-envelope.js",
+    "packages/landing/src/core/landing-envelope.js"
+  ],
+  [
+    "src/landing-step-selection.js",
+    "packages/landing/src/shell/landing-step-selection.js"
+  ],
+  [
+    "src/landing-step-merge.js",
+    "packages/landing/src/shell/landing-step-merge.js"
+  ],
+  [
+    "src/landing-step-failures.js",
+    "packages/landing/src/shell/landing-step-failures.js"
+  ],
+  [
+    "src/landing-step-gate.js",
+    "packages/landing/src/shell/landing-step-gate.js"
+  ],
+  [
+    "src/landing-step-diagnose.js",
+    "packages/landing/src/shell/landing-step-diagnose.js"
+  ],
+  [
+    "src/landing-step-publish.js",
+    "packages/landing/src/shell/landing-step-publish.js"
+  ],
+  [
+    "src/landing-step-trunk.js",
+    "packages/landing/src/shell/landing-step-trunk.js"
+  ],
+  [
+    "src/landing-step-parallel.js",
+    "packages/landing/src/shell/landing-step-parallel.js"
+  ],
+  [
+    "src/landing-step-batch.js",
+    "packages/landing/src/shell/landing-step-batch.js"
+  ],
+  [
+    "src/landing-history-plan.js",
+    "packages/landing/src/shell/landing-history-plan.js"
+  ]
+]) {
+    assert.equal(gateJudgmentPath(old), true, old);
+    assert.equal(gateJudgmentPath(moved), true, moved);
+  }
+  for (const ordinary of ['packages/landing/tests/retention-prune.test.js', 'test/landing-presentation.test.js']) {
+    assert.equal(gateJudgmentPath(ordinary), false, ordinary);
   }
 });

@@ -18,13 +18,13 @@ function schema(base) {
     checks: fields(['provesNothing']),
     publish: fields(['pullRequest']),
     pushReceiptCheck: fields(['smoke']),
-    landing: { ...fields(['publish', 'timeout', 'parallel', 'requireReceipts', 'pauseOnRed']),
+    landing: { ...fields(['publish', 'timeout', 'parallel', 'requireReceipts', 'pauseOnRed', 'manualOverride']),
       environment: fields(['platform', 'arch', 'node']), cadence: fields(['every', 'accepted']) },
     verify: { ...shape(base.verify), ...fields(['unrelatedTrunkMoves', 'composeAtAdmission']) },
     ...fields(['project', 'name', 'submitGate', 'submitDeferAbove', 'landingShards', 'positiveControl',
       'affectedTests', 'approvers', 'maintainers', 'sandbox', 'intake', 'testConcurrency', 'health']),
     testConcurrency: fields(['files', 'browser']),
-    health: fields(['sentinel']),
+    health: fields(['sentinel', 'stuck', 'holds', 'release']),
   };
 }
 

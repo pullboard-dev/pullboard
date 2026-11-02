@@ -32,11 +32,11 @@ import { refusalDocument } from '../src/next-step-words.js';
 import { serveApi } from '../packages/api/index.js';
 import * as apiExports from '../packages/api/index.js';
 import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION, closeBoard, events as boardEvents, verdictsFor } from '../packages/store/index.js';
-import { presentationShout, relayPresentation } from '../src/relay-presentation.js';
+import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { projectState } from '../src/cli/view-state.js';
 import { serveView } from '../src/commands/view.js';
-import { registerProject } from '../src/projects.js';
+import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import {
   apiError,
@@ -644,7 +644,7 @@ test('[N26,A2] roadmap text, JSON and API state follow live local and registered
   const externalItem = json(foreign, foreign.repo, 'add', addArgs('External follow-up'), 'add').item;
   const worktree = json(box, box.repo, 'worktree', ['app', '--route', 'light'], 'worktree');
 
-  json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
+  json(box, box.repo, 'milestone', ['add', 'Delivery', '--note', 'Ship the release', '--reason', 'Arrange fixture release', '--items', `${localItem.item_id},foreign#${externalItem.item_id}`], 'add');
   json(box, box.repo, 'milestone', ['add', 'Aftercare'], 'add');
   json(box, box.repo, 'milestone', ['move', 'Aftercare', '--before', 'Delivery'], 'move');
   jsonError(box, worktree.path, 'milestone', ['add', 'Forbidden'], {
@@ -1466,7 +1466,7 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     await assertFreshFullState('pullboard.json change');
 
     builds.length = 0;
-    const milestone = box.run(box.repo, 'milestone', 'add', 'Incremental milestone', '--items', String(ids[4]));
+    const milestone = box.run(box.repo, 'milestone', 'add', 'Incremental milestone', '--reason', 'Arrange fixture release', '--items', String(ids[4]));
     assert.equal(milestone.status, 0, milestone.stderr || milestone.stdout);
     const milestoneState = await assertFreshFullState('milestone change');
     assert.deepEqual(builds, [ids[4]], 'changing one milestone membership recomputes only the affected item');

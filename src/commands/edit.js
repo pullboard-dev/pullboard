@@ -1,11 +1,11 @@
 import { parseCheckTiming } from '../check-timing.js';
-import { requirePersonChannel } from '../person.js';
+import { requirePersonChannel } from '../../packages/person/index.js';
 import { githubPullClient } from '../pr-github.js';
 import {
   confirmBarEffect,
   executingBarEffect,
   personBarMode,
-} from '../person-bar-cli.js';
+} from '../../packages/person/index.js';
 import { barReadySetting } from '../../packages/verify/index.js';
 import {
   referenceAuthors,
@@ -22,7 +22,7 @@ import {
 import {
   relayCommandReceipt,
   relayCommandReceiptReported,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   actOn,
   personMode,

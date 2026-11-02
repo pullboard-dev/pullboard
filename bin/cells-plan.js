@@ -3,6 +3,7 @@ import { recordToolCommand } from '../packages/git/index.js';
 /** Write, check or file the cells move plan, or check one cell's move against it [D3,CD60,CD64]. */
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
+import { withParseScope } from '../src/module-imports.js';
 import { formatJson } from '../packages/merge/index.js';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
@@ -312,6 +313,9 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   const problems = [];
   let workerFiles;
   let moveFiles;
+  let inventory;
+  /** Build the repository inventory once and share it across move closure and lint checks. */
+  const sharedInventory = () => inventory ??= cellInventory(root, { importsIn, commonJsIn });
   /** Only the canonical bounded process-entry closure can authorize an exact own-body named shim. */
   function inWorkerClosure(from, to) {
     if (workerFiles === undefined) {
@@ -324,7 +328,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
   function inMoveClosure(from, to) {
     if (moveFiles === undefined) {
       try { moveFiles = moveDeclarationFiles(root, { importsIn, commonJsIn,
-        files: cellInventory(root, { importsIn, commonJsIn }).files.keys() }); }
+        files: sharedInventory().files.keys() }); }
       catch { moveFiles = new Set(); /* An unprovable move closure grants no shim exception. */ }
     }
     return moveFiles.has(from) && moveFiles.has(to);
@@ -390,7 +394,7 @@ export function checkMoved(root, plan, name, { notes = [], acceptedBase, lintRep
     }
   }
   problems.push(...staleDataReads(data.reads, matchedDataReads));
-  const report = lintReport ?? cellLintReport(root, { importsIn, commonJsIn });
+  const report = lintReport ?? cellLintReport(root, { importsIn, commonJsIn }, { inventory: sharedInventory() });
   const cellRoot = posix.dirname(cell.frontDoor);
   if (report.metrics.unreachable.findings.some(row => row.key === cell.frontDoor)
     || report.metrics.unreachablePackages.findings.some(row => row.key === cellRoot)) {
@@ -499,7 +503,7 @@ function main(argv) {
     if (missing.length) console.error('regenerate the plan: node bin/cells-plan.js --write');
     for (const { file, row } of stale) console.error(`stale plan row in ${file}: ${row[0]} no longer exists; retire it: node bin/cells-plan.js --retire ${row[0]}`);
     return missing.length || stale.length || entries.length ? 1 : 0;
-  });
+  }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--retire') {
     const { file, row } = retirePath(root, rest[0]);
     console.log(`retired ${row[0]} from ${file}`);
@@ -510,17 +514,18 @@ function main(argv) {
     for (const note of notes) console.log(note);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
-  });
+  }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--remove-shims') {
     const laneAt = rest.indexOf('--lane'), lane = laneAt < 0 ? 'core' : rest[laneAt + 1];
     const cells = laneAt < 0 ? rest : rest.filter((_value, index) => index !== laneAt && index !== laneAt + 1);
     if (cells.length !== 1 || !lane) throw new Refused('CELLS_PLAN_MODE', 'use --remove-shims <cell> [--lane <lane>]');
     const plan = readPlan(root), cell = plan.cells.find(row => row.name === cells[0]);
-    const result = recordToolCommand(root, { tool: 'remove-shims', cell: cells[0], lane }, () => {
+    // One parse cache for the whole sweep: unchanged sources are never re-compiled across repoint iterations (#2232).
+    const result = recordToolCommand(root, { tool: 'remove-shims', cell: cells[0], lane }, () => withParseScope(() => {
       const removed = removeShims(root, plan, cells[0], { parsers: { importsIn, commonJsIn }, lane, planFiles: planWrites(root, plan, cells[0]) });
       if (removed.changed) writePlan(root, removed.plan);
       return removed;
-    });
+    }));
     for (const line of shimReport(result)) console.log(line);
     return 0;
   }
@@ -529,7 +534,7 @@ function main(argv) {
     const problems = checkCuts(root, readPlan(root), rest[0]);
     for (const problem of problems) console.error(problem);
     return problems.length ? 1 : 0;
-  });
+  }, { code: [fileURLToPath(import.meta.url)] });
   if (mode === '--file') { fileItems(root, readPlan(root), rest.includes('--yes')); return 0; }
   throw new Refused('CELLS_PLAN_MODE', 'use node bin/cells-plan.js --place <path> --cell <cell> [--entry] (or --stay) | --engine-stays <cell> <path>... | --refresh-cuts | --check | --retire <path> | --moved <cell> | --file [--yes] | --file-cuts [--yes] | --cuts <cell> | --remove-shims <cell> [--lane <lane>]');
 }

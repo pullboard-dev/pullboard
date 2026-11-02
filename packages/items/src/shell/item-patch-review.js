@@ -4,7 +4,7 @@ import { itemPatchPaths } from "./item-patch-compose.js";
 import { itemPatches } from "./item-patches.js";
 import { itemPatchDigest } from "./item-patches.js";
 import { itemPatchReviewProblem } from "./item-patches.js";
-import { outOfLane } from "../../../../src/lanes.js";
+import { outOfLane } from "../../../seats/index.js";
 import { contains } from "../../../../src/git.js";
 import { git } from "../../../../src/git.js";
 import { differFromHead } from "../../../../src/git.js";

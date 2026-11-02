@@ -4,12 +4,12 @@ import * as store from '../board.js';
 import { cdTo } from '../cli-context.js';
 import { shellWord } from '../cli-context.js';
 import { COORDINATOR } from '../../packages/config/index.js';
-import { displayAgentName } from '../agent-names.js';
+import { displayAgentName } from '../../packages/seats/index.js';
 import { mainCheckout } from '../git.js';
 import { tryGit } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { landingRemote } from '../land.js';
-import { handMergeCommand } from '../landing-message.js';
+import { landingRemote } from '../../packages/landing/index.js';
+import { handMergeCommand } from '../../packages/landing/index.js';
 import { primaryCheckoutRoot } from './worktree.js';
 
 /**

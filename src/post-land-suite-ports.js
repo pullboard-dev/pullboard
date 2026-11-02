@@ -1,14 +1,14 @@
 /** The real capabilities behind the post-land suite: the machine setting, the runner suite, board reads and Main red ownership [C7,H16]. */
 import { join } from 'node:path';
 import { git } from './git.js';
-import { laneOf } from './lanes.js';
+import { laneOf } from '../packages/seats/index.js';
 import { listItems } from '../packages/store/index.js';
 import { unownedMainReds } from '../packages/store/index.js';
 import { postLandSuiteEnabled } from '../packages/config/index.js';
 import { runFullSuite } from './test-run.js';
-import { failureSignatures } from './main-failure-matches.js';
+import { failureSignatures } from '../packages/landing/index.js';
 import { runnerExecutionServices } from './runners.js';
-import { landingExecutionServices } from './landing-shards.js';
+import { landingExecutionServices } from '../packages/landing/index.js';
 
 /** The previous batch's result lives beside the board's other private Git state, never in the tracked tree. */
 function storePath(root) {

@@ -1,8 +1,10 @@
 /** Committed file moves translate read identities; original checks and event evidence stay immutable [C7]. */
 import {
+  gitChildEnv,
   mainCheckout,
   tryGit,
 } from '../../../../src/git.js';
+import { gitExecFileSync } from '../../../git/index.js';
 import { literalShellWords } from '../../../kernel/core.js';
 import { pathMapFileWords } from './path-map-operands.js';
 import { Refused } from '../../../kernel/core.js';
@@ -23,13 +25,30 @@ export function readPathMap(root, { commit = 'HEAD' } = {}) {
   const listed = tryGit(root, ['ls-tree', '-r', '-z', commit, '--', 'path-map.json', 'bin/cells-plan/path-map']);
   if (listed.status !== 0) throw invalidMap();
   const map = new Map();
-  for (const entry of listed.stdout.split('\0').filter(Boolean)) {
-    const match = /^100(?:644|755) blob [a-f0-9]+\t(.+)$/u.exec(entry);
-    if (!match || !(match[1] === 'path-map.json' || /^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(match[1]))) throw invalidMap();
-    const source = tryGit(root, ['show', `${commit}:${match[1]}`]);
-    if (source.status !== 0) throw invalidMap();
+  const shards = listed.stdout.split('\0').filter(Boolean).map((entry) => {
+    const match = /^100(?:644|755) blob ([a-f0-9]+)\t(.+)$/u.exec(entry);
+    if (!match || !(match[2] === 'path-map.json' || /^bin\/cells-plan\/path-map\/[a-z][a-z0-9-]*\.json$/u.test(match[2]))) throw invalidMap();
+    return { oid: match[1] };
+  });
+  // One cat-file stream reads every shard, instead of one git show per shard (#2232).
+  let blobs;
+  try {
+    blobs = shards.length ? gitExecFileSync(['cat-file', '--batch'], {
+      cwd: root, env: gitChildEnv(root), input: `${shards.map((shard) => shard.oid).join('\n')}\n`, encoding: null, maxBuffer: 64 * 1024 * 1024,
+    }) : Buffer.alloc(0);
+  } catch { throw invalidMap(); }
+  let at = 0;
+  for (const shard of shards) {
+    const end = blobs.indexOf(0x0a, at);
+    const header = end < 0 ? [] : blobs.toString('utf8', at, end).split(' ');
+    if (header[1] !== 'blob') throw invalidMap();
+    const size = Number(header[2]);
+    shard.text = blobs.toString('utf8', end + 1, end + 1 + size);
+    at = end + 1 + size + 1;
+  }
+  for (const shard of shards) {
     let data;
-    try { data = JSON.parse(source.stdout); } catch { throw invalidMap(); }
+    try { data = JSON.parse(shard.text); } catch { throw invalidMap(); }
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw invalidMap();
     for (const [from, to] of Object.entries(data)) {
       if (!relativeFile(from) || !relativeFile(to) || map.has(from)) throw invalidMap();

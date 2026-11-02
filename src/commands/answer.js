@@ -10,13 +10,13 @@ import {
 } from '../../packages/state/index.js';
 import {
   laneNames,
-} from '../lanes.js';
+} from '../../packages/seats/index.js';
 import {
   requirePersonChannel,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   requireSignedPerson,
-} from '../person-signing-cli.js';
+} from '../../packages/person/index.js';
 import {
   actOn,
   context,

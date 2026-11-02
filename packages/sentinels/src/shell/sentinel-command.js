@@ -1,5 +1,5 @@
 import { specApprovalBaselineExists } from "../../../store/index.js";
-import { relayRecovered } from "../../../../src/relay.js";
+import { relayRecovered } from "../../../link/index.js";
 import { prepareStaleObservation } from "../../../health/index.js";
 import { planStaleState } from "../../../../src/board-stale-state-maintenance.js";
 import { releaseGoneClaims } from "../core/gone-claims.js";
@@ -8,8 +8,8 @@ import { PERSON } from "../../../store/index.js";
 import {
   requireSignedPerson,
   signsPersonMoves,
-} from "../../../../src/person-signing-cli.js";
-import { requirePersonChannel } from "../../../../src/person.js";
+} from "../../../person/index.js";
+import { requirePersonChannel } from "../../../person/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { dueSentinels } from "./sentinels.js";
 import { sentinels } from "./sentinels.js";

@@ -40,7 +40,7 @@ import { installHooks } from '../packages/commits/index.js';
 import {
   configureAgentHooks,
   LEGACY_RESUME_HOOK,
-} from './agent-hooks.js';
+} from '../packages/seats/index.js';
 import {
   detectGate,
   settingCommand,
@@ -54,7 +54,7 @@ import { machineHome } from '../packages/resources/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { reviewerStartup } from './next-steps.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
-import { remoteShell } from './person.js';
+import { remoteShell } from '../packages/person/index.js';
 import { installSkills } from './skills.js';
 import {
   AGENTS_END,

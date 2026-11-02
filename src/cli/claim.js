@@ -6,9 +6,9 @@ import { captureLapsedClaims } from '../../packages/health/index.js';
 /** Helpers for `pullboard claim`: ordered moves and the criterion freeze. Split from src/cli.js, which re-exports it [C7]. */
 import { itemCheckBaseline } from '../../packages/store/index.js';
 import { writeBoardCommand } from '../board-command-write.js';
-import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
-import { laneSeatContext } from '../seat-checkout.js';
-import { nextSessionSeats } from '../seat-checkout.js';
+import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
+import { laneSeatContext } from '../../packages/seats/index.js';
+import { nextSessionSeats } from '../../packages/seats/index.js';
 import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
 import * as personIdentity from '../person.js';
@@ -34,9 +34,9 @@ import { COORDINATOR } from '../../packages/config/index.js';
 import { configFromSource } from '../../packages/config/index.js';
 import { loadDoctrine } from '../doctrine.js';
 import { agentDoctrine } from '../../packages/doctrine/index.js';
-import { signedMoveProblem } from '../person-signing.js';
-import { bindLocalSession } from '../agent-session.js';
-import { localSessionMatches } from '../agent-session.js';
+import { signedMoveProblem } from '../../packages/person/index.js';
+import { bindLocalSession } from '../../packages/seats/index.js';
+import { localSessionMatches } from '../../packages/seats/index.js';
 import { headCommit } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { frozenCriterion } from '../../packages/spec/index.js';
@@ -52,9 +52,9 @@ import { firstRefusalArgs } from '../../packages/items/index.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
 import { policyAt } from '../../packages/sandbox/index.js';
 import { itemPolicy } from '../../packages/sandbox/index.js';
-import { relayLinked } from '../relay.js';
-import { relayOperation } from '../relay.js';
-import { relayRecovered } from '../relay.js';
+import { relayLinked } from '../../packages/link/index.js';
+import { relayOperation } from '../../packages/link/index.js';
+import { relayRecovered } from '../../packages/link/index.js';
 import { coordinatorFile } from './spec.js';
 import { isReturnedRework } from '../rework-family-routing.js';
 import { sealReworkRoutingPolicy } from '../rework-family-routing.js';
@@ -160,14 +160,16 @@ export async function ordered(ctx, board, operation, args) {
       ctx.io.onOrderedMove?.({ operation, events: (board.emittedEvents?.slice(firstEvent) ?? []).map(event => ({ ...event })) });
       return result;
     };
+    // Select transport before the acknowledged write; a later damaged marker cannot undo its receipt.
+    const gitLinked = !ctx.privateBoard && gitSyncLinked(ctx.info.root);
     const result = await withItemSession(ctx.info, operation, args, async () => ctx.privateBoard
       ? applyRequested()
-      : gitSyncLinked(ctx.info.root)
+      : gitLinked
         ? (await import('../sync.js')).gitBoardOperation(ctx.info.root, board, operation, args, ctx.io)
         : relayLinked(ctx.info.root) || relayRecovered(ctx.info.root, {}, ctx.io)
           ? relayOperation(ctx.info.root, operation, args, ctx.io, command, applyRequested,
             requested ? observeRequested : undefined) : applyRequested());
-    if (!ctx.privateBoard && requested && gitSyncLinked(ctx.info.root)) ctx.io.recordedMove = true;
+    if (requested && gitLinked) ctx.io.recordedMove = true;
     await (await import('../cli-recorded-effects.js')).afterOrderedMove(ctx, board, { requested, operation, args, actor, ordered });
     return result;
   };

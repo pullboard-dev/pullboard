@@ -5,7 +5,7 @@
  * red head is not run again; publish waits for a new head.
  */
 import { runnerExecutionServices } from '../../../../src/runners.js';
-import { landingExecutionServices } from '../../../../src/landing-shards.js';
+import { landingExecutionServices } from '../../../landing/index.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -19,11 +19,11 @@ import { git } from '../../../../src/git.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { repoInfo } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
-import { landingFailures } from '../../../../src/land.js';
-import { landingRemote } from '../../../../src/land.js';
+import { landingFailures } from '../../../landing/index.js';
+import { landingRemote } from '../../../landing/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { publishPullRequests } from './pr-publish.js';
-import { publishStateFile } from '../../../../src/publish-pause.js';
+import { publishStateFile } from '../../../landing/index.js';
 
 /** Where publish remembers the last head it found red, so the same head is not run again. */
 function stateFile(root) {

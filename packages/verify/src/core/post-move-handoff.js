@@ -27,6 +27,7 @@ async function takeFollowing(ctx, completedId, { nextOnce, withBoardRead, listIt
         ...(found.seat ? { seat: found.seat } : {}), ...(found.companions ? { companions: found.companions } : {}), ...(found.shared?.length ? { shared: found.shared } : {}) };
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
+      if (error.code === 'GIT_SYNC_FOLDER') throw error; // The acknowledged move survives; the outer boundary reports an unavailable read.
       if (['HELD', 'NOT_REVIEWABLE', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) continue;
       return idle([`${error.code}: ${error.message}`], error);
     }

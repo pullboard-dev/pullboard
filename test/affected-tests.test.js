@@ -9,7 +9,6 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { selectAffectedTests } from '../src/affected-tests.js';
-import { toolSourcePath } from '../src/package-files.js';
 import { browserBoundFiles } from '../src/browser-admission.js';
 import { testsNeedGui } from '../src/gui-admission.js';
 import { importsIn } from '../src/module-imports.js';
@@ -198,11 +197,10 @@ test('the browser launch guard keeps affected selection exact [C7,O5]', (t) => {
     [{ path: 'src/browser-slot-guard.js' },
       { path: 'packages/kernel/src/core/refused.js', as: 'src/refused.js' }]);
   const guardBody = 'packages/gate/src/shell/browser-slot-guard.js';
-  const guard = readFileSync(toolSourcePath(fileURLToPath(new URL('../', import.meta.url)), 'src/browser-slot-guard.js'), 'utf8');
   box.put('test/browser-guard.test.js', `import '../${guardBody}';\n`);
   box.put('test/guard-consumer.test.js', "import './browser-guard.test.js';\n");
   const base = box.commit();
-  box.put(guardBody, guard + '\n// A committed change to the actual guard.\n');
+  appendFileSync(join(box.root, guardBody), '\n// A committed change to the actual guard.\n');
   const commit = box.commit();
   const selected = selectAffectedTests(box.root, { base, commit });
   assert.equal(selected.full, false, selected.reason);
@@ -473,7 +471,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/shared-wait-guard.test.js',
     'test/view-test-policy.test.js',
     'test/wall-clock-budgets.test.js',
-  ];
+  ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
   const guards = affectedTests.selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');

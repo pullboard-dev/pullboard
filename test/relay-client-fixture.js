@@ -1,4 +1,4 @@
-import { commandPhaseSnapshot } from '../src/command-phase.js';
+import { commandPhaseSnapshot } from '../packages/link/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 /** Private real CLI, auth and relay fixture; credentials never enter assertion messages [H1,H7,H18]. */
 import assert from 'node:assert/strict';
@@ -40,7 +40,7 @@ import { createRelayHandler } from '../relay/service.js';
 import { createGitHubClient } from '../relay/github.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayWorkBudgetMs, MAX_SNAPSHOT_ATTEMPTS } from './relay-budget.js';
-import { SEALED_SNAPSHOT_BYTES } from '../src/relay-limits.js';
+import { SEALED_SNAPSHOT_BYTES } from '../packages/link/index.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 const MAX_OBSERVED_SNAPSHOT_UPLOADS = MAX_SNAPSHOT_ATTEMPTS;

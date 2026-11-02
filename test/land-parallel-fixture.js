@@ -52,7 +52,7 @@ function runBatch(box, enabled) {
   const source = [
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/src/shell/config.js')).href)};`,
-    `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/land.js')).href)};`,
+    `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
     `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,

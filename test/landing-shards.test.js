@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { configProblems, defaults } from '../packages/config/index.js';
 import { landingShardCount } from '../src/gate.js';
-import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../src/landing-shards.js';
+import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../packages/landing/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 
@@ -477,7 +477,7 @@ async function landingWithRunnerAnswer(box, answer, count, deadlineMs) {
   const script = `const { runLandingShards } = await import(${url('landing-shards.js')});
 const { parseProcessCensus } = await import(${url('../packages/kernel/src/core/process-census.js')});
 const { landingShardProfile } = await import(${url('gate-run-receipt.js')});
-const { Refused } = await import(${url('refused.js')});
+const { Refused } = await import(${url('../packages/kernel/index.js')});
 const { RunnerDropped } = await import(${url('runners.js')});
 const { appendFileSync } = await import('node:fs');
 const answer = ${JSON.stringify(answer)};

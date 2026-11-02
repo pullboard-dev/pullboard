@@ -7,7 +7,7 @@
   "submitGate": "landing",
   "submitDeferAbove": 20,
   "landingShards": 6,
-  "submit": { "requireInfraNote": true },
+  "submit": { "requireInfraNote": true, "handoff": false },
   "claim": { "reopenFirstRefusalMinutes": 30 },
   "submitInvariants": [
     "test/refusal-next-steps.test.js",
@@ -77,7 +77,7 @@
     }
   ],
   "spec": "SPEC.md",
-  "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true },
+  "verify": { "policy": "any", "unrelatedTrunkMoves": true, "composeAtAdmission": true, "family": "prefer" },
   "check": { "timeout": "60m" },
   "lease": "2h",
   "lanes": {
@@ -170,7 +170,7 @@
     "rerun": true,
     "quarantine": true
   },
-  "relay": { "outbox": true },
+  "relay": { "board": "924cfd3fae72c15088fc30a8ae0ef1d6", "outbox": true },
   "cells": { "cache": true },
   "worktreeMaintenance": { "enabled": true, "every": "1h", "grace": "1d", "exclude": ["/Users/coreyolson/Code/Open Source/pullboard-local-core-24"] }
 }

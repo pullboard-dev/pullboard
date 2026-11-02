@@ -56,6 +56,11 @@ test('known dynamic policy maps and downstream authority settings retain their e
   for (const key of Object.keys(raw)) assert.deepEqual(config[key], raw[key], key);
 });
 
+test('known health thresholds survive forward-compatible filtering [A6,N26]', () => {
+  const health = { sentinel: false, stuck: '0m', holds: '2h', release: '3d' };
+  assert.deepEqual(configFromSource(JSON.stringify({ health })).health, health);
+});
+
 test('malformed configuration roots and known groups are not converted into defaults [N26]', () => {
   for (const raw of [null, [], true, { submit: [] }, { submit: null }, { landing: [] }, { claims: 'yes' }]) {
     assert.throws(() => configFromSource(JSON.stringify(raw)), { code: 'BAD_CONFIG' });

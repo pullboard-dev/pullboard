@@ -1,14 +1,14 @@
 /** Ask another lane for one durable child rather than starting duplicate companion work [B2,B12]. */
 import * as store from '../board.js';
-import { isLane } from '../lanes.js';
+import { isLane } from '../../packages/seats/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { idProblems } from '../../packages/spec/index.js';
 import { loadSpec } from '../../packages/spec/index.js';
 import { checkBaseline } from '../../packages/gate/index.js';
 import { refuseCheckSyntax } from '../../packages/gate/index.js';
 import { sayCheckBaseline } from '../../packages/gate/index.js';
-import { relayCommandReceipt } from '../relay.js';
-import { relayCommandReceiptReported } from '../relay.js';
+import { relayCommandReceipt } from '../../packages/link/index.js';
+import { relayCommandReceiptReported } from '../../packages/link/index.js';
 import { actOn } from '../cli.js';
 import { barActorForCommand } from '../cli.js';
 import { briefArg } from '../cli.js';

@@ -7,7 +7,7 @@ import {
 import {
   compareMainFailures,
   mainRedReviewItems,
-} from '../src/main-red.js';
+} from '../packages/landing/index.js';
 /** Real Git, ordered board work and deterministic dispatch boundaries [N2,V1,B3,A6,V2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -44,7 +44,7 @@ test('review dispatch takes the oldest eligible submission ahead of a newer mile
   box.advance(60_000);
   const newer = box.add('Newer pinned review');
   box.submit(newer);
-  addMilestone(box.board, { agentId: 'coordinator', name: 'Pinned current', items: [newer] });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Pinned current', items: [newer] });
   const offered = await cli(box, box.seats.actor.path, ['next', '--take']);
   assert.equal(offered.code, 0, offered.out + offered.err);
   assert.equal(offered.document.item.item_id, oldest);
@@ -62,7 +62,7 @@ test('strict review dispatch requires a different vendor even with family policy
   assert.equal(store.getItem(box.board, strict).item_review_by, null);
   const direct = await cli(box, box.seats.sameFamily.path, ['next', '--verify', String(strict)]);
   assert.equal(direct.code, 1, direct.out + direct.err);
-  assert.equal(direct.document.error.code, 'O2_FAMILY_MATCH');
+  assert.equal(direct.document.error.code, 'SAME_FAMILY');
   assert.match(direct.document.error.message, /another declared vendor family/u);
   assert.equal(store.getItem(box.board, strict).item_review_by, null);
   assert.equal(store.getItem(box.board, build).item_status, 'open');
@@ -159,7 +159,7 @@ test('sensitive reviews without a required family refuse same-vendor offers and 
   }
   const refused = await cli(box, box.seats.sameFamily.path, ['next', '--verify', String(strict)]);
   assert.equal(refused.code, 1, refused.out + refused.err);
-  assert.equal(refused.document.error.code, 'O2_FAMILY_MATCH');
+  assert.equal(refused.document.error.code, 'SAME_FAMILY');
   assert.match(refused.document.error.message, /another declared vendor family/u);
   assert.equal(store.getItem(box.board, build).item_status, 'open');
   const outside = await cli(box, box.seats.outside.path, ['next', '--take']);

@@ -79,7 +79,7 @@ test('an item records the tokens and cost its seats spent [N2]', () => {
     unknownId = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Unknown usage fixture', specIds: ['G1'],
       criterion: 'unreadable usage stays unknown', check: 'test -f web/ready',
       checkBaseline: { command: 'test -f web/ready', result: 'red', main: box.git(box.repo, 'rev-parse', 'HEAD'), seconds: 0 } });
-    addMilestone(board, { agentId: 'coordinator', name: 'Usage milestone', items: [id] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Usage milestone', items: [id] });
   } finally { store.closeBoard(board); }
   const claudeDir = join(box.dir, 'claude', 'projects', 'private-fixture');
   const codexDir = join(box.dir, 'codex', 'sessions', '2026', '10', '23');

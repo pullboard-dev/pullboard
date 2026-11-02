@@ -1,5 +1,5 @@
 /** Status obligations without loading the dashboard projection [N26,A9]. */
-import { verifiedPasskeyRowDecision } from './person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import * as store from '../packages/store/index.js';
 import { repoInfo } from './git.js';
 import { projectRowDecisions } from '../packages/spec/index.js';
@@ -7,7 +7,7 @@ import { loadSpec } from '../packages/spec/index.js';
 import { loadDoctrine } from './doctrine.js';
 import { rigorDraftNeeds } from '../packages/rigor/index.js';
 import { personBlockWords } from '../packages/items/index.js';
-import { displayAgentName } from './agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import {
   projectSpecApprovals,
   specApprovalState,
@@ -16,7 +16,7 @@ import {
   sentinelDraftNeeds,
   sentinels,
 } from '../packages/store/index.js';
-import { relayCanaryNeeds } from './relay-canary-needs.js';
+import { relayCanaryNeeds } from '../packages/link/index.js';
 
 /** Keep status obligations; reuse its same-call seats and doctrine, otherwise read them freshly. */
 export function personNeedsSummary(root, { board, config, agents, doctrine }) {

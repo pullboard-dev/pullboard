@@ -1,7 +1,7 @@
 /** The board's line-setting move, composed from the seats cell's rule and the store's writers [R1,R2,C7]. */
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { setLineSetting as recordLineSetting } from "../../../../src/line-settings.js";
+import { setLineSetting as recordLineSetting } from "../../../seats/index.js";
 
 /**
  * Record a line setting through the board's own transaction and event log.

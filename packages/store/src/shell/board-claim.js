@@ -38,14 +38,15 @@ import { outsideBuildProblem } from "../../../items/index.js";
 import { barReadyProblem } from "../../../verify/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { Refused } from "../../../kernel/index.js";
-import { routeOf } from "../../../../src/seats.js";
-import { canTake } from "../../../../src/route-escalation.js";
+import { routeOf } from "../../../seats/index.js";
+import { canTake } from "../../../seats/index.js";
 import * as itemDependencies from "../../../items/index.js";
 import { firstRefusalProblem } from "../../../items/index.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";
+import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import * as capacity from "../../../../src/line-capacity-board.js";
 import {
   atomic,
@@ -117,7 +118,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       builderFirstRefusal: (found) => {
         const continuation = exitContinuationProblem(board, id, agentId);
         if (continuation) return continuation;
-        if (firstRefusal(board, id)?.otherSeatFirst) return firstRefusalProblem(board, id, agentId, { firstRefusal });
+        if (firstRefusal(board, id)?.otherSeatFirst) return firstRefusalProblem(board, id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE });
         if (rejectionReturnEnabled(board) || reworkRoutingPolicy && (board.executionEngineVersion ?? ENGINE_VERSION) >= REWORK_SAME_FAMILY_ENGINE) {
           reworkRouting = reworkFamilyRoute(board, found, { agentId, listAgents: board.nativePorts.listAgents,
             routeOf, canTake, seatFamily: board.nativePorts.seatFamily, canonicalFamily: board.nativePorts.canonicalFamily,

@@ -1,7 +1,7 @@
 /** Authorized device-local team and private BoardRefs for cross-board commands [E14,E15,H16]. */
 import * as store from "./board.js";
-import { listProjects } from "../../../../src/projects.js";
-import { withPrivateBoard } from "../../../../src/projects.js";
+import { listProjects } from "../../../seats/index.js";
+import { withPrivateBoard } from "../../../seats/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { boardReference } from "../../../kernel/src/core/registry-guards.js";
 

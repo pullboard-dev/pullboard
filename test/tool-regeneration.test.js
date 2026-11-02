@@ -105,7 +105,7 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   assert.equal(recordedToolCommits(box.root, before, original).at(-1).commands[0].tool, command);
   const currentMain = advance(main);
   assert.equal(existsSync(marker), false);
-  const submitted = box.run('submit', '1', '--json', '--infra', 'recorded tool regeneration fixture');
+  const submitted = box.run('submit', '1', '--wait', '--no-next', '--json', '--infra', 'recorded tool regeneration fixture');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const result = JSON.parse(submitted.out);
   const head = box.git('rev-parse', 'HEAD');
@@ -115,6 +115,8 @@ for (const command of ['cells-move', 'remove-shims']) test(`submit replays recor
   assert.ok(existsSync(marker), 'regeneration runs the full gate even when normal submit defers it');
   assert.equal(result.gate.full, true);
   const item = JSON.parse(box.run('show', '1', '--json').out);
+  assert.equal(item.queuedSubmit.state, 'green', 'recorded tools use a real queued handoff, not the foreground exemption');
+  assert.equal(item.queuedSubmit.commit, head, 'the immutable queue captures the regenerated tool source');
   assert.equal(item.item_status, 'submitted');
   assert.equal(item.item_commit, head);
   assert.equal(item.item_verdict, null);

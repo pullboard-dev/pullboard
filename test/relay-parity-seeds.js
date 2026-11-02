@@ -69,15 +69,15 @@ export async function seedOrdinaryWork(context) {
 /** seedMilestones uses real operations; synthetic records retain their original explicit labels. */
 export async function seedMilestones(context) {
   const { board, box, store, milestones, exercise, submitFixture, syntheticFlakeObservation, agent, reviewer, item, claim } = context;
-  await exercise('addMilestone', () => milestones.addMilestone(board, { agentId: 'coordinator', name: 'Study A', items: [item] }));
+  await exercise('addMilestone', () => milestones.addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Study A', items: [item] }));
   const other = store.addItem(board, { by: 'coordinator', lane: box.lane, title: 'Second study item', criterion: 'Second seed.' });
-  await exercise('editMilestoneItems', () => milestones.editMilestoneItems(board, 'Study A', { agentId: 'coordinator', add: [other] }));
-  await exercise('orderMilestoneItems', () => milestones.orderMilestoneItems(board, 'Study A', { agentId: 'coordinator', items: [other, item] }));
+  await exercise('editMilestoneItems', () => milestones.editMilestoneItems(board, 'Study A', { agentId: 'coordinator', reason: 'Arrange fixture release', add: [other] }));
+  await exercise('orderMilestoneItems', () => milestones.orderMilestoneItems(board, 'Study A', { agentId: 'coordinator', reason: 'Arrange fixture release', items: [other, item] }));
   await exercise('editMilestone', () => milestones.editMilestone(board, 'Study A', { agentId: 'coordinator', note: 'Changed roadmap note.', target: '2026-12-01' }));
-  milestones.addMilestone(board, { agentId: 'coordinator', name: 'Study B' });
+  milestones.addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Study B' });
   await exercise('moveMilestone', () => milestones.moveMilestone(board, 'Study B', { agentId: 'coordinator', before: 'Study A' }));
   await exercise('shipMilestone', () => milestones.shipMilestone(board, 'Study B', { agentId: 'coordinator', commit: 'a'.repeat(40) }));
-  milestones.addMilestone(board, { agentId: 'coordinator', name: 'Study removable' });
+  milestones.addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Study removable' });
   await exercise('removeMilestone', () => milestones.removeMilestone(board, 'Study removable', { agentId: 'coordinator' }));
   Object.assign(context, { other });
   return context;

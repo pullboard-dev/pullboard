@@ -82,10 +82,10 @@ function processEntry(file, source) {
 }
 
 /** Entry ownership is explicit app composition, backed by the actual process source on every check. */
-export function entryPlacementProblems(root, plan, files) {
+export function entryPlacementProblems(root, plan, files, sharedMap = undefined) {
   if (plan.entries === undefined) return [];
   if (!Array.isArray(plan.entries)) return ['process entries must be an array'];
-  const problems = [], seen = new Set(), map = readPathMap(root);
+  const problems = [], seen = new Set(), map = sharedMap ?? readPathMap(root);
   for (const row of plan.entries) {
     const cell = plan.cells.find(cell => cell.name === row?.cell);
     if (!row || Object.keys(row).sort().join(',') !== 'cell,path' || typeof row.path !== 'string'
@@ -112,8 +112,18 @@ export function entryPlacementProblems(root, plan, files) {
   return problems;
 }
 
+/** Results of the forwarding check by source: it is pure and the cut sweep asks it once per cell. */
+const forwardsMemo = new Map();
+
 /** Recognize a module that only passes imports onward, including an unresolved computed loader. */
-function onlyForwards(source, computed) {
+export function onlyForwards(source, computed) {
+  const key = `${computed ? 1 : 0}${source}`;
+  if (!forwardsMemo.has(key)) forwardsMemo.set(key, onlyForwardsUncached(source, computed));
+  return forwardsMemo.get(key);
+}
+
+/** The uncached forwarding check behind onlyForwards. */
+function onlyForwardsUncached(source, computed) {
   const chars = source.split('');
   for (const { start, end } of lex(source).comments) chars.fill(' ', start, end);
   const code = chars.join('').replace(/\s/gu, '');
@@ -122,7 +132,7 @@ function onlyForwards(source, computed) {
 }
 
 /** Expand strict declared loaders while retaining their original forwarding identity and unrelated unknowns. */
-function withDeclaredLoads(files, edges, unknown, acceptedInventory) {
+export function withDeclaredLoads(files, edges, unknown, acceptedInventory) {
   const modules = [...files.keys()].filter(file => /\.[cm]?js$/u.test(file));
   const declared = new Map(), rest = [];
   const acceptedModules = acceptedInventory ? [...acceptedInventory.files.keys()].filter(file => /\.[cm]?js$/u.test(file)) : [];
@@ -178,23 +188,23 @@ export function retiredProblems(root, plan, inventory) {
 }
 
 /** Follow this cell's imports and forwarding modules, leaving another cell's own imports to its cut. */
-export function checkCuts(root, plan, name, { allLaterCells = false, temporaryExceptions = true, inventory: sharedInventory, acceptedInventory } = {}) {
+export function checkCuts(root, plan, name, { allLaterCells = false, temporaryExceptions = true, inventory: sharedInventory, acceptedInventory, shared } = {}) {
   if (typeof allLaterCells !== 'boolean' || typeof temporaryExceptions !== 'boolean') throw new TypeError('cut modes must be explicit booleans');
   const cell = plan.cells.find(row => row.name === name);
-  const group = importCuts(plan).find(row => row.cell === name);
+  const group = (shared?.groups ?? importCuts(plan)).find(row => row.cell === name);
   if (!cell || !group && !allLaterCells) throw new Refused('CELLS_PLAN_CELL', `no import-cut group ${name}; use an importing cell from node bin/cells-plan.js --file-cuts`);
   const inventory = sharedInventory ?? cellInventory(root, { importsIn, commonJsIn });
   const { files } = inventory;
-  const entries = entryPlacementProblems(root, plan, files);
+  const entries = shared?.entries ?? entryPlacementProblems(root, plan, files, shared?.map);
   if (entries.length) return entries;
   if (acceptedInventory !== undefined && !(acceptedInventory?.files instanceof Map)) throw new TypeError('accepted cut inventory must be an actual snapshot');
   const { edges, unknown, computed } = withDeclaredLoads(files, inventory.edges, inventory.unknown, acceptedInventory);
-  const map = readPathMap(root);
+  const map = shared?.map ?? readPathMap(root);
   const owner = ownerFor(plan, map);
   const temporary = temporaryCellEdges(files);
   const allowed = new Set(!temporaryExceptions || temporary.problems.length ? [] : temporary.edges.map(row => `${mappedPath(map, row.importer)}->${mappedPath(map, row.target)}`));
   const forbidden = new Set(allLaterCells ? plan.cells.filter(row => row.order > cell.order).map(row => row.name) : group.targets);
-  const problems = new Set([...temporary.problems, ...retiredProblems(root, plan, inventory)]), seen = new Set();
+  const problems = new Set([...temporary.problems, ...(shared?.retired ?? retiredProblems(root, plan, inventory))]), seen = new Set();
   // Test support may depend on any cell, but executable production must never depend on testkit.
   for (const [file, imports] of inventory.edges) {
     if (testFile(file)) continue;

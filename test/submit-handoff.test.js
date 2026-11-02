@@ -1,8 +1,10 @@
 import { submitHandoffEventContract } from './generated-doc-handoff-fixture.js';
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { runFixtureChild } from './fixture-child.js';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../src/native-board.js';
@@ -28,9 +30,12 @@ function state(box, id) {
 function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
 
 /** Build a native project whose frozen check waits for a real release file, not a timing margin. */
-function fixture(t, { enabled = true, result = 'green', companion = false } = {}) {
+function fixture(t, { enabled = true, result = 'green', companion = false, cells = false } = {}) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('true');
+  const isolated = helpers.sandbox();
+  // Isolate admission before init and commit hooks, as well as the nested queued worker.
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
+  const box = helpers.project('true', isolated);
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
   const releases = [release];
@@ -52,7 +57,12 @@ function fixture(t, { enabled = true, result = 'green', companion = false } = {}
   ].join('\n'));
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled } }, null, 2) + '\n');
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: enabled }, ...(cells ? { lanes: { ...config.lanes, web: { ...config.lanes.web, owns: ['web/', 'src/', 'bin/'] } } } : {}) }, null, 2) + '\n');
+  if (cells) {
+    mkdirSync(join(box.repo, 'bin'), { recursive: true });
+    writeFileSync(join(box.repo, 'bin/cells-plan.json'), JSON.stringify({ version: 1, cells: [], stays: [] }) + '\n');
+    box.git(box.repo, 'add', 'bin/cells-plan.json');
+  }
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -132,17 +142,23 @@ test('queued submit returns before its gate and remains bound when the builder c
   assert.equal(helpersCommit(box, 'web/later.txt', 'later\n').status, 0);
   assert.equal(existsSync(join(box.web, 'web/snapshot.txt')), false, 'the next build no longer contains the queued candidate');
   document(box.run(box.web, 'claim', String(box.second), '--json'));
-  const third = box.run(box.web, 'claim', String(box.third), '--json');
+  assert.equal(helpersCommit(box, 'web/second.txt', 'second\n').status, 0, 'real commit hooks select only the ordinary second claim');
+  const secondQueued = document(box.run(box.web, 'submit', String(box.second), '--no-next', '--json'));
+  assert.equal(secondQueued.queued, true, 'the second committed item also submits while the first gate is blocked');
+  document(box.run(box.web, 'claim', String(box.third), '--json'));
+  const fourth = document(box.run(box.repo, 'add', 'web', 'Fourth ordinary build', '--specs', 'G1', '--criterion', 'One ordinary build at a time.', '--check', 'true', '--wait', '--json')).item.item_id;
+  const third = box.run(box.web, 'claim', String(fourth), '--json');
   assert.equal(third.code, 1);
   assert.equal(JSON.parse(third.out).error.code, 'ONE_CLAIM');
   const duplicate = state(box, box.id).job;
   assert.equal(duplicate.commit, box.commit);
   writeFileSync(box.release, 'release\n');
-  await box.helpers.waitFor(() => state(box, box.id).job?.state === 'green', 'native proved submission', 120000); // budget: hang ceiling for observed real child/gate progress; no elapsed-time assertion.
+  await waitJob(box, 'green');
+  await box.helpers.waitFor(() => state(box, box.second).job?.state === 'green', 'second native submit completes independently', 120000); // budget: owned-worker cleanup ceiling, not a performance assertion.
   const completed = state(box, box.id);
   assert.equal(completed.item.item_status, 'submitted');
   assert.equal(completed.item.item_commit, box.commit);
-  assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
+  assert.equal(state(box, box.second).item.item_built_by, completed.job.agentId);
   assert.deepEqual(readFileSync(box.started, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }]);
   assert.notEqual(completed.job.executionCommit, box.commit, 'the native companion composition was actually executed');
   assert.deepEqual(readFileSync(box.finished, 'utf8').trim().split('\n').map(JSON.parse), [{ value: 'green', head: completed.job.executionCommit }], 'the gate still read the captured source after the builder moved');
@@ -150,6 +166,38 @@ test('queued submit returns before its gate and remains bound when the builder c
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   document(box.run(reviewer, 'join', 'api', '--json'));
   assert.equal(document(box.run(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
+});
+
+test('queued gate retains the tool build when the builder changes it [V4,H16,E18]', async t => {
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'builder-tools');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const result = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(JSON.parse(result).queued, true);
+  const job = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
+  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+  assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
+  assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
+  const workerPath = join(request.tools, 'src/submit-handoff-worker.js');
+  const originalWorker = readFileSync(workerPath, 'utf8');
+  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000); // budget: existing owned-child hang ceiling, not a performance assertion.
+  writeFileSync(join(tools, 'src/submit-handoff-worker.js'), "throw new Error('changed builder tooling');\n");
+  assert.equal(readFileSync(workerPath, 'utf8'), originalWorker, 'builder mutations cannot change the queued tools');
+  writeFileSync(box.release, 'release\n');
+  await waitJob(box, 'green');
+  assert.equal(state(box, box.id).item.item_commit, box.commit);
+  await box.helpers.waitFor(() => !existsSync(request.tools), 'owned tool snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
+  assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'cleanup preserves the builder tool installation');
+  writeFileSync(join(tools, 'src/submit-handoff-worker.js'), originalWorker);
+  const malformed = join(box.dir, 'malformed-worker-request.json');
+  writeFileSync(malformed, JSON.stringify({ tools, job: 'not-native-job', commonDir: join(box.repo, '.git') }));
+  const refused = runFixtureChild(process.execPath, [join(tools, 'src/submit-handoff-worker.js'), malformed],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
+  assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');
 });
 
 /** Make a real later builder commit without replacing the queued source. */
@@ -183,9 +231,34 @@ test('a queued red retains the exact canonical refusal and builder first refusal
   const foreign = box.run(other, 'claim', String(box.id), '--json');
   assert.equal(foreign.code, 1);
   assert.equal(JSON.parse(foreign.out).error.code, 'REOPEN_HELD_FOR_BUILDER');
-  document(box.run(box.web, 'release', String(box.second), '--no-next', '--json'));
+  document(box.run(box.web, 'release', String(box.second), '--reason', 'ROUTED_ELSEWHERE', '--no-next', '--json'));
   document(box.run(box.web, 'claim', String(box.id), '--json'));
   assert.equal(state(box, box.id).item.item_owner, completed.job.agentId, 'the same seat resumes at a natural break');
+});
+
+
+for (const kind of ['placement', 'ownership']) test(`${kind} cell refusal happens after queue acknowledgment and returns only its builder item [C7,V4,H16]`, async t => {
+  const box = fixture(t, { cells: true });
+  mkdirSync(join(box.web, 'src'), { recursive: true });
+  assert.equal(helpersCommit(box, 'src/unplaced.js', 'export const unsafe = true;\n').status, 0);
+  if (kind === 'ownership') {
+    writeFileSync(join(box.web, 'bin/cells-plan.json'), JSON.stringify({ version: 1, cells: [],
+      stays: [{ path: 'src/unplaced.js', reason: 'Fixture placement remains explicitly covered.' }],
+      entries: [{ path: 'src/unplaced.js', cell: 'app:missing' }] }) + '\n');
+    box.git(box.web, 'add', 'bin/cells-plan.json');
+    box.git(box.web, 'commit', '-qm', 'feat(web): invalid process ownership control [G1]');
+  }
+
+  const queued = document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json'));
+  assert.equal(queued.queued, true, 'foreground submission does not compile or refuse the new unplaced cell');
+  document(box.run(box.web, 'claim', String(box.second), '--json'));
+  await waitJob(box, 'red');
+  const completed = state(box, box.id);
+  assert.equal(completed.job.error.code, kind === 'placement' ? 'CELLS_PLAN_UNPLACED' : 'CELLS_SUBMIT');
+  assert.match(completed.job.error.message, kind === 'placement' ? /src\/unplaced.js/u : /existing app cell/u);
+  assert.equal(completed.item.item_status, 'open');
+  assert.equal(state(box, box.second).item.item_owner, completed.job.agentId);
+  assert.equal(existsSync(box.started), false, 'the ordinary gate never executes a source refused by cell checks');
 });
 
 test('setting off retains foreground submit until the real gate finishes [V4]', async t => {

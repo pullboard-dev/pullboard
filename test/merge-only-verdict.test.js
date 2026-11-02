@@ -5,7 +5,7 @@ const candidateWorkerFile = fileURLToPath(new URL('../bin/landing-candidate.js',
 /** Real public submission, Git conflict resolution and immutable verdict coverage [V1,V4,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { land, runLandingBatch } from '../src/land.js';
+import { land, runLandingBatch } from '../packages/landing/index.js';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -53,7 +53,7 @@ test('a merge-only resubmission keeps its accept and records the resolution diff
   const box = e2e.project();
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   const configured = e2e.commitFile(box, box.repo, 'pullboard.json',
-    JSON.stringify({ ...config, landing: { publish: 'separate' } }, null, 2), 'chore: configure local landing');
+    JSON.stringify({ ...config, landing: { manualOverride: true, publish: 'separate' } }, null, 2), 'chore: configure local landing');
   assert.equal(configured.status, 0, configured.stderr);
   mkdirSync(join(box.repo, 'web'), { recursive: true });
   content(box, box.repo, 'base', 'feat(web): initial choice [G1]');

@@ -54,7 +54,7 @@ import {
 import {
   laneNames,
   outOfLane,
-} from './lanes.js';
+} from '../packages/seats/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { missingGate } from './gate-config.js';
 

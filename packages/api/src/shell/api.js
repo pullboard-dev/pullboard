@@ -1,12 +1,12 @@
 import { workQueue } from '../../../items/index.js';
 import { costAnalytics } from '../../../stats/index.js';
-import { personSigningPresentation } from '../../../../src/person-signing-presentation.js';
+import { personSigningPresentation } from '../../../person/index.js';
 import { projectFit } from '../../../blueprints/index.js';
 import { pendingFit } from '../../../blueprints/index.js';
 import { fitFile } from '../../../blueprints/index.js';
 import { lifecycleEvent } from '../../../items/index.js';
 import { withdrawnFrom } from '../../../items/index.js';
-import { verifiedPasskeyRowDecision } from '../../../../src/person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../../../person/index.js';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 import { counterProofStats } from '../../../verify/index.js';
 import { proofStats } from '../../../stats/index.js';
@@ -37,7 +37,7 @@ import {
   readFileSync,
   statSync,
 } from 'node:fs';
-import { displayAgentName } from '../../../../src/agent-names.js';
+import { displayAgentName } from '../../../seats/index.js';
 import * as store from '../../../../src/board.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import {
@@ -55,14 +55,14 @@ import {
   relayOperation,
   relayRevoke,
   relayTokens,
-} from '../../../../src/relay.js';
-import { laneNames } from '../../../../src/lanes.js';
+} from '../../../link/index.js';
+import { laneNames } from '../../../seats/index.js';
 import { MACHINE } from '../../../state/index.js';
 import {
   listApiProjects,
   registryFile,
   registeredProjectRootsSnapshot,
-} from '../../../../src/projects.js';
+} from '../../../seats/index.js';
 import { milestoneRoadmap } from '../../../roadmap/index.js';
 import {
   ruleProofWindow,
@@ -83,11 +83,11 @@ import {
 import { Refused } from '../../../kernel/index.js';
 import { verdictProjector } from '../../../verify/index.js';
 import { trunkRevisionReader } from '../../../git/index.js';
-import { relayPresentationShout } from '../../../../src/relay-presentation.js';
+import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './api-http.js';
 import { settingsInventory } from '../../../config/index.js';
-import { personRequestStatuses } from '../../../../src/relay-requests.js';
-import { relayCanaryNeeds } from '../../../../src/relay-canary-needs.js';
+import { personRequestStatuses } from '../../../link/index.js';
+import { relayCanaryNeeds } from '../../../link/index.js';
 import { relayFiles } from '../../../store/index.js';
 
 /** Inputs shared by the complete state cache and the lightweight live-change watcher. */

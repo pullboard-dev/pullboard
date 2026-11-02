@@ -18,7 +18,7 @@ import { prepareEngineMove } from '../packages/state/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { WORK_ORDER_ENGINE } from '../src/work-order-engine.js';
 import { runFixtureGit } from './fixture-child.js';
-import { captureReleaseQueue, localReleaseRank } from '../src/release-queue.js';
+import { captureReleaseQueue, localReleaseRank } from '../packages/landing/index.js';
 import { orderedWaiters } from '../packages/queue/index.js';
 
 test('release priority uses only local verified work, leaving external references alone [C7,V4]', () => {
@@ -62,8 +62,8 @@ test('a run from a private clone keeps its release rank [C7,O5]', () => {
     const board = openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
     const current = addItem(board, { by: 'coordinator', lane: 'web', title: 'Current' });
     const later = addItem(board, { by: 'coordinator', lane: 'web', title: 'Later' });
-    addMilestone(board, { agentId: 'coordinator', name: 'Now', items: [current] });
-    addMilestone(board, { agentId: 'coordinator', name: 'Next', items: [later] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Now', items: [current] });
+    addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'Next', items: [later] });
     const expectedRanks = new Map([current, later, 999].map(id => [id, localReleaseRank(roadmap(board), id)]));
     closeBoard(board);
     const clone = join(dir, 'clone');
@@ -102,8 +102,8 @@ test('the queue ranks unblockers and quick wins first and keeps coordinator over
   const midUnblocker = add('Mid unblocker', 'mid');
   const blocked = add('Blocked behind the mid unblocker', 'mid', [midUnblocker]);
   const waiting = Array.from({ length: 21 }, (_, index) => add(`Waits on the keystone ${index + 1}`, 'strong', [keystone]));
-  addMilestone(board, { agentId: 'coordinator', name: 'now', items: [strongOneOff, lateStrong, lightOneOff, midOneOff, keystone, midUnblocker, blocked] });
-  addMilestone(board, { agentId: 'coordinator', name: 'later', items: waiting });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'now', items: [strongOneOff, lateStrong, lightOneOff, midOneOff, keystone, midUnblocker, blocked] });
+  addMilestone(board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'later', items: waiting });
   /** The milestone's items in queue order, and the queue rows by id. */
   const queue = () => {
     const shown = workQueue(board, { buildOrder: queueStore.buildOrder, canTake: queueStore.canTake, listItems: queueStore.listItems, milestonePriorities: queueStore.milestonePriorities, milestones: queueStore.milestones, roadmap: roadmap, ROUTES: queueStore.ROUTES, foreignBlockers: queueStore.foreignBlockers, eligibilityProblem: queueEligibility });
@@ -176,14 +176,16 @@ test('ordinary milestone ordering preserves coordinator overrides until an expli
   for (const title of ['Pinned work', 'Sunk work', 'Ordinary work']) {
     command(box.repo, 'add', 'web', title, '--specs', 'G1');
   }
-  command(box.repo, 'milestone', 'add', 'Now', '--items', '1,2,3');
+  command(box.repo, 'milestone', 'add', 'Now', '--reason', 'Arrange fixture release', '--items', '1,2,3');
   command(box.repo, 'milestone', 'pin', 'Now', '1', '--reason', 'release blocker');
   command(box.repo, 'milestone', 'sink', 'Now', '2', '--reason', 'await the design');
-  const reordered = command(box.web, 'milestone', 'order', 'Now', '2,3').milestone;
+  const denied = box.run(box.web, 'milestone', 'order', 'Now', '2,3', '--json');
+  assert.equal(JSON.parse(denied.out).error.code, 'MILESTONE_PLACED');
+  const reordered = command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority').milestone;
   assert.ok(reordered.order.includes(1), 'an ordinary agent cannot erase a coordinator pin by omission');
   assert.ok(reordered.sunk.includes(2), 'including a sunk item cannot lift it');
   assert.deepEqual(reordered.reasons, { '1': 'release blocker', '2': 'await the design' });
-  const again = command(box.repo, 'milestone', 'order', 'Now', '3,2').milestone;
+  const again = command(box.repo, 'milestone', 'order', 'Now', '3,2', '--reason', 'Set fixture priority').milestone;
   assert.ok(again.order.includes(1), 'even a coordinator ordinary re-rank is not an explicit lift');
   assert.ok(again.sunk.includes(2));
   assert.deepEqual(again.reasons, reordered.reasons);
@@ -192,8 +194,8 @@ test('ordinary milestone ordering preserves coordinator overrides until an expli
   assert.notEqual(refused.code, 0);
   assert.equal(JSON.parse(refused.out).error.code, 'COORDINATOR_ONLY');
   command(box.repo, 'milestone', 'lift', 'Now', '1,2');
-  const lifted = command(box.web, 'milestone', 'order', 'Now', '2,3').milestone;
-  assert.deepEqual(lifted.order, [2, 3], 'ordinary legacy ordering still works once overrides are explicitly lifted');
+  const lifted = command(box.repo, 'milestone', 'order', 'Now', '2,3', '--reason', 'Set fixture priority').milestone;
+  assert.deepEqual(lifted.order, [2, 3], 'coordinator ordering works once overrides are explicitly lifted');
   assert.equal(lifted.sunk, undefined);
   assert.equal(lifted.reasons, undefined);
 });

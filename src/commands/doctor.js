@@ -10,19 +10,19 @@ import {
 } from '../git.js';
 import {
   unlinkedRelayProjects,
-} from '../relay-setup.js';
+} from '../../packages/link/index.js';
 import {
   formatSnapshotLimit,
   pendingCheckpointProblem,
   pendingSnapshotSize,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   skillProblems,
 } from '../skills.js';
 import {
   context,
 } from '../cli.js';
-import { agentHookStatus } from '../agent-hooks.js';
+import { agentHookStatus } from '../../packages/seats/index.js';
 
 /** Run `pullboard doctor` and return its exit code. */
 export function run(io) {
