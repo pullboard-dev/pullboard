@@ -7,6 +7,7 @@ import {
 } from 'node:child_process';
 
 const adapters = new AsyncLocalStorage();
+const selections = new AsyncLocalStorage();
 
 /** The real implementation forwards every argument and option without interpreting Git output. */
 export const realGitAdapter = Object.freeze({
@@ -28,6 +29,15 @@ export function withGitAdapter(adapter, work) {
   for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
     if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
   }
+  const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
+  return adapters.run(forced ? realGitAdapter : adapter, work);
+}
+
+/** Contract suites explicitly exercise both implementations even during an audit. */
+export function withGitContractAdapter(adapter, work) {
+  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
+    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
+  }
   return adapters.run(adapter, work);
 }
 
@@ -44,4 +54,22 @@ export function gitExecFileSync(args, options) {
 /** Start a streaming Git process through this call chain's implementation. */
 export function gitSpawn(args, options) {
   return currentGitAdapter().spawn(args, options);
+}
+
+/** Bind fake/real implementations to one test run without affecting production callers. */
+export function withGitSelection({ fake, real = realGitAdapter, env = process.env }, work) {
+  for (const adapter of [fake, real]) for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
+    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
+  }
+  const audit = env.PULLBOARD_ADAPTER_AUDIT === '1';
+  const names = String(env.PULLBOARD_TEST_REAL ?? '').split(',').map(name => name.trim());
+  const selection = { fake, real, audit };
+  return selections.run(selection, () => withGitAdapter(audit || names.includes('all') || names.includes('git') ? real : fake, work));
+}
+
+/** Override just this async test chain; an audit cannot be downgraded to a fake. */
+export function withGitMode(mode, work) {
+  const selection = selections.getStore();
+  if (!selection || !['real', 'fake'].includes(mode)) throw new TypeError('choose real or fake inside a Git selection');
+  return withGitAdapter(selection.audit || mode === 'real' ? selection.real : selection.fake, work);
 }

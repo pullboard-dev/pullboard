@@ -22,7 +22,7 @@ import {
   gitSpawn,
   gitSpawnSync,
   realGitAdapter,
-  withGitAdapter,
+  withGitContractAdapter as withGitAdapter,
 } from '../src/git-adapter.js';
 import { createMemoryGitAdapter } from '../packages/git/index.js';
 import {

@@ -5,4 +5,7 @@ export {
   gitSpawnSync,
   realGitAdapter,
   withGitAdapter,
+  withGitContractAdapter,
+  withGitSelection,
+  withGitMode,
 } from "../packages/git/index.js";
