@@ -42,9 +42,9 @@ export async function consent(api, authority, parent, child, linkId, disclosure 
 /** Start the existing authenticated relay with real stand-in OAuth and private native snapshots. */
 export async function linkRelay(t, boards, authority) {
   const { githubFixture } = await import('./relay-fixture.js');
-  const { createGitHubClient } = await import('../relay/github.js');
-  const { createRelayAuth } = await import('../relay/auth.js');
-  const { serveRelay } = await import('../relay/service.js');
+  const { createGitHubClient } = await import('../apps/relay/index.js');
+  const { createRelayAuth } = await import('../apps/relay/index.js');
+  const { serveRelay } = await import('../apps/relay/index.js');
   const { request } = await import('../src/relay.js');
   const { generateBoardKey, seal } = await import('../packages/kernel/src/core/seal.js');
   const { exportBoard } = await import('../packages/store/index.js');
@@ -90,7 +90,7 @@ export async function linkRelay(t, boards, authority) {
       for (const state of states.values()) state.url = origin;
     },
     async storedBytes() {
-      const { boardStorageBytes } = await import('../relay/storage-quota.js');
+      const { boardStorageBytes } = await import('../apps/relay/index.js');
       return boards.reduce((total, box) => total + boardStorageBytes(join(directory, 'relay'), box.reference.boardId), 0);
     },
   };
