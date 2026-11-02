@@ -3,7 +3,6 @@ import { gateRuns as nativeGateRuns } from '../src/quarantine.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../packages/landing/index.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../packages/landing/index.js';
 import { landingPorts } from './landing-ports-fixture.js';
-import './item-patch-journey.test.js';
 /** Exercise landing against real private Git worktrees, hooks, SQLite and bare remotes [B3,R3]. */
 import assert from 'node:assert/strict';
 import { loadConfig } from '../packages/config/index.js';
@@ -38,7 +37,7 @@ import { settleRecordedSourceWake } from './land-board-fixture.js';
 import { recordManualMergedItems } from './land-board-fixture.js';
 import { assertParallelLanding, assertParallelCliLease, assertParallelNestedGate } from './land-parallel-fixture.js';
 import { landEnginesInOrder } from './land-engine-fixture.js';
-import { assertWholeQueueBatch } from './land-batch-fixture.js';
+import { makeLandProjectFixtures } from './land-project-fixture.js';
 import { assertLocalWaiverExpiry } from './land-waiver-expiry-fixture.js';
 import { assertAffectedLandingUnstamped, assertDeferredBatchIsolation } from './land-deferred-batch-fixture.js';
 import {
@@ -49,7 +48,7 @@ import {
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
 const { sandbox, project, commitFile, waitFor, BIN } = e2e;
-const FILES = [1, 2, 3, 4].map((n) => `web/land-${n}.test.js`);
+const { FILES, landProject, itemWorktree, submitItem, acceptItem } = makeLandProjectFixtures({ sandbox, project, commitFile });
 
 test('a landing stop never signals a reused process group [Q1,Q3,C7]', async () => {
   await assertLandingStopIdentity();
@@ -74,50 +73,6 @@ function startHookRead(box, probe, marker) {
   child.stderr.setEncoding('utf8').on('data', (part) => { child.stderrText += part; });
   child.closed = childOutcome(child);
   return child;
-}
-
-/** Emit real failing TAP and a separate single-file runner, recording every invocation. */
-function gateFixture(box) {
-  const gate = join(box.dir, 'land-gate.cjs');
-  const checks = join(box.dir, 'land-check.cjs');
-  const callPath = join(box.dir, 'land-gate-calls.jsonl');
-  const hold = join(box.dir, 'hold');
-  const entered = join(box.dir, 'entered');
-  const release = join(box.dir, 'release');
-  const trace = join(box.dir, 'gate-trace.jsonl');
-  writeFileSync(gate, [
-    "const fs = require('node:fs'); const path = require('node:path');",
-    `const calls = ${JSON.stringify(callPath)}; const hold = ${JSON.stringify(hold)}; const entered = ${JSON.stringify(entered)}; const release = ${JSON.stringify(release)}; const trace = ${JSON.stringify(trace)};`,
-    "const root = process.cwd(); const args = process.argv.slice(2); fs.appendFileSync(calls, JSON.stringify(args) + '\\n');",
-    "const alone = args.includes('--alone'); const web = path.join(root, 'web'); const files = alone ? args.filter(a => a !== '--alone') : (fs.existsSync(web) ? fs.readdirSync(web).filter(n => /^land-\\d+\\.test\\.js$/.test(n)).map(n => 'web/' + n) : []);",
-    "fs.appendFileSync(trace, JSON.stringify({ alone, files }) + '\\n'); const fullRuns = fs.readFileSync(trace, 'utf8').trim().split('\\n').map(line => JSON.parse(line)).filter(row => !row.alone).length;",
-    "if (!alone && fs.existsSync(hold) && (fs.readFileSync(hold, 'utf8') === 'armed' || Number(fs.readFileSync(hold, 'utf8')) === fullRuns)) { fs.writeFileSync(entered, root); const end = Date.now() + 20000; while (!fs.existsSync(release) && Date.now() < end) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 20); if (!fs.existsSync(release)) process.exit(24); }",
-    "console.log('TAP version 13'); let failed = 0;",
-    "files.forEach((file, i) => { const text = fs.readFileSync(path.resolve(root, file), 'utf8'); const red = process.env.LAND_SUPPRESS_RED !== '1' && (text.includes('RED') || !alone && text.includes('FLAKE')); const name = (/NAME:(\\S+)/.exec(text) || [])[1] || file + ' keeps the landed behavior'; console.log('# Subtest: ' + name); console.log((red ? 'not ok ' : 'ok ') + (i + 1) + ' - ' + name); if (red) { failed++; console.log('  ---'); console.log('  location: ' + path.resolve(root, file) + ':1:1'); console.log('  failureType: testCodeFailure'); console.log('  error: fixture behavior is red'); console.log('  ...'); } });",
-    "console.log('1..' + files.length); console.log('# tests ' + files.length); console.log('# pass ' + (files.length - failed)); console.log('# fail ' + failed); process.exitCode = failed ? 1 : 0;",
-  ].join('\n'));
-  writeFileSync(checks, "const fs = require('node:fs'); const file = process.argv[2]; if (!fs.existsSync(file) || !fs.readFileSync(file, 'utf8').trim()) process.exit(1);\n");
-  return { gate: `node ${JSON.stringify(gate)}`, affected: `node ${JSON.stringify(gate)} --alone`, checks, calls: callPath, hold, entered, release, trace };
-}
-
-/** Create a private initialized project with a real bare origin and active hooks. */
-function landProject() {
-  const box = sandbox();
-  const commands = gateFixture(box);
-  const fixture = project(commands.gate, box);
-  const path = join(fixture.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(path, 'utf8'));
-  config.affectedTests = commands.affected;
-  writeFileSync(path, JSON.stringify(config, null, 2));
-  fixture.git(fixture.repo, 'add', 'pullboard.json');
-  fixture.git(fixture.repo, 'commit', '-q', '-m', 'chore: configure landing');
-  fixture.git(fixture.web, 'merge', '-q', '--ff-only', 'main');
-  const remote = join(box.dir, 'origin.git');
-  fixture.git(box.dir, 'init', '-q', '--bare', remote);
-  fixture.git(fixture.repo, 'remote', 'add', 'origin', remote);
-  const pushed = fixture.tryGit(fixture.repo, 'push', '-q', '-u', 'origin', 'main');
-  assert.equal(pushed.status, 0, pushed.stderr);
-  return { ...fixture, ...commands, remote };
 }
 
 test('a hook read waits for another process\'s lock [C7,B3]', { timeout: 40_000 }, // budget: hang-only ceiling covers the real writer, hook and fixture cleanup; no speed claim.
@@ -322,39 +277,6 @@ async (t) => {
   assert.match(hook.stderrText, /G1 changes approved text without the person's exact approval/);
   assert.deepEqual(readMarker(marker), { phase: 'before-lock' }, 'the probe publishes a complete marker after release');
 });
-
-/** Give one private item a distinct canonical lane identity and an independent main base. */
-function itemWorktree(box, number, file = FILES[number - 1], afterIds = []) {
-  const path = join(box.dir, `land-${number}`);
-  box.git(box.repo, 'worktree', 'add', '-q', '-b', `web/land-${number}`, path, 'main');
-  assert.equal(box.run(path, 'join', 'web').code, 0);
-  const added = box.run(box.repo, 'add', 'web', `Land fixture ${number}`, '--specs', 'G1', '--criterion', `land fixture ${number} remains valid`,
-    '--check', `node ${JSON.stringify(box.checks)} ${JSON.stringify(file)}`, ...(afterIds.length ? ['--after', afterIds.join(',')] : []), '--json');
-  assert.equal(added.code, 0, added.err);
-  const item = JSON.parse(added.out).item.item_id;
-  assert.equal(box.run(path, 'claim', String(item)).code, 0);
-  return { path, item, file };
-}
-
-/** Build and submit a private fixture through its real hooks and item check. */
-function submitItem(box, entry, contents = 'PASS\n') {
-  const committed = commitFile(box, entry.path, entry.file, contents, `feat(web): build land fixture ${entry.item} [G1]`);
-  assert.equal(committed.status, 0, committed.stderr);
-  entry.commit = box.git(entry.path, 'rev-parse', 'HEAD');
-  const submitted = box.run(entry.path, 'submit', String(entry.item), '--no-next');
-  assert.equal(submitted.code, 0, submitted.err);
-  return entry;
-}
-
-/** Verify only private fixture items at their actual submitted commits. */
-function acceptItem(box, entry) {
-  entry.reviewedTrunk = box.git(box.repo, 'rev-parse', 'main');
-  box.git(box.repo, 'switch', '-q', '--detach', entry.commit);
-  try {
-    const verdict = box.run(box.repo, 'verify', String(entry.item), 'accept', '--as', 'coordinator', '--note', 'private landing fixture check passed');
-    assert.equal(verdict.code, 0, verdict.err);
-  } finally { box.git(box.repo, 'switch', '-q', 'main'); }
-}
 
 /** Prepare four independent submitted items and accept them in a caller-selected verdict order. */
 function verifiedFour(box, { red, flaky, order = [0, 1, 2, 3] } = {}) {
@@ -1466,12 +1388,6 @@ test('a landing batch leaves out an item that touches a file already in the batc
 
 test('a deferred landing item keeps its place ahead of newer acceptances after merge-only reaccept [B3,R3,R1,H16]',
 () => assertDeferredLandingPriority({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }));
-test('land batches all waiting accepted items and bisects a red batch [B3,R3,E26,E29]', { timeout: 300_000 }, // budget: sixteen real private submits and accepts plus one bisected landing; hang ceiling only, no speed threshold.
-() => assertWholeQueueBatch({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }));
-
-test('separate publication batches all sixteen waiting items and bisects a red quick gate locally [B3,R3,E26,E29]', { timeout: 300_000 }, // budget: sixteen real private submit/accept cycles plus logarithmic red isolation; hang ceiling only.
-() => assertWholeQueueBatch({ landProject, itemWorktree, submitItem, acceptItem, json, onBoard }, { separate: true }));
-
 test('a deferred red shared importer returns only its culprit and lands innocent owners locally [B3,R3,C7,V4]', { timeout: 120_000 }, // budget: four real submit/accept cycles and shared-importer isolation; hang ceiling only.
 () => assertDeferredBatchIsolation({ landProject, itemWorktree, submitItem, acceptItem }));
 
