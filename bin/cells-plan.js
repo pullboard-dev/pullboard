@@ -18,7 +18,7 @@ import { posix } from 'node:path';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cellInventory } from '../packages/codemap/index.js';
-import { temporaryCellEdges } from '../packages/codemap/src/shell/cell-lint-inventory.js';
+import { temporaryCellEdges } from '../packages/codemap/index.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintGrowth } from '../packages/codemap/index.js';
 import { readCellLintBaseline } from '../packages/codemap/index.js';
