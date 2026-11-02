@@ -130,6 +130,7 @@ const OPTIONS = {
   'dry-run': { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
+  overflow: { type: 'string' },
   target: { type: 'string' },
   next: { type: 'string' },
   add: { type: 'string' },

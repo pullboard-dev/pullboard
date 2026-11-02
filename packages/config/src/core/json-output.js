@@ -223,7 +223,9 @@ export function commandOutput(argv, streams, { version = 1, refusalDocument: sup
         lastLine = `${withheld} more lines withheld to keep this output within ${budget} bytes; add --detail for all of it, or --json`;
         streams.stdout.write(lastLine + '\n');
       }
-      if (!code && !refusal && finalAction) {
+      const focusedIdle = guidanceCommand === 'next' && result?.idleReason === 'focus'
+        && result.reasons?.length === 1 && result.reasons[0].endsWith('overflow is off.');
+      if (!code && !refusal && finalAction && !focusedIdle) {
         const action = explicitNext ?? withheldNext?.replace(/^next:[ \t]*/u, '') ?? successfulNext(guidanceCommand, result);
         const footer = cutLine(`next: ${action.replace(/[\r\n]+/gu, ' ')}`);
         if (lastLine !== footer) streams.stdout.write(footer + '\n');

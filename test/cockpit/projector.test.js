@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import * as store from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
 import * as serve from '../../src/cli/view-state.js';
+import { addMilestone } from '../../src/board-milestones.js';
 import { projectItemState } from '../../src/api.js';
 import { machine, project, build, sendBack, accept } from './fixture.js';
 
@@ -85,6 +86,7 @@ test('the item projector matches the full projection [A2,N26]', () => {
     const status = new Map(all.map((item) => [item.item_id, item.item_status]));
     assert.deepEqual([...new Set(status.values())].sort(), ['claimed', 'open', 'submitted', 'verified', 'withdrawn'], 'the board holds an item in every state');
     const full = serve.projectState(p.repo, { board });
+    assert.ok('focusMilestone' in full && full.focusMilestone === null, 'with no focus set the projection carries focusMilestone: null [B26]');
     const byId = new Map(full.items.map((item) => [item.id, item]));
     assert.equal(byId.get(reviewed).reviewer !== null, true, 'the item under review names its reviewer');
     assert.deepEqual(byId.get(waiting).blockedBy, [open, claimed], 'the waiting item waits only on unverified work');
@@ -122,6 +124,22 @@ test('the item projector matches the full projection [A2,N26]', () => {
     const control = countingVerdictReads(board);
     serve.projectState(p.repo, { board: control.board, itemProjector: (item, { project }) => project() });
     assert.equal(control.counted.reads, all.length, 'project() reads each item\'s verdicts once when called');
+  } finally {
+    store.closeBoard(board);
+  }
+});
+
+test('project state carries the focused release as name and item ids, and null without focus [B26,C7]', () => {
+  const box = machine();
+  const p = project(box, 'projector-focus');
+  const add = (title) => Number(/#(\d+)/.exec(box.run(p.repo, 'add', 'web', title, '--criterion', 'a page renders'))[1]);
+  const first = add('First'), second = add('Second');
+  const board = openBoard(join(p.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    assert.equal(serve.projectState(p.repo, { board }).focusMilestone, null);
+    addMilestone(board, { agentId: 'coordinator', reason: 'Fixture release', name: 'focused', items: [first, second] });
+    store.setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: 'focused', reason: 'Fixture focus.', window: { items: 2 } });
+    assert.deepEqual(serve.projectState(p.repo, { board }).focusMilestone, { name: 'focused', items: [first, second] });
   } finally {
     store.closeBoard(board);
   }

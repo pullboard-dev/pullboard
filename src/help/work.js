@@ -38,6 +38,7 @@ export const workHelp = `Work
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
+  pullboard milestone focus <name|off> [--overflow off|on]   focus next on one release
   pullboard milestone items <name> --add ids [--swap id] --reason "<why>"   override the board placement, recording why
   pullboard milestone items <name> --remove ids            remove items from the milestone
   pullboard milestone order <name> <ids> --reason "<why>"   override computed order (coordinator or person)

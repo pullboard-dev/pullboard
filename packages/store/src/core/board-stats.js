@@ -24,7 +24,7 @@ export function stats(board) {
 export function recordNextIdle(board, { agentId, reason }, { atomic, logEvent, agentById }) {
   return atomic(board, () => {
     if (!agentById(board, agentId)) throw new Refused('NOT_JOINED', 'join a lane before recording next idle');
-    if (!['nothing-eligible', 'held', 'review-family', 'main-red', 'unknown'].includes(reason)) {
+    if (!['nothing-eligible', 'held', 'review-family', 'main-red', 'focus', 'unknown'].includes(reason)) {
       throw new Refused('BAD_IDLE_REASON', 'record the structured reason returned by next, not guessed historical eligibility');
     }
     const now = board.clock.now().toISOString();
