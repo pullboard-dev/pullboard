@@ -1,3 +1,4 @@
+import { testTimeBudget } from '../packages/gate/index.js';
 import { coordinatorActions } from '../packages/stats/index.js';
 import { viewApiPorts } from '../src/view-api-ports.js';
 /** Event-derived proof numbers have the same data in text and versioned JSON [R1,R2,A1]. */
@@ -115,7 +116,7 @@ test('[R1,R2,A1] stats JSON is versioned, text states the same proof numbers and
     allowance: { version: 1, allowancePerDay: null, observedDay: null, fact: null, status: 'unmeasured' } };
   const usage = { items: [], lanes: [], milestones: [], models: [], seats: [], sharedSessions: [] };
   const coordinator = coordinatorActions(board, { until });
-  assert.deepEqual(json.data, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], boardHolds, usage },
+  assert.deepEqual(json.data, { version: 1, stats: expected, coordinatorActions: coordinator, gateWaits: [], testWallBudgets: testTimeBudget([], observed), boardHolds, usage },
     'a fresh private machine reports no invented holds, usage or gated runs (#836,#1875,#1056)');
   assert.deepEqual([expected.submissions, expected.rejections, expected.rejectionShare, expected.merged, expected.mergedWithoutAccept], [2, 1, 0.5, 1, 0]);
   const text = await run(root, ['stats']);
