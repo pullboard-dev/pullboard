@@ -1,6 +1,7 @@
 /**
  * Which items the Cells reorg-only checks may refuse [C7]. The fixture-source proof, plan placement, later-cell
  * imports and deleted-path strings guard moves and cuts; on any other item their findings print as warnings (#2473).
+ * Editing a body that has already moved is ordinary work; only an in-flight move, its shim or the plan is reorg.
  * #2467 deletes this with the rest of the restructure machinery.
  */
 import { readFileSync } from 'node:fs';
