@@ -431,10 +431,12 @@ test('committed tooling binds literal Unicode blobs and ignores filtered working
   const marker = join(box.dir, 'ssh-attempt');
   writeFileSync(join(box.dir, 'bin/ssh'), `#!/usr/bin/env node\nimport {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'called'); process.exit(255);\n`, { mode: 0o700 });
   /** Require the real fresh controller to reach or refuse this private transport, never a network host. */
+  let transportAttempt = 0;
   const run = expected => {
+    const host = `private-tooling-${++transportAttempt}.invalid`;
     const script = `import assert from 'node:assert/strict';
 const {runOnRunnerAsync}=await import(${JSON.stringify(pathToFileURL(join(installed, 'src/runners.js')).href)});
-await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:'private-tooling.invalid',slots:1,browser:0}}),
+await assert.rejects(runOnRunnerAsync(process.cwd(),'true',{runner:{host:${JSON.stringify(host)},slots:1,browser:0}}),
   error=>${expected === 'transport' ? "error.name==='RunnerDropped'" : "error.code==='RUNNER_TOOLING_CHANGED'"});`;
     const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: project, env: box.env, encoding: 'utf8' });
     assert.equal(result.status, 0, result.failure || result.stderr || result.stdout);

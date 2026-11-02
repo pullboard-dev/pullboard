@@ -1,3 +1,5 @@
+import { committedRunnerController, observeDirtyRunnerTooling, dirtyToolingFindings } from '../packages/runners/index.js';
+import { utimesSync } from 'node:fs';
 /** Dirty tooling is never execution authority; registered protocol checks use committed bytes [O5,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -46,4 +48,58 @@ console.log('DIRTY_TOOLING_CHECK_PASSED');`;
   assert.equal(attempts.length, 1, 'exactly one runner execution, without retrying dirty source');
   assert.equal(attempts[0].workerStarted, true);
   assert.equal(attempts[0].code, 0);
+});
+
+
+test('dirty tooling observation ages staged paths and retains rename sources independently [O5,C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.sandbox(), root = join(box.dir, 'tooling');
+  mkdirSync(join(root, 'src'), { recursive: true });
+  mkdirSync(join(root, 'docs'));
+  const file = join(root, 'src/worker.js');
+  writeFileSync(file, 'export const original = true;\n');
+  box.git(root, 'init', '-q', '-b', 'main');
+  box.git(root, 'add', '-A');
+  box.git(root, 'commit', '-q', '-m', 'test: observer history');
+  writeFileSync(file, 'export const changed = true;\n');
+  utimesSync(file, new Date(0), new Date(0));
+  box.git(root, 'add', '-A');
+  const stagedAt = Date.now();
+  assert.deepEqual(observeDirtyRunnerTooling(new Date(stagedAt), [], root), [], 'old file mtime cannot age a newly staged change');
+  assert.equal(observeDirtyRunnerTooling(new Date(stagedAt + 300_001), [], root).length, 1);
+  box.git(root, 'commit', '-q', '-m', 'test: staged change');
+  box.git(root, 'mv', 'src/worker.js', 'docs/worker.md');
+  const renamedAt = Date.now();
+  assert.deepEqual(observeDirtyRunnerTooling(new Date(renamedAt), [], root), []);
+  assert.match(observeDirtyRunnerTooling(new Date(renamedAt + 300_001), [], root)[0].title, /src\/worker\.js/u, 'renaming out of the tooling tree still names the removed source');
+  writeFileSync(join(root, 'src/untracked.js'), '// new tooling\n');
+  writeFileSync(join(root, 'docs/unrelated.md'), 'unrelated\n');
+  const untrackedAt = Date.now();
+  const findings = observeDirtyRunnerTooling(new Date(untrackedAt + 300_001), [], root);
+  assert.ok(findings.some(row => row.title.includes('src/untracked.js')));
+  assert.ok(findings.every(row => !row.title.includes('docs/unrelated.md')));
+  const mixed = dirtyToolingFindings(root, [{ path: 'src/old.js', changedAt: 0 }, { path: 'src/new.js', changedAt: 400_000 }], new Date(400_001));
+  assert.equal(mixed.length, 1, 'a new dirty path cannot borrow an older path age');
+  assert.match(mixed[0].title, /src\/old\.js/u);
+});
+
+test('archived tooling still refuses modified archive bytes [O5,C7]', async t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.sandbox(), root = join(box.dir, 'tooling');
+  mkdirSync(root);
+  copyPackageFiles(resolve(import.meta.dirname, '..'), root);
+  box.git(root, 'init', '-q', '-b', 'main');
+  box.git(root, 'add', '-A');
+  box.git(root, 'commit', '-q', '-m', 'test: immutable archive control');
+  const archive = committedRunnerController(root);
+  t.after(archive.cleanup);
+  const worker = join(archive.root, 'src/runner-worker.js');
+  writeFileSync(worker, readFileSync(worker, 'utf8') + '\n// altered archive bytes\n');
+  const script = `import assert from 'node:assert/strict';
+const {trustedTooling}=await import(${JSON.stringify(pathToFileURL(join(archive.root, 'src/runner-remote-tooling.js')).href)});
+assert.throws(()=>trustedTooling(),{code:'RUNNER_TOOLING_CHANGED'});`;
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', script], { env: box.env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.context);
 });
