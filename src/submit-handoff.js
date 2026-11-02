@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import {
   mkdirSync,
+  mkdtempSync,
   openSync,
   closeSync,
   cpSync,
@@ -17,6 +18,7 @@ import {
   join,
   relative,
 } from 'node:path';
+import { tmpdir } from 'node:os';
 import { withBoard } from './cli-context.js';
 import { ordered } from './cli/claim.js';
 import { itemPatchDigest } from '../packages/items/index.js';
@@ -32,15 +34,15 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
   if (result.created) {
     git(ctx.info.root, ['update-ref', `refs/pullboard/submit-handoffs/${result.job.id}`, result.job.commit]);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
-    writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
-      commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
-      companion: candidate.companion }) + '\n', { flag: 'wx', mode: 0o600 });
     // Snapshot the running Pullboard build separately from the submitted project.
     // An external project need not contain Pullboard's own executable at all.
     const toolRoot = dirname(dirname(ctx.io.submitHandoffWorker));
-    const tools = join(directory, 'tools');
+    const tools = mkdtempSync(join(tmpdir(), 'pullboard-handoff-tools-'));
     cpSync(toolRoot, tools, { recursive: true, mode: constants.COPYFILE_FICLONE,
       filter: path => !['.git', 'node_modules'].includes(relative(toolRoot, path).split('/')[0]) });
+    writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
+      commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
+      companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });
     const log = openSync(join(directory, 'worker.log'), 'a', 0o600);
     try {
       const worker = spawn(process.execPath, [join(tools, 'src', 'submit-handoff-worker.js'), join(directory, 'request.json')],

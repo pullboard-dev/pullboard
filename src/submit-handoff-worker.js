@@ -76,7 +76,8 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard }) {
     throw error;
   } finally {
     if (attached) jobGit(request.commonDir, ['worktree', 'remove', root]);
-    rmSync(join(directory, 'tools'), { recursive: true, force: true });
+    const tools = dirname(dirname(fileURLToPath(import.meta.url)));
+    if (request.tools === tools) rmSync(tools, { recursive: true, force: true });
   }
 }
 
