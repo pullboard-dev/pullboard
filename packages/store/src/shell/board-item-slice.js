@@ -16,13 +16,15 @@ export function createItemSlice(board, { agentId, parentId, parentDigest, title,
     if (!parent.item_frozen || !parent.item_frozen_digest || parentDigest !== parent.item_frozen_digest) throw new Refused('SLICE_BAR_MOVED', 'read the current frozen parent bar before creating a slice');
     let frozen;
     try { frozen = JSON.parse(parent.item_frozen); } catch { throw new Refused('SLICE_BAR_MOVED', 'the frozen parent bar is unreadable'); }
+    if (typeof title !== 'string' || !title.trim() || typeof (lane ?? parent.item_lane) !== 'string'
+      || !/^[a-z][a-z0-9-]*$/u.test(lane ?? parent.item_lane) || (check !== undefined && typeof check !== 'string')) throw new Refused('SLICE_CONTENT', 'supply a title, lane and optional check');
     if (typeof frozen.criterion !== 'string' || !Array.isArray(files) || !files.length || files.some(file => typeof file !== 'string' || !file || file.startsWith('/') || /[\\\r\n\0]/u.test(file) || file.split('/').some(part => !part || part === '.' || part === '..')) || new Set(files).size !== files.length) throw new Refused('SLICE_FILES', 'supply distinct repository-relative files for the slice');
     const item = { by: agentId, parentId, lane: lane ?? parent.item_lane, title, criterion: frozen.criterion,
       specIds: String(parent.item_spec_ids ?? '').split(',').filter(Boolean), after: [], brief: `Files: ${files.join(', ')}\nSlice of #${parentId}; parent bar ${parentDigest}`, route: parent.item_route, check: check ?? frozen.check ?? '' };
     // The slice move grants the holder this scoped check choice; it does not grant ordinary bar editing.
     const validated = validateItemAddition(board, { ...item, by: 'coordinator', parentId: null });
     const id = insertItem(board, item, validated);
-    const detail = { parentId, parentDigest, files, lane: item.lane };
+    const detail = { parentId, parentDigest, frozenBar: parent.item_frozen, files, lane: item.lane };
     board.db.prepare('INSERT INTO board_meta(meta_key, meta_value) VALUES (?, ?)').run(`item-slice:${id}`, JSON.stringify(detail));
     logEvent(board, agentId, 'item-slice', id, detail);
     return { item: id };
