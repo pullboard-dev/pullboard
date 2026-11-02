@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { beginSeatTiming } from '../src/seat-timing.js';
-import { seatLedger } from '../src/seat-ledger.js';
+import { seatLedger, seatLines } from '../src/seat-ledger.js';
 
 test('local command record binds joined seat, item, start and end [C7,N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'seat-timing-'));
@@ -35,4 +35,26 @@ test('seat ledger distinguishes held, reserved and idle seats and measured waits
   const rows = seatLedger(agents, items, events, [{ version: 1, id: 'x', seat: 'builder', kind: 'runner-wait', phase: 'end', start: now - 60000, end: now }], now);
   assert.deepEqual(rows.map(row => row.state), ['building', 'reviewing', 'idle']);
   assert.equal(rows[0].split.runnerWaitMs, 60000);
+});
+
+test('seat ledger prints each observed live state and elapsed minutes [C7,N2]', () => {
+  const now = Date.now();
+  const names = ['building', 'reviewing', 'gate', 'reviewWait', 'lock', 'runner', 'silent', 'idle'];
+  const agents = names.map(agent_id => ({ agent_id }));
+  const ago = ms => new Date(now - ms).toISOString();
+  const items = [
+    ...['building', 'gate', 'lock', 'runner', 'silent'].map((owner, index) => ({ item_id: index + 1, item_status: 'claimed', item_owner: owner })),
+    { item_id: 6, item_status: 'submitted', item_review_by: 'reviewing', item_review_until: ago(-60000) },
+    { item_id: 7, item_status: 'submitted', item_built_by: 'reviewWait' },
+  ];
+  const events = names.map(name => ({ event_by: name, event_at: ago(name === 'silent' ? 25 * 60000 : 5 * 60000), event_kind: 'fact' }));
+  events.push({ event_by: 'gate', item_id: 2, event_at: ago(3 * 60000), event_kind: 'submit-handoff', event_detail: '{"state":"running"}' });
+  const records = ['lock', 'runner'].map((seat, i) => ({ version: 1, id: seat, seat, pid: process.pid, kind: i ? 'runner-wait' : 'lock-wait', phase: 'start', start: now - 2 * 60000 }));
+  const rows = seatLedger(agents, items, events, records, now);
+  const printed = seatLines(rows).join('\n');
+  for (const name of ['building', 'reviewing', 'waiting on gate', 'waiting on review', 'waiting on lock', 'waiting on runner slot', 'silent', 'idle']) assert.ok(printed.includes(name));
+  assert.deepEqual(rows.map(row => [row.state, row.minutes]), [
+    ['building', 5], ['reviewing', 5], ['waiting on gate', 3], ['waiting on review', 5],
+    ['waiting on lock', 2], ['waiting on runner slot', 2], ['silent', 25], ['idle', 5],
+  ]);
 });

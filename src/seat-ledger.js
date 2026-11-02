@@ -25,16 +25,47 @@ export function seatLedger(agents, items, events, records, now = Date.now()) {
     if (!held && !review && (!lastAt || now - lastAt > 3 * 60 * 60 * 1000)) return null;
     const own = [...spans.values()].filter(span => span.seat === agent.agent_id && span.start <= now && (span.end ?? now) >= start);
     const active = own.filter(span => !span.end && span.pid && (() => { try { process.kill(span.pid, 0); return true; } catch { return false; } })());
-    const state = review ? 'reviewing' : held ? (active.some(span => span.kind === 'runner-wait') ? 'waiting on runner slot' : lastAt && now - lastAt >= 20 * 60 * 1000 && !active.length ? 'silent' : 'building') : 'idle';
-    const since = active.find(span => span.kind === 'runner-wait')?.start ?? lastAt ?? now;
-    const split = { commandMs: 0, testMs: 0, runnerWaitMs: 0 };
+    const lastHandoff = [...mine].reverse().find(event => event.event_kind === 'submit-handoff' && event.item_id === held?.item_id);
+    let handoff = {}; try { handoff = JSON.parse(lastHandoff?.event_detail ?? '{}'); } catch { /* Ignore malformed event. */ }
+    const awaiting = items.find(item => item.item_status === 'submitted' && item.item_built_by === agent.agent_id && !item.item_review_by);
+    const waiting = active.find(span => ['lock-wait', 'runner-wait'].includes(span.kind));
+    const state = waiting ? (waiting.kind === 'lock-wait' ? 'waiting on lock' : 'waiting on runner slot')
+      : review ? 'reviewing' : held ? (['queued', 'running'].includes(handoff.state) ? 'waiting on gate' : lastAt && now - lastAt >= 20 * 60 * 1000 && !active.length ? 'silent' : 'building')
+        : awaiting ? 'waiting on review' : 'idle';
+    const since = waiting?.start ?? (state === 'waiting on gate' ? Date.parse(lastHandoff.event_at) : null) ?? lastAt ?? now;
+    // Replay only observed intervals; earlier unobserved history remains explicitly unknown.
+    const states = { building: 0, reviewing: 0, gate: 0, reviewWait: 0, lockWait: 0, runnerWait: 0, silent: 0, idle: 0, unknown: 0 };
+    let index = 0, current = 'idle', observedAt = null, owned = null;
+    const eventRows = mine.filter(event => Date.parse(event.event_at) >= start);
+    for (let tick = start; tick < now; tick += 60000) {
+      while (index < eventRows.length && Date.parse(eventRows[index].event_at) <= tick) {
+        const event = eventRows[index++]; observedAt = Date.parse(event.event_at);
+        if (event.event_kind === 'claim') { owned = event.item_id; current = 'building'; }
+        else if (event.event_kind === 'reserve') { owned = event.item_id; current = 'reviewing'; }
+        else if (event.event_kind === 'submit-handoff') {
+          let detail = {}; try { detail = JSON.parse(event.event_detail ?? '{}'); } catch { /* Ignore malformed event. */ }
+          if (['queued', 'running'].includes(detail.state) && owned === event.item_id) current = 'gate';
+          else if (current === 'gate') current = 'building';
+        } else if (event.event_kind === 'submit') { owned = null; current = 'reviewWait'; }
+        else if (['release', 'withdraw', 'accept', 'reject'].includes(event.event_kind)) { owned = null; current = 'idle'; }
+      }
+      const wait = own.find(span => ['runner-wait', 'lock-wait'].includes(span.kind) && span.start <= tick && (span.end ?? (active.includes(span) ? now : span.start)) > tick);
+      const key = wait ? (wait.kind === 'runner-wait' ? 'runnerWait' : 'lockWait') : observedAt === null ? 'unknown' : ['building', 'reviewing'].includes(current) && tick - observedAt >= 20 * 60000 ? 'silent' : current;
+      states[key] += Math.min(60000, now - tick);
+    }
+    const split = { commandMs: 0, testMs: 0, runnerWaitMs: 0, lockWaitMs: 0, states };
     for (const span of own) {
       const end = span.end ?? (active.includes(span) ? now : span.start);
-      const key = span.kind === 'test' ? 'testMs' : span.kind === 'runner-wait' ? 'runnerWaitMs' : 'commandMs';
+      const key = span.kind === 'test' ? 'testMs' : span.kind === 'runner-wait' ? 'runnerWaitMs' : span.kind === 'lock-wait' ? 'lockWaitMs' : 'commandMs';
       split[key] += Math.max(0, Math.min(now, end) - Math.max(start, span.start));
     }
     const built = new Set(items.filter(item => item.item_built_by === agent.agent_id).map(item => item.item_id));
     const landed = history.filter(event => event.event_kind === 'merged' && built.has(event.item_id) && Date.parse(event.event_at) >= start).length;
-    return { seat: agent.agent_id, state, item: held?.item_id ?? review?.item_id ?? null, minutes: Math.floor(Math.max(0, now - since) / 60000), split, landed };
+    return { seat: agent.agent_id, state, item: held?.item_id ?? review?.item_id ?? awaiting?.item_id ?? null, minutes: Math.floor(Math.max(0, now - since) / 60000), split, landed };
   }).filter(Boolean);
+}
+
+/** Format one readable line for each seat; JSON keeps exact milliseconds. */
+export function seatLines(rows) {
+  return rows.map(row => `${row.seat}: ${row.state}${row.item ? ` #${row.item}` : ''} for ${row.minutes}m; last 24h command ${(row.split.commandMs / 60000).toFixed(1)}m, tests ${(row.split.testMs / 60000).toFixed(1)}m, runner wait ${(row.split.runnerWaitMs / 60000).toFixed(1)}m, lock wait ${(row.split.lockWaitMs / 60000).toFixed(1)}m, states ${Object.entries(row.split.states).map(([name, ms]) => `${name} ${(ms / 60000).toFixed(1)}m`).join(', ')}, landed ${row.landed}`);
 }

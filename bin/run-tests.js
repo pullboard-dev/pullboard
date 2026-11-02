@@ -46,6 +46,7 @@ const explicitTestFiles = args => selectedFiles(args, optionTakesValue);
 /** Distinguish actual files from option values before admission. */
 const hasTestFiles = args => selectedFilesPresent(args, optionTakesValue);
 const runner = fileURLToPath(import.meta.url);
+let recordRunnerWait = () => {};
 const LANDING_RUN_ENV = 'PULLBOARD_LANDING_RUN';
 const LANDING_WORKER_STARTS_ENV = 'PULLBOARD_LANDING_WORKER_STARTS';
 const LANDING_ATTEMPT_ENV = 'PULLBOARD_LANDING_ATTEMPT';
@@ -1378,7 +1379,10 @@ async function main(args) {
       }, {
         executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, kind: fullSuite ? 'gate' : 'focused', shortEligible,
         ...runnerAdmission, remote: Boolean(canShipRunner), runnerOnly,
-        onWait: ({ holders, runnerUnavailable }) => {
+        onWait: state => {
+          recordRunnerWait(state);
+          const { holders, runnerUnavailable } = state;
+          if (state.admitted) return;
           if (runnerUnavailable) {
             process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; requeueing the run\n`);
             return;
@@ -1400,7 +1404,9 @@ async function main(args) {
 if (process.argv[1] && resolve(process.argv[1]) === runner) {
   const { beginSeatTiming } = await import('../src/seat-timing.js');
   const finishSeatTiming = beginSeatTiming(process.cwd(), 'test', 'run-tests');
-  try { await main(process.argv.slice(2)); } finally { finishSeatTiming(); }
+  let finishWait;
+  recordRunnerWait = state => { if (state.admitted) { finishWait?.(); finishWait = null; } else finishWait ??= beginSeatTiming(process.cwd(), 'runner-wait', 'gate slot'); };
+  try { await main(process.argv.slice(2)); } finally { finishWait?.(); finishSeatTiming(); }
 } else if (process.argv[1]) {
   process.env.PULLBOARD_TEST_FILE = process.argv[1];
   (await import('../src/test-action-cache.js')).recordTestAction(process.argv[1]); // #1045: reuse off below; record this file.

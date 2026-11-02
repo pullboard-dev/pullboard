@@ -18,7 +18,7 @@ export function timingSeat(cwd) {
     const db = new DatabaseSync(file, { readOnly: true });
     try {
       const rows = db.prepare('SELECT agent_id, agent_path FROM agent').all();
-      const seat = rows.find(row => { try { return realpathSync(row.agent_path) === realpathSync(root); } catch { return resolve(row.agent_path) === resolve(root); } });
+      const seat = rows.find(row => { if (typeof row.agent_path !== 'string') return false; try { return realpathSync(row.agent_path) === realpathSync(root); } catch { return resolve(row.agent_path) === resolve(root); } });
       if (!seat) return null;
       const item = db.prepare("SELECT item_id FROM item WHERE item_owner=? AND item_status='claimed' ORDER BY item_id LIMIT 1").get(seat.agent_id)?.item_id ?? null;
       return { seat: seat.agent_id, item, file: join(common, 'pullboard', 'seat-timing.jsonl') };
@@ -32,12 +32,14 @@ export function appendSeatTiming(file, record) {
 }
 
 /** Record start immediately and finish even when the caller rejects. */
-export function beginSeatTiming(cwd, kind, command) {
-  const binding = timingSeat(cwd);
+export function beginSeatTiming(cwd, kind, command, item = null, knownBinding = undefined) {
+  const binding = knownBinding === undefined ? timingSeat(cwd) : knownBinding;
   if (!binding) return () => {};
   const start = Date.now(), id = randomUUID();
-  const base = { version: 1, id, seat: binding.seat, item: binding.item, kind, command, pid: process.pid, start };
+  const base = { version: 1, id, seat: binding.seat, item: item ?? binding.item, kind, command, pid: process.pid, start };
   appendSeatTiming(binding.file, { ...base, phase: 'start' });
   let ended = false;
-  return () => { if (ended) return; ended = true; const end = Date.now(); appendSeatTiming(binding.file, { ...base, phase: 'end', end, durationMs: Math.max(0, end - start) }); };
+  const finish = () => { if (ended) return; ended = true; process.removeListener('exit', finish); const end = Date.now(); const held = base.item ?? (kind === 'command' ? timingSeat(cwd)?.item : null) ?? null; appendSeatTiming(binding.file, { ...base, item: held, phase: 'end', end, durationMs: Math.max(0, end - start) }); };
+  process.once('exit', finish);
+  return finish;
 }
