@@ -18,12 +18,12 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
   try {
     git('init', '--quiet');
     put('package.json', '{"type":"module"}\n');
-    put('src/module-imports.js', 'export function importsIn(){}; export function commonJsIn(){}\n');
-    put('src/module-import-cache.js', 'export function withImportParseCache(){}\n');
-    put('src/test-isolation.js', 'export function foreignNodeOptions(){ return false; }\n');
+    put('packages/gate/index.js', 'export function importsIn(){}; export function commonJsIn(){}; export function withImportParseCache(){}; export function foreignNodeOptions(){ return false; }\n');
     put('packages/landing/index.js', 'export function withMainCheckout(){}\n');
     put('bin/cells-submit-checks.js', `export async function requireSubmitCells(root, main, source, item, services) {
-      if (JSON.parse(item.item_frozen).criterion !== 'fixture' || services.readCutItems()[0].item_id !== 7 || !services.cacheEligible()) throw new Error('lost authority');
+      if (JSON.parse(item.item_frozen).criterion !== 'fixture' || services.readCutItems()[0].item_id !== 7 || !services.cacheEligible()
+        || typeof services.parsers.importsIn !== 'function' || typeof services.parsers.commonJsIn !== 'function'
+        || typeof services.withImportParseCache !== 'function') throw new Error('lost authority');
       return { acceptedMain: main, source, cells: ['trusted-main'], existingCuts: [] };
     }\n`);
     git('add', '.'); git('-c', 'core.hooksPath=/dev/null', 'commit', '--quiet', '-m', 'trusted');

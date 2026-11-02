@@ -93,16 +93,14 @@ async function remoteCells(encoded) {
     run('tar', ['-xf', '-', '-C', directory], { input: archive });
     const load = path => import(pathToFileURL(join(directory, path)).href);
     const checker = await load('bin/cells-submit-checks.js');
-    const parsers = await load('src/module-imports.js');
-    const cache = await load('src/module-import-cache.js');
-    const isolation = await load('src/test-isolation.js');
+    const gate = await load('packages/gate/index.js');
     const landing = await load('packages/landing/index.js');
     const result = await checker.requireSubmitCells(root, input.main, input.source,
       { item_frozen: JSON.stringify({ criterion: input.criterion }) }, {
         withMainCheckout: landing.withMainCheckout,
-        parsers: { importsIn: parsers.importsIn, commonJsIn: parsers.commonJsIn },
-        withImportParseCache: cache.withImportParseCache,
-        cacheEligible: () => !isolation.foreignNodeOptions(process.env.NODE_OPTIONS),
+        parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
+        withImportParseCache: gate.withImportParseCache,
+        cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
         readCutItems: () => input.cutRows,
       });
     process.stdout.write(`PULLBOARD_CELLS_RESULT ${JSON.stringify(result)}\n`);
