@@ -2,7 +2,7 @@
 import { warnMainMoved } from '../../packages/merge/index.js';
 import * as store from '../board.js';
 import { mainPolicy } from '../../packages/sandbox/index.js';
-import { prepareTrainLanding } from '../train-landing.js';
+import { prepareTrainLanding } from '../../packages/landing/index.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import {
   codeIsFromMain,
@@ -18,7 +18,7 @@ import {
 import {
   relayCommandReceipt,
   relayCommandReceiptReported,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import {
   actOn,
   idArg,

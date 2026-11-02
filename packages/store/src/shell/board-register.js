@@ -3,6 +3,7 @@ import { AGENT_GRANT_ENGINE } from "../../../../src/agent-grant-engine.js";
 import { heartbeatSeat } from "./seat-presence.js";
 import { now } from "./board-query.js";
 import { atomic } from "./board-event-log.js";
+import { afterBoardWrite } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
 import { checkRoute } from "../../../items/index.js";
 import { COORDINATOR } from "../../../config/index.js";
@@ -10,7 +11,7 @@ import { ENGINE_VERSION } from "../../../state/index.js";
 import { VERIFIER_STANDING_ENGINE } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { saveJoinedSession } from "../../../items/index.js";
-import { agentAt } from "./board-query.js";
+import { agentModel } from "./board-query.js";
 import { newSeatId } from "../../../seats/index.js";
 import { saveAgentModel } from "../../../seats/index.js";
 import { seatLineage } from "../../../seats/index.js";
@@ -40,8 +41,10 @@ export function register(board, who) {
   if (lane === COORDINATOR && route !== 'strong') {
     throw new Refused('BAD_ROUTE', 'the coordinator plans, merges and verifies; it is always strong');
   }
-  return atomic(board, () => {
-    const existing = agentAt(board, path);
+  let fresh = false;
+  const registered = atomic(board, () => {
+    const row = board.db.prepare('SELECT * FROM agent WHERE agent_path = ?').get(path);
+    const existing = row && { ...row, agent_model: agentModel(board, row.agent_id) };
     if (existing) {
       if (existing.agent_lane !== lane || existing.agent_route !== route) {
         throw new Refused(
@@ -88,7 +91,15 @@ export function register(board, who) {
     }
     logEvent(board, id, 'join', null, { lane, ...(route === 'strong' ? {} : { route }), // From the declaration engine a join records its family (#1783).
       ...(engine >= AGENT_GRANT_ENGINE ? { grantEngine: AGENT_GRANT_ENGINE } : {}), ...(recordsFamily ? { family: family ?? null } : {}) });
-    if (board.executionEngineVersion === undefined) heartbeatSeat(board, id);
+    fresh = true;
     return id;
   });
+  if (fresh && board.executionEngineVersion === undefined) afterBoardWrite(board, () => {
+    try { heartbeatSeat(board, registered); }
+    catch (error) {
+      // Registration has committed; a display-only sidecar cannot turn it into an apparent refusal.
+      process.emitWarning(`seat heartbeat could not be recorded after registration: ${error.message}`, { code: 'PRESENCE_WRITE_FAILED' });
+    }
+  });
+  return registered;
 }

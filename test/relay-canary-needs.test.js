@@ -4,10 +4,10 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { relayCanaryNeeds } from '../src/relay-canary-needs.js';
-import { observeRelayHealth } from '../src/relay-canary-health.js';
-import { outboxFile, outboxSummaryFile, readOutboxCount } from '../src/relay-outbox-summary.js';
-import { readRelayLink } from '../src/relay-link-read.js';
+import { relayCanaryNeeds } from '../packages/link/index.js';
+import { observeRelayHealth } from '../packages/link/index.js';
+import { outboxFile, outboxSummaryFile, readOutboxCount } from '../packages/link/index.js';
+import { readRelayLink } from '../packages/link/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 /** A real private Git repository with a persisted two-probe alert and no transport or native board. */

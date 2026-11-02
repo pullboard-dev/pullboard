@@ -16,7 +16,7 @@ import {
 } from '../../packages/seats/index.js';
 import {
   personShout,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   actOn,
   agentDisplayName,

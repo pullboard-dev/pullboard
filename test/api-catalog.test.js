@@ -173,6 +173,7 @@ async function project() {
   writeFileSync(configFile, `${JSON.stringify({
     ...config,
     gate: 'true',
+    landing: { ...config.landing, manualOverride: true },
     spec: 'SPEC.md',
     practice: 'DOCTRINE.md',
     lanes: {

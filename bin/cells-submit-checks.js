@@ -1,9 +1,16 @@
+import { inventoryCache } from './cells-inventory-cache.js';
+import { observationCache } from './cells-inventory-cache.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
 /** Trusted controller-only analysis of immutable submit compositions [C7,D3,CD64]. */
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { checkReceiptKey } from '../packages/git/index.js';
+import { readCheckReceipt } from '../packages/git/index.js';
+import { writeCheckReceipt } from '../packages/git/index.js';
+import { receiptDigest } from '../packages/git/index.js';
 import { git } from '../src/git.js';
 import { tryGit } from '../src/git.js';
 import { cleanGitEnvironment } from '../src/git.js';
@@ -26,6 +33,9 @@ import { shardFile } from './cells-plan.js';
 import { unplanned } from './cells-plan.js';
 import { stalePlanRows } from './cells-plan.js';
 import { engineStayTransition } from './cells-engine-stays.js';
+import { scriptMentions } from './cells-remove-shims.js';
+import { testFile } from '../packages/codemap/index.js';
+import { posix } from 'node:path';
 
 /** Exact multiset subtraction keeps duplicate diagnostics from borrowing one old allowance. */
 function additions(before, after) {
@@ -179,7 +189,7 @@ function temporaryProblems(mainRoot, candidateRoot, criterion) {
 /** Memoize only within this census using actual higher-controller runtime policy. */
 export function cellsSnapshotProblems(mainRoot, candidateRoot, options) {
   if (typeof options?.withImportParseCache !== 'function' || typeof options?.cacheEligible !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical census cache services are required');
-  return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible }));
+  return options.withImportParseCache(() => withBindingReadCache(() => inspectCellsSnapshotProblems(mainRoot, candidateRoot, options), { eligible: options.cacheEligible, observations: options.observations, warmAll: options.warmAll }));
 }
 
 /** Read candidate plan data without allowing shard aliases or symbolic paths outside the snapshot. */
@@ -199,8 +209,22 @@ function candidatePlan(candidateRoot) {
   });
 }
 
+/**
+ * A deleted module that a test still names inside a string, such as a generated child script's import: import checks
+ * cannot see it, so the deletion would turn main red the first time that test runs.
+ */
+function deletedScriptMentions(mainRoot, candidateRoot, changed) {
+  const deleted = changed.filter(file => /\.[cm]?js$/u.test(file) && existsSync(join(mainRoot, file)) && !existsSync(join(candidateRoot, file)));
+  if (!deleted.length) return [];
+  const tests = git(candidateRoot, ['ls-files', '-z']).split('\0').filter(file => file && testFile(file) && /\.[cm]?js$/u.test(file));
+  const files = new Map(tests.filter(file => lstatSync(join(candidateRoot, file)).isFile()).map(file => [file, readFileSync(join(candidateRoot, file))]));
+  const resolve = (file, text) => text.startsWith('.') ? posix.join(posix.dirname(file), text) : null;
+  return scriptMentions(files, deleted, resolve)
+    .map(row => `${row.file}:${row.line} names deleted ${row.path} inside a string; point it at the moved file or front door`);
+}
+
 /** Analyze clean real snapshots with loaded controller code; no candidate module is imported or executed. */
-function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers } = {}) {
+function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion = '', files, parsers, inventories } = {}) {
   if (typeof parsers?.importsIn !== 'function' || typeof parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical parser services are required');
   if (!existsSync(join(mainRoot, 'bin/cells-plan.json'))) return { cells: [], problems: [] };
   const before = readPlan(mainRoot);
@@ -210,11 +234,13 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   policy.push(...unplanned(candidateRoot, after).map(file => `unplaced ${file}`));
   policy.push(...stalePlanRows(candidateRoot, after).map(row => `${row.cell}: stale ${row.row[0]}`));
   policy.push(...temporaryProblems(mainRoot, candidateRoot, criterion));
-  if (policy.length) return { cells: [], problems: policy };
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
+  policy.push(...deletedScriptMentions(mainRoot, candidateRoot, changed));
+  if (policy.length) return { cells: [], problems: policy };
   const direct = touchedCells(changed, before, after, []);
   if (!direct.length) return { cells: [], problems: [] };
-  const oldInventory = cellInventory(mainRoot, parsers), newInventory = cellInventory(candidateRoot, parsers);
+  const oldInventory = inventories ? inventories.base(mainRoot, acceptedMain) : cellInventory(mainRoot, parsers);
+  const newInventory = inventories ? inventories.candidate(candidateRoot, oldInventory, changed) : cellInventory(candidateRoot, parsers);
   const oldReport = cellLintReport(mainRoot, parsers, { inventory: oldInventory });
   const newReport = cellLintReport(candidateRoot, parsers, { inventory: newInventory });
   // Advisory transition authority comes only from the immutable accepted snapshot.
@@ -237,11 +263,12 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
 }
 
 /** Compare only the candidate's own graph delta with its actual merge base, using trusted landed authority. */
-function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers }) {
+function cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories }) {
   if (!existsSync(join(baseRoot, 'bin/cells-plan.json'))) return { problems: [], existingCuts: [] };
   const before = readPlan(baseRoot), after = candidatePlan(sourceRoot);
   const changed = git(sourceRoot, ['diff', '--name-only', '--no-renames', '-z', cutBase, 'HEAD']).split('\0').filter(Boolean);
-  const oldInventory = cellInventory(baseRoot, parsers), newInventory = cellInventory(sourceRoot, parsers);
+  const oldInventory = inventories ? inventories.base(baseRoot, cutBase) : cellInventory(baseRoot, parsers);
+  const newInventory = inventories ? inventories.candidate(sourceRoot, oldInventory, changed) : cellInventory(sourceRoot, parsers);
   const cells = touchedCells(changed, before, after, [oldInventory, newInventory]);
   const problems = [], existingCuts = [];
   const candidateMap = readPathMap(sourceRoot);
@@ -284,6 +311,19 @@ function cellsComposition(root, acceptedMain, commit) {
     '-m', 'chore(cells): inspect immutable submit composition [C7,D3]'], { env });
 }
 
+/** Bind every approved Node preload to its actual bytes; uncertainty disables persistent reuse. */
+function preloadFingerprint() {
+  try {
+    return String(process.env.NODE_OPTIONS ?? '').split(/\s+/u).filter(Boolean).map(token => {
+      const match = /^--(?:import|require)=(.+)$/u.exec(token);
+      if (!match) throw new Error('unrecognized preload');
+      const value = match[1].startsWith('"') ? JSON.parse(match[1]) : match[1];
+      const file = value.startsWith('file:') ? fileURLToPath(value) : value;
+      return { token, digest: receiptDigest(readFileSync(file).toString('base64')) };
+    });
+  } catch { return null; }
+}
+
 /** Controller structural preflight: exact immutable commits, canonical finally-cleaned snapshots, no candidate execution. */
 export async function requireSubmitCells(root, acceptedMain, commit, item, services) {
   if (typeof services?.withImportParseCache !== 'function' || typeof services?.cacheEligible !== 'function' || typeof services?.withMainCheckout !== 'function' || typeof services?.parsers?.importsIn !== 'function' || typeof services?.parsers?.commonJsIn !== 'function') throw new Refused('CELLS_SUBMIT', 'canonical checkout and parser services are required');
@@ -291,15 +331,30 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const criterion = JSON.parse(item.item_frozen ?? 'null')?.criterion ?? '';
   if (typeof criterion !== 'string' || ![acceptedMain, commit].every(value => /^[a-f0-9]{40,64}$/u.test(value))) throw new Refused('CELLS_SUBMIT', 'submit needs exact immutable commits and its frozen criterion');
   const source = commit;
+  const cutRows = services.readCutItems?.(acceptedMain, root);
+  if (!Array.isArray(cutRows)) throw new Refused('CELLS_SUBMIT', 'trusted board cut-item reader must return actual item rows');
+  const preloads = cacheEligible() ? preloadFingerprint() : null;
+  const inputs = { acceptedMain, source, criterion, cuts: cutRows, preloads };
+  const samePreloads = () => preloads !== null && cacheEligible() && receiptDigest(preloadFingerprint()) === receiptDigest(preloads);
+  const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
+  const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
+    config: inputs, code: [import.meta.url, '../src/commands/submit.js', '../src/module-imports.js',
+      '../src/module-import-cache.js', '../src/test-isolation.js', '../packages/landing/src/shell/main-red.js']
+      .map(path => fileURLToPath(new URL(path, import.meta.url))), commands: [] }) : null;
+  const cached = readCheckReceipt(root, receiptKey);
+  if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
+    && samePreloads() && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) return { ...cached.result, receipt: cached, reused: true };
+  const inventories = inventoryCache(root, receiptKey, parsers, services.onInventory, samePreloads);
+  const observations = observationCache(root, receiptKey, samePreloads);
   commit = cellsComposition(root, acceptedMain, source);
   const cutBase = git(root, ['merge-base', acceptedMain, source]);
   const result = await withMainCheckout(root, acceptedMain, mainRoot => withMainCheckout(root, commit, async candidateRoot => {
     const landedCells = existsSync(join(mainRoot, 'bin/cells-plan.json'))
-      ? landedCutCells(root, acceptedMain, readPlan(mainRoot), services.readCutItems) : new Set();
-    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible });
+      ? landedCutCells(root, acceptedMain, readPlan(mainRoot), () => cutRows) : new Set();
+    const result = cellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, criterion, parsers, withImportParseCache, cacheEligible: samePreloads, inventories, observations: observations.values, warmAll: Boolean(receiptKey) });
     /** Keep comparison code trusted and raw source separate from the union used for accepted-policy checks. */
     const inspect = (baseRoot, sourceRoot) => {
-      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers }));
+      const cuts = withImportParseCache(() => cutDeltaProblems(baseRoot, sourceRoot, { cutBase, landedCells, parsers, inventories }));
       unchangedSnapshot(baseRoot, cutBase);
       unchangedSnapshot(sourceRoot, source);
       return cuts;
@@ -307,12 +362,15 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
     const cuts = cutBase === acceptedMain
       ? source === commit ? inspect(mainRoot, candidateRoot) : await withMainCheckout(root, source, sourceRoot => inspect(mainRoot, sourceRoot))
       : await withMainCheckout(root, cutBase, baseRoot => withMainCheckout(root, source, sourceRoot => inspect(baseRoot, sourceRoot)));
-    if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
-    refuse([...result.problems, ...cuts.problems]);
     unchangedSnapshot(mainRoot, acceptedMain);
     unchangedSnapshot(candidateRoot, commit);
+    observations.commit();
+    if (cuts?.unavailable) throw new Refused('CELLS_SUBMIT', cuts.unavailable);
+    refuse([...result.problems, ...cuts.problems]);
     return { ...result, existingCuts: cuts.existingCuts, acceptedMain, cutBase, commit, source };
   }));
   if (result?.unavailable) throw new Refused('CELLS_SUBMIT', result.unavailable);
+  if (receiptKey && !samePreloads()) throw new Refused('CELLS_SUBMIT', 'Node preload changed during cell analysis; restore it and retry');
+  if (receiptKey && receiptDigest(services.readCutItems?.(acceptedMain, root)) === receiptDigest(cutRows)) writeCheckReceipt(root, receiptKey, { result });
   return result;
 }

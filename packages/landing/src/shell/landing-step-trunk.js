@@ -1,3 +1,4 @@
+import { hasTestTiers } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
 import { runnerExecutionServices } from '../../../../src/runners.js';
@@ -42,6 +43,7 @@ async function quickGuards(state, label = 'local-trunk') {
  * A red sends back each item whose own deferred selection holds a failing file, the way a red submit would.
  */
 async function deferredGuards(state) {
+  if (hasTestTiers(state.batch.root)) return; // The batch gate and its bisection own journey failures.
   return runDeferredGuards(state, { deferredSelections, landingFailures, save, returnCulprits });
 }
 
@@ -82,7 +84,7 @@ export async function landOnTrunk(state) {
     }
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
-    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked' });
+    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }] });
     state.say(`nothing landed: ${error.message}`);
     return;
   }

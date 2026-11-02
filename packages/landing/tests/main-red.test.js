@@ -431,9 +431,7 @@ test('an inherited red reads native spec reporter failure locations [V1]', t => 
   put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
   commit(submitter.root, box.env, 'test(core): select spec-reported red [G2]');
   const before = runCount(box);
-  const unexplained = submitter.run('submit', String(submitItem));
-  assert.match(unexplained.err, /\[INFRA_NOTE_REQUIRED\]/u, 'test edits need an explanation before any inherited-red comparison');
-  const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise native spec failure reporting');
+  const red = submitter.run('submit', String(submitItem));
   inheritedMessage(red, { row: 'G1', item: rework });
   const refusedItem = JSON.parse(submitter.run('show', String(submitItem), '--json').out);
   assert.equal(refusedItem.thread.some(entry => entry.kind === 'submit'), false, 'a red gate records no successful submit or infra note');
@@ -495,9 +493,9 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
       { title: 'Middle milestone work', specId: 'G4' },
     ]);
     assert.ok(rework && submitItem && earlier && middle);
-    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Early', '--items', String(earlier)).code, 0);
-    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Middle', '--items', String(middle)).code, 0);
-    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Later', '--items', String(rework)).code, 0);
+    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Early', '--reason', 'Arrange fixture release', '--items', String(earlier)).code, 0);
+    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Middle', '--reason', 'Arrange fixture release', '--items', String(middle)).code, 0);
+    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Later', '--reason', 'Arrange fixture release', '--items', String(rework)).code, 0);
 
     const withoutEvidence = builder(box);
     const ordinary = withoutEvidence.run('next', '--json');
@@ -576,8 +574,8 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
     const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to check ambiguous inherited row ownership');
     inheritedMessage(red);
     assert.doesNotMatch(red.err, new RegExp(`#${first}|#${second}`, 'u'));
-    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Early', '--items', String(earlier)).code, 0);
-    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Later', '--items', `${first},${second}`).code, 0);
+    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Early', '--reason', 'Arrange fixture release', '--items', String(earlier)).code, 0);
+    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Later', '--reason', 'Arrange fixture release', '--items', `${first},${second}`).code, 0);
     const next = builder(box).run('next', '--json');
     assert.equal(next.code, 0, next.err);
     assert.equal(JSON.parse(next.out).item.item_id, earlier, 'ambiguous rows leave next in its original milestone order');
@@ -597,8 +595,8 @@ test('an inherited red names the rework that owns it [V1]', async (t) => {
       { title: 'Earlier milestone work', specId: 'G3' },
       { title: 'Unrelated submit', specId: 'G2' },
     ]);
-    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Early', '--items', String(earlier)).code, 0);
-    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Later', '--items', `${first},${second}`).code, 0);
+    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Early', '--reason', 'Arrange fixture release', '--items', String(earlier)).code, 0);
+    assert.equal(cli(box.root, box.env, 'milestone', 'add', 'Later', '--reason', 'Arrange fixture release', '--items', `${first},${second}`).code, 0);
     const submitter = builder(box);
     assert.equal(submitter.run('claim', String(submitItem)).code, 0);
     put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);

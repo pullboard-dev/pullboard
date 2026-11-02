@@ -1,5 +1,5 @@
 /** Hand-written approval is visible without becoming a person's decision [S1,B26,P6]. */
-import { verifiedPasskeyRowDecision } from '../src/person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';

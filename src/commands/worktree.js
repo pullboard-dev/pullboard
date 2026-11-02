@@ -14,7 +14,7 @@ import {
 } from '../git.js';
 import {
   agentSessionDigest,
-} from '../person.js';
+} from '../../packages/person/index.js';
 import {
   noteHelperParent,
 } from '../../packages/seats/index.js';

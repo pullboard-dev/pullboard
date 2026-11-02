@@ -1,3 +1,4 @@
+import { requireTestTierAccount } from './test-tier-selection.js';
 import { runShellAsync } from './shell-run.js';
 import { gateStages } from './gate-stages.js';
 import { stagedScript } from './gate-stages.js';
@@ -211,6 +212,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   // Continuation only prevents early cancellation; the board-bound verdict is computed afterwards.
   const continuation = [...waivers, ...(landing ? gateLease?.quarantines ?? [] : []).map(row => ({ kind: 'case', test: row.name, file: row.file }))];
   const inherited = {
+    ...(gateLease?.testTiers ? { NODE_TEST_CONTEXT: undefined } : {}),
     [TIMING_RUN_ID_ENV]: id,
     ...(auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('../core/audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
     ...(gateLease && !gateLease.runner ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
@@ -343,16 +345,17 @@ export function runFrozenProof(root, item, { gateLease, waitMs = 0, diagnostic =
   const outcomeId = randomUUID();
   if (gateLease) gateLease.testOutcomeRunId = outcomeId;
   let result = checkAtCommit(root, item, { gateLease, waitMs });
+  if (result.testTiers) requireTestTierAccount(result, result.testTiers.units);
   const testOutcomes = result.executed && result.executionSourceUnchanged !== false
     ? committedTestOutcomes(root, item.item_commit, readTestOutcomes(result.outputPath ? logLines(result.outputPath) : result.output ?? '', outcomeId), tryGit) : null;
   if (testOutcomes) {
     result.testOutcomes = testOutcomes;
-    if (result.profilePath) result.profile = writeTimingProfile(result.profilePath, { ...result.profile, testOutcomes });
+    if (result.profilePath) result.profile = { ...writeTimingProfile(result.profilePath, { ...result.profile, testOutcomes }), profilePath: result.profilePath };
   }
   result = quarantineRunVerdict(result, gateLease?.quarantines, { root,
-    sourceClean: cleanProofSource(root, before, result, gateLease, true), privateCommand: frozenCheck(item), outcomeId,
+    sourceClean: cleanProofSource(root, before, result, gateLease, true), privateCommand: result.executionCommand ?? frozenCheck(item), outcomeId,
     source: { head: before.head, tree: before.tree } });
-  const id = result.executed ? leaveProofReceipt(root, frozenCheck(item), result, before, context, gateLease) : null;
+  const id = result.executed ? leaveProofReceipt(root, result.executionCommand ?? frozenCheck(item), result, before, context, gateLease) : null;
   return { ...result, ...(id ? { proofReceiptId: id } : {}) };
 }
 
@@ -469,6 +472,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
   }
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   return await (landing ? withLandingGateSlot : withGateSlot)(root, async (lease) => {
+    lease.testTiers = Boolean(config[VALUE_GATE]);
     lease.quarantines = quarantines;
     if (quarantines.length && proofContext) lease.proof = proofContext;
     pinRunMain(lease, onFailure);

@@ -113,7 +113,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
   submitFixture(box.board, first, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'fixture-tree' });
   store.verify(box.board, first, { agentId: 'web-2', decision: 'REJECT', reason: 'TEST_FAILURE',
     note: 'The upload test fails on an empty file', clause: 'A person uploads a file and sees it listed', head: 'a'.repeat(40), digest: 'digest:briefing', policy: 'any' });
-  addMilestone(box.board, { agentId: 'coordinator', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
+  addMilestone(box.board, { agentId: 'coordinator', reason: 'Arrange fixture release', name: 'First release', note: 'Uploads that work', items: [first, prerequisite] });
 
   const before = snapshot(box);
   const markdown = cli(box, 'digest');
@@ -156,7 +156,7 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
 
   const json = JSON.parse(cli(box, 'digest', '--json'));
   /** The briefing from its first section on; the header carries the time it was read. */
-  const body = (text) => text.slice(text.indexOf('## At a glance')).trimEnd();
+  const body = (text) => text.slice(text.indexOf('## At a glance')).replace(/\nnext: pullboard next --wait 1\s*$/u, '').trimEnd();
   assert.equal(body(json.markdown), body(markdown), 'the JSON result carries the same briefing');
   assert.deepEqual(json.sections.map((entry) => entry.title), ['Stuck and who moves it', 'Open work', 'Blocked work', 'In review', 'Recent decisions and answers',
     'Recent verdicts', 'Questions waiting on you', 'Latest shouts to the coordinator', 'Milestones', 'What the board caught, last 30 days', 'Unanswered Rigor drafts', 'Capacity forecast']);
@@ -174,7 +174,8 @@ test('the digest is a readable briefing of one board [A2,N26]', (t) => {
 
   for (let index = 0; index < 240; index += 1) add(box.board, `Large item ${index}`, { criterion: 'A long bar with wide text 世界. '.repeat(200) });
   const largeBefore = snapshot(box);
-  const large = cli(box, 'digest');
+  // The human CLI truncates long output; JSON carries the complete briefing to inspect its own limit.
+  const large = JSON.parse(cli(box, 'digest', '--json')).markdown;
   assert.deepEqual(snapshot(box), largeBefore);
   assert.ok(Buffer.byteLength(large) < DIGEST_MAX_BYTES, `UTF-8 bytes stay under 50 KB (${Buffer.byteLength(large)})`);
   assert.match(sectionOf(large, 'Open work'), /\n\d+ more left out to keep this briefing short\.\n/u);

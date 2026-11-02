@@ -209,10 +209,10 @@ test('CLI next and verify reject the original building session through its real 
 
 test('computed strict, required family, route and policy rules agree with native reservation and verdict [C7,V1,B13]', t => {
   for (const [itemOptions, agentId, code, policy] of [
-    [{ sensitive: true }, 'core-4', 'O2_FAMILY_MATCH', {}],
+    [{ sensitive: true }, 'core-4', 'SAME_FAMILY', {}],
     [{ reviewFamily: 'claude' }, 'core-4', 'REQUIRED_REVIEW_FAMILY', {}],
     [{}, 'core-2', 'COORDINATOR_VERIFIES', { policy: 'coordinator' }],
-    [{}, 'core-4', 'O2_FAMILY_MATCH', { familyPolicy: 'require' }],
+    [{}, 'core-4', 'SAME_FAMILY', { familyPolicy: 'require' }],
     [{}, 'core-8', 'ROUTE', {}],
   ]) {
     const f = fixture(t), id = f.add(itemOptions);

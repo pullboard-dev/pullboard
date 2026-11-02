@@ -31,7 +31,7 @@ import { VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 import {
   SEALED_SNAPSHOT_BYTES,
   SNAPSHOT_BODY_BYTES,
-} from '../src/relay-limits.js';
+} from '../packages/link/index.js';
 import {
   createRelayPagesHandler,
   snapshotPageRoot,

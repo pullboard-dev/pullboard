@@ -12,7 +12,7 @@ import { shellWord } from '../cli-context.js';
 import { uncommittedSetup } from '../cli-context.js';
 import { CONFIG_FILE } from '../../packages/config/index.js';
 import { loadConfig } from '../../packages/config/index.js';
-import { onlyNamedBoardChanged } from '../relay-board-config.js';
+import { onlyNamedBoardChanged } from '../../packages/link/index.js';
 import { differFromHead } from '../git.js';
 import { headCommit } from '../git.js';
 import { mainCheckout } from '../git.js';

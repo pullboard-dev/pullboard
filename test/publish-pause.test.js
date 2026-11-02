@@ -23,7 +23,7 @@ import { test } from 'node:test';
 test('publish contract', () => assert.equal(existsSync(process.env.PUBLISH_PAUSE_RED_INPUT), false));
 `);
   const config = JSON.parse(readFileSync(join(repo, 'pullboard.json'), 'utf8'));
-  config.landing = { publish: 'separate', ...(enabled ? { pauseOnRed: true } : {}) };
+  config.landing = { ...config.landing, manualOverride: true, publish: 'separate', ...(enabled ? { pauseOnRed: true } : {}) };
   writeFileSync(join(repo, 'pullboard.json'), JSON.stringify(config));
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-qm', 'test: add publish contract');

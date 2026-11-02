@@ -1,6 +1,7 @@
 import { requireExitActive } from "../core/exit-rules-state.js";
 /** The native command prepares external work before its final ordered writer [B2,C7]. */
 import * as store from "./board.js";
+import { measureBoardWritePhase } from './board-write-lock.js';
 import { requireHandoffActive } from "../../../state/src/core/handoff-state.js";
 import { requireAgentGrant } from "../../../state/index.js";
 import { ENGINE_VERSION } from "../../../../src/engine-metadata.js";
@@ -31,10 +32,10 @@ export function writeBoardCommand(board, operation, args, actor) {
     const prepared = prepare ? [args[0], prepare(board, args[0], args[1])] : args;
     try {
       return store.atomic(board, () => {
-        requireHandoffActive(board, actor, operation, prepared);
-        requireExitActive(board, actor, operation, prepared);
-        requireAgentGrant(board, { operation, args: prepared, engine: ENGINE_VERSION });
-        return board.enginePorts.store[operation](board, ...prepared);
+        measureBoardWritePhase(board.db, 'handoff-guard', () => requireHandoffActive(board, actor, operation, prepared));
+        measureBoardWritePhase(board.db, 'exit-guard', () => requireExitActive(board, actor, operation, prepared));
+        measureBoardWritePhase(board.db, 'agent-grant', () => requireAgentGrant(board, { operation, args: prepared, engine: ENGINE_VERSION }));
+        return measureBoardWritePhase(board.db, 'native-move', () => board.enginePorts.store[operation](board, ...prepared));
       });
     } catch (error) {
       if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw error;

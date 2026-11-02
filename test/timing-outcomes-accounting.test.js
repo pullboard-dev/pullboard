@@ -7,8 +7,8 @@ import {
   timingAccountingStages,
 } from '../src/run-timing.js';
 import { formatTestOutcomes } from '../src/test-outcomes.js';
-import { tapFailures } from '../src/landing-step-failures.js';
-import { accountedFailures } from '../src/landing-step-failures.js';
+import { tapFailures } from '../packages/landing/index.js';
+import { accountedFailures } from '../packages/landing/index.js';
 
 const id = '12345678-1234-1234-1234-123456789abc';
 const foreign = '87654321-1234-1234-1234-123456789abc';

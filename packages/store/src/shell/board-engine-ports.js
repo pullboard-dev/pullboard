@@ -2,6 +2,7 @@ import { Refused } from "../../../kernel/index.js";
 
 /** Compose the store's explicit runtime ports for deterministic state execution [C7,H16]. */
 import * as rawStore from "./board.js";
+import { measureBoardWritePhase } from './board-write-lock.js';
 import { withSeatPresence } from "./seat-presence.js";
 
 import { boundProofReceipt } from "./proof-receipts.js";
@@ -48,7 +49,7 @@ export function boardEnginePorts(providers) {
     relayPerson, requestPerson, validPresence,
     openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone
   } = providers;
-  const store = Object.freeze({ ...rawStore, recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone });
+  const store = Object.freeze({ ...rawStore, measureBoardWritePhase, recordTrainLanding, advanceItemSource, proposeSentinel, decideSentinel, beginSentinelRun, finishSentinelRun, flakeLedger, recordFlakeObservation, flakeQuarantines, gateRuns, recordGateRun, personProposals, personSigning, proposePersonMove, setPersonSigning, recordPublishFinding, landingWaivers, landingWaiverFor, waivedLandingProof, openBoard, openBoardForRead, draftSpecRow, decideSpecRevisions, recordRowVerification, addMilestone, editMilestone, editMilestoneItems, orderMilestoneItems, moveMilestone, removeMilestone, roadmap, shipMilestone });
   const { personAuthority, relayMoveActor, relaySenderProblem, validRelaySender, credentialActor } =
     relaySenderPolicy({ declaredMoveActor, validPresence });
   return Object.freeze({ sandboxPolicyReads: providers.sandboxPolicyReads, store, withSeatPresence, submitHandoffEngines, pipelineCauseEngines, firstRefusalDetail, itemPatchDigest, recordFamilyDeclareActivation, withDerivedFamily, registry: MOVE_REGISTRY, operations: MOVE_OPERATIONS,

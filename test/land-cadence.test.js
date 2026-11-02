@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { configFromSource } from '../packages/config/index.js';
-import { cadenceDeferral, landingCadenceStatus } from '../src/landing-cadence.js';
+import { cadenceDeferral, landingCadenceStatus } from '../packages/landing/index.js';
 import { acceptedVerdict } from '../packages/verify/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { json, onBoard } from './land-board-fixture.js';
@@ -40,7 +40,7 @@ function project() {
 function configure(box, cadence) {
   const path = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(path, 'utf8'));
-  writeFileSync(path, JSON.stringify({ ...config, landing: { cadence } }, null, 2));
+  writeFileSync(path, JSON.stringify({ ...config, landing: { ...config.landing, manualOverride: true, cadence } }, null, 2));
   commit(box, box.repo, 'chore: opt into queue landing cadence');
 }
 

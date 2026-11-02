@@ -39,19 +39,19 @@ export function functionsIn(source) {
 export const MACHINE_CALLBACKS = {
   'board-claim.js': { freeze: 'cli.js#freezer', foreignBlockers: 'board.js#foreignBlockers' },
   'board-refreeze.js': { freeze: 'cli.js#freezer' },
-  'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict' },
+  'board-verify.js': { 'board.nativePorts.landingEnvironment.requireVerdict': '../packages/landing/src/core/landing-environment-guards.js#requireVerdict' },
   'board-reopen.js': {
     'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
-    'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
+    'board.nativePorts.conflictValue': '../packages/landing/src/shell/computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
   },
   'board-record-landing-batch.js': {
-    'board.nativePorts.landingEnvironment.requireBatch': 'landing-environment-guards.js#requireBatch',
-    'board.nativePorts.landingEnvironment.requireRevision': 'landing-environment-guards.js#requireRevision',
+    'board.nativePorts.landingEnvironment.requireBatch': '../packages/landing/src/core/landing-environment-guards.js#requireBatch',
+    'board.nativePorts.landingEnvironment.requireRevision': '../packages/landing/src/core/landing-environment-guards.js#requireRevision',
   },
   'board-finish-landing-batch.js': {
-    'board.nativePorts.landingEnvironment.requireTrunk': 'landing-environment-guards.js#requireTrunk',
-    'board.nativePorts.landingEnvironment.requireStoredBatch': 'landing-environment-guards.js#requireStoredBatch',
+    'board.nativePorts.landingEnvironment.requireTrunk': '../packages/landing/src/core/landing-environment-guards.js#requireTrunk',
+    'board.nativePorts.landingEnvironment.requireStoredBatch': '../packages/landing/src/core/landing-environment-guards.js#requireStoredBatch',
   },
   // Real higher command roots bind runnerExecutionServices; admission snapshots these functions onto the lease.
   'gate-execution.js': {
@@ -61,7 +61,7 @@ export const MACHINE_CALLBACKS = {
   // Explicit item ports preserve these canonical authority and sandbox refusal paths.
   'reopen-authority.js': {
     verdictWithdrawalTarget: '../packages/verify/src/shell/verdict-withdrawal.js#verdictWithdrawalTarget',
-    computedConflictProblem: 'computed-conflict-receipt.js#computedConflictProblem',
+    computedConflictProblem: '../packages/landing/src/shell/computed-conflict-receipt.js#computedConflictProblem',
   },
   '../packages/verify/src/shell/reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
   'board-health.js': {
@@ -85,16 +85,16 @@ export const MACHINE_CALLBACKS = {
   'board.js': {
     freeze: 'cli.js#freezer',
     'board.nativePorts.sealSourceAdvanceReturn': '../packages/sandbox/src/shell/source-advance-origin.js#sealSourceAdvanceReturn',
-    'board.nativePorts.conflictValue': 'computed-conflict-receipt.js#conflictValue',
+    'board.nativePorts.conflictValue': '../packages/landing/src/shell/computed-conflict-receipt.js#conflictValue',
     'board.nativePorts.deriveRigorCause': '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause',
     'board.nativePorts.recordAutomaticRigorDrafts': '../packages/rigor/src/shell/rigor-auto.js#recordAutomaticRigorDrafts',
     'board.nativePorts.newRigorNotices': '../packages/rigor/src/core/rigor-notices.js#newRigorNotices',
     'board.nativePorts.rigorNoticeText': '../packages/rigor/src/core/rigor-notices.js#rigorNoticeText',
-    'board.nativePorts.landingEnvironment.requireVerdict': 'landing-environment-guards.js#requireVerdict',
-    'board.nativePorts.landingEnvironment.requireBatch': 'landing-environment-guards.js#requireBatch',
-    'board.nativePorts.landingEnvironment.requireRevision': 'landing-environment-guards.js#requireRevision',
-    'board.nativePorts.landingEnvironment.requireTrunk': 'landing-environment-guards.js#requireTrunk',
-    'board.nativePorts.landingEnvironment.requireStoredBatch': 'landing-environment-guards.js#requireStoredBatch',
+    'board.nativePorts.landingEnvironment.requireVerdict': '../packages/landing/src/core/landing-environment-guards.js#requireVerdict',
+    'board.nativePorts.landingEnvironment.requireBatch': '../packages/landing/src/core/landing-environment-guards.js#requireBatch',
+    'board.nativePorts.landingEnvironment.requireRevision': '../packages/landing/src/core/landing-environment-guards.js#requireRevision',
+    'board.nativePorts.landingEnvironment.requireTrunk': '../packages/landing/src/core/landing-environment-guards.js#requireTrunk',
+    'board.nativePorts.landingEnvironment.requireStoredBatch': '../packages/landing/src/core/landing-environment-guards.js#requireStoredBatch',
   },
   '../packages/seats/src/core/line-capacity-board.js': {
     nextFor: 'board.js#nextFor',
@@ -184,4 +184,48 @@ export function assertGitFacadeAudit(codeWalk, fromDisk, editedSource) {
     "$&\n  throw new Refused('GIT_PACKAGE_PROBE', 'planted Git body refusal');");
   assert.ok(codeWalk(planted).refusalsOf(entry).has('GIT_PACKAGE_PROBE'),
     'a Git compatibility shim cannot hide a new refusal in its actual implementation');
+}
+
+/** Prove that only the exact caught landing effect is excluded from verification's refusal audit [B35,M1,M4]. */
+export function assertPostVerdictLandingAudit(editedSource, codeProblems, machine) {
+  const caught = editedSource('commands/land.js', /^export async function landAfterAcceptance\([^\n]+\) \{$/m,
+    "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(machine, caught), [], 'only the exact call after the committed verdict is caught');
+  const uncaught = editedSource('commands/verify.js', /^export async function verifyHere\(ctx, id, \{ second, values \}\) \{$/m,
+    "$&\n  throw new Refused('MOON_PHASE', 'wait for the full moon');");
+  assert.deepEqual(codeProblems(machine, uncaught), ['MOON_PHASE is raised by accept and reject but not declared there'], 'a real verification refusal remains audited');
+}
+
+/** Exact relocated provider identities for the existing caller-specific audit metadata. */
+const SOURCE_AUDIT_IDENTITIES = {
+  "../packages/link/src/shell/relay.js": "relay.js",
+  "../packages/gate/src/shell/gate-execution.js": "gate-execution.js",
+  "../packages/gate/src/shell/gate-submit.js": "gate-submit.js",
+  "../packages/gate/src/shell/gate.js": "gate.js",
+  "../packages/store/src/core/exit-rules-continuation.js": "exit-rules-continuation.js",
+  "../packages/store/src/shell/board-access.js": "board-access.js",
+  "../packages/store/src/shell/board-health.js": "board-health.js",
+  "../packages/store/src/core/board-link-state.js": "board-link-state.js",
+  "../packages/store/src/shell/board-query.js": "board-query.js",
+  "../packages/store/src/shell/board-read-open.js": "board-read-open.js",
+  "../packages/store/src/shell/board.js": "board.js",
+  "../packages/store/src/shell/proof-receipts.js": "proof-receipts.js",
+  "../packages/store/src/shell/board-store.js": "board-store.js",
+  "../packages/store/src/core/board-rigor-auto-source.js": "board-rigor-auto-source.js",
+  "../packages/store/src/core/board-rigor-source.js": "board-rigor-source.js",
+  "../packages/store/src/core/board-rigor.js": "board-rigor.js",
+  "../packages/store/src/shell/board-claim.js": "board-claim.js",
+  "../packages/store/src/shell/board-finish-landing-batch.js": "board-finish-landing-batch.js",
+  "../packages/store/src/shell/board-next-for.js": "board-next-for.js",
+  "../packages/store/src/shell/board-record-landing-batch.js": "board-record-landing-batch.js",
+  "../packages/store/src/shell/board-refreeze.js": "board-refreeze.js",
+  "../packages/store/src/shell/board-reopen.js": "board-reopen.js",
+  "../packages/store/src/shell/board-verify.js": "board-verify.js"
+};
+
+/** Compare physical aliases without changing function names or expanding any caught boundary. */
+export function auditKey(key) {
+  const [file, name] = key.split('#');
+  const physical = posix.relative('src', posix.normalize(posix.join('src', file)));
+  return `${SOURCE_AUDIT_IDENTITIES[physical] ?? physical}#${name}`;
 }

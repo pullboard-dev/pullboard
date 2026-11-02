@@ -8,9 +8,9 @@ import {
 } from '../cli.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { laneNames } from '../../packages/seats/index.js';
-import { relayLinked } from '../relay.js';
-import { relayMachineContext } from '../relay.js';
-import { relayOperation } from '../relay.js';
+import { relayLinked } from '../../packages/link/index.js';
+import { relayMachineContext } from '../../packages/link/index.js';
+import { relayOperation } from '../../packages/link/index.js';
 
 /** The takeCoordinator a session already sent while taking this checkout over, by command invocation. */
 const TAKEN = new WeakMap();

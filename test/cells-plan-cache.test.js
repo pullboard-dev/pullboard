@@ -1,7 +1,9 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The cells checks replay a saved answer for an unchanged commit, tree and diff, and miss on any change [C7]. */
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -75,4 +77,39 @@ test('with the setting off the check always runs and nothing is saved [C7]', t =
 test('the cache setting is off by default and described [C7]', () => {
   const config = spawnSync(process.execPath, ['-e', "import('./src/config.js').then(m => console.log(JSON.stringify(m.defaults().cells)))"], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(config.stdout.trim(), '{"cache":false}');
+});
+
+
+test('clean lint receipts survive a same-tree commit and another worktree [V4,C7]', t => {
+  const { root } = fixture(t), counter = { n: 0 };
+  run(root, ['cell-lints', '--check'], 0, counter);
+  git(root, 'commit', '--allow-empty', '-q', '-m', 'same tree');
+  const repeated = run(root, ['cell-lints', '--check'], 0, counter);
+  assert.equal(counter.n, 1, 'a new commit with the same tree reuses lint');
+  assert.match(repeated.error.join('\n'), /lint check reused receipt/u);
+  const landing = `${root}-landing`;
+  t.after(() => rmSync(landing, { recursive: true, force: true }));
+  git(root, 'worktree', 'add', '-q', '--detach', landing, 'HEAD');
+  const landed = run(landing, ['cell-lints', '--check'], 0, counter);
+  assert.equal(counter.n, 1, 'landing reuses the submit lint receipt');
+  assert.match(landed.error.join('\n'), /lint check reused receipt/u);
+});
+
+
+test('lint checker entry modules and their transitive helpers invalidate receipts [V4,C7]', t => {
+  const { root } = fixture(t), counter = { n: 0 };
+  const entry = `${root}-checker.js`, helper = `${root}-helper.js`;
+  t.after(() => { rmSync(entry, { force: true }); rmSync(helper, { force: true }); });
+  writeFileSync(entry, `import ${JSON.stringify(helper)};\n`);
+  writeFileSync(helper, '// helper v1\n');
+  const options = { enabled: true, code: [entry] };
+  run(root, ['cell-lints', '--check'], 0, counter, options);
+  run(root, ['cell-lints', '--check'], 0, counter, options);
+  assert.equal(counter.n, 1, 'an unchanged checker runs once');
+  writeFileSync(helper, '// helper v2\n');
+  run(root, ['cell-lints', '--check'], 0, counter, options);
+  assert.equal(counter.n, 2, 'a transitive checker module misses both caches');
+  writeFileSync(entry, `import ${JSON.stringify(helper)}; // entry v2\n`);
+  run(root, ['cell-lints', '--check'], 0, counter, options);
+  assert.equal(counter.n, 3, 'a changed entry misses both caches');
 });

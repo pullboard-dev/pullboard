@@ -38,7 +38,7 @@ test('the Dashboard matches the 29 Oct walk at desktop and phone widths [N26]', 
   build(box, alpha, 1, 'dashboard-walk.txt');
   box.run(alpha.web, 'claim', '12');
   box.run(alpha.repo, 'hold', 'ops', '--reason', 'Waiting for the person');
-  box.run(alpha.repo, 'milestone', 'add', 'Dashboard walk', '--items', itemIds.join(','));
+  box.run(alpha.repo, 'milestone', 'add', 'Dashboard walk', '--reason', 'Arrange fixture release', '--items', itemIds.join(','));
   const summary = JSON.parse(box.run(alpha.repo, 'roadmap', '--json')).milestones
     .find(milestone => milestone.name === 'Dashboard walk')?.summary;
   assert.equal(summary?.held, 10, 'the real roadmap API supplies ten held items for the key alignment check');

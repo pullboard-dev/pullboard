@@ -68,7 +68,7 @@ test('sensitive and explicit family marks retain strict cross-vendor admission [
     store.editItem(f.board, id, { agentId: 'coordinator', ...mark });
     f.submit(id);
     assert.equal(itemReviewPolicy(f.board, id).tier, 'strict');
-    assert.throws(() => f.reserve(id, 'core-2'), { code: mark.reviewFamily ? 'REQUIRED_REVIEW_FAMILY' : 'O2_FAMILY_MATCH' });
+    assert.throws(() => f.reserve(id, 'core-2'), { code: mark.reviewFamily ? 'REQUIRED_REVIEW_FAMILY' : 'SAME_FAMILY' });
     assert.equal(f.reserve(id, 'core-3').item_review_by, 'core-3');
   }
 });

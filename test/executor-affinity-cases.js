@@ -77,7 +77,7 @@ test('a constrained landing refuses SSH affinity before invoking its action [E27
   const box = helpers.project('node --test');
   const file = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(file, 'utf8'));
-  config.landing = { environment: { platform: process.platform, arch: process.arch, node: process.versions.node } };
+  config.landing = { ...config.landing, manualOverride: true, environment: { platform: process.platform, arch: process.arch, node: process.versions.node } };
   writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: constrain private landing');

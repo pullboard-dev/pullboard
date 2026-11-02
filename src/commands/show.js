@@ -5,7 +5,7 @@ import { loadMachineSettings } from '../../packages/config/index.js';
 import { localUsage } from '../../packages/config/index.js';
 import { dollarText } from '../../packages/config/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
-import { verifiedPasskeyRowDecision } from '../person-row-proof.js';
+import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import { reviewEligibility } from '../../packages/verify/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 import {

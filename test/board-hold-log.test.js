@@ -26,20 +26,33 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
     import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
     import assert from 'node:assert/strict';
     import { boardHoldStats } from ${JSON.stringify(new URL('../src/board-hold-log.js', import.meta.url).href)};
+    import { measureBoardWritePhase } from ${JSON.stringify(new URL('../packages/store/src/shell/board-write-lock.js', import.meta.url).href)};
     assert.equal(boardHoldStats().available, false, 'a missing machine log is unmeasured, not healthy zero');
     assert.equal(boardHoldStats().count, null);
     // @pullboard-board-file locking: this real SQLite transaction measures the actual acquired/released boundary.
     const board = openBoard(process.argv[1], undefined, { writeContext: { command: 'fixture-hold', seat: 'web-1', item: 42 } });
     try {
-      atomic(board, () => atomic(board, () => {
+      atomic(board, () => measureBoardWritePhase(board.db, 'fixture-move', () => atomic(board, () => {
         // Wait is the subject: hold a real outer SQLite lock beyond the required one-second threshold.
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_200);
-      }));
+      })));
       board.writeContext.command = 'fixture-fast';
       atomic(board, () => {
         // The contrasting real hold stays below the threshold; no polling or product deadline is changed.
         Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
       });
+      board.writeContext.command = 'fixture-policy';
+      let attempts = 0;
+      board.prepareWritePolicy = () => ({
+        current() {
+          if (attempts++ > 0) return true;
+          // Exercise a slow policy admission after BEGIN, including the rolled-back retry.
+          Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1_200);
+          return false;
+        },
+        enter() {}, leave() {}, assertCurrent() {},
+      });
+      atomic(board, () => {});
     } finally { closeBoard(board); }
   `;
   const child = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, file], {
@@ -51,24 +64,35 @@ test('one 1.2-second outer hold is logged with its command, seat and item, while
   const holds = rows.filter(row => row.command === 'fixture-hold');
   assert.equal(holds.length, 1, 'a nested savepoint never double-counts the same outer hold');
   assert.deepEqual([holds[0].seat, holds[0].item, holds[0].outcome], ['web-1', 42, 'committed']);
+  assert.equal(holds[0].phase, 'fixture-move');
+  assert.ok(holds[0].phaseMs >= 1_200);
   assert.ok(holds[0].heldMs >= 1_200, 'the record measures the real held interval');
   assert.equal(rows.some(row => row.command === 'fixture-fast'), false);
-  assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'seat', 'version'],
+  const admission = rows.filter(row => row.command === 'fixture-policy');
+  assert.equal(admission.length, 1, 'a rejected slow admission is recorded even when a retry succeeds');
+  assert.equal(admission[0].outcome, 'rolled-back');
+  assert.equal(admission[0].phase, 'policy-admission');
+  assert.ok(admission[0].heldMs >= 1_200);
+  assert.deepEqual(Object.keys(holds[0]).sort(), ['at', 'command', 'heldMs', 'item', 'outcome', 'phase', 'phaseMs', 'seat', 'version'],
     'no SQL, notes, CLI arguments, session ids or board data are published');
   appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), 'null\n{}\n'
     + JSON.stringify({ version: 1, at: { toString: null }, heldMs: 1_200, command: 'invalid', seat: 'web-1' }) + '\n');
+  for (const heldMs of [1_100, 1_700, 2_300, 3_100]) appendFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'board-holds.jsonl'), JSON.stringify({ ...holds[0], command: 'sample', heldMs }) + '\n');
   const result = box.run(box.repo, 'stats', '--window', '24h', '--json');
   assert.equal(result.code, 0, result.err);
   const stats = JSON.parse(result.out).boardHolds;
   assert.equal(stats.invalidLines, 3, 'malformed diagnostic rows cannot crash a stats query or count as a hold');
+  assert.deepEqual(stats.commands.find(row => row.command === 'sample'), { command: 'sample', count: 4, totalMs: 8_200, slowestMs: 3_100, p50Ms: 2_000 });
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').count, 1);
   assert.equal(stats.commands.find(row => row.command === 'fixture-hold').slowestMs, holds[0].heldMs);
+  assert.equal(stats.commands.find(row => row.command === 'fixture-hold').totalMs, holds[0].heldMs);
+  assert.equal(stats.commands.find(row => row.command === 'fixture-hold').p50Ms, holds[0].heldMs);
   const narrow = box.run(box.repo, 'stats', '--since', new Date(Date.now() + 60_000).toISOString(), '--json');
   assert.notEqual(narrow.code, 0, 'invalid future windows do not quietly report an invented zero');
   const shown = box.run(box.repo, 'stats', '--window', '24h');
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /board write holds >1s:/u);
-  assert.match(shown.out, /fixture-hold: 1 holds; slowest \d+ ms/u);
+  assert.match(shown.out, /fixture-hold: 1 holds; total \d+ ms; p50 \d+ ms; max \d+ ms/u);
 });
 
 test('a hold log append observes the actual SQLite writer already released after commit and rollback [B2,C7,P4]', () => {

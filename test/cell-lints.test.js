@@ -5,6 +5,7 @@ import { commonJsIn } from '../src/module-imports.js';
 import { runFixtureGit } from './fixture-child.js';
 /** Private real-file fixtures prove falling cell debt without moving any repository source [C7,CD64]. */
 import assert from 'node:assert/strict';
+import { appendFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { copyPackageFiles, packageFiles } from '../src/package-files.js';
 import { mkdirSync } from 'node:fs';
@@ -670,11 +671,9 @@ test('discovered command reach requires the exact kernel front door and discover
     file === 'src/commands/index.js' || file === 'packages/kernel/index.js' || file.startsWith('packages/kernel/src/')) });
   box.put('apps/demo/index.js', "import { COMMANDS } from '../../src/commands/index.js'; COMMANDS.next();\n");
   box.put('src/commands/next.js', 'export function run() {}\n');
-  const index = readFileSync(join(box.root, 'packages/kernel/index.js'), 'utf8');
-  const discovery = readFileSync(join(box.root, 'packages/kernel/src/core/discovery.js'), 'utf8');
-  box.put('packages/kernel/index.js', index + '\n// changed provider\n');
+  appendFileSync(join(box.root, 'packages/kernel/index.js'), '\n// changed provider\n');
   assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'src/commands/next.js'));
-  box.put('packages/kernel/index.js', index);
-  box.put('packages/kernel/src/core/discovery.js', discovery + '\n// changed discovery\n');
+  copyPackageFiles(source, box.root, { files: ['packages/kernel/index.js'] });
+  appendFileSync(join(box.root, 'packages/kernel/src/core/discovery.js'), '\n// changed discovery\n');
   assert.ok(box.report().metrics.unreachable.findings.some(row => row.key === 'src/commands/next.js'));
 });

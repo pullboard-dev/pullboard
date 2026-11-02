@@ -19,7 +19,7 @@ import {
 } from '../../packages/kernel/index.js';
 import {
   relayLinked,
-} from '../relay.js';
+} from '../../packages/link/index.js';
 import * as store from '../board.js';
 import { projectBoardIdentity } from '../../packages/seats/index.js';
 import { registerProject } from '../../packages/seats/index.js';

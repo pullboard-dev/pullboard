@@ -14,7 +14,7 @@ import {
 import { mappedWorkingSource } from '../bin/checks/scan.js';
 import { boardWriteHolderText } from '../packages/store/index.js';
 import { exportBoard } from '../packages/store/index.js';
-import { beginCommandPhase } from '../src/command-phase.js';
+import { beginCommandPhase } from '../packages/link/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 
