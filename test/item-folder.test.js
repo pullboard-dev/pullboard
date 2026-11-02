@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 
-test('claim opens a folder; release removes a clean folder and the next claim reuses its branch', t => {
+test('[B5,C7] claim opens a folder; release removes a clean folder and the next claim reuses its branch', t => {
   const helpers = createE2eHelpers();
   t.after(() => helpers.cleanup());
   const box = helpers.project('true');
