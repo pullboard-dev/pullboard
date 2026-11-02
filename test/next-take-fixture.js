@@ -21,7 +21,7 @@ import {
   appliedSequence,
   prepareEngineMove,
 } from '../packages/state/index.js';
-import { scanHealthSentinel } from '../src/health-sentinel.js';
+import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
 import { machineSettingsFile } from '../packages/config/index.js';
 import { submitFixture } from './board-submit-fixture.js';
