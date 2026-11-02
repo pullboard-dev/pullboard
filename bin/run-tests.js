@@ -16,7 +16,7 @@ import {
 import { after, afterEach, beforeEach } from 'node:test';
 import { Worker } from 'node:worker_threads';
 import { randomUUID } from 'node:crypto';
-import { installFileWatchdog } from '../packages/runners/index.js';
+import { installFileWatchdog } from '../packages/verify/index.js';
 import { channel } from 'node:diagnostics_channel';
 import {
   selectedTestResult,
