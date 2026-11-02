@@ -4,6 +4,9 @@ import * as store from '../src/board.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { setLineSetting } from '../src/board-line-settings.js';
 import { boardFixture, submitted, HOUR, FREEZE } from './next-order-fixture.js';
+import { crossLaneFixture } from './e2e-helpers.js';
+import { openBoard } from '../src/native-board.js';
+import { join } from 'node:path';
 
 function setup(t) {
   const { board, builder, reviewer } = boardFixture();
@@ -83,4 +86,24 @@ test('overflow checks focused builds and reviews together [B26,C7]', t => {
   assert.equal(store.nextFor(board, { agentId: actor, lane: 'core', verify: true }).item.item_id, focusedReview);
   store.reserveReview(board, focusedReview, { agentId: actor, lane: 'core', leaseMs: HOUR, policy: 'any' });
   assert.equal(store.getItem(board, laterBuild).item_status, 'open');
+});
+
+test('milestone focus records the one-line idle observation and clearing restores ordering [B26,C7]', t => {
+  const box = crossLaneFixture(t);
+  const actor = box.seat('focus-owner', 'web', box.session);
+  const peer = box.seat('focus-peer', 'web', 'focus-peer');
+  const later = box.add('web', 'Later');
+  const focused = box.add('web', 'Focused');
+  box.milestone('0.9.3', focused);
+  box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--json'));
+  box.json(box.runAs('focus-peer', peer.root, 'claim', String(focused), '--json'));
+  const idle = box.runAs(box.session, actor.root, 'next', '--build');
+  assert.equal(idle.code, 0, idle.err);
+  assert.deepEqual(idle.out.trim().split('\n'), ['0.9.3 is in focus; nothing is free for you; overflow is off.']);
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  try {
+    assert.ok(store.events(board).some(event => event.event_kind === 'next-idle' && JSON.parse(event.event_detail).reason === 'focus'));
+  } finally { store.closeBoard(board); }
+  box.json(box.run(box.repo, 'milestone', 'focus', 'off', '--json'));
+  assert.equal(box.json(box.runAs(box.session, actor.root, 'next', '--build', '--json')).item.item_id, later);
 });
