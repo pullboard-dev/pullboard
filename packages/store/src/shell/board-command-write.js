@@ -29,8 +29,10 @@ export function writeBoardCommand(board, operation, args, actor) {
   // the writer lock; the prepared plan is then stale, so prepare again from the new board. Bounded so a
   // continuously changing board still reports BOARD_BUSY. This is why concurrent renewals all succeed.
   for (let attempt = 0; ; attempt++) {
-    const prepared = prepare ? [args[0], prepare(board, args[0], args[1])] : args;
+    let preparing = true;
     try {
+      const prepared = prepare ? [args[0], prepare(board, args[0], args[1])] : args;
+      preparing = false;
       return store.atomic(board, () => {
         measureBoardWritePhase(board.db, 'handoff-guard', () => requireHandoffActive(board, actor, operation, prepared));
         measureBoardWritePhase(board.db, 'exit-guard', () => requireExitActive(board, actor, operation, prepared));
@@ -38,6 +40,8 @@ export function writeBoardCommand(board, operation, args, actor) {
         return measureBoardWritePhase(board.db, 'native-move', () => board.enginePorts.store[operation](board, ...prepared));
       });
     } catch (error) {
+      // Claim preparation already owns its bounded retries; only queue sealing needs this outer retry.
+      if (preparing && operation !== 'queueSubmitHandoff') throw error;
       if (!prepare || !(error instanceof Refused) || error.code !== 'BOARD_BUSY' || attempt >= PREPARE_ATTEMPTS - 1) throw error;
     }
   }
