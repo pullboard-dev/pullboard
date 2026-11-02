@@ -4,6 +4,7 @@ import {
   readFileSync,
   writeFileSync,
   mkdirSync,
+  rmSync,
 } from 'node:fs';
 import {
   dirname,
@@ -75,6 +76,7 @@ export async function runSubmitHandoffWorker(requestFile, { nativeBoard }) {
     throw error;
   } finally {
     if (attached) jobGit(request.commonDir, ['worktree', 'remove', root]);
+    rmSync(join(directory, 'tools'), { recursive: true, force: true });
   }
 }
 

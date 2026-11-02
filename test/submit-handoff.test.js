@@ -1,8 +1,9 @@
 import { submitHandoffEventContract } from './generated-doc-handoff-fixture.js';
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { openBoard } from '../src/native-board.js';
@@ -150,6 +151,21 @@ test('queued submit returns before its gate and remains bound when the builder c
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, 'main');
   document(box.run(reviewer, 'join', 'api', '--json'));
   assert.equal(document(box.run(reviewer, 'next', '--verify', String(box.id), '--json')).item.item_id, box.id);
+});
+
+test('queued gate retains the tool build when the builder changes it [V4,H16,E18]', async t => {
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'builder-tools');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const result = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' });
+  assert.equal(JSON.parse(result).queued, true);
+  await box.helpers.waitFor(() => existsSync(box.started), 'captured gate begins', 120000);
+  writeFileSync(join(tools, 'src/submit-handoff-worker.js'), "throw new Error('changed builder tooling');\n");
+  writeFileSync(box.release, 'release\n');
+  await waitJob(box, 'green');
+  assert.equal(state(box, box.id).item.item_commit, box.commit);
 });
 
 /** Make a real later builder commit without replacing the queued source. */
