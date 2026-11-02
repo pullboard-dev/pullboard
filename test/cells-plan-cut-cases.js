@@ -14,6 +14,8 @@ import { runFixtureChild } from './fixture-child.js';
 import { importCuts } from '../packages/codemap/index.js';
 import { cutItemCommands } from '../packages/codemap/index.js';
 import { cutBrief } from '../packages/codemap/index.js';
+import { readPathMap } from '../packages/codemap/index.js';
+import { mappedPath } from '../packages/codemap/index.js';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { retiredProblems } from '../bin/cells-plan-cuts.js';
 import { writePlan } from '../bin/cells-plan.js';
@@ -97,18 +99,31 @@ export function installCutCases({ PLAN, BIN, fixture, git }) {
       for (const edge of group.edges) assert.ok(brief.includes(`[${edge.id}] ${edge.from} -> ${edge.to}`), edge.id);
     }
     const box = board(t);
-    // The real plan's process-entry claims must be checked against the actual entry source.
+    // Preserve the real aliases and mapped bodies, so entry claims inspect the same source as the real plan.
+    const map = readPathMap(join(import.meta.dirname, '..'));
+    const entryMap = {};
     for (const { path } of PLAN.entries ?? []) {
-      const destination = join(box.repo, path);
-      mkdirSync(join(destination, '..'), { recursive: true });
-      copyFileSync(new URL(`../${path}`, import.meta.url), destination);
+      const target = mappedPath(map, path);
+      if (target !== path) entryMap[path] = target;
+      for (const file of new Set([path, target])) {
+        const destination = join(box.repo, file);
+        mkdirSync(join(destination, '..'), { recursive: true });
+        copyFileSync(new URL(`../${file}`, import.meta.url), destination);
+      }
     }
+    writeFileSync(join(box.repo, 'path-map.json'), JSON.stringify(entryMap));
     writePlan(box.repo, PLAN);
     const dry = runFixtureChild(process.execPath, [BIN, '--file-cuts'], { cwd: box.repo, env: box.env, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
     assert.equal(dry.status, 0, dry.stdout + dry.stderr);
     assert.equal(dry.stdout.split('\n').filter(line => line.startsWith('pullboard ')).length, groups.length);
     for (const group of groups) for (const edge of group.edges) assert.equal(dry.stdout.split(`[${edge.id}]`).length - 1, 1, edge.id);
     assert.deepEqual(JSON.parse(box.run(box.repo, 'list', 'core', '--all', '--json').out).items, [], 'default mode leaves the real private board empty');
+    const missing = PLAN.entries.find(entry => entry.path.startsWith('bin/'));
+    const unplaced = structuredClone(PLAN);
+    unplaced.stays = unplaced.stays.filter(row => row.path !== missing.path);
+    for (const cell of unplaced.cells) cell.paths = cell.paths.filter(([from]) => from !== missing.path);
+    assert.throws(() => writePlan(box.repo, unplaced), error => error.code === 'CELLS_ENTRY' && error.message.includes(missing.path),
+      'an actual entry without file placement is still refused by name');
   });
 
   test('a cell with more cuts than one brief holds files with every edge, or a pointer, under the limit [C7,D3,CD64]', () => {
