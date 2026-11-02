@@ -92,16 +92,16 @@ test('two adjacent event windows report every hand-computed figure and absolute 
   const result = compareFlowWindows(before, { now: BASE + 120 * 60_000, windowMinutes: 60, complete: true });
   const previous = { since: at(0), until: at(60), landed: 2, observedSeats: 2, unmeasuredSeats: 0,
     agentHours: 2, idleHours: 72 / 60, idleShare: 72 / 120,
-    idleReasonHours: { 'nothing-eligible': 0, held: 25 / 60, 'review-family': 20 / 60, 'main-red': 0, unknown: 27 / 60 },
-    idleReasons: { 'nothing-eligible': 0, held: 25 / 120, 'review-family': 20 / 120, 'main-red': 0, unknown: 27 / 120 },
+    idleReasonHours: { 'nothing-eligible': 0, held: 25 / 60, 'review-family': 20 / 60, 'main-red': 0, focus: 0, unknown: 27 / 60 },
+    idleReasons: { 'nothing-eligible': 0, held: 25 / 120, 'review-family': 20 / 120, 'main-red': 0, focus: 0, unknown: 27 / 120 },
     agentHoursPerLanding: 1, stageHours: { build: 35 / 60, rework: 15 / 60, reviewWait: 30 / 60, review: 23 / 60, land: 16 / 60 },
     stageShares: { build: 35 / 119, rework: 15 / 119, reviewWait: 30 / 119, review: 23 / 119, land: 16 / 119 },
     unknownStageHours: 0, submissions: 3, submittedItems: 2, submitsPerItem: 1.5, rejections: 1,
     rejectRate: 1 / 3, coordinatorShouts: 4, shoutsPerLanding: 2 };
   const current = { since: at(60), until: at(120), landed: 1, observedSeats: 2, unmeasuredSeats: 0,
     agentHours: 2, idleHours: 90 / 60, idleShare: 90 / 120,
-    idleReasonHours: { 'nothing-eligible': 45 / 60, held: 15 / 60, 'review-family': 0, 'main-red': 30 / 60, unknown: 0 },
-    idleReasons: { 'nothing-eligible': 45 / 120, held: 15 / 120, 'review-family': 0, 'main-red': 30 / 120, unknown: 0 },
+    idleReasonHours: { 'nothing-eligible': 45 / 60, held: 15 / 60, 'review-family': 0, 'main-red': 30 / 60, focus: 0, unknown: 0 },
+    idleReasons: { 'nothing-eligible': 45 / 120, held: 15 / 120, 'review-family': 0, 'main-red': 30 / 120, focus: 0, unknown: 0 },
     agentHoursPerLanding: 2, stageHours: { build: 15 / 60, rework: 0, reviewWait: 15 / 60, review: 15 / 60, land: 15 / 60 },
     stageShares: { build: 1 / 4, rework: 0, reviewWait: 1 / 4, review: 1 / 4, land: 1 / 4 },
     unknownStageHours: 0, submissions: 1, submittedItems: 1, submitsPerItem: 1, rejections: 0,
@@ -130,7 +130,7 @@ test('absent historical reasons stay unknown and incomplete windows never preten
   assert.equal(result.previous.idleReasons.unknown, 72 / 120);
   assert.equal(result.current.idleReasons.unknown, 90 / 120);
   for (const window of [result.current, result.previous]) {
-    for (const reason of ['nothing-eligible', 'held', 'review-family', 'main-red']) assert.equal(window.idleReasons[reason], 0);
+    for (const reason of ['nothing-eligible', 'held', 'review-family', 'main-red', 'focus']) assert.equal(window.idleReasons[reason], 0);
   }
   assert.equal(compareFlowWindows(box.history(), { now: BASE + 120 * 60_000, windowMinutes: 60 }).available, false);
   const empty = compareFlowWindows([], { now: BASE + 120 * 60_000, windowMinutes: 60, complete: true });
