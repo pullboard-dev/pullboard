@@ -41,11 +41,10 @@ function cellMaps(root, cells) {
     return [cell, value];
   }));
 }
-/** Distinguish a new cell with no delta from removal of a previously accepted shard. */
-function acceptedShard(root, cell) {
-  const file = `${SHARD_DIRECTORY}/${cell}.json`;
-  const result = tryGit(root, ['ls-tree', 'HEAD', '--', file]);
-  return result.status === 0 && result.stdout.endsWith(`\t${file}`);
+/** Read accepted shard names once, even when many new cells lack a shard. */
+function acceptedShards(root) {
+  const result = tryGit(root, ['ls-tree', '-r', '--name-only', 'HEAD', '--', SHARD_DIRECTORY]);
+  return new Set(result.status === 0 ? result.stdout.split('\n').filter(Boolean) : []);
 }
 /** Assign a changed allowance to the moved path's cell, retaining disjoint shard ownership. */
 function allowanceCell(metric, key, maps) {
@@ -91,8 +90,10 @@ export function readCellLintCellBaseline(root, base) {
   const cells = cellLintCells(root);
   if (!cells.length) return base;
   const directory = join(root, SHARD_DIRECTORY), actual = existsSync(directory) ? readdirSync(directory).filter(name => name !== '.write-lock').sort() : [];
+  const missing = cells.filter(cell => !actual.includes(`${cell}.json`));
+  const accepted = missing.length ? acceptedShards(root) : new Set();
   if (actual.some(name => !cells.includes(name.slice(0, -5)) || !name.endsWith('.json'))
-    || cells.some(cell => !actual.includes(`${cell}.json`) && acceptedShard(root, cell))) throw new Refused('CELL_BASELINE', 'restore the complete accepted per-cell baseline shard set');
+    || missing.some(cell => accepted.has(`${SHARD_DIRECTORY}/${cell}.json`))) throw new Refused('CELL_BASELINE', 'restore the complete accepted per-cell baseline shard set');
   const baseSha256 = digest(readFileSync(join(root, DESCRIPTOR)));
   const baseline = { version: 1, metrics: Object.fromEntries(CELL_METRICS.map(metric => [metric, {
     count: base.metrics[metric].count,
