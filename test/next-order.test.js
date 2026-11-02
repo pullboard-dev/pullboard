@@ -24,9 +24,8 @@ import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { createHash } from 'node:crypto';
 
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
   const { board, builder } = boardFixture();
@@ -266,7 +265,7 @@ test('next in the main checkout names the lane worktree to join [N2,B26]', t => 
   assert.match(empty.next, /pullboard next --wait 9/u, 'a genuinely idle board retains its ordinary wait');
 });
 
-test('an agent exhausts ready own-lane work before pulling another lane [N2,B13]', (t) => {
+test('an agent exhausts ready own-lane work, then names another lane\'s item without claiming it [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'Cross-lane test', '--json'));
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
@@ -280,25 +279,27 @@ test('an agent exhausts ready own-lane work before pulling another lane [N2,B13]
   const own = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
   assert.equal(own.item.item_id, later, 'ready own-lane work precedes an earlier release in another lane');
   assert.equal(own.item.item_owner, web.agent);
+  assert.equal(own.seat, undefined, 'the claim stays with the seat that ran next');
   box.json(box.runAs(box.session, box.web, 'release', String(later), '--reason', 'BLOCKED', '--no-next', '--json'));
   box.json(box.run(box.repo, 'hold', String(later), '--reason', 'Own-lane work is intentionally blocked', '--json'));
-  const next = box.json(box.runAs(box.session, box.web, 'next', '--build', '--json'));
-  assert.equal(next.item.item_id, first, 'an idle lane falls back to the earlier eligible foreign release');
-  assert.equal(next.item.item_owner, api.agent, 'the claim belongs to the matching lane seat');
-  assert.deepEqual(next.seat, { agent: api.agent, lane: 'api', path: api.root, created: false });
-  assert.equal(next.review, false);
-  assert.equal(next.held, false);
+  const seats = () => box.json(box.run(box.repo, 'seats', '--json')).seats.map(row => row.seat).sort();
+  const before = seats();
+  const named = box.runAs(box.session, box.web, 'next', '--build', '--json');
+  assert.equal(named.code, 1, 'an idle lane claims nothing in another lane');
+  const message = JSON.parse(named.out).error.message;
+  assert.match(message, new RegExp(`#${first}\\b.*api lane`, 'u'), `next names the other lane's item and lane: ${message}`);
+  assert.equal(box.json(box.run(box.repo, 'show', String(first), '--json')).item_status, 'open', 'the named item stays unclaimed');
+  assert.deepEqual(seats(), before, 'no seat is created or borrowed');
   assert.deepEqual(box.binding(peer.root), peerBinding, 'another session’s seat is never borrowed or rebound');
-  const resumed = box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
-  assert.equal(resumed.item.item_id, first, 'next resumes the claim in the seat that holds it rather than starting a second item');
-  assert.equal(resumed.held, true);
-  assert.equal(resumed.seat.agent, api.agent);
+  const claimed = box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
+  assert.equal(claimed.item.item_id, first, 'the API seat claims the API item itself');
+  assert.equal(claimed.item.item_owner, api.agent);
   const sibling = box.runAs(box.session, box.web, 'next', '--build', '--json');
   assert.equal(sibling.code, 1, 'the idle sibling never resumes the API seat’s claim (#958)');
   box.json(box.run(box.repo, 'hold', String(later), '--off', '--json'));
   const wrongLane = box.runAs(box.session, api.root, 'claim', String(later), '--json');
   assert.equal(wrongLane.code, 1);
-  assert.equal(JSON.parse(wrongLane.out).error.code, 'WRONG_LANE', 'cross-lane routing does not widen a seat’s write authority');
+  assert.equal(JSON.parse(wrongLane.out).error.code, 'WRONG_LANE', 'a seat’s write authority stays its own lane');
   assert.notEqual(web.agent, api.agent);
 });
 
@@ -321,7 +322,7 @@ test('a seat that holds nothing is never told it holds another seat\'s claim [N2
   assert.equal(own.held, true);
 });
 
-test('next names the seat to open for a lane the agent lacks [N2,B13]', (t) => {
+test('next names the lane to open for work the agent lacks, and creates no seat [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const web = box.seat('owned-mid-web', 'web', box.session, 'mid');
   const peer = box.seat('peer-api', 'api', 'unrelated-session');
@@ -331,30 +332,22 @@ test('next names the seat to open for a lane the agent lacks [N2,B13]', (t) => {
   box.milestone('strong-only', tooStrong);
   box.milestone('first-eligible', first);
   const before = box.git(box.repo, 'worktree', 'list', '--porcelain');
+  const seatsBefore = box.json(box.run(box.repo, 'seats', '--json')).seats.map(row => row.seat).sort();
 
-  const next = box.json(box.runAs(box.session, web.root, 'next', '--build', '--json'));
-  assert.equal(next.item.item_id, first, 'the route still skips stronger work in an earlier milestone');
-  assert.equal(next.seat.lane, 'api');
-  assert.equal(next.seat.created, true);
-  assert.equal(next.item.item_owner, next.seat.agent);
-  assert.notEqual(next.seat.agent, peer.agent, 'a peer’s lane seat does not satisfy this session’s missing seat');
-  assert.equal(existsSync(next.seat.path), true, 'next actually opens the named seat');
-  assert.equal(before.includes(next.seat.path), false);
-  assert.equal(box.git(next.seat.path, 'rev-parse', 'HEAD'), box.git(box.repo, 'rev-parse', 'HEAD'), 'the new seat starts on the current trunk');
-  const who = box.json(box.runAs(box.session, next.seat.path, 'whoami', '--json'));
-  assert.equal(who.id, next.seat.agent);
-  assert.equal(who.lane, 'api');
-  assert.equal(who.model, 'Cross-lane test');
-  assert.equal(box.binding(next.seat.path).digest, createHash('sha256').update(JSON.stringify(['CLAUDE_CODE_SESSION_ID', box.session])).digest('hex'));
+  const next = box.runAs(box.session, web.root, 'next', '--build', '--json');
+  assert.equal(next.code, 1, next.out);
+  const error = JSON.parse(next.out).error;
+  assert.match(error.message, new RegExp(`#${first}\\b.*api lane`, 'u'), 'the route still skips stronger work and names the eligible item');
+  assert.match(error.message, /pullboard worktree api/u, 'and the command that opens a seat for that lane');
+  assert.equal(box.git(box.repo, 'worktree', 'list', '--porcelain'), before, 'next opens no worktree');
+  assert.deepEqual(box.json(box.run(box.repo, 'seats', '--json')).seats.map(row => row.seat).sort(), seatsBefore, 'and joins no seat');
   assert.deepEqual(box.binding(peer.root), peerBinding);
-  const later = box.add('web', 'Later mid web work', 'mid');
-  box.milestone('later', later);
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
-    assert.equal(store.getItem(board, tooStrong).item_status, 'open', 'the new mid seat never claims above its route');
-    assert.equal(store.getItem(board, later).item_status, 'open');
+    assert.equal(store.getItem(board, tooStrong).item_status, 'open');
+    assert.equal(store.getItem(board, first).item_status, 'open', 'the named item stays unclaimed');
   } finally { store.closeBoard(board); }
-  assert.equal(readFileSync(join(box.repo, '.git', 'pullboard', 'board.sqlite')).includes(Buffer.from(box.session)), false, 'raw session ids stay out of shared SQLite');
+  assert.ok(web.agent);
 });
 
 test('next follows the rank the coordinator set inside a milestone [N2,B13]', (t) => {
@@ -539,17 +532,13 @@ test('next in a fresh unbound checkout of a seated session claims nothing and na
   finally { store.closeBoard(board); }
 });
 
-test('a cross-checkout claim leads with its seat and other checkouts cannot act on it [N2,B13]', (t) => {
+test('a claim held in another checkout cannot be acted on from this one [N2,B13]', (t) => {
   const box = crossLaneFixture(t);
   const web = box.json(box.runAs(box.session, box.web, 'join', 'web', '--model', 'Cross-lane test', '--json'));
   const api = box.seat('owned-api', 'api', box.session);
   const first = box.add('api', 'Earlier API release');
   box.milestone('first', first);
-  const next = box.runAs(box.session, box.web, 'next', '--build');
-  assert.equal(next.code, 0, next.out + next.err);
-  const lines = next.out.trim().split('\n');
-  assert.match(lines[0], new RegExp(`^${api.agent} .*${api.root.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`, 'u'), `the output leads with the holding seat and its checkout: ${lines[0]}`);
-  assert.ok(lines.slice(0, 3).some((line) => line.includes(`cd '${api.root}'`) || line.includes(`cd ${api.root}`)), 'and the command to continue there');
+  box.json(box.runAs(box.session, api.root, 'next', '--build', '--json'));
   const later = box.add('web', 'Later web work');
   box.milestone('later', later);
   for (const args of [['check', String(first), '--yes'], ['submit', String(first)], ['release', String(first), '--reason', 'BLOCKED']]) {
