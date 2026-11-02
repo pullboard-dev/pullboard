@@ -78,14 +78,16 @@ test('taking over a dirty item folder archives its exact work before removal [B5
   assert.equal(existsSync(path), false);
   const shown = box.json(box.run(box.repo, 'show', String(id), '--json'));
   const note = shown.thread.find(row => row.type === 'fact' && row.text.startsWith('Archived prior item folder '));
-  assert.ok(note?.ref, 'the item retains a native recovery reference');
-  const manifest = JSON.parse(readFileSync(join(note.ref, 'manifest.json'), 'utf8'));
+  assert.ok(note, 'the item retains a native recovery note');
+  const recovery = JSON.parse(note.text.split('\nRecovery: ')[1]);
+  assert.ok(recovery.directory, 'the note locates the verified archive');
+  const manifest = JSON.parse(readFileSync(join(recovery.directory, 'manifest.json'), 'utf8'));
   assert.equal(manifest.head, head);
   assert.equal(box.git(box.repo, 'rev-parse', manifest.ref), head);
-  assert.match(readFileSync(join(note.ref, 'staged.patch'), 'utf8'), /staged item draft/u);
+  assert.match(readFileSync(join(recovery.directory, 'staged.patch'), 'utf8'), /staged item draft/u);
   const untracked = manifest.files.find(file => file.path === 'private-draft.txt');
   assert.ok(untracked, 'untracked draft bytes remain recoverable');
-  assert.equal(readFileSync(join(note.ref, 'blobs', untracked.sha256), 'utf8'), 'untracked item draft\n');
+  assert.equal(readFileSync(join(recovery.directory, 'blobs', untracked.sha256), 'utf8'), 'untracked item draft\n');
 });
 
 test('a still-held item folder is retained and the claim names its holder [B5,C7]', t => {
