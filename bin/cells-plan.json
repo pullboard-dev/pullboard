@@ -1166,6 +1166,10 @@
     {
       "path": "bin/guarded-docs-refresh.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/release-twice-hold-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
