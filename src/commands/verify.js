@@ -1,3 +1,5 @@
+import { submitGateConfig, submitGatePlan } from '../../packages/gate/index.js';
+import { reusableSubmitProof } from '../submit-proof-reuse.js';
 import { selectTestTiers } from '../../packages/gate/index.js';
 import { testTierProofFiles } from '../../packages/gate/index.js';
 import { testTierCommand } from '../../packages/gate/index.js';
@@ -82,6 +84,7 @@ import {
   dependencySnapshots,
   frozenCheck,
   itemPolicy,
+  policyAt,
   requireTrunkMerge,
   submissionPaths,
 } from '../../packages/sandbox/index.js';
@@ -205,19 +208,36 @@ export async function verifyHere(ctx, id, { second, values }) {
       let trunk = null;
       if (!admitted) ({ trunk, review } = composeNow());
       for (let attempt = 0; attempt < 2; attempt += 1) {
+        if (!trunk) ({ trunk, review } = composeNow());
         const checkedItem = { ...item, item_commit: checkedCommit };
         const testTiers = selectTestTiers(root, { base: item.item_claim_head, trunk: trunk?.commit, commit: checkedCommit, runner: ctx.config.affectedTests });
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;
         if (testTiers) ctx.io.say(testTierReport(testTiers));
-        if (frozenCheck(item) || supplement) {
+        let expectedPlan = null;
+        if (head === checkedCommit && isClean(root) && !untracked(root).length && !companionDigest && !item.item_effective_head) {
+          try {
+            const config = submitGateConfig(ctx.config, policyAt(root, trunk.commit).config);
+            const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: trunk.commit, commit: checkedCommit, check: frozenCheck(item) });
+            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand };
+          } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
+        }
+        const reused = expectedPlan ? reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
+          tree: item.item_tree, main: trunk.commit, check: expectedPlan.check, affectedTests: ctx.config.affectedTests ?? '',
+          gate: ctx.config.gate ?? '', supplement, expectedPlan }) : { reason: 'clean submit plan unavailable' };
+        if (reused.ids) {
+          ctx.io.say(`reused submit proof ${reused.ids.join(', ')}`);
+          check = { state: 'pass', checked: true, reused: true, executionNote: `\nreused submit proof ${reused.ids.join(', ')}` };
+        } else if (frozenCheck(item) || supplement) {
+          ctx.io.say(`submit proof not reused: ${reused.reason}`);
           const browser = !browserFreeChecksEnabled() || await checkNeedsBrowser(root, frozenCheck(item) || supplement, { commit: checkedCommit, onFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson) });
           const gui = await checkNeedsGui(root, frozenCheck(item) || supplement, { commit: checkedCommit });
           // Exact command classifiers still govern local and remote private-check admission [C7,V4].
           const shortEligible = Boolean(await explicitCheckFiles(root, frozenCheck(item) || supplement, { commit: checkedCommit }));
           check = await withGateSlot(root, async (lease) => { if (admitted && attempt === 0) ({ trunk, review } = composeNow()); const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease); return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran; }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
         } else {
+          ctx.io.say(`submit proof not reused: ${reused.reason}`);
           check = checkAtCommit(root, checkedItem);
         }
         invalidateGitFacts(); // A private check can outlive changes in the reviewer's live checkout.
@@ -226,7 +246,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         verificationQuarantine = check.blockingVerdict ? { rawExitCode: check.exitCode, proofReceiptId: check.proofReceiptId,
           coveredCases: check.blockingVerdict.quarantines.length, eventIds: check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId),
           omittedEvents: Math.max(0, check.blockingVerdict.quarantines.length - 8) } : null;
-        if (check.checked) verificationOutput = check.outputPath
+        if (check.checked && !check.reused) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
         const evidence = verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '';
@@ -236,7 +256,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
         const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
         // With verify.unrelatedTrunkMoves on, a move through commits that touch nothing this review read keeps its verdict (#928).
-        const judged = currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
+        const judged = check.reused || currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
           : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles });
         if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
           throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');

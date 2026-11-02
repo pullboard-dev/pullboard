@@ -1190,6 +1190,14 @@
     {
       "path": "bin/cells-test-placement.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/submit-proof-reuse-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/submit-proof-reuse.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
