@@ -14,9 +14,9 @@ import { put } from './submit-gate-fixture.js';
 import { commitAll } from './submit-gate-fixture.js';
 
 /** Seed a real public door, its private body and a tiny real gate under accepted ownership. */
-function fixture(t) {
+function fixture(t, gate = 'true') {
   const box = privateRepo(t);
-  const config = { gate: 'true', affectedTests: 'node --test', spec: 'SPEC.md', view: { background: false } };
+  const config = { gate, affectedTests: 'node --test', spec: 'SPEC.md', view: { background: false } };
   put(box.root, 'pullboard.json', JSON.stringify(config));
   put(box.root, 'packages/kernel/index.js', "export { one } from './src/core/value.js';\n");
   put(box.root, 'packages/kernel/core.js', "export { one } from './src/core/value.js';\n");
@@ -120,4 +120,33 @@ test('star-forwarded public names are checked while private body changes preserv
   const exposed = commitAll(box, 'feat(kernel): extend forwarded exports [G1]');
   assert.deepEqual(kernelGateChange(box.root, before, exposed).changes,
     [{ file: 'packages/kernel/index.js', names: ['three'] }]);
+});
+
+
+test('submit rechecks a person decline recorded while the real gate runs [C7]', t => {
+  const source = [
+    `import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};`,
+    `import * as store from ${JSON.stringify(new URL('../packages/store/index.js', import.meta.url).href)};`,
+    "const board = openBoard(process.env.KERNEL_BOARD, undefined, { isMain: true });",
+    "try { const lanes = ['coordinator', 'build'];",
+    "const ask = store.shout(board, { from: 'coordinator', to: 'person', text: 'Reconsider the Kernel contract', decision: true, lanes });",
+    "store.answerDecision(board, ask, { agentId: 'coordinator', text: process.env.KERNEL_DECLINE, lanes, asPerson: true, channel: 'view' });",
+    "} finally { store.closeBoard(board); }",
+  ].join('\n');
+  const command = "node --input-type=module -e '" + source.replaceAll("'", "'\\''") + "'";
+  const box = fixture(t, command);
+  put(box.root, 'packages/kernel/index.js', "export { one, two } from './src/core/value.js';\n");
+  const commit = commitAll(box, 'feat(kernel): expose two before reconsideration [G1]');
+  const change = kernelGateChange(box.root, box.base, commit);
+  answer(box, kernelApprovalText(1, change.digest));
+  box.env.KERNEL_BOARD = join(box.mainRoot, '.git/pullboard/board.sqlite');
+  box.env.KERNEL_DECLINE = kernelApprovalText(1, change.digest, false);
+  const result = box.run('submit', '1', '--no-next', '--json');
+  assert.equal(result.code, 1, result.out + result.err);
+  assert.equal(JSON.parse(result.out).error.code, 'KERNEL_EXPORT_APPROVAL');
+  boardFor(box, board => {
+    assert.equal(store.getItem(board, 1).item_status, 'claimed');
+    assert.ok(store.events(board).some(event => event.event_kind === 'answer'
+      && event.event_by === 'person' && JSON.parse(event.event_detail).shout));
+  });
 });
