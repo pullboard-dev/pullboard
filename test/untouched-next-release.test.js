@@ -25,7 +25,7 @@ test('matching pre-existing edits are untouched, but later content changes count
   const id = box.add('web', 'Existing worktree edits');
   const file = join(seat.root, 'already-dirty.txt');
   writeFileSync(file, 'before');
-  const take = () => box.json(box.runAs(box.session, seat.root, 'next', '--build', '--json'));
+  const take = () => box.json(box.runAs(box.session, seat.root, 'next', '--take', '--json'));
   const release = () => box.json(box.runAs(box.session, seat.root, 'release', String(id), '--reason', 'ROUTED_ELSEWHERE', '--note', 'Routed elsewhere.', '--no-next', '--json'));
   assert.equal(take().item.item_id, id); release();
   assert.equal(take().item.item_id, id); release();
@@ -33,6 +33,6 @@ test('matching pre-existing edits are untouched, but later content changes count
   writeFileSync(file, 'after'); release();
   assert.equal(take().item.item_id, id);
   writeFileSync(file, 'again'); release();
-  const held = box.runAs(box.session, seat.root, 'next', '--build', '--json');
+  const held = box.runAs(box.session, seat.root, 'next', '--take', '--json');
   assert.notEqual(held.code, 0, 'two changed releases hold the item');
 });
