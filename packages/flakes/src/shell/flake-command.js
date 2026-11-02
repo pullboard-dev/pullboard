@@ -4,7 +4,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { ciObservations } from "../../../../src/ci-flakes.js";
+import { ciObservations } from "../../../github/index.js";
 import { CONFIG_FILE } from "../../../config/index.js";
 import { COORDINATOR } from "../../../config/index.js";
 import { laneOf } from "../../../seats/index.js";

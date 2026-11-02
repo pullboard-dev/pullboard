@@ -58,7 +58,7 @@ test('a native companion patch is independently checked and lands the exact acce
   box.git(box.repo, 'config', 'user.name', 'Patch journey fixture');
   box.git(box.repo, 'config', 'user.email', 'patch-journey@example.invalid');
   // @pullboard-board-file journey: production CLI verification and landing share this durable board
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
   const observations = join(box.dir, 'frozen-observations.jsonl');
   const joinMarker = join(box.dir, 'main-arrived-once');

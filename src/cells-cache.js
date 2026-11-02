@@ -14,13 +14,13 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../packages/git/index.js';
 
 const KEEP = 60;
 
 /** Run git quietly in a directory; null when it fails, so an odd checkout simply misses the cache. */
 function git(root, args) {
-  const run = spawnSync('git', args, { cwd: root, encoding: 'buffer', maxBuffer: 1 << 28, env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_OPTIONAL_LOCKS: '0' } });
+  const run = gitSpawnSync(args, { cwd: root, encoding: 'buffer', maxBuffer: 1 << 28, env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), GIT_OPTIONAL_LOCKS: '0' } });
   return run.status === 0 ? run.stdout : null;
 }
 
