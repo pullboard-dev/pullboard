@@ -37,7 +37,9 @@ export function itemCollisionPlan(board, item, items, observations = new Map()) 
   for (const other of items) {
     if (other.item_id === item.item_id || !['claimed', 'submitted', 'verified'].includes(other.item_status)
       || other.item_status === 'verified' && other.item_merged_commit) continue;
-    const files = [...new Set([...itemFileCollisions(item, [other]), ...liveClaimCollisions(item, [other], observations)])];
+    const observed = liveClaimCollisions(item, [other], observations);
+    if (observed.length) { blockers.push(...observed); continue; }
+    const files = itemFileCollisions(item, [other]);
     const predicted = map ? compareItemFunctions(map, item, other) : null;
     if (!predicted?.known) { blockers.push(...files); continue; }
     if (predicted.shared.length) {
