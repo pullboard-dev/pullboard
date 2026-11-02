@@ -37,6 +37,6 @@ export function observeStaleWork(board, actor) {
       catch (error) { if (error.code !== 'ENOENT') throw error; stat = lstatSync(dirname(path)); }
       latest = Math.max(latest, stat.mtimeMs);
     }
-    return { available: true, at: new Date(latest).toISOString() };
+    return { available: true, at: new Date(latest).toISOString(), commitAt: new Date(Date.parse(commit.stdout.trim())).toISOString() };
   } catch { return { available: false, at: null }; }
 }
