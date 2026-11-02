@@ -62,10 +62,14 @@ export function shimLifecycle(root, { commit = 'HEAD', items = [] } = {}) {
     if (!source || !/^(?:export(?:\*|\{[^}]*\})from(?:''|"");?)+$/u.test(lex(source).code.replace(/\s/gu, ''))) continue;
     const cell = /^(?:packages|apps)\/([^/]+)\//u.exec(target)?.[1];
     if (!cell) continue;
+    // Cell-wide cuts name the cell in their title even when the criterion omits individual paths.
+    const cellName = new RegExp(`(?:^|[^a-z0-9_-])${cell.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?:$|[^a-z0-9_-])`, 'iu');
+    const matchesPath = item => `${item.item_title ?? ''}\n${item.item_criterion ?? ''}`.includes(path);
     const candidates = items.filter(item => /shim/iu.test(item.item_title ?? '')
       && /remov|delet|retir|\bcut\b|\bgo(?:es|ne)?\b/iu.test(item.item_title ?? '')
-      && `${item.item_title ?? ''}\n${item.item_criterion ?? ''}`.includes(path));
-    candidates.sort((a, b) => Number(['verified', 'withdrawn'].includes(a.item_status)) - Number(['verified', 'withdrawn'].includes(b.item_status)) || b.item_id - a.item_id);
+      && (matchesPath(item) || cellName.test(item.item_title ?? '')));
+    candidates.sort((a, b) => Number(['verified', 'withdrawn'].includes(a.item_status)) - Number(['verified', 'withdrawn'].includes(b.item_status))
+      || Number(matchesPath(b)) - Number(matchesPath(a)) || b.item_id - a.item_id);
     result.push({ path, cell, moveLandedAt: dates.get(path) ?? null,
       removalItem: candidates[0]?.item_id ?? null });
   }

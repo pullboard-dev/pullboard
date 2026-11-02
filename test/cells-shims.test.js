@@ -96,10 +96,11 @@ test('native health names an aged shim, its cell and the removal item at the con
   git(box.root, 'merge', '--no-ff', '-qm', 'land health shim fixture', commit);
   const landed = Date.parse(git(box.root, 'log', '-1', '--format=%cI').trim());
   const board = fixtureBoard(t);
-  const removal = addItem(board, { by: 'coordinator', lane: 'core', title: 'Remove the kernel shim', criterion: 'Delete src/refused.js through its front door.' });
+  const removal = addItem(board, { by: 'coordinator', lane: 'core', title: 'Cells shim removal: every importer of kernel uses its front door and the kernel shims are deleted', criterion: 'Delete the cell shims after repointing their importers.' });
   const observe = days => healthReport({ db: board.db, root: box.root,
     config: configFromSource(JSON.stringify({ ...defaults(), cells: { cache: false, shimMaxAgeDays: days } })),
     now: new Date(landed + 8 * 86_400_000), dispatchHealth });
+  addItem(board, { by: 'coordinator', lane: 'core', title: 'Remove kernel-extra shims', criterion: 'Delete the other cell shims.' });
   const report = observe(7);
   const finding = report.stuck.find(row => row.cause === 'CELL_SHIM_OVERDUE');
   assert.equal(finding?.subject, 'src/refused.js');
