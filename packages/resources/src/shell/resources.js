@@ -535,7 +535,7 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
     && waiters.some(other => other.landing === 1 && other.pid !== waiter.pid);
   /** Find a currently free compatible slot without reserving it for later queue entries. */
-  function available(waiter) {
+  function available(waiter, reserveFor) {
     if (blockedByLanding(waiter)) return null;
     /** Pick an eligible runner in durable round-robin order when the machine opts in. */
     function runnerSlot() {
@@ -576,6 +576,12 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
           selected = [...compatible].sort((a, b) => usage.get(a.host).slots - usage.get(b.host).slots)[0];
           dispatch = { reason: measured.length === compatible.length ? 'all compatible runners at or above CPU ceiling; falling back to free slots' : 'missing or stale runner CPU readings; falling back to free slots', ceiling };
         }
+      }
+      // A flexible earlier waiter can use a browser-free host and leave browser capacity
+      // for the requester whose hypothetical admission is being evaluated.
+      if (reserveFor?.browser === 1 && waiter.browser !== 1 && compatible.some(runner => runner.browser === 0)) {
+        selected = compatible.find(runner => runner.browser === 0);
+        dispatch = undefined;
       }
       const observed = db.prepare('SELECT gui FROM runner_gui WHERE host = ?').get(selected.host);
       return { ...selected, ...(dispatch ? { dispatch } : {}), ...(observed ? { gui: observed.gui === null ? null : observed.gui === 1 } : {}), shortSlot: false };
@@ -633,8 +639,9 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
       break;
     }
   }
+  const requester = waiters.find(waiter => waiter.ticket === ticket);
   for (const waiter of waiters) {
-    const executor = available(waiter);
+    const executor = available(waiter, waiter.ticket === ticket ? null : requester);
     if (executor) {
       if (waiter.ticket !== ticket) {
         // Reserve one hypothetical slot for each earlier eligible waiter; an idle second slot

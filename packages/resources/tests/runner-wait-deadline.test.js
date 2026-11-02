@@ -505,3 +505,34 @@ process.stdout.write(JSON.stringify({ calls, result }));`;
   assert.equal(outcome.result.browser, true);
   assert.equal(outcome.result.runnerAttempt.output, 'refused');
 });
+
+test('an older flexible waiter leaves a scarce browser host for a browser waiter [C7,Q1,Q2]', async () => {
+  const box = fixture();
+  await withPrivateDeadlineMachine(box, async settings => {
+    const runners = [{ ...settings.runners[0], host: HOST + '-browser', slots: 1, browser: 1 },
+      { ...settings.runners[0], host: HOST + '-plain', slots: 1, browser: 0 }];
+    const options = { name: 'gate', root: box.repo, capacity: 1, browserCapacity: 1, remote: true, runnerOnly: true,
+      runnerProvider: () => runners };
+    let first = await takeResource(options), second = await takeResource(options), later, admitted;
+    let signalQueued, releaseQueue;
+    const queued = new Promise(done => { signalQueued = done; });
+    const barrier = new Promise(done => { releaseQueue = done; });
+    const older = takeResource({ ...options, runnerWaitMs: 5_000, onWait: async state => {
+      if (!state.admitted) { signalQueued(); await barrier; }
+    } });
+    try {
+      await queued;
+      first.release(); first = null;
+      second.release(); second = null;
+      later = await takeResource({ ...options, browser: true, runnerWaitMs: 1_000 });
+      assert.equal(later.runner.host, HOST + '-browser');
+      releaseQueue();
+      admitted = await older;
+      assert.equal(admitted.runner.host, HOST + '-plain');
+    } finally {
+      first?.release(); second?.release(); later?.release(); releaseQueue();
+      admitted ??= await older;
+      admitted?.release();
+    }
+  });
+});
