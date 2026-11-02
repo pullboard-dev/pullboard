@@ -111,7 +111,7 @@ export const workHelp = `Work
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
-  pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
+  pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result\n  pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]
                                         two rejects of the same frozen clause hold the item for a sharper bar
                                         submit, release and verdict take native next work; --no-next leaves the seat empty
