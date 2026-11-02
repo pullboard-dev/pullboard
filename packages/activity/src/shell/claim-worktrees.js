@@ -10,7 +10,9 @@ export function claimWorktrees(items, agents) {
 }
 
 /** Name every live overlap and out-of-scope edit to the holder, without mutating board history. */
-export function claimOverlapLines(items, agents, agentId, project, observations = claimWorktrees(items, agents)) {
+export function claimOverlapLines(items, agents, agentId, project, observations = null) {
+  if (!items.some(item => item.item_status === 'claimed' && item.item_owner === agentId)) return [];
+  observations ??= claimWorktrees(items, agents);
   const overlaps = project(items, observations);
   return items.filter(item => item.item_status === 'claimed' && item.item_owner === agentId).flatMap(item => {
     const found = overlaps.get(item.item_id);

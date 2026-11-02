@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { claimWorktrees } from '../packages/activity/index.js';
+import { claimWorktrees, claimOverlapLines } from '../packages/activity/index.js';
 import { claimOverlaps, liveClaimCollisions } from '../packages/items/index.js';
 
 test('two claimed Git worktrees name shared edits and protect an open item until release', t => {
@@ -34,6 +34,11 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.deepEqual(notices.get(1).overlaps, [{ item: 2, builder: 'two', files: ['shared.js'] }]);
   assert.deepEqual(notices.get(2).overlaps, [{ item: 1, builder: 'one', files: ['shared.js'] }]);
   assert.deepEqual(notices.get(1).outOfScope, [{ item: 3, files: ['shared.js'] }]);
+  const leftNotice = claimOverlapLines(items, [], 'one', claimOverlaps, observations).join('\n');
+  const rightNotice = claimOverlapLines(items, [], 'two', claimOverlaps, observations).join('\n');
+  assert.match(leftNotice, /#1 overlaps #2 \(two\) on shared\.js/);
+  assert.match(rightNotice, /#2 overlaps #1 \(one\) on shared\.js/);
+  assert.match(leftNotice, /#1 may be out of scope: #3 names shared\.js/);
   assert.match(liveClaimCollisions(items[2], items, observations).join('\n'), /#3 waits for #1 \(one\) on shared\.js/);
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
 });
