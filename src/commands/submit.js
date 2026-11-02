@@ -44,6 +44,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { gateRunnerAdmission } from '../../packages/config/index.js';
+import { loadMachineSettings } from '../../packages/config/index.js';
+import { effectiveRunners } from '../runner-slots.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
   retainTestOutput,
@@ -468,10 +470,11 @@ export async function submitHere(ctx, id, infra) {
   let cells;
   const cellsStart = performance.now();
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
-  try { cells = runnerAdmission.runnerOnly
+  try { cells = runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
     ? await withGateSlot(root, lease => remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput),
       { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
-        agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build') })
+        agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, remote: true, runnerOnly: true,
+        onWait: queuedItemLease(ctx, held, me.id, 'build') })
     : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems,
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
