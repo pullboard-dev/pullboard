@@ -26,8 +26,8 @@ import {
 } from '../submit-handoff-origin.js';
 import { blockingFailures } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
-import { sealQuarantineVerdict } from '../quarantine.js';
-import { gateRuns } from '../quarantine.js';
+import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
+import { gateRuns } from '../../packages/flakes/index.js';
 import { withImportParseCache } from '../../packages/gate/index.js';
 import { foreignNodeOptions } from '../../packages/gate/index.js';
 import { importsIn } from '../../packages/gate/index.js';
@@ -54,8 +54,8 @@ import {
   summaryProfile,
   withTestOutput,
 } from '../test-output-summary.js';
-import { quarantineWaivers } from '../quarantine.js';
-import { quarantineVerdictSnapshot } from '../quarantine.js';
+import { quarantineWaivers } from '../../packages/flakes/index.js';
+import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../runner-private-check.js';
@@ -138,7 +138,7 @@ import {
 import {
   relayRecovered,
 } from '../../packages/link/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { refuseHeldElsewhere } from '../../packages/seats/index.js';
 import {
   submitPreflight,
   requirePlannedSource,
@@ -320,7 +320,7 @@ export async function submitHere(ctx, id, infra) {
     const item = store.getItem(board, id);
     const folder = itemFolderIdentity(board, ctx.info.root);
     if (folder && folder.item !== id) throw new Refused('NOT_YOURS', `this folder belongs to item #${folder.item}; submit that item from here`);
-    if (!isSubmitHandoffWorker(ctx) && !folder) seatCheckout.refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
+    if (!isSubmitHandoffWorker(ctx) && !folder) refuseHeldElsewhere(ctx.info, store.listAgents(board), item, 'submit', agentSessionDigest);
     if (item.item_status !== 'claimed' || item.item_owner !== me.id) throw new Refused('NOT_YOURS', 'claim this item before submitting it');
     if (!isSubmitHandoffWorker(ctx)) heartbeatCommand(ctx.io, { ctx, board });
     const readiness = barReadyProblem(board, item);

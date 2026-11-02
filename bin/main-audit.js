@@ -3,7 +3,7 @@ import * as nativeBoard from '../src/native-board.js';
 const { openBoardForRead } = nativeBoard;
 import { runnerExecutionServices } from '../src/runners.js';
 import { landingExecutionServices } from '../packages/landing/index.js';
-import { flakeLedger } from '../src/flakes.js';
+import { flakeLedger } from '../packages/flakes/index.js';
 import { eventCauses } from '../src/board-rigor.js';
 /** Independent scheduled/manual main audit; no foreground lease or identity is borrowed [C7]. */
 import { context } from '../src/cli.js';

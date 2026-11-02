@@ -3,7 +3,7 @@ import { addMilestone } from '../packages/store/index.js';
 /** Native Next reserves aged first reviews, never inventing reviewer eligibility [B26,V4]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import * as store from '../src/board.js';
+import * as store from '../packages/store/index.js';
 import { fixture } from './next-take-fixture.js';
 import { cli } from './next-take-fixture.js';
 
@@ -47,6 +47,8 @@ test('a self-ineligible seat builds normally while an eligible seat cannot escap
   setting(box, 'focusMilestone', { name: 'Current', overflow: true });
   setting(box, 'reviewsFirst', true);
   box.advance(16 * 60_000);
+  const planned = store.nextFor(box.board, { agentId: box.seats.builder.id, lane: box.seats.builder.lane, policy: 'any', familyPolicy: 'off' });
+  assert.equal(planned.item?.item_id, build, 'ordinary eligibility must retain the self-ineligible build fallback: ' + JSON.stringify(planned));
   const builder = await cli(box, box.seats.builder.path, ['next']);
   assert.equal(builder.code, 0, builder.out + builder.err);
   assert.equal(builder.document.item.item_id, build, 'native self-review refusal is not waived by the dispatch policy');

@@ -1,7 +1,7 @@
 import { REVIEWS_FIRST_ENGINE } from '../../../../src/reviews-first-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { lineSettings } from '../../../state/index.js';
-import * as capacity from "../../../../src/line-capacity-board.js";
+import { reviewOffer as capacityReviewOffer } from "../../../seats/index.js";
 import { nextFor } from "./board-next-for.js";
 import {
   listItems,
@@ -14,7 +14,7 @@ import { overdueReview } from "../../../verify/index.js";
 export function reviewOffer(board, who) {
   if ((board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEWS_FIRST_ENGINE && lineSettings(board).reviewsFirst === true) {
     if (listItems(board).some(item => item.item_status === 'submitted' && reviewHolder(board, item) === who.agentId)) {
-      return who.mandatoryOnly ? null : capacity.reviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
+      return who.mandatoryOnly ? null : capacityReviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
     }
     const skip = new Set(who.skipIds ?? []);
     for (const item of listItems(board)) {
@@ -27,5 +27,5 @@ export function reviewOffer(board, who) {
     if (picked.item) return { item: picked.item, queue: reviewQueue(board), mandatory: true, urgent: 'first-review', starveMinutes: 15 };
   }
   if (who.mandatoryOnly) return null;
-  return capacity.reviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
+  return capacityReviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
 }
