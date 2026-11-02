@@ -1,5 +1,6 @@
 /** Independent supervision still runs while a test blocks its main JavaScript thread [C7,V10]. */
-import { parentPort, workerData } from 'node:worker_threads';
+import { parentPort } from 'node:worker_threads';
+import { workerData } from 'node:worker_threads';
 import { writeSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { fileIdleHung } from '../core/file-watchdog-policy.js';

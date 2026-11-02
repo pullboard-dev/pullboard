@@ -1,7 +1,10 @@
 /** Whole-file supervision policy uses deterministic samples, not elapsed-time margins [C7,V10]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { DEFAULT_FILE_WALL_MS, DEFAULT_FILE_IDLE_MS, fileWatchdogLimits, fileIdleHung } from '../index.js';
+import { DEFAULT_FILE_WALL_MS } from '../index.js';
+import { DEFAULT_FILE_IDLE_MS } from '../index.js';
+import { fileWatchdogLimits } from '../index.js';
+import { fileIdleHung } from '../index.js';
 
 test('whole-file limits default to five minutes and select exact file overrides [C7,V10]', () => {
   assert.deepEqual(fileWatchdogLimits('test/a.test.js', {}), { wallMs: 300_000, idleMs: 90_000 });

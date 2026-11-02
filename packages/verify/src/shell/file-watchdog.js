@@ -1,6 +1,7 @@
 /** Install whole-file supervision without depending on a responsive test event loop [C7,V10]. */
 import { Worker } from 'node:worker_threads';
-import { relative, resolve } from 'node:path';
+import { relative } from 'node:path';
+import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import { fileWatchdogLimits } from '../core/file-watchdog-policy.js';
 
