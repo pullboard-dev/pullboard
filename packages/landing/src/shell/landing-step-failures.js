@@ -45,7 +45,7 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
     }
     if (active?.spec && /^\s+\S/u.test(line)) (active.detailLines ??= []).push(line.trim());
     if (active && /^\s*\.\.\.\s*$/u.test(line)) active.diagnostic = false;
-    if (active && /^\s*(?:error|expected|actual):/u.test(line)) active.diagnostic = true;
+    if (active && !active.spec && /^\s*(?:error|expected|actual):/u.test(line)) active.diagnostic = true;
     if (active?.diagnostic && !/^\s*stack:/u.test(line)) (active.detailLines ??= []).push(line.trim());
     if (active && /^\s*stack:/u.test(line)) active.diagnostic = false;
     if (excludeCancelled && active && /^\s*failureType:\s*['"]?(?:cancelledByParent|subtestsFailed)['"]?\s*$/u.test(line)) active.omit = true;
