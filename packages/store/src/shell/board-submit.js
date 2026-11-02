@@ -1,3 +1,6 @@
+import { CLAUSE_INSPECTION_ENGINE } from '../../../../src/clause-inspection-engine.js';
+import { clauseInspectionProblem } from '../../../state/index.js';
+import { itemThread } from './board-query.js';
 import { reviewPatchAuthors } from "../../../verify/index.js";
 import { fileKnownMainAutofile } from "../core/known-main-autofile.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../src/known-main-owner-pattern-engine.js";
@@ -36,6 +39,19 @@ import { FLOW_SIZE_ENGINE } from "../../../../src/flow-size-engine.js";
 import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
 
+/** Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments. */
+export function sealClauseInspection(board, id, options) {
+  const root = board.gitRoot;
+  if (!root) {
+    const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
+    if (file) throw new Refused('NO_POLICY', 'the native board must know its repository before submitting');
+    return options; // Isolated in-memory fixtures have no board policy.
+  }
+  const policy = board.enginePorts.sandboxPolicyReads.mainPolicy(root);
+  if (options.policyCommit && options.policyCommit !== policy.commit) throw new Refused('NO_POLICY', 'accepted main changed; refresh the submit policy and retry');
+  return { ...options, clausePolicyCommit: policy.commit, inspectClauses: policy.config.verify.inspectClauses === true };
+}
+
 /**
  * Submit your claimed item at a commit (V4, V6). The caller has already checked the tree is clean
  * and run the gate green at that commit.
@@ -48,7 +64,17 @@ import { moveItem } from "./board.js";
  * @param {{ agentId: string, commit: string, tree: string, files?: string[], policyCommit?: string, note?: string }} at - `files`: what the
  *   item's own commits changed since its claim; a rework adds to what the first attempt changed.
  */
-export function submit(board, id, { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry }) {
+export function submit(board, id, options) {
+  if (board.executionEngineVersion === undefined && ENGINE_VERSION >= CLAUSE_INSPECTION_ENGINE) options = sealClauseInspection(board, id, options);
+  const { agentId, commit, tree, files = [], policyCommit = null, note, submissionProof: proof, submissionSize: size, inspectClauses, clausePolicyCommit, infra = null, gateGreen, companion, quarantineProofIds, autoMainReds, mergeOnly: recordedCarry } = options;
+  let inspect = inspectClauses === true;
+  if (board.executionEngineVersion !== undefined && board.executionEngineVersion >= CLAUSE_INSPECTION_ENGINE && board.gitRoot) {
+    if (!clausePolicyCommit || clausePolicyCommit !== policyCommit) throw new Refused('NO_POLICY', 'the sealed inspection policy must match the submission policy');
+    const policy = board.enginePorts.sandboxPolicyReads.policyAt(board.gitRoot, clausePolicyCommit);
+    inspect = policy.config.verify.inspectClauses === true;
+    if (inspect !== (inspectClauses === true)) throw new Refused('NO_POLICY', 'the sealed inspection setting does not match its accepted policy');
+  }
+
   const autoOptions = { agentId, commit, tree, policyCommit, companion, autoMainReds, submissionProof: proof };
   if (autoMainReds && board.executionEngineVersion === undefined) autoOptions.autoMainReds = board.enginePorts.sealKnownMainAutofile(board, id, autoOptions).autoMainReds;
   let recordedProof;
@@ -82,6 +108,8 @@ export function submit(board, id, { agentId, commit, tree, files = [], policyCom
         [IN_STATE]: notYours,
         isHolder: (found) => outsideBuildProblem(board, found) ?? (found.item_owner === agentId ? null : notYours()),
         correctionRefrozen: () => pendingRefreezeProblem(board, id),
+        clausesInspected: found => (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAUSE_INSPECTION_ENGINE && inspect
+          ? clauseInspectionProblem(found, itemThread(board, id)) : null,
         criterionUnchanged: null,
         treeClean: null,
         nothingUntracked: null,

@@ -201,13 +201,13 @@ function overviewHelp(groups, firstRun = false) {
 }
 
 /** The settings forms settingsCommand dispatches with a value; each gets its own help, from this list (N2). */
-export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool']);
+export const SETTING_FORMS = Object.freeze(['gateSlots', 'browserSlots', 'gate.shortSlots', 'gate.runnersFirst', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'gate.runnerBusyCeiling', 'gate.runnersOnly', 'gate.runnerWaitMs', 'workers.budget', 'landing.pool', 'inspection.clauses']);
 
 /** Help for each settings form the printed usage did not already name, so each form is covered (N2). */
 function settingFormHelp(commands) {
   return Object.fromEntries(SETTING_FORMS.filter((form) => !commands[`settings ${form}`]).map((form) => [`settings ${form}`, Object.freeze({
-    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<seat-hours>/day|week' : '<n>'}`], flags: [],
-    example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
+    usages: [`pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on|off' : form === 'workers.budget' ? '<seat-hours>/day|week' : '<n>'}`], flags: [],
+    example: `pullboard settings ${form} ${['landing.pool', 'gate.runnersOnly', 'gate.measuredSlots', 'gate.loadAwareDispatch', 'inspection.clauses'].includes(form) ? 'on' : form === 'workers.budget' ? '40/day' : '2'}`, notes: [],
   })]));
 }
 

@@ -256,6 +256,20 @@ export function setGateRunnersFirst(enabled) {
   return next;
 }
 
+/** Clause inspection of numbered criteria is machine-wide and off unless enabled. */
+export function clauseInspectionEnabled() {
+  return loadMachineSettings().inspection?.clauses === true;
+}
+
+/** Turn clause inspection on or off, preserving other machine settings. */
+export function setClauseInspection(enabled) {
+  if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'inspection.clauses must be true or false; run pullboard settings inspection.clauses on|off');
+  const latest = loadMachineSettings();
+  const next = { ...latest, inspection: { ...latest.inspection, clauses: enabled } };
+  writeMachineSettings(next);
+  return next;
+}
+
 /** Opt in to runner slots computed from each runner's measured cores and memory, preserving other gate settings. */
 export function setGateMeasuredSlots(enabled) {
   if (typeof enabled !== 'boolean') throw new Refused('BAD_MACHINE_SETTINGS', 'gate.measuredSlots must be true or false; run pullboard settings gate.measuredSlots on|off');
