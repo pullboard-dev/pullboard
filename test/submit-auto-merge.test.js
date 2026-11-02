@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
 import { mergeSubmissionMain } from '../packages/merge/index.js';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Real worktree with independent builder and main changes. */
 function project(t, conflict = false) {
@@ -47,4 +48,31 @@ test('a conflicting main move names the file and leaves the source untouched [C7
   assert.throws(() => mergeSubmissionMain(p.work, p.trunk), error => error.code === 'MERGE_CONFLICT' && error.message.includes('shared.txt'));
   assert.equal(p.git(p.work, 'rev-parse', 'HEAD'), p.source);
   assert.equal(p.git(p.work, 'status', '--porcelain'), '');
+});
+
+test('submit composes moved main before its actual frozen check [C7,V4]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const added = box.run(box.repo, 'add', 'web', 'auto merge', '--specs', 'G1', '--criterion', 'The feature is present.',
+    '--check', "test -f web/feature.txt && test -f docs/main.txt", '--json');
+  assert.equal(added.code, 0, added.err);
+  const id = JSON.parse(added.out).item.item_id;
+  assert.equal(box.run(box.web, 'claim', String(id)).code, 0);
+  const committed = helpers.commitFile(box, box.web, 'web/feature.txt', 'feature\n', 'feat(web): add auto merge fixture [G1]');
+  assert.equal(committed.status, 0, committed.stderr);
+  const source = box.git(box.web, 'rev-parse', 'HEAD');
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs/main.txt'), 'main\n');
+  box.git(box.repo, 'add', 'docs/main.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance main');
+  const trunk = box.git(box.repo, 'rev-parse', 'HEAD');
+  const result = box.run(box.web, 'submit', String(id), '--no-next', '--json');
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
+  const head = box.git(box.web, 'rev-parse', 'HEAD');
+  assert.deepEqual(box.git(box.web, 'show', '-s', '--format=%P', head).split(' '), [source, trunk]);
+  assert.equal(box.git(box.web, 'show', '-s', '--format=%ae', head), box.git(box.web, 'show', '-s', '--format=%ae', source));
+  const shown = box.run(box.repo, 'show', String(id), '--json');
+  assert.equal(shown.code, 0, shown.err);
+  assert.equal(JSON.parse(shown.out).item_commit, head);
 });

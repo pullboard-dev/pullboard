@@ -1,3 +1,4 @@
+import { mergeSubmissionMain } from '../../packages/merge/index.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../packages/state/index.js';
@@ -348,6 +349,14 @@ export async function submitHere(ctx, id, infra) {
   if (stray.length) throw new Refused('UNTRACKED', `commit or ignore ${stray.length} untracked file(s), e.g. ${stray[0]}`);
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
+  // A live handoff owns its captured source; never rewrite it underneath its queued worker.
+  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? withBoard(ctx, board => pendingSubmitHandoff(board, held)) : null;
+  if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
+  if (!isSubmitHandoffWorker(ctx) && !pendingHandoff) {
+    const composed = mergeSubmissionMain(root, acceptedMain.commit);
+    commit = composed.commit;
+    if (composed.merged) ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
+  }
   let trunk;
   let regenerated = null;
   try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
@@ -398,8 +407,6 @@ export async function submitHere(ctx, id, infra) {
     }
     return { me: who, claimHead: item.item_claim_head };
   });
-  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? withBoard(ctx, board => pendingSubmitHandoff(board, held)) : null;
-  if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
   // A trunk checkout can have advanced since the claim; comparing it with itself would bless its own new red test.
   const mainFailureBase = acceptedMain.commit === commit ? claimHead : git(root, ['merge-base', commit, acceptedMain.commit]);
   const preflightLines = changedLines(root, acceptedMain.commit, commit);
