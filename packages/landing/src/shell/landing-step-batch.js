@@ -205,7 +205,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
   }
   const state = { root, board, config, write, say, onWait, checkLease, checkLeaseNow, fence, batch, checkAtCommit, candidateWorkerFile, landingPorts, culprits: batch.culprits ?? [], flaky: false, gates: new Map((batch.gateResults ?? []).map((result) => [result.tree, result])), diagnosed: new Map((batch.diagnostics ?? []).map((result) => [result.test, result.isGreen])) };
   try {
-    await save(state, { owner });
+    await save(state, { owner, refusal: null });
     await returnCulprits(state);
     if (state.batch.state === 'trunk') await finishTrunk(state);
     else if (state.batch.state === 'pushed' || state.batch.state === 'ready') await publish(state);
@@ -263,6 +263,10 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
       }
     }
   } catch (error) {
+    if (error.code !== 'LAND_LEASE_LOST' && state.batch.state !== 'landed') {
+      try { await save(state, { refusal: { code: error.code ?? 'LAND_BATCH_REFUSED', at: board.clock.now().toISOString() } }); }
+      catch (noticeError) { say('landing refusal could not be recorded: ' + (noticeError.code ?? 'ERROR')); }
+    }
     if (!(error instanceof Refused) || error.code !== 'LAND_GATE_TIMEOUT') throw error;
     say(error.message);
   }

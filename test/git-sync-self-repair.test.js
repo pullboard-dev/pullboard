@@ -4,6 +4,9 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { readGitSyncRepairs } from '../packages/config/index.js';
+import { readGitSyncMarker } from '../packages/config/index.js';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import * as store from '../src/board.js';
@@ -121,4 +124,13 @@ test('an internal retry refuses relay history before creating a marker or starti
     assert.equal(existsSync(join(metadata, 'git-sync.json')), false);
     assert.equal(existsSync(join(metadata, 'git-sync.json.lock')), false, 'history refusal precedes lock acquisition');
   } finally { store.closeBoard(board); }
+});
+
+test('a board folder replaced by a file refuses the marker read with its next step [H11,C7]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-git-sync-enotdir-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8' });
+  writeFileSync(join(root, '.git', 'pullboard'), 'not a folder\n');
+  assert.throws(() => readGitSyncMarker(root), error => error.name === 'Refused' && error.code === 'GIT_SYNC_FOLDER'
+    && /is not a directory/u.test(error.message) && /move .*pullboard aside, then run pullboard doctor/u.test(error.next ?? error.message));
 });

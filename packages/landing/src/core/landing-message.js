@@ -46,7 +46,7 @@ export function itemCommitType(root, base, commit) {
 export function landingMessage(item, { spec = null, type = null } = {}) {
   const rows = landingRows(item, spec);
   const chosen = type ?? (rows.length ? 'chore' : (LANE_MERGE_TYPES[item.item_lane] ?? 'chore'));
-  return { ...buildCommitMessage({ type: chosen, scope: 'merge', title: item.item_title, item: item.item_id, rows }), rows, type: chosen };
+  return { ...buildCommitMessage({ type: chosen, scope: 'merge', title: item.item_title, item: item.item_id, rows, preferRows: true }), rows, type: chosen };
 }
 
 /** Produce a hook-valid lower-case merge header at a word boundary [R3]. */
