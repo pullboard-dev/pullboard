@@ -78,3 +78,12 @@ test('board lock timing closes on success and refusal [C7,N2]', () => {
     assert.equal(started, 2); assert.equal(ended, 2);
   } finally { if (prior) globalThis[port] = prior; else delete globalThis[port]; }
 });
+
+/** A queued old item must not hide the seat's newer active claim. */
+test('a queued handoff does not hide a newer active build [C7,N2]', () => {
+  const now = Date.now(), at = new Date(now - 60000).toISOString();
+  const items = [{ item_id: 1, item_status: 'claimed', item_owner: 'builder' }, { item_id: 2, item_status: 'claimed', item_owner: 'builder' }];
+  const events = [{ event_by: 'builder', event_at: at, event_kind: 'submit-handoff', item_id: 1, event_detail: '{"state":"running"}' }, { event_by: 'builder', event_at: at, event_kind: 'claim', item_id: 2 }];
+  const [row] = seatLedger([{ agent_id: 'builder' }], items, events, [], now);
+  assert.equal(row.state, 'building'); assert.equal(row.item, 2);
+});

@@ -19,7 +19,10 @@ export function seatLedger(agents, items, events, records, now = Date.now()) {
   }
   return agents.map(agent => {
     const mine = history.filter(event => event.event_by === agent.agent_id);
-    const held = items.find(item => item.item_status === 'claimed' && item.item_owner === agent.agent_id);
+    const claims = items.filter(item => item.item_status === 'claimed' && item.item_owner === agent.agent_id);
+    const handoffFor = item => { const event = [...mine].reverse().find(row => row.event_kind === 'submit-handoff' && row.item_id === item.item_id); try { return JSON.parse(event?.event_detail ?? '{}').state; } catch { return null; } };
+    // A handed-off gate does not keep a seat from building a newer claim.
+    const held = claims.find(item => !['queued', 'running'].includes(handoffFor(item))) ?? claims[0];
     const review = items.find(item => item.item_status === 'submitted' && item.item_review_by === agent.agent_id && Date.parse(item.item_review_until) > now);
     const last = mine.at(-1), lastAt = last ? Date.parse(last.event_at) : null;
     if (!held && !review && (!lastAt || now - lastAt > 3 * 60 * 60 * 1000)) return null;
