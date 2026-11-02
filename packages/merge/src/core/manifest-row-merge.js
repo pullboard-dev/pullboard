@@ -58,13 +58,13 @@ function mergeRows(field, values, conflicts) {
     if (selected.conflict) conflicts.push(`${field}:${key}`);
     else if (selected.value !== ABSENT) rows.push(canonical(selected.value));
   }
-  if (field === 'cells') rows.sort((left, right) => left.order - right.order || left.name.localeCompare(right.name));
+  if (field === 'cells') rows.sort((left, right) => left.order - right.order || (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
   return rows;
 }
 
 /** Keep each manifest row on one line, including long test-tier rows, with stable surrounding JSON. */
 function formatManifest(value, fields) {
-  const keys = Object.keys(value).sort((left, right) => left === right ? 0 : left === 'version' ? -1 : right === 'version' ? 1 : left.localeCompare(right));
+  const keys = Object.keys(value).sort((left, right) => left === right ? 0 : left === 'version' ? -1 : right === 'version' ? 1 : left < right ? -1 : 1);
   const lines = keys.map(key => {
     const entry = value[key];
     const source = fields.includes(key) && entry.length
