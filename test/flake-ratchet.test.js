@@ -129,3 +129,34 @@ test('landing guard names unquarantined flakes and records the lower count [C7,T
   assert.equal(state.batch.flakeRatchet.count, 0);
   assert.equal(writes, 1);
 });
+
+/** Historical reconstruction agrees with native projection and retains the earlier boundary. */
+test('historical quarantine matches native state across a real board withdrawal [C7,T12]', async t => {
+  const { boardFixture } = await import('./next-order-fixture.js');
+  const store = await import('../packages/store/index.js');
+  const { flakeQuarantines, gateRuns } = await import('../packages/flakes/index.js');
+  const { QUARANTINE_CORE_ENGINE } = await import('../src/quarantine-core-engine.js');
+  const { AUTO_SUBMIT_QUARANTINE_ENGINE } = await import('../src/auto-submit-quarantine-engine.js');
+  const { board } = boardFixture();
+  t.after(() => store.closeBoard(board));
+  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Flake repair', route: 'strong' });
+  store.logEvent(board, 'coordinator', 'test-quarantine', id, { engine: 1, file: 'test/a.test.js', name: 'case', runs: [] });
+  const boundary = store.events(board).at(-1).event_id;
+  const options = { quarantineCoreEngine: QUARANTINE_CORE_ENGINE, autoSubmitEngine: AUTO_SUBMIT_QUARANTINE_ENGINE };
+  const historical = () => quarantinesAt(store.events(board), gateRuns(board), { ...options, throughEvent: boundary });
+  assert.equal(historical()[0].status, flakeQuarantines(board)[0].status);
+  store.withdraw(board, id, { agentId: 'coordinator', reason: 'The synthetic repair was withdrawn.' });
+  assert.equal(flakeQuarantines(board)[0].status, 'lifted');
+  assert.equal(historical()[0].status, 'quarantined');
+});
+
+/** Only twenty observed, non-skipped clean runs can release a structured quarantine. */
+test('historical structured quarantine requires twenty clean runs before the boundary [C7,T12]', () => {
+  const events = [{ event_id: 1, event_kind: 'test-quarantine', item_id: 7,
+    event_detail: { file: 'test/a.test.js', name: 'case', engine: 2 } }];
+  const runs = Array.from({ length: 20 }, (_, index) => ({ id: `run-${index}`, eventId: index + 2, version: 1,
+    kind: 'landing', testOutcomes: [{ file: 'test/a.test.js', name: 'case', passed: true, skipped: false }] }));
+  const at = throughEvent => quarantinesAt(events, runs, { throughEvent, quarantineCoreEngine: 2, autoSubmitEngine: 3 })[0].status;
+  assert.equal(at(20), 'quarantined');
+  assert.equal(at(21), 'lifted');
+});
