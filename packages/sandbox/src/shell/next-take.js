@@ -31,7 +31,8 @@ function selected(ctx, board, values, services) {
   const { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest } = services;
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
-  const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes });
+  const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
+    workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board)) });
   if (routing) {
     if (routing.buildOffer?.seat === me.id) return { item: routing.item, reasons: routing.reasons, review: false, held: false };
     return { ...routing, review: false, held: false };
@@ -44,10 +45,11 @@ function selected(ctx, board, values, services) {
 }
 
 /** Preview whether ordinary next needs the main-red build routing path; no move or worktree is written. */
-export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mainRedReworkItems }) {
+export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mainRedReworkItems, claimWorktrees }) {
   return withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
-    return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes });
+    return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
+      workingFiles: claimWorktrees?.(store.listItems(board), store.listAgents(board)) });
   });
 }
 
@@ -56,7 +58,18 @@ export async function nextTake(ctx, values = {}, services) {
   const { MainSpecMerged, claimFreezer, claimOrdered, idArg, ordered, whoAmI, withBoard, withBoardRead,
     computedReturnArgs, mainRedReviewItems, agentSessionDigest } = services;
   const looked = withBoardRead(ctx, board => selected(ctx, board, values, services));
-  if (!looked.item || looked.buildOffer || looked.releaseRequest || looked.held && !looked.review) return looked;
+  if (looked.releaseRequest) {
+    const me = withBoardRead(ctx, board => whoAmI(ctx, board));
+    if (looked.releaseRequest.seat !== me.id) return looked;
+    await withBoard(ctx, async board => {
+      const fresh = selected(ctx, board, values, services);
+      if (fresh.releaseRequest?.seat !== me.id || fresh.releaseRequest.item !== looked.releaseRequest.item) return;
+      await ordered(ctx, board, 'release', [fresh.releaseRequest.item, me.id,
+        `Waiting claim preempted for urgent #${fresh.item.item_id}; source remains in its worktree`, undefined, 'ROUTED_ELSEWHERE']);
+    });
+    return { retry: true, retryDetail: { phase: 'urgent preemption', item: looked.item.item_id, code: 'WAITING_CLAIM_RELEASED' } };
+  }
+  if (!looked.item || looked.buildOffer || looked.held && !looked.review) return looked;
   return await withBoard(ctx, async board => {
     const picked = selected(ctx, board, values, services);
     const me = whoAmI(ctx, board);
