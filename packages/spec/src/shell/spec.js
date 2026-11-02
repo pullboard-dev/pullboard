@@ -33,6 +33,7 @@ import {
 } from '../core/spec-verdict-format.js';
 import {
   renamedGatePath,
+  preservedGateRename,
   revisionGateCommand,
 } from './spec-gate-renames.js';
 import {
@@ -325,6 +326,10 @@ export function missingGateFindings(spec, root) {
       const lost = lastCommitOf(root, file);
       if (row.status === 'approved' && row.tier === 'must' && lost) {
         const renamed = renamedGatePath(root, file);
+        if (renamed && preservedGateRename(root, file, renamed)) {
+          findings.push({ level: 'warning', line: row.line, id: row.id, message: `gate file ${file} was renamed to ${renamed} without content changes; landing will repoint it` });
+          continue;
+        }
         const revisedGate = renamed ? row.gate.replace(GATE_FILE_RE, (match, path) => posix.normalize(path) === file ? match.slice(0, match.length - path.length) + renamed : match) : null;
         const next = renamed ? `renamed to ${renamed}; propose the change: ${revisionGateCommand(row, revisedGate, file, renamed)}` : 'restore it or point the row at its new home';
         findings.push({ level: 'error', line: row.line, id: row.id, message: `gate file ${file} was removed from the repository (last in ${lost}); ${next}` });

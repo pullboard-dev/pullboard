@@ -1139,6 +1139,28 @@ test('a commit that deletes an approved row test is refused [S4]', (t) => {
   assert.ok(!repointed.some((problem) => problem.includes('G9 names')), `the same commit repoints the row: ${repointed.join('\n')}`);
 });
 
+test('an exact-content gate rename passes the commit and spec guards; changed content is refused [S4,B3]', (t) => {
+  const source = `${SPEC}- G9 [approved, must] A rule keeps its proof. | gate: test/proof.test.js\n`;
+  const box = specBox(t, { specSource: source });
+  mkdirSync(join(box.root, 'test'));
+  const content = 'export const proof = true;\n'.repeat(20);
+  writeFileSync(join(box.root, 'test/proof.test.js'), content);
+  box.git('add', '-A'); box.git('commit', '-q', '-m', 'test: add proof');
+  const config = configFromSource(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
+  box.git('mv', 'test/proof.test.js', 'test/moved.test.js');
+  const exact = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
+  assert.ok(!exact.some(problem => problem.includes('G9 names')), exact.join('\n'));
+  writeFileSync(join(box.root, 'test/moved.test.js'), content + 'export const changed = true;\n');
+  box.git('add', 'test/moved.test.js');
+  const changed = preCommitProblems({ approvedRowPorts, root: box.root, isMain: true, config, agent: null });
+  assert.ok(changed.some(problem => problem.includes('G9 names') && problem.includes('changed content')), changed.join('\n'));
+  writeFileSync(join(box.root, 'test/moved.test.js'), content);
+  box.git('add', 'test/moved.test.js'); box.git('commit', '-q', '-m', 'test: rename proof');
+  const findings = missingGateFindings(parseSpec(source), box.root);
+  assert.ok(findings.some(row => row.id === 'G9' && row.level === 'warning' && /landing will repoint/u.test(row.message)));
+  assert.ok(!findings.some(row => row.id === 'G9' && row.level === 'error'));
+});
+
 test('a gate path written another way still guards its test [S4]', (t) => {
   // ./test/proof.test.js and test/x/../proof.test.js name the file Git reports as test/proof.test.js (#809 review).
   for (const gate of ['./test/proof.test.js', 'test/x/../proof.test.js']) {

@@ -27,3 +27,26 @@ export function revisionGateCommand(row, gate, from, to) {
   const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
   return `pullboard spec draft ${quote(row.text)} --revises ${quote(row.id)} --gate ${quote(gate)} --reason ${quote(`Gate renamed from ${from} to ${to}.`)}`;
 }
+
+/** Only an exact-content Git rename may defer its gate repoint to landing [B23,N39]. */
+export function preservedGateRename(root, from, to) {
+  const options = { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' };
+  const removed = spawnSync('git', ['log', '-1', '--format=%H', '--diff-filter=D', '--no-renames', 'HEAD', '--', from], options);
+  const commit = removed.status === 0 ? removed.stdout.trim() : '';
+  if (!/^[a-f0-9]{40}$/u.test(commit)) return false;
+  const diff = spawnSync('git', ['diff', '--find-renames', '--name-status', '-z', `${commit}^`, commit], options);
+  if (diff.status !== 0) return false;
+  const fields = diff.stdout.split('\0');
+  let matched = false;
+  for (let i = 0; i < fields.length && fields[i];) {
+    const status = fields[i++], oldPath = fields[i++];
+    if (status.startsWith('R') || status.startsWith('C')) {
+      const newPath = fields[i++];
+      if (status.startsWith('R') && oldPath === from && newPath === to) matched = true;
+    }
+  }
+  if (!matched) return false;
+  const before = spawnSync('git', ['rev-parse', `${commit}^:${from}`], options);
+  const after = spawnSync('git', ['rev-parse', `${commit}:${to}`], options);
+  return before.status === 0 && after.status === 0 && before.stdout.trim() === after.stdout.trim();
+}
