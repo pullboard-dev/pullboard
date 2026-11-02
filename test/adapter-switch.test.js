@@ -1,7 +1,7 @@
 /** Git adapter run/test selection and real audit policy [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { currentGitAdapter, realGitAdapter, withGitSelection, withGitMode } from '../src/git-adapter.js';
+import { currentGitAdapter, realGitAdapter, withGitAdapter, withGitSelection, withGitMode } from '../src/git-adapter.js';
 import { createMemoryGitAdapter } from '../packages/git/index.js';
 import { auditAdapterEnvironment } from '../packages/kernel/index.js';
 
@@ -29,7 +29,11 @@ test('scheduled audit forces real Git even under a fake per-test request [C7]', 
   const env = auditAdapterEnvironment(true);
   assert.equal(env.PULLBOARD_TEST_REAL, 'all');
   assert.equal(env.PULLBOARD_ADAPTER_AUDIT, '1');
-  withGitSelection({ fake: fake(), env }, () => withGitMode('fake', () => assert.equal(currentGitAdapter(), realGitAdapter)));
+  const memory = fake();
+  withGitSelection({ fake: memory, env }, () => {
+    withGitMode('fake', () => assert.equal(currentGitAdapter(), realGitAdapter));
+    withGitAdapter(memory, () => assert.equal(currentGitAdapter(), realGitAdapter));
+  });
   assert.deepEqual(auditAdapterEnvironment(false), {});
 });
 

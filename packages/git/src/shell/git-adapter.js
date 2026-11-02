@@ -29,6 +29,15 @@ export function withGitAdapter(adapter, work) {
   for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
     if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
   }
+  const forced = selections.getStore()?.audit || process.env.PULLBOARD_ADAPTER_AUDIT === '1';
+  return adapters.run(forced ? realGitAdapter : adapter, work);
+}
+
+/** Contract suites explicitly exercise both implementations even during an audit. */
+export function withGitContractAdapter(adapter, work) {
+  for (const method of ['spawnSync', 'execFileSync', 'spawn']) {
+    if (typeof adapter?.[method] !== 'function') throw new TypeError(`Git adapter needs ${method}`);
+  }
   return adapters.run(adapter, work);
 }
 
