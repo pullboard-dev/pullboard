@@ -132,7 +132,7 @@ function onlyForwardsUncached(source, computed) {
 }
 
 /** Expand strict declared loaders while retaining their original forwarding identity and unrelated unknowns. */
-function withDeclaredLoads(files, edges, unknown, acceptedInventory) {
+export function withDeclaredLoads(files, edges, unknown, acceptedInventory) {
   const modules = [...files.keys()].filter(file => /\.[cm]?js$/u.test(file));
   const declared = new Map(), rest = [];
   const acceptedModules = acceptedInventory ? [...acceptedInventory.files.keys()].filter(file => /\.[cm]?js$/u.test(file)) : [];

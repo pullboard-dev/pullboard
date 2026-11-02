@@ -25,7 +25,7 @@ import { mappedPath } from '../packages/codemap/index.js';
 import { checkCuts } from './cells-plan-cuts.js';
 import { entryPlacementProblems } from './cells-plan-cuts.js';
 import { cutTitle } from '../packages/codemap/index.js';
-import { frontDoorBypasses, onlyForwards } from './cells-plan-cuts.js';
+import { frontDoorBypasses, onlyForwards, withDeclaredLoads } from './cells-plan-cuts.js';
 import { checkMoved } from './cells-plan.js';
 import { pureFrontDoorProblems } from './cells-pure-front-door.js';
 import { readPlan } from './cells-plan.js';
@@ -174,9 +174,12 @@ export function touchedCells(files, before, after, inventories) {
   const selected = new Set(touched);
   // A cut follows pure re-export shims across cell boundaries. Treat the effective
   // importer through those shims as direct; never traverse a real implementation.
-  for (const inventory of inventories) {
+  for (const [index, inventory] of inventories.entries()) {
     const reverse = new Map();
-    for (const [file, imports] of inventory.edges) for (const edge of imports) {
+    const expanded = inventory.files && inventory.unknown
+      ? withDeclaredLoads(inventory.files, inventory.edges, inventory.unknown, index ? inventories[0] : undefined)
+      : { edges: inventory.edges, computed: inventory.computed };
+    for (const [file, imports] of expanded.edges) for (const edge of imports) {
       if (!reverse.has(edge.target)) reverse.set(edge.target, []);
       reverse.get(edge.target).push(file);
     }
@@ -184,7 +187,7 @@ export function touchedCells(files, before, after, inventories) {
     const seen = new Set(pending);
     while (pending.length) for (const file of reverse.get(pending.pop()) ?? []) {
       for (const name of owners(file)) selected.add(name);
-      const forwards = onlyForwards(inventory.files?.get(file)?.toString('utf8') ?? '', inventory.computed?.has(file) ?? false);
+      const forwards = onlyForwards(inventory.files?.get(file)?.toString('utf8') ?? '', expanded.computed?.has(file) ?? false);
       if ((forwards || !owners(file).length) && !seen.has(file)) { seen.add(file); pending.push(file); }
     }
   }
