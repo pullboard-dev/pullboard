@@ -110,3 +110,32 @@ test('a merged main change is not attributed to the claimed worktree', t => {
   const renamed = claimWorktrees([item], [{ agent_id: 'one', agent_path: seat }]).get(1);
   assert.deepEqual(renamed.files.toSorted(), ['base.js', 'own.js', 'renamed.js']);
 });
+
+test('the real next command routes around a live worktree edit', async t => {
+  const { createE2eHelpers } = await import('./e2e-helpers.js');
+  const { openBoard } = await import('../src/native-board.js');
+  const store = await import('../src/board.js');
+  const { mkdirSync } = await import('node:fs');
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true');
+  const second = join(box.dir, 'web-2');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', second, 'HEAD');
+  const joined = box.run(second, 'join', 'web');
+  assert.equal(joined.code, 0, joined.err + joined.out);
+  // @pullboard-board-file journey: the CLI and these fixture claims share this private board.
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  t.after(() => store.closeBoard(board));
+  const holder = store.agentAt(board, box.web).agent_id;
+  const changed = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Current work' });
+  const blocked = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Repair web/shared.js' });
+  const free = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Independent work' });
+  const base = box.git(box.web, 'rev-parse', 'HEAD').trim();
+  store.claim(board, changed, { agentId: holder, lane: 'web', leaseMs: 3600000, head: base,
+    freeze: item => ({ text: JSON.stringify({ title: item.item_title, criterion: 'work', check: 'true', rows: [] }), digest: 'fixture' }) });
+  mkdirSync(join(box.web, 'web'), { recursive: true });
+  writeFileSync(join(box.web, 'web', 'shared.js'), 'work\n');
+  const next = box.run(second, 'next', '--build', '--json');
+  assert.equal(next.code, 0, next.err + next.out);
+  assert.equal(JSON.parse(next.out).item.item_id, free, `#${blocked} must wait while #${changed} edits web/shared.js`);
+});
