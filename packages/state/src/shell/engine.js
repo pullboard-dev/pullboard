@@ -181,8 +181,9 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
   validateMove(move, ports);
   if (!Number.isSafeInteger(sequence) || sequence < 1 || !Number.isFinite(Date.parse(at))) throw new Refused('RELAY_MOVE', 'supply a valid relay sequence and receipt timestamp');
   return store.atomic(board, () => {
-    const cursor = appliedSequence(board);
-    const previous = engineReceipt(board, move.id);
+    const measure = (name, work) => store.measureBoardWritePhase ? store.measureBoardWritePhase(board.db, name, work) : work();
+    const cursor = measure('engine-cursor', () => appliedSequence(board));
+    const previous = measure('engine-receipt-read', () => engineReceipt(board, move.id));
     const encoded = JSON.stringify(move);
     if (previous && previous.move !== encoded) throw new Refused('RELAY_MOVE', 'this move id names different contents; restore a consistent relay prefix');
     if (sequence <= cursor) {
@@ -193,11 +194,11 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
     let outcome = previous?.outcome;
     if (!outcome) {
       // Existing receipts replay before consulting newer snapshot semantics.
-      const minimumEngine = Math.max(ports.minimumOperationEngine(move.operation, move.args, board, new Date(at)), agentGrantMinimum(board, move));
+      const minimumEngine = measure('engine-minimum', () => Math.max(ports.minimumOperationEngine(move.operation, move.args, board, new Date(at)), agentGrantMinimum(board, move)));
       if (move.engine < minimumEngine) throw new Refused('RELAY_MOVE', `${move.operation} cannot act on a checked-composition snapshot from engine ${move.engine}; use engine ${minimumEngine} or newer`);
       // Missing immutable objects abort before a refusal receipt or cursor could make a fetch unrecoverable.
       const steps = Object.hasOwn(ENGINE_MOVE_STEPS, move.operation) ? ENGINE_MOVE_STEPS[move.operation] : {};
-      steps.replayBefore?.(board, move.args, { ports });
+      if (steps.replayBefore) measure('engine-replay-prepare', () => steps.replayBefore(board, move.args, { ports }));
       const clock = board.clock;
       const engineVersion = board.executionEngineVersion;
       board.clock = { now: () => new Date(at) };
@@ -208,14 +209,14 @@ export function applyEngineMove(board, move, { sequence, at, standing = null, en
       if (person !== null && move.engine >= PEOPLE_ENGINE) board.movePerson = person;
       try {
         const execute = () => store.atomic(board, () => {
-          const problem = ports.requestMoveProblem(board, move);
+          const problem = measure('engine-request-guard', () => ports.requestMoveProblem(board, move));
           if (problem) throw problem;
           // One main checkout coordinates a linked board at a time; another is refused by name (#347).
-          ports.requireCoordinatorHold(board, move, standing?.lineage, at);
-          requireHandoffActive(board, ports.relayMoveActor(move), move.operation, move.args);
-          if (move.engine >= EXIT_RULES_ENGINE) store.requireExitActive(board, ports.relayMoveActor(move), move.operation, move.args);
-          requireAgentGrant(board, move);
-          return store[move.operation](board, ...executableArgs(move, board));
+          measure('engine-coordinator-guard', () => ports.requireCoordinatorHold(board, move, standing?.lineage, at));
+          measure('engine-handoff-guard', () => requireHandoffActive(board, ports.relayMoveActor(move), move.operation, move.args));
+          if (move.engine >= EXIT_RULES_ENGINE) measure('engine-exit-guard', () => store.requireExitActive(board, ports.relayMoveActor(move), move.operation, move.args));
+          measure('engine-agent-grant', () => requireAgentGrant(board, move));
+          return measure('engine-native-move', () => store[move.operation](board, ...executableArgs(move, board)));
         });
         const result = standing ? store.withVerifierStanding(board, standing, execute) : execute();
         outcome = { result: result ?? null, events: (board.emittedEvents?.slice(firstEvent) ?? []).map((event) => ({ ...event })) };
