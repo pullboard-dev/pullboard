@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { configFromSource } from '../packages/config/index.js';
+import { loadConfig } from '../packages/config/index.js';
 import { parseExpectedBuildMinutes } from '../packages/items/index.js';
 import { buildCalibration } from '../packages/stats/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -19,7 +20,8 @@ test('over-budget scope refuses claim, cut children build, and capacity compares
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
-  json(box.run(box.repo, 'settings', 'submit.handoff', 'false', '--json'));
+  const config = { ...loadConfig(box.repo), submit: { handoff: false } };
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: private foreground submit [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -51,7 +53,8 @@ test('over-budget scope refuses claim, cut children build, and capacity compares
   assert.equal(measured.ratio, measured.actualMinutes / measured.expectedMinutes);
   assert.equal(capacity.builds.calibration.samples, 1);
   assert.match(box.run(box.repo, 'capacity').out, /expected 20\.000 min; actual/u);
-  json(box.run(box.repo, 'settings', 'itemBuildBudgetMinutes', '10', '--json'));
+  config.itemBuildBudgetMinutes = 10;
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'test: accepted ten minute build budget [G1]');
   box.git(box.web, 'merge', '-q', 'main');
