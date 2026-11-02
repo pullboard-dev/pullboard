@@ -239,7 +239,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   const direct = [
     `import * as store from ${JSON.stringify(url('board.js'))};`,
     `import { openBoard } from ${JSON.stringify(url("native-board.js"))};`,
-    `import { runLandingBatch } from ${JSON.stringify(url('land.js'))};`,
+    `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
     `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
