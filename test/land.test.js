@@ -16,6 +16,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { landingFailures, landingSubject } from '../src/land.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { startFixtureChild, runFixtureChild } from './fixture-child.js';
+import { stopGroup } from './runner-process-group.js';
 import { waitForFixtureProgress } from './fixture-progress.js';
 import { assertNoRemoteLanding } from './land-no-remote-fixture.js';
 import { MARKER_NOT_YET, readMarker } from './land-marker-fixture.js';
@@ -153,13 +154,7 @@ async (t) => {
     };
     for (const writer of writers) {
       writeFileSync(writer.release, 'release');
-      if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-        try { process.kill(-writer.child.pid, 'SIGTERM'); } catch {}
-        if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-          try { process.kill(-writer.child.pid, 'SIGKILL'); } catch {}
-          await writer.closed;
-        }
-      }
+      await stopGroup(writer.child, writer.closed);
     }
     for (const hook of hooks) {
       if (!await settle(hook.closed, 1_000) && hook.exitCode === null && hook.signalCode === null) {
@@ -231,7 +226,7 @@ async (t) => {
   t.after(async () => {
     if (writer) {
       writeFileSync(writer.release, 'release');
-      await writer.closed;
+      await stopGroup(writer.child, writer.closed);
     }
     if (hook && hook.exitCode === null && hook.signalCode === null) {
       hook.kill('SIGKILL');
@@ -1101,13 +1096,7 @@ async (t) => {
     };
     for (const writer of writers) {
       writeFileSync(writer.release, 'release');
-      if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-        try { process.kill(-writer.child.pid, 'SIGTERM'); } catch {}
-        if (!await settle(writer.closed, 1_000) && writer.child.exitCode === null && writer.child.signalCode === null) {
-          try { process.kill(-writer.child.pid, 'SIGKILL'); } catch {}
-          await writer.closed;
-        }
-      }
+      await stopGroup(writer.child, writer.closed);
     }
     for (const hook of hooks) {
       if (!await settle(hook.closed, 1_000) && hook.exitCode === null && hook.signalCode === null) {
@@ -1193,7 +1182,7 @@ async (t) => {
   t.after(async () => {
     if (writer) writeFileSync(writer.release, 'cleanup');
     try { if (hook) await stop(hook, hook.closed); }
-    finally { if (writer) await stop(writer.child, writer.closed, true); }
+    finally { if (writer) await stopGroup(writer.child, writer.closed); }
   });
   writer = startExclusiveWriter(box, join(box.repo, '.git', 'pullboard', 'board.sqlite'), 'slow-reader');
   await waitFor(() => existsSync(writer.ready), 'exclusive writer before the delayed hook');
@@ -1252,9 +1241,9 @@ test('land bisect adoption retains completed gates, isolated diagnostics and ori
   child.stdout.on('data', part => { outputBytes += Buffer.byteLength(part); });
   child.stderr.on('data', part => { outputBytes += Buffer.byteLength(part); });
   const closed = new Promise((resolveClose) => child.once('close', (status, signal) => resolveClose({ status, signal })));
-  t.after(() => {
+  t.after(async () => {
     writeFileSync(box.release, 'release');
-    if (child.exitCode === null && child.signalCode === null) { try { process.kill(-child.pid, 'SIGKILL'); } catch {} }
+    await stopGroup(child, closed);
   });
   await waitForFixtureProgress({
     child,

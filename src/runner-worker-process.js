@@ -8,9 +8,9 @@ export function spawnOwned(S, command, args, options = {}) {
   const child = spawn(command, args, { ...options, detached: true });
   let settle;
   const closed = new Promise(resolveClose => { settle = resolveClose; });
-  const record = { child, pid: child.pid, closed, drainPromise: null };
+  const identity = S.activeDescendantTracker?.registerRoot(child.pid);
+  const record = { ...identity, child, pid: child.pid, command, closed, drainPromise: null };
   S.ownedChildren.set(child, record);
-  S.activeDescendantTracker?.registerRoot(child.pid);
   child.once('error', error => settle({ error }));
   child.once('close', (code, signal) => settle({ code, signal }));
   return record;
