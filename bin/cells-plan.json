@@ -1186,6 +1186,10 @@
     {
       "path": "src/command-docs/seats.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-test-placement.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
