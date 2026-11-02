@@ -1,6 +1,7 @@
 import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
+import { receiptLine as cellsReceiptLine } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
 import { cachedDoctrineHold } from '../../packages/doctrine/index.js';
 import { runnerPhaseFields } from '../timing.js';
@@ -394,7 +395,8 @@ export async function submitHere(ctx, id, infra) {
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
     onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
-  if (cells.reused) ctx.io.say(gateReceipt.receiptLine(cells.receipt));
+  // A reused cells receipt never ran on a runner, so it has no slot; the check-receipt line cites it without one.
+  if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
   if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
