@@ -45,7 +45,7 @@ test('agent scratch and explicit transient previews are excluded without hiding 
   environment(t, { HOME: resolve('/', 'person-home') });
   const home = homedir();
   for (const root of [join(home, '.claude', 'projects', 'session', 'scratchpad', 'board'),
-    join(home, '.codex', 'scratch', 'board')]) assert.equal(projectRegistrationAllowed(root, {}), false);
+    join(home, '.codex', 'scratch', 'board'), join(home, '.claude', 'worktrees', 'preview')]) assert.equal(projectRegistrationAllowed(root, {}), false);
   const durable = resolve('/', 'person-projects', 'application');
   assert.equal(projectRegistrationAllowed(durable, { AI_AGENT: 'codex' }), true);
   assert.equal(projectRegistrationAllowed(durable, { PULLBOARD_TRANSIENT: '1' }), false);

@@ -35,6 +35,6 @@ export function projectRegistrationAllowed(root, env = process.env) {
   const home = physicalPath(homedir());
   return !paths.some(path => {
     const parts = relative(home, path).split(sep);
-    return ['.claude', '.codex'].includes(parts[0]) && parts.slice(1).some(part => ['scratch', 'scratchpad', 'scratchpads', 'previews'].includes(part));
+    return ['.claude', '.codex'].includes(parts[0]) && parts.slice(1).some(part => ['scratch', 'scratchpad', 'scratchpads', 'previews', 'worktrees', 'tmp'].includes(part));
   });
 }
