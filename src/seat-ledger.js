@@ -1,7 +1,7 @@
 /** Local timing and board events projected into bounded seat states [C7,N2]. */
 import { readFileSync } from 'node:fs';
 import { statSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { gitExecFileSync } from '../packages/git/index.js';
 import { join } from 'node:path';
 
 /** Ignore malformed or partially written tail records rather than inventing time. */
@@ -14,7 +14,7 @@ export function readSeatTiming(common) {
 export function worktreeActivity(path) {
   if (!path) return null;
   try {
-    const files = execFileSync('git', ['status', '--porcelain', '-z', '--untracked-files=all'], { cwd: path, encoding: 'utf8', timeout: 5000 }).split('\0');
+    const files = gitExecFileSync(['status', '--porcelain', '-z', '--untracked-files=all'], { cwd: path, encoding: 'utf8', timeout: 5000 }).split('\0');
     let latest = null;
     for (const row of files) {
       if (row.length < 4) continue;
