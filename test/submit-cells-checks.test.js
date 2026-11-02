@@ -550,6 +550,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
       put(file, `export const ${name} = ${index};\n`);
     }
     put('bin/cells-plan/seed.json', JSON.stringify({ source: 'many-cell fixture', sha256: 'none', order: Object.keys(cells), cells, tests: {} }));
+    put('bin/cells-plan/transition.json', JSON.stringify({ version: 1, deleteItem: 1770 }));
     moveFixtureKernel({ put }, 'export class Refused extends Error {}\n');
   });
   assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
