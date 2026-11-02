@@ -2,7 +2,7 @@ import { recentReceipts } from '../../packages/gate/index.js';
 import { runnerLossHealth } from '../runner-loss-health.js';
 import { runnerLossLines } from '../runner-loss-health.js';
 import { maintenanceTimerHealth } from '../worktree-maintenance-scheduler.js';
-import { flakeQuarantines } from '../quarantine.js';
+import { flakeQuarantines } from '../../packages/flakes/index.js';
 import { toolBuildHealth } from '../pinned-tool-build.js';
 import { newestEligibleToolBuild } from '../pinned-tool-publish.js';
 import { toolBuildLocation } from '../pinned-tool-build.js';

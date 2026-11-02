@@ -1,7 +1,7 @@
 import { blockingFailures } from '../../packages/verify/index.js';
-import { quarantineWaivers } from '../quarantine.js';
-import { quarantineVerdictSnapshot } from '../quarantine.js';
-import { sealQuarantineVerdict } from '../quarantine.js';
+import { quarantineWaivers } from '../../packages/flakes/index.js';
+import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
+import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
 import { boardReceiptStore } from '../../packages/gate/index.js';
 import { readGateReceipt } from '../../packages/gate/index.js';
 import { checkAtCommit } from '../runner-private-check.js';

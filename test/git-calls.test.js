@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { recordGateRun as nativeRecordGateRun } from '../src/quarantine.js';
+import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /** Count real Git child processes and prove command-scoped facts refresh after a commit [C7]. */
 import assert from 'node:assert/strict';
 import {

@@ -5,7 +5,7 @@ import { proposeSentinel as nativeProposeSentinel } from '../src/sentinels.js';
 import { decideSentinel as nativeDecideSentinel } from '../src/sentinels.js';
 import { beginSentinelRun as nativeBeginSentinelRun } from '../src/sentinels.js';
 import { finishSentinelRun as nativeFinishSentinelRun } from '../src/sentinels.js';
-import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../packages/flakes/index.js';
 import { recordPublishFinding as nativeRecordPublishFinding } from '../packages/github/index.js';
 /** Exercise native move effects before comparing the actual relay's complete decoded projection [H5,H17]. */
 import assert from 'node:assert/strict';
