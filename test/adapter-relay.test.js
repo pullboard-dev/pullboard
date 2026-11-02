@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
 import { browserJSON } from '../relay/browser-deadline.js';
+import { relayBoundaryProblems } from '../bin/checks/relay-boundary.js';
 import { createFakeRelayAdapter, realRelayAdapter, relayFetch, withRelayAdapter } from '../packages/person/index.js';
 
 async function contract(adapter, origin) {
@@ -54,4 +55,12 @@ test('browser relay JSON accepts the shared fake contract [C7]', async () => {
   });
   const result = await browserJSON('/board', { adapter: fake });
   assert.deepEqual(result.document, { version: 1 });
+});
+
+/** The source gate rejects a new direct network call while ignoring comments and fixture strings. */
+test('relay lint refuses a stray direct fetch [C7]', () => {
+  const rows = relayBoundaryProblems([{ file: 'src/stray-relay.js', source: 'export async function read(url) { return fetch(url); }' }]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].file, 'src/stray-relay.js');
+  assert.deepEqual(relayBoundaryProblems([{ file: 'src/fixture.js', source: 'const example = "fetch(url)"; // fetch(url)' }]), []);
 });
