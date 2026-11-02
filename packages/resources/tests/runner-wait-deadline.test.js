@@ -447,3 +447,29 @@ test('a late first dispatch cannot jump an older compatible runner waiter [C7,Q1
     }
   });
 });
+
+test('runner-only browser refusal retries with a browser lease [C7,Q1,Q2]', async () => {
+  const box = fixture({ dropFirst: false });
+  const gateUrl = pathToFileURL(join(process.cwd(), 'src/gate.js')).href;
+  const source = `import { withGateSlot } from ${JSON.stringify(gateUrl)};
+${executionServicesSource(gateUrl)}
+let calls = 0;
+const result = await withGateSlot(process.cwd(), lease => {
+  calls += 1;
+  if (calls === 1) {
+    if (lease.browser) throw new Error('first attempt unexpectedly has browser capacity');
+    const error = new Error('authenticated runner refusal');
+    error.code = 'RUNNER_BROWSER_SLOT_REQUIRED';
+    error.runnerAttempt = { host: lease.runner.host, exitCode: 1, output: 'refused' };
+    throw error;
+  }
+  return { browser: lease.browser, host: lease.runner.host };
+}, { executionServices, remote: true, runnerOnly: true, browser: false, runnerWaitMs: 5000 });
+process.stdout.write(JSON.stringify({ calls, result }));`;
+  const result = await runFixtureChildAsync(process.execPath, ['--input-type=module', '-e', source], { cwd: box.repo, env: box.env });
+  assert.equal(result.status, 0, result.stderr);
+  const outcome = JSON.parse(result.stdout);
+  assert.equal(outcome.calls, 2);
+  assert.equal(outcome.result.browser, true);
+  assert.equal(outcome.result.runnerAttempt.output, 'refused');
+});
