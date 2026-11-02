@@ -137,6 +137,15 @@ test('absent historical reasons stay unknown and incomplete windows never preten
   for (const key of ['agentHoursPerLanding', 'rejectRate', 'submitsPerItem', 'shoutsPerLanding', 'idleShare']) assert.equal(empty.current[key], null, key);
 });
 
+test('focus idle observations are counted as focus time [B26,R2]', t => {
+  const changes = entries().map(entry => entry[2] === 'next-idle' && entry[4]?.reason === 'review-family'
+    ? [...entry.slice(0, 4), idle('focus')] : entry);
+  const box = fixture(t, changes);
+  const result = compareFlowWindows(box.history(), { now: BASE + 120 * 60_000, windowMinutes: 60, complete: true });
+  assert.equal(result.previous.idleReasonHours.focus, 20 / 60);
+  assert.equal(result.previous.idleReasons.focus, 20 / 120);
+});
+
 test('next records an authenticated prospective cause and refuses an invented reason without an event [R2,N2]', t => {
   const box = fixture(t, []);
   const before = box.history().length;
