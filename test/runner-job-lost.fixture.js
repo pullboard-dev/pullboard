@@ -40,7 +40,8 @@ function project(t) {
         for (const signal of ['SIGTERM', 'SIGKILL']) { try { process.kill(owner.pid, signal); } catch { /* This exact owned fixture process already exited. */ } }
       }
     } catch { /* Setup may fail before this private fixture creates any process. */ }
-    helpers.cleanup();
+    if (process.env.PULLBOARD_DEBUG_KEEP) process.stderr.write(`fixture retained: ${box.dir}\n`);
+    else helpers.cleanup();
   });
   return { ...box, record };
 }
