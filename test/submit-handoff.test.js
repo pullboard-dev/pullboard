@@ -11,6 +11,7 @@ import { openBoard } from '../src/native-board.js';
 import { getItem } from '../packages/store/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { shout } from '../packages/store/index.js';
 import { completeSubmitHandoff, startSubmitHandoff } from '../src/submit-handoff-state.js';
@@ -174,7 +175,9 @@ test('two item folders stamp and queue their own claims while the first gate run
   const marker = box.git(box.source, 'rev-parse', '--git-path', 'pullboard-item.json');
   rmSync(marker);
   document(box.run(box.source, 'status', '--json'));
-  assert.equal(JSON.parse(readFileSync(marker, 'utf8')).item, box.id, 'pre-marker folder restores its own private identity');
+  const restored = `${JSON.stringify({ version: 1, seat: state(box, box.id).item.item_owner, item: box.id })}\n`;
+  const blob = createHash('sha1').update(`blob ${Buffer.byteLength(restored)}\0${restored}`).digest('hex');
+  assert.equal(box.git(box.source, 'hash-object', marker), blob, 'pre-marker folder restores its own private identity');
   writeFileSync(marker, '{broken');
   assert.equal(box.run(box.source, 'status', '--json').code, 1, 'a damaged marker is never silently replaced');
   rmSync(marker);
