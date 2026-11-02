@@ -391,7 +391,7 @@ export function fixtureSourceEdits(source, { file, moves, readSource, dataReads 
   let reads;
   try {
     reads = bindingReadsForModules([{ file, source, body: probeBody, bindings: names.map(local => ({ local })) }]).get(file);
-  } catch { return { edits: [], problems: [...problems, `${file}: fixture binding compiler unavailable`] }; }
+  } catch (error) { return { edits: [], problems: [...problems, `${file}: ${error.message.includes('cell binding compiler timeout') ? error.message : 'fixture binding compiler unavailable'}`] }; }
 
   const unsafeModules = new Set();
   for (const [name, binding] of imported.bindings) {

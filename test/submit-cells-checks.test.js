@@ -670,3 +670,26 @@ test('unchanged accepted cell cut evidence is reused across different candidate 
   await assert.rejects(preflight(box.root, box.main, commitCandidate(box), box.item, services), /kernel --cuts: kernel still imports later stats/u,
     'cached accepted evidence cannot hide a new candidate cut');
 });
+
+test('fixture binding compiler retries timeouts and names persistent timeouts [C7,D3]', t => {
+  const original = childProcess.spawnSync;
+  let calls = 0, always = false, firstTimeout;
+  t.mock.method(childProcess, 'spawnSync', (...args) => {
+    if (args[0] === process.execPath && args[1]?.includes('--experimental-vm-modules')) {
+      calls++;
+      if (always || calls === 1) {
+        firstTimeout ??= args[2].timeout;
+        return { status: null, error: Object.assign(new Error('timed out'), { code: 'ETIMEDOUT' }) };
+      }
+      if (calls === 2) assert.ok(args[2].timeout > firstTimeout);
+    }
+    return original(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const modules = bindingModules();
+  assert.ok(bindingReadsForModules(modules).get('binding-cache.js').get('join').reads.length > 0);
+  assert.ok(calls >= 2);
+  always = true;
+  assert.throws(() => bindingReadsForModules(modules), /compiler timeout after retry.*load .*cores/u);
+});
