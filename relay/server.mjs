@@ -2,10 +2,10 @@
 import { createServer } from 'node:http';
 import { chmodSync, chownSync, lstatSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { createAuthHandler } from './auth-http.js';
-import { createRelayAuth } from './auth.js';
-import { createGitHubClient } from './github.js';
-import { createRelayHandler } from './service.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
+import { createRelayHandler } from '../apps/relay/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
 const NODE_UID = 1000;

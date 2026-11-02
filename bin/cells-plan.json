@@ -1302,6 +1302,18 @@
     {
       "path": "src/move-history/209.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "relay/Dockerfile",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)"
+    },
+    {
+      "path": "relay/server.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)"
+    },
+    {
+      "path": "relay/smoke.mjs",
+      "reason": "deployed relay entry keeps its path (coordinator ops ruling 2 Nov, #1592)"
     }
   ],
   "retired": [
