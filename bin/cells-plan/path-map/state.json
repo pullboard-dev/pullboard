@@ -1,6 +1,6 @@
 {
   "src/agent-grant.js": "packages/state/src/core/agent-grant.js",
-  "src/corrected-bar.js": "packages/state/src/shell/corrected-bar.js",
+  "src/corrected-bar.js": "packages/state/src/core/corrected-bar.js",
   "src/engine-folder.js": "packages/state/src/shell/engine-folder.js",
   "src/engine.js": "packages/state/src/shell/engine.js",
   "src/format-registry.js": "packages/state/src/shell/format-registry.js",
