@@ -1,14 +1,13 @@
 /** Read only reached file limits and changed ratchet rows from committed Git sources [C7]. */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { relative } from 'node:path';
 import { resolve } from 'node:path';
 import { sep } from 'node:path';
 import { posix } from 'node:path';
 import { gitChildEnv } from '../../../../src/git.js';
 import { tryGit } from '../../../../src/git.js';
-import { mainPolicy } from '../../../sandbox/index.js';
+import { mainCheckout } from '../../../../src/git.js';
+import { carriedRunnerTrunk } from '../../../sandbox/index.js';
 import { readPlacementIndex } from './test-economics-index.js';
 import { DEFAULT_TEST_FILE_BUDGET_MS } from '../core/test-file-budget.js';
 import { requireTestFileRatchet } from '../core/test-file-budget.js';
@@ -38,8 +37,9 @@ function rowAt(root, ref, path) {
 /** Compare changed rows and read only the selected files, not the repository-wide table. */
 export function readTestFileBudgets(root, files) {
   const portable = files.map(file => testFileRelative(root, file));
-  if (!existsSync(join(root, 'pullboard.json'))) return new Map(portable.map(file => [file, { ms: DEFAULT_TEST_FILE_BUDGET_MS, audit: false }]));
-  const main = mainPolicy(root).commit;
+  if (tryGit(root, ['rev-parse', '--git-dir'], { env: gitChildEnv(root) }).status !== 0) return new Map(portable.map(file => [file, { ms: DEFAULT_TEST_FILE_BUDGET_MS, audit: false }]));
+  const main = mainCheckout(root)?.commit ?? carriedRunnerTrunk(root)?.commit;
+  if (!main) throw new Error('cannot determine accepted main for test file budgets');
   const diff = tryGit(root, ['diff', '--name-only', '-z', main, 'HEAD', '--', DIRECTORY], { env: gitChildEnv(root) });
   if (diff.status !== 0) throw new Error('cannot compare test file budgets to accepted main');
   for (const path of diff.stdout.split('\0').filter(Boolean)) {
