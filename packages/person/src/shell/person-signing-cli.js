@@ -1,3 +1,4 @@
+import { relayFetch } from './relay-adapter.js';
 /**
  * The terminal side of signed person moves [E22,B26,H16]: the passkey step a person-only command takes, the
  * `pullboard settings person.signed` switch, and pinning the relay's stamp key from this board's own relay origin.
@@ -66,7 +67,7 @@ export async function pinRelayAuthority(root, board, io = {}, { timeoutMs = 10_0
   }
   let document;
   try {
-    const response = await fetch(new URL(AUTHORITY_PATH, origin), { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
+    const response = await relayFetch(new URL(AUTHORITY_PATH, origin), { redirect: 'error', signal: AbortSignal.timeout(timeoutMs) });
     document = await response.json();
     if (!response.ok) throw new Refused(document?.error?.code ?? 'PERSON_AUTHORITY', document?.error?.message ?? 'the relay refused');
   } catch (error) {

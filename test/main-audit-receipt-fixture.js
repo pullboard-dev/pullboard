@@ -4,7 +4,7 @@ import { prepareEngineMove, applyEngineMove, appliedSequence } from '../packages
 import { MAIN_AUDIT_ENGINE } from '../src/main-audit-engine.js';
 import { getItem } from '../packages/store/index.js';
 import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
-import { gateRuns, recordGateRun } from '../src/quarantine.js';
+import { gateRuns, recordGateRun } from '../packages/flakes/index.js';
 
 /** Caller supplies two native boards with the same genuinely recorded landing history, plus the real stored run. */
 export function assertMainAuditReceiptReplay(origin, replica, request, at) {

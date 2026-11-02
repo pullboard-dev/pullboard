@@ -31,6 +31,7 @@ import { trunkMerge } from '../../packages/sandbox/index.js';
 import { relayLinked } from '../../packages/link/index.js';
 import { checkMainVerifier } from './verify.js';
 import { ordered } from './claim.js';
+import { openItemFolder } from '../item-folder.js';
 import { claimOrdered } from './claim.js';
 import { currentReworkRoutingPolicy } from './claim.js';
 import { whoAmI } from './join.js';
@@ -94,14 +95,23 @@ export async function nextOnce(ctx, values) {
     const target = ctx;
     ctx.io.nextPhase?.('claim', item.item_id);
     try {
-      await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true }]);
+      await claimOrdered(target, board, [item.item_id, { agentId: holder.id, lane: holder.lane, leaseMs: target.config.leaseMs, freeze: claimFreezer(target, board), head: headCommit(target.info.root), reviewSkipped, autoNext: true, itemFolder: true }]);
     } catch (error) {
       if (error instanceof MainSpecMerged) return { retry: true, specMerged: { item: item.item_id, rows: error.rows } };
       if (error instanceof Refused && ['HELD', 'ITEM_HELD', 'BLOCKED', 'ONE_CLAIM'].includes(error.code)) return { retry: true, retryDetail: { phase: 'claim', item: item.item_id, code: error.code, message: error.message } };
       throw error;
     }
-    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons };
+    const itemFolder = await openNextFolder(target, board, holder, item.item_id);
+    return { item: store.getItem(board, item.item_id), shared, held, reviewSkipped, reasons, ...(itemFolder ? { itemFolder, holder: holder.id } : {}) };
   });
+}
+
+/** Open the claimed item's own folder, or reuse the one a resumed claim already has, exactly as claim does [B5]. */
+function openNextFolder(ctx, board, me, id) {
+  return openItemFolder(ctx, me, id, { board,
+    onArchive: archive => ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'note',
+      text: `Archived prior item folder ${archive.previousPath} from ${archive.previousHolder} before takeover.\nRecovery: ${JSON.stringify({ directory: archive.directory, head: archive.manifest.head, ref: archive.manifest.ref })}`,
+      ref: null }]) });
 }
 
 /** Name the best item in another lane without claiming it; that lane's own seat builds it [N2,B13]. */
