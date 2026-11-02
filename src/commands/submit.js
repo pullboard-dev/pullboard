@@ -616,6 +616,9 @@ export async function submitHere(ctx, id, infra) {
   // A main that moved through commits touching nothing this proof depends on is merged without a rerun (#1816).
   let submitted = commit;
   let trunkMove = null;
+  // A queued worker proves the immutable captured source and policy. Landing will
+  // reconcile later main changes; do not attribute those unproved files to this gate.
+  if (isSubmitHandoffWorker(ctx) && currentTrunk.commit !== acceptedMain.commit) currentTrunk = acceptedMain;
   if (requireComposition && !companion && currentTrunk.commit !== acceptedMain.commit) {
     if (isSubmitHandoffWorker(ctx)) await withBoard(ctx, async board => {
       const job = submitHandoff(board, id);
