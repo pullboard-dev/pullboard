@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fixtureSourceEdits } from '../bin/cells-move-fixtures.js';
+import { withCellLintParser } from '../packages/codemap/index.js';
 
 const PREFIX = "import { cpSync, readFileSync } from 'node:fs'; import { join } from 'node:path';\n";
 const options = { file: 'test/data-reads.test.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']], readSource: () => null };
@@ -267,4 +268,10 @@ test('blueprint config declarations retain actual-source and exact-site negative
   });
   assert.equal(actual.edits.length, 1, 'a declaration cannot hide the real moved repository asset');
   assert.deepEqual(actual.matchedDataReads ?? [], []);
+});
+
+test('a real syntax error names its fixture file through the batch parser [C7,P3]', () => {
+  const result = withCellLintParser(() => fixtureSourceEdits("import { readFileSync } from 'node:fs';\nconst broken = ;\n",
+    { file: 'test/broken-fixture.js', moves: [['src/git.js', 'packages/git/src/shell/git.js']] }));
+  assert.match(result.problems.join('\n'), /test\/broken-fixture\.js: fixture source does not compile/u);
 });
