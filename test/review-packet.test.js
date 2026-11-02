@@ -104,12 +104,16 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   assert.equal(packet.clauses[1].runs[0].test, 'clause 2: the visitor is named [G1]');
   assert.deepEqual(packet.clauses[2].runs, []);
   assert.equal(packet.clauses[2].gap, 'no recorded run');
-  assert.match(packet.clauses[3].gap, /deferred the full suite/u, 'a deferred full suite is not a recorded run');
+  if (packet.proof.deferred) assert.match(packet.clauses[3].gap, /deferred the full suite/u, 'a deferred full suite is not a recorded run');
+  else assert.ok(packet.proof.full && packet.clauses[3].runs.every(run => receiptIds.has(run.receipt) && run.file === '(submit gate)'),
+    `a full-suite clause cites the gate's own proof receipts: ${JSON.stringify({ proof: packet.proof, clause: packet.clauses[3] })}`);
   assert.deepEqual(packet.failures, []);
   assert.deepEqual(packet.cells, { before: 0, after: 0, added: [], removed: [], touched: [] });
   assert.match(review.out, /^ {2}3\. Old browsers fall back to plain text\.\n {5}no recorded run: rerun this clause$/mu, 'the uncovered clause is named');
   assert.match(review.out, /^failures at head: none$/mu);
-  assert.match(review.out, /^review rule: rerun only clauses marked no recorded run \(3, 4\)/mu);
+  const rerun = packet.clauses.filter(clause => !clause.runs.length).map(clause => clause.n);
+  assert.ok(rerun.includes(3) && !rerun.includes(1) && !rerun.includes(2) && !rerun.includes(5));
+  assert.match(review.out, new RegExp(`^review rule: rerun only clauses marked no recorded run \\(${rerun.join(', ')}\\)`, 'mu'));
 
   const reviewer = join(box.dir, 'api-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, head);
@@ -124,6 +128,6 @@ test('a green gate stores a packet whose clauses map to its runs, names the unco
   ok(box, reviewer, 'verify', String(id), 'accept', '--read', '1,2,3', '--note', 'read the packet; reran clause 3 by hand');
   const verdict = JSON.parse(ok(box, box.repo, 'show', String(id), '--json').out).verdicts.at(-1);
   assert.equal(verdict.verdict_decision, 'ACCEPT');
-  assert.match(verdict.verdict_note, new RegExp(`review packet ${head.slice(0, 12)}: read clauses 1, 2, 3; no recorded run: 3, 4`, 'u'),
+  assert.match(verdict.verdict_note, new RegExp(`review packet ${head.slice(0, 12)}: read clauses 1, 2, 3; no recorded run: ${rerun.join(', ')}$`, 'mu'),
     'the accept records which clauses it read');
 });

@@ -184,6 +184,10 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     receipt: receipt.id, kind: receipt.kind, phase: receipt.submitPhase ?? null, runner: receipt.runner ?? null, file, result: fileResult(receipt, file),
   })));
   const ranFiles = [...new Set(runs.map(run => run.file))];
+  // The submit gate's own proof runs, one row per receipt: a full-suite clause cites these, not one file.
+  const suiteRuns = receipts.filter((receipt, index) => (receipt.submitPhase ? receipt.submitPhase !== 'criterion' : index > 0))
+    .map(receipt => ({ receipt: receipt.id, kind: receipt.kind, phase: receipt.submitPhase ?? null, runner: receipt.runner ?? null,
+      file: '(submit gate)', result: receipt.exitCode === 0 || receipt.green === true ? 'pass' : 'fail', test: null, why: 'full suite run by the submit gate' }));
   const clauses = packetClauses(item);
   // Test names are read for files this item changed or its check names: those are the tests written for this bar.
   const candidates = ranFiles.filter(file => changed.includes(file) || checkFiles.includes(file) || clauses.some(clause => clause.text.includes(file)));
@@ -205,8 +209,8 @@ function buildReviewPacket(root, { item, submit, receipts, baseline }, { now = n
     let evidence = covers.flatMap(cover => runs.filter(run => run.file === cover.file).map(run => ({ ...run, test: cover.test, why: cover.why })));
     let gap = evidence.length ? null : 'no recorded run';
     if (!evidence.length && SUITE.test(clause.text)) {
-      if (proof.full === true) evidence = runs.filter(run => run.phase !== 'criterion').map(run => ({ ...run, test: null, why: 'full suite run by the submit gate' }));
-      else gap = `no recorded run: the submit gate deferred the full suite${proof.reason ? ` (${proof.reason})` : ''}`;
+      if (proof.deferred === true) gap = `no recorded run: the submit gate deferred the full suite${proof.reason ? ` (${proof.reason})` : ''}`;
+      else if (proof.full === true) evidence = suiteRuns;
     }
     return { ...clause, runs: evidence, ...(evidence.length ? {} : { gap: gap ?? 'no recorded run' }) };
   });
