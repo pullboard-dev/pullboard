@@ -96,6 +96,18 @@ function parallelPublicationRoot(state, batch) {
   return root;
 }
 
+/** Bind the native count to the batch before any trunk or remote publication. */
+export async function prepareFlakeLanding(state) {
+  const result = state.landingPorts.landingFlakeRatchet(state.board);
+  if (!result.allowed) {
+    const names = [...result.unprotected, ...result.malformed, ...result.unjustified]
+      .map(row => `${row.file} :: ${row.name}`);
+    throw new Refused('FLAKE_RATCHET', `landing would raise or leave an unquarantined flaky test: ${[...new Set(names)].join(', ')}`,
+      'quarantine each newly observed flake with a filed repair item before landing');
+  }
+  return save(state, { flakeRatchet: result.snapshot });
+}
+
 /** Push the exact gated tip before recording receipts, then fast-forward only a clean unchanged main. */
 export async function publish(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
@@ -109,6 +121,7 @@ export async function publish(state) {
   }
   if (batch.state !== 'pushed') {
     await state.checkLease();
+    batch = await prepareFlakeLanding(state);
     publicationInputs(state, batch);
     const pushRoot = parallelPublicationRoot(state, batch);
     const alreadyPushed = tryGit(batch.root, ['ls-remote', remote, batch.branch]).stdout.split(/\s+/u)[0] === batch.tip;

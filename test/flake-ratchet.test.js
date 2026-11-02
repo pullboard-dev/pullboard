@@ -112,3 +112,20 @@ test('legacy coordinator gate pairs retain their named flake evidence [C7,T12]',
   assert.deepEqual(legacyFlakeObservations([red, { ...green, tree: 'other' }]), []);
   assert.deepEqual(legacyFlakeObservations([red, { ...green, by: 'agent' }]), []);
 });
+
+/** Publication refuses before any batch write, then records an allowed lower count. */
+test('landing guard names unquarantined flakes and records the lower count [C7,T12]', async () => {
+  const { prepareFlakeLanding } = await import('../packages/landing/index.js');
+  let result = flakeRatchet({ previous: { version: 1, eventId: 10, count: 0, quarantines: [] }, eventId: 11,
+    observations: [observed('test/new.test.js', 11)], quarantines: [] });
+  let writes = 0;
+  const state = { board: {}, batch: { revision: 0 }, landingPorts: { landingFlakeRatchet: () => result },
+    write: async (_operation, [request]) => { writes++; return { ...request.batch, revision: request.revision + 1 }; } };
+  await assert.rejects(prepareFlakeLanding(state), error => error.code === 'FLAKE_RATCHET' && error.message.includes('test/new.test.js :: case'));
+  assert.equal(writes, 0);
+  result = flakeRatchet({ previous: { version: 1, eventId: 10, count: 1, quarantines: [quarantine('test/old.test.js', 7, 8)] },
+    eventId: 12, observations: [], quarantines: [] });
+  await prepareFlakeLanding(state);
+  assert.equal(state.batch.flakeRatchet.count, 0);
+  assert.equal(writes, 1);
+});
