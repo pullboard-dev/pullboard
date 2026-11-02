@@ -13,6 +13,7 @@ function state(box) {
   // @pullboard-board-file journey: the real CLI owns every queue, proof and submission write.
   const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
   try {
+    db.exec('PRAGMA busy_timeout=5000');
     const row = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${box.id}`);
     return { job: row ? JSON.parse(row.meta_value) : null,
       item: db.prepare('SELECT item_status,item_commit FROM item WHERE item_id=?').get(box.id) };
