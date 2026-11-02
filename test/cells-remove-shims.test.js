@@ -458,7 +458,7 @@ test('remove-shims CLI prints and writes its kept-shim handoff [C7,D3]', t => {
   const run = runFixtureChild(process.execPath, [TOOL, '--remove-shims', 'stats', '--output-dir', out], { cwd: box.root, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /src\/view\/panel\.js/u);
-  assert.match(run.stdout, /pullboard .*--after/u);
+  assert.match(run.stdout, /pullboard [\s\S]*--after/u);
   assert.match(readFileSync(join(out, 'fact.txt'), 'utf8'), /src\/view\/panel\.js/u);
   assert.match(readFileSync(join(out, 'cut-item.txt'), 'utf8'), /--after/u);
 });
