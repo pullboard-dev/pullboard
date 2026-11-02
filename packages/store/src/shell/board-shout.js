@@ -115,5 +115,5 @@ export function shout(board, message) {
     throw new Refused('BOARD_SHOWS_THIS', 'the board shows this; read pullboard show <id> or pullboard roadmap for progress, waits, holders and idle time');
   }
   return atomic(board, () => insertShout(board, routeLaneMessage(board, { ...message,
-    news: activityNewsFlag(message, board.executionEngineVersion ?? ENGINE_VERSION) }, board.executionEngineVersion ?? ENGINE_VERSION)));
+    news: activityNewsFlag(message, board.executionEngineVersion ?? ENGINE_VERSION) }, board.executionEngineVersion ?? ENGINE_VERSION, { reviewRequests: (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_REQUEST_ENGINE })));
 }
