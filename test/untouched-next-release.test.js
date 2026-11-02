@@ -7,8 +7,8 @@ import { crossLaneFixture } from './e2e-helpers.js';
 
 test('real next and release preserve an untouched item for another builder [C7,H16]', t => {
   const box = crossLaneFixture(t);
-  const seat = box.seat('core-seat', 'core', box.session);
-  const id = box.add('core', 'Untouched automatic claim');
+  const seat = box.seat('core-seat', 'web', box.session);
+  const id = box.add('web', 'Untouched automatic claim');
   for (let index = 0; index < 2; index++) {
     const next = box.json(box.runAs(box.session, seat.root, 'next', '--build', '--json'));
     assert.equal(next.item.item_id, id);
@@ -21,8 +21,8 @@ test('real next and release preserve an untouched item for another builder [C7,H
 
 test('matching pre-existing edits are untouched, but later content changes count [C7,H16]', t => {
   const box = crossLaneFixture(t);
-  const seat = box.seat('dirty-seat', 'core', box.session);
-  const id = box.add('core', 'Existing worktree edits');
+  const seat = box.seat('dirty-seat', 'web', box.session);
+  const id = box.add('web', 'Existing worktree edits');
   const file = join(seat.root, 'already-dirty.txt');
   writeFileSync(file, 'before');
   const take = () => box.json(box.runAs(box.session, seat.root, 'next', '--build', '--json'));
