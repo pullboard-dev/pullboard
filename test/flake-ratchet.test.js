@@ -1,3 +1,15 @@
+import { DatabaseSync } from 'node:sqlite';
+import { prepareFlakeLanding } from '../packages/landing/index.js';
+import { boardFixture } from './next-order-fixture.js';
+import { closeBoard } from '../packages/store/index.js';
+import { addItem } from '../packages/store/index.js';
+import { logEvent } from '../packages/store/index.js';
+import { events } from '../packages/store/index.js';
+import { withdraw } from '../packages/store/index.js';
+import { flakeQuarantines } from '../packages/flakes/index.js';
+import { gateRuns } from '../packages/flakes/index.js';
+import { QUARANTINE_CORE_ENGINE } from '../src/quarantine-core-engine.js';
+import { AUTO_SUBMIT_QUARANTINE_ENGINE } from '../src/auto-submit-quarantine-engine.js';
 /** Quarantine counts are a per-landing ratchet, with named flake evidence [C7,T12]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -64,7 +76,6 @@ test('historical quarantines use the landing boundary, including later reopens a
 
 /** The first post-activation landing reconstructs the previous landing, not the later current state. */
 test('native event adapter reconstructs and advances the previous landing snapshot [C7,T12]', async t => {
-  const { DatabaseSync } = await import('node:sqlite');
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
@@ -92,7 +103,6 @@ test('native event adapter reconstructs and advances the previous landing snapsh
 
 /** A changed board never produces a mixed event boundary and quarantine snapshot. */
 test('native ratchet refuses a concurrently changed board [C7,T12]', async t => {
-  const { DatabaseSync } = await import('node:sqlite');
   const db = new DatabaseSync(':memory:');
   t.after(() => db.close());
   db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
@@ -115,7 +125,6 @@ test('legacy coordinator gate pairs retain their named flake evidence [C7,T12]',
 
 /** Publication refuses before any batch write, then records an allowed lower count. */
 test('landing guard names unquarantined flakes and records the lower count [C7,T12]', async () => {
-  const { prepareFlakeLanding } = await import('../packages/landing/index.js');
   let result = flakeRatchet({ previous: { version: 1, eventId: 10, count: 0, quarantines: [] }, eventId: 11,
     observations: [observed('test/new.test.js', 11)], quarantines: [] });
   let writes = 0;
@@ -132,20 +141,15 @@ test('landing guard names unquarantined flakes and records the lower count [C7,T
 
 /** Historical reconstruction agrees with native projection and retains the earlier boundary. */
 test('historical quarantine matches native state across a real board withdrawal [C7,T12]', async t => {
-  const { boardFixture } = await import('./next-order-fixture.js');
-  const store = await import('../packages/store/index.js');
-  const { flakeQuarantines, gateRuns } = await import('../packages/flakes/index.js');
-  const { QUARANTINE_CORE_ENGINE } = await import('../src/quarantine-core-engine.js');
-  const { AUTO_SUBMIT_QUARANTINE_ENGINE } = await import('../src/auto-submit-quarantine-engine.js');
   const { board } = boardFixture();
-  t.after(() => store.closeBoard(board));
-  const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Flake repair', route: 'strong' });
-  store.logEvent(board, 'coordinator', 'test-quarantine', id, { engine: 1, file: 'test/a.test.js', name: 'case', runs: [] });
-  const boundary = store.events(board).at(-1).event_id;
+  t.after(() => closeBoard(board));
+  const id = addItem(board, { by: 'coordinator', lane: 'core', title: 'Flake repair', route: 'strong' });
+  logEvent(board, 'coordinator', 'test-quarantine', id, { engine: 1, file: 'test/a.test.js', name: 'case', runs: [] });
+  const boundary = events(board).at(-1).event_id;
   const options = { quarantineCoreEngine: QUARANTINE_CORE_ENGINE, autoSubmitEngine: AUTO_SUBMIT_QUARANTINE_ENGINE };
-  const historical = () => quarantinesAt(store.events(board), gateRuns(board), { ...options, throughEvent: boundary });
+  const historical = () => quarantinesAt(events(board), gateRuns(board), { ...options, throughEvent: boundary });
   assert.equal(historical()[0].status, flakeQuarantines(board)[0].status);
-  store.withdraw(board, id, { agentId: 'coordinator', reason: 'The synthetic repair was withdrawn.' });
+  withdraw(board, id, { agentId: 'coordinator', reason: 'The synthetic repair was withdrawn.' });
   assert.equal(flakeQuarantines(board)[0].status, 'lifted');
   assert.equal(historical()[0].status, 'quarantined');
 });
