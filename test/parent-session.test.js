@@ -31,7 +31,7 @@ import {
   exportBoard,
   importBoard,
 } from '../packages/store/index.js';
-import { effectiveAgentParent } from '../src/seats.js';
+import { effectiveAgentParent } from '../packages/seats/index.js';
 
 test('[V1,B3] parent discovery reads only matching own runtime metadata and agrees with --parent', (t) => {
   const home = mkdtempSync(join(tmpdir(), 'pullboard-parent-'));

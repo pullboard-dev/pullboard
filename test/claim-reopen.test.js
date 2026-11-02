@@ -12,7 +12,7 @@ import { configFromSource, defaults } from '../packages/config/index.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { barReadiness, barReadySetting, setBarReady, signBar } from '../packages/verify/index.js';
-import { saveAgentSession, saveAgentParent } from '../src/seats.js';
+import { saveAgentSession, saveAgentParent } from '../packages/seats/index.js';
 
 const COMMIT = 'a'.repeat(40);
 const TRUNK = 'b'.repeat(40);

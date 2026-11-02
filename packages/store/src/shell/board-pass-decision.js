@@ -1,4 +1,4 @@
-import { leadOwnsDecision } from "../../../../src/lane-lead.js";
+import { leadOwnsDecision } from "../../../seats/index.js";
 import { getShout } from "./board-read-auxiliary.js";
 import { PERSON } from "./board-query.js";
 import { COORDINATION_SHOUT } from "../core/board-shout-audience.js";

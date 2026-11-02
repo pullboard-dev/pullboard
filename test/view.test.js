@@ -16,7 +16,7 @@ import { after, test } from 'node:test';
 import { main } from './native-cli-fixture.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
-import { forgetProject, listApiProjects } from '../src/projects.js';
+import { forgetProject, listApiProjects } from '../packages/seats/index.js';
 import { runningView, rememberView, forgetView } from '../src/view-session.js';
 import { fetchFresh } from './http-fixture.js';
 import { parseSpec } from '../packages/spec/index.js';
