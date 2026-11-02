@@ -282,7 +282,7 @@ export function companionMainFailuresUntouched(root, { base, source, composed },
  * @param {{commit?: string, detailed?: boolean, fresh?: boolean, onMeasuredReceipt?: (id:string)=>Promise<void>, runnerAdmission?: object, execution?: {executor:object, environment:object}}} [options] - Capture the submit base and require exact test identities; fresh bypasses completed exact-main comparisons; onMeasuredReceipt records only freshly executed native receipts.
  * @returns {Promise<{ main: string|null, files: Array<{file:string,result:'red'|'green'}>, unavailable?: string }>}
  */
-export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt, runnerAdmission = {}, execution } = {}) {
+export async function compareMainFailures(root, profile, onWait, output = '', { commit, detailed = false, fresh = false, onMeasuredReceipt, runnerAdmission = {}, execution, recordedRuns = [] } = {}) {
   const main = commit ? { commit } : mainCheckout(root);
   if (!main?.commit) return { main: null, files: [], unavailable: 'the primary checkout has no committed main snapshot' };
   const policy = policyAt(root, main.commit);
@@ -298,14 +298,26 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
       return { main: main.commit, files: [], unavailable: 'the candidate check has no complete executor and runtime identity' };
     }
   }
-  if (pinned) {
-    try { ({ requiredExecutor: executor, browser: comparisonBrowser } = comparisonExecutor(root, execution)); }
-    catch (error) { return { main: main.commit, files: [], unavailable: error.message }; }
-  }
   const files = failingFiles(root, profile, output);
   if (!files.length) return { main: main.commit, files: [], unavailable: 'could not read which tests failed' };
   const file = pinned ? null : cacheFile(root);
   const pinnedEntries = Object.create(null);
+  // Board events carry native receipt bytes; bind them to the retained receipt, exact
+  // main, focused command and runtime before using them as comparison evidence.
+  if (pinned && detailed) for (const path of files) {
+    const word = "'" + ('./' + path).replaceAll("'", "'\\''") + "'";
+    const command = createHash('sha256').update(`PULLBOARD_TEST_REUSE=0 ${policy.config.affectedTests.trimEnd()} ${word}`).digest('hex');
+    for (const run of [...recordedRuns].reverse()) {
+      const receipt = readGateReceipt(receiptStore(root), run.id);
+      if (!receipt || receiptBody(receipt) !== receiptBody(run) || receipt.kind !== 'main-red'
+        || receipt.head !== main.commit || receipt.main !== main.commit || receipt.command !== command
+        || !sameEnvironment(receipt.environment, execution.environment)) continue;
+      const failures = receipt.green ? [] : receipt.failureSignatures?.version === MAIN_FAILURE_SIGNATURE_VERSION
+        ? receipt.failureSignatures.failures.map(row => row.file === path ? row : { ...row, ran: path }) : null;
+      const outcome = { result: receipt.green ? 'green' : 'red', failures, signatureVersion: MAIN_FAILURE_SIGNATURE_VERSION, receiptId: receipt.id };
+      if (cachedFailureSignatures(outcome, path)) { pinnedEntries[path] = outcome; break; }
+    }
+  }
   const coarse = Object.create(null);
   /** A detailed comparison cannot reuse an old file-only or obsolete-signature cache entry. */
   const usable = outcome => ['red', 'green'].includes(outcome?.result)
@@ -316,7 +328,11 @@ export async function compareMainFailures(root, profile, onWait, output = '', { 
     ? Promise.resolve({ version: 1, entries: { [main.commit]: { ...pinnedEntries } } })
     : withComparisonCache(root, onWait, () => readCache(file));
   let cache = await snapshot();
-  const missing = files.filter(path => fresh || !usable(cache.entries[main.commit]?.[path]));
+  const missing = files.filter(path => !usable(cache.entries[main.commit]?.[path]) || fresh && !pinned);
+  if (pinned && missing.length) {
+    try { ({ requiredExecutor: executor, browser: comparisonBrowser } = comparisonExecutor(root, execution)); }
+    catch (error) { return { main: main.commit, files: [], unavailable: error.message }; }
+  }
   let failed = null;
   for (const path of missing) {
     try {
