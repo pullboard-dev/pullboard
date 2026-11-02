@@ -41,9 +41,9 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
   const { atomic, itemById, reviewHolder, reviewReleaseNoteProblem, setItem, moveItem, logEvent, insertShout, validateItemDependencies } = dependencies;
   // A string fourth argument is the release reason code; an object is a coordinator's frozen observation.
   if (typeof observation === 'string') { reasonCode = observation; observation = undefined; }
-  const cleanHead = observation?.cleanHead;
-  if (observation && Object.hasOwn(observation, 'cleanHead')) {
-    const { cleanHead: ignored, ...other } = observation;
+  const worktreeSnapshot = observation?.worktreeSnapshot;
+  if (observation && Object.hasOwn(observation, 'worktreeSnapshot')) {
+    const { worktreeSnapshot: ignored, ...other } = observation;
     observation = Object.keys(other).length ? other : undefined;
   }
   const blockedOn = observation?.blockedOn;
@@ -101,7 +101,8 @@ export function releaseClaim(board, id, agentId, note, observation, dependencies
     const lastClaim = board.db.prepare("SELECT event_by, event_detail FROM event WHERE item_id = ? AND event_kind = 'claim' ORDER BY event_id DESC LIMIT 1").get(id);
     const claimDetail = JSON.parse(lastClaim?.event_detail ?? '{}');
     const untouchedAutoClaim = (board.executionEngineVersion ?? ENGINE_VERSION) >= UNTOUCHED_CLAIM_ENGINE && !stale && !gone && !exitHandoff
-      && lastClaim?.event_by === agentId && typeof cleanHead === 'string' && cleanHead === claimDetail.autoNextCleanHead;
+      && lastClaim?.event_by === agentId && worktreeSnapshot?.head === claimDetail.autoNextSnapshot?.head && typeof worktreeSnapshot?.digest === 'string'
+      && worktreeSnapshot.digest === claimDetail.autoNextSnapshot?.digest;
     logEvent(board, agentId, 'release', id, blockedOn ? { reasonCode, blockedOn, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}), ...(exitHandoff ? { exitHandoff } : {}) } : exitHandoff ? { exitHandoff, reason: note, ...(reasonCode === undefined ? {} : { reasonCode }) } : stale ? { staleClaim: stale, reason: stale.reason, ...(stale.expiredClaim ? { expiredClaim: stale.expiredClaim, reopenFirstRefusal: stale.reopenFirstRefusal } : {}), ...(reasonCode === undefined ? {} : { reasonCode }) } : gone ? { goneSeat: gone, reason: `Released gone seat ${gone.seat}; last seen ${gone.lastSeen}.`, ...(reasonCode === undefined ? {} : { reasonCode }) } : reasonCode === undefined ? undefined : { reasonCode, ...(untouchedAutoClaim ? { untouchedAutoClaim: true } : {}), ...(typeof note === 'string' && note.trim() ? { reason: note.trim() } : {}) });
     // Count only ordinary coded claim releases since the coordinator last lifted a hold.
     if (!stale && !gone && !exitHandoff && reasonCode && !item.item_hold_reason

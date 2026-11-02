@@ -60,13 +60,13 @@ test('clean next claims do not count, but changed or explicit claims do [C7,H16]
   const second = store.register(board, { lane: 'core', path: '/two', route: 'strong' });
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'work', criterion: 'prove it', route: 'strong' });
   const claim = (agentId, auto = true) => store.claim(board, id, { agentId, lane: 'core', leaseMs: 7200000, head: commit,
-    ...(auto ? { autoNext: true, autoNextCleanHead: commit } : {}),
+    ...(auto ? { autoNext: true, autoNextSnapshot: { head: commit, digest: 'c'.repeat(64) } } : {}),
     freeze: item => ({ text: JSON.stringify({ criterion: item.item_criterion, policy: { version: 1, commit, verify: { policy: 'any', family: 'off' } } }), digest: 'digest' }) });
-  claim(first); store.release(board, id, first, '', { cleanHead: commit }, 'ROUTED_ELSEWHERE');
-  claim(second); store.release(board, id, second, '', { cleanHead: commit }, 'ROUTED_ELSEWHERE');
+  claim(first); store.release(board, id, first, '', { worktreeSnapshot: { head: commit, digest: 'c'.repeat(64) } }, 'ROUTED_ELSEWHERE');
+  claim(second); store.release(board, id, second, '', { worktreeSnapshot: { head: commit, digest: 'c'.repeat(64) } }, 'ROUTED_ELSEWHERE');
   assert.equal(store.getItem(board, id).item_hold_reason, null);
-  claim(first); store.release(board, id, first, '', { cleanHead: 'b'.repeat(40) }, 'BLOCKED');
+  claim(first); store.release(board, id, first, '', { worktreeSnapshot: { head: 'b'.repeat(40), digest: 'c'.repeat(64) } }, 'BLOCKED');
   assert.equal(store.getItem(board, id).item_hold_reason, null);
-  claim(second, false); store.release(board, id, second, '', { cleanHead: commit }, 'BLOCKED');
+  claim(second, false); store.release(board, id, second, '', { worktreeSnapshot: { head: commit, digest: 'c'.repeat(64) } }, 'BLOCKED');
   assert.match(store.getItem(board, id).item_hold_reason, /Released twice/);
 });
