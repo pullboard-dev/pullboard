@@ -50,8 +50,8 @@ function fixture(t) {
   t.after(async () => {
     for (const id of ids) {
       const job = read(box, id).job;
-      if (job) await helpers.waitFor(() => !existsSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', read(box, id).job.id, 'source')),
-        'queued worker cleanup', 120000); // budget: hang ceiling for the real detached worker's cleanup; no elapsed-time assertion.
+      const source = job && join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'source');
+      if (job) await helpers.waitFor(() => !existsSync(source), 'queued worker cleanup', 120000); // budget: hang ceiling for the real detached worker's cleanup; no elapsed-time assertion.
     }
     helpers.cleanup();
   });
@@ -60,8 +60,8 @@ function fixture(t) {
 
 /** Wait for a real queued job to reach a terminal state. */
 async function terminal(box, id) {
-  await box.helpers.waitFor(() => ['red', 'green', 'submitted', 'incomplete'].includes(read(box, id).job?.state),
-    `queued gate #${id} finishes`, 120000); // budget: hang ceiling for the real detached worker; no elapsed-time assertion.
+  const done = () => ['red', 'green', 'submitted', 'incomplete'].includes(read(box, id).job?.state);
+  await box.helpers.waitFor(done, `queued gate #${id} finishes`, 120000); // budget: hang ceiling for the real detached worker; no elapsed-time assertion.
   return read(box, id);
 }
 

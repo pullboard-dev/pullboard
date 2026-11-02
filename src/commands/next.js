@@ -1,4 +1,5 @@
-import { nextIdleChanged, sayQueuedReds } from '../../packages/store/index.js';
+import { nextIdleChanged } from '../../packages/store/index.js';
+import { sayQueuedReds } from '../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../packages/verify/index.js';
 import { claimWorktrees } from '../../packages/activity/index.js';
