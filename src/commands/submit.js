@@ -312,6 +312,7 @@ export async function submitHere(ctx, id, infra) {
     }
   }
   const preflightStart = performance.now();
+  const preflightWallStart = Date.now();
   const runnerAdmission = gateRunnerAdmission();
   const held = await withBoard(ctx, async (board) => {
     const me = whoAmI(ctx, board);
@@ -471,7 +472,13 @@ export async function submitHere(ctx, id, infra) {
   const cellsStart = performance.now();
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
   try { cells = runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
-    ? await withGateSlot(root, lease => remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput),
+    ? await withGateSlot(root, async lease => {
+      try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput); }
+      finally {
+        const admitted = Date.parse(lease.executionAdmission?.admittedAt ?? '');
+        if (Number.isFinite(admitted)) ctx.io.say(`submit runner admitted: ${lease.executionAdmission.admittedAt} (approximately ${((admitted - preflightWallStart) / 1000).toFixed(2)}s from controller start; runner clock)`);
+      }
+    },
       { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
         agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, remote: true, runnerOnly: true,
         onWait: queuedItemLease(ctx, held, me.id, 'build') })
