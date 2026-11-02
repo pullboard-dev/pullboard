@@ -4,22 +4,23 @@ import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   repoInfo,
+  contains,
   headCommit,
   headTree,
   isClean,
-} from './git.js';
+} from '../packages/git/index.js';
 import { prepareItemPatchSubmit } from './item-patch-submit.js';
 import { itemPatchDigest } from '../packages/items/index.js';
 import { getItem } from '../packages/store/index.js';
 import { Refused } from '../packages/kernel/index.js';
 
-/** A queue captures only this board's clean registered builder head and exact deterministic companions. */
+/** Retain the preflight policy across forward main moves, with the exact clean source and companions. */
 export function sealSubmitHandoffQueue(board, id, options) {
   if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u.test(options.job ?? '')) throw new Refused('BAD_SUBMIT_HANDOFF', 'capture a new native job identifier');
   const root = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(options.agentId)?.agent_path;
   const file = board.db.prepare('PRAGMA database_list').all().find(row => row.name === 'main')?.file;
   if (!root || !file || realpathSync(join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite')) !== realpathSync(file)
-    || mainPolicy(root).commit !== options.main || headCommit(root) !== options.commit || headTree(root) !== options.tree || !isClean(root)) {
+    || !contains(root, options.main, mainPolicy(root).commit) || headCommit(root) !== options.commit || headTree(root) !== options.tree || !isClean(root)) {
     throw new Refused('SUBMIT_HANDOFF_SOURCE', 'queue only the clean registered builder head on this board');
   }
   const companion = prepareItemPatchSubmit(root, board, getItem(board, id), options.commit);
