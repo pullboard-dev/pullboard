@@ -9,9 +9,9 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
-import { browserBoundFiles, checkNeedsBrowser, testsNeedBrowser } from '../src/browser-admission.js';
-import { browserInCall } from '../src/browser-slot-guard.js';
-import { snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../src/browser-source-files.js';
+import { browserBoundFiles, checkNeedsBrowser, testsNeedBrowser } from '../packages/gate/index.js';
+import { browserInCall } from '../packages/gate/index.js';
+import { snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../packages/gate/index.js';
 
 
 /** Create source files for a dependency graph whose modules must never execute during admission. */

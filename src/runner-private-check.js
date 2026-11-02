@@ -42,14 +42,14 @@ import { environmentProblem } from '../packages/config/index.js';
 import {
   digestOf,
   writeTimingProfile,
-} from './gate-output.js';
+} from '../packages/gate/index.js';
 import { sandboxBlockedScanner } from '../packages/sandbox/index.js';
 import {
   logLines,
   timingFromLog,
   timingFromOutput,
   timingRunner,
-} from './timing.js';
+} from '../packages/gate/index.js';
 import {
   GATE_SLOT_HELD_ENV,
   gateSlotEnvironment,

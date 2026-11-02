@@ -44,8 +44,8 @@ import {
 import {
   detectGate,
   settingCommand,
-} from './gate-config.js';
-export { detectGate } from './gate-config.js';
+} from '../packages/gate/index.js';
+export { detectGate } from '../packages/gate/index.js';
 import {
   gitPath,
   tryGit,

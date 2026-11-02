@@ -1,10 +1,10 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import { sourceAdvancePlan } from '../packages/codemap/index.js';
-import { selectAffectedTests } from '../src/affected-tests.js';
-import { selectTestTreeGuards } from '../src/affected-tests.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
+import { selectTestTreeGuards } from '../packages/gate/index.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';

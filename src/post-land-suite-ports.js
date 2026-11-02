@@ -5,7 +5,7 @@ import { laneOf } from './lanes.js';
 import { listItems } from '../packages/store/index.js';
 import { unownedMainReds } from '../packages/store/index.js';
 import { postLandSuiteEnabled } from '../packages/config/index.js';
-import { runFullSuite } from './test-run.js';
+import { runFullSuite } from '../packages/gate/index.js';
 import { failureSignatures } from '../packages/landing/index.js';
 import { runnerExecutionServices } from './runners.js';
 import { landingExecutionServices } from '../packages/landing/index.js';

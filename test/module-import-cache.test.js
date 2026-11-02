@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
 import { test } from 'node:test';
-import { commonJsIn, importsIn } from '../src/module-imports.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
+import { commonJsIn, importsIn } from '../packages/gate/index.js';
+import { withImportParseCache } from '../packages/gate/index.js';
 
 /** Count real parser subprocesses without substituting any successful compiler outcome. */
 function compilerCalls(t) {

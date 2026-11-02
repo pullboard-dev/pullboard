@@ -8,7 +8,7 @@ import { COORDINATOR } from '../../packages/config/index.js';
 import { outOfLane } from '../lanes.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { briefFiles } from '../../packages/items/index.js';
-import { startCheckBaseline } from '../check-baseline-worker.js';
+import { startCheckBaseline } from '../../packages/gate/index.js';
 import { ordered } from './claim.js';
 
 /** Start an already-recorded request, recording an unavailable result if its child cannot start. */

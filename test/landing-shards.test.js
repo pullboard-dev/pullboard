@@ -4,7 +4,7 @@ import { copyPackageFiles } from '../src/package-files.js';
 import './main-audit-cases.js';
 import './main-audit-receipt.test.js';
 /** The landing gate splits its test files into shards across local slots and runners [C7,V4]. */
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { configProblems, defaults } from '../packages/config/index.js';
-import { landingShardCount } from '../src/gate.js';
+import { landingShardCount } from '../packages/gate/index.js';
 import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../packages/landing/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';

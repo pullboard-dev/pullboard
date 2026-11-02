@@ -1,6 +1,6 @@
 /** Fresh per-file main comparisons for inherited submit reds [V1]. */
-import { testClosures } from '../../../../src/affected-tests.js';
-import { selectAffectedTests } from '../../../../src/affected-tests.js';
+import { testClosures } from '../../../gate/index.js';
+import { selectAffectedTests } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../../src/runners.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { spawnSync } from 'node:child_process';
@@ -25,13 +25,13 @@ import { stripVTControlCharacters } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
   withGateSlot,
-} from '../../../../src/gate.js';
+} from '../../../gate/index.js';
 import { runMainComparison } from '../../../../src/gate-execution.js';
 import {
   readGateReceipt,
   receiptBody,
   receiptStore,
-} from '../../../../src/gate-run-receipt.js';
+} from '../../../gate/index.js';
 import {
   cleanGitEnvironment,
   mainCheckout,
@@ -55,11 +55,11 @@ import {
   MAIN_FAILURE_SIGNATURE_VERSION,
 } from './main-failure-matches.js';
 import { linkKnownMainReworks } from '../../../store/index.js';
-import { testsNeedBrowser } from '../../../../src/browser-admission.js';
-import { testsNeedGui } from '../../../../src/gui-admission.js';
+import { testsNeedBrowser } from '../../../gate/index.js';
+import { testsNeedGui } from '../../../gate/index.js';
 import { browserFreeChecksEnabled } from '../../../config/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
-import { recentReceipts } from '../../../../src/gate-receipt.js';
+import { recentReceipts } from '../../../gate/index.js';
 
 const CACHE_RELATIVE = 'pullboard/main-red.json';
 

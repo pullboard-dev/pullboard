@@ -13,7 +13,7 @@ import {
   evaluatePerfBudgets,
   perfBudgetTable,
   readPerfReport,
-} from '../src/perf-budgets.js';
+} from '../packages/gate/index.js';
 
 /** Parse the saved harness output; artifacts live outside the harness's disposable workspace. */
 function main(args) {

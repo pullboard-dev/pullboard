@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   mainAuditKey,
   readMainAudit,
-} from '../src/main-audit-state.js';
+} from '../packages/gate/index.js';
 /** Read only the exact native audit identity; malformed or mismatched journals fail the owning fixture. */
 export function readAuditJob(directory, key) {
   assert.match(key, /^[a-f0-9]{64}$/u, 'audit journal identity is the exact native digest');

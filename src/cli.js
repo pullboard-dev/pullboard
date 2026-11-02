@@ -26,7 +26,7 @@ export { uncommittedSetup } from './cli-context.js';
 export { unknownCommand } from './cli-help.js';
 export { withBoard } from './cli-context.js';
 export { VERSION } from './help.js';
-export { gateWaitReporter } from './gate-wait.js';
+export { gateWaitReporter } from '../packages/gate/index.js';
 export * from './cli/board-access.js';
 export * from './cli/add.js';
 export * from './cli/spec.js';

@@ -16,7 +16,7 @@ import { source } from './submit-main-red-fixture.js';
 import { submittedProof } from './submit-main-red-fixture.js';
 import { cli } from './submit-main-red-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
-import { exactStart } from '../src/gate.js';
+import { exactStart } from '../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
 

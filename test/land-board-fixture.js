@@ -1,4 +1,4 @@
-import { readMainAudit } from '../src/main-audit-state.js';
+import { readMainAudit } from '../packages/gate/index.js';
 import { closePolicySourceWake } from './landing-queue-fixture.js';
 import { writeFileSync } from 'node:fs';
 import { waitForFixtureProgress } from './fixture-progress.js';

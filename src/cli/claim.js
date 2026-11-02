@@ -42,7 +42,7 @@ import { Refused } from '../../packages/kernel/index.js';
 import { frozenCriterion } from '../../packages/spec/index.js';
 import { mainCriterionFacts } from '../main-criterion-facts.js';
 import { liveCriterionSpec } from '../main-criterion-facts.js';
-import { foreignNodeOptions } from '../test-isolation.js';
+import { foreignNodeOptions } from '../../packages/gate/index.js';
 import { loadSpec } from '../../packages/spec/index.js';
 import { refuseAgentApprovedRows } from '../../packages/spec/index.js';
 import { ensureSpecApprovalCoordinator } from '../../packages/spec/index.js';

@@ -6,8 +6,8 @@ import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { cellInventory } from '../packages/codemap/index.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles } from '../src/package-files.js';
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 

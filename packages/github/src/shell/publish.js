@@ -14,7 +14,7 @@ import { rmSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../../../../src/board.js';
-import { runGate } from '../../../../src/gate.js';
+import { runGate } from '../../../gate/index.js';
 import { git } from '../../../../src/git.js';
 import { mainCheckout } from '../../../../src/git.js';
 import { repoInfo } from '../../../../src/git.js';

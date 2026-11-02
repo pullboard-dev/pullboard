@@ -1,5 +1,5 @@
 /** Pin, scan and install the trusted runner tooling bytes a remote worker runs [C7]. */
-import { runnerSource } from './gate-policy-load.js';
+import { runnerSource } from '../packages/gate/index.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from '../packages/kernel/index.js';

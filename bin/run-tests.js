@@ -23,20 +23,20 @@ import {
   trackedDefaultTestFiles,
   shardArguments,
   testSelectionPatterns,
-} from '../src/test-selection.js';
+} from '../packages/gate/index.js';
 import {
   AGENT_SHELL_MARKERS,
   SSH_SHELL_MARKERS,
 } from '../packages/kernel/src/core/discovery.js';
 import { isLandingWorkerIdentityTimeout, landingWorkerIdentityQuery, parseLandingWorkerIdentity } from '../src/landing-worker-identity.js';
-import { foreignNodeOptions, isolateTestMachine } from '../src/test-isolation.js';
-import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../src/test-file-pool.js';
-import { optionTakesValue } from '../src/test-file-dispatch.js';
-import { knownNodeOption } from '../src/test-file-dispatch.js';
-import { COLLECTION_ID_ENV } from '../src/gate-run-receipt.js';
+import { foreignNodeOptions, isolateTestMachine } from '../packages/gate/index.js';
+import { TEST_FILE_POOL_ENV, longestFirst, takeTestFileToken, testFilePoolValue } from '../packages/gate/index.js';
+import { optionTakesValue } from '../packages/gate/index.js';
+import { knownNodeOption } from '../packages/gate/index.js';
+import { COLLECTION_ID_ENV } from '../packages/gate/index.js';
 import { beginSuiteTiming, TIMING_RUN_ID_ENV } from '../src/run-timing.js';
-import { hasTestFiles as selectedFilesPresent } from '../src/test-selection.js';
-import { explicitTestFiles as selectedFiles } from '../src/test-selection.js';
+import { hasTestFiles as selectedFilesPresent } from '../packages/gate/index.js';
+import { explicitTestFiles as selectedFiles } from '../packages/gate/index.js';
 import { formatTestOutcomes } from '../src/test-outcomes.js';
 import { removeGitRepositorySelectors } from '../packages/git/index.js';
 // Discovery and full-suite delegation happen before the existing per-worker isolation below.

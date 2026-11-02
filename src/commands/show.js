@@ -28,7 +28,7 @@ import {
 } from '../../packages/spec/index.js';
 import {
   sayCheckBaseline,
-} from '../check-baseline-format.js';
+} from '../../packages/gate/index.js';
 import {
   mainMergeFor,
   mainMergeLines,

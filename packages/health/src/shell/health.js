@@ -34,7 +34,7 @@ import {
   mainCheckout,
   tryGit,
 } from '../../../../src/git.js';
-import { gateControlFindings } from '../../../../src/gate-control.js';
+import { gateControlFindings } from '../../../gate/index.js';
 import { boardBusyError } from '../../../store/index.js';
 import { buildOrder } from '../../../store/index.js';
 import { foreignBlockers } from '../../../store/index.js';

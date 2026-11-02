@@ -2,7 +2,7 @@ import { inventoryCache } from '../bin/cells-inventory-cache.js';
 import { observationCache } from '../bin/cells-inventory-cache.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
-import { withImportParseCache } from '../src/module-import-cache.js';
+import { withImportParseCache } from '../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -64,8 +64,8 @@ import { readPlan } from '../bin/cells-plan.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 
 /** Bind real higher-controller services for every immutable fixture inspection. */
 const requireSubmitCells = (...args) => preflight(...args, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS) });
@@ -210,7 +210,7 @@ import { bindingReadsForModules } from '../packages/codemap/index.js';
 import { cachedBindingMetadata } from '../packages/codemap/src/shell/cell-binding-uses.js';
 import { exportReachability } from '../packages/codemap/src/shell/cell-lint-exports.js';
 import { withBindingReadCache } from '../packages/codemap/index.js';
-import { foreignNodeOptions } from '../src/test-isolation.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 
 /** Count actual compiler children, preserving every successful V8 observation. */
 function bindingCompilerCalls(t, observed = {}) {

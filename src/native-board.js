@@ -54,7 +54,7 @@ import {
   boardReceiptStore,
   readGateReceipt,
   receiptBody,
-} from './gate-run-receipt.js';
+} from '../packages/gate/index.js';
 import {
   MOVE_REGISTRY,
   MOVE_OPERATIONS,

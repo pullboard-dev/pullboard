@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runnerJobReply } from '../src/runner-transport.js';
 import { processCensus } from '../src/runner-custody.js';
-import { isolateTestMachine } from '../src/test-isolation.js';
+import { isolateTestMachine } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';

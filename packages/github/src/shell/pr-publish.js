@@ -23,7 +23,7 @@ import {
   cleanGitEnvironment,
   refuseGrafts,
 } from '../../../../src/git.js';
-import { runGate } from '../../../../src/gate.js';
+import { runGate } from '../../../gate/index.js';
 import {
   githubPullClient,
   githubRepository,

@@ -12,8 +12,8 @@ import {
   releaseReceiptFields,
   releaseReceiptProblem,
   releaseParticipationDigest,
-} from '../src/release-gate-receipt.js';
-import { receiptBody, receiptFields } from '../src/gate-run-receipt.js';
+} from '../packages/gate/index.js';
+import { receiptBody, receiptFields } from '../packages/gate/index.js';
 
 /** Hash synthetic command and collection data using the native digest format, without claiming they ran. */
 function digest(text) { return createHash('sha256').update(text).digest('hex'); }

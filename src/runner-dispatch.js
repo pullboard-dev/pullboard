@@ -1,5 +1,5 @@
 /** Dispatch runner work through a fresh controller process and hold its SSH session [C7]. */
-import { RunnerDropped } from './gate-policy-load.js';
+import { RunnerDropped } from '../packages/gate/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { historyPack } from './runner-history-pack.js';
 import { loadedToolingFiles } from './runner-remote-tooling.js';

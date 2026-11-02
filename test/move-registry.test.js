@@ -31,7 +31,7 @@ const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { NEXT_STEPS } from '../src/next-step-words.js';
 import { REGISTRY_AT } from './move-registry-fixture.js';
 import { registryFixtureBoard } from './move-registry-fixture.js';
-import { importsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
 import { readdirSync } from 'node:fs';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { SPEC_REVISION_ENGINE } from '../src/spec-revision-engine.js';

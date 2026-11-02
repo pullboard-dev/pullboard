@@ -18,7 +18,7 @@ import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
-import { selectAffectedTests } from '../affected-tests.js';
+import { selectAffectedTests } from '../../packages/gate/index.js';
 import { committedItemAuthors } from '../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../../packages/verify/index.js';
@@ -41,12 +41,12 @@ import {
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../browser-admission.js';
+} from '../../packages/gate/index.js';
 import {
   refuseSandboxBlocked,
   timingDigest,
   withGateSlot,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import {
   contains,
   git,
@@ -63,7 +63,7 @@ import {
   checkImplies,
   parseImplies,
 } from '../../packages/state/index.js';
-import { checkNeedsGui } from '../gui-admission.js';
+import { checkNeedsGui } from '../../packages/gate/index.js';
 import * as itemSessions from '../../packages/items/index.js';
 import { itemAuthors } from '../../packages/items/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
