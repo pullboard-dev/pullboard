@@ -81,7 +81,7 @@ test('init and opening a temporary board leave the person registry unchanged [I8
   assert.equal(init.status, 0, `${init.context}\n${init.stdout}`);
   assert.equal(readFileSync(registry, 'utf8'), before, 'init does not register the preview');
   const script = `import { main } from ${JSON.stringify(new URL('../src/cli.js', import.meta.url).href)};
-import { serveView } from ${JSON.stringify(new URL('../src/serve.js', import.meta.url).href)};
+import { serveView } from ${JSON.stringify(new URL('../src/commands/view.js', import.meta.url).href)};
 const result = await main(['view','--no-open','--port','0'], {
   cwd: process.cwd(), stdout: { isTTY: true, write() {} }, stderr: process.stderr,
   loadNativeBoard: () => import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)}),
