@@ -189,7 +189,7 @@ try {
     const { withGitReadFacts } = await import(new URL('../git.js', pathToFileURL(serveFile)));
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID
     // diagnostic before measuring provenance; ordinary warmed reads still require zero children.
-    const { prepareBoardWriteIdentity } = await import(new URL('../board-write-lock.js', pathToFileURL(serveFile)));
+    const { prepareBoardWriteIdentity } = await import(new URL('../../packages/store/index.js', pathToFileURL(serveFile)));
     prepareBoardWriteIdentity();
     for (const status of [undefined, true]) {
       // A current board opens read-only with no authority to decide; a cleared stamp makes each need a write open (#1047).
@@ -588,8 +588,8 @@ test('[A2, N26] an unchanged board state is reused and a move rebuilds it', cach
 
 test("[A2, N26] the board state sends summaries and an item's detail comes from its own path", async (t) => {
   const box = await httpBox(t);
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder');
-  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier');
+  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
+  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */
   async function move(body) {
     const moved = await box.call(box.path + '/moves', body);
@@ -613,7 +613,7 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   let leaseUntil;
   try { leaseUntil = board.db.prepare('SELECT item_lease_until FROM item WHERE item_id = ?').get(claimed).item_lease_until; } finally { store.closeBoard(board); }
 
-  const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'updatedAt', 'stage', 'since', 'counts', 'verdict', 'withdrawnReason', 'withdrawnFrom'];
+  const summaryFields = ['id', 'title', 'lane', 'status', 'route', 'milestone', 'specs', 'claim', 'builtBy', 'blockedBy', 'progress', 'updatedAt', 'stage', 'since', 'counts', 'verdict', 'withdrawnReason', 'withdrawnFrom'];
   const summaryState = await box.call(box.path + '/state');
   assert.equal(summaryState.status, 200);
   const fullState = await box.call(box.path + '/state?detail=full');
@@ -633,10 +633,12 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.equal(JSON.stringify(summaryState.document).includes('Zebra'), false, 'no criterion text in the summaries');
 
   const acceptedFull = fulls.get(accepted);
+  const mergedEvent = acceptedFull.history.findLast((event) => event.kind === 'merged');
+  assert.ok(mergedEvent, 'the accepted fixture item lands automatically');
   assert.deepEqual(summaries.get(accepted), {
     id: accepted, title: 'Accepted summary item', lane: 'app', status: 'verified', route: acceptedFull.route, milestone: 'Delivery',
-    specs: ['G1'], claim: null, builtBy: builder.agent, blockedBy: [], updatedAt: acceptedFull.updatedAt, stage: 'accepted',
-    since: acceptedFull.history.findLast((event) => event.kind === 'accept').at, counts: { verdicts: 1, facts: 1 },
+    specs: ['G1'], claim: null, builtBy: builder.agent, blockedBy: [], progress: acceptedFull.progress, updatedAt: acceptedFull.updatedAt, stage: 'merged',
+    since: mergedEvent.at, counts: { verdicts: 1, facts: 1 },
     verdict: { decision: 'ACCEPT', reason: 'CRITERION_MET' }, withdrawnReason: null, withdrawnFrom: null,
   });
   const claimedFull = fulls.get(claimed);
@@ -645,11 +647,11 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
   assert.equal(summaries.get(claimed).since, claimedFull.history.findLast((event) => event.kind === 'claim').at);
   assert.deepEqual(summaries.get(open), {
     id: open, title: 'Open summary item', lane: 'app', status: 'open', route: fulls.get(open).route, milestone: null,
-    specs: ['G1'], claim: null, builtBy: null, blockedBy: [], updatedAt: fulls.get(open).updatedAt, stage: 'open',
+    specs: ['G1'], claim: null, builtBy: null, blockedBy: [], progress: fulls.get(open).progress, updatedAt: fulls.get(open).updatedAt, stage: 'open',
     since: fulls.get(open).history.find((event) => event.kind === 'add').at, counts: { verdicts: 0, facts: 0 }, verdict: null, withdrawnReason: null, withdrawnFrom: null,
   });
   assert.deepEqual(summaryState.document.state.moveCounts, {
-    'open>claimed:claim': 2, 'claimed>submitted:submit': 1, 'submitted>submitted:reserve': 1, 'submitted>verified:accept': 1,
+    'open>claimed:claim': 2, 'claimed>claimed:claim': 1, 'claimed>submitted:submit': 1, 'submitted>submitted:reserve': 1, 'submitted>verified:accept': 1,
   }, 'the lifecycle drawing tallies the moves without any history');
   assert.deepEqual(fullState.document.state.moveCounts, summaryState.document.state.moveCounts);
 
@@ -732,8 +734,8 @@ test("[A2, N26] the board state sends summaries and an item's detail comes from 
 
 test("[A2, N26] a sent-back item's summary carries its reject note's first line", async (t) => {
   const box = await httpBox(t);
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder');
-  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier');
+  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
+  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */
   async function move(body) {
     const moved = await box.call(box.path + '/moves', body);
@@ -771,8 +773,8 @@ test('[A2, N26] a delta brings a snapshot up to date', async (t) => {
   const box = await httpBox(t);
   writeFileSync(join(box.root, 'SPEC.md'), '# HTTP fixture\n\n## Goals\n- G1 [approved, must] Keep the board. | gate: true\n- G2 [pending, must] Keep each delta small. | gate: true\n');
   runFixtureGit(['commit', '-qam', 'docs: ask whether deltas stay small'], { cwd: box.root, env: box.env, stdio: 'pipe' });
-  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder');
-  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier');
+  const builder = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-builder', '--family', 'codex');
+  const verifier = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-verifier', '--family', 'claude');
   /** Make one real board move through HTTP and return its result. */
   async function move(body) {
     const moved = await box.call(box.path + '/moves', body);
@@ -911,7 +913,9 @@ test('[A2, N26] local milestone item status refreshes after an item event', asyn
 
   const before = await box.call(box.path + '/state');
   assert.equal(builds, 1);
-  assert.deepEqual(before.document.state.milestones[0].items[0], {
+  const { progress: beforeProgress, ...beforeItem } = before.document.state.milestones[0].items[0];
+  assert.equal(beforeProgress.stage, 'open');
+  assert.deepEqual(beforeItem, {
     id: itemId, title: 'Roadmap item', status: 'open', state: 'open', position: 1,
   });
 
@@ -923,7 +927,9 @@ test('[A2, N26] local milestone item status refreshes after an item event', asyn
   assert.equal(claimed.status, 200);
   const after = await box.call(box.path + '/state');
   assert.equal(builds, 2, 'a real item event rebuilds the cached local roadmap');
-  assert.deepEqual(after.document.state.milestones[0].items[0], {
+  const { progress: afterProgress, ...afterItem } = after.document.state.milestones[0].items[0];
+  assert.equal(afterProgress.stage, 'claimed');
+  assert.deepEqual(afterItem, {
     id: itemId, title: 'Roadmap item', status: 'claimed', state: 'claimed', position: 1,
   });
 });
@@ -1057,8 +1063,8 @@ test('[A2, N33, N35] API listing refreshes live labels and preserves unreadable-
 
 test('[A2] real HTTP state, moves and refusals use the CLI and exact committed events', async (t) => {
   const box = await httpBox(t);
-  const one = box.cli(box.root, 'worktree', 'app');
-  const two = box.cli(box.root, 'worktree', 'app');
+  const one = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-one');
+  const two = box.cli(box.root, 'worktree', 'app', '--model', 'fixture-two');
   const added = await box.call(box.path + '/moves', { verb: 'add', args: { lane: 'app', title: 'HTTP item', criterion: 'complete', specs: 'G1' } });
   assert.equal(added.status, 200);
   assert.equal(added.document.event.event_kind, 'add');
@@ -1078,7 +1084,9 @@ test('[A2] real HTTP state, moves and refusals use the CLI and exact committed e
   assert.equal(state.document.state.items.find((item) => item.id === id).claim.by, one.agent);
   assert.equal((await box.call(box.path + '/items/' + id)).document.item.owner, one.agent);
   const events = await box.call(box.path + '/events?after=' + added.document.event.event_id);
-  assert.deepEqual(events.document.events, [claimed.document.event]);
+  assert.deepEqual(events.document.events.map((event) => event.event_kind), ['milestone_placed', 'claim']);
+  assert.equal(events.document.events[0].item_id, id);
+  assert.deepEqual(events.document.events[1], claimed.document.event);
   const badAgent = await box.call(box.path + '/moves', { verb: 'release', item: id, agent: 'absent-agent' });
   assert.equal(badAgent.status, 409);
   assert.equal(badAgent.document.error.code, 'NO_AGENT');
@@ -1216,7 +1224,8 @@ test('[A2] a live HTTP stream follows CLI writes and reconnects after Last-Event
   await reader.cancel();
   controller.abort();
   const replay = await fetchFresh(box.origin + box.path + '/events?after=0', { headers: { 'x-pullboard-key': box.key, 'last-event-id': String(live.id) } });
-  assert.deepEqual((await replay.json()).events, []);
+  const replayed = (await replay.json()).events;
+  assert.deepEqual(replayed.map(event => [event.event_kind, event.item_id]), [['milestone_placed', added.item.item_id]], 'the later placement event replays after the add cursor');
   const invalid = await box.call(box.path + '/events?after=1.5');
   assert.equal(invalid.status, 400);
   assert.equal(invalid.document.error.code, 'BAD_CURSOR');
@@ -1384,6 +1393,10 @@ test('[A2, N26] the event stream says when the board changes without a move', as
   assert.equal(eventFrame.event, 'message');
   assert.equal(eventFrame.data.event.event_kind, 'add');
   assert.equal(eventFrame.data.event.item_id, evented.item.item_id);
+  const placementFrame = await nextFrame();
+  assert.equal(placementFrame.event, 'message');
+  assert.equal(placementFrame.data.event.event_kind, 'milestone_placed');
+  assert.equal(placementFrame.data.event.item_id, evented.item.item_id);
   await changedOnce('ordinary-event-state');
 
   await closeStream();
@@ -1410,6 +1423,7 @@ test('[A2, N26] one event stream serves many boards', async (t) => {
   /** A frame of this kind for this board, and for one item when given. */
   const is = (event, board, item) => (frame) => frame.event === event && frame.data.board === board
     && (item === undefined || frame.data.event.item_id === item);
+  const message = (board, item, kind) => frame => is('message', board, item)(frame) && frame.data.event.event_kind === kind;
 
   const first = await liveFrames(t, many + '&after=' + encodeURIComponent(boards.map((id) => id + ':' + start[id]).join(',')), headers);
   await first.quiet('both boards unchanged');
@@ -1419,15 +1433,16 @@ test('[A2, N26] one event stream serves many boards', async (t) => {
   let lastId = null;
   for (const [board, cli, root] of [[box.id, box.cli, box.root], [otherId, other.cli, other.root]]) {
     const added = cli(root, 'add', 'app', 'Move on ' + board, '--criterion', 'arrives tagged', '--specs', 'G1').item;
-    const frames = await first.until(board, is('message', board, added.item_id), is('changed', board));
+    const frames = await first.until(board, message(board, added.item_id, 'add'), message(board, added.item_id, 'milestone_placed'), is('changed', board));
     assert.deepEqual(frames.map((frame) => frame.data.board), frames.map(() => board), 'every frame names the board that moved');
     const event = frames.find((frame) => frame.event === 'message');
     assert.equal(event.data.version, 1);
     assert.equal(event.data.event.event_kind, 'add');
-    lastId = event.id;
-    assert.equal(boardCursorMap(lastId)[board], event.data.event.event_id, 'the id carries this board at its new sequence');
+    const placement = frames.find(frame => message(board, added.item_id, 'milestone_placed')(frame));
+    lastId = placement.id;
+    assert.equal(boardCursorMap(lastId)[board], placement.data.event.event_id, 'the id carries this board at its new sequence');
     assert.deepEqual(Object.keys(boardCursorMap(lastId)).sort(), [...boards].sort(), 'the id carries one cursor per followed board');
-    moves.push(event.data.event.event_id);
+    moves.push(placement.data.event.event_id);
     await first.quiet('after the move on ' + board);
   }
   assert.deepEqual(boardCursorMap(lastId), { [box.id]: moves[0], [otherId]: moves[1] });
@@ -1447,12 +1462,13 @@ test('[A2, N26] one event stream serves many boards', async (t) => {
     other.cli(other.root, 'add', 'app', 'Missed on the second board', '--criterion', 'replays', '--specs', 'G1').item.item_id,
   ];
   const resumed = await liveFrames(t, many, { ...headers, 'last-event-id': lastId });
-  const replay = await resumed.until('resume', is('message', box.id, missed[0]), is('message', otherId, missed[1]));
-  assert.deepEqual(replay.map((frame) => [frame.event, frame.data.board, frame.data.event.item_id]), [
-    ['message', box.id, missed[0]],
-    ['message', otherId, missed[1]],
+  const replay = await resumed.until('resume', message(box.id, missed[0], 'add'), message(box.id, missed[0], 'milestone_placed'),
+    message(otherId, missed[1], 'add'), message(otherId, missed[1], 'milestone_placed'));
+  assert.deepEqual(replay.map((frame) => [frame.event, frame.data.board, frame.data.event.event_kind, frame.data.event.item_id]), [
+    ['message', box.id, 'add', missed[0]], ['message', box.id, 'milestone_placed', missed[0]],
+    ['message', otherId, 'add', missed[1]], ['message', otherId, 'milestone_placed', missed[1]],
   ], 'the resume replays only what each board wrote after its cursor');
-  assert.deepEqual(boardCursorMap(replay.at(-1).id), { [box.id]: replay[0].data.event.event_id, [otherId]: replay[1].data.event.event_id });
+  assert.deepEqual(boardCursorMap(replay.at(-1).id), { [box.id]: replay[1].data.event.event_id, [otherId]: replay[3].data.event.event_id });
   await resumed.quiet('after the resume');
   await resumed.close();
 

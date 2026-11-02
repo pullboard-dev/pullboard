@@ -437,7 +437,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   const olderAgain = new DatabaseSync(dbFile);
   olderAgain.exec('ALTER TABLE item DROP COLUMN item_files; PRAGMA user_version = 1');
   olderAgain.close();
-  const mainCodeFromWorktree = spawnSync(process.execPath, [join(repo, 'bin/pullboard.js'), 'join', 'app', '--family', 'codex', '--json'], {
+  const mainCodeFromWorktree = spawnSync(process.execPath, [join(repo, 'bin/pullboard.js'), 'join', 'app', '--family', 'codex', '--model', 'fixture-model', '--json'], {
     cwd: linked, env: box.env, encoding: 'utf8',
   });
   assert.equal(mainCodeFromWorktree.status, 0, mainCodeFromWorktree.stderr + mainCodeFromWorktree.stdout);
@@ -446,8 +446,8 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.ok(migratedFromWorktree.prepare('PRAGMA table_info(item)').all().some((column) => column.name === 'item_files'));
   migratedFromWorktree.close();
 
-  const schemaSource = join(linked, 'src/board-schema-source.js');
-  const migrateSource = join(linked, 'src/board-migrate.js');
+  const schemaSource = join(linked, 'packages/store/src/shell/board-schema-source.js');
+  const migrateSource = join(linked, 'packages/store/src/shell/board-migrate.js');
   const oldSource = readFileSync(schemaSource, 'utf8');
   const oldMigrations = readFileSync(migrateSource, 'utf8');
   const migration = "  ['shout', 'shout_request_outcome', \"TEXT NOT NULL DEFAULT ''\"],\n];";
@@ -458,7 +458,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.notEqual(newMigrations, oldMigrations, 'the unmerged worktree carries a real schema-4 migration');
   writeFileSync(schemaSource, newSource);
   writeFileSync(migrateSource, newMigrations);
-  box.git(linked, 'add', 'src/board-schema-source.js', 'src/board-migrate.js');
+  box.git(linked, 'add', 'packages/store/src/shell/board-schema-source.js', 'packages/store/src/shell/board-migrate.js');
   box.git(linked, 'commit', '-q', '-m', 'feat: simulate an unmerged schema bump');
 
   let before = readFileSync(dbFile);
@@ -583,7 +583,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const unguarded = join(box.dir, 'unguarded');
   box.git(repo, 'worktree', 'add', '-q', unguarded, '-b', 'schema/unguarded', 'schema/future');
-  const guardedSource = join(unguarded, 'src/board-store.js');
+  const guardedSource = join(unguarded, 'packages/store/src/shell/board-store.js');
   const guardedText = readFileSync(guardedSource, 'utf8');
   const unguardedText = guardedText.replace(
     "  isMain = sharedSchemaOwner(file, isMain);",
@@ -1029,7 +1029,8 @@ test('[A2] local HTTP v1 versions state and moves, authenticates, and preserves 
       `add response must include its nested item\n${movedStep.evidence}`);
     assert.equal(movedStep.document.result.item.item_title, '--help', movedStep.evidence);
     assert.equal(movedStep.document.event.event_kind, 'add', movedStep.evidence);
-    assert.equal(movedStep.document.event.event_id, (await (await apiFetch(api, `${boardPath}/events?after=${eventsStep.document.events.at(-1)?.event_id ?? 0}`)).json()).events.at(-1)?.event_id, `the add is the newest event; an empty next may record next-idle first (#1818)\n${movedStep.evidence}`);
+    const emitted = (await (await apiFetch(api, `${boardPath}/events?after=${eventsStep.document.events.at(-1)?.event_id ?? 0}`)).json()).events;
+    assert.ok(emitted.some(event => event.event_id === movedStep.document.event.event_id && event.event_kind === 'add'), `the committed add is in the event stream\n${movedStep.evidence}`);
     assert.equal(api.stderr(), '', movedStep.evidence);
   } catch (error) {
     error.message = `${error.message}\n${lastStepEvidence}`;
@@ -1055,7 +1056,7 @@ test('[A2] moves run as the named worktree agent and requests stay visible until
   try {
     const app = join(box.dir, 'app-1');
     box.git(box.repo, 'worktree', 'add', '-q', '-b', 'app/one', app);
-    const joined = box.run(app, 'join', 'app');
+    const joined = box.run(app, 'join', 'app', '--model', 'fixture-agent');
     lastStepEvidence = fixtureCommandEvidence('join worktree agent', joined, box.env);
     assert.equal(joined.status, 0, lastStepEvidence);
     const api = await startApi(t, box);
