@@ -127,7 +127,7 @@ await import(${JSON.stringify(pathToFileURL(entry).href)});`);
   assert.deepEqual(await reply(2), { version: 1, id: 2, results: [{ compiles: true, imports: ['./second.js'] }] });
 });
 
-test('a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', { timeout: 120_000 }, async t => {
+test('a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', { timeout: 180_000 }, async t => { // budget: the load-scaled production timeout can reach 130 seconds.
   const files = privateFixtureFiles('pullboard-parser-delay-');
   t.after(() => rmSync(files.root, { recursive: true, force: true }));
   files.write('slow.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 11000);\n");
