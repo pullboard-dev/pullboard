@@ -87,8 +87,10 @@ test('no cell is ordered ahead of a cell it imports, computed from the real sour
     checked++;
     if (position.get(to) > position.get(from) && !cuts.has(`${from}->${to}`)) ahead.add(`${from} (move ${position.get(from)}) imports ${to} (move ${position.get(to)}) through ${file} -> ${target}`);
   }
-  // Completed cell moves reduce cross-cell edges; the November 2 inventory has 903.
-  assert.ok(checked > 800, `the real import graph was read (${checked} cross-cell imports)`);
+  const crossCellEdges = [...edges].flatMap(([file, rows]) => testFile(file) ? []
+    : rows.filter(({ target }) => !testFile(target) && index.has(file) && index.has(target) && index.get(file) !== index.get(target)));
+  assert.ok(crossCellEdges.length > 0, 'the real inventory contains cross-cell imports');
+  assert.equal(checked, crossCellEdges.length, 'the order check visits every cross-cell import in the inventory');
   assert.deepEqual([...ahead], [], 'name the import as a cut of the later cell, or regenerate with node bin/cells-plan.js --write');
   for (const cell of PLAN.cells) {
     for (const name of cell.item.after) assert.ok(position.get(name) < cell.order, `${cell.name} waits only on earlier cells`);
