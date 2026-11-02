@@ -103,9 +103,10 @@ test('a normal repository remains listed and a custom registry does not admit te
   const repo = mkdtempSync(join(process.cwd(), '.project-test-'));
   t.after(() => { rmSync(box, { recursive: true, force: true }); rmSync(repo, { recursive: true, force: true }); });
   runFixtureGit(['init', '-q', '-b', 'main'], { cwd: repo });
-  environment(t, { PULLBOARD_HOME: join(box, 'registry'), NODE_TEST_CONTEXT: undefined,
+  environment(t, { PULLBOARD_HOME: join(repo, 'registry'), NODE_TEST_CONTEXT: undefined,
     PULLBOARD_TEST_RUNNER_PID: undefined, PULLBOARD_TRANSIENT: undefined });
-  assert.equal(registerProject(box), false, 'a custom registry is still a project list');
+  assert.equal(registerProject(box), false, 'a durable custom registry is still a project list');
+  assert.equal(projectRegistrationAllowed(box, { PULLBOARD_HOME: join(box, 'private-registry') }), true);  // isolated fixture registry
   assert.equal(registerProject(repo, new Date('2026-10-27T00:00:00Z'), { name: 'Application' }), true);
   assert.deepEqual(JSON.parse(readFileSync(registryFile(), 'utf8')).projects.map(({ root, name }) => ({ root, name })),
     [{ root: repo, name: 'Application' }]);
