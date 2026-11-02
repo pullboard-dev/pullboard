@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { settingsInventory } from '../packages/config/index.js';
 import { describeSetting, SETTING_DESCRIPTIONS, CLI_SETTABLE } from '../packages/config/index.js';
 import { SETTING_FORMS } from '../src/help.js';
-import { performanceCores } from '../src/gate.js';
+import { performanceCores } from '../packages/gate/index.js';
 import {
   defaultViewPort,
   DEFAULT_VIEW_PORT,

@@ -111,7 +111,7 @@ import {
 } from './e2e-helpers.js';
 import {
   refuseSandboxBlocked,
-} from '../src/gate.js';
+} from '../packages/gate/index.js';
 import {
   fixtureContextCpuCase,
 } from './runner-cpu-classification-fixture.js';

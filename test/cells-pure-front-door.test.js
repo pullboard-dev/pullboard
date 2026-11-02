@@ -17,8 +17,8 @@ import { cellLintGrowth } from '../packages/codemap/index.js';
 import { planCellLintBaseline } from '../packages/codemap/index.js';
 import { readCellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { importsIn } from '../src/module-imports.js';
-import { commonJsIn } from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 
 const BIN = fileURLToPath(new URL('../bin/cells-plan.js', import.meta.url));
 const CORE = 'packages/kernel/core.js';

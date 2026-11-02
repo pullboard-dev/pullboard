@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { styleSources } from '../packages/codemap/index.js';
-import { importStyleViolations } from '../src/static-import-style.js';
+import { importStyleViolations } from '../packages/gate/index.js';
 import { engineFolderProblems } from '../packages/state/index.js';
 import { declaredProseCommands } from '../src/static-prose-commands.js';
 import { doctrineReport } from '../packages/doctrine/index.js';

@@ -19,13 +19,13 @@ import {
 import {
   literalShellWords,
   resolveExecutable,
-} from '../../../../src/browser-admission.js';
+} from '../../../gate/index.js';
 import {
   cleanGitEnvironment,
   resolveCommit,
   tryGit,
 } from '../../../../src/git.js';
-import { withGateSlot } from '../../../../src/gate.js';
+import { withGateSlot } from '../../../gate/index.js';
 import { gateSlotEnvironment } from '../../../resources/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {

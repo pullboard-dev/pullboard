@@ -1,17 +1,17 @@
 /** Authenticate a runner receipt and its complete output before trusting any remote status [C7]. */
 import { environmentProblem } from '../packages/config/index.js';
 import { testRuntimeRows } from '../packages/sandbox/index.js';
-import { RunnerDropped } from './gate-policy-load.js';
-import { gateStages } from './gate-stages.js';
-import { readStages } from './gate-stages.js';
+import { RunnerDropped } from '../packages/gate/index.js';
+import { gateStages } from '../packages/gate/index.js';
+import { readStages } from '../packages/gate/index.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { recordRunnerGui } from '../packages/resources/index.js';
 import { sourcePreparationFields } from './runner-overhead.js';
 import { remoteFileDenial } from '../packages/sandbox/index.js';
-import { retainTestResultCompletion } from './test-result-store.js';
-import { importTestResults } from './test-result-store.js';
-import { runnerPhaseFields } from './timing.js';
+import { retainTestResultCompletion } from '../packages/gate/index.js';
+import { importTestResults } from '../packages/gate/index.js';
+import { runnerPhaseFields } from '../packages/gate/index.js';
 import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
 

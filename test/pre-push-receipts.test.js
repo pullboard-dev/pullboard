@@ -23,7 +23,7 @@ import {
   readGateReceipt,
   receiptBody,
   receiptStore,
-} from '../src/gate-run-receipt.js';
+} from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 

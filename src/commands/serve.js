@@ -4,7 +4,7 @@ import { nativeBoardOpeners } from '../cli-context.js';
 import {
   serveApi,
 } from '../../packages/api/index.js';
-import { performanceCores } from '../gate.js';
+import { performanceCores } from '../../packages/gate/index.js';
 import { refusalDocument } from '../next-step-words.js';
 import {
   traceServeStartup,

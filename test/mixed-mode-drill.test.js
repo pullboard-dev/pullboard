@@ -7,7 +7,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { receiptLog } from '../src/gate-receipt.js';
+import { receiptLog } from '../packages/gate/index.js';
 import { machineHome } from '../packages/resources/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { startFixtureChild } from './fixture-child.js';

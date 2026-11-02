@@ -35,12 +35,12 @@ import {
   mainPolicy,
 } from "../../../sandbox/index.js";
 import { fileURLToPath } from 'node:url';
-import { runProfiledShell } from "../../../../src/gate.js";
-import { runFrozenProof } from "../../../../src/gate.js";
+import { runProfiledShell } from "../../../gate/index.js";
+import { runFrozenProof } from "../../../gate/index.js";
 import {
   committedTest,
   tapTests,
-} from "../../../../src/tap-tests.js";
+} from "../../../gate/index.js";
 
 /** Hash immutable bytes without retaining a potentially credential-bearing command in board data. */
 function digest(value) { return createHash('sha256').update(value).digest('hex'); }

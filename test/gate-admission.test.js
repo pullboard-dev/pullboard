@@ -1,8 +1,8 @@
 /** Test files on one machine never outnumber its cores, and the longest files start first [C7]. */
 import { executionServices } from './gate-execution-fixture.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { withGateSlot } from '../src/gate-slot.js';
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { withGateSlot } from '../packages/gate/index.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 import { measureFileInflation } from './gate-admission-p95-fixture.js';
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ import {
   safeFixtureDiagnostic,
   startFixtureChild,
 } from './fixture-child.js';
-import { TEST_FILE_CORES_ENV, TEST_FILE_POOL_ENV, occupiedPlaces } from '../src/test-file-pool.js';
+import { TEST_FILE_CORES_ENV, TEST_FILE_POOL_ENV, occupiedPlaces } from '../packages/gate/index.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));

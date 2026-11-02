@@ -8,8 +8,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
-import { selectAffectedTests, testClosures } from '../src/affected-tests.js';
-import { importsIn } from '../src/module-imports.js';
+import { selectAffectedTests, testClosures } from '../packages/gate/index.js';
+import { importsIn } from '../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

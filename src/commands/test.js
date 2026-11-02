@@ -6,7 +6,7 @@ import { mainFailureNotices } from '../../packages/landing/index.js';
 import { listItems } from '../../packages/store/index.js';
 import { compareMainFailures } from '../../packages/landing/index.js';
 import { withMainCheckout } from '../../packages/landing/index.js';
-import { runTestFiles } from '../test-run.js';
+import { runTestFiles } from '../../packages/gate/index.js';
 import { itemsInStatus } from '../../packages/store/index.js';
 import {
   context,

@@ -14,7 +14,7 @@ import { openBoard } from '../src/native-board.js';
 import { claimFreezer } from '../src/cli/claim.js';
 import { context } from '../src/cli-context.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
-import { prepareCheckBaseline } from '../src/check-baseline.js';
+import { prepareCheckBaseline } from '../packages/gate/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 

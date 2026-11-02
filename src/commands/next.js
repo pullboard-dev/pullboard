@@ -13,7 +13,7 @@ import {
 } from '../../packages/sandbox/index.js';
 import {
   sayCheckBaseline,
-} from '../check-baseline.js';
+} from '../../packages/gate/index.js';
 import {
   refuseNextIdle,
 } from '../next-steps.js';

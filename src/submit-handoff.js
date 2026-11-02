@@ -1,7 +1,7 @@
 import { withFileLock } from '../packages/outbox/index.js';
 import { git } from './git.js';
 import { once } from 'node:events';
-import { exactStart } from './gate.js';
+import { exactStart } from '../packages/gate/index.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';

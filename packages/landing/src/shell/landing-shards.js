@@ -3,10 +3,10 @@ import { runReleaseGate } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../../src/runners.js';
 import { constrainedLandingHost } from './landing-host.js';
 import { captureReleaseQueue } from './release-queue.js';
-import { RELEASE_EXECUTORS_ENV } from '../../../../src/gate-run-receipt.js';
-import { RELEASE_PARTICIPATION_PREFIX } from '../../../../src/gate-run-receipt.js';
-import { fileTimesPath } from '../../../../src/test-value-timing.js';
-import { readFileTimes } from '../../../../src/test-value-timing.js';
+import { RELEASE_EXECUTORS_ENV } from '../../../gate/index.js';
+import { RELEASE_PARTICIPATION_PREFIX } from '../../../gate/index.js';
+import { fileTimesPath } from '../../../gate/index.js';
+import { readFileTimes } from '../../../gate/index.js';
 /**
  * The landing gate in shards [C7,V4]: split the tracked test files into balanced shards, run each on
  * a free local gate slot or a registered runner, and report one result. One red shard stops the rest,
@@ -40,13 +40,13 @@ import {
   gitChildEnv,
   repoInfo,
 } from '../../../../src/git.js';
-import { testsNeedGui } from '../../../../src/gui-admission.js';
+import { testsNeedGui } from '../../../gate/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { gateRunnerAdmission } from '../../../config/index.js';
 import { localRunnerDescriptor } from '../../../../src/runner-load.js';
-import { guiSession } from '../../../../src/gui-session.js';
+import { guiSession } from '../../../gate/index.js';
 import { headTree } from '../../../../src/git.js';
-import { cpuRunnerRequired } from '../../../../src/cpu-load-admission.js';
+import { cpuRunnerRequired } from '../../../gate/index.js';
 import {
   BROWSER_SLOT_HELD_ENV,
   GATE_SLOT_HELD_ENV,
@@ -61,7 +61,7 @@ import {
   COLLECTION_ID_ENV,
   formatCollectionReport,
   parseCollectionReports,
-} from '../../../../src/gate-run-receipt.js';
+} from '../../../gate/index.js';
 
 /** Environment variable naming the shard a nested run-tests process runs, as `<i>/<n>`. */
 export const LANDING_SHARD_ENV = 'PULLBOARD_LANDING_SHARD';

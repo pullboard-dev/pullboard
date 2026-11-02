@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { recentReceipts } from '../src/gate-receipt.js';
+import { recentReceipts } from '../packages/gate/index.js';
 import {
   GATE_SLOT_HELD_ENV,
   GATE_SLOT_POOL_ENV,

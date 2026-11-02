@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
-import { awaitNestedRun } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 

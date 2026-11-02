@@ -7,8 +7,8 @@ import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { test } from 'node:test';
-import { testsNeedBrowser } from '../src/browser-admission.js';
-import { memoryBrowserSourceFiles, realBrowserSourceFiles, snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../src/browser-source-files.js';
+import { testsNeedBrowser } from '../packages/gate/index.js';
+import { memoryBrowserSourceFiles, realBrowserSourceFiles, snapshotBrowserSourceFiles, withBrowserSourceFiles } from '../packages/gate/index.js';
 
 /** Build the same actual source graph and independently described memory tree. */
 function fixture(t) {
