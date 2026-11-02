@@ -1,3 +1,4 @@
+import { requireKernelApproval } from '../../packages/verify/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
 import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
@@ -392,6 +393,7 @@ export async function submitHere(ctx, id, infra) {
   const requireComposition = withBoard(ctx, board => barReadySetting(board).enabled);
   ctx = copySubmitHandoffOrigin(ctx, { ...ctx, config: policy.config });
   withBoard(ctx, (board) => refuseProvesNothing(() => acceptedMain.config, board, store.getItem(board, id)));
+  withBoard(ctx, board => requireKernelApproval(board, { root, base: acceptedMain.commit, commit, item: id }));
   const dependencies = withBoard(ctx, board => dependencySnapshots(board.db, held));
   let mechanicalPaths = [];
   submissionPaths(root, held, headCommit(root), { mainCommit: acceptedMain.commit, dependencies,
