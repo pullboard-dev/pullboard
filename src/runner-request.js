@@ -1,7 +1,7 @@
 /** Build one pinned, credential-free runner request from the admitted source [C7]. */
 import { configFromSource } from '../packages/config/index.js';
-import { runnerSource } from './gate-policy-load.js';
-import { validateRunner } from './gate-policy-load.js';
+import { runnerSource } from '../packages/gate/index.js';
+import { validateRunner } from '../packages/gate/index.js';
 import { repoInfo } from './git.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { machineSettingsFile } from '../packages/resources/index.js';

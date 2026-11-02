@@ -9,7 +9,7 @@ import {
 } from 'node:crypto';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { receiptBody } from '../src/gate-run-receipt.js';
+import { receiptBody } from '../packages/gate/index.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';

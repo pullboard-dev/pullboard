@@ -9,8 +9,8 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild } from './fixture-child.js';
-import { codeMapGraph } from '../src/affected-tests.js';
-import { selectAffectedTests } from '../src/affected-tests.js';
+import { codeMapGraph } from '../packages/gate/index.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
 import { cachedAffectedGraph } from '../src/affected-graph-cache.js';
 import { runFixtureGit } from './fixture-child.js';
 

@@ -11,14 +11,14 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from './fixture-child.js';
 import { runFixtureChildAsync } from './fixture-child.js';
-import { awaitNestedRun } from '../src/test-file-pool.js';
-import { TEST_FILE_CORES_ENV } from '../src/test-file-pool.js';
-import { TEST_FILE_POOL_ENV } from '../src/test-file-pool.js';
+import { awaitNestedRun } from '../packages/gate/index.js';
+import { TEST_FILE_CORES_ENV } from '../packages/gate/index.js';
+import { TEST_FILE_POOL_ENV } from '../packages/gate/index.js';
 import { GATE_SLOT_HELD_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
-import { testsNeedBrowser } from '../src/browser-admission.js';
+import { testsNeedBrowser } from '../packages/gate/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 

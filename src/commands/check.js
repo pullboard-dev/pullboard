@@ -9,7 +9,7 @@ import * as store from '../board.js';
 import {
   checkNeedsBrowser,
   explicitCheckFiles,
-} from '../browser-admission.js';
+} from '../../packages/gate/index.js';
 import {
   checkAcceptCommand,
 } from '../../packages/verify/index.js';
@@ -25,7 +25,7 @@ import {
   runStaticChecks,
   timingDigest,
   withGateSlot,
-} from '../gate.js';
+} from '../../packages/gate/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   Refused,

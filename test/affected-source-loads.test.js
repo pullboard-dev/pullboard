@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { selectAffectedTests } from '../src/affected-tests.js';
+import { selectAffectedTests } from '../packages/gate/index.js';
 
 /** Make a real committed ES-module graph without executing any candidate source. */
 function graph(t) {

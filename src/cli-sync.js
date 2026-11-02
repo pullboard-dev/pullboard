@@ -7,7 +7,7 @@ import { readBoardKey } from '../packages/keys/index.js';
  * The relay and baseline work around a command: link a new project, sync the relay, deliver finished baselines and
  * run the person's waiting requests. The command line loads it only when one of them could act [C7].
  */
-import { retryCheckBaselines } from './check-baseline-worker.js';
+import { retryCheckBaselines } from '../packages/gate/index.js';
 import { relayOutboxSetting } from './cli.js';
 import { displayedRefusal } from './cli-context.js';
 import { Refused } from '../packages/kernel/index.js';

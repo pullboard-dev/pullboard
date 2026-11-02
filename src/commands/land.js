@@ -28,7 +28,7 @@ import {
 } from '../../packages/config/index.js';
 import {
   gateWaitReporter,
-} from '../gate-wait.js';
+} from '../../packages/gate/index.js';
 import {
   land,
 } from '../../packages/landing/index.js';

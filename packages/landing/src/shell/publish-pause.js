@@ -6,7 +6,7 @@ import {
   readGateReceipt,
   receiptBinds,
   receiptStore,
-} from '../../../../src/gate-run-receipt.js';
+} from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** Shared publish state belongs to the repository, including its private landing worktrees. */

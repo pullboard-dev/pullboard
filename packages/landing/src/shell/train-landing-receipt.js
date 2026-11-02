@@ -2,10 +2,10 @@ import { receiptBlockingGreen } from '../../../verify/index.js';
 /** Native exact-envelope landing evidence; origin binds bytes and replay checks sealed fields [C7,B3]. */
 import { createHash } from 'node:crypto';
 import { git } from '../../../../src/git.js';
-import { boardReceiptStore } from '../../../../src/gate-run-receipt.js';
-import { readGateReceipt } from '../../../../src/gate-run-receipt.js';
-import { receiptBinds } from '../../../../src/gate-run-receipt.js';
-import { receiptFields } from '../../../../src/gate-run-receipt.js';
+import { boardReceiptStore } from '../../../gate/index.js';
+import { readGateReceipt } from '../../../gate/index.js';
+import { receiptBinds } from '../../../gate/index.js';
+import { receiptFields } from '../../../gate/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { policyAt } from '../../../sandbox/index.js';
 

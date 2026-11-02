@@ -1,9 +1,9 @@
 /** Exact committed source and bounded, credential-free SSH execution for machine runners [C7]. */
 // The front door: each runner step lives in its own module; this file only re-exports and dispatches.
 export { placeRunner, runnerStage } from './runner-stage-model.js';
-import { validateRunner } from './gate-policy-load.js';
-import { runnerSource } from './gate-policy-load.js';
-import { RunnerDropped } from './gate-policy-load.js';
+import { validateRunner } from '../packages/gate/index.js';
+import { runnerSource } from '../packages/gate/index.js';
+import { RunnerDropped } from '../packages/gate/index.js';
 import { inRunnerGeneration } from './runner-remote-tooling.js';
 import { pinRunnerTooling } from './runner-remote-tooling.js';
 import { runOnRunner } from './runner-dispatch.js';
