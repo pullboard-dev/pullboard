@@ -24,7 +24,7 @@ import { FOCUS_MILESTONE_ENGINE } from '../src/focus-milestone-engine.js';
 import { CRITICAL_PATH_ENGINE } from '../src/critical-path-engine.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 test('next offers the item on the longest remaining path first [N2,B13,N20]', t => {
@@ -1032,4 +1032,36 @@ test('blocked release --on records and coordinator edit --after none clears the 
   box.json(box.runAs(box.session, box.web, 'release', String(blocker), '--reason', 'OTHER', '--note', 'Return fixture prerequisite', '--no-next', '--json'));
   box.json(box.run(box.repo, 'edit', String(work), '--after', 'none', '--reason', 'Remove prerequisite', '--json'));
   box.json(box.runAs(box.session, box.web, 'claim', String(work), '--json'));
+});
+
+
+test('next does not hand out an item whose functions overlap work in progress [N2,N20,C7]', t => {
+  const helpers = createE2eHelpers(), box = helpers.sandbox();
+  const root = join(box.dir, 'function-queue');
+  for (const dir of ['src', 'bin', 'test', 'packages', 'apps']) mkdirSync(join(root, dir), { recursive: true });
+  writeFileSync(join(root, 'src/shared.js'), 'export function alpha() { return 1; }\nexport function beta() { return 2; }\nexport function gamma() { return alpha(); }\n');
+  writeFileSync(join(root, 'test/shared.test.js'), "import '../src/shared.js';\n");
+  box.git(root, 'init', '-q', '-b', 'main');
+  box.git(root, 'add', 'src', 'test');
+  box.git(root, 'commit', '-qm', 'seed function map');
+  const board = openBoard(join(root, 'board.sqlite'), undefined, { gitRoot: root });
+  t.after(() => { store.closeBoard(board); helpers.cleanup(); });
+  store.register(board, { lane: 'coordinator', path: root });
+  const busy = store.register(board, { lane: 'core', path: join(root, 'busy'), route: 'strong' });
+  const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), route: 'strong' });
+  const add = title => store.addItem(board, { by: 'coordinator', lane: 'core', title, brief: 'Files: src/shared.js' });
+  const active = add('Change alpha()');
+  store.claim(board, active, { agentId: busy, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  const conflict = add('Improve alpha()');
+  const independent = add('Improve beta()');
+  const picked = store.nextFor(board, { agentId: builder, lane: 'core' });
+  assert.equal(picked.item.item_id, independent, 'the same function waits, but a distinct function in the same file may proceed');
+  assert.ok(picked.reasons.some(reason => reason.includes(`#${conflict}`) && reason.includes('alpha')));
+  store.claim(board, independent, { agentId: builder, lane: 'core', leaseMs: HOUR, freeze: FREEZE });
+  const third = store.register(board, { lane: 'core', path: join(root, 'third'), route: 'strong' });
+  const adjacent = add('Improve gamma()');
+  const next = store.nextFor(board, { agentId: third, lane: 'core' });
+  assert.equal(next.item.item_id, adjacent);
+  assert.ok(next.reasons.some(reason => reason.includes('call-adjacent') && reason.includes('test/shared.test.js')));
+  assert.deepEqual(next.crossRunTests, ['test/shared.test.js']);
 });
