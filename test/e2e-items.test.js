@@ -449,7 +449,7 @@ test('two agents racing for one item: exactly one wins, every time [B2]', async 
   }
 });
 
-test('next claims the next free item; --verify names the next to check [N2]', () => {
+test('next claims the next free item in its folder; --verify names the next to check [N2,B5]', () => {
   const box = project();
   box.run(box.repo, 'add', 'web', 'Page', '--specs', 'G1');
   box.run(box.repo, 'add', 'web', 'Second page', '--specs', 'G1', '--after', '1');
@@ -457,7 +457,8 @@ test('next claims the next free item; --verify names the next to check [N2]', ()
   assert.equal(first.code, 0, first.err);
   assert.match(first.out, /claimed #1: Page/);
   assert.match(first.out, /G1: The page renders\./);
-  assert.match(first.out, new RegExp(`when it is built and committed: cd ${box.web} && pullboard submit 1`));
+  assert.ok(first.out.includes(`item folder: ${box.web}-item-1;`), 'next prints the claimed item\'s folder');
+  assert.match(first.out, new RegExp(`when it is built and committed: cd ${box.web}-item-1 && pullboard submit 1`));
   assert.match(box.run(box.web, 'next').out, /you hold #1: Page/);
   commitFile(box, box.web, 'web/a.html', 'a', 'feat(web): page [G1]');
   box.run(box.web, 'submit', '1');
