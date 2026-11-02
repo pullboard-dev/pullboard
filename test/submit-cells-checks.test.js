@@ -5,6 +5,9 @@ import { acceptedCutItems } from './cells-plan-fixture.js';
 import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { test } from 'node:test';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -532,6 +535,23 @@ test('shared cell inventory updates changed modules and reports structural fallb
   assert.equal(modes.at(-1), 'candidate-full-fallback');
 });
 
+test('damaged inventory cache is discarded and rebuilt from the immutable snapshot [C7,D3]', t => {
+  const box = fixture(t), main = git(box.root, 'rev-parse', 'HEAD').trim();
+  const key = { checkDigest: 'damaged-inventory' }, parsers = { importsIn, commonJsIn }, modes = [];
+  const first = inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  const directory = join(box.root, '.git', 'pullboard', 'cells-inventory');
+  const file = join(directory, readdirSync(directory).find(name => name.endsWith('.json.gz')));
+  writeFileSync(file, 'not a valid compressed inventory');
+  const rebuilt = inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full');
+  assert.deepEqual(rebuilt.edges, first.edges);
+  inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-cache', 'the rebuilt cache can be read');
+  writeFileSync(file, gzipSync(Buffer.from(JSON.stringify({ version: 1, commit: main, payload: {} }))));
+  inventoryCache(box.root, key, parsers, mode => modes.push(mode)).base(box.root, main);
+  assert.equal(modes.at(-1), 'base-full', 'the old JSON format is not trusted as binary evidence');
+});
+
 test('one changed cell selects its importers without unrelated cells [C7,D3,CD64]', async t => {
   const box = plannedFixture(t);
   box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
@@ -592,7 +612,7 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
   const box = plannedFixture(t, ({ put }) => {
     const cells = { kernel: ['src/refused.js'], store: ['src/board.js'], items: ['src/claims.js'],
       stats: ['src/stats.js'], 'app:cli': ['src/cli.js'] };
-    for (let index = 0; index < 32; index++) {
+    for (let index = 0; index < 96; index++) {
       const name = `extra${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + index % 26)}`, file = `src/${name}.js`;
       cells[name] = [file];
       put(file, `export const ${name} = ${index};\n`);
@@ -604,11 +624,21 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
   assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
   box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {} // one-cell change\n');
   const candidate = commitCandidate(box);
+  const compilerCalls = bindingCompilerCalls(t);
+  const spawn = childProcess.spawn;
+  let workers = 0;
+  t.mock.method(childProcess, 'spawn', (...args) => {
+    if (args[0] === process.execPath && args[1]?.some(value => String(value).endsWith('cell-parser-worker.js'))) workers++;
+    return spawn(...args);
+  });
+  syncBuiltinESMExports();
   const started = performance.now();
   const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
   const elapsed = performance.now() - started;
   t.diagnostic(`many-cell candidate stage: ${elapsed.toFixed(1)}ms`);
   assert.ok(elapsed < 60_000, `the complete cell stage took ${elapsed.toFixed(1)}ms; limit 60000ms`); // budget: ceiling from the #2313 bar (60 s for an ordinary change)
+  assert.ok(compilerCalls() <= 4, 'compiler setup is bounded independently of the number of source files');
+  assert.ok(workers <= 2, `the census uses at most two shared parser workers, got ${workers}`);
   assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
   box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,
