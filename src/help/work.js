@@ -66,7 +66,8 @@ export const workHelp = `Work
                                         reads the board and changes nothing; exits 1 when something is stuck
                                         pullboard.json health.stuck (default 1h), health.holds (1d), health.release (1d)
   pullboard skills --update            refresh unchanged Claude Code skills from shipped versions
-  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>]
+  pullboard patch attach <item> <file> --key <key> --author <seat> [--source <submittedSHA>] [--out <directory>]
+                                        format-patch or plain diff; mixed lanes report owners and write drafts for confirmation
                                         coordinator: bind a companion patch to the exact submitted source
   pullboard patch list <item>            read its ordered native patches and patch-set digest
   pullboard patch remove <item> <key>    coordinator: stop applying a patch; retain its author history
