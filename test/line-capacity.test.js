@@ -1,7 +1,7 @@
 /** Capacity uses real SQLite lifecycle observations and versioned claims, not modelled permanent seat roles [N2,B13,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
@@ -13,15 +13,24 @@ import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence } from '../packages/state/index.js';
 import { replayHistoricalSeatMove } from './pre-grant-seats.js';
+import { runFixtureGit } from './fixture-child.js';
 
 const HOUR = 3_600_000;
 const FREEZE = () => ({ text: 'private lifecycle bar', digest: 'private-lifecycle-bar' });
 /** Create one real board with explicit actor identities and an adjustable observation clock. */
 function fixture(t, historicalSeats = false) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-line-capacity-'));
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
+    GIT_COMMITTER_NAME: 'Fixture', GIT_COMMITTER_EMAIL: 'fixture@example.invalid' };
+  const git = (...args) => runFixtureGit(args, { cwd: root, env });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(root, 'pullboard.json'), JSON.stringify({ gate: 'true', verify: 'any', lanes: { core: { owns: ['src/'], specs: [] } } }));
+  git('add', 'pullboard.json');
+  git('commit', '-q', '-m', 'fixture: establish board policy');
   let at = Date.parse('2026-10-24T00:00:00Z');
   const clock = { now: () => new Date(at) };
-  const board = openBoard(join(root, 'board.sqlite'), clock);
+  const board = openBoard(join(root, 'board.sqlite'), clock, { gitRoot: root });
   t.after(() => { store.closeBoard(board); rmSync(root, { recursive: true, force: true }); });
   /** Keep current fixtures current; only the legacy-claim case receives actual pre-feature joins. */
   const register = who => historicalSeats
