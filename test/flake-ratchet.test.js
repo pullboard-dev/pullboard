@@ -1,3 +1,4 @@
+import { recordLandingBatch } from '../packages/store/index.js';
 import { join } from 'node:path';
 import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -222,4 +223,21 @@ test('real landings record the quarantine baseline and lower it after repair [C7
   const next = box.run(box.repo, 'land', '--json');
   assert.equal(next.code, 0, next.err + next.out);
   assert.equal(JSON.parse(next.out).batch.flakeRatchet.count, 0);
+});
+
+/** The ordered writer rejects a stale snapshot before storing a batch, then seals publication. */
+test('landing batch recording fences flake events and preserves the published snapshot [C7,T12]', t => {
+  const { board } = boardFixture();
+  t.after(() => closeBoard(board));
+  const boundary = events(board).at(-1).event_id;
+  logEvent(board, 'coordinator', 'flake-observation', null, {});
+  const snapshot = { version: 1, eventId: boundary, count: 0, quarantines: [] };
+  const batch = { version: 1, id: 'ratchet-fixture', state: 'ready', base: 'a'.repeat(40), tip: 'b'.repeat(40),
+    root: '/fixture', branch: 'refs/heads/main', owner: 'coordinator', logPath: '/fixture/log', items: [], flakeRatchet: snapshot };
+  assert.throws(() => recordLandingBatch(board, { agentId: 'coordinator', batch }), { code: 'BOARD_BUSY' });
+  batch.flakeRatchet = { ...snapshot, eventId: events(board).at(-1).event_id };
+  const ready = recordLandingBatch(board, { agentId: 'coordinator', batch });
+  const pushed = recordLandingBatch(board, { agentId: 'coordinator', revision: ready.revision, batch: { ...ready, state: 'pushed' } });
+  assert.throws(() => recordLandingBatch(board, { agentId: 'coordinator', revision: pushed.revision,
+    batch: { ...pushed, flakeRatchet: { ...pushed.flakeRatchet, count: 1, quarantines: [{ file: 'test/x.js', name: 'case', item: 1 }] } } }), { code: 'LAND_BATCH' });
 });
