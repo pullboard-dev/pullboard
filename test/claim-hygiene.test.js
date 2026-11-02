@@ -268,7 +268,6 @@ test('active claims return with notes after two hours or three refused submits; 
   assert.match(JSON.parse(kinds(f, overdue, 'fact').at(-1).event_detail).text, /two hours.*builder-note/u);
   assert.match(JSON.parse(kinds(f, overdue, 'release').at(-1).event_detail).idleClaim.handoff.pin, /handoffs/u);
   assert.equal(store.getItem(f.board, timely).item_status, 'submitted');
-  assert.throws(() => f.claim(overdue, f.first), { code: 'REOPEN_HELD_FOR_BUILDER' });
   assert.notEqual(store.nextFor(f.board, { agentId: f.first, lane: 'core' }).item?.item_id, overdue);
   f.claim(overdue, f.second);
   assert.equal(store.getItem(f.board, overdue).item_owner, f.second);
@@ -299,10 +298,12 @@ test('three rejected submits return the claim to another seat, including after a
     if (n === 1) store.releaseItemHold(f.board, id, { agentId: 'coordinator' });
   }
   f.claim(id, f.first);
+  f.advance(31);
   f.maintain();
   assert.equal(store.getItem(f.board, id).item_status, 'open');
   assert.match(JSON.parse(kinds(f, id, 'fact').at(-1).event_detail).text, /three failed submits/u);
-  f.claim(id, f.second);
+  assert.throws(() => f.claim(id, f.second), { code: 'REOPEN_HELD_FOR_BUILDER' }, 'the reviewer who rejected it never takes the first refusal');
+  f.claim(id, f.seat('third', '4'));
   // A claim with no renewal must not disappear between the live and long-lapsed scans.
   f.advance(120);
   f.maintain();
@@ -328,4 +329,57 @@ test('board views replace status-only shouts while evidence and questions remain
     text: `#${id} is rejected because the parser loses an empty input; preserve that fixture`, lanes: ['core'] }));
   assert.doesNotThrow(() => store.shout(f.board, { from: 'coordinator', to: f.first,
     text: `#${id} is stalled; which invariant needs a ruling?`, lanes: ['core'] }));
+});
+
+/** Count the fast-stage refusals of one holder as recorded submit outcomes. */
+function refuse(f, id, agent, code) { f.claim(id, agent, { code, text: `fixture ${code}`, digest: 'bar' }); }
+
+test('a returned claim counts only runner-stage failures: three fast-stage refusals never return it, three gate-reds do [B4,B5]', t => {
+  const f = fixture(t);
+  const fast = f.add(), runner = f.add();
+  f.claim(fast, f.first);
+  for (const code of ['MERGE_CONFLICT', 'LINT_RED', 'CUTS_RED', 'STATIC_PROBLEMS']) refuse(f, fast, f.first, code);
+  f.advance(31);
+  f.maintain();
+  assert.equal(store.getItem(f.board, fast).item_status, 'claimed', 'conflict, lint, cuts and static refusals are fixed in minutes and never count');
+  f.claim(runner, f.second);
+  for (let n = 0; n < 3; n++) refuse(f, runner, f.second, ['GATE_RED', 'CHECK_RED', 'TEST_FAILURE'][n]);
+  f.advance(31);
+  f.maintain();
+  assert.equal(store.getItem(f.board, runner).item_status, 'open', 'three runner-stage failures return the claim');
+});
+
+test('a holder who committed in the last 30 minutes is never returned by the progress rule [B4,B5]', t => {
+  const f = fixture(t);
+  const id = f.add();
+  f.claim(id, f.first);
+  for (let n = 0; n < 3; n++) refuse(f, id, f.first, 'GATE_RED');
+  f.git(f.worktrees[f.first], 'commit', '--allow-empty', '-qm', 'fix: fresh work');
+  f.advance(1);
+  f.git(f.worktrees[f.first], 'commit', '--allow-empty', '-qm', 'fix: more work');
+  f.maintain();
+  assert.equal(store.getItem(f.board, id).item_status, 'claimed', 'three red gates with a commit inside 30 minutes stay with the builder');
+  f.advance(31);
+  f.maintain();
+  assert.equal(store.getItem(f.board, id).item_status, 'open', 'with no commit for 30 minutes the same failures return it');
+});
+
+test('a returned claim is offered to another builder, never to its reviewer, and its builder may take it back by id [B4,B5]', t => {
+  const f = fixture(t);
+  const id = f.add();
+  f.claim(id, f.first);
+  const head = f.git(f.worktrees[f.first], 'rev-parse', 'HEAD');
+  submitFixture(f.board, id, { agentId: f.first, commit: head, tree: head });
+  store.verify(f.board, id, { agentId: f.second, head, digest: 'bar', policy: 'any', decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'Real proof', note: 'Needs work.' });
+  f.claim(id, f.first);
+  for (let n = 0; n < 3; n++) refuse(f, id, f.first, 'GATE_RED');
+  f.advance(31);
+  f.maintain();
+  assert.equal(store.getItem(f.board, id).item_status, 'open');
+  assert.throws(() => f.claim(id, f.second), { code: 'REOPEN_HELD_FOR_BUILDER' }, 'the reviewer is refused');
+  assert.notEqual(store.nextFor(f.board, { agentId: f.second, lane: 'core' }).item?.item_id, id, 'next never offers it to the reviewer');
+  assert.notEqual(store.nextFor(f.board, { agentId: f.first, lane: 'core' }).item?.item_id, id, 'next asks another seat before the original builder');
+  assert.equal(store.nextFor(f.board, { agentId: f.helper, lane: 'core' }).item?.item_id, id, 'a different builder is offered it first');
+  f.claim(id, f.first);
+  assert.equal(store.getItem(f.board, id).item_owner, f.first, 'the original builder re-claims at once when no other seat took it');
 });

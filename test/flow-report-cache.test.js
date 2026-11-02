@@ -12,6 +12,7 @@ import { openBoard } from '../src/native-board.js';
 import { addMilestone, editMilestoneItems, editMilestone, shipMilestone, removeMilestone, orderMilestoneItems } from '../src/board-milestones.js';
 import { proofStats } from '../packages/stats/index.js';
 import { flowStats } from '../packages/stats/index.js';
+import { FLOW_REPORT_VERSION } from '../packages/stats/index.js';
 import { ensureProofCounters } from '../packages/verify/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -255,4 +256,33 @@ test('repeated native landing receipts preserve the first measured landing inter
   const repeated = proofStats(board, { now: base + minute * 60_000 }, statsReadPorts).flow.report;
   assert.deepEqual(repeated, first, 'another valid receipt cannot turn measured history into a gap or double its elapsed time');
   assert.deepEqual(repeated, flowStats(store.events(board), null, base + minute * 60_000, { submissions: 1, rejections: 0, rejectionShare: 0 }).report);
+});
+
+test('writers alternating between an older and a newer report version rebuild the report once in total [R1,R2]', t => {
+  const board = fixture(t);
+  const key = 'local:proof-stats:v2:report-summary';
+  const stored = () => JSON.parse(board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(key).meta_value);
+  const stamp = version => board.db.prepare('UPDATE board_meta SET meta_value=? WHERE meta_key=?')
+    .run(JSON.stringify({ ...stored(), data: { ...stored().data, version } }), key);
+  board.db.exec(`CREATE TABLE temp.report_resets(id INTEGER PRIMARY KEY, why TEXT);
+    CREATE TEMP TRIGGER report_deleted AFTER DELETE ON main.board_meta WHEN OLD.meta_key='${key}' BEGIN INSERT INTO report_resets(why) VALUES ('deleted'); END;
+    CREATE TEMP TRIGGER report_zeroed AFTER UPDATE ON main.board_meta WHEN NEW.meta_key='${key}' AND json_extract(NEW.meta_value,'$.data.last')=0 BEGIN INSERT INTO report_resets(why) VALUES ('zeroed'); END;
+    CREATE TEMP TRIGGER report_created AFTER INSERT ON main.board_meta WHEN NEW.meta_key='${key}' BEGIN INSERT INTO report_resets(why) VALUES ('created'); END;`);
+  const resets = () => board.db.prepare('SELECT COUNT(*) AS n FROM temp.report_resets').get().n;
+  // The older writer sees a stored report from older code and upgrades it: the one rebuild.
+  stamp(FLOW_REPORT_VERSION - 1);
+  store.addItem(board, { by: 'coordinator', lane: 'core', title: 'The older report upgrades once' });
+  assert.equal(stored().data.version, FLOW_REPORT_VERSION);
+  const upgrade = resets();
+  assert.ok(upgrade > 0, 'the upgrade reset the report');
+  // Then a newer writer stamps its version, and sometimes drops the proof summary so this code takes the full rebuild path.
+  for (let round = 1; round <= 12; round += 1) {
+    stamp(FLOW_REPORT_VERSION + 1);
+    if (round % 2) board.db.prepare('DELETE FROM board_meta WHERE meta_key=?').run('local:proof-stats:v2:summary');
+    const newer = stored();
+    store.addItem(board, { by: 'coordinator', lane: 'core', title: `Alternating writer ${round}` });
+    ensureProofCounters(board);
+    assert.deepEqual(stored(), newer, `round ${round}: the older code leaves the newer report exactly as stored`);
+  }
+  assert.equal(resets(), upgrade, 'after the one upgrade no write resets, deletes or rebuilds the report');
 });
