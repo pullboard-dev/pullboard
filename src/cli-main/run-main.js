@@ -56,7 +56,7 @@ async function timedMain(argv, streams) {
   }
   // Version and help ask Git nothing, so they never load it.
   if (asksGitNothing(argv)) return runMain(argv, streams);
-  const { withGitFacts } = await import('../git.js');
+  const { withGitFacts } = await import('../../packages/git/index.js');
   let command;
   try { command = parseCommandArgs(argv).positionals[0]; } catch { /* Normal parsing renders usage. */ }
   if (!['submit', 'done'].includes(command)) return withGitFacts(() => runMain(argv, streams));
@@ -152,9 +152,9 @@ async function runMain(argv, streams) {
   if (parsed?.positionals[0] === 'hook' && !parsed.values.help && !parsed.values.version
       && !['pre-commit', 'pre-merge-commit', 'commit-msg', 'pre-push'].includes(parsed.positionals[1])) {
     await io.prepareProcessPorts();
-    return (await import('../agent-hook.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
+    return (await import('../../packages/seats/index.js')).runAgentHook(io, parsed.positionals[1], io.hookWorker);
   }
-  const git = needsRepo ? await import('../git.js') : null;
+  const git = needsRepo ? await import('../../packages/git/index.js') : null;
   git?.setResumeSourceFacts(parsed?.positionals[0] === 'resume');
   if (parsed) {
     try {
@@ -164,14 +164,14 @@ async function runMain(argv, streams) {
       if (parsed.values.as === 'person' && !parsed.values.help && !parsed.values.version) {
         await io.prepareProcessPorts();
         io.nativeBoard ??= await io.loadNativeBoard();
-        preflightRelay = await import('../relay.js');
+        preflightRelay = await import('../../packages/link/index.js');
       }
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
       if (!parsed.values.help && !parsed.values.version &&
-          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('../person-signing-cli.js')).personMovesSigned(io.cwd, io, { ...preflightRelay, relayStatus: root => preflightRelay.relayStatus(root, io),
+          (parsed.values.as === 'person' && command !== 'decisions' && !await (await import('../../packages/person/index.js')).personMovesSigned(io.cwd, io, { ...preflightRelay, relayStatus: root => preflightRelay.relayStatus(root, io),
             openBoard: (await import('../cli-context.js')).nativeBoardOpeners(io).openBoard }) || command === 'relay' && ['on', 'join', 'revoke', 'members'].includes(verb) && !remoteRelayOn)) {
-        (await import('../person.js')).requirePersonChannel(io.personChannel);
+        (await import('../../packages/person/index.js')).requirePersonChannel(io.personChannel);
         io.caller('person');
       }
       checkoutSession = await bindCheckoutSession(io, parsed.positionals, parsed.values);
@@ -218,7 +218,7 @@ async function runMain(argv, streams) {
       automaticLandingAfterCommand = io.automaticLandingContext;
     }
     if (status === 0 && needsRepo && !parsed?.values['dry-run'] && parsed?.positionals[0] !== 'tool-build') toolBuildGateAfterCommand = io.toolBuildGateContext;
-    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../person.js')).requirePersonChannel });
+    if (status === 0 && needsRepo && !parsed?.values['dry-run']) (await import('../../packages/items/index.js')).clearCompletedBlocks(io, { requirePersonChannel: (await import('../../packages/person/index.js')).requirePersonChannel });
     if (status !== 0) await io.prepareRefusal();
     io.flush(status);
     return status;
@@ -242,7 +242,7 @@ async function runMain(argv, streams) {
       try {
         let eligible = true;
         try {
-          const { landingLeaseState } = await import('../board-landing-lease.js');
+          const { landingLeaseState } = await import('../../packages/store/index.js');
           eligible = (await import('../../packages/sandbox/index.js')).hasSourceAdvanceJobs(io.cwd, { landingLeaseState,
             openBoardForRead: (await import('../cli-context.js')).nativeBoardOpeners(io).openBoardForRead });
         }
@@ -254,7 +254,7 @@ async function runMain(argv, streams) {
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
-      try { await (await import('../main-audit-nudge.js')).nudgeMainAudit(io.cwd, new URL('../../bin/main-audit.js', import.meta.url)); }
+      try { await (await import('../../packages/gate/index.js')).nudgeMainAudit(io.cwd, new URL('../../bin/main-audit.js', import.meta.url)); }
       catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
     }
   }
