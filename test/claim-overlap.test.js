@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { claimWorktrees, claimOverlapLines } from '../packages/activity/index.js';
 import { claimOverlaps, liveClaimCollisions } from '../packages/items/index.js';
 
-test('two claimed Git worktrees name shared edits and protect an open item until release', async t => {
+test('two claimed Git worktrees name shared edits and protect an open item until release [N2]', async t => {
   const root = mkdtempSync(join(tmpdir(), 'claim-overlap-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const git = (...args) => execFileSync('git', args, { cwd: root, stdio: 'ignore' });
@@ -61,7 +61,7 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.deepEqual(liveClaimCollisions(items[2], [items[2]], observations), []);
 });
 
-test('next skips a named file being edited and offers it after release', async t => {
+test('next skips a named file being edited and offers it after release [N2]', async t => {
   const { openBoard } = await import('../src/native-board.js');
   const store = await import('../src/board.js');
   const board = openBoard(':memory:');
@@ -81,7 +81,7 @@ test('next skips a named file being edited and offers it after release', async t
   assert.equal(offered.item?.item_id, waiting);
 });
 
-test('a merged main change is not attributed to the claimed worktree', t => {
+test('a merged main change is not attributed to the claimed worktree [N2]', t => {
   const root = mkdtempSync(join(tmpdir(), 'claim-overlap-main-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: 'ignore' });
@@ -111,7 +111,7 @@ test('a merged main change is not attributed to the claimed worktree', t => {
   assert.deepEqual(renamed.files.toSorted(), ['base.js', 'own.js', 'renamed.js']);
 });
 
-test('the real next command routes around a live worktree edit', async t => {
+test('the real next command routes around a live worktree edit [N2]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
   const { openBoard } = await import('../src/native-board.js');
   const store = await import('../src/board.js');
