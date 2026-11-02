@@ -1,6 +1,10 @@
 /** Check baselines run against main and travel with deterministic board moves [V2,H3,H16,N23]. */
 import assert from 'node:assert/strict';
-import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
+import { runFixtureExecFile as execFileSync } from './fixture-child.js';
+import { runFixtureChild as spawnSync } from './fixture-child.js';
+import { runFixtureChild } from './fixture-child.js';
+import { runFixtureGit } from './fixture-child.js';
+import { startFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -197,6 +201,18 @@ test('[B35,V2,H16] #2370 add records a pending isolated baseline and runs it in 
   assert.equal(readFileSync(join(box.repo, 'web/result.txt'), 'utf8'), 'dirty live checkout\n');
 });
 
+test('[B35,V2,H16] #2370 default add returns before a held baseline completes', async (t) => {
+  const box = project({ content: 'committed' });
+  const held = heldCheck(box, 'add-default-held');
+  t.after(() => writeFileSync(held.release, 'release'));
+  const added = box.run(box.repo, ['add', 'web', 'Background held check', '--check', held.command, '--json'], undefined, { timeout: 8000 });
+  assert.equal(added.status, 0, `${added.stdout}${added.stderr}`);
+  assert.equal(JSON.parse(added.stdout).item.item_check_baseline.result, 'pending');
+  await waitForState(() => existsSync(held.started), 'the background baseline starts');
+  assert.equal(existsSync(held.finished), false, 'add returned before the held baseline finished');
+  writeFileSync(held.release, 'release');
+});
+
 test('[B35,V2,H16] #2370 waited add releases checkout while its baseline runs', async (t) => {
   const box = project({ content: 'committed' });
   const held = heldCheck(box, 'add-checkout-release');
@@ -208,7 +224,7 @@ test('[B35,V2,H16] #2370 waited add releases checkout while its baseline runs', 
   t.after(() => { writeFileSync(held.release, 'release'); if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM'); });
   await waitForState(() => existsSync(held.started), 'the add baseline starts');
   assert.equal(existsSync(held.finished), false, 'the add still waits for the held baseline');
-  const probe = box.run(box.repo, ['verify', '999999', 'accept', '--note', 'checkout lock probe', '--json'], undefined, { timeout: 8000 });
+  const probe = box.run(box.repo, ['verify', '999999', 'accept', '--note', 'checkout lock probe', '--as', 'coordinator', '--json'], undefined, { timeout: 8000 });
   assert.notEqual(probe.status, null, `verify must acquire checkout while the baseline waits: ${probe.stderr}`);
   assert.equal(JSON.parse(probe.stdout).error.code, 'NO_ITEM');
   assert.equal(existsSync(held.finished), false, 'verify completed before the baseline was released');
@@ -516,7 +532,8 @@ function apiMove(box, move, channel, env) {
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
     const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
-    const apiBoardOpeners = { openBoard, openBoardForRead };
+    const { moveArgs } = await import(${JSON.stringify(new URL('../packages/person/index.js', import.meta.url).href)});
+    const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     const response = await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, ${JSON.stringify(channel)}, undefined, apiBoardOpeners);
     process.stdout.write(JSON.stringify(response));
   `;
