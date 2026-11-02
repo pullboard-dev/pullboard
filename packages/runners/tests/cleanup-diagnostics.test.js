@@ -1,15 +1,21 @@
 /** Complete timeout identities and a real detached test descendant exercise native cleanup [C7]. */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cleanupProcessText, readCleanupTimeoutDetails } from '../index.js';
+import { cleanupProcessText } from '../index.js';
+import { readCleanupTimeoutDetails } from '../index.js';
 import { createWorkerState } from '../../../src/runner-worker-state.js';
 import { createDescendantTracker } from '../../../src/runner-custody.js';
-import { beginCleanup, reportCleanupTimeout } from '../../../src/runner-worker-cleanup.js';
-import { spawnOwned, drainOwned } from '../../../src/runner-worker-process.js';
+import { beginCleanup } from '../../../src/runner-worker-cleanup.js';
+import { reportCleanupTimeout } from '../../../src/runner-worker-cleanup.js';
+import { spawnOwned } from '../../../src/runner-worker-process.js';
+import { drainOwned } from '../../../src/runner-worker-process.js';
 
 /** A controlled POSIX observation supplies identity evidence without signalling synthetic PIDs. */
 function row(pid, ppid, pgid) {
