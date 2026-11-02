@@ -46,7 +46,10 @@ function rowsAt(root, ref, paths, env) {
       catch { throw new Error(`invalid test file budget row ${path}`); }
       if (value?.version !== 1 || typeof value.file !== 'string' || !Object.hasOwn(value, 'ms') || testFileBudgetPath(value.file) !== path
         || value.placement !== undefined && value.placement !== 'audit') throw new Error(`invalid test file budget row ${path}`);
-      rows.set(path, { file: value.file, ms: testFileLimit(value.ms), audit: value.placement === 'audit' });
+      let ms;
+      try { ms = testFileLimit(value.ms); }
+      catch { throw new Error(`invalid test file budget row ${path}`); }
+      rows.set(path, { file: value.file, ms, audit: value.placement === 'audit' });
     }
   }
   return rows;

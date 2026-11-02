@@ -75,6 +75,9 @@ test('a linked item worktree uses its runner primary admitted trunk [C7]', async
   writeFileSync(join(box.candidate, box.path), '{broken');
   box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'malformed budget');
   assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), error => error.message.includes(box.path));
+  writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: -1 }));
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'invalid budget');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), error => error.message.includes(box.path));
 });
 
 test('a detached repository without trusted trunk fails closed with guidance [C7]', t => {
