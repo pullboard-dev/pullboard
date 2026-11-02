@@ -1,3 +1,5 @@
+import { ENGINE_VERSION } from '../../../../src/machine.js';
+import { REVIEW_FAMILY_SEAT_ENGINE } from '../../../../src/review-family-seat-engine.js';
 /** Retain an item's frozen family authority when selecting and reserving its reviewer [V1,H16]. */
 export function frozenFamilyPolicy(item, fallback) {
   try {
@@ -22,8 +24,8 @@ export function relaxationWitness(board, subject, agentId, threshold, policy, { 
   if (!family || !subject.item_builder_family || familiesDiffer(board, family, subject.item_builder_family)) return null;
   const now = board.clock.now();
   const cutoff = new Date(now.getTime() - 15 * 60_000).toISOString();
-  const active = board.db.prepare('SELECT DISTINCT event.event_by AS id FROM event JOIN agent ON agent.agent_id=event.event_by WHERE event.event_at>=? AND event.event_at<=? ORDER BY event.event_by')
-    .all(cutoff, now.toISOString()).map(row => row.id);
+  const active = board.db.prepare('SELECT DISTINCT event.event_by AS id, agent.agent_lane AS lane FROM event JOIN agent ON agent.agent_id=event.event_by WHERE event.event_at>=? AND event.event_at<=? ORDER BY event.event_by')
+    .all(cutoff, now.toISOString()).filter(row => (board.executionEngineVersion ?? ENGINE_VERSION) < REVIEW_FAMILY_SEAT_ENGINE || !['coordinator', 'person'].includes(row.lane)).map(row => row.id);
   const busy = new Set(board.db.prepare("SELECT item_review_by AS id FROM item WHERE item_status='submitted' AND item_review_by IS NOT NULL AND item_review_until>?")
     .all(now.toISOString()).map(row => row.id));
   const seats = active.filter(id => !busy.has(id));

@@ -80,3 +80,23 @@ test('backlog relaxation is bound to the reservation and never permits self revi
   assert.throws(() => store.reserveReview(board, legacy, options), { code: 'BAD_REVIEW_POLICY' }, 'a caller cannot add a threshold to an older frozen policy');
   assert.throws(() => store.reserveReview(board, legacy, noThreshold), { code: 'SAME_FAMILY' }, 'missing frozen threshold never relaxes');
 });
+
+test('coordinator activity cannot suppress family relaxation; an available other-family agent can [V1,H16]', t => {
+  const board = fixtureBoard(t);
+  let now = new Date('2026-01-01T00:00:00.000Z');
+  board.clock = { now: () => new Date(now) };
+  for (const [id, lane, family, parent] of [['coordinator', 'coordinator', 'anthropic', 'a'], ['core-1', 'core', 'openai', 'b'], ['core-2', 'core', 'openai', 'c']]) {
+    store.register(board, { id, lane, path: `/fixture/${id}`, family, parentDigest: parent.repeat(64), model: 'fixture-model' });
+  }
+  const items = Array.from({ length: 5 }, () => store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Review fixture', criterion: 'prove it' }));
+  for (const id of items) {
+    store.claim(board, id, { agentId: 'core-1', lane: 'core', leaseMs: 3_600_000,
+      freeze: () => ({ text: JSON.stringify({ policy: { verify: { family: 'require', familyRelaxAt: 5 } } }), digest: 'fixture-digest' }) });
+    submitFixture(board, id, { agentId: 'core-1', commit: String(id).padStart(40, 'a'), tree: 'b'.repeat(40) });
+  }
+  const options = { agentId: 'core-2', leaseMs: 3_600_000, policy: 'any', familyPolicy: 'require', familyRelaxAt: 5 };
+  const pick = () => store.nextFor(board, { ...options, lane: 'core', verify: true }).item;
+  assert.ok(pick(), 'five waiting items relax when only the coordinator is an opposite-family seat');
+  store.register(board, { id: 'core-3', lane: 'core', path: '/fixture/core-3', family: 'anthropic', parentDigest: 'd'.repeat(64), model: 'fixture-model' });
+  assert.equal(pick(), null, 'a free opposite-family agent prevents relaxation');
+});
