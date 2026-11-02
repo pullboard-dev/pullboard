@@ -21,7 +21,7 @@ function state(box) {
 }
 
 /** Build a real claimed candidate and advance main causally when native preflight reports composition. */
-function fixture(t, rewind) {
+function fixture(t, rewind, gateMove = null) {
   const helpers = createE2eHelpers();
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture Model';
@@ -34,6 +34,12 @@ function fixture(t, rewind) {
   writeFileSync(join(box.repo, 'web/feature.js'), "export const feature='base';\n");
   writeFileSync(join(box.repo, 'web/other.js'), "export const other='independent';\n");
   writeFileSync(join(box.repo, 'test/feature.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {feature} from '../web/feature.js';test('feature [G1]',()=>assert.equal(feature,'item'));\n");
+  if (gateMove) writeFileSync(join(box.repo, 'test/feature.test.js'), `import {test} from 'node:test'; import assert from 'node:assert/strict'; import {feature} from '../web/feature.js'; import {execFileSync} from 'node:child_process'; import {readFileSync,writeFileSync,existsSync} from 'node:fs';
+const root=${JSON.stringify(box.repo)}, marker=${JSON.stringify(join(box.dir, 'gate-moved'))};
+test('feature [G1]',()=>{ if(process.cwd().includes('/submit-handoffs/') && !existsSync(marker)) {
+  if (${JSON.stringify(gateMove)} === 'policy') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.verify={...c.verify,family:'require'}; writeFileSync(f,JSON.stringify(c)); }
+  else writeFileSync(root+'/gate-advance.txt','advanced');
+  execFileSync('git',['-C',root,'add','-A']); execFileSync('git',['-C',root,'commit','-qm','chore: advance during gate [G1]']); writeFileSync(marker,'done'); } assert.equal(feature,'item'); });\n`);
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
   const config = join(box.repo, 'pullboard.json');
@@ -62,7 +68,7 @@ import {execFileSync} from 'node:child_process';
 const marker=${JSON.stringify(marker)}, root=${JSON.stringify(box.repo)};
 const write=process.stdout.write;
 process.stdout.write=function(...args) {
-  if (!existsSync(marker) && String(args[0]).includes('submit composition:')) {
+  if (!${JSON.stringify(Boolean(gateMove))} && !existsSync(marker) && String(args[0]).includes('submit composition:')) {
     const git=(...args)=>execFileSync('git',['-C',root,...args],{encoding:'utf8'}).trim();
     ${rewind ? `git('reset','--hard',${JSON.stringify(parent)});` : `mkdirSync(root+'/docs',{recursive:true}); writeFileSync(root+'/docs/advanced.md','accepted main advance\\n'); git('add','docs/advanced.md'); git('commit','-qm','docs: advance main during preflight [G1]');`}
     writeFileSync(marker,JSON.stringify({main:git('rev-parse','HEAD')}),{flag:'wx'});
@@ -114,4 +120,21 @@ test('queued submit still refuses a main rewind during native preflight [V4,H16,
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.match(result.stdout + result.stderr, /SUBMIT_HANDOFF_SOURCE/u);
   assert.equal(state(box).job, null, 'a rewound policy grants no queued worker');
+});
+
+for (const mode of ['unrelated', 'policy']) test(`queued gate handles ${mode} main change [V4,H16,E18]`, async t => {
+  const box = fixture(t, false, mode);
+  const result = submit(box);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  await box.helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), 'queued gate completion', 120000);
+  assert.ok(existsSync(join(box.dir, 'gate-moved')), 'main moved while the queued check ran');
+  const completed = state(box);
+  if (mode === 'unrelated') {
+    assert.equal(completed.job.state, 'green', JSON.stringify(completed.job));
+    assert.equal(completed.item.item_status, 'submitted');
+  } else {
+    assert.notEqual(completed.job.state, 'green', JSON.stringify(completed.job));
+    const refusal = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/submit-handoffs', completed.job.id, 'refusal.json'), 'utf8'));
+    assert.match(JSON.stringify(refusal), /verify\.family/u);
+  }
 });

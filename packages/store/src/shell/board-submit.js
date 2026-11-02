@@ -38,6 +38,18 @@ import { SUBMISSION_PROOF_ENGINE } from "../../../../src/move-engine-constants.j
 import { FLOW_SIZE_ENGINE } from "../../../../src/flow-size-engine.js";
 import { submissionSize } from "../../../state/src/core/submission-size.js";
 import { moveItem } from "./board.js";
+import { isDeepStrictEqual } from 'node:util';
+
+/** Name changed policy leaves without treating object key order as policy. */
+function changedPolicyKeys(before, after, prefix) {
+  if (isDeepStrictEqual(before, after)) return [];
+  if (before && after && typeof before === 'object' && typeof after === 'object'
+    && !Array.isArray(before) && !Array.isArray(after)) {
+    return [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()
+      .flatMap(key => changedPolicyKeys(before[key], after[key], `${prefix}.${key}`));
+  }
+  return [prefix];
+}
 
 /** Bind clause inspection to the coordinator's accepted main, not a submitter's machine or arguments. */
 export function sealClauseInspection(board, id, options) {
@@ -48,8 +60,11 @@ export function sealClauseInspection(board, id, options) {
     return options; // Isolated in-memory fixtures have no board policy.
   }
   const policy = board.enginePorts.sandboxPolicyReads.mainPolicy(root);
-  if (options.policyCommit && options.policyCommit !== policy.commit) throw new Refused('NO_POLICY', 'accepted main changed; refresh the submit policy and retry');
-  return { ...options, clausePolicyCommit: policy.commit, inspectClauses: policy.config.verify.inspectClauses === true };
+  const sealed = options.policyCommit && options.policyCommit !== policy.commit
+    ? board.enginePorts.sandboxPolicyReads.policyAt(root, options.policyCommit) : policy;
+  const changed = ['submit', 'verify', 'gate'].flatMap(key => changedPolicyKeys(sealed.config[key], policy.config[key], key));
+  if (changed.length) throw new Refused('NO_POLICY', `accepted submit policy changed: ${changed.join(', ')}; refresh and retry`);
+  return { ...options, clausePolicyCommit: sealed.commit, inspectClauses: sealed.config.verify.inspectClauses === true };
 }
 
 /**
