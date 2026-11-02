@@ -7,6 +7,10 @@ import { Refused } from "../../../kernel/index.js";
 import { moveItem } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
 import { reviewerChecks } from "./board.js";
+import { reviewFamilyRelaxation } from './board-review-family.js';
+import { frozenRelaxAt } from './board-review-family.js';
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../src/review-family-relax-engine.js';
+import { ENGINE_VERSION } from '../../../state/index.js';
 
 /**
  * Reserve an item's review for an agent under a lease (V15): until it runs out, another agent's
@@ -29,8 +33,13 @@ export function reserveReview(board, id, who) {
  * @param {{ agentId: string, leaseMs: number, policy: string, familyPolicy?: string }} who
  * @returns {any}
  */
-export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off' }) {
+export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolicy = 'off', familyRelaxAt }) {
   const until = new Date(board.clock.now().getTime() + leaseMs).toISOString();
+  const found = getItem(board, id);
+  const frozen = found ? frozenRelaxAt(found) : undefined;
+  if (familyRelaxAt !== undefined && familyRelaxAt !== frozen) throw new Refused('BAD_REVIEW_POLICY', 'the stated review backlog threshold differs from the item frozen policy');
+  const enabled = (board.executionEngineVersion ?? ENGINE_VERSION) >= REVIEW_FAMILY_RELAX_ENGINE;
+  const witness = enabled && found ? reviewFamilyRelaxation(board, found, agentId, familyRelaxAt, policy, familyPolicy) : null;
   moveItem(board, id, 'reserve', {
     checks: {
       coordinatorSaysAs: null,
@@ -42,10 +51,10 @@ export function reserveWithin(board, id, { agentId, leaseMs, policy, familyPolic
         const cooldown = reviewReleaseCooldown(board, id, agentId);
         return cooldown ? new Refused('REVIEW_COOLDOWN', `you released the review of #${id}; try again after ${cooldown}, or let another reviewer take it`) : null;
       },
-      ...reviewerChecks(board, { agentId, policy, familyPolicy }),
+      ...reviewerChecks(board, { agentId, policy, familyPolicy, ...(enabled ? { relaxationFor: () => witness } : {}) }),
     },
     set: () => ({ item_review_by: agentId, item_review_until: until }),
   });
-  logEvent(board, agentId, 'reserve', id, { until });
+  logEvent(board, agentId, 'reserve', id, { until, ...(witness ? { commit: found.item_commit, digest: found.item_frozen_digest, familyRelaxation: witness } : {}) });
   return getItem(board, id);
 }
