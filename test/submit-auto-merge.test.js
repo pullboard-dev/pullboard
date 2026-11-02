@@ -22,7 +22,7 @@ function project(t, conflict = false) {
     GIT_COMMITTER_NAME: 'Builder', GIT_COMMITTER_EMAIL: 'builder@example.invalid' };
   const git = (dir, ...args) => runFixtureGit(args, { cwd: dir, env }).trim();
   writeFileSync(join(main, 'shared.txt'), 'base\n');
-  git(main, 'init', '-q', '-b', 'main'); git(main, 'add', '.'); git(main, 'commit', '-q', '-m', 'base');
+  git(main, 'init', '-q', '-b', 'main'); git(main, 'config', 'user.name', 'Builder'); git(main, 'config', 'user.email', 'builder@example.invalid'); git(main, 'add', '.'); git(main, 'commit', '-q', '-m', 'base');
   git(main, 'worktree', 'add', '-q', '-b', 'build', work, 'main');
   writeFileSync(join(work, conflict ? 'shared.txt' : 'builder.txt'), 'builder\n');
   git(work, 'add', '.'); git(work, 'commit', '-q', '-m', 'builder');
@@ -106,6 +106,8 @@ test('a reviewer checks a builder-attributed composition when main moved [C7,V4]
   assert.ok(refs.length, 'the actual reviewed composition is retained');
   const merged = refs.find(ref => box.git(box.repo, 'show', '-s', '--format=%P', ref).split(' ').includes(trunk));
   assert.ok(merged, `review ref includes main ${trunk}`);
-  assert.equal(box.git(box.repo, 'show', '-s', '--format=%ae', merged), box.git(box.repo, 'show', '-s', '--format=%ae', source));
+  const shown = box.run(box.repo, 'show', String(id), '--json');
+  assert.equal(shown.code, 0, shown.err);
+  assert.match(JSON.stringify(JSON.parse(shown.out)), new RegExp(`Automatic main merge ${merged}.*builder web-1`, 'u'));
   assert.equal(box.git(review, 'rev-parse', 'HEAD'), source, 'private review composition leaves the checkout unchanged');
 });

@@ -25,10 +25,8 @@ export function retryReviewCommit(root, checkedCommit, trunk) {
   }
   const tree = merge.stdout.split('\0')[0].trim();
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(tree)) throw new Refused('MERGE_CHECK_FAILED', 'Git did not return a readable retry merge tree; restore its objects and retry verification');
-  const identity = git(root, ['show', '-s', '--format=%an%x00%ae', checkedCommit], { env: cleanGitEnvironment() }).split('\0');
-  if (identity.length !== 2 || !identity[0] || !identity[1]) throw new Refused('MERGE_CHECK_FAILED', 'the source commit has no usable builder identity');
-  const env = { ...cleanGitEnvironment(), GIT_AUTHOR_NAME: identity[0], GIT_AUTHOR_EMAIL: identity[1],
-    GIT_COMMITTER_NAME: identity[0], GIT_COMMITTER_EMAIL: identity[1] };
+  const env = { ...cleanGitEnvironment(), GIT_AUTHOR_NAME: 'Pullboard review', GIT_AUTHOR_EMAIL: 'review@pullboard.invalid',
+    GIT_COMMITTER_NAME: 'Pullboard review', GIT_COMMITTER_EMAIL: 'review@pullboard.invalid' };
   return git(root, ['-c', 'commit.gpgSign=false', 'commit-tree', tree, '-p', trunk.commit, '-p', checkedCommit,
     '-m', 'chore(review): compose the bounded verification retry [V4,V8]'], { env });
 }

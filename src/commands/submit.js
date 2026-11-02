@@ -355,7 +355,11 @@ export async function submitHere(ctx, id, infra) {
   if (!isSubmitHandoffWorker(ctx) && !pendingHandoff) {
     const composed = mergeSubmissionMain(root, acceptedMain.commit);
     commit = composed.commit;
-    if (composed.merged) ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
+    if (composed.merged) {
+      await withBoard(ctx, board => ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note',
+        text: `Builder ${held.item_owner} automatic main merge: source ${composed.source}, main ${acceptedMain.commit}, merge ${commit}.` }]));
+      ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
+    }
   }
   let trunk;
   let regenerated = null;

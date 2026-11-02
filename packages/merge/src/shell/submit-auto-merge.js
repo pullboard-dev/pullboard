@@ -4,7 +4,7 @@ import { git } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 
-/** Merge an exact main commit only when Git reports no conflict; the original source author owns the merge. */
+/** Merge an exact main commit only when Git reports no conflict, using the invoking builder’s Git identity. */
 export function mergeSubmissionMain(root, main) {
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(main)) throw new Refused('NO_POLICY', 'read an exact accepted main before composing the submission');
   const env = cleanGitEnvironment();
@@ -19,11 +19,12 @@ export function mergeSubmissionMain(root, main) {
     throw new Refused('MERGE_CHECK_FAILED', 'Git could not compute the exact main merge; inspect its output and retry');
   }
   if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(fields[0])) throw new Refused('MERGE_CHECK_FAILED', 'Git did not return a valid merge tree');
-  const identity = git(root, ['show', '-s', '--format=%an%x00%ae', source], { env }).split('\0');
-  if (identity.length !== 2 || !identity[0] || !identity[1]) throw new Refused('MERGE_CHECK_FAILED', 'the source commit has no usable builder identity');
-  const merged = tryGit(root, ['-c', `user.name=${identity[0]}`, '-c', `user.email=${identity[1]}`,
-    'merge', '--no-ff', '--no-edit', '-m', `Merge main ${main.slice(0, 12)} into the submitted source`, main],
-  { env: { ...env, GIT_AUTHOR_NAME: identity[0], GIT_AUTHOR_EMAIL: identity[1], GIT_COMMITTER_NAME: identity[0], GIT_COMMITTER_EMAIL: identity[1] } });
+  const identityEnv = { ...env };
+  for (const key of ['GIT_AUTHOR_NAME', 'GIT_AUTHOR_EMAIL', 'GIT_COMMITTER_NAME', 'GIT_COMMITTER_EMAIL']) {
+    if (process.env[key] !== undefined) identityEnv[key] = process.env[key];
+  }
+  const merged = tryGit(root, ['merge', '--no-ff', '--no-edit', '-m',
+    `Merge main ${main.slice(0, 12)} into the submitted source`, main], { env: identityEnv });
   if (merged.status !== 0) throw new Refused('MERGE_CHECK_FAILED', `the clean merge could not be committed: ${merged.stderr || merged.stdout}`);
   const commit = git(root, ['rev-parse', 'HEAD'], { env });
   const parents = git(root, ['show', '-s', '--format=%P', commit], { env }).split(' ');

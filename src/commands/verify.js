@@ -238,6 +238,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (!contains(root, current.commit, checkedCommit) && !reReview) {
           checkedCommit = retryReviewCommit(root, checkedCommit, current);
           checkedLabel = 'main-composed review';
+          unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${item.item_built_by}; checked against main ${current.commit}.`;
           ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
         }
         return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events: store.events });
