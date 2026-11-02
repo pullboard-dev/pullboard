@@ -18,8 +18,8 @@ import {
 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseProcessCensus } from '../../../../packages/kernel/src/core/process-census.js';
-import { childJournalPreloadSource } from '../../../../src/child-journal-preload.js';
-import { exactStart } from '../../../../src/child-journal-preload.js';
+import { childJournalPreloadSource } from '../../../../packages/gate/src/shell/child-journal-preload.js';
+import { exactStart } from '../../../../packages/gate/src/shell/child-journal-preload.js';
 
 const safePath = [dirname(process.execPath), process.env.PATH || '/usr/local/bin:/usr/bin:/bin'].join(delimiter);
 

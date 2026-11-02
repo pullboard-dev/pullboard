@@ -8,7 +8,7 @@ import { rmdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { statfsSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromeCloneDirectories } from '../../../../src/chrome-clone-check.js';
+import { chromeCloneDirectories } from '../../../../packages/gate/src/shell/chrome-clone-check.js';
 
 const HOUR = 60 * 60 * 1000;
 const NAME = /^code_sign_clone\.[A-Za-z0-9._-]{6}$/u;
