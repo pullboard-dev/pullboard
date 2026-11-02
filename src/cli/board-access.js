@@ -13,7 +13,7 @@ import { CHECKOUT_LEASES } from '../cli-main.js';
 import { main } from '../cli-main.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { Refused } from '../../packages/kernel/index.js';
-import { runPrivateBoard } from '../private-board.js';
+import { runPrivateBoard } from '../../packages/github/index.js';
 import { ordered } from './claim.js';
 import { whoAmI } from './join.js';
 import { claimFreezer } from './claim.js';
