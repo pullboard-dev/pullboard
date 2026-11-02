@@ -16,6 +16,7 @@ import { writePlacementIndex } from '../packages/gate/src/shell/test-economics-i
 import { indexedStageSelection } from '../packages/gate/src/shell/test-economics-index.js';
 import { inCleanCheckout } from '../packages/gate/src/shell/test-run.js';
 import { withMainCheckout } from '../packages/landing/src/shell/main-red.js';
+import { runnerPolicyRecord, RUNNER_POLICY_FILE } from '../packages/sandbox/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
 
@@ -53,6 +54,22 @@ test('a dirty seat snapshot carries accepted main into its detached runner check
     assert.equal(readTestFileBudgets(snapshot, ['slow.test.js']).get('slow.test.js').ms, 1);
     assert.equal(box.git(snapshot, 'rev-parse', '--abbrev-ref', 'HEAD'), 'HEAD', 'snapshot is detached');
   }, withMainCheckout);
+});
+
+test('a linked item worktree uses its runner primary admitted trunk [C7]', t => {
+  const box = fixture(t);
+  const commit = box.git(box.main, 'rev-parse', 'HEAD^{commit}');
+  const tree = box.git(box.main, 'rev-parse', 'HEAD^{tree}');
+  box.git(box.main, 'checkout', '--quiet', '--detach');
+  writeFileSync(join(box.main, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord({ id: 'fixture', commit, tree,
+    trunk: { ref: 'refs/heads/main', commit } })));
+  assert.equal(readTestFileBudgets(box.candidate, ['slow.test.js']).get('slow.test.js').ms, 1);
+  writeFileSync(join(box.candidate, box.path), JSON.stringify({ version: 1, file: 'slow.test.js', ms: 2 }));
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'loosen budget');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), /may not increase from 1ms to 2ms/u);
+  writeFileSync(join(box.candidate, box.path), '{broken');
+  box.git(box.candidate, 'add', box.path); box.git(box.candidate, 'commit', '-qm', 'malformed budget');
+  assert.throws(() => readTestFileBudgets(box.candidate, ['slow.test.js']), error => error.message.includes(box.path));
 });
 
 test('an over-budget file fails with its observed runtime, while audit placement passes [C7]', t => {

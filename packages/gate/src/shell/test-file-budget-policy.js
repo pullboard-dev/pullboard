@@ -21,6 +21,17 @@ export function testFileBudgetPath(file) {
   return `${DIRECTORY}/${createHash('sha256').update(file).digest('hex')}.json`;
 }
 
+/** A runner's linked item worktree shares its primary checkout's admitted trunk, not its HEAD. */
+function acceptedBudgetTrunk(root, env) {
+  const main = mainCheckout(root)?.commit ?? carriedRunnerTrunk(root)?.commit;
+  if (main) return main;
+  const list = tryGit(root, ['worktree', 'list', '--porcelain', '-z'], { env });
+  if (list.status !== 0) return null;
+  const first = list.stdout.split('\0').find(entry => entry.startsWith('worktree '));
+  const primary = first?.slice('worktree '.length);
+  return primary ? carriedRunnerTrunk(primary)?.commit ?? null : null;
+}
+
 /** Read only reached rows, batching tree lookups so absent defaults do not each launch Git. */
 function rowsAt(root, ref, paths, env) {
   const rows = new Map(), unique = [...new Set(paths)];
@@ -46,7 +57,7 @@ export function readTestFileBudgets(root, files) {
   const portable = files.map(file => testFileRelative(root, file));
   const env = gitChildEnv(root);
   if (tryGit(root, ['rev-parse', '--git-dir'], { env }).status !== 0) return new Map(portable.map(file => [file, { ms: DEFAULT_TEST_FILE_BUDGET_MS, audit: false }]));
-  const main = mainCheckout(root)?.commit ?? carriedRunnerTrunk(root)?.commit;
+  const main = acceptedBudgetTrunk(root, env);
   if (!main) throw new Error('cannot determine accepted main for test file budgets');
   const diff = tryGit(root, ['diff', '--no-renames', '--name-only', '-z', main, 'HEAD', '--', DIRECTORY], { env });
   if (diff.status !== 0) throw new Error('cannot compare test file budgets to accepted main');
