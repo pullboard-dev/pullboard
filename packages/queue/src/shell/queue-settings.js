@@ -87,6 +87,7 @@ export const LINE_SETTING_DEFINITIONS = Object.freeze({
   returnRejectedWork: Object.freeze({ type: 'boolean' }),
   reworkSameFamily: Object.freeze({ type: 'boolean' }),
   order: Object.freeze({ type: 'boolean' }),
+  agingMinutes: Object.freeze({ type: 'number', min: 1, max: 10080, integer: false }),
   focusMilestone: Object.freeze({ type: 'milestone' }),
   reviewsFirst: Object.freeze({ type: 'boolean' }),
   requireReviewFamilies: Object.freeze({ type: 'boolean' }),
