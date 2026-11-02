@@ -328,7 +328,7 @@ export async function submitHere(ctx, id, infra, { precheck = false } = {}) {
   let regenerated = null;
   try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
   catch (error) {
-    if (error?.code !== 'MERGE_CONFLICT') throw error;
+    if (error?.code !== 'MERGE_CONFLICT' || precheck) throw error;
     if (!isSubmitHandoffWorker(ctx)) {
       acceptedMain = mainPolicy(root);
       const queued = withBoard(ctx, board => pendingSubmitHandoff(board, held));
