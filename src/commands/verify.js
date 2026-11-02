@@ -1,4 +1,12 @@
 import { selectTestTiers } from '../../packages/gate/index.js';
+import { compareVerification } from '../../packages/verify/index.js';
+import { comparisonCommand } from '../../packages/verify/index.js';
+import { renderVerificationComparison } from '../../packages/verify/index.js';
+import { withMainCheckout } from '../../packages/landing/index.js';
+import { runProfiledShellAsync } from '../../packages/gate/index.js';
+import { testsNeedBrowser } from '../../packages/gate/index.js';
+import { testsNeedGui } from '../../packages/gate/index.js';
+import { mainPolicy } from '../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../packages/gate/index.js';
 import { testTierCommand } from '../../packages/gate/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
@@ -22,7 +30,7 @@ import { compareMainFailures } from '../../packages/landing/index.js';
 import { failureSignatures } from '../../packages/landing/index.js';
 import { matchingMainFailures } from '../../packages/landing/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
-import { selectAffectedTests } from '../affected-tests.js';
+import { selectAffectedTests } from '../../packages/gate/index.js';
 import { committedItemAuthors } from '../../packages/verify/index.js';
 import { verifyOutsideSandbox } from '../../packages/sandbox/index.js';
 import { effectiveItemHead } from '../../packages/verify/index.js';
@@ -359,6 +367,29 @@ export async function run(io, args) {
   const id = idArg(first);
   const verdictResult = {};
   const ctx = { ...context(io), verdictResult };
+  if (values.compare) {
+    if (args.second) throw new Refused('USAGE', 'use pullboard verify <id> --compare without an accept or reject verdict');
+    const item = withBoardRead(ctx, board => store.getItem(board, id));
+    const policy = mainPolicy(ctx.info.root);
+    const executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
+    const compared = await compareVerification(ctx.info.root, item, { main: policy.commit,
+      selectTests: selectAffectedTests,
+      runTests: (commit, files, { profileFile, artifactDirectory }) => withMainCheckout(ctx.info.root, commit, async checkout => {
+        const command = comparisonCommand(policy.config.affectedTests || 'node --test', files);
+        const browser = files.length > 0 && await testsNeedBrowser(checkout, files);
+        return withGateSlot(checkout, lease => {
+          lease.testTiers = true;
+          return runProfiledShellAsync(checkout, command,
+            { gateLease: lease, waitMs: lease.waitMs, profileFile, artifactDirectory, persistLog: true, stages: true });
+        },
+        { executionServices, ...gateRunnerAdmission(), runnerOnly: true, remote: true,
+          browser, gui: testsNeedGui(checkout, files), shortEligible: true, item: String(id), kind: 'compare' });
+      }),
+    });
+    io.result?.(compared);
+    io.say(renderVerificationComparison(compared));
+    return 0;
+  }
   const code = await verifyHere(ctx, id, args);
   if (code === 0 && verdictResult.value) await completeMoveHandoff(ctx, id, values, verdictResult.value, { nextOnce, withBoardRead, listItems: store.listItems, agentSessionDigest });
   return code;
