@@ -151,25 +151,27 @@ function sharedPolicy(file) {
     || file === 'bin/cell-lint-transition.json';
 }
 
-/** Attribute changed files and their transitive readers using the actual accepted graph and both declared roots. */
-function touchedCells(files, before, after, inventories) {
+/** Attribute changed cells and their direct importers against both immutable graphs. */
+export function touchedCells(files, before, after, inventories) {
   if (files.some(sharedPolicy)) return after.cells.map(cell => cell.name);
-  const known = file => [before, after].some(plan => plan.cells.some(cell => file === cell.frontDoor || file.startsWith(cell.root + '/')
-    || cell.paths.some(row => row[0] === file || row[1] === file)));
-  const affected = new Set(files.filter(known));
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const inventory of inventories) for (const [file, imports] of inventory.edges) {
-      if (!affected.has(file) && imports.some(edge => affected.has(edge.target))) { affected.add(file); grew = true; }
+  const plans = [before, after];
+  const byPath = new Map();
+  /** A source alias and a moved target both belong to their declared cell. */
+  const owners = file => {
+    if (!byPath.has(file)) byPath.set(file, plans.flatMap(plan => plan.cells.filter(cell => file === cell.frontDoor
+      || file === cell.pureFrontDoor || file.startsWith(cell.root + '/')
+      || cell.paths.some(row => row[0] === file || row[1] === file)).map(cell => cell.name)));
+    return byPath.get(file);
+  };
+  const touched = new Set(files.flatMap(owners));
+  const selected = new Set(touched);
+  // Only importers of an originally touched cell count; never feed discovered importers back in.
+  for (const inventory of inventories) for (const [file, imports] of inventory.edges) {
+    if (imports.some(edge => owners(edge.target).some(name => touched.has(name)))) {
+      for (const name of owners(file)) selected.add(name);
     }
   }
-  const names = new Set();
-  for (const plan of [before, after]) for (const cell of plan.cells) {
-    if ([...affected].some(file => file === cell.frontDoor || file.startsWith(cell.root + '/')
-      || cell.paths.some(row => row[0] === file || row[1] === file))) names.add(cell.name);
-  }
-  return [...names].sort();
+  return [...selected].sort();
 }
 
 /** Temporary metadata is permission only for the exact frozen edge, never an exception to cut analysis. */

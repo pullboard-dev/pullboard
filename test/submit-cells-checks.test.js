@@ -527,3 +527,36 @@ test('changed immutable source cannot poison the shared cell inventory [C7,D3]',
   inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode)).base(box.root, main);
   assert.equal(modes.at(-1), 'base-full', 'the interrupted census did not publish cache evidence');
 });
+
+test('only direct importing cells join a touched cell, including another file in that cell [C7,D3,CD64]', async () => {
+  const { touchedCells } = await import('../bin/cells-submit-checks.js');
+  const cell = (name, paths) => ({ name, root: `packages/${name}`, frontDoor: `packages/${name}/index.js`, paths });
+  const plan = { cells: [cell('a', [['src/a.js', 'packages/a/src/a.js'], ['src/a-other.js', 'packages/a/src/other.js']]),
+    cell('b', [['src/b.js', 'packages/b/src/b.js']]), cell('c', [['src/c.js', 'packages/c/src/c.js']])] };
+  const inventory = { edges: new Map([['src/b.js', [{ target: 'src/a-other.js' }]], ['src/c.js', [{ target: 'src/b.js' }]]]) };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [inventory]), ['a', 'b']);
+  assert.deepEqual(touchedCells(['bin/cells-plan.json'], plan, plan, [inventory]), ['a', 'b', 'c'], 'shared authority invalidates every cell');
+});
+
+test('a one-cell submit on a many-cell board stays under a minute and still refuses a new cut [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t, ({ put }) => {
+    const cells = { kernel: ['src/refused.js'], store: ['src/board.js'], items: ['src/claims.js'],
+      stats: ['src/stats.js'], 'app:cli': ['src/cli.js'] };
+    for (let index = 0; index < 32; index++) {
+      const name = `extra${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + index % 26)}`, file = `src/${name}.js`;
+      cells[name] = [file];
+      put(file, `export const ${name} = ${index};\n`);
+    }
+    put('bin/cells-plan/seed.json', JSON.stringify({ source: 'many-cell fixture', sha256: 'none', order: Object.keys(cells), cells, tests: {} }));
+  });
+  assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
+  const candidate = commitCandidate(box);
+  const started = performance.now();
+  const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
+  assert.ok(performance.now() - started < 60_000, 'the complete cell stage finishes within one minute');
+  assert.deepEqual(result.cells.sort(), ['app:cli', 'stats']);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,
+    'the same many-cell board still refuses a new cut in a touched cell');
+});
