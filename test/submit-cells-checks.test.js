@@ -536,6 +536,8 @@ test('only direct importing cells join a touched cell, including another file in
   const inventory = { edges: new Map([['src/b.js', [{ target: 'src/a-other.js' }]], ['src/c.js', [{ target: 'src/b.js' }]]]) };
   assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [inventory]), ['a', 'b']);
   assert.deepEqual(touchedCells(['bin/cells-plan.json'], plan, plan, [inventory]), ['a', 'b', 'c'], 'shared authority invalidates every cell');
+  const withStay = { ...plan, stays: [{ path: 'bin/shared.js' }] };
+  assert.deepEqual(touchedCells(['bin/shared.js'], withStay, withStay, [inventory]), ['a', 'b', 'c'], 'unowned shared tool changes fail safely');
 });
 
 test('a one-cell submit on a many-cell board stays under a minute and still refuses a new cut [C7,D3,CD64]', async t => {
@@ -548,15 +550,18 @@ test('a one-cell submit on a many-cell board stays under a minute and still refu
       put(file, `export const ${name} = ${index};\n`);
     }
     put('bin/cells-plan/seed.json', JSON.stringify({ source: 'many-cell fixture', sha256: 'none', order: Object.keys(cells), cells, tests: {} }));
+    moveFixtureKernel({ put }, 'export class Refused extends Error {}\n');
   });
   assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
-  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
+  box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {} // one-cell change\n');
   const candidate = commitCandidate(box);
   const started = performance.now();
   const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
-  assert.ok(performance.now() - started < 60_000, 'the complete cell stage finishes within one minute');
-  assert.deepEqual(result.cells.sort(), ['app:cli', 'stats']);
-  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  const elapsed = performance.now() - started;
+  t.diagnostic(`many-cell candidate stage: ${elapsed.toFixed(1)}ms`);
+  assert.ok(elapsed < 60_000, `the complete cell stage took ${elapsed.toFixed(1)}ms; limit 60000ms`);
+  assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
+  box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,
     'the same many-cell board still refuses a new cut in a touched cell');
 });

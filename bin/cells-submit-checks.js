@@ -153,8 +153,11 @@ function sharedPolicy(file) {
 
 /** Attribute changed cells and their direct importers against both immutable graphs. */
 export function touchedCells(files, before, after, inventories) {
-  if (files.some(sharedPolicy)) return after.cells.map(cell => cell.name);
   const plans = [before, after];
+  // Shared metadata or an unowned root-tool stay can alter every reachable cell.
+  if (files.some(file => sharedPolicy(file) || plans.some(plan => plan.stays?.some(row => row.path === file)))) {
+    return after.cells.map(cell => cell.name);
+  }
   const byPath = new Map();
   /** A source alias and a moved target both belong to their declared cell. */
   const owners = file => {
