@@ -92,10 +92,10 @@ async function compare(box) {
     [box.helpers.BIN, 'verify', String(box.id), '--compare', '--json'], { cwd: box.web, env: box.env, timeout: 120000 }); // budget: real private comparison subprocess ceiling.
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const compared = JSON.parse(result.stdout);
-  for (const side of ['head', 'base']) {
-    if (!compared[side].files.length) { assert.equal(compared[side].id, null); continue; }
-    assert.match(compared[side].id, /^[a-f0-9-]{36}$/u);
-    const recorded = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/check-output', `compare-${compared[side].id}.json`), 'utf8'));
+  for (const [side, run] of Object.entries({ head: compared.head, base: compared.base })) {
+    if (!run.files.length) { assert.equal(run.id, null); continue; }
+    assert.match(run.id, /^[a-f0-9-]{36}$/u);
+    const recorded = JSON.parse(readFileSync(join(box.repo, '.git/pullboard/check-output', `compare-${run.id}.json`), 'utf8'));
     assert.equal(recorded.commit, compared[side + 'Commit']);
     assert.ok(readFileSync(recorded.profileFile, 'utf8').length > 0);
   }
