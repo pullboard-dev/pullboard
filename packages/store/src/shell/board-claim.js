@@ -52,7 +52,7 @@ import { rejectionReturnEnabled } from "../core/rework-family-routing.js";
 import { reworkFamilyRoute } from "../core/rework-family-routing.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
-import * as capacity from "../../../../src/line-capacity-board.js";
+import { claimProblem } from "../../../seats/index.js";
 import {
   atomic,
   logEvent,
@@ -155,7 +155,7 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
           ? new Refused('ITEM_HELD', `item #${id} is held by coordinator: ${held.item_hold_reason}; wait for the coordinator to lift it with pullboard hold ${id} --off`)
           : null;
       },
-      lineCapacity: found => capacity.claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown, reviewHolder }),
+      lineCapacity: found => claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown, reviewHolder }),
       oneLiveClaim: (found) => {
         // Every modern-engine claim respects the cap, including legacy-shaped children and reworks.
         const modern = (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE;
