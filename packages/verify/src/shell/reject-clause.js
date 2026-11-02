@@ -1,3 +1,4 @@
+import { frozenBar, namedClause, wording } from '../core/frozen-clause.js';
 import { REVIEW_REQUEST_ENGINE } from '../../../../src/review-request-engine.js';
 import { pipelineCause } from '../../../kernel/index.js';
 /** Identify the frozen requirement a rejection disputes and stop repeated unchanged rounds [V6,R2,B30,H16]. */
@@ -12,37 +13,13 @@ import { validateKnownLineSetting } from '../../../queue/index.js';
 /** A shout carries at most 400 characters (proof-receipts.js refuses longer). */
 const SHOUT_LIMIT = 400;
 
-/** Normalize presentation whitespace without changing the quoted requirement's wording. */
-function wording(value) { return String(value ?? '').normalize('NFC').trim().replace(/\s+/gu, ' '); }
-
-/** Extract semantic bar content, excluding a policy commit that can change during ordinary rebases. */
-function frozenBar(item) {
-  let frozen;
-  try { frozen = JSON.parse(item.item_frozen); }
-  catch { return { criterion: wording(item.item_frozen), rows: [], check: '' }; }
-  if (!frozen || typeof frozen !== 'object' || Array.isArray(frozen)) {
-    return { criterion: wording(item.item_frozen), rows: [], check: '' };
-  }
-  return { criterion: wording(frozen.criterion), check: wording(frozen.check),
-    rows: Array.isArray(frozen.rows) ? frozen.rows.map(row => ({ id: row.id, text: wording(row.text) })) : [] };
-}
-
-/** Resolve an unambiguous quotation to its containing requirement, so shorter quotes cannot reset a round. */
-function namedClause(bar, quote, includeCheck = false) {
-  const texts = [...new Set([bar.criterion, ...(includeCheck ? [bar.check] : []), ...bar.rows.map(row => row.text)]
-    .flatMap(text => [text, ...text.split(/(?<=[.!?])\s+/u)])
-    .filter(text => text && text.includes(quote)))];
-  const clauses = texts.filter(text => !texts.some(other => other !== text && text.includes(other)));
-  return clauses.length === 1 ? clauses[0] : null;
-}
-
 /** A current reject must quote actual frozen criterion or row wording before any verdict is appended. */
 export function rejectionClauseProblem(item, clause, engine) {
   if (engine < REJECT_CLAUSE_ENGINE) return null;
   if (typeof clause !== 'string' || !clause.trim()) return new Refused('BAR_CLAUSE_REQUIRED',
     'a reject names the failing frozen bar clause', 'add --clause "exact wording from the frozen criterion or spec row"');
   const quote = wording(clause);
-  const bar = frozenBar(item);
+  const bar = frozenBar(item, engine >= REVIEW_REQUEST_ENGINE);
   if (quote.length > 4096 || !namedClause(bar, quote, engine >= REVIEW_REQUEST_ENGINE)) {
     return new Refused('BAR_CLAUSE_UNKNOWN', 'the rejection quote does not identify one frozen bar clause',
       `read pullboard show ${item.item_id}, then quote the failing requirement with --clause`);
@@ -53,7 +30,7 @@ export function rejectionClauseProblem(item, clause, engine) {
 /** Bind the quoted clause to semantic frozen content while retaining the verdict's original digest separately. */
 export function rejectionClauseDetail(item, clause, engine) {
   if (engine < REJECT_CLAUSE_ENGINE) return {};
-  const bar = frozenBar(item);
+  const bar = frozenBar(item, engine >= REVIEW_REQUEST_ENGINE);
   return { clause: wording(clause), clauseText: namedClause(bar, wording(clause), engine >= REVIEW_REQUEST_ENGINE),
     barKey: createHash('sha256').update(JSON.stringify(bar)).digest('hex') };
 }
@@ -72,7 +49,7 @@ function sharpensToPerson(board) {
 /** Hold the second same-bar, same-clause rejection and issue one durable clarification request atomically. */
 export function sharpenRepeatedClause(board, item, detail, { holdItem, shout, logEvent }) {
   if (!detail.clause) return;
-  const bar = frozenBar(item);
+  const bar = frozenBar(item, (board.executionEngineVersion ?? REVIEW_REQUEST_ENGINE) >= REVIEW_REQUEST_ENGINE);
   const history = board.db.prepare("SELECT event_kind,event_detail FROM event WHERE item_id=? AND event_kind IN ('reject','bar-sharpen') ORDER BY event_id")
     .all(item.item_id).map(event => ({ kind: event.event_kind, ...JSON.parse(event.event_detail) }))
     .filter(event => event.barKey === detail.barKey && namedClause(bar, event.clause ?? '', (board.executionEngineVersion ?? REVIEW_REQUEST_ENGINE) >= REVIEW_REQUEST_ENGINE) === detail.clauseText);

@@ -20,7 +20,7 @@ function historicalMinimumEngine(args, board, at) {
 
 /** News combines every applicable floor; old arguments retain their historical replay condition order. */
 function existingMinimumEngine(args, board, at) {
-  const laneFloor = Math.max(laneMessageFloor(board, args[0]), args[0]?.kind === 'request' || args[0]?.clause !== undefined ? REVIEW_REQUEST_ENGINE : 1);
+  const laneFloor = Math.max(laneMessageFloor(board, args[0]), args[0]?.kind === 'request' || args[0]?.clause !== undefined || (args[0]?.kind === 'question' && args[0]?.item !== undefined) ? REVIEW_REQUEST_ENGINE : 1);
   const optionsFloor = Math.max(args[0]?.options !== undefined ? DECISION_QUEUE_ENGINE : 1,
     args[0]?.effects !== undefined ? RULING_OWNER_ENGINE : 1);
   if (args[0]?.news !== true) return Math.max(laneFloor, optionsFloor, historicalMinimumEngine(args, board, at));

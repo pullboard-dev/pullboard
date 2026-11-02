@@ -9,6 +9,7 @@ import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { REVIEW_REQUEST_ENGINE } from '../src/review-request-engine.js';
 import { moveArgs } from '../packages/person/index.js';
+import { applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 
 const criterion = 'The page renders its title. The page renders its footer.';
 const clause = 'The page renders its title.';
@@ -80,4 +81,20 @@ test('the CLI sends a quoted reviewer request through the ordered board [V6,A2,H
   const after = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try { assert.match(store.getShout(after, JSON.parse(accepted.out).id).shout_text, /Bar: The page renders its title\./u); }
   finally { store.closeBoard(after); }
+});
+
+
+test('new request and check-only reject semantics cannot replay under an older engine [H16,V6]', t => {
+  const { board, reviewer, builder, id } = fixture(t);
+  const moves = [
+    prepareEngineMove(board, 'shout', [{ from: reviewer, to: builder, item: id, lanes: ['web'], kind: 'request', text: 'Fix the title.', clause }], { actor: reviewer }),
+    prepareEngineMove(board, 'shout', [{ from: reviewer, to: builder, item: id, lanes: ['web'], kind: 'question', text: 'What happened?' }], { actor: reviewer }),
+    prepareEngineMove(board, 'verify', [id, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE', clause: 'true', note: 'check failed' }], { actor: reviewer }),
+  ];
+  for (const move of moves) {
+    assert.throws(() => applyRelayMove(board, { ...move, engine: REVIEW_REQUEST_ENGINE - 1 }, {
+      sequence: 1, at: '2026-11-02T00:00:00Z', kind: 'move',
+      sender: { kind: 'agent', userId: 'fixture', agent: reviewer },
+    }), /RELAY_MOVE/);
+  }
 });
