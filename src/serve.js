@@ -6,6 +6,7 @@ import { modelPresentation } from './view/cost-tab.js';
 import { projectItemState } from './api.js';
 import { performanceCores } from './gate.js';
 import { landingPace } from '../packages/roadmap/index.js';
+import { milestoneFocus } from '../packages/roadmap/index.js';
 /** @pullboard-test-input src/view.css src/view/stage.css src/view/dashboard.css src/view/cost.css src/view/doctrine.css src/view/item-panel.css src/view/item-rows.css */
 /**
  * `pullboard view` (N26, N27): the person's micro site. One page on this machine shows every
@@ -401,7 +402,8 @@ export function projectState(root, { seen = null, board: providedBoard = null, i
     });
     // Pending person decisions govern the calls on the API, sealed relay and exported page alike.
     const rigorRows = projectRowDecisions(store.rowDecisions(board), { root: info.root, spec: loadSpec(info.root, config).rows, practice: doctrine.rows });
-    const projected = projectSpecRevisions({ ...state, rigorDrafts: rigorDraftNeeds(rigorRows, store.rowDrafts(board), store.rowDecisions(board)), sentinelDrafts: sentinelDraftNeeds(sentinels(board)) }, store.rowDrafts(board), store.rowDecisions(board));
+    const focus = milestoneFocus(board, { milestones: store.milestones });
+    const projected = projectSpecRevisions({ ...state, focusMilestone: focus ? { name: focus.name, items: [...focus.ids] } : null, rigorDrafts: rigorDraftNeeds(rigorRows, store.rowDrafts(board), store.rowDecisions(board)), sentinelDrafts: sentinelDraftNeeds(sentinels(board)) }, store.rowDrafts(board), store.rowDecisions(board));
     return { ...projected, needs: personNeeds(projected) };
   }, providedBoard, boardOpeners);
 }

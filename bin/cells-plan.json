@@ -1264,11 +1264,27 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/focus-boundary-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/item-slice-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
       "path": "src/move-history/205.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/review-request-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/206.json",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/207.json",
       "reason": "explicit bounded placement: stays in place during the move"
     }
   ],

@@ -38,6 +38,7 @@ export const workHelp = `Work
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
+  pullboard milestone focus <name|off> [--overflow off|on]   focus next on one release
   pullboard milestone items <name> --add ids [--swap id] --reason "<why>"   override the board placement, recording why
   pullboard milestone items <name> --remove ids            remove items from the milestone
   pullboard milestone order <name> <ids> --reason "<why>"   override computed order (coordinator or person)
@@ -121,6 +122,7 @@ export const workHelp = `Work
   pullboard inbox --acted-on <interrupt-ids>     acknowledge comma-separated ids only after acting; reading is not acting
   pullboard shout --item <id> <text>             message the item builder, reviewer and coordinator
   A seat shout to all reaches only coordinator and person; their broadcasts reach everyone.
+  pullboard shout --item <id> <text> --kind request --clause "frozen requirement"  ask the builder for work during review
   pullboard shout coordinator <text> --kind question|blocker|decision|exception|idea  declare the kind; a submit or verdict the board recorded is not shouted
   Coordinator shouts without --kind, or with --kind status, refuse; record item updates with pullboard fact.
   A named lane lead receives question and blocker kinds first; exception and idea reach the coordinator.

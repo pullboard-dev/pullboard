@@ -34,6 +34,7 @@ export const JSON_SHAPES = {
     'flow replay': shape({ history: 'object', replay: 'object' }),
     roadmap: shape({ milestones: 'array' }),
     'milestone add': shape({ milestone: 'object' }),
+    'milestone focus': shape({ focus: 'string|null', overflow: 'boolean' }),
     'milestone items': shape({ milestone: 'object' }),
     'milestone order': shape({ milestone: 'object' }),
     'milestone pin': shape({ milestone: 'object' }),

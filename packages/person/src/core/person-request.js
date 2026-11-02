@@ -38,7 +38,7 @@ const MOVES = {
   reopen: { item: true, flags: ['note', 'cause'], lists: ['conflict'], booleans: ['withdraw-verdict'] },
   escalate: { item: true, flags: ['note'] },
   hold: { positions: ['lane'], flags: ['reason', 'as'], booleans: ['off'] },
-  shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision', 'news'], flags: ['kind', 'evidence', 'outcome', 'item', 'commit', 'options'] },
+  shout: { positions: ['to', 'text'], optional: ['to'], booleans: ['decision', 'news'], flags: ['kind', 'clause', 'evidence', 'outcome', 'item', 'commit', 'options'] },
   answer: { item: true, positions: ['text'], flags: ['as', 'implies', 'supersedes', 'origin', 'rationale'] },
   pass: { item: true, positions: ['note'] },
   next: { flags: ['as'], booleans: ['verify', 'build'] },

@@ -903,8 +903,7 @@ test('next offers the focus milestone first and explains a claimable outside fal
   assert.equal(ordinary.item.item_id, outside, 'unset retains the existing roadmap order');
   box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--reason', 'BLOCKED', '--no-next', '--json'));
 
-  box.json(box.run(box.repo, 'settings', 'line', 'focusMilestone', '0.9.3',
-    '--reason', 'Finish the named release before later work', '--window', '{"activeItems":2}', '--json'));
+  box.json(box.run(box.repo, 'milestone', 'focus', '0.9.3', '--overflow', 'on', '--json'));
   const picked = box.json(box.runAs(box.session, owner.root, 'next', '--build', '--json'));
   assert.equal(picked.item.item_id, focused, 'the named focus overrides an earlier roadmap milestone');
   box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--reason', 'BLOCKED', '--no-next', '--json'));
@@ -927,7 +926,7 @@ test('next offers the focus milestone first and explains a claimable outside fal
 });
 
 /** Review eligibility still owns held reservations; focus changes preference, not authority. */
-test('historical focus reviews retain reservations and modern reviews use age [C7,N2,B16,H16]', t => {
+test('historical focus reviews retain reservations and modern reviews enforce focus [C7,N2,B16,H16]', t => {
   const { board, builder, reviewer } = boardFixture();
   board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   t.after(() => store.closeBoard(board));
@@ -940,8 +939,8 @@ test('historical focus reviews retain reservations and modern reviews use age [C
   setLineSetting(board, { agentId: 'coordinator', key: 'focusMilestone', value: '0.9.3',
     reason: 'Complete the current release', window: { activeReviews: 2 } });
   delete board.executionEngineVersion;
-  assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item.item_id, outside,
-    'modern review age supersedes focus before either item is reserved');
+  assert.equal(store.nextFor(board, { agentId: reviewer, lane: 'review', verify: true }).item.item_id, focused,
+    'modern release focus precedes outside review age');
   board.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   const selected = store.reserveNextReview(board, { agentId: reviewer, lane: 'review', leaseMs: HOUR, policy: 'any' });
   assert.equal(selected.item.item_id, focused, 'normal reserve-next selects the named focus');
@@ -983,9 +982,7 @@ test('next offers the focus milestone first across review and build modes [N2,B1
   assert.equal(picked.review, false);
   box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--reason', 'BLOCKED', '--no-next', '--json'));
   const review = box.json(box.runAs(box.session, owner.root, 'next', '--verify', '--json'));
-  assert.equal(review.item.item_id, outside, 'review-only next never silently claims the focused build');
-  assert.equal(review.review, true);
-  box.json(box.runAs(box.session, owner.root, 'release', String(outside), '--reason', 'BLOCKED', '--note', 'Continue the private focus ordering control', '--no-next', '--json'));
+  assert.equal(review.item, null, 'review-only next does not leave an enforced focus');
   const focusedReview = box.add('api', 'Focused review before focused build');
   const updated = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   try {
@@ -995,11 +992,10 @@ test('next offers the focus milestone first across review and build modes [N2,B1
       tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}') });
   } finally { store.closeBoard(updated); }
   const preferredReview = box.json(box.runAs(box.session, owner.root, 'next', '--json'));
-  assert.equal(preferredReview.item.item_id, focused, 'build focus still precedes a nonurgent outside review');
-  assert.equal(preferredReview.review, false);
-  box.json(box.runAs(box.session, owner.root, 'release', String(focused), '--reason', 'BLOCKED', '--json'));
+  assert.equal(preferredReview.item.item_id, focusedReview, 'an eligible focused review is offered');
+  assert.equal(preferredReview.review, true);
   const oldestReview = box.json(box.runAs(box.session, owner.root, 'next', '--verify', '--json'));
-  assert.equal(oldestReview.item.item_id, moreOutside[0], 'modern review-only selection takes the oldest eligible submission before the newer focused review');
+  assert.equal(oldestReview.item.item_id, focusedReview, 'review-only selection stays inside focus');
   assert.equal(oldestReview.review, true);
 });
 
@@ -1022,7 +1018,7 @@ test('focus milestone policy survives export while old reserve-next retains its 
   importBoard(replica, exportBoard(board));
   assert.equal(store.lineSettings(replica).focusMilestone, 'focus', 'the focus policy travels with export');
   assert.equal(store.nextFor(replica, { agentId: reviewer, lane: 'review', verify: true }).item.item_id,
-    outside, 'modern review age leads despite the exported focus policy');
+    focused, 'modern review selection stays inside the exported focus policy');
   replica.executionEngineVersion = REVIEW_ROUTING_ENGINE - 1;
   assert.equal(store.nextFor(replica, { agentId: reviewer, lane: 'review', verify: true }).item.item_id,
     focused, 'historical review selection still reads the exported focus policy');
