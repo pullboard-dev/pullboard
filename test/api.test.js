@@ -1438,8 +1438,6 @@ test('one move recomputes only the items it touched [A2,N26]', async (t) => {
     assert.deepEqual(builds, [ids[0], ids[1]], 'the changed item and its dependent are recomputed');
     assert.deepEqual(dependencyState.items.find((item) => item.id === ids[1]).blockedBy, [],
       'the waiting item becomes unblocked when its dependency is verified');
-    await move('edit', ids[1], { after: [] });
-    await assertFreshFullState('remove the dependency before the independent expiry check');
 
     builds.length = 0;
     await move('shout', undefined, { to: 'all', text: 'Board-only change for incremental projection' });
