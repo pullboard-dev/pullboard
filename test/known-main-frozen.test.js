@@ -8,6 +8,9 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
+import { openBoard } from '../src/native-board.js';
+import { closeBoard } from '../packages/store/index.js';
+import { submitFixture } from './board-submit-fixture.js';
 
 const BIN = join(import.meta.dirname, '../bin/pullboard.js');
 const FROZEN = 'node test/runner.js test/frozen.test.js';
@@ -102,6 +105,56 @@ function fileMainRed(box) {
   assert.equal(result.status, 0, result.stdout + result.stderr);
   return JSON.parse(result.stdout).item.item_id;
 }
+
+/** Give an independent reviewer the exact submitted tree and reserve its review. */
+function reviewer(box) {
+  const review = join(box.directory, 'review');
+  runFixtureGit(['worktree', 'add', '-q', '--detach', review, box.head], { cwd: box.root, env: box.env });
+  const independent = { ...box, env: { ...box.env, CODEX_SESSION_ID: 'known-main-independent-review' } };
+  let result = cli(independent, review, 'join', 'core', '--model', 'Review Fixture');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  result = cli(independent, review, 'next', '--verify', String(box.item));
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  return { independent, review };
+}
+
+test('verify accepts an identical owned main red and records its exact case [V4,B3]', t => {
+  const box = fixture(t), repair = fileMainRed(box);
+  const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
+  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  const { independent, review } = reviewer(box);
+  const accepted = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'checked the frozen case');
+  assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
+  const event = rows(box, "SELECT event_detail FROM event WHERE item_id=? AND event_kind='accept' ORDER BY event_id DESC LIMIT 1", box.item)[0];
+  const detail = JSON.parse(event.event_detail);
+  assert.match(detail.note, /test\/frozen\.test\.js :: frozen case \[G1\]/u);
+  assert.equal(detail.knownMainFailures.failures[0].item, repair);
+  assert.equal(detail.knownMainFailures.main, box.main);
+});
+
+test('verify refuses a frozen failure that is green on main [V4,B3]', t => {
+  const box = fixture(t, { main: 1, candidate: 2 });
+  fileMainRed(box);
+  const board = openBoard(join(box.root, '.git/pullboard/board.sqlite'));
+  try {
+    const tree = runFixtureGit(['rev-parse', `${box.head}^{tree}`], { cwd: box.builder, env: box.env }).trim();
+    submitFixture(board, box.item, { agentId: 'core-1', commit: box.head, tree });
+  } finally { closeBoard(board); }
+  const { independent, review } = reviewer(box);
+  const refused = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'check the head-only failure');
+  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+  assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
+});
+
+test('verify refuses an identical main failure without an open repair owner [V4,B3]', t => {
+  const box = fixture(t);
+  const submitted = cli(box, box.builder, 'submit', String(box.item), '--no-next');
+  assert.equal(submitted.status, 0, submitted.stdout + submitted.stderr);
+  const { independent, review } = reviewer(box);
+  const refused = cli(independent, review, 'verify', String(box.item), 'accept', '--note', 'no repair owns the case');
+  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
+  assert.equal(JSON.parse(refused.stdout).error.code, 'CHECK_RED');
+});
 
 test('a frozen case red identically on main with no owner submits, records a fact and shouts, filing nothing [V4,B3]', t => {
   const box = fixture(t);
