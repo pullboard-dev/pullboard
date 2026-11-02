@@ -708,21 +708,26 @@ test('controller source steps cache only exact green source and base [C7,D3]', a
   const code = [fileURLToPath(new URL('../src/submit-controller-cache.js', import.meta.url))];
   const run = { kind: 'fixture-submit-step', base: box.main, source: box.main, code };
   let calls = 0;
-  t.diagnostic(`node options present: ${Boolean(process.env.NODE_OPTIONS)}`);
   const first = await cachedSubmitSourceStep(box.root, run, () => { calls++; });
   assert.equal(first.reused, false);
   const second = await cachedSubmitSourceStep(box.root, run, () => { calls++; });
   assert.equal(second.reused, true, 'a completed identical source step avoids a second check');
   assert.equal(calls, 1);
+  const originalOptions = process.env.NODE_OPTIONS;
+  try {
+    process.env.NODE_OPTIONS = '--require=/untrusted/preload.js';
+    await cachedSubmitSourceStep(box.root, run, () => { calls++; });
+  } finally { if (originalOptions === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = originalOptions; }
+  assert.equal(calls, 2, 'unknown preloads never reuse a receipt');
   await cachedSubmitSourceStep(box.root, { ...run, base: 'a'.repeat(40) }, () => { calls++; });
-  assert.equal(calls, 2, 'a different accepted main cannot use the receipt');
+  assert.equal(calls, 3, 'a different accepted main cannot use the receipt');
   box.put('src/refused.js', 'export class Refused extends Error { changed = true; }\n');
   await cachedSubmitSourceStep(box.root, run, () => { calls++; });
-  assert.equal(calls, 3, 'a dirty tree cannot use the receipt');
+  assert.equal(calls, 4, 'a dirty tree cannot use the receipt');
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'new source tree');
   const newer = git(box.root, 'rev-parse', 'HEAD').trim();
   await assert.rejects(cachedSubmitSourceStep(box.root, { ...run, source: newer }, () => { calls++; throw new Error('red'); }), /red/u);
   await cachedSubmitSourceStep(box.root, { ...run, source: newer }, () => { calls++; });
-  assert.equal(calls, 5, 'a refused check is never recorded as green');
+  assert.equal(calls, 6, 'a refused check is never recorded as green');
 });

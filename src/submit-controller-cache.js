@@ -29,7 +29,7 @@ export async function cachedSubmitSourceStep(root, { kind, base, source, code },
   const samePreloads = () => preloads !== null && JSON.stringify(preloadState()) === JSON.stringify(preloads);
   const eligible = samePreloads() && head.status === 0 && head.stdout.trim() === source;
   const key = eligible ? checkReceiptKey(root, { kind, definition: `submit ${kind}`,
-    config: { base, source, preloads }, code: [...code, fileURLToPath(import.meta.url)], commands: [] }) : null;
+    config: { base, source, preloads }, code: [...code, fileURLToPath(import.meta.url), fileURLToPath(new URL('./commands/submit.js', import.meta.url))], commands: [] }) : null;
   const receipt = readCheckReceipt(root, key);
   if (receipt && samePreloads()) return { reused: true, receipt };
   await check();
