@@ -9,7 +9,7 @@ import { createRelayPages } from '../relay/page-store.js';
 import { createRelayJournal } from '../relay/journal.js';
 import { Refused } from '../packages/kernel/core.js';
 import { generateBoardKey } from '../packages/kernel/src/core/seal.js';
-import { PAGE_BYTES, readSealedValue, writeSealedValue } from '../src/sealed-pages.js';
+import { PAGE_BYTES, readSealedValue, writeSealedValue } from '../packages/pages/index.js';
 
 const machine = { kind: 'machine', userId: '1', machine: 'fixture-native' };
 const agent = { kind: 'agent', userId: '1', agent: 'fixture-reader' };

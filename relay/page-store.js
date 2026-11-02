@@ -4,7 +4,7 @@ import { closeSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Refused } from '../packages/kernel/index.js';
-import { PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../src/sealed-pages.js';
+import { PAGE_CIPHER_BYTES, PAGE_FANOUT, pageReference } from '../packages/pages/index.js';
 
 const UPLOAD_MS = 3_600_000;
 const READ_MS = 900_000;

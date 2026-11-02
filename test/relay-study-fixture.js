@@ -5,7 +5,7 @@ import { createServer, request as httpRequest } from 'node:http';
 import { performance } from 'node:perf_hooks';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
-import { openPagedSnapshot } from '../src/relay-page-layout.js';
+import { openPagedSnapshot } from '../packages/pages/index.js';
 
 /**
  * Whether a field is a reading of the clock rather than board data: a sealed page states its as-of time, so the

@@ -32,6 +32,7 @@ for (const failure of ['formats', 'docs', null]) test(`generated docs ${failure 
   if (failure) {
     assert.equal(result.status, failure === 'formats' ? 3 : 4, result.stdout + result.stderr);
     assert.equal(box.git('rev-parse', 'HEAD'), box.before);
+    assert.match(readFileSync(box.shout, 'utf8'), /shout all/u, 'coordinator-origin failures broadcast without self-shout');
     assert.match(readFileSync(box.shout, 'utf8'), new RegExp(`${failure} guard`, 'u'));
     assert.equal(readFileSync(join(box.root, 'docs/formats.md'), 'utf8'), 'old\n');
   } else {
