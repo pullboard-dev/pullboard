@@ -5,7 +5,7 @@ import { cleanGitEnvironment } from './git.js';
 import { blockedPaths } from '../packages/commits/index.js';
 import { secretsIn } from '../packages/commits/index.js';
 import { Refused } from '../packages/kernel/index.js';
-import { spawnSync } from 'node:child_process';
+import { gitSpawnSync } from '../packages/git/index.js';
 import { closeSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
@@ -19,14 +19,14 @@ export const MAX_BLOB_BYTES = 8 * 1024 ** 2;
 
 /** Run a source-only Git read without inherited Git configuration, hooks or replacement objects. */
 export function sourceGit(root, args, options = {}) {
-  const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
+  const result = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: MAX_BLOB_BYTES, ...options,
   });
   if (result.error?.code === 'ENOBUFS') {
     const directory = mkdtempSync(join(tmpdir(), 'pullboard-source-count-'));
     const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
     try {
-      const counted = spawnSync('git', ['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
+      const counted = gitSpawnSync(['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
         cwd: root, env: cleanGitEnvironment(), input: options.input, stdio: ['pipe', fd, 'pipe'], maxBuffer: MAX_BLOB_BYTES,
       });
       if (counted.status !== 0) throw new Refused('RUNNER_SOURCE', 'cannot read the exact committed source; check Git and retry the run');
