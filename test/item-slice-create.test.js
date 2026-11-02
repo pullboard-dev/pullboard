@@ -35,6 +35,9 @@ test('holder and coordinator create slices, others are refused, and old engines 
   const refused = box.run(peer, 'slice', String(parent), 'Unauthorized', '--files', 'web/no.js');
   assert.notEqual(refused.code, 0);
   assert.match(refused.err + refused.out, /SLICE_OWNER/u);
+  json(box, peer, 'claim', String(made.item_id));
+  const claimed = json(box, peer, 'show', String(made.item_id));
+  assert.equal(claimed.item_frozen_digest, made.item_frozen_digest, 'claim preserves the inherited frozen bar');
   const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try {
     const holder = store.agentAt(board, box.web).agent_id;
