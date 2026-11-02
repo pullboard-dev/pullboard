@@ -475,6 +475,7 @@ export async function runGate(root, config, { trustStamp = true, onWait, landing
   }
   if (trustStamp && !config[VALUE_GATE] && isStampedGreen(root)) return { isGreen: true, isCached: true, output: '', seconds: 0, log: '' };
   return await (landing ? withLandingGateSlot : withGateSlot)(root, async (lease) => {
+    if (landing) lease.timingOperation = 'landing-gate';
     lease.testTiers = Boolean(config[VALUE_GATE]);
     lease.quarantines = quarantines;
     if (quarantines.length && proofContext) lease.proof = proofContext;
