@@ -94,10 +94,9 @@ test('a real CLI submit refuses an unticked clause and accepts once every clause
   const added = box.run(box.repo, 'add', 'web', 'Clause submit', '--route', 'mid', '--criterion', criterion, '--check', 'true',
     '--brief', 'Files:\n- web/page.html\nTest:\n- the page renders');
   assert.equal(added.code, 0, added.err);
-  const configPath = join(box.repo, 'pullboard.json');
-  const config = JSON.parse(readFileSync(configPath, 'utf8'));
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.verify = { policy: 'any', inspectClauses: true };
-  writeFileSync(configPath, JSON.stringify(config, null, 2));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore(web): enable clause inspection [G1]');
   box.git(box.web, 'merge', '--no-edit', 'main');
