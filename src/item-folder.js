@@ -18,7 +18,7 @@ export function cleanItemFolders(ctx, board, me, items) {
     const actual = tryGit(path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
     const common = tryGit(path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
     if (actual.status !== 0 || actual.stdout !== ref || common.status !== 0 || common.stdout !== ctx.info.commonDir) continue;
-    const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all']);
+    const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
     if (status.status !== 0 || status.stdout) continue;
     git(ctx.info.root, ['worktree', 'remove', path]);
     if (item.item_status === 'withdrawn' || item.item_merged_commit) tryGit(ctx.info.root, ['branch', '-d', ref]);
