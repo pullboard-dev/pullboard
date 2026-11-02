@@ -51,7 +51,9 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps/lib', 'docs', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps/lib', 'docs', 'relay', 'package.json',
+    'test/runner-slots-measured.test.js', 'test/exit-rules.test.js', 'test/worktree-maintenance-scheduler.test.js',
+    'test/worktree-maintenance-retention.fixture.js', 'test/worktree-maintenance-scheduler.fixture.js', 'test/worktree-maintenance-archive.fixture.js'],
     { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['-xf', '-', '-C', box.repo], { input: archive.stdout, env });
