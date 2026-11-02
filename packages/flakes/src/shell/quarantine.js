@@ -1,3 +1,6 @@
+import { flakeRatchet } from '../core/flake-ratchet.js';
+import { pairedFlakeObservations } from '../core/flake-ratchet.js';
+import { quarantinesAt } from '../core/flake-ratchet.js';
 import { AUTO_SUBMIT_QUARANTINE_ENGINE } from "../../../../src/auto-submit-quarantine-engine.js";
 import { proofReceipts } from "../../../store/index.js";
 import { nativeProofBlockingGreen } from "../../../verify/index.js";
@@ -74,6 +77,29 @@ export function flakeQuarantines(board) {
     return { ...entry, ...(entry.nativeCore ? { cleanRuns: clean?.count ?? 0 } : {}),
       status: lifted ? 'lifted' : 'quarantined', since: Math.max(entry.eventId, closing ?? 0, clean?.releasedAt ?? 0) };
   });
+}
+
+/** Capture the current ratchet against the last landed batch, reconstructing its original event boundary once. */
+export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines, readLedger = flakeLedger, readRuns = gateRuns } = {}) {
+  const eventId = board.db.prepare('SELECT COALESCE(MAX(event_id), 0) AS id FROM event').get().id;
+  const row = board.db.prepare(`SELECT event_id, event_detail FROM event WHERE event_kind='landing_batch'
+    AND json_valid(event_detail) AND json_extract(event_detail, '$.batch.state')='landed' ORDER BY event_id DESC LIMIT 1`).get();
+  const runs = readRuns(board).filter(run => run.eventId <= eventId);
+  let previous = null;
+  if (row) {
+    const batch = JSON.parse(row.event_detail).batch;
+    previous = batch.flakeRatchet ?? null;
+    if (!previous) {
+      const events = board.db.prepare(`SELECT event_id, event_kind, item_id, event_detail FROM event
+        WHERE event_id<=? AND event_kind IN ('test-quarantine','accept','reject','reopen','claim','submit','withdraw','merged') ORDER BY event_id`).all(row.event_id);
+      const active = quarantinesAt(events, runs, { throughEvent: row.event_id,
+        quarantineCoreEngine: QUARANTINE_CORE_ENGINE, autoSubmitEngine: AUTO_SUBMIT_QUARANTINE_ENGINE }).filter(entry => entry.status === 'quarantined');
+      previous = { version: 1, eventId: row.event_id, count: active.length, quarantines: active.map(({ file, name, item }) => ({ file, name, item })) };
+    }
+  }
+  const observations = [...readLedger(board), ...pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 })]
+    .sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
+  return flakeRatchet({ previous, eventId, observations, quarantines: readQuarantines(board) });
 }
 
 /** Only executed, source-bound native per-test observations can advance the new quarantine core. */

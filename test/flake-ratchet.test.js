@@ -1,7 +1,7 @@
 /** Quarantine counts are a per-landing ratchet, with named flake evidence [C7,T12]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { flakeRatchet, pairedFlakeObservations, quarantinesAt } from '../packages/flakes/index.js';
+import { flakeRatchet, pairedFlakeObservations, quarantinesAt, landingFlakeRatchet } from '../packages/flakes/index.js';
 
 const observed = (file, eventId) => ({ file, name: 'case', status: 'active', count: 1, lastEventId: eventId });
 const quarantine = (file, item, eventId) => ({ file, name: 'case', status: 'quarantined', item, eventId });
@@ -60,4 +60,32 @@ test('historical quarantines use the landing boundary, including later reopens a
   assert.equal(at(3)[0].status, 'quarantined');
   assert.equal(at(5)[1].status, 'quarantined');
   assert.equal(at(6)[1].status, 'lifted');
+});
+
+/** The first post-activation landing reconstructs the previous landing, not the later current state. */
+test('native event adapter reconstructs and advances the previous landing snapshot [C7,T12]', async t => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
+  const insert = (id, kind, item, detail) => db.prepare('INSERT INTO event VALUES (?, ?, ?, ?)').run(id, kind, item, JSON.stringify(detail));
+  insert(1, 'test-quarantine', 7, { file: 'test/old.test.js', name: 'case', engine: 0 });
+  insert(2, 'landing_batch', null, { batch: { state: 'landed' } });
+  insert(3, 'accept', 7, {});
+  const board = { db };
+  const readers = { readRuns: () => [], readLedger: () => [], readQuarantines: () => [] };
+  const result = landingFlakeRatchet(board, readers);
+  assert.equal(result.allowed, true);
+  assert.equal(result.snapshot.count, 0, 'a repair after the previous landing lowers the next count');
+  insert(4, 'landing_batch', null, { batch: { state: 'landed', flakeRatchet: result.snapshot } });
+  insert(5, 'gate-run', null, {});
+  insert(6, 'gate-run', null, {});
+  insert(7, 'test-quarantine', 8, { file: 'test/new.test.js', name: 'case', engine: 0 });
+  const outcome = passed => [{ file: 'test/new.test.js', name: 'case', passed, skipped: false }];
+  const runs = [{ id: 'red', eventId: 5, tree: 'tree', version: 1, kind: 'landing', testOutcomes: outcome(false) },
+    { id: 'green', eventId: 6, tree: 'tree', version: 1, kind: 'landing', testOutcomes: outcome(true) }];
+  const next = landingFlakeRatchet(board, { ...readers, readRuns: () => runs,
+    readQuarantines: () => [quarantine('test/new.test.js', 8, 7)] });
+  assert.equal(next.allowed, true, 'a newly observed, filed native pair justifies the increase');
+  assert.equal(next.snapshot.count, 1);
 });
