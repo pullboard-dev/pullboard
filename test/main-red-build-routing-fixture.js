@@ -1,3 +1,4 @@
+import { QUEUE_PREEMPT_ENGINE } from '../src/queue-preempt-engine.js';
 /** Native board routing assertions; no gate or current-main result is fabricated [C7,N2]. */
 import assert from 'node:assert/strict';
 import { compareMainFailures } from '../packages/landing/index.js';
@@ -45,6 +46,7 @@ export function assertFreeMainRedRouting(t) {
 /** With no free seat, native claim order wins over renewals; peer collisions remain authoritative. */
 export function assertNewestMainRedRouting(t) {
   const f = routingFixture(t);
+  f.board.executionEngineVersion = QUEUE_PREEMPT_ENGINE - 1; // Preserve the historical newest-claim request contract.
   const old = f.add('Older half-built work', 'old');
   f.claim(old, f.seats.older);
   f.advance(60_000);
@@ -120,8 +122,8 @@ export async function assertMainRedCLI(t, { fixture, cli }) {
   const occupied = exportBoard(box.board);
   const requested = await cli(box, box.seats.actor.path, ['next']);
   assert.equal(requested.code, 0, requested.out + requested.err);
-  assert.deepEqual(requested.document.releaseRequest, { seat: box.seats.builder.id, item: repair,
-    repair: followup, path: box.seats.builder.path });
+  assert.equal(requested.document.releaseRequest, undefined, 'current routing cannot preempt a build without explicit waiting evidence');
+  assert.equal(requested.document.item.item_id, old, 'the caller resumes its protected current work');
   assert.equal(requested.document.buildOffer, undefined);
   assert.deepEqual(exportBoard(box.board), occupied, 'a default-next request never releases the selected newest build');
 }
