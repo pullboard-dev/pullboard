@@ -458,7 +458,7 @@ function snapshotEntry(revision, state, preparedFlow, { inputs = null, itemMeta 
 }
 
 /** Per-read projections, including observation time, are not part of a cached build fingerprint. */
-const DELTA_WHOLE = new Set(WHOLE_STATE_DELTA_FIELDS);
+const DELTA_WHOLE = new Set([...WHOLE_STATE_DELTA_FIELDS, 'claimOverlaps']);
 /** The state lists a delta merges entry by entry, and the field that names each entry. */
 const DELTA_KEYS = Object.freeze({ items: 'id', shouts: 'shout_id', asked: 'shout_id', events: 'event_id', agents: 'agent_id', spec: 'id', practice: 'id', milestones: 'name' });
 /** How many recent builds of each board a server keeps as possible delta bases. */
