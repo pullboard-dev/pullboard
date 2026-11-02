@@ -33,7 +33,7 @@ const store = Object.freeze({ ...rawStore, openBoard, draftSpecRow, recordRowVer
 export async function exerciseOperationParity({ root, origin, token, boardId, lane, keyFile }) {
   const key = decodeBoardKey(readFileSync(keyFile, 'utf8').trim());
   const reader = await createParityReader({ root, origin, token, boardId, key });
-  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(root, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: root });
   const notices = [];
   const io = { checkpointPublisher, nativeBoardPorts, say() {}, err(message) { notices.push(message); } };
   let observing = 'initial baseline';
