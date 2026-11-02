@@ -2,10 +2,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { openBoard } from '../src/native-board.js';
-import { addItem, claim, closeBoard, events, register, release } from '../packages/store/index.js';
+import { addItem, claim, closeBoard, events, register, release, releaseReasonProblem } from '../packages/store/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { proofStats, workFreeReleases } from '../packages/stats/index.js';
 import { counterProofStats } from '../packages/verify/index.js';
+import { TAKEN_OVER_RELEASE_ENGINE } from '../src/taken-over-release-engine.js';
+import releaseMove from '../packages/moves/src/core/moves/release.js';
 
 test('each release reason is recorded and health and stats count work-free claims per day and seat [C7]', t => {
   const now = new Date('2026-11-02T12:00:00.000Z');
@@ -13,7 +15,10 @@ test('each release reason is recorded and health and stats count work-free claim
   t.after(() => closeBoard(board));
   register(board, { lane: 'coordinator', path: '/actors/coordinator' });
   register(board, { lane: 'web', path: '/actors/builder', family: 'test' });
-  const reasons = ['INELIGIBLE', 'ROUTED_ELSEWHERE', 'BLOCKED', 'BUDGET', 'OTHER'];
+  const reasons = ['INELIGIBLE', 'ROUTED_ELSEWHERE', 'BLOCKED', 'BUDGET', 'TAKEN_OVER', 'OTHER'];
+  assert.equal(releaseReasonProblem('TAKEN_OVER', '', TAKEN_OVER_RELEASE_ENGINE - 1).code, 'ENGINE_VERSION');
+  assert.ok(releaseMove.minimumEngine([1, 'web-1', '', {}, 'TAKEN_OVER']) >= TAKEN_OVER_RELEASE_ENGINE);
+  assert.ok(releaseMove.minimumEngine([1, 'web-1', '', 'TAKEN_OVER']) >= TAKEN_OVER_RELEASE_ENGINE);
   for (const reason of reasons) {
     const id = addItem(board, { by: 'coordinator', lane: 'web', title: `Release ${reason}`, criterion: 'A recorded reason' });
     claim(board, id, { agentId: 'web-1', lane: 'web', leaseMs: 3600000, freeze: () => ({ text: 'A recorded reason', digest: 'digest' }) });
