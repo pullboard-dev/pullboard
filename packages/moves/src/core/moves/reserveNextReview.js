@@ -1,6 +1,6 @@
 import { REVIEW_ROUTING_ENGINE } from "../../../../../src/review-routing-engine.js";
 import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../../src/review-family-relax-engine.js';
-import { frozenRelaxationEngine } from '../review-relax-engine.js';
+import { frozenRelaxationEngine } from '../review-relax-floor.js';
 import { anyItemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
 import { anyRequiredReviewFamilyEngine } from "../../../../verify/src/core/required-review-family.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
