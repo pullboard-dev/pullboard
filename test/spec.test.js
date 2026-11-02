@@ -1159,6 +1159,9 @@ test('an exact-content gate rename passes the commit and spec guards; changed co
   const findings = missingGateFindings(parseSpec(source), box.root);
   assert.ok(findings.some(row => row.id === 'G9' && row.level === 'warning' && /landing will repoint/u.test(row.message)));
   assert.ok(!findings.some(row => row.id === 'G9' && row.level === 'error'));
+  writeFileSync(join(box.root, 'test/moved.test.js'), content + 'export const later = true;\n');
+  box.git('add', 'test/moved.test.js'); box.git('commit', '-q', '-m', 'test: change moved proof');
+  assert.ok(missingGateFindings(parseSpec(source), box.root).some(row => row.id === 'G9' && row.level === 'error'));
 });
 
 test('a gate path written another way still guards its test [S4]', (t) => {

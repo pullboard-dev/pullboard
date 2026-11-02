@@ -48,5 +48,7 @@ export function preservedGateRename(root, from, to) {
   if (!matched) return false;
   const before = spawnSync('git', ['rev-parse', `${commit}^:${from}`], options);
   const after = spawnSync('git', ['rev-parse', `${commit}:${to}`], options);
-  return before.status === 0 && after.status === 0 && before.stdout.trim() === after.stdout.trim();
+  const current = spawnSync('git', ['rev-parse', `HEAD:${to}`], options);
+  return before.status === 0 && after.status === 0 && current.status === 0
+    && before.stdout.trim() === after.stdout.trim() && before.stdout.trim() === current.stdout.trim();
 }
