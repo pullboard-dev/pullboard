@@ -17,6 +17,7 @@ import {
   finishBoardWrite,
   noteBoardWriteItem,
   prepareBoardWriteIdentity,
+  prepareBoardWriteMarker,
 } from "./board-write-lock.js";
 
 import { BOARD_PROGRESS_ENGINE } from '../../../state/index.js';
@@ -51,9 +52,10 @@ export function atomic(board, work, { reviewPolicy = true } = {}) {
   else {
     for (let attempt = 0; ; attempt++) {
       policy = board.prepareWritePolicy?.();
-      beginImmediateQueued(board.db, startedAt);
+      const marker = prepareBoardWriteMarker(board.db, board.writeContext);
+      beginImmediateQueued(board.db, startedAt, marker);
       const bookkeepingAt = performance.now();
-      writeRecord = beginBoardWrite(board.db, board.writeContext);
+      writeRecord = beginBoardWrite(board.db, board.writeContext, marker);
       writeRecord.phase = 'write-bookkeeping';
       writeRecord.phaseMs = performance.now() - bookkeepingAt;
       let current;

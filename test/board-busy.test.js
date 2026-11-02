@@ -13,6 +13,9 @@ import {
 } from 'node:fs';
 import { mappedWorkingSource } from '../bin/checks/scan.js';
 import { boardWriteHolderText } from '../packages/store/index.js';
+import { prepareBoardWriteIdentity } from '../packages/store/src/shell/board-write-lock.js';
+import { prepareBoardWriteMarker } from '../packages/store/src/shell/board-write-lock.js';
+import { discardBoardWriteMarker } from '../packages/store/src/shell/board-write-lock.js';
 import { exportBoard } from '../packages/store/index.js';
 import { beginCommandPhase } from '../packages/link/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -174,6 +177,7 @@ test('a refused writer names the board lock holder [C7,P4,B2]', async t => {
   } finally {
     await holder.release();
   }
+  assert.match(message, /waiting or holding/u, 'pre-BEGIN markers are explicitly advisory contenders');
   assert.match(message, /private-lock-holder/u, 'the refusal names the real instrumented command');
   assert.match(message, /coordinator/u, 'the refusal names the real holder seat');
   assert.match(message, new RegExp(String.raw`\b${holder.pid}\b`, 'u'), 'the refusal names the live holder PID');
@@ -631,4 +635,19 @@ test('a standalone native attempt and nested rollback each observe only their ac
     assert.match(observed.holderText, new RegExp(String.raw`\b${observed.pid}\b`, 'u'));
     assert.equal(observed.contenderCode, 5);
   }
+});
+
+
+test('a pre-BEGIN contender is labelled waiting or holding and cleaned on refusal [C7,P4,B2]', t => {
+  const box = e2e.project();
+  const file = join(box.repo, '.git/pullboard/board.sqlite');
+  const db = new DatabaseSync(file);
+  t.after(() => db.close());
+  prepareBoardWriteIdentity();
+  const marker = prepareBoardWriteMarker(db, { command: 'waiting-fixture', seat: 'core-waiter' });
+  assert.ok(marker);
+  assert.match(boardWriteHolderText(file), /waiting or holding/u);
+  assert.match(boardWriteHolderText(file), /waiting-fixture/u);
+  discardBoardWriteMarker(marker);
+  assert.doesNotMatch(boardWriteHolderText(file), /waiting-fixture/u);
 });
