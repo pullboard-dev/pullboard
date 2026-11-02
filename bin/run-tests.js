@@ -1267,6 +1267,7 @@ async function main(args) {
     browser = await testsNeedBrowser(process.cwd(), explicitTestFiles(args));
   }
   const actions = await (await import('../src/test-action-cache.js')).planTestActions(process.cwd(), args, { fullSuite, landing: process.env[LANDING_RUN_ENV] === '1', listFiles: () => fullSuite ? trackedDefaultTestFiles(process.cwd(), process.env) : explicitTestFiles(args) });
+  process.stdout.write(formatTestOutcomes(timing.id, actions.reusedTestOutcomes));
   if (actions.done) { timing.phase('selectionMs', selectionAt); return; }
   const { testsNeedGui } = await import('../src/gui-admission.js');
   let guiFiles;
