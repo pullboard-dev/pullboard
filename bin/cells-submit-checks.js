@@ -64,10 +64,10 @@ function mappedBypassKey(map, key) {
   return to !== undefined && extra === undefined ? `${mappedPath(map, from)}->${mappedPath(map, to)}` : key;
 }
 
-/** Read only landed core cut candidates through the controller's already-open connection. */
+/** Read only landed core cut items (titles cutTitle names), so the runner request carries a few rows, not the board [C7]. */
 export function landedCutItemRows(db) {
   return db.prepare(`SELECT item_id, item_lane, item_title, item_status, item_merged_commit FROM item
-    WHERE item_lane='core' AND item_status='verified' AND item_merged_commit IS NOT NULL
+    WHERE item_lane='core' AND item_status='verified' AND item_merged_commit IS NOT NULL AND item_title LIKE 'Cells import cuts: % removes imports into later cells'
     AND NOT EXISTS (SELECT 1 FROM board_meta WHERE meta_key='item_redirect:' || item_id)`).all();
 }
 
