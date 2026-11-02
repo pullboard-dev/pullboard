@@ -134,6 +134,7 @@ const OPTIONS = {
   swap: { type: 'string' },
   limit: { type: 'string' },
   transcripts: { type: 'string' },
+  checkpoint: { type: 'string' },
   name: { type: 'string' },
   title: { type: 'string' },
   url: { type: 'string' },
