@@ -236,12 +236,14 @@ export async function verifyHere(ctx, id, { second, values }) {
       const composeNow = () => {
         const current = requireTrunkMerge(root, checkedCommit);
         if (!contains(root, current.commit, checkedCommit) && !reReview) {
+          const builder = item.item_built_by ?? store.events(board, { itemId: item.item_id }).findLast(event => event.event_kind === 'submit')?.event_by;
+          if (!builder) throw new Refused('BAD_VERDICT_REVIEW', 'the submitted builder cannot be determined from native history; restore its submission before review');
           checkedCommit = retryReviewCommit(root, checkedCommit, current);
           checkedLabel = 'main-composed review';
-          unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${item.item_built_by}; checked against main ${current.commit}.`;
+          unaffectedMove += `\nAutomatic main merge ${checkedCommit} attributes submitted source ${item.item_commit} to builder ${builder}; checked against main ${current.commit}.`;
           ctx.io.say(`Composed current main ${current.commit.slice(0, 12)} for the review; checking ${checkedCommit.slice(0, 12)}.`);
         }
-        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge, events: store.events });
+        return composeReview(root, board, item, checkedCommit, { reReview, head, stale, refuseUnverifiedStack, requireTrunkMerge: () => current, events: store.events });
       };
       let admitted = companionDigest === null && !item.item_effective_head && composesAtAdmission(ctx.config) && Boolean(frozenCheck(item));
       let trunk = null;
