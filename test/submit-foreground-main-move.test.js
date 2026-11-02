@@ -22,7 +22,7 @@ function item(box) {
  * does during a builder's long foreground check (#2181, #2326).
  */
 function fixture(t, mode) {
-  // The check builds the landed path from pieces, so test selection never sees the check read it.
+  // The landing is another lane's module no test imports; the check builds its path from pieces so selection never sees a read.
   const helpers = createE2eHelpers();
   const sandbox = helpers.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture Model';
@@ -38,7 +38,7 @@ function fixture(t, mode) {
 const root=${JSON.stringify(box.repo)}, marker=${JSON.stringify(marker)};
 test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   if (${JSON.stringify(mode)} === 'policy') { const f=root+'/pullboard.json'; const c=JSON.parse(readFileSync(f,'utf8')); c.submit={...c.submit,autoFileMainReds:true}; writeFileSync(f,JSON.stringify(c)); }
-  else { const dir=root+'/'+['do','cs'].join(''); mkdirSync(dir,{recursive:true}); writeFileSync(dir+'/'+['lan','ded'].join('')+'.md','an unrelated landing\\n'); }
+  else { const dir=root+'/'+['ap','i'].join(''); mkdirSync(dir,{recursive:true}); writeFileSync(dir+'/'+['lan','ded'].join('')+'.js','export const landed=true;\\n'); }
   const env=Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GIT_')));
   execFileSync('git',['-C',root,'add','-A'],{env}); execFileSync('git',['-C',root,'-c','user.name=Fixture','-c','user.email=fixture@example.test','-c','core.hooksPath=/dev/null','commit','-qm','chore: land during the check [G1]'],{env});
   writeFileSync(marker,'done'); } assert.equal(feature,'item'); });\n`);
