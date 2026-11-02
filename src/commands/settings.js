@@ -1,4 +1,4 @@
-import { lineSettingsCommand } from '../line-settings-cli.js';
+import { lineSettingsCommand } from '../../packages/seats/index.js';
 /** The pullboard settings command, in its own module so an item adding another command never edits these lines. */
 import {
   SETTING_FORMS,

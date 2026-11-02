@@ -13,7 +13,7 @@ import * as helpDeclaration from '../src/help.js';
 import { importStyleViolations } from './import-style-helpers.js';
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from '../packages/config/index.js';
-import { laneOf } from '../src/lanes.js';
+import { laneOf } from '../packages/seats/index.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const sandboxes = [];

@@ -22,7 +22,7 @@ import { foreignBlockers as readForeignBlockers } from "../../../items/index.js"
 import { foreignDependencyStates as readForeignDependencyStates } from "../../../items/index.js";
 import { readReceivedBoardState } from "../core/board-link-state.js";
 import * as reviewFamilies from "../../../verify/src/core/required-review-family.js";
-import { laneLeads } from "../../../../src/lane-lead.js";
+import { laneLeads } from "../../../seats/index.js";
 import { PERSON } from "./board-query.js";
 import { now } from "./board-query.js";
 import { current } from "./board-query.js";
@@ -48,9 +48,9 @@ import { UNKNOWN_MOVE } from "../../../state/index.js";
 import { effectiveGuards } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
 import { itemAuthorProblem } from "../../../items/index.js";
-import { ROUTES } from "../../../../src/route-escalation.js";
-import { canTake } from "../../../../src/route-escalation.js";
-import { routeOf } from "../../../../src/seats.js";
+import { ROUTES } from "../../../seats/index.js";
+import { canTake } from "../../../seats/index.js";
+import { routeOf } from "../../../seats/index.js";
 import { RIGOR_NOTICE_ENGINE } from "../core/board-rigor-source.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../src/rigor-auto-engine.js";
 import { factReference } from "../../../spec/index.js";
@@ -160,7 +160,7 @@ export { recordUsageBatch } from "../../../stats/index.js";
 export { recordSharedUsage } from "../../../stats/index.js";
 export { proofReceipts, recordProofRun } from "./proof-receipts.js";
 /** Seat rules live in seats.js and agent readers in board-query.js; the board re-exports them so `store.*` callers keep one import. */
-export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../../src/seats.js";
+export { agentCreator, coordinatorHolder, nextSeatId, seatEnrolled, seatLineage, withVerifierStanding } from "../../../seats/index.js";
 export { agentAt, agentById, listAgents } from "./board-query.js";
 export { takeCoordinator } from "./board-coordinator-hold.js";
 
