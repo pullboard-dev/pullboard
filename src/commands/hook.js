@@ -2,7 +2,7 @@ import { itemFolderIdentity } from '../item-folder.js';
 import { pendingSubmitHandoff } from '../submit-handoff-read.js';
 import { submitHandoffHookActor } from '../submit-handoff-origin.js';
 import { waivedLandingProof as nativeWaivedLandingProof } from '../../packages/landing/index.js';
-import { quarantineWaivers } from '../quarantine.js';
+import { quarantineWaivers } from '../../packages/flakes/index.js';
 /** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
 import { boardBusyError } from '../../packages/store/index.js';
 import { openBoardReadOnly } from '../../packages/store/index.js';

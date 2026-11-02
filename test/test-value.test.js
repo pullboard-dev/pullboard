@@ -1,6 +1,6 @@
 /** Synthetic historical receipts exercise report arithmetic; they are not engineering proof [C7]. */
 import { testCapacityReport } from '../packages/gate/index.js';
-import { flakeLedger } from '../src/flakes.js';
+import { flakeLedger } from '../packages/flakes/index.js';
 import { eventCauses } from '../src/board-rigor.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';

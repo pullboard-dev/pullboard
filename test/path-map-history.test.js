@@ -1,5 +1,5 @@
-import { flakeLedger as nativeFlakeLedger } from '../src/flakes.js';
-import { recordFlakeObservation as nativeRecordFlakeObservation } from '../src/flakes.js';
+import { flakeLedger as nativeFlakeLedger } from '../packages/flakes/index.js';
+import { recordFlakeObservation as nativeRecordFlakeObservation } from '../packages/flakes/index.js';
 /** File moves preserve frozen checks and read-only engineering history [C7]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
