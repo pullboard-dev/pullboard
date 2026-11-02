@@ -6,7 +6,7 @@ import { ENGINE_VERSION } from '../src/engine-metadata.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { fetchFresh } from './http-fixture.js';
 import { decodeBoardKey } from '../packages/kernel/src/core/seal.js';
-import { openPagedSnapshot } from '../src/relay-page-layout.js';
+import { openPagedSnapshot } from '../packages/pages/index.js';
 
 /** Read only this fixture's private local machine settings. */
 function machine(box) {

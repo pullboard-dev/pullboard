@@ -16,6 +16,7 @@ import { configProblems, defaults } from '../packages/config/index.js';
 import { landingShardCount } from '../src/gate.js';
 import { landingBalance, landingFloor, landingSource, planLandingShards, shardFileTimes } from '../packages/landing/index.js';
 import { runFixtureChild } from './fixture-child.js';
+import { stopGroup } from './runner-process-group.js';
 import { installRegistrationProbeStandIn } from './runner-ssh-fixture.js';
 
 const SOURCE = resolve(import.meta.dirname, '..');
@@ -345,7 +346,7 @@ process.stdout.write(JSON.stringify({ isGreen: gate.isGreen, collectAllComplete:
     }
     assert.equal(ended.status, 0, `scenario "${label}": the gate process failed\n${stderr.slice(-4_000)}`);
     return { ...JSON.parse(stdout), stderr };
-  })();
+  })().finally(() => stopGroup(child, closed));
   terminal.child = child;
   // A sibling may finish before this promise gets its turn to borrow; retain its original rejection.
   void terminal.catch(() => {});
@@ -516,7 +517,7 @@ process.stdout.write(JSON.stringify({ isGreen: result.isGreen, output, calls, pr
     }
     assert.equal(ended.status, 0, `runner answer "${answer}": the landing process failed\n${stderr.slice(-4_000)}`);
     return JSON.parse(stdout);
-  })();
+  })().finally(() => stopGroup(child, closed));
   terminal.child = child;
   return await awaitNestedRun(terminal);
 }
@@ -637,13 +638,10 @@ test('own a detached child', async () => {
     ({ pid } = JSON.parse(readFileSync(ready, 'utf8')));
     assert.equal(alive(pid), false, `no process from the stopped shard survives the landing\n${result.output}`);
     assert.doesNotMatch(result.output, /LANDING_SHARD_CLEANUP_UNVERIFIED/u, 'its cleanup was verified');
-    const { writeAt } = JSON.parse(readFileSync(ready, 'utf8'));
-    // budget: wait past the grandchild's own write time, read from its marker, before judging the file.
-    while (Date.now() <= writeAt + 500) await new Promise(resolve => setTimeout(resolve, 100));
     assert.equal(existsSync(survived), false, 'the stopped grandchild never wrote its marker');
   } finally {
     // Only the fixture's own recorded grandchild is ever signalled here.
-    if (pid && alive(pid)) process.kill(pid, 'SIGKILL');
+    if (pid) await stopGroup({ pid }, Promise.resolve());
   }
 });
 
@@ -716,6 +714,6 @@ await withGateSlot(process.cwd(),async lease=>{
     assert.equal(terminal.report.cleanupVerified,true,'cleanup and completed coverage are separate facts');
     // A file may publish a terminal cancelled summary; that does not make collection complete.
   } finally {
-    if(child.exitCode===null&&child.signalCode===null){try{process.kill(-child.pid,'SIGTERM');}catch{child.kill('SIGTERM');}await closed;}
+    await stopGroup(child, closed);
   }
 });

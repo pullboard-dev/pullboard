@@ -63,7 +63,7 @@ export function requireRuntimePorts(ports) {
     'personAuthority', 'relayMoveActor', 'relaySenderProblem', 'validRelaySender', 'credentialActor']) {
     if (typeof ports.enginePorts[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply enginePorts.${name}.`);
   }
-  for (const name of ['policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
+  for (const name of ['mainPolicy', 'policyAt', 'frozenCheck', 'itemPolicy', 'requireTrunkMerge']) {
     if (typeof ports.enginePorts.sandboxPolicyReads?.[name] !== 'function') throw new Refused('NO_POLICY', `The native board root must supply enginePorts.sandboxPolicyReads.${name}.`);
   }
   if (ports.nativePorts.atomic !== ports.lifecycle.atomic || ports.nativePorts.logEvent !== ports.logEvent

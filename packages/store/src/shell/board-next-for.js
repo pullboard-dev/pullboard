@@ -5,8 +5,8 @@ import {
 import { pendingSubmitHandoff } from "./submit-handoff-read.js";
 import { firstRefusal } from "../core/board-item-read.js";
 import * as reviewRouting from "../../../verify/src/shell/review-routing.js";
-import { idleReason } from "../../../../src/routing-presence.js";
-import { liveRouteProblem } from "../../../../src/routing-presence.js";
+import { idleReason } from "../../../seats/index.js";
+import { liveRouteProblem } from "../../../seats/index.js";
 import { withLocalSeatPresence } from "./seat-presence.js";
 import * as itemDependencies from "../../../items/index.js";
 import { criticalPathEnabled } from "../../../items/index.js";
@@ -16,8 +16,8 @@ import { focusReasons } from "../../../roadmap/index.js";
 import { milestoneFocus } from "../../../roadmap/index.js";
 import { milestones } from "./board-read-auxiliary.js";
 import { milestonePriorities } from "./board-read-auxiliary.js";
-import { lineOrderEnabled } from "../../../../src/line-order.js";
-import { reviewerScarcity } from "../../../../src/line-order.js";
+import { lineOrderEnabled } from "../../../seats/index.js";
+import { reviewerScarcity } from "../../../seats/index.js";
 import { current } from "./board-query.js";
 import { itemById } from "./board-query.js";
 import { listItems } from "./board-query.js";
@@ -31,9 +31,9 @@ import { firstRefusalReason } from "../../../items/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
 import { MILESTONE_RANK_ENGINE } from "../../../state/index.js";
-import { ROUTES } from "../../../../src/route-escalation.js";
-import { canTake } from "../../../../src/route-escalation.js";
-import { routeOf } from "../../../../src/seats.js";
+import { ROUTES } from "../../../seats/index.js";
+import { canTake } from "../../../seats/index.js";
+import { routeOf } from "../../../seats/index.js";
 import { milestoneRanks } from "../../../items/index.js";
 import { foreignBlockers } from "./board.js";
 import { reviewReleaseCooldown } from "./board.js";
@@ -184,7 +184,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
   for (const { entry, shared, reworkRouting: rework } of mine) {
     const waiting = itemDependencies.localDependencyIds(entry)
       .map((id) => current(board, itemById(board, id)))
-      .filter((before) => before.item_status !== 'verified');
+      .filter((before) => before.item_status !== 'verified' && before.item_status !== 'withdrawn');
     const continuation = exitContinuationProblem(board, entry.item_id, agentId);
     if (continuation) { reasons.push(continuation.message); continue; }
     if (rework && rework.allowed !== null && !rework.allowed.includes(agentId)) {

@@ -4,7 +4,7 @@
  */
 export { board } from './native-board.js';
 export { loadConfig, defaults as defaultConfig } from '../../../../packages/config/index.js';
-export { laneOf, outOfLane, laneNames } from '../../../../src/lanes.js';
+export { laneOf, outOfLane, laneNames } from '../../../../packages/seats/index.js';
 export { parseSpec, lintSpec, frozenCriterion, citedIds } from '../../../../packages/spec/index.js';
 export { commitMsgProblems, secretsIn, blockedPaths } from '../../../../packages/commits/index.js';
 export { Refused } from '../../../../packages/kernel/index.js';

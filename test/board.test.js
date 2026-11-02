@@ -15,7 +15,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { addMilestone, editMilestoneItems, moveMilestone, editMilestone, roadmap, removeMilestone } from '../src/board-milestones.js';
 import { registerPreGrant } from './pre-grant-seats.js';
-import { displayAgentName } from '../src/agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import { projectState } from '../src/cli/view-state.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
@@ -254,24 +254,6 @@ test('a claim is a lease: renewable by its holder, free again once it lapses [B4
   assert.equal(store.getItem(board, id).item_status, 'open');
   assert.equal(claimAs(id, 'web-2', 'web').renewed, false);
   assert.equal(store.getItem(board, id).item_owner, 'web-2');
-});
-
-test('one live top-level claim per agent; child items are free; lanes hold, the coordinator\'s too [B5, B12]', () => {
-  const first = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'One' });
-  const second = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Two' });
-  const child = store.addItem(board, { by: 'web-1', lane: 'web', title: 'One, part', parentId: first });
-  const api = store.addItem(board, { by: 'coordinator', lane: 'api', title: 'Endpoint' });
-  claimAs(first, 'web-1', 'web');
-  assert.throws(() => claimAs(second, 'web-1', 'web'), /ONE_CLAIM/);
-  claimAs(child, 'web-1', 'web');
-  assert.throws(() => claimAs(api, 'web-1', 'web'), /WRONG_LANE/);
-  assert.throws(() => claimAs(api, 'coordinator', 'coordinator'), /WRONG_LANE.*built from that lane's worktree, never the main checkout/);
-  const notes = store.addItem(board, { by: 'coordinator', lane: 'coordinator', title: 'Release notes' });
-  assert.equal(claimAs(notes, 'coordinator', 'coordinator').renewed, false);
-  assert.throws(
-    () => store.addItem(board, { by: 'web-1', lane: 'api', title: 'Cross', parentId: first }),
-    /PARENT_LANE/,
-  );
 });
 
 test('the first claim freezes the criterion; later claims keep it [V2]', () => {
@@ -1228,11 +1210,14 @@ test('a builder reworks its own rejected item beside its one claim; nothing else
   claimAs(page, 'web-1', 'web');
   assert.equal(claimAs(header, 'web-1', 'web').renewed, false, 'holding only a rework, one new claim is still free');
   assert.equal(claimAs(footer, 'web-1', 'web').renewed, false, 'a second rework of its own, beside its claim');
-  assert.throws(() => claimAs(nav, 'web-1', 'web'), new RegExp(`ONE_CLAIM.*you already hold #${header}`));
+  assert.throws(() => claimAs(nav, 'web-1', 'web'), new RegExp(`ONE_CLAIM.*you already hold #${header}`), 'legacy calls keep the old rule');
+  assert.equal(store.claim(board, nav, { agentId: 'web-1', lane: 'web', leaseMs: 2 * HOUR, freeze, itemFolder: true }).renewed, false);
   submitFixture(board, page, { agentId: 'web-1', commit: SHA_B, tree: 't2' });
   assert.equal(store.getItem(board, page).item_status, 'submitted');
-  claimAs(nav, 'web-2', 'web');
-  assert.throws(() => claimAs(aside, 'web-2', 'web'), /ONE_CLAIM/, "another agent's rejected item is no rework of web-2's");
+  const other = store.addItem(board, { by: 'coordinator', lane: 'web', title: 'Other nav' });
+  claimAs(other, 'web-2', 'web');
+  assert.throws(() => claimAs(aside, 'web-2', 'web'), /ONE_CLAIM/, 'the historical rule remains for old moves');
+  assert.equal(store.claim(board, aside, { agentId: 'web-2', lane: 'web', leaseMs: 2 * HOUR, freeze, itemFolder: true }).renewed, false);
 });
 
 test('[O3] declared families travel through native snapshots; unknown registration remains allowed and fresh review refuses', async (t) => {

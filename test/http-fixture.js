@@ -1,5 +1,5 @@
 /** Fixture HTTP requests never reuse an idle connection, so a stalled test cannot meet a closed socket [C7]. */
-import { fetchLocal, isLocalHttp } from '../src/local-fetch.js';
+import { fetchLocal, isLocalHttp } from '../packages/sync/index.js';
 
 /**
  * Send one request to a live fixture server on a connection of its own, and name the cause if it fails.

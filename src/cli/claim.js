@@ -7,8 +7,8 @@ import { captureLapsedClaims } from '../../packages/health/index.js';
 import { itemCheckBaseline } from '../../packages/store/index.js';
 import { writeBoardCommand } from '../board-command-write.js';
 import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
-import { laneSeatContext } from '../seat-checkout.js';
-import { nextSessionSeats } from '../seat-checkout.js';
+import { laneSeatContext } from '../../packages/seats/index.js';
+import { nextSessionSeats } from '../../packages/seats/index.js';
 import { seatRoutingPorts } from './seat-ports.js';
 import { sessionSeatReaders } from './seat-ports.js';
 import * as personIdentity from '../person.js';
@@ -35,8 +35,8 @@ import { configFromSource } from '../../packages/config/index.js';
 import { loadDoctrine } from '../doctrine.js';
 import { agentDoctrine } from '../../packages/doctrine/index.js';
 import { signedMoveProblem } from '../../packages/person/index.js';
-import { bindLocalSession } from '../agent-session.js';
-import { localSessionMatches } from '../agent-session.js';
+import { bindLocalSession } from '../../packages/seats/index.js';
+import { localSessionMatches } from '../../packages/seats/index.js';
 import { headCommit } from '../git.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { frozenCriterion } from '../../packages/spec/index.js';
@@ -137,7 +137,7 @@ export async function ordered(ctx, board, operation, args) {
     const actor = ctx.info.isMain ? COORDINATOR : (submitHandoffActor(ctx, board, operation, args) ?? store.agentAt(board, ctx.info.root))?.agent_id;
     requireHandoffActive(board, actor, operation, args);
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
-      await (await import('../git-sync-repair.js')).repairGitSync(ctx.info.root, board, ctx.io);
+      await (await import('../../packages/sync/index.js')).repairGitSync(ctx.info.root, board, ctx.io);
     }
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);

@@ -31,7 +31,7 @@ import { environmentProblem } from './config.js';
 const MACHINE_DEFAULTS = {
   gateSlots: 2, browserSlots: 1, 'gate.shortSlots': 0, 'gate.runnerWaitMs': 300_000,
   'gate.queue.reviewsFirst': false, 'gate.queue.currentReleaseFirst': false, 'gate.queue.agingMinutes': 30,
-  'gate.memoryFloorMB': null, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': false, 'gate.runnerBusyCeiling': 90, 'gate.postLandSuite': false,
+  'gate.memoryFloorMB': null, 'gate.browserFreeChecks': false, 'gate.browserByLaunch': false, 'gate.runnersFirst': false, 'gate.runnersOnly': false, 'gate.measuredSlots': false, 'gate.loadAwareDispatch': false, 'gate.runnerBusyCeiling': 90, 'gate.postLandSuite': false, 'inspection.clauses': false,
   'health.sentinel': true, 'view.background': true, 'relay.offerAtInit': true, runners: [], 'landing.pools': [],
 };
 const OPTIONAL_REPO_DEFAULTS = {

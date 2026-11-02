@@ -1,4 +1,5 @@
 {
+  "src/rank-inversion-history.js": "packages/health/src/shell/rank-inversion-history.js",
   "src/doctor.js": "packages/health/src/shell/doctor.js",
   "src/health.js": "packages/health/src/shell/health.js",
   "src/stale-run-observation.js": "packages/health/src/shell/stale-run-observation.js",

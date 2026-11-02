@@ -6,6 +6,8 @@ import { loadedToolingFiles } from './runner-remote-tooling.js';
 import { requestFor } from './runner-request.js';
 import { resultFrom } from './runner-result.js';
 import { runnerFailure } from './runner-result.js';
+import { readCleanupTimeoutDetails } from '../packages/runners/index.js';
+import { cleanupProcessText } from '../packages/runners/index.js';
 import { spawn } from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -212,7 +214,7 @@ async function runInController(root, command, options, ports) {
     const child = spawn('ssh', request.args, { env: request.env, stdio: ['pipe', 'pipe', 'pipe'] });
     transport = ownedTransportCompletion(child);
     const output = [], diagnostics = [];
-    let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '';
+    let bytes = 0, error, control = '', requested = false, transfer = null, cleanupReason = '', cleanupDetails = null;
     const rawHash = createHash('sha256');
     let rawBytes = 0, head = Buffer.alloc(0), tail = Buffer.alloc(0);
     const half = 4 * 1024 ** 2;
@@ -293,9 +295,12 @@ async function runInController(root, command, options, ports) {
         if (line === `PULLBOARD_RUNNER_HEARTBEAT ${request.spec.id}`) heartbeatAt = Date.now();
         const cleanupPrefix = `PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${request.spec.id} `;
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
+        const detailsPrefix = `PULLBOARD_RUNNER_CLEANUP_DETAILS ${request.spec.id} `;
+        if (line.startsWith(detailsPrefix)) cleanupDetails = readCleanupTimeoutDetails(line.slice(detailsPrefix.length), request.spec.id);
         if (line === `PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${request.spec.id}`) {
-          error = new Refused('RUNNER_CLEANUP_TIMEOUT', `runner ${request.runner.host} could not verify cleanup within 30 seconds${cleanupReason ? ': ' + cleanupReason : ''}; inspect job ${request.spec.id} under its runner namespace before another run`);
+          error = new Refused('RUNNER_CLEANUP_TIMEOUT', `runner ${request.runner.host} could not verify cleanup within 30 seconds${cleanupReason ? ': ' + cleanupReason : ''}${cleanupDetails ? '; waiting on ' + cleanupProcessText(cleanupDetails) : ''}; inspect job ${request.spec.id} under its runner namespace before another run`);
           error.diagnostic = runnerFailure(request, { status: null, stderr: '' }, 'cleanup-unverified').diagnostic;
+          if (cleanupDetails) error.diagnostic.cleanup = cleanupDetails;
           transport.stop(); return;
         }
         const prefix = `PULLBOARD_RUNNER_NEED ${request.spec.id} `;

@@ -20,7 +20,10 @@ function document(result) {
 /** Run a genuine queued red and observe the separate worker's persisted native event fields. */
 export async function submitHandoffEventContract(t) {
   const helpers = createE2eHelpers();
-  const box = helpers.project('true');
+  const sandbox = helpers.sandbox();
+  sandbox.env.PULLBOARD_MODEL = 'Fixture Model';
+  sandbox.env.TMPDIR = sandbox.dir; // Keep the worker path canonical on macOS's /var alias.
+  const box = helpers.project('true', sandbox);
   let id;
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   /** Read actual cross-process native state; no fabricated source, job or proof is supplied. */

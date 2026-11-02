@@ -113,7 +113,7 @@ import {
 import {
   relaySnapshot,
   presentationDigest,
-} from '../src/relay-presentation.js';
+} from '../packages/pages/index.js';
 import {
   snapshotState,
 } from '../relay/browser-model.js';
@@ -143,10 +143,10 @@ import {
 } from './landing-queue-fixture.js';
 import {
   privateBoardPath,
-} from '../src/projects.js';
+} from '../packages/seats/index.js';
 import {
   checkoutSessionFile,
-} from '../src/agent-session.js';
+} from '../packages/seats/index.js';
 import {
   repoInfo,
 } from '../src/git.js';

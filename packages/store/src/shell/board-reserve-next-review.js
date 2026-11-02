@@ -1,4 +1,4 @@
-import { idleReason } from "../../../../src/routing-presence.js";
+import { idleReason } from "../../../seats/index.js";
 import { atomic } from "./board-event-log.js";
 import { nextFor } from "./board-next-for.js";
 import { reserveWithin } from "./board-reserve-review.js";

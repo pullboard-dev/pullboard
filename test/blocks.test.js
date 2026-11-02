@@ -19,7 +19,7 @@ import {
   personBlockWords,
   readBlocks,
 } from '../packages/items/index.js';
-import { relayPresentation } from '../src/relay-presentation.js';
+import { relayPresentation } from '../packages/pages/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Bind the real canonical presentation providers once for this fixture module. */

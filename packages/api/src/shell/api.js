@@ -37,7 +37,7 @@ import {
   readFileSync,
   statSync,
 } from 'node:fs';
-import { displayAgentName } from '../../../../src/agent-names.js';
+import { displayAgentName } from '../../../seats/index.js';
 import * as store from '../../../../src/board.js';
 import { roadmap } from '../../../../src/board-milestones.js';
 import {
@@ -56,13 +56,13 @@ import {
   relayRevoke,
   relayTokens,
 } from '../../../link/index.js';
-import { laneNames } from '../../../../src/lanes.js';
+import { laneNames } from '../../../seats/index.js';
 import { MACHINE } from '../../../state/index.js';
 import {
   listApiProjects,
   registryFile,
   registeredProjectRootsSnapshot,
-} from '../../../../src/projects.js';
+} from '../../../seats/index.js';
 import { milestoneRoadmap } from '../../../roadmap/index.js';
 import {
   ruleProofWindow,
@@ -83,7 +83,7 @@ import {
 import { Refused } from '../../../kernel/index.js';
 import { verdictProjector } from '../../../verify/index.js';
 import { trunkRevisionReader } from '../../../git/index.js';
-import { relayPresentationShout } from '../../../../src/relay-presentation.js';
+import { relayPresentationShout } from '../../../pages/index.js';
 import { createApiHandler } from './api-http.js';
 import { settingsInventory } from '../../../config/index.js';
 import { personRequestStatuses } from '../../../link/index.js';

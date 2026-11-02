@@ -1,5 +1,5 @@
 import { boardId } from '../../packages/store/index.js';
-import { seatAddress } from '../seat-address.js';
+import { seatAddress } from '../../packages/seats/index.js';
 /** The pullboard whoami command, in its own module so an item adding another command never edits these lines. */
 import {
   context,

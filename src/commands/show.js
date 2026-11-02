@@ -15,7 +15,7 @@ import {
 /** The pullboard show command, in its own module so an item adding another command never edits these lines. */
 import {
   displayAgentName,
-} from '../agent-names.js';
+} from '../../packages/seats/index.js';
 import {
   barCorrectionLine,
   barCorrections,
