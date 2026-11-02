@@ -1,4 +1,5 @@
-import { submitGateConfig, submitGatePlan } from '../../packages/gate/index.js';
+import { submitGateConfig } from '../../packages/gate/index.js';
+import { submitGatePlan } from '../../packages/gate/index.js';
 import { reusableSubmitProof } from '../submit-proof-reuse.js';
 import { selectTestTiers } from '../../packages/gate/index.js';
 import { testTierProofFiles } from '../../packages/gate/index.js';
