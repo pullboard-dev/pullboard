@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { placeLandingHistory } from '../src/landing-history-plan.js';
+import { placeLandingHistory } from '../packages/landing/index.js';
 
 test('a new src/move-history file is placed as a stay [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'landing-history-'));
