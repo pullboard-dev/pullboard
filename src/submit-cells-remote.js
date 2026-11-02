@@ -95,13 +95,14 @@ async function remoteCells(encoded) {
     const checker = await load('bin/cells-submit-checks.js');
     const parsers = await load('src/module-imports.js');
     const cache = await load('src/module-import-cache.js');
+    const isolation = await load('src/test-isolation.js');
     const landing = await load('packages/landing/index.js');
     const result = await checker.requireSubmitCells(root, input.main, input.source,
       { item_frozen: JSON.stringify({ criterion: input.criterion }) }, {
         withMainCheckout: landing.withMainCheckout,
         parsers: { importsIn: parsers.importsIn, commonJsIn: parsers.commonJsIn },
         withImportParseCache: cache.withImportParseCache,
-        cacheEligible: () => false,
+        cacheEligible: () => !isolation.foreignNodeOptions(process.env.NODE_OPTIONS),
         readCutItems: () => input.cutRows,
       });
     process.stdout.write(`PULLBOARD_CELLS_RESULT ${JSON.stringify(result)}\n`);
