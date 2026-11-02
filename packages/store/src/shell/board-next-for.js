@@ -31,6 +31,7 @@ import { itemHold } from "./board-query.js";
 import { laneHold } from "./board-query.js";
 import { itemFiles } from "../../../items/index.js";
 import { itemFileCollisions } from "../../../items/index.js";
+import { itemCollisionPlan } from "../../../items/index.js";
 import { firstRefusalReason } from "../../../items/index.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
 import { CLAIM_RETURNS_ENGINE } from "../../../state/index.js";
@@ -225,7 +226,7 @@ export function nextFor(board, { agentId, lane, verify = false, policy = 'any', 
     }
     const reserved = rework ? null : firstRefusalReason(board, entry.item_id, agentId, { firstRefusal, otherBuilderFirst: (board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE, offering: true });
     if (reserved) { reasons.push(reserved); continue; }
-    const functionPlan = board.nativePorts.itemCollisionPlan?.(board, entry, inFlight, workingFiles);
+    const functionPlan = itemCollisionPlan(board, entry, inFlight, workingFiles);
     const collisions = functionPlan?.blockers ?? [...new Set([...itemFileCollisions(entry, inFlight), ...liveClaimCollisions(entry, inFlight, workingFiles)])];
     if (collisions.length) { reasons.push(...collisions); continue; }
     const foreign = foreignBlockers(board, entry);

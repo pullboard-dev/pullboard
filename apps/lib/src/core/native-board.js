@@ -15,7 +15,6 @@ import {
   dependencyLabel,
 } from '../../../../packages/items/index.js';
 import { itemFileCollisions } from '../../../../packages/items/index.js';
-import { itemCollisionPlan } from '../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 import { policyAt } from '../../../../packages/sandbox/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
@@ -295,7 +294,7 @@ export function nativeBoardPorts() {
     reviewPatchAuthors, committedItemAuthors, twoTierReviews, strictReviewProblem,
     holdUntilKind, forgetHoldMaintenance, rememberHoldCondition, staleStateEngine: STALE_STATE_ENGINE,
     currentProofCounters, proofCounter,
-    localDependencyIds, dependencyLabel, itemFileCollisions, itemCollisionPlan, withLocalSeatPresence,
+    localDependencyIds, dependencyLabel, itemFileCollisions, withLocalSeatPresence,
     agentModel, proofReceipts, itemById, laneHold, laneHolds,
     addItem: store.addItem, agentById: store.agentById, appendFact: store.appendFact,
     getItem: store.getItem, reviewHolder: store.reviewHolder, readReceivedBoardState,
