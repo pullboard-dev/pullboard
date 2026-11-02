@@ -152,12 +152,16 @@ function identity(value, limit = 512) {
 
 /** Validate the native facts attached to a version-two gate receipt. */
 export function proofFields(value) {
+  const hasReuse = Object.hasOwn(value ?? {}, 'submitReuse');
+  if (hasReuse && (value.submitReuse !== true || !/^[a-f0-9]{64}$/u.test(value.submitReusePlan ?? ''))) return null;
+  if (!hasReuse && Object.hasOwn(value ?? {}, 'submitReusePlan')) return null;
   const hasPhase = Object.hasOwn(value ?? {}, 'submitPhase');
   if (hasPhase && !['criterion', 'proof', 'diagnostic'].includes(value.submitPhase)) return null;
   const hasDiagnosticAdmission = Object.hasOwn(value ?? {}, 'diagnosticAdmission');
   if (hasDiagnosticAdmission && !/^[a-f0-9-]{36}$/u.test(value.diagnosticAdmission ?? '')) return null;
   const hasAdmission = Object.hasOwn(value ?? {}, 'submitAdmission');
   if (hasAdmission && !/^[a-f0-9-]{36}$/u.test(value.submitAdmission ?? '')) return null;
+  if (hasReuse && (!hasPhase || !hasAdmission || !['criterion', 'proof'].includes(value.submitPhase))) return null;
   if (!value || !Number.isSafeInteger(value.item) || value.item < 1
     || value.frozenDigest !== null && !/^[a-f0-9]{64}$/u.test(value.frozenDigest ?? '')
     || !identity(value.seat, 256) || value.runner !== null && !identity(value.runner)
@@ -177,7 +181,7 @@ export function proofFields(value) {
     environment: actualEnvironment === null ? null : { node: actualEnvironment.node, platform: actualEnvironment.platform, arch: actualEnvironment.arch },
     seat: value.seat, runner: value.runner, exitCode: value.exitCode,
     counts: Object.fromEntries(names.map(name => [name, value.counts[name]])), durationMs: value.durationMs, sourceClean: value.sourceClean,
-    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}), ...(hasDiagnosticAdmission ? { diagnosticAdmission: value.diagnosticAdmission } : {}) };
+    ...(hasTestRuntimes ? { testRuntimes } : {}), ...(hasPhase ? { submitPhase: value.submitPhase } : {}), ...(hasAdmission ? { submitAdmission: value.submitAdmission } : {}), ...(hasDiagnosticAdmission ? { diagnosticAdmission: value.diagnosticAdmission } : {}), ...(hasReuse ? { submitReuse: true, submitReusePlan: value.submitReusePlan } : {}) };
 }
 
 /** Read explicit TAP or Node reporter totals; absent counters stay unknown rather than becoming zero. */
