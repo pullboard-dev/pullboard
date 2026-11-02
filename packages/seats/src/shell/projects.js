@@ -15,6 +15,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
+import { projectRegistrationAllowed } from './project-registration.js';
 import {
   basename,
   dirname,
@@ -343,6 +344,7 @@ export function listApiProjects() {
  * @returns {boolean} Whether it was new.
  */
 export function registerProject(root, now = new Date(), config = {}, identity = null) {
+  if (!projectRegistrationAllowed(root)) return false;
   const normalizedRoot = resolve(root);
   return withRegistry((stored, readable) => {
     if (!readable) return false;
@@ -401,6 +403,7 @@ export function forgetProject(path) {
  * The CLI passes the store's board readers and the relay linker as `ports`, so the seats cell loads neither.
  */
 export async function registerProjectAndLink(root, now, config, io, identity, { store, autoLinkProject }) {
+  if (!projectRegistrationAllowed(root)) return false;
   let exactIdentity = identity;
   if (!exactIdentity) {
     const file = join(repoInfo(root).commonDir, 'pullboard', 'board.sqlite');
