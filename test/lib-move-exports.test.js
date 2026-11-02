@@ -20,7 +20,7 @@ const surfaces = [
   ['src/cli-hook-work.js', 'apps/lib/src/shell/cli-hook-work.js', ['HOOK_WORKER'], legacy2, provider2],
   ['src/relay-checkpoint-worker.js', 'apps/lib/src/shell/relay-checkpoint-worker.js', [], legacy3, provider3],
   ['src/relay-sender-main.js', 'apps/lib/src/shell/relay-sender-main.js', ['SENDER_WORKER', 'launchRelaySender'], legacy4, provider4],
-  ['src/submit-handoff-worker.js', 'apps/lib/src/shell/submit-handoff-worker.js', ['runSubmitHandoffWorker', 'submitHandoffWorkerEntrypoint'], legacy5, provider5]
+  ['src/submit-handoff-worker.js', 'apps/lib/src/shell/submit-handoff-worker.js', ['runSubmitHandoffWorker', 'submitHandoffWorkerEntrypoint', 'superviseSubmitHandoffWorker'], legacy5, provider5]
 ];
 
 test('lib move preserves every legacy export name and exact provider binding [C7,CD60]', () => {
