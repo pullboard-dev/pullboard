@@ -1,8 +1,16 @@
 import { shellWord } from './runner-remote-tooling.js';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  statSync,
+} from 'node:fs';
 import { join } from 'node:path';
-import { git, gitPath } from './git.js';
+import {
+  git,
+  gitPath,
+} from './git.js';
 import { Refused } from '../packages/kernel/index.js';
 import { privateCheckEnvelope } from './runner-private-mode.js';
 import { trunkRef } from '../packages/sandbox/index.js';
