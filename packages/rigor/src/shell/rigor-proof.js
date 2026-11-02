@@ -1,6 +1,6 @@
 /** Commit-bound, observed proof for a noticed failure cause; uncertain execution proves no rule [D1,D3,S1]. */
 import { runnerExecutionServices } from '../../../../src/runners.js';
-import { landingExecutionServices } from '../../../../src/landing-shards.js';
+import { landingExecutionServices } from '../../../landing/index.js';
 import {
   spawn,
   spawnSync,

@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { closeBoard, openBoard } from '../src/native-board.js';
-import { workingDirectories } from '../src/landing-worktree-prune.js';
+import { workingDirectories } from '../packages/landing/index.js';
 import { agentHandoff } from '../packages/state/index.js';
 import { startFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
