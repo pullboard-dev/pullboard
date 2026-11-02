@@ -1,7 +1,7 @@
 /** Native releases and their daily work-free report retain the recorded reasons [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addItem, claim, closeBoard, events, register, release, releaseReasonProblem } from '../packages/store/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { proofStats, workFreeReleases } from '../packages/stats/index.js';
