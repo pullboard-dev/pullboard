@@ -34,7 +34,7 @@
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-008.json",
-          "sha256": "2ad67f8f19cfea4f9a067d046a7e7809428e35d365f2d84d90a85bed287788c7"
+          "sha256": "b9850d386977e89b768c8064e62517112398c754e3db4de755966ea1dd2a2636"
         },
         {
           "file": "bin/cell-lint-baselines/boundaries-009.json",
@@ -104,7 +104,7 @@
         },
         {
           "file": "bin/cell-lint-baselines/legacySource-002.json",
-          "sha256": "6b6d6117e25946eeea2bf88172dfc7f194e99a6605b3549029cc64e17ca0478f"
+          "sha256": "058d58a14ac1dcf2cf3af8b7ec2913d00b8cbb6a63ebe2db9a24564dfd80b58e"
         },
         {
           "file": "bin/cell-lint-baselines/legacySource-003.json",
