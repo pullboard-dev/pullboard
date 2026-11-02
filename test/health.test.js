@@ -453,6 +453,108 @@ test('health names a rank inversion [N2,B13]', async (t) => {
   assert.ok(inversion.next.includes(`claim #${earlier}`), `the next step claims it: ${inversion.next}`);
 });
 
+test('rank inversion uses original claim order across reorder, renewal and new work [N2,B13]', (t) => {
+  const box = repo(t);
+  const { board, at } = boardAt(box);
+  try {
+    at(HOUR / 12);
+    store.register(board, { lane: 'coordinator', path: box.root });
+    const builder = store.register(board, { lane: 'core', path: join(box.dir, 'rank-history') });
+    const first = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'First ranked work' });
+    const second = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Second ranked work' });
+    store.addMilestone(board, { agentId: 'coordinator', name: 'rank-history', items: [first, second] });
+    store.orderMilestoneItems(board, 'rank-history', { agentId: 'coordinator', items: [first, second] });
+    store.claim(board, first, { agentId: builder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    store.orderMilestoneItems(board, 'rank-history', { agentId: 'coordinator', items: [second, first] });
+    /** Inspect actual read-only health output without changing a worktree. */
+    const inversion = id => boardHealth(box.file, { dispatchHealth, root: box.root, now: new Date(NOW) }).stuck
+      .find(entry => entry.key === `RANK_INVERSION:item:${id}`);
+    assert.equal(inversion(first), undefined, 'reordering after a valid claim must not tell its builder to drop it');
+    store.claim(board, first, { agentId: builder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    assert.equal(inversion(first), undefined, 'renewal preserves the original claim ordering');
+    store.release(board, first, builder);
+    store.claim(board, first, { agentId: builder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    assert.equal(inversion(first)?.detail.ahead, second, 'a new claim after the reorder still names the free item already above it');
+    store.release(board, first, builder);
+    store.claim(board, second, { agentId: builder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    const added = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Newly inserted priority' });
+    store.editMilestoneItems(board, 'rank-history', { agentId: 'coordinator', add: [added] });
+    store.orderMilestoneItems(board, 'rank-history', { agentId: 'coordinator', items: [added, second, first] });
+    assert.equal(inversion(second), undefined, 'work added and ranked after a claim cannot accuse that original claim');
+  } finally { store.closeBoard(board); }
+});
+
+test('rank inversion does not treat subsequently freed work as free at claim time [N2,B13]', (t) => {
+  const box = repo(t);
+  const { board, at } = boardAt(box);
+  try {
+    at(HOUR / 12);
+    store.register(board, { lane: 'coordinator', path: box.root });
+    const firstBuilder = store.register(board, { lane: 'core', path: join(box.dir, 'rank-first') });
+    const secondBuilder = store.register(board, { lane: 'core', path: join(box.dir, 'rank-second') });
+    const first = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Earlier occupied work' });
+    const second = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Later available work' });
+    store.claim(board, first, { agentId: firstBuilder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    store.claim(board, second, { agentId: secondBuilder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    store.release(board, first, firstBuilder);
+    const report = boardHealth(box.file, { dispatchHealth, root: box.root, now: new Date(NOW) });
+    assert.ok(!report.stuck.some(entry => entry.key === `RANK_INVERSION:item:${second}`),
+      'the higher item was occupied when the second builder selected its work');
+  } finally { store.closeBoard(board); }
+});
+
+test('unrelated milestone changes preserve an existing rank inversion [N2,B13]', (t) => {
+  const box = repo(t);
+  const { board, at } = boardAt(box);
+  try {
+    at(HOUR / 12);
+    store.register(board, { lane: 'coordinator', path: box.root });
+    const builder = store.register(board, { lane: 'core', path: join(box.dir, 'review-rank') });
+    const first = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Already higher priority' });
+    const second = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Lower priority claimed' });
+    const unrelated = store.addItem(board, { by: 'coordinator', lane: 'docs', title: 'Unrelated document' });
+    store.addMilestone(board, { agentId: 'coordinator', name: 'review-main', items: [first, second] });
+    store.orderMilestoneItems(board, 'review-main', { agentId: 'coordinator', items: [first, second] });
+    store.addMilestone(board, { agentId: 'coordinator', name: 'review-other', items: [] });
+    store.claim(board, second, { agentId: builder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    /** Read the same actual health projection before and after an unrelated roadmap edit. */
+    const inversion = () => boardHealth(box.file, { dispatchHealth, root: box.root, now: new Date(NOW) }).stuck
+      .find(entry => entry.key === `RANK_INVERSION:item:${second}`);
+    assert.equal(inversion()?.detail.ahead, first, 'the lower-priority claim begins as a real inversion');
+    store.editMilestoneItems(board, 'review-other', { agentId: 'coordinator', add: [unrelated] });
+    assert.equal(inversion()?.detail.ahead, first,
+      'editing a different milestone cannot erase an unchanged claim-time inversion');
+    store.editMilestone(board, 'review-other', { agentId: 'coordinator', note: 'Unrelated note changed' });
+    assert.equal(inversion()?.detail.ahead, first,
+      'a note edit on a different milestone cannot erase the same proven inversion');
+  } finally { store.closeBoard(board); }
+});
+
+test('rejected higher work is free before a lower claim [N2,B13]', (t) => {
+  const box = repo(t);
+  const { board, at } = boardAt(box);
+  try {
+    at(HOUR);
+    store.register(board, { lane: 'coordinator', path: box.root });
+    const firstBuilder = store.register(board, { lane: 'core', path: join(box.dir, 'review-first') });
+    const builder = store.register(board, { lane: 'core', path: join(box.dir, 'review-second') });
+    const reviewer = store.register(board, { lane: 'review', path: join(box.dir, 'review-verifier') });
+    const first = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Higher rejected work' });
+    const second = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Lower fresh work' });
+    const commit = box.git(['rev-parse', 'HEAD']);
+    store.claim(board, first, { agentId: firstBuilder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    submitFixture(board, first, { agentId: firstBuilder, commit, tree: 'fixture-tree' });
+    store.verify(board, first, { agentId: reviewer, decision: 'REJECT', reason: 'TEST_FAILURE',
+      note: 'Fixture review returns higher work to open', head: commit, digest: 'digest:Higher rejected work', policy: 'any' });
+    assert.equal(store.getItem(board, first).item_status, 'open', 'the reject really frees the higher item');
+    at(HOUR / 12);
+    store.claim(board, second, { agentId: builder, lane: 'core', leaseMs: 2 * HOUR, freeze });
+    const inversion = boardHealth(box.file, { dispatchHealth, root: box.root, now: new Date(NOW) }).stuck
+      .find(entry => entry.key === `RANK_INVERSION:item:${second}`);
+    assert.equal(inversion?.detail.ahead, first, 'higher work was already open and ranked when lower work was claimed');
+  } finally { store.closeBoard(board); }
+});
+
 /** A real board permits a parent and child claim; advice must preserve the claim it does not release. */
 test('health models only its named release when a child claim keeps the preferred file occupied [N2,B13]', (t) => {
   const box = repo(t);
