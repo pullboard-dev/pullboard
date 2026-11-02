@@ -6,6 +6,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { REVIEW_REQUEST_ENGINE } from '../src/review-request-engine.js';
+import { moveArgs } from '../packages/person/index.js';
 
 const criterion = 'The page renders its title. The page renders its footer.';
 const clause = 'The page renders its title.';
@@ -48,4 +49,10 @@ test('a send-back may quote its frozen check [V6,R2,H16]', t => {
     note: 'The frozen check failed.', clause: 'true', head: 'a'.repeat(40),
     digest: 'request-bar', policy: 'any' });
   assert.equal(result.clause, 'true');
+});
+
+test('review request arguments preserve the literal bar quote [V6,A2,H16]', () => {
+  const args = moveArgs({ verb: 'shout', args: { to: 'web-1', text: 'Please repair #1 title.', kind: 'request', clause } });
+  assert.ok(args.includes('--kind=request'));
+  assert.ok(args.includes(`--clause=${clause}`));
 });
