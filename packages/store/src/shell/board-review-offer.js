@@ -17,13 +17,15 @@ export function reviewOffer(board, who) {
       return who.mandatoryOnly ? null : capacityReviewOffer(board, who, nextFor, { reviewQueue, reviewHolder, listItems, overdueReview });
     }
     const skip = new Set(who.skipIds ?? []);
+    const reviewOrder = new Map();
     for (const item of listItems(board)) {
       if (item.item_status !== 'submitted') continue;
       const submit = board.db.prepare("SELECT event_id,event_at FROM event WHERE item_id=? AND event_kind='submit' ORDER BY event_id DESC LIMIT 1").get(item.item_id);
       const reserved = submit && board.db.prepare("SELECT 1 FROM event WHERE item_id=? AND event_kind='reserve' AND event_id>? LIMIT 1").get(item.item_id, submit.event_id);
       if (!submit || reserved || !(board.clock.now().getTime() - Date.parse(submit.event_at) > 15 * 60_000)) skip.add(item.item_id);
+      else reviewOrder.set(item.item_id, { at: Date.parse(submit.event_at), sequence: submit.event_id });
     }
-    const picked = nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip] });
+    const picked = nextFor(board, { ...who, verify: true, priority: [], skipIds: [...skip], reviewOrder });
     if (picked.item) return { item: picked.item, queue: reviewQueue(board), mandatory: true, urgent: 'first-review', starveMinutes: 15 };
   }
   if (who.mandatoryOnly) return null;

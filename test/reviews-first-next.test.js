@@ -15,9 +15,10 @@ function setting(box, key, value) {
 
 test('native next reserves the oldest eligible first review before any new build, including explicit build intent [B26,V4]', async t => {
   const box = await fixture(t);
-  const old = box.add('Oldest first review'); box.submit(old);
+  const newer = box.add('Created first but submitted later');
+  const old = box.add('Created later but oldest waiting submission'); box.submit(old);
   box.advance(60_000);
-  const newer = box.add('Newer first review'); box.submit(newer);
+  box.submit(newer);
   const build = box.add('Otherwise new build', { brief: 'Files: web/independent.js\nTest: independent work stays open.' });
   setting(box, 'reviewsFirst', true);
   box.advance(16 * 60_000);
