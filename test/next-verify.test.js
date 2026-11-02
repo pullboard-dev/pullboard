@@ -196,7 +196,7 @@ test('[V15,C7] idle review cycles open no writer and a newly eligible review res
   runFixtureGit(['worktree', 'add', '-q', '--detach', peer, 'HEAD'], { cwd: box.root, encoding: 'utf8' });
   store.register(box.board, { lane: 'review', path: peer, family: 'Fixture Independent Vendor' });
   await Promise.all([poll(box.reviewer), poll(peer)]);
-  const reservations = store.events(box.board).filter(event => event.event_kind === 'reserve' && event.event_item_id === id);
+  const reservations = store.events(box.board).filter(event => event.event_kind === 'reserve' && event.item_id === id);
   assert.equal(reservations.length, 1, 'atomic reselection lets exactly one competing reviewer reserve');
   assert.ok(store.getItem(box.board, id).item_review_by);
 });
