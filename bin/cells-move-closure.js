@@ -71,7 +71,7 @@ function literalClosure(root, pending, { importsIn, commonJsIn, files }, label, 
       reached.add(file);
       const source = sourceAt(root, file, allowed);
       bytes += Buffer.byteLength(source);
-      if (reached.size > 4096 || bytes > 1_048_576) throw new Error(`${label} closure exceeds source bounds`);
+      if (reached.size > 4096 || bytes > 1_048_576) throw new Error(`${label} closure exceeds source bounds (4096 files or 1 MiB)`);
       return source;
     });
     if (commonJsIn(sources).some(Boolean)) throw new Error(`opaque ${label} loader`);
