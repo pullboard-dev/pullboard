@@ -30,10 +30,10 @@ import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance
 import { recordFlakeObservation, openBoard, draftSpecRow } from '../src/native-board.js';
 import { recordNextIdle } from '../src/board.js';
 import { addMilestone, editMilestoneItems } from '../packages/store/index.js';
-import { proposeSentinel } from '../src/sentinels.js';
-import { decideSentinel } from '../src/sentinels.js';
-import { beginSentinelRun } from '../src/sentinels.js';
-import { finishSentinelRun } from '../src/sentinels.js';
+import { proposeSentinel } from '../packages/sentinels/index.js';
+import { decideSentinel } from '../packages/sentinels/index.js';
+import { beginSentinelRun } from '../packages/sentinels/index.js';
+import { finishSentinelRun } from '../packages/sentinels/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { declarationDocBlocks } from '../src/generated-doc-declarations.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
