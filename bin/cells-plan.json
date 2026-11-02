@@ -1318,6 +1318,10 @@
     {
       "path": "relay/browser-adapter.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/queue-fairness-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
