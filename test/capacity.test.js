@@ -1,5 +1,5 @@
 import { createE2eHelpers } from './e2e-helpers.js';
-import { withFixtureBoard } from './e2e-helpers.js';
+import { openBoardForRead } from '../src/native-board.js';
 /** Exact collision-model numbers from committed Git paths and a private SQLite event journal [R1,R2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -104,8 +104,12 @@ test('native capacity text and JSON expose the selected read-only window while r
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
-  let before;
-  withFixtureBoard(box, board => { before = store.events(board); });
+  /** Inspect the private journal through a real read-only board connection. */
+  function journal() {
+    const board = openBoardForRead(join(box.repo, '.git/pullboard/board.sqlite'));
+    try { return store.events(board); } finally { store.closeBoard(board); }
+  }
+  const before = journal();
   const json = box.run(box.repo, 'capacity', '--window', '4h', '--json');
   assert.equal(json.code, 0, json.out + json.err);
   const report = JSON.parse(json.out).report;
@@ -116,5 +120,5 @@ test('native capacity text and JSON expose the selected read-only window while r
   assert.equal(text.code, 0, text.out + text.err);
   assert.match(text.out, /carrying capacity.*0 landings/u);
   assert.match(text.out, /held-out file conflicts/u);
-  withFixtureBoard(box, board => { assert.deepEqual(store.events(board), before); });
+  assert.deepEqual(journal(), before);
 });
