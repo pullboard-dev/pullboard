@@ -9,6 +9,7 @@ import {
   logEvent,
 } from "./board.js";
 import { ENGINE_VERSION } from "../../../state/index.js";
+import { SUBMIT_PROOF_REUSE_ENGINE } from '../../../../src/submit-proof-reuse-engine.js';
 import { PROOF_RUN_ENGINE } from "../../../../src/proof-run-engine.js";
 import { Refused } from "../../../kernel/index.js";
 import * as seats from "../../../../src/seats.js";
@@ -56,6 +57,9 @@ function proofReceiptFields(board, request, run) {
   } else if (exitFailures) receipt.failures = run.failures;
   if (Object.hasOwn(run.proof, 'submitPhase')) { receipt.submitPhase = run.proof.submitPhase; receipt.command = run.command; }
   if (Object.hasOwn(run.proof, 'submitAdmission')) receipt.submitAdmission = run.proof.submitAdmission;
+  if ((board.executionEngineVersion ?? ENGINE_VERSION) >= SUBMIT_PROOF_REUSE_ENGINE && run.proof.submitReuse === true) {
+    receipt.submitReuse = true; receipt.submitReusePlan = run.proof.submitReusePlan; receipt.main = run.main; receipt.command = run.command; receipt.green = run.green;
+  }
   if (existing) {
     const { eventId, ...fields } = existing;
     // Later registration cannot retroactively upgrade an originally unknown parent.
