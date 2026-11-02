@@ -948,6 +948,15 @@ catalogCase('[A1,H11] sync shares a board through a real Git remote without an a
   assert.match(await source.git(remote, 'rev-parse', result.ref), /^[0-9a-f]{40,64}$/u);
 });
 
+catalogCase('[A1,B26] slice creates a frozen child of a claimed item through real CLI JSON', async () => {
+  const source = await project();
+  const parent = (await json(source, source.repo, 'add', ['coordinator', 'Slice parent', '--criterion', 'Every slice inherits this bar.', '--check', 'true'], 'add')).item;
+  await json(source, source.repo, 'check', ['accept', String(parent.item_id)], 'accept');
+  await json(source, source.repo, 'claim', [String(parent.item_id)]);
+  const { item } = await uncataloguedRootJSON(source, source.repo, 'slice', [String(parent.item_id), 'Slice part', '--files', 'app/part.js', '--check', 'true']);
+  assert.deepEqual([item.item_parent_id, item.item_criterion], [parent.item_id, 'Every slice inherits this bar.'], 'the slice inherits its parent and frozen criterion');
+});
+
 catalogCase('[A1,C7] additive roots expose a real report and refuse missing native audit evidence', () =>
   exerciseAdditiveRoots({ project, uncataloguedRootJSON, withCatalogChild, coveredRoots }));
 
