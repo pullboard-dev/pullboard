@@ -46,7 +46,7 @@ import { agentSessionDigest } from '../../packages/person/index.js';
 import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { itemReviewPolicy } from '../../packages/verify/index.js';
-import { twoTierReviews } from '../../packages/verify/index.js';
+import { reviewPacketReadNote, twoTierReviews } from '../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../packages/items/index.js';
 import { outsideVerdict } from '../../packages/items/index.js';
@@ -374,7 +374,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,

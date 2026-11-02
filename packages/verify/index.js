@@ -44,3 +44,4 @@ export { compareVerification, comparisonCommand, renderVerificationComparison, r
 
 export { launchComparisonWorker } from './src/shell/comparison-worker.js';
 export { submitReusePlanDigest } from './src/core/submit-reuse-plan.js';
+export { recordReviewPacket, reviewPacketLines, reviewPacketReadNote, showReviewPacket } from './src/shell/review-packet.js';

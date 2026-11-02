@@ -76,7 +76,7 @@ export const workHelp = `Work
                                         create one child in another lane; repeat the same parent, lane and key to find it
                                         --brief "<brief>"; --route strong|mid|light; only the coordinator sets --check "<command>"
   pullboard show <id> [--history]       an item, the criterion frozen at claim, its verdicts: the latest in full,
-                                        earlier ones as one line; --history prints every note in full
+                                        earlier ones as one line; --history prints every note in full; --review prints the review packet
   pullboard fact <id> <kind> <text> [--answers <bar-check-fact-id>] [--supersedes <fact-id>] [--ref path:lines@full-sha] [--implies <ids>]
                                         append item notes (question, answer, plan, risk), evidence or authorised judgements
                                         a bar-answer uses --answers to name the bar-check fact it reviewed
@@ -113,7 +113,7 @@ export const workHelp = `Work
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
-  pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result\n  pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
+  pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result\n  pullboard verify <id> accept [--no-next] [--read <clauses>] --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]
                                         two rejects of the same frozen clause hold the item for a sharper bar
                                         submit, release and verdict take native next work; --no-next leaves the seat empty
