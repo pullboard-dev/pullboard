@@ -1,6 +1,7 @@
 /** Synthetic native board moves test classification and guard composition; they are not gate receipts [V4,B26,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 import * as store from '../src/board.js';
 import { fixtureBoard } from './board-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';
@@ -304,6 +305,14 @@ test('verify move retains Strict for each protected destination and excludes unr
   }
 });
 
+
+test('runners move preserves strict tier for every previously strict body [V4,B26,H16]', () => {
+  const paths = JSON.parse(readFileSync(new URL('../bin/cells-plan/path-map/runners.json', import.meta.url), 'utf8'));
+  for (const [oldPath, movedPath] of Object.entries(paths)) {
+    if (gateJudgmentPath(oldPath)) assert.equal(gateJudgmentPath(movedPath), true, movedPath);
+  }
+  assert.equal(gateJudgmentPath('packages/runners/tests/unrelated.test.js'), false);
+});
 
 test('outbox move keeps the format guard strict without broadening test paths [V4,B26,H16]', () => {
   assert.equal(gateJudgmentPath('test/relay-outbox-format.test.js'), true);

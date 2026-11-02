@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/runner-tooling-snapshot.js src/runner-module-parser.js src/runner-module-parser-worker.js src/runners.js */
+/** @pullboard-test-loads packages/runners/src/shell/runner-tooling-snapshot.js packages/runners/src/shell/runner-module-parser.js packages/runners/src/shell/runner-module-parser-worker.js src/runners.js */
 /** Private shipped-source fixtures; these tests do not claim execution on a physical runner [C7,P3]. */
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -9,19 +9,19 @@ import { renameSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { gzipSync } from 'node:zlib';
-import { runnerPackage } from '../src/runner-package.js';
-import { createRunnerModuleParser } from '../src/runner-module-parser.js';
+import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
+import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
 import * as moduleImports from '../src/module-imports.js';
-import { runtimeUrls } from '../src/runner-runtime-urls.js';
-import { captureRunnerTooling, currentRunnerTooling } from '../src/runner-tooling-snapshot.js';
-import { installRunnerPackage } from '../src/runner-package-install.js';
+import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js';
+import { captureRunnerTooling, currentRunnerTooling } from '../packages/runners/src/shell/runner-tooling-snapshot.js';
+import { installRunnerPackage } from '../packages/runners/src/shell/runner-package-install.js';
 import { runFixtureChild } from './fixture-child.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
-import { copyPackageFiles, packageFiles, toolSourcePath } from '../src/package-files.js';
+import { copyPackageFiles, packageFiles, toolSourcePath } from '../packages/runners/src/shell/package-files.js';
 
 /** Create isolated package bytes and remove only this test's owned temporary directory. */
 function fixture(t, files = ['src', 'packages/*/src']) {
@@ -83,10 +83,10 @@ test('a loaded controller refuses changed private compiler bytes before an optio
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  const snapshot = await import(pathToFileURL(join(installed, 'src/runner-tooling-snapshot.js')).href);
+  const snapshot = await import(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-tooling-snapshot.js')).href);
   const loaded = snapshot.captureRunnerTooling(installed);
-  for (const file of ['src/runner-module-parser.js', 'src/runner-module-parser-worker.js']) {
-    const path = join(installed, file);
+  for (const file of ['packages/runners/src/shell/runner-module-parser.js', 'packages/runners/src/shell/runner-module-parser-worker.js']) {
+    const path = toolSourcePath(installed, file);
     const original = readFileSync(path);
     try {
       writeFileSync(path, Buffer.concat([original, Buffer.from('\n// changed after actual installed module load\n')]));
@@ -101,9 +101,9 @@ test('a private compiler startup failure refuses instead of supplying an empty c
   const f = fixture(t);
   const installed = join(f.directory, 'installed');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  writeFileSync(join(installed, 'src/runner-module-parser-worker.js'), 'this is not valid module syntax {\n');
+  writeFileSync(join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js'), 'this is not valid module syntax {\n');
   const script = `import assert from 'node:assert/strict';
-const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'src/runner-module-parser.js')).href)});
+const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-module-parser.js')).href)});
 const parser=createRunnerModuleParser();
 try { assert.throws(()=>parser.parse([\"import './required.js';\"]),/private compiler did not return a valid bounded reply/u);
 assert.throws(()=>parser.parse([]),/private compiler did not return a valid bounded reply/u); }
@@ -120,7 +120,7 @@ test('a private compiler cannot replace a requested import with a forged empty r
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'forged-reply-prepared');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  writeFileSync(join(installed, 'src/runner-module-parser-worker.js'), `import {existsSync,writeFileSync,renameSync} from 'node:fs';
+  writeFileSync(join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js'), `import {existsSync,writeFileSync,renameSync} from 'node:fs';
 import {join} from 'node:path';
 const directory=process.argv[2];
 /** Publish an actual bounded but wrongly bound protocol reply in this private fixture. */
@@ -135,7 +135,7 @@ function reply() {
 // Budget: await only this private request so the adversarial reply exercises the real file protocol.
 const timer=setInterval(reply,2);reply();\n`);
   const script = `import assert from 'node:assert/strict';
-const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'src/runner-module-parser.js')).href)});
+const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-module-parser.js')).href)});
 const parser=createRunnerModuleParser();
 try { assert.throws(()=>parser.parse([\"import './required.js';\"]),/private compiler did not return a valid bounded reply/u); }
 finally { parser.close(); }`;
@@ -149,7 +149,7 @@ test('a compiler swap restored before its reply cannot erase a real import [C7,P
   const installed = join(f.directory, 'installed');
   const marker = join(f.directory, 'swapped-compiler-executed');
   copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  const worker = join(installed, 'src/runner-module-parser-worker.js');
+  const worker = join(installed, 'packages/runners/src/shell/runner-module-parser-worker.js');
   const original = readFileSync(worker, 'utf8');
   const forged = `import {existsSync,readFileSync,writeFileSync,renameSync} from 'node:fs';
 import {join} from 'node:path';
@@ -176,7 +176,7 @@ childProcess.spawn=function(command,args,options){
   if(args?.includes('--experimental-vm-modules')){swaps++;writeFileSync(${JSON.stringify(worker)},${JSON.stringify(forged)});}
   return Reflect.apply(actualSpawn,this,arguments);
 };syncBuiltinESMExports();
-const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'src/runner-module-parser.js')).href)});
+const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-module-parser.js')).href)});
 const parser=createRunnerModuleParser();
 try {
   try { assert.deepEqual(parser.parse(["import './required.js';"]),[{compiles:true,imports:['./required.js']}]); }
@@ -549,7 +549,7 @@ test('runner closure retains the 4096 file cap independently of byte accounting 
 test('private compiler missing duplicate and spurious hints retain atomic request authority [C7,P3]',async t=>{
   const f=fixture(t);
   const protocol=join(f.directory,'protocol');mkdirSync(protocol);
-  const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../src/runner-module-parser-worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
+  const worker=spawn(process.execPath,['--experimental-vm-modules','--disable-warning=ExperimentalWarning',resolve(import.meta.dirname,'../packages/runners/src/shell/runner-module-parser-worker.js'),protocol,String(process.pid)],{stdio:['ignore','ignore','pipe','ipc']});
   let stderr='';worker.stderr.on('data',part=>{stderr+=part;});
   const closed=new Promise(resolve=>worker.once('close',(code,signal)=>resolve({code,signal})));
   t.after(async()=>{if(worker.exitCode===null&&worker.signalCode===null)worker.kill('SIGKILL');await closed;});
@@ -587,7 +587,7 @@ test('private compiler drains atomic requests when watcher notifications are los
   const protocol = join(f.directory, 'lost-notification-protocol');
   mkdirSync(protocol);
   const wrapper = join(f.directory, 'lost-notification-worker.mjs');
-  const entry = resolve(import.meta.dirname, '../src/runner-module-parser-worker.js');
+  const entry = resolve(import.meta.dirname, '../packages/runners/src/shell/runner-module-parser-worker.js');
   writeFileSync(wrapper, `import fs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 const actualWatch = fs.watch;

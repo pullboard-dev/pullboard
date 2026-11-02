@@ -42,7 +42,7 @@ import { fixtureBoard } from './board-fixture.js';
 import { openBoardStore } from '../src/board-store.js';
 import { recordRowDraft } from '../packages/spec/index.js';
 import { setPersonSigning } from '../packages/person/index.js';
-import { recordGateRun } from '../src/quarantine.js';
+import { recordGateRun } from '../packages/flakes/index.js';
 import { advanceItemSource } from '../packages/sandbox/index.js';
 
 test('native spec operations retain their public identity and explicit draft providers fail before mutation [C7,S1,D1]', t => {
