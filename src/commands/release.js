@@ -5,6 +5,7 @@ import { pinClaimHandoff } from '../../packages/health/index.js';
 import { staleReleaseNote } from '../board-stale-state-policy.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { releaseReasonProblem } from '../release-reasons.js';
+import { cleanItemFolders } from '../item-folder.js';
 /** The pullboard release command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
@@ -73,6 +74,7 @@ export async function run(io, args) {
   const problem = store.reviewReleaseNoteProblem(board, ...args);
   if (problem) throw problem;
   const review = await ordered(ctx, board, 'release', args);
+  cleanItemFolders(ctx, board, me, store.listItems);
   if (!review && ctx.config.worktreeMaintenance?.enabled === true) {
     const { cleanupMaintenanceLifecycle } = await import('../worktree-maintenance-command.js');
     await cleanupMaintenanceLifecycle(ctx, me.id, { path: ctx.info.root, item: idArg(first), agent: me.id });
