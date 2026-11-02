@@ -102,12 +102,16 @@ export function landingFlakeRatchet(board, { readQuarantines = flakeQuarantines,
   }
   const quarantines = readQuarantines(board);
   const latest = new Map(quarantines.map(row => [testKey(row.file, row.name), row]));
+  const ledger = readLedger(board);
+  const repaired = new Map(ledger.filter(row => row.status === 'fixed' && row.item != null).map(row => [testKey(row.file, row.name),
+    board.db.prepare("SELECT MAX(event_id) AS id FROM event WHERE event_kind='merged' AND item_id=?").get(row.item).id]));
   const pairs = [...pairedFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 }),
     ...legacyFlakeObservations(runs, { afterEvent: previous?.eventId ?? 0 })].filter(row => {
     const quarantine = latest.get(testKey(row.file, row.name));
-    return quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId);
+    return !(repaired.get(testKey(row.file, row.name)) > row.lastEventId)
+      && (quarantine?.status !== 'lifted' || !(quarantine.since >= row.lastEventId));
   });
-  const observations = [...readLedger(board), ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
+  const observations = [...ledger, ...pairs].sort((a, b) => (a.lastEventId ?? 0) - (b.lastEventId ?? 0));
   const result = flakeRatchet({ previous, eventId, observations, quarantines });
   const after = stamp();
   if (after.version !== before.version || after.changes !== before.changes) throw new Refused('BOARD_BUSY', 'the board changed while capturing the flake ratchet; retry from its current state');

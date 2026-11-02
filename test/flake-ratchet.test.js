@@ -118,6 +118,23 @@ test('native ratchet refuses a concurrently changed board [C7,T12]', async t => 
   assert.throws(() => landingFlakeRatchet({ db }, readers), { code: 'BOARD_BUSY' });
 });
 
+/** A landed repair clears older paired evidence, but never a later recurrence. */
+test('paired evidence respects the repair landing boundary [C7,T12]', t => {
+  const db = new DatabaseSync(':memory:');
+  t.after(() => db.close());
+  db.exec('CREATE TABLE event (event_id INTEGER PRIMARY KEY, event_kind TEXT, item_id INTEGER, event_detail TEXT)');
+  const insert = (id, kind, item = null) => db.prepare('INSERT INTO event VALUES (?, ?, ?, ?)').run(id, kind, item, '{}');
+  insert(1, 'gate-run'); insert(2, 'gate-run'); insert(3, 'merged', 7); insert(4, 'gate-run');
+  const outcome = passed => [{ file: 'test/a.test.js', name: 'case', passed, skipped: false }];
+  const red = { id: 'red', eventId: 1, tree: 'tree', version: 1, kind: 'landing', testOutcomes: outcome(false) };
+  const green = { ...red, id: 'green', eventId: 2, testOutcomes: outcome(true) };
+  const readers = { readQuarantines: () => [], readLedger: () => [{ ...observed('test/a.test.js', 2), item: 7, status: 'fixed' }],
+    readRuns: () => [red, green] };
+  assert.equal(landingFlakeRatchet({ db }, readers).allowed, true);
+  readers.readRuns = () => [red, green, { ...red, id: 'later', eventId: 4 }];
+  assert.deepEqual(landingFlakeRatchet({ db }, readers).unprotected, [{ file: 'test/a.test.js', name: 'case' }]);
+});
+
 /** Legacy proof is coordinator-owned and requires the same exact tree and distinct runs. */
 test('legacy coordinator gate pairs retain their named flake evidence [C7,T12]', () => {
   const red = { id: 'red', by: 'coordinator', eventId: 4, tree: 'tree', kind: 'landing', green: false,
