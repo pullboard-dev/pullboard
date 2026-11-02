@@ -79,3 +79,39 @@ async function nativeProofScenario(t, moveMain) {
 
 test('native submit proof is reused while main stays pinned [C7,H16]', { timeout: 180000 }, t => nativeProofScenario(t, false));
 test('native verification reruns when main moved [C7,H16]', { timeout: 180000 }, t => nativeProofScenario(t, true));
+
+test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]', async t => {
+  const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const store = await import('../src/board.js');
+  const { openBoard } = await import('../src/native-board.js');
+  const { boardReceiptStore, receiptBody } = await import('../packages/gate/index.js');
+  const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
+  const { SUBMIT_PROOF_REUSE_ENGINE } = await import('../src/submit-proof-reuse-engine.js');
+  const dir = mkdtempSync(join(tmpdir(), 'pullboard-proof-reuse-'));
+  const board = openBoard(join(dir, 'board.sqlite')), replica = openBoard(':memory:');
+  t.after(() => { store.closeBoard(board); store.closeBoard(replica); rmSync(dir, { recursive: true, force: true }); });
+  let id;
+  for (const target of [board, replica]) {
+    store.register(target, { lane: 'coordinator', path: '/reuse-coordinator' });
+    store.register(target, { lane: 'web', path: '/reuse-builder' });
+    id = store.addItem(target, { by: 'coordinator', lane: 'web', title: 'Proof reuse boundary' });
+  }
+  const receipt = { version: 2, id: '00000000-0000-4000-8000-00000000cafe', kind: 'submit', head: commit, tree, main,
+    command: sha('node check.js'), green: true, failures: [], load: null, at: '2026-10-23T00:00:00.000Z',
+    proof: { item: id, frozenDigest: null, seat: 'web-1', environment: null, runner: null, exitCode: 0,
+      counts: { passed: null, failed: null, skipped: null }, durationMs: 1, sourceClean: true,
+      submitPhase: 'criterion', submitAdmission: admission, submitReuse: true, submitReusePlan: 'e'.repeat(64) } };
+  assert.throws(() => store.recordProofRun(board, { agentId: 'web-1', itemId: id, receipt }), { code: 'PROOF_RUN_UNBOUND' });
+  mkdirSync(boardReceiptStore(board)); writeFileSync(join(boardReceiptStore(board), `${receipt.id}.json`), receiptBody(receipt));
+  const args = [{ agentId: 'web-1', itemId: id, receiptId: receipt.id }];
+  const move = prepareEngineMove(board, 'recordProofRun', args, { actor: 'web-1' });
+  assert.throws(() => applyEngineMove(replica, { ...move, engine: SUBMIT_PROOF_REUSE_ENGINE - 1 }, { sequence: 1, at: receipt.at }), /engine/u);
+  const recorded = store.recordProofRun(board, args[0]);
+  assert.equal(applyEngineMove(replica, move, { sequence: 1, at: receipt.at }).error, undefined);
+  const [{ eventId, ...replayed }] = store.proofReceipts(replica, id);
+  assert.deepEqual(replayed, recorded);
+  assert.equal(replayed.submitReusePlan, 'e'.repeat(64));
+  assert.equal(replayed.main, main);
+});
