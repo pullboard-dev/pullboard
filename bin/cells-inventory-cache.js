@@ -1,5 +1,6 @@
 /** Cache immutable base inventories and incrementally inspect a candidate [C7,D3]. */
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { lstatSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
@@ -37,11 +38,14 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
     const file = key ? join(directory, `${receiptDigest({ commit, checker })}.json.gz`) : null;
     let inventory;
     if (file && eligible()) try {
-      const data = JSON.parse(gunzipSync(readFileSync(file), { maxOutputLength: 256 * 1024 * 1024 }).toString('utf8'));
-      if (data.version !== 1 || data.commit !== commit || data.checker !== checker || data.digest !== receiptDigest(data.payload)) throw new Error('invalid inventory cache');
-      inventory = { files: new Map(data.payload.files.map(([path, bytes]) => [path, Buffer.from(bytes, 'base64')])),
-        edges: new Map(data.payload.edges), unknown: data.payload.unknown };
-      if (!Array.isArray(data.payload.files) || !Array.isArray(data.payload.edges) || !Array.isArray(inventory.unknown)) throw new Error('invalid inventory cache');
+      const data = deserialize(gunzipSync(readFileSync(file), { maxOutputLength: 256 * 1024 * 1024 }));
+      if (data.version !== 2 || data.commit !== commit || data.checker !== checker || !Buffer.isBuffer(data.payload)
+        || data.digest !== createHash('sha256').update(data.payload).digest('hex')) throw new Error('invalid inventory cache');
+      inventory = deserialize(data.payload);
+      if (!(inventory.files instanceof Map) || !(inventory.edges instanceof Map) || !Array.isArray(inventory.unknown)
+        || [...inventory.files].some(([path, bytes]) => typeof path !== 'string' || !Buffer.isBuffer(bytes))
+        || [...inventory.edges].some(([path, rows]) => typeof path !== 'string' || !Array.isArray(rows))
+        || inventory.unknown.some(row => !row || typeof row.file !== 'string')) throw new Error('invalid inventory cache');
       if (!eligible()) throw new Error('preload changed');
       unchanged(checkout, commit);
       onMode('base-cache');
@@ -51,12 +55,12 @@ export function inventoryCache(root, key, parsers, onMode = () => {}, eligible =
       inventory = cellInventory(checkout, parsers);
       unchanged(checkout, commit);
       if (file && eligible()) try {
-        const payload = { files: [...inventory.files].map(([path, bytes]) => [path, bytes.toString('base64')]), edges: [...inventory.edges], unknown: inventory.unknown };
-        const data = { version: 1, commit, checker, digest: receiptDigest(payload), payload };
+        const payload = serialize(inventory);
+        const data = { version: 2, commit, checker, digest: createHash('sha256').update(payload).digest('hex'), payload };
         if (!eligible()) throw new Error('preload changed');
         mkdirSync(directory, { recursive: true, mode: 0o700 });
         const temporary = join(directory, `.${randomUUID()}.tmp`);
-        writeFileSync(temporary, gzipSync(Buffer.from(JSON.stringify(data))), { mode: 0o600, flag: 'wx' });
+        writeFileSync(temporary, gzipSync(serialize(data)), { mode: 0o600, flag: 'wx' });
         renameSync(temporary, file);
       } catch { /* A cache write failure only costs a later census. */ }
     }

@@ -19,10 +19,16 @@ import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js
 import { OUTSIDE_INTAKE_ENGINE } from "../../../../../src/outside-intake-engine.js";
 import { outsideSource } from "../../../../items/core.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
+import { ITEM_FOLDER_ENGINE } from "../../../../../src/item-folder-engine.js";
 import { REWORK_SAME_FAMILY_ENGINE } from "../../../../../src/rework-same-family-engine.js";
 
 /** Preserve this operation's historical first-matching engine conditions [H16]. */
 function existingEngine(args, board, at) {
+  // Renewals issued by the gate retain modern multi-claim semantics even without the CLI flag.
+  if (board && args[1]?.agentId && board.db.prepare(`SELECT 1 FROM item i JOIN event e ON e.item_id=i.item_id
+    WHERE i.item_owner=? AND i.item_status='claimed' AND e.event_kind='claim' AND e.event_by=i.item_owner
+      AND e.event_id=(SELECT MAX(last.event_id) FROM event last WHERE last.item_id=i.item_id AND last.event_kind='claim')
+      AND json_valid(e.event_detail) AND json_extract(e.event_detail,'$.itemFolder')=1 LIMIT 1`).get(args[1].agentId)) return ITEM_FOLDER_ENGINE;
   if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
   if (board && barReadySetting(board).enabled) return BAR_READY_ENGINE;
   if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
@@ -39,7 +45,7 @@ function minimumEngine(args, board, at) {
   const item = board && validId ? board.db.prepare('SELECT item_after FROM item WHERE item_id=?').get(id) : null;
   const foreign = item && hasForeignDependencies(item);
   const withdrawn = item && localDependencyIds(item).some(dependency => board.db.prepare('SELECT item_status FROM item WHERE item_id=?').get(dependency)?.item_status === 'withdrawn');
-  return Math.max(withdrawn ? BLOCKED_DEPENDENCIES_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
+  return Math.max(withdrawn ? BLOCKED_DEPENDENCIES_ENGINE : 1, args[1]?.returnRejectedWork === true ? REJECTION_RETURN_ENGINE : 1, args[1]?.submitOutcome != null ? PIPELINE_CAUSE_ENGINE : 1, args[1]?.exitRules?.enabled === true ? EXIT_RULES_ENGINE : 1, checkTimingEngine(board, args[0]), args[1]?.reworkSameFamily === true ? REWORK_SAME_FAMILY_ENGINE : 1, args[1]?.itemFolder === true ? ITEM_FOLDER_ENGINE : 1, args[1]?.adoptCorrection === true ? AUTOMATIC_DISPATCH_ENGINE : 1, args[1]?.submitAdmission != null ? SUBMIT_ADMISSION_ENGINE : 1,
     foreign ? CROSS_REPO_DEPENDENCY_ENGINE : 1, outside ? OUTSIDE_INTAKE_ENGINE : 1, capacity ? LINE_CAPACITY_ENGINE : 1, existingEngine(args, board, at));
 }
 
