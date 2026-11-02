@@ -6,6 +6,7 @@ import { landingPorts } from './landing-ports-fixture.js';
 import './item-patch-journey.test.js';
 /** Exercise landing against real private Git worktrees, hooks, SQLite and bare remotes [B3,R3]. */
 import assert from 'node:assert/strict';
+import { loadConfig } from '../packages/config/index.js';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { after, test } from 'node:test';
@@ -1313,7 +1314,7 @@ test('landing records replay identically with native sender and engine boundarie
 test('an item with no spec rows lands under a header its commit hook accepts [B3,R3]', () => {
   const box = landProject();
   // A docs-lane item with no spec rows: its commit cites none, and its merge header names its lane's type.
-  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  const config = loadConfig(box.repo);
   config.lanes.docs = { owns: ['docs/'], specs: [] };
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify(config, null, 2));
   box.git(box.repo, 'add', 'pullboard.json');

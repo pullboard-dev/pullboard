@@ -261,13 +261,6 @@
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
     },
     {
-      "file": "test/land.test.js",
-      "line": 1327,
-      "expression": "join(box.repo, 'pullboard.json')",
-      "kind": "config",
-      "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
-    },
-    {
       "file": "test/landing-docs-refresh.test.js",
       "line": 60,
       "expression": "join(box.repo, 'pullboard.json')",
