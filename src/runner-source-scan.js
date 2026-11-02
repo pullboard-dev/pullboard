@@ -11,6 +11,7 @@ import { mkdtempSync } from 'node:fs';
 import { openSync } from 'node:fs';
 import { readSync } from 'node:fs';
 import { rmSync } from 'node:fs';
+import { fstatSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -21,6 +22,18 @@ export function sourceGit(root, args, options = {}) {
   const result = spawnSync('git', ['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
     cwd: root, env: cleanGitEnvironment(), encoding: 'utf8', maxBuffer: MAX_BLOB_BYTES, ...options,
   });
+  if (result.error?.code === 'ENOBUFS') {
+    const directory = mkdtempSync(join(tmpdir(), 'pullboard-source-count-'));
+    const fd = openSync(join(directory, 'stdout'), 'w+', 0o600);
+    try {
+      const counted = spawnSync('git', ['--no-replace-objects', '-c', 'core.hooksPath=/dev/null', ...args], {
+        cwd: root, env: cleanGitEnvironment(), input: options.input, stdio: ['pipe', fd, 'pipe'], maxBuffer: MAX_BLOB_BYTES,
+      });
+      if (counted.status !== 0) throw new Refused('RUNNER_SOURCE', 'cannot read the exact committed source; check Git and retry the run');
+      const bytes = fstatSync(fd).size;
+      throw new Refused('RUNNER_SOURCE', `committed source scan produced ${bytes} bytes, exceeding its ${options.maxBuffer ?? MAX_BLOB_BYTES}-byte bound`);
+    } finally { closeSync(fd); rmSync(directory, { recursive: true, force: true }); }
+  }
   if (result.status !== 0) throw new Refused('RUNNER_SOURCE', 'cannot read the exact committed source; check Git and retry the run');
   return result.stdout;
 }
