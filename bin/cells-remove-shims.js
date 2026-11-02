@@ -518,7 +518,10 @@ export function writeShimHandoff(root, result, cell, { lane = 'core', directory,
   writeFileSync(join(out, 'fact.txt'), handoff.fact + '\n');
   writeFileSync(join(out, 'cut-item.txt'), `Title: ${handoff.title}\nCriterion: ${handoff.criterion}\n--after ${item ?? '<removal item id>'}\n${command}\n`);
   if (fileCut) {
-    for (const args of [['fact', String(item), 'note', handoff.fact], add]) {
+    const short = `Please file after #${item}: ${handoff.title}. `;
+    const complete = `${short}${handoff.criterion}`;
+    const request = Array.from(complete).length <= 400 ? complete : `${short}Full criterion and every importer are in the kept-shim fact on #${item}.`;
+    for (const args of [['fact', String(item), 'note', handoff.fact], ['shout', 'coordinator', '--kind', 'question', request]]) {
       const run = spawnSync('pullboard', args, { cwd: root, env, encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 });
       if (run.status !== 0) throw new Refused('CELLS_PLAN_FILE', `pullboard ${args[0]} failed: ${run.stderr?.trim() || run.error?.message || run.status}; handoff retained in ${out}`);
     }

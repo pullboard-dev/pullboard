@@ -448,7 +448,7 @@ test('kept shims write complete fact and cut drafts; an empty run writes nothing
   assert.equal(existsSync(empty), false);
 });
 
-test('file-cut records the kept fact and dependent item on a real fixture board [C7,D3]', t => {
+test('file-cut records the kept fact and shouts its cut draft on a real fixture board [C7,D3]', t => {
   const helpers = createE2eHelpers();
   t.after(helpers.cleanup);
   const box = helpers.project('true');
@@ -462,10 +462,9 @@ test('file-cut records the kept fact and dependent item on a real fixture board 
   const shown = box.run(box.repo, 'show', String(id), '--json');
   assert.equal(shown.code, 0, shown.err);
   assert.match(shown.out, /packages\/one\.js/u);
-  const list = box.run(box.repo, 'list', 'web', '--all', '--json');
-  assert.equal(list.code, 0, list.err);
-  const cut = JSON.parse(list.out).items.find(item => item.item_title === handoff.title);
-  assert.ok(cut);
-  assert.match(cut.item_criterion, /packages\/two\.js/u);
-  assert.match(String(cut.item_after), new RegExp(`(?:^|,)${id}(?:,|$)`, 'u'));
+  const inbox = box.run(box.repo, 'inbox', '--json');
+  assert.equal(inbox.code, 0, inbox.err);
+  assert.match(inbox.out, /Cells cut: remove remaining example shim importers/u);
+  assert.match(inbox.out, /packages\/two\.js/u);
+  assert.match(inbox.out, new RegExp(`after #${id}`, 'u'));
 });
