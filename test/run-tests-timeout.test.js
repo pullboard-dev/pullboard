@@ -134,7 +134,7 @@ test('idle target [C7,V10]', async () => {
 test('a busy file reaches its per-file wall limit and its sibling still passes [C7,V10]', t => {
   const result = runFixture(t, `import { test } from 'node:test';
 test('busy target [C7,V10]', () => { while (true) {} });
-`, '60000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '60000', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000',
+`, '60000', { PULLBOARD_TEST_IDLE_TIMEOUT_MS: '250', PULLBOARD_TEST_FILE_WALL_TIMEOUT_MS: '60000',
     PULLBOARD_TEST_FILE_LIMITS: JSON.stringify({ 'stalled.test.js': 1500 }) });
   const output = outputOf(result);
   assert.equal(result.status, 1, output);
