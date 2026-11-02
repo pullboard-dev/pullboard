@@ -1,7 +1,7 @@
 import { submitHandoffEventContract } from './generated-doc-handoff-fixture.js';
 /** Real queued submissions retain immutable source and native gate authority [V4,H16,E18]. */
 import assert from 'node:assert/strict';
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { runFixtureChild } from './fixture-child.js';
 import { join, resolve } from 'node:path';
@@ -35,7 +35,9 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
   const isolated = helpers.sandbox();
   // Isolate admission before init and commit hooks, as well as the nested queued worker.
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
-  const box = helpers.project('true', isolated);
+  let box;
+  try { box = helpers.project('true', isolated); }
+  catch (error) { helpers.cleanup(); throw error; }
   const armed = join(box.dir, 'armed');
   const release = join(box.dir, 'release');
   const releases = [release];
@@ -173,6 +175,11 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
   const source = resolve(import.meta.dirname, '..');
   const tools = join(box.dir, 'builder-tools');
   cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const actualTemp = join(box.dir, 'actual-temp');
+  const aliasedTemp = join(box.dir, 'aliased-temp');
+  mkdirSync(actualTemp);
+  symlinkSync(actualTemp, aliasedTemp, 'dir');
+  box.env.TMPDIR = aliasedTemp;
   const result = execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(JSON.parse(result).queued, true);
@@ -180,6 +187,7 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
   const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
   const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
   assert.notEqual(request.tools, tools, 'the real worker owns a separate tool snapshot');
+  assert.notEqual(request.tools, realpathSync(request.tools), 'the real worker is launched through a symlinked snapshot path');
   assert.equal(existsSync(join(request.tools, '.git')), false, 'tooling never borrows project Git metadata');
   const workerPath = join(request.tools, 'src/submit-handoff-worker.js');
   const originalWorker = readFileSync(workerPath, 'utf8');
@@ -198,6 +206,68 @@ test('queued gate retains the tool build when the builder changes it [V4,H16,E18
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.notEqual(refused.status, 0, 'an unbound request is refused before any board move');
   assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'a request field cannot authorize deletion of the running installation');
+});
+
+test('a worker exiting without a result records its real exit and returns the queued item [V4,H16,E18]', async t => {
+  for (const exit of [{ code: 0 }, { code: 7 }, { signal: 'SIGTERM' }]) {
+    const box = fixture(t);
+    const source = resolve(import.meta.dirname, '..');
+    const tools = join(box.dir, 'exiting-tools');
+    cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+    const worker = join(tools, 'src/submit-handoff-worker.js');
+    const stop = exit.signal ? `process.kill(process.pid, '${exit.signal}')` : `process.exit(${exit.code})`;
+    writeFileSync(worker, `if (process.argv[3] === '--execute') { const fs = await import('node:fs'); fs.writeFileSync('untracked-worker-output', 'partial'); fs.writeFileSync('web/snapshot.txt', 'partial'); ${stop}; }\n` + readFileSync(worker, 'utf8'));
+    const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+      { cwd: box.web, env: box.env, encoding: 'utf8' }));
+    assert.equal(queued.queued, true);
+    await waitJob(box, 'red');
+    const ended = state(box, box.id);
+    assert.equal(ended.item.item_status, 'open', 'a dead worker never strands a held claim');
+    assert.equal(ended.job.error.code, 'SUBMIT_HANDOFF_EXIT');
+    const why = exit.signal ? `code none and signal ${exit.signal}` : `code ${exit.code}`;
+    assert.match(ended.job.error.message, new RegExp(`exited with ${why}.*without a terminal result`, 'u'));
+    assert.equal(existsSync(box.started), false, 'no candidate gate was manufactured');
+    const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', ended.job.id);
+    const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+    const failure = JSON.parse(readFileSync(join(directory, 'refusal.json'), 'utf8'));
+    assert.deepEqual(failure.error, ended.job.error, 'the private refusal and native result retain the same cause');
+    await box.helpers.waitFor(() => !existsSync(request.tools), 'failed worker snapshot cleanup', 120000); // budget: existing owned-child cleanup ceiling, not a performance assertion.
+  }
+});
+
+test('supervisor termination reaches its live child and retains a native refusal before cleanup [V4,H16,E18]', async t => {
+  const box = fixture(t);
+  const source = resolve(import.meta.dirname, '..');
+  const tools = join(box.dir, 'interrupted-tools');
+  const ready = join(box.dir, 'live-child.json');
+  cpSync(source, tools, { recursive: true, filter: path => !path.startsWith(join(source, '.git')) });
+  const worker = join(tools, 'src/submit-handoff-worker.js');
+  writeFileSync(worker, `if (process.argv[3] === '--execute') {
+    const fs = await import('node:fs');
+    fs.writeFileSync('untracked-worker-output', 'partial');
+    fs.writeFileSync(${JSON.stringify(ready)}, JSON.stringify({pid:process.pid, supervisor:process.ppid}));
+    setInterval(() => {}, 1000);
+    await new Promise(() => {});
+  }\n` + readFileSync(worker, 'utf8'));
+  const queued = JSON.parse(execFileSync(process.execPath, [join(tools, 'bin/pullboard.js'), 'submit', String(box.id), '--no-next', '--json'],
+    { cwd: box.web, env: box.env, encoding: 'utf8' }));
+  assert.equal(queued.queued, true);
+  await box.helpers.waitFor(() => existsSync(ready), 'actual supervised child readiness', 120000); // budget: owned child readiness ceiling, not a timing assertion.
+  const child = JSON.parse(readFileSync(ready, 'utf8'));
+  const job = state(box, box.id).job;
+  const directory = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id);
+  const owner = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8'));
+  assert.equal(child.supervisor, owner.pid, 'signal only the actual launcher-owned supervisor');
+  process.kill(owner.pid, 'SIGTERM');
+  await waitJob(box, 'red');
+  assert.equal(state(box, box.id).item.item_status, 'open');
+  assert.equal(state(box, box.id).job.error.code, 'SUBMIT_HANDOFF_EXIT');
+  assert.match(state(box, box.id).job.error.message, /signal SIGTERM/u);
+  assert.throws(() => process.kill(child.pid, 0), { code: 'ESRCH' }, 'the owned child has actually closed');
+  const request = JSON.parse(readFileSync(join(directory, 'request.json'), 'utf8'));
+  await box.helpers.waitFor(() => !existsSync(request.tools) && !existsSync(join(directory, 'source')), // budget: owned child cleanup ceiling, not a timing assertion.
+    'interrupted dirty source and tool snapshot cleanup', 120000);
+  assert.equal(existsSync(join(tools, 'bin/pullboard.js')), true, 'cleanup preserves the builder installation');
 });
 
 /** Make a real later builder commit without replacing the queued source. */
