@@ -814,6 +814,9 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   assert.equal((await json(source, source.repo, 'check', ['accept', String(reopenItem.item_id)], 'accept')).check, 'true', 'the person accepts the check as it reads');
   await json(source, source.repo, 'claim', [String(reopenItem.item_id)]);
   await json(source, source.repo, 'submit', [String(reopenItem.item_id), '--no-next']);
+  const comparison = await json(source, source.repo, 'verify', [String(reopenItem.item_id), '--compare'], 'compare');
+  assert.equal(comparison.status, 'complete');
+  assert.deepEqual([comparison.files, comparison.head.id, comparison.base.id], [[], null, null], 'an empty selection records no executions');
   await json(source, source.repo, 'reopen', [String(reopenItem.item_id), '--note', 'exercise the versioned reopen result']);
   // A cause repeated on two items becomes a draft row once its check is proved red, then green (#714).
   for (const title of ['Rigor catalog one', 'Rigor catalog two']) {
