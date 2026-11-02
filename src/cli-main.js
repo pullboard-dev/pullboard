@@ -63,6 +63,7 @@ const OPTIONS = {
   'no-hooks': { type: 'boolean' },
   note: { type: 'string' },
   infra: { type: 'string' },
+  precheck: { type: 'boolean' },
   'note-file': { type: 'string' },
   by: { type: 'string' },
   author: { type: 'string' },

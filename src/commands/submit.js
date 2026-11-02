@@ -264,11 +264,11 @@ function reportSubmitStage(ctx, name, start) {
  * @param {number} id
  * @returns {Promise<number>}
  */
-export async function submitHere(ctx, id, infra) {
+export async function submitHere(ctx, id, infra, { precheck = false } = {}) {
   const { root } = ctx.info;
   const handoffEnabled = ctx.config.submit.handoff === true && !isSubmitHandoffWorker(ctx);
   const recovered = relayRecovered(root, {}, ctx.io);
-  if (recovered?.operation === 'submit' && recovered.args[0] === id) {
+  if (!precheck && recovered?.operation === 'submit' && recovered.args[0] === id) {
     const preflight = withBoard(ctx, (board) => {
       const me = whoAmI(ctx, board);
       if (recovered.args[1]?.agentId !== me.id) return null;
@@ -298,6 +298,7 @@ export async function submitHere(ctx, id, infra) {
     if (readiness) throw readiness;
     const correction = store.pendingRefreezeProblem(board, id);
     if (correction) {
+      if (precheck) throw correction;
       await claimOrdered(ctx, board, [id, { agentId: me.id, lane: me.lane, leaseMs: ctx.config.leaseMs,
         freeze: claimFreezer(ctx, board), head: headCommit(root) }]);
       return store.getItem(board, id);
@@ -306,7 +307,7 @@ export async function submitHere(ctx, id, infra) {
   });
   ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };
   ctx.submitAttempt.stage = 'fast';
-  const barWarning = await withBoard(ctx, async board => {
+  const barWarning = precheck ? null : await withBoard(ctx, async board => {
     const warning = barCheckWarning(board, held);
     if (!warning) return null;
     await ordered(ctx, board, 'appendFact', [id, { agentId: held.item_owner, kind: 'note', text: `bar.check warning: ${warning}` }]);
@@ -381,13 +382,20 @@ export async function submitHere(ctx, id, infra) {
   const preflightSize = preflightLines === null ? undefined : { base: acceptedMain.commit, head: commit, lines: preflightLines, method: SUBMISSION_SIZE_METHOD };
   withBoard(ctx, (board) => submitPreflight(board, id, { agentId: me.id, commit, tree: headTree(root) ?? '', submissionSize: preflightSize }, { atomic: store.atomic, submit: store.submit }, { refuse: (observed, item) => refuseUnreviewable(observed, item, { policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family }, store) }));
   const companion = await withBoard(ctx, async board => {
-    if (store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
+    if (!precheck && store.itemPatches(board, id).some(patch => patch.commit !== commit || patch.source?.commit !== commit)) {
       await ordered(ctx, board, 'followItemPatches', [id, { agentId: me.id, commit }]);
     }
     return prepareItemPatchSubmit(root, board, held, commit);
   });
   withBoard(ctx, board => requireSubmitHandoffExecution(ctx, board, companion?.commit ?? commit, companion?.tree ?? headTree(root)));
   requirePlannedSource(root, trunk.commit, companion?.commit ?? commit);
+  // Stacked work cannot become reviewable by running cells, so refuse it before the census.
+  withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
+  if (precheck) {
+    ctx.io.result?.({ precheck: true, item: id, commit });
+    ctx.io.say(`submit precheck passed for #${id} at ${commit}; cells and gate have not run`);
+    return 0;
+  }
   let cells;
   const cellsStart = performance.now();
   try { cells = await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
@@ -401,7 +409,6 @@ export async function submitHere(ctx, id, infra) {
   const compositionStart = performance.now();
   try { if (requireComposition) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
-  withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
@@ -674,9 +681,9 @@ export async function run(io, { first, values }) {
     if (event) submissionResult.event = { ...event };
   };
   let code;
-  try { code = await submitHere(ctx, id, values.infra); }
+  try { code = await submitHere(ctx, id, values.infra, { precheck: values.precheck === true }); }
   catch (error) {
-    if (error instanceof Refused && ctx.submitAttempt) {
+    if (!values.precheck && error instanceof Refused && ctx.submitAttempt) {
       try {
         await withBoard(ctx, async board => {
           const item = store.getItem(board, id), attempt = ctx.submitAttempt;
