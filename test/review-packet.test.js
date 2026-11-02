@@ -8,7 +8,16 @@ import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 const helpers = createE2eHelpers();
-after(helpers.cleanup);
+// A green submit starts the detached verification comparison, which can still be writing the board directory.
+after(async () => {
+  for (let attempt = 0; ; attempt++) {
+    try { helpers.cleanup(); return; }
+    catch (error) {
+      if (error.code !== 'ENOTEMPTY' || attempt >= 150) throw error;
+      await new Promise(done => setTimeout(done, 200));
+    }
+  }
+});
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
 function ok(box, cwd, ...args) {
