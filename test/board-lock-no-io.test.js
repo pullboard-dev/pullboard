@@ -195,12 +195,12 @@ test('opaque atomic callbacks are refused rather than silently certified [C7,CD3
   assert.ok(boardWriteIoProblems(guardSources(source), { pending: {} }).some(row => row.call === 'unresolved atomic callback'));
 });
 
-test('the native write publication exception cannot hide a new process call [C7,CD39]', () => {
+test('the native write publication admits no filesystem or process call [C7,CD39]', () => {
   const source = "import {atomic} from './board-event-log.js'; import {beginBoardWrite} from './board-write-lock.js'; atomic(board, () => beginBoardWrite());";
   const writer = "import {writeFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; export function beginBoardWrite() { writeFileSync('marker', 'owned'); execFileSync('git'); }";
   const problems = boardWriteIoProblems(guardSources(source, [{ file: 'src/board-write-lock.js', source: writer }]), { pending: {} });
   assert.ok(problems.some(row => row.call === 'node:child_process#execFileSync'));
-  assert.ok(!problems.some(row => row.call === 'node:fs#writeFileSync'));
+  assert.ok(problems.some(row => row.call === 'node:fs#writeFileSync'));
 });
 
 test('the named policy witness cannot hide unrelated reads or a child process [C7,CD39]', () => {
