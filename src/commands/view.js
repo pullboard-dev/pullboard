@@ -48,6 +48,7 @@ import {
 } from 'node:path';
 import { cockpitPage } from '../cli/cockpit-renderer.js';
 import { nativeBoardOpeners } from '../cli-context.js';
+import * as nativeBoard from '../native-board.js';
 import { refusalDocument } from '../next-step-words.js';
 import {
   context,
@@ -58,12 +59,12 @@ import {
 
 /** Serve the local page with the CLI authority supplied by its higher-level caller [N26]. */
 export function serveView(options = {}) {
-  return serveProvidedView({ ...options, renderPage: cockpitPage });
+  return serveProvidedView({ refusalDocument, boardOpeners: nativeBoardOpeners({ nativeBoard }), ...options, renderPage: cockpitPage });
 }
 
 /** Export the page with the same command authority and renderer used by the live view [N26]. */
 export function exportView(root, directory, options = {}) {
-  return exportProvidedView(root, directory, { ...options, renderPage: cockpitPage });
+  return exportProvidedView(root, directory, { refusalDocument, boardOpeners: nativeBoardOpeners({ nativeBoard }), ...options, renderPage: cockpitPage });
 }
 
 // The checked exporter owns this capability; the composition preserves its public-export guard.
