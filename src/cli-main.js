@@ -130,6 +130,7 @@ const OPTIONS = {
   'dry-run': { type: 'boolean' },
   update: { type: 'boolean' },
   before: { type: 'string' },
+  overflow: { type: 'string' },
   target: { type: 'string' },
   next: { type: 'string' },
   add: { type: 'string' },
@@ -417,6 +418,7 @@ async function runMain(argv, streams) {
       && !['help', 'version', 'hook', 'init', 'relay', 'tour', 'mcp', 'health', 'watch', 'digest'].includes(command)
       // A private item never makes an otherwise unrelated repo transport on the way in or out.
       && !(command === 'add' && parsed.values.private === true)
+      && !(command === 'verify' && parsed.values.compare)
       // A coordinator declaration on a linked clone must refuse before auto-link or relay sync.
       && !(command === 'join' && parsed.positionals[1] === (await import('../packages/config/index.js')).COORDINATOR);
     needsRepo = !(parsed.values.help || parsed.values.version || command === 'help' || command === 'version');

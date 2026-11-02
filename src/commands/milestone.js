@@ -22,7 +22,19 @@ export async function run(io, { first, second, rest, values }) {
   let name;
   let entry;
   if (values.limit !== undefined && first !== 'edit' || values.swap !== undefined && first !== 'items') throw new Refused('USAGE', 'use milestone edit --limit <n>|none, or milestone items --add <id> --swap <id>');
-  if (first === 'add') {
+  if (first === 'focus') {
+    if (!second || rest.length || (values.overflow !== undefined && !['on', 'off'].includes(values.overflow))) {
+      throw new Refused('USAGE', 'pullboard milestone focus <name|off> [--overflow off|on]');
+    }
+    if (second !== 'off' && !store.milestones(board).some(value => value.name === second)) {
+      throw new Refused('NO_MILESTONE', `no milestone named ${second}`);
+    }
+    const common = { agentId: me.id, reason: 'Set release focus', window: { activeItems: null } };
+    await ordered(ctx, board, 'setLineSetting', [{ ...common, key: 'focusMilestone', value: second === 'off' ? false : { name: second, overflow: values.overflow === 'on' } }]);
+    io.result?.({ focus: second === 'off' ? null : second, overflow: values.overflow === 'on' });
+    io.say(second === 'off' ? 'milestone focus cleared' : `milestone focus: ${second}; overflow ${values.overflow ?? 'off'}`);
+    return 0;
+  } else if (first === 'add') {
     if (!second || rest.length || values.before !== undefined || values.add !== undefined || values.remove !== undefined || values.name !== undefined) {
       throw new Refused('USAGE', 'pullboard milestone add <name> [--note ...] [--items 1,2,3]');
     }

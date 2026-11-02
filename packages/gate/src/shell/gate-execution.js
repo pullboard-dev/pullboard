@@ -1,3 +1,4 @@
+import { auditAdapterEnvironment } from '../../../kernel/index.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
 import { runShellAsync } from './shell-run.js';
 import { gateStages } from './gate-stages.js';
@@ -214,6 +215,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
   const inherited = {
     ...(gateLease?.testTiers ? { NODE_TEST_CONTEXT: undefined } : {}),
     [TIMING_RUN_ID_ENV]: id,
+    ...auditAdapterEnvironment(auditCoverage),
     ...(auditCoverage ? { PULLBOARD_AUDIT_COVERAGE_REPORTER: fileURLToPath(new URL('../core/audit-coverage-reporter.js', import.meta.url)), PULLBOARD_TEST_REUSE: '0' } : {}),
     ...(gateLease && !gateLease.runner ? gateSlotEnvironment(gateLease) : gateSlotHeld ? { [GATE_SLOT_HELD_ENV]: '1' } : {}),
     [LANDING_RUN_ENV]: landing ? '1' : '0',
@@ -259,7 +261,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     && run.executionSourceUnchanged !== false && (!gateLease?.runner || Boolean(executionSource))
     && (!executionSource || sameTimingSource(timingSourceBefore, executionSource))
     ? timingSourceBefore : null;
-  const rawResult = { ...profiledRun, profile, profilePath, logPath,
+  const rawResult = { ...profiledRun, id, profile, profilePath, logPath,
     ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource, { collectionId: collectionId ?? id }) } : {}),
     suiteTiming: suiteTimingFromOutput(run.output, id, run.executionSource
       ? { head: run.executionSource.commit, tree: run.executionSource.tree } : timingSourceForReceipt(root)),

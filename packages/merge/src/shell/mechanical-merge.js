@@ -1,4 +1,6 @@
 /** Shared conservative data-only conflict decisions; candidate generators run only during landing [B3,R3,C7]. */
+import { mergeManifestRows } from '../core/manifest-row-merge.js';
+import { rowManifest } from '../core/manifest-row-merge.js';
 import { generatedDocResolution } from '../core/generated-doc-conflicts.js';
 import { generatedDocCommand } from '../core/generated-doc-conflicts.js';
 import {
@@ -288,13 +290,18 @@ function gitData(root, args, gitDirectory) {
 }
 
 /** Read exactly three regular-file stages with identical modes and valid UTF-8, refusing deletes and symlinks. */
-function stageResolution(root, path, records, gitDirectory, version = MECHANICAL_VERSION) {
+function stageResolution(root, path, records, gitDirectory, version = MECHANICAL_VERSION, orderedData = false) {
   if (records.length !== 3 || records.some((record, index) => record.stage !== index + 1 || record.mode !== records[0].mode)
     || !['100644', '100755'].includes(records[0].mode)) return null;
   const sources = records.map(record => gitData(root, ['cat-file', 'blob', record.hash], gitDirectory));
   if (sources.some(result => result.status !== 0 || !Buffer.isBuffer(result.stdout)
     || !Buffer.from(result.stdout.toString('utf8'), 'utf8').equals(result.stdout))) return null;
-  return sourceResolution(path, ...sources.map(result => result.stdout.toString('utf8')), version);
+  const text = sources.map(result => result.stdout.toString('utf8'));
+  if (orderedData && rowManifest(path)) {
+    const merged = mergeManifestRows(path, ...text);
+    return merged.conflicts ? { kind: 'row-conflict', conflicts: merged.conflicts } : { kind: 'json', ...merged };
+  }
+  return sourceResolution(path, ...text, version);
 }
 
 /** Parse Git's stage records using NUL framing, retaining unusual path bytes and original conflict order. */
@@ -322,16 +329,19 @@ export function mechanicalConflictFiles(root, trunk, head, { gitDirectory, versi
 }
 
 /** Resolve a landing index using the identical decisions; generators execute only in this about-to-be-gated tree. */
-export function resolveMechanicalIndex(root, files) {
+export function resolveMechanicalIndex(root, files, { orderedData = false } = {}) {
   const result = gitData(root, ['ls-files', '--stage', '-z', '--', ...files]);
   const entries = stages(result.stdout?.toString('utf8').split('\0') ?? []);
-  const resolutions = [], remaining = [];
+  const resolutions = [], remaining = [], rowConflicts = [];
   for (const path of files) {
-    const resolution = result.status === 0 ? stageResolution(root, path, entries.get(path) ?? []) : null;
-    if (resolution) resolutions.push({ path, ...resolution });
+    const resolution = result.status === 0 ? stageResolution(root, path, entries.get(path) ?? [], undefined, MECHANICAL_VERSION, orderedData) : null;
+    if (resolution?.kind === 'row-conflict') {
+      remaining.push(path);
+      rowConflicts.push(`${path}: ${resolution.conflicts.join(', ')}`);
+    } else if (resolution) resolutions.push({ path, ...resolution });
     else remaining.push(path);
   }
-  if (remaining.length) return { files: remaining, entries: [] };
+  if (remaining.length) return { files: remaining, entries: [], ...(rowConflicts.length ? { rowConflicts } : {}) };
   for (const entry of resolutions.filter(entry => entry.source !== undefined)) writeFileSync(join(root, entry.path), entry.source);
   for (const entry of resolutions.filter(entry => entry.kind === 'generated')) {
     const command = GENERATED.get(entry.path) ?? generatedDocCommand(entry.path);

@@ -27,6 +27,7 @@ export function needsPanelModel(calls, project, { compact = false, person = fals
     if (row.kind === 'sentinel-draft') return { kind: 'sentinel', id: row.ref, title: 'Run ' + row.check + ' ' + row.every + ', reporting to ' + row.owner, context: 'Sentinel draft · not watching until you approve', action: 'Approve or decline', fields: [
       ['Command', row.check, true], ['Directory', row.directory, true], ['Schedule', row.every], ['Owner', row.owner], ['Proposed by', row.evidence ? 'An agent · ' + row.evidence.occurrences + ' repeats' : 'An agent, with no repeat cited'], ...evidenceFields(row)], body: '' };
     if (row.kind === 'rigor-draft') return { kind: 'question', id: row.ref, title: row.text, context: (row.unproved ? 'an unproved Rigor proposal' : 'a proved Rigor draft') + (row.evidence ? ', repeated ' + row.evidence.occurrences + ' times' : ''), action: 'Review', fields: [['Next step', row.what], ...evidenceFields(row)], body: row.text };
+    if (row.kind === 'focus-approval-batch') return { kind: 'approval', id: row.ref, title: row.text || 'Approve the rows the focused release rests on', context: 'Focus approval · ' + (row.rows ?? []).length + ' draft rows', action: 'Review', fields: [], body: '', batch: row.rows ?? [] };
     if (row.kind === 'spec-revision') return { kind: 'question', id: row.ref ?? row.id, title: row.reason || 'Review the proposed row revision', context: 'Proposed spec revision · ' + (row.what || 'approve or decline'), action: 'Review', fields: [['Current row', row.source], ['Proposed row', row.replacement]], body: row.reason };
     if (row.kind === 'decision' && compact) {
       const cited = [...String(row.text ?? '').matchAll(/#(\d+)/gu)].map(match => (project.items || []).find(item => String(item.id) === match[1])).find(Boolean);
@@ -68,13 +69,16 @@ export function needsPanelHtml(model, presentation = new Map()) {
         : '<code'+(meta?.title?' title="'+escape(meta.title)+'"':'')+'>' + escape(value) + '</code>';
       return '<dt>' + escape(label) + '</dt><dd data-needs-field="' + escape(label.toLowerCase().replace(/ /g,'-')) + '">' + (code ? codeHtml : escape(value)) + (label==='Approved in Git' ? ' · '+(Number.isFinite(Date.parse(meta?.date))?'<time datetime="'+escape(meta.date)+'" title="'+escape(meta.date)+'">'+escape(shown.approvalDateLabel || 'Date unknown')+'</time>':'Date unknown'):'') + '</dd>';
     };
-    const detailHtml = '<div class="needs-detail">' + (revision ? comparison : (row.body ? '<p>' + (shown.bodyHtml ?? escape(row.body)) + '</p>' : '') + (row.fields.length ? '<dl>' + row.fields.map(fieldHtml).join('') + '</dl>' : ''))
+    /** List each draft row of a focus approval with its kind, text and the items resting on it. */
+    const batchHtml = rows => '<ul class="focus-batch">' + rows.map(entry => '<li data-batch-row="' + escape(entry.id) + '"><b>' + escape(entry.id) + '</b> <span class="focus-kind">' + escape(entry.kind) + '</span><p>' + escape(entry.text) + '</p><small>Items: '
+      + ((entry.items ?? []).map(id => '#' + escape(id)).join(', ') || 'none') + '</small></li>').join('') + '</ul>';
+    const detailHtml = '<div class="needs-detail">' + (row.batch ? batchHtml(row.batch) : '') + (revision ? comparison : (row.body ? '<p>' + (shown.bodyHtml ?? escape(row.body)) + '</p>' : '') + (row.fields.length ? '<dl>' + row.fields.map(fieldHtml).join('') + '</dl>' : ''))
       + (shown.feedbackHtml || '') + (shown.controlsHtml || '') + '</div>';
     return sharedRowHtml({ variant: 'needs', state: row.kind, id: row.id, title: row.title, meta: row.context, chip: row.action,
       iconHtml: ({ question: '?', sentinel: '◉', approval: '✓', draft: '≡' })[row.kind], timeHtml: row.ageAt ? shown.ageHtml || '' : '',
-      className: row.source.kind === 'agent-approved' ? 'agent-approval' : revision ? 'spec-revision' : '', attributes,
+      className: row.source.kind === 'agent-approved' ? 'agent-approval' : row.batch ? 'focus-approval' : revision ? 'spec-revision' : '', attributes,
       detailsAttributes: { 'data-needs-key': row.key, 'data-dashboard-disclosure': 'needs:' + row.key },
-      open: model.expanded.includes(row.key), detailHtml });
+      open: model.expanded.includes(row.key) || Boolean(row.batch), detailHtml });
   };
   const draftCopy = icon('draft') + '<span class="needs-copy"><b>' + model.drafts + ' draft spec rows to approve or drop</b><small>In the Spec tab, one by one or a section at a time</small></span><span class="needs-action">Review</span>';
   const draftRow = model.drafts ? '<li class="needs-call needs-drafts">' + (model.person
