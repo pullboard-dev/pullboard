@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { remoteSubmitCells, submitCellsRemoteCommand } from '../src/submit-cells-remote.js';
 
-test('remote cells loads pinned main tooling and treats candidate tooling as data', () => {
+test('remote cells loads pinned main tooling and treats candidate tooling as data [C7,D3]', () => {
   const root = mkdtempSync(join(tmpdir(), 'cells-remote-test-'));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',
@@ -39,7 +39,7 @@ test('remote cells loads pinned main tooling and treats candidate tooling as dat
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
-test('remote cells rejects altered output and a changed cut authority snapshot', async () => {
+test('remote cells rejects altered output and a changed cut authority snapshot [C7,D3]', async () => {
   const root = mkdtempSync(join(tmpdir(), 'cells-remote-proof-'));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Fixture', GIT_AUTHOR_EMAIL: 'fixture@example.invalid',

@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 import { inventoryCache } from '../bin/cells-inventory-cache.js';
 import { observationCache } from '../bin/cells-inventory-cache.js';
 import { cellInventory } from '../packages/codemap/index.js';
