@@ -602,7 +602,7 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   assert.deepEqual(JSON.parse(accepted.stdout).digest, digest, 'the acceptance binds to the exact check text');
   const claimed = box.run(box.web, ['next', '--build', '--json']);
   assert.equal(claimed.status, 0, `the person's acceptance lifts the hold for next --build: ${claimed.stdout}${claimed.stderr}`);
-  const acceptedClaim = showItem(box, id).item;
+  let acceptedClaim = showItem(box, id).item;
   assert.equal(acceptedClaim.item_owner, 'web-1', 'next --build claimed the accepted item');
 
   /** A native correction is already frozen and retains the claim while the check's hold is evaluated. */
@@ -624,6 +624,8 @@ test('[V2,V4,B26,P6] a check green on main holds the item until the person accep
   const resubmitted = refusal(box.run(box.web, ['submit', id, '--json']), 'submit after a changed check');
   assert.equal(resubmitted.code, 'CRITERION_PROVES_NOTHING', 'a changed check needs a new acceptance: submit is refused');
   assert.ok(resubmitted.message.includes(changed), `the submit refusal names the changed check: ${resubmitted.message}`);
+  // Submit may renew the claim even when the check hold refuses it.
+  acceptedClaim = showItem(box, id).item;
 
   const red = fileCheck('done', 'red-check-marker.txt');
   const corrected = box.run(box.repo, ['edit', id, '--check', red, '--reason', 'the old check already passed on main', '--wait', '--json'], undefined, { env });
