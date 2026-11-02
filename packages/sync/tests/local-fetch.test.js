@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { runFixtureChild } from "../../../test/fixture-child.js";
-import { fetchLocal } from "../src/shell/local-fetch.js";
+import { fetchLocal } from "../index.js";
 
 /** Run one isolated real-socket fault without installing a global handler in the product or parent. */
 function socketChild(mode, home) {
@@ -18,7 +18,7 @@ function socketChild(mode, home) {
     import { Agent, createServer } from 'node:http';
     import { channel } from 'node:diagnostics_channel';
     import { Socket } from 'node:net';
-    import { fetchLocal } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/local-fetch.js')).href)};
+    import { fetchLocal } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../index.js')).href)};
     import { fetchFresh } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../test/http-fixture.js')).href)};
     import { rememberView, runningView } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/view-session.js')).href)};
     const mode = ${JSON.stringify(mode)};

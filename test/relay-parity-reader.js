@@ -8,7 +8,7 @@ import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { openPagedSnapshot } from '../src/relay-page-layout.js';
+import { openPagedSnapshot } from '../packages/pages/index.js';
 import { snapshotState } from '../relay/browser-model.js';
 
 /** Deliberate machine-local differences; all other fields retain complete reader parity. */

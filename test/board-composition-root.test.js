@@ -14,7 +14,7 @@ import { MOVE_REGISTRY } from '../src/move-registry.js';
 import { MOVE_OPERATIONS } from '../src/move-registry.js';
 import { minimumMoveEngine } from '../src/move-registry.js';
 import { declaredMoveActor } from '../src/move-registry.js';
-import { relayPresentation, relaySnapshot, relayPresentationShout } from '../src/relay-presentation.js';
+import { relayPresentation, relaySnapshot, relayPresentationShout } from '../packages/pages/index.js';
 import { verifiedPasskeyRowDecision as presentation_verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import { pendingFit as presentation_pendingFit } from '../packages/blueprints/index.js';
 import { projectFit as presentation_projectFit } from '../packages/blueprints/index.js';
