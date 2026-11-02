@@ -72,7 +72,7 @@ test('every module a served relay script imports is itself served [H5,H18]', asy
     seen.add(path);
     const reply = await get(handler, path);
     assert.equal(reply.status, 200, path);
-    for (const [, specifier] of String(reply.body).matchAll(/\b(?:from|import)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/gu)) {
+    for (const [, specifier] of String(reply.body).matchAll(/^(?:import\b|export\b|\})[^'"\n]*['"](\.{1,2}\/[^'"]+)['"];?\s*$/gmu)) {
       pending.push(new URL(specifier, 'http://relay' + path).pathname);
     }
   }
