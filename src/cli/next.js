@@ -1,4 +1,5 @@
-import { claimWorktrees, claimOverlapLines } from '../../packages/activity/index.js';
+import { claimWorktrees } from '../../packages/activity/index.js';
+import { claimOverlapLines } from '../../packages/activity/index.js';
 import { claimOverlaps } from '../../packages/items/index.js';
 import { rejectionReturnEnabled } from '../../packages/store/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';

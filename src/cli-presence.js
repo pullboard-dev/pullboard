@@ -1,6 +1,7 @@
 import { claimOverlapLines } from '../packages/activity/index.js';
 import { claimOverlaps } from '../packages/items/index.js';
-import { listItems, listAgents } from '../packages/store/index.js';
+import { listItems } from '../packages/store/index.js';
+import { listAgents } from '../packages/store/index.js';
 /** Authenticated machine-local activity only at explicit hooks or successful native writes [B3]. */
 import { context } from './cli-read-context.js';
 import {
