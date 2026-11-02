@@ -152,9 +152,14 @@ function claimPlan(board, id, { agentId, lane, leaseMs, freeze, head = null, rev
       },
       lineCapacity: found => capacity.claimProblem(board, isRenewal(found), { agentId, policy: reviewPolicy, familyPolicy }, { reviewerChecks, reviewReleaseCooldown, reviewHolder }),
       oneLiveClaim: (found) => {
+        // Modern seats may hold up to ten live claims, including children and reworks.
+        if ((itemFolder === true || isRenewal(found)) && (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE) {
+          if (isRenewal(found)) return null;
+          const held = board.db.prepare("SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed' AND item_lease_until > ? AND item_id != ?")
+            .all(agentId, now(board), id).filter(row => !pendingSubmitHandoff(board, itemById(board, row.item_id)));
+          return held.length >= 10 ? new Refused('ONE_CLAIM', 'you already hold ten live claims; submit or release one before claiming another') : null;
+        }
         if (found.item_parent_id !== null || isRework(found) || isRenewal(found) && pendingSubmitHandoff(board, found)) return null;
-        // A modern folder-capable claim is replayed only by the engine that knows this grant.
-        if ((itemFolder === true || isRenewal(found)) && (board.executionEngineVersion ?? ENGINE_VERSION) >= ITEM_FOLDER_ENGINE) return null;
         const other = board.db
           .prepare(
             `SELECT item_id FROM item WHERE item_owner = ? AND item_status = 'claimed'
