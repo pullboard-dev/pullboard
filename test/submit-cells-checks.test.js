@@ -55,6 +55,7 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
 });
 
 import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
+import { touchedCells } from '../bin/cells-submit-checks.js';
 import { withMainCheckout } from '../src/main-red.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
@@ -528,8 +529,7 @@ test('changed immutable source cannot poison the shared cell inventory [C7,D3]',
   assert.equal(modes.at(-1), 'base-full', 'the interrupted census did not publish cache evidence');
 });
 
-test('only direct importing cells join a touched cell, including another file in that cell [C7,D3,CD64]', async () => {
-  const { touchedCells } = await import('../bin/cells-submit-checks.js');
+test('only direct importing cells join a touched cell, including another file in that cell [C7,D3,CD64]', () => {
   const cell = (name, paths) => ({ name, root: `packages/${name}`, frontDoor: `packages/${name}/index.js`, paths });
   const plan = { cells: [cell('a', [['src/a.js', 'packages/a/src/a.js'], ['src/a-other.js', 'packages/a/src/other.js']]),
     cell('b', [['src/b.js', 'packages/b/src/b.js']]), cell('c', [['src/c.js', 'packages/c/src/c.js']])] };
@@ -547,8 +547,7 @@ test('only direct importing cells join a touched cell, including another file in
   assert.deepEqual(touchedCells(['bin/shared.js'], withStay, withStay, [inventory]), ['a', 'b', 'c'], 'unowned shared tool changes fail safely');
 });
 
-test('forwarding chains select every cell whose cut can change [C7,D3,CD64]', async t => {
-  const { touchedCells } = await import('../bin/cells-submit-checks.js');
+test('forwarding chains select every cell whose cut can change [C7,D3,CD64]', t => {
   const box = fixture(t);
   box.put('src/stats.js', "import './board.js'; export const stats = true;\n");
   box.put('src/board.js', "export * from './refused.js';\n");
