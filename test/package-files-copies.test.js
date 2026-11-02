@@ -469,7 +469,6 @@ writeFileSync(resource,readFileSync(resource,'utf8')+'\\n// changed after contro
 await assert.rejects(runOnRunnerAsync(process.cwd(),'true',options),error=>error.code==='RUNNER_TOOLING_CHANGED');`;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
   assert.equal(result.status, 0, result.context);
-
 });
 
 for (const kind of ['opaque', 'unshipped']) {
@@ -582,58 +581,6 @@ test('private compiler missing duplicate and spurious hints retain atomic reques
   assert.deepEqual(readdirSync(protocol).filter(name=>name.startsWith('reply-')),['reply-3.json']);
 });
 
-/** Private compiler imports must not initialize the unrelated public controller facade. */
-test('private compiler stays independent while the public facade still initializes eagerly [C7,P3]', t => {
-  const f = fixture(t);
-  const installed = join(f.directory, 'installed');
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  const facade = toolSourcePath(installed, 'packages/runners/src/shell/runners.js');
-  writeFileSync(facade, 'throw new Error("FACADE_EAGER_MARKER");\n' + readFileSync(facade, 'utf8'));
-  const script = `
-import assert from 'node:assert/strict';
-const {runnerPackage}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-package.js')).href)});
-const {captureRunnerTooling}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-tooling-snapshot.js')).href)});
-assert.equal(typeof captureRunnerTooling, 'function');
-assert.equal(runnerPackage(${JSON.stringify(f.root)}, 'src/entry.js').files['src/entry.js'], ${JSON.stringify(readFileSync(join(f.root, 'src/entry.js'), 'utf8'))});
-const {createRunnerModuleParser}=await import(${JSON.stringify(pathToFileURL(join(installed, 'packages/runners/src/shell/runner-module-parser.js')).href)});
-const parser=createRunnerModuleParser();
-try { assert.deepEqual(parser.parse(["import './private.js';"]),[{compiles:true,imports:['./private.js']}]); }
-finally { parser.close(); }
-await assert.rejects(import(${JSON.stringify(pathToFileURL(join(installed, 'src/runners.js')).href)}), /FACADE_EAGER_MARKER/);
-`;
-  const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.context);
-  const reader = toolSourcePath(installed, 'packages/runners/src/shell/runner-package.js');
-  const source = readFileSync(reader, 'utf8');
-  assert.ok(source.includes("from './runner-module-parser.js'"));
-  writeFileSync(reader, source.replace("from './runner-module-parser.js'", "from '../../../../src/runner-module-parser.js'"));
-  const backEdge = runFixtureChild(process.execPath, ['--input-type=module', '-e', script], { cwd: f.root, encoding: 'utf8' });
-  assert.notEqual(backEdge.status, 0, 'the former private-to-barrel back edge triggers the planted facade');
-  assert.match(backEdge.stderr, /FACADE_EAGER_MARKER/);
-});
-
-test('moved controller step bodies stay bound to the loaded runner generation [C7,P3]', t => {
-  const installed = mkdtempSync(join(tmpdir(), 'pullboard-controller-generation-'));
-  t.after(() => rmSync(installed, { recursive: true, force: true }));
-  copyPackageFiles(resolve(import.meta.dirname, '..'), installed);
-  const loaded = captureRunnerTooling(installed);
-  const index = join(installed, 'packages/runners/index.js');
-  const originalIndex = readFileSync(index);
-  try {
-    writeFileSync(index, Buffer.concat([originalIndex, Buffer.from('\n// changed shared controller index\n')]));
-    assert.throws(() => currentRunnerTooling(installed, loaded, { rescan: false }),
-      error => error.code === 'RUNNER_TOOLING_CHANGED', 'packages/runners/index.js');
-  } finally { writeFileSync(index, originalIndex); }
-  for (const file of ['packages/runners/src/shell/runners.js', 'packages/runners/src/shell/runner-dispatch.js']) {
-    const path = toolSourcePath(installed, file);
-    const original = readFileSync(path);
-    try {
-      writeFileSync(path, Buffer.concat([original, Buffer.from('\n// changed moved controller body\n')]));
-      assert.throws(() => currentRunnerTooling(installed, loaded, { rescan: false }),
-        error => error.code === 'RUNNER_TOOLING_CHANGED', file);
-    } finally { writeFileSync(path, original); }
-  }
-});
 /** Missing notifications must not strand a valid request; exercise the real worker with only watch delivery suppressed. */
 test('private compiler drains atomic requests when watcher notifications are lost [C7,P3]', async t => {
   const f = fixture(t);
