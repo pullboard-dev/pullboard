@@ -799,7 +799,7 @@ catalogCase('[A1] catalog commands keep their real repository exercises', async 
   await json(source, source.repo, 'milestone', ['add', 'Catalog', '--items', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'add');
   await json(source, source.repo, 'milestone', ['items', 'Catalog', '--remove', String(catalog.item_id)], 'items');
   await json(source, source.repo, 'milestone', ['items', 'Catalog', '--add', String(catalog.item_id), '--reason', 'Exercise catalog milestone placement'], 'items');
-  await json(source, source.repo, 'milestone', ['order', 'Catalog', String(catalog.item_id)], 'order');
+  await json(source, source.repo, 'milestone', ['order', 'Catalog', String(catalog.item_id), '--reason', 'Exercise catalog milestone ordering'], 'order');
   await json(source, source.repo, 'milestone', ['pin', 'Catalog', String(catalog.item_id), '--reason', 'Catalog coverage first'], 'pin');
   const sunk = await json(source, source.repo, 'milestone', ['sink', 'Catalog', String(catalog.item_id), '--reason', 'Catalog coverage last'], 'sink');
   assert.deepEqual([sunk.milestone.sunk, sunk.milestone.reasons[String(catalog.item_id)]], [[catalog.item_id], 'Catalog coverage last'], 'a sink records the item and its reason');
