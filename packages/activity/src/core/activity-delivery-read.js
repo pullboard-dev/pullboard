@@ -48,7 +48,8 @@ export function readActivityDelivery(board, agentId, options = {}) {
       }
     }
     const all = classifyActivityDelivery({ agentId,
-      items: board.db.prepare('SELECT * FROM item ORDER BY item_id').all(),
+      // Classification reads items only for this seat's own lapsing claims, so it never lists the whole board (#2421).
+      items: board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner=? ORDER BY item_id").all(agentId),
       activity: { ...activity, entries: [...entries.values()] }, shouts: [...messages.values()],
       at: board.clock.now().toISOString() });
     const pending = new Map(state.pending.map(interrupt => [interrupt.id, interrupt]));
