@@ -1,4 +1,5 @@
 import { CLAIM_PROGRESS_ENGINE } from '../../../state/index.js';
+import { CLAIM_RETURNS_ENGINE } from '../../../state/index.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 import { staleInstant } from '../../../../src/board-stale-state-policy.js';
 import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
@@ -8,6 +9,7 @@ import { observeStaleWork } from './stale-work-observation.js';
 import { releaseBlockingItems } from '../core/stale-state-blockers.js';
 import { CLAIM_STALL_MS } from '../core/stale-state-query.js';
 import { CLAIM_IDLE_RELEASE_MS } from '../core/stale-state-query.js';
+import { CLAIM_RECENT_COMMIT_MS } from '../core/stale-state-query.js';
 import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
@@ -56,6 +58,12 @@ function liveClaims(board, actor) {
   return board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? ORDER BY item_id").all(actor);
 }
 
+/** Whether the holder committed within the last 30 minutes, which the progress rule never overrides (#2251). */
+function recentCommit(row, now) {
+  const at = row.commitAt ? Date.parse(row.commitAt) : NaN;
+  return Number.isFinite(at) && now - at < CLAIM_RECENT_COMMIT_MS;
+}
+
 /**
  * Capture at most 32 claims before an ordinary write: claims idle past their lapsed lease (#1933), and, since #1225, live
  * claims with no real work for 20 minutes (stalled, told once) or 40 (released with a handoff), and claims waiting on
@@ -81,7 +89,8 @@ export function captureLapsedClaims(ctx, board, actor) {
   const byId = new Map(items.map(item => [item.item_id, item]));
   snapshot.claims = snapshot.claims.flatMap(row => {
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
-      && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)) {
+      && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)
+      && !((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && recentCommit(row, at.getTime()))) {
       return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     }
     if (lapsed.has(row.id)) {
