@@ -1,3 +1,4 @@
+import { testTierReport } from '../../packages/gate/index.js';
 import { recordedToolCommits } from '../../packages/git/index.js';
 import { toolRegenerationSource } from '../../packages/git/index.js';
 import { regenerateToolChange } from '../../packages/sandbox/index.js';
@@ -490,7 +491,7 @@ export async function submitHere(ctx, id, infra) {
   const files = `${selected}${gate.files.length > 8 ? `, … ${gate.files.length - 8} more in the full log` : ''}`;
   const invariants = gate.submitInvariants?.length
     ? `submit invariants: ${gate.submitInvariants.slice(0, 8).join(', ')}; ` : '';
-  const scope = gate.deferred
+  const scope = gate.testTiers ? testTierReport(gate.testTiers) : gate.deferred
     ? `${gate.deferFullFallback ? invariants : `affected tests: ${files}; `}full suite deferred to the landing gate`
     : gate.full ? `full gate: ${gate.reason}` : `affected tests: ${files}`;
   const check = gate.check.checked ? `item check ${gate.check.green ? 'green' : 'red'}` : 'no item check';
@@ -631,6 +632,7 @@ export async function submitHere(ctx, id, infra) {
   for (const notice of mainFailures) ctx.io.say(notice.message);
   return reportSubmission(ctx, id, submitted, { mainFailures, green: gate.isGreen && !criterionMatched, report, files: gate.files, full: gate.full, deferred: gate.deferred, deferFullFallback: gate.deferFullFallback, ...(gate.deferredFiles ? { deferredFiles: gate.deferredFiles } : {}), reason: gate.reason, check: { ...gate.check, profile: summaryProfile(gate.check.profile) },
     ...summary, log: gate.log, profile: summaryProfile(gate.profile), profilePath: gate.profilePath, proofLog: gate.proofLog, proofProfilePath: gate.proofProfilePath,
+    ...(gate.testTiers ? { testTiers: gate.testTiers, phasePlan: gate.phasePlan, proofReceiptIds: gate.proofReceiptIds } : {}),
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
     ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),

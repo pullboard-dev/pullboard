@@ -48,7 +48,7 @@ function cellOwners(files) {
 }
 
 /** Prefer explicit cells, then ordinary package folders, then the closest package.json. */
-function ownerOf(file, files, owners) {
+export function ownerOf(file, files, owners) {
   if (owners.has(file)) return owners.get(file);
   const cell = /^(?:packages|apps)\/[^/]+(?=\/)/u.exec(file)?.[0];
   if (cell) return cell;
@@ -113,11 +113,12 @@ function commonEdges(files, edges, unknown) {
 }
 
 /** Compute every test's reached packages and one stable witness for each journey reason. */
-export function generateTestTiers(root) {
+export function generateTestTiers(root, { onInventory, onReach } = {}) {
   return withImportParseCache(() => {
     const inventory = cellInventory(root, { importsIn: tierImports, commonJsIn });
     const { files, edges, unknown } = inventory;
     const owners = cellOwners(files);
+    onInventory?.({ files, owners });
     const modules = [...edges.keys()];
     const common = commonEdges(files, edges, unknown);
     const evidence = new Map();
@@ -148,7 +149,9 @@ export function generateTestTiers(root) {
       }
       if (!packages.size) witnesses.set('no package', 'no package: no implementation import');
       if (packages.size > 1) witnesses.set('cross-package', 'cross-package: imports more than one package');
-      return { file, tier: witnesses.size ? 'T3' : 'T1', packages: [...packages].sort(), reasons: [...witnesses.values()].sort() };
+      const row = { file, tier: witnesses.size ? 'T3' : 'T1', packages: [...packages].sort(), reasons: [...witnesses.values()].sort() };
+      onReach?.({ ...row, reached });
+      return row;
     });
     return { version: 1, files: rows };
   });

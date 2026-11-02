@@ -62,3 +62,5 @@ export { testOutputSummary, retainTestOutput, renderTestSummary, summaryProfile,
 export { cachedAffectedGraph } from "./src/shell/affected-graph-cache.js";
 export { checkCoordinatorRelease, recordCoordinatorRelease, readCoordinatorRelease } from './src/shell/coordinator-release.js';
 export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } from './src/shell/test-tiers.js';
+
+export { requireTestTierAccount, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
