@@ -6,7 +6,7 @@ import {
   idArg,
   ordered,
 } from '../cli.js';
-import { githubSource } from '../intake-github.js';
+import { githubSource } from '../../packages/github/index.js';
 import { requirePersonChannel } from '../../packages/person/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 
