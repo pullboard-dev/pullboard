@@ -16,6 +16,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
 import { createRelayBrowserHandler } from '../relay/browser-page.js';
 import { encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
+import { lex } from '../packages/kernel/index.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { createDeviceKeys, signDeviceEnrollment, unwrapDeviceBoardKey, wrapDeviceBoardKey } from '../packages/keys/index.js';
 import { approvalContext, openApproval, sealApproval, signApprovalIntent, verifyApprovalIntent } from '../packages/link/index.js';
@@ -787,7 +788,10 @@ async function servedRelayClient(t) {
     const source = await servedAsset(handler, path);
     mkdirSync(join(folder, dirname(path)), { recursive: true });
     writeFileSync(join(folder, path), source);
-    for (const match of source.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*)['"](\.{1,2}\/[^'"]+)['"]/gu)) pending.push(new URL(match[1], 'https://relay.example' + path).pathname);
+    const info = lex(source);
+    for (const literal of info.strings.filter(row => /\b(?:from|import)\s*\(?\s*$/u.test(info.code.slice(0, row.start)))) {
+      if (literal.text.startsWith('./') || literal.text.startsWith('../')) pending.push(new URL(literal.text, 'https://relay.example' + path).pathname);
+    }
   }
   t.diagnostic(`served ${written.size} modules`);
   return { written, module: await import(pathToFileURL(join(folder, 'relay', 'client.js')).href) };
