@@ -3,7 +3,7 @@ import * as personIdentity from '../person.js';
 import { identifyCaller } from '../cli-identity.js';
 import { gitSyncLinked } from '../../packages/store/index.js';
 import { environmentAgent } from '../../packages/link/index.js';
-import * as seatCheckout from '../seat-checkout.js';
+import { unjoinedRefusal } from '../../packages/seats/index.js';
 import * as store from '../board.js';
 import { context } from '../cli-context.js';
 import { idArg } from '../cli-context.js';
@@ -51,7 +51,7 @@ export async function bindWriteSession(io, positionals, values) {
     const ownsLandingRoot = command === 'hook' ? (await import('../../packages/landing/index.js')).landingBatchOwnsRoot : () => false;
     agent = withBoard(ctx, (board) => seatAt(board, info.root)?.agent_id
       ?? (command === 'hook' && store.landingBatches(board).some((batch) => ownsLandingRoot(batch, info.root)) ? COORDINATOR : null));
-    if (!agent && command !== 'join') throw withBoard(ctx, (board) => seatCheckout.unjoinedRefusal(info, store.listAgents(board), personIdentity.agentSessionDigest));
+    if (!agent && command !== 'join') throw withBoard(ctx, (board) => unjoinedRefusal(info, store.listAgents(board), personIdentity.agentSessionDigest));
   }
   // Comparison observes immutable Git objects and records facts; it never owns the builder checkout.
   const boardOnly = ['shout', 'fact'].includes(command) ? command : command === 'verify' && values.compare ? 'fact' : null;
