@@ -1,7 +1,7 @@
 import { recordTrainLanding } from '../packages/landing/index.js';
 /** @pullboard-test-input source-tree */
 import { receiptBinds } from '../packages/gate/index.js';
-import { gateRuns } from '../src/quarantine.js';
+import { gateRuns } from '../packages/flakes/index.js';
 import { COORDINATOR } from '../packages/config/index.js';
 import { policyAt } from '../packages/sandbox/index.js';
 import { copyCommittedPackageFiles } from './package-copy-fixture.js';

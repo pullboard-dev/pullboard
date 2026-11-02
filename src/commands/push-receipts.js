@@ -1,7 +1,7 @@
 import { boardReceiptStore } from '../../packages/gate/index.js';
 import { readGateReceipt } from '../../packages/gate/index.js';
 import { receiptBinds } from '../../packages/gate/index.js';
-import { gateRuns } from '../quarantine.js';
+import { gateRuns } from '../../packages/flakes/index.js';
 import { getItem } from '../../packages/store/index.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { policyAt } from '../../packages/sandbox/index.js';
