@@ -50,6 +50,7 @@ function fixture(t, { red = false } = {}) {
   const git = (cwd, ...args) => execFileSync('git', args, { cwd, env, encoding: 'utf8' }).trim();
   const put = (path, body) => { const file = join(controller, path); mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, body); };
   git(controller, 'init', '--quiet', '--initial-branch=main');
+  git(controller, 'config', 'pullboard.trunk', 'refs/heads/main');
   put('package.json', '{"type":"module"}\n');
   put('bin/record.js', RECORD);
   put('packages/items/index.js', `import { record } from '../../bin/record.js';
