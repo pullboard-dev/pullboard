@@ -1,8 +1,7 @@
 /** @pullboard-test-input .github/workflows/gate.yml .github/workflows/release.yml */
 /**
  * CI runs the gate (C7): on every push to main and every pull request, with Node 22.13 and 24, on
- * Linux always and on macOS once the repository is public, since GitHub bills macOS minutes tenfold
- * on private repositories. The workflow is read as text: the suite has no YAML parser and needs none.
+ * Linux; registered Mac runners prove macOS. The workflow is read as text; no YAML parser is needed.
  */
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -90,9 +89,9 @@ function job(name) {
   return next < 0 ? rest : rest.slice(0, next + 1);
 }
 
-test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Linux and, once public, macOS [C7]', () => {
+test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Linux [C7]', () => {
   assert.match(WORKFLOW, /\non:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n/, 'pushes to main and pull requests');
-  for (const [name, system] of [['linux', 'ubuntu-latest'], ['macos', 'macos-latest']]) {
+  for (const [name, system] of [['linux', 'ubuntu-latest']]) {
     const text = job(name);
     assert.ok(text.includes(`\n    runs-on: ${system}\n`), `${name} runs on ${system}`);
     assert.match(text, /\n {8}node: \['22\.13', '24'\]\n/, `${name} runs Node 22.13 and 24`);
@@ -105,7 +104,7 @@ test('CI runs the gate on every push and pull request, Node 22.13 and 24, on Lin
     assert.ok(text.includes('npm test -- --shard=${{ matrix.shard }}/${{ matrix.shards }}'),
       `${name} forwards its native shard to the test runner`);
   }
-  assert.match(job('macos'), /\n {4}if: \$\{\{ !github\.event\.repository\.private \}\}\n/, 'macOS runs once the repository is public');
+  assert.doesNotMatch(WORKFLOW, /\n {2}macos:\n/u, 'registered Mac runners replace the hosted macOS job');
   assert.doesNotMatch(job('linux'), /\n {4}if:/, 'Linux runs every time');
 });
 

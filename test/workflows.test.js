@@ -47,9 +47,7 @@ function workflowShardsAndCancellation() {
   assert.match(WORKFLOW, /\non:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:\n {2}workflow_dispatch:\n/u,
     'the gate still runs for main pushes, pull requests and manual runs');
   checkRunner('linux', 'ubuntu-latest', '1, 2, 3', 3);
-  checkRunner('macos', 'macos-latest', '1, 2', 2);
-  assert.match(job('macos'), /\n {4}if: \$\{\{ !github\.event\.repository\.private \}\}\n/u,
-    'macOS runs when the repository is public');
+  assert.doesNotMatch(WORKFLOW, /\n {2}macos:\n/u, 'registered Mac runners replace the hosted macOS job');
   assert.match(WORKFLOW,
     /\nconcurrency:\n {2}group: \$\{\{ github\.workflow \}\}-\$\{\{ github\.event_name == 'push' && github\.ref == 'refs\/heads\/main' && github\.ref \|\| github\.run_id \}\}\n/u,
     'main pushes share their ref group while PR and manual runs get unique groups');
