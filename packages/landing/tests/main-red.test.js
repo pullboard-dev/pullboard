@@ -31,15 +31,21 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
     spec: '# Fixture\n\n## G · Goals\n- G1 [approved, must] The inherited case passes. | gate: test/inherited.test.js\n',
     source: "import assert from 'node:assert/strict'; import { test } from 'node:test'; test('inherited red [G1]', () => assert.equal(1, 2));\n",
   });
+  put(box.root, 'test/new-red.test.js', "import { test } from 'node:test'; test('new failure [G1]', () => {});\n");
+  commit(box.root, box.env);
   const driver = join(box.directory, 'pinned-comparison.mjs');
   writeFileSync(driver, [
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
+    `import { matchingMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-failure-matches.js')).href)};`,
     `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../sandbox/src/shell/execution-environment.js')).href)};`,
+    `import { readGateReceipt, receiptStore } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/gate-run-receipt.js')).href)};`,
     'const [root, mode] = process.argv.slice(2);',
-    "const profile = {tests:[{file:'test/inherited.test.js',passed:false}]};",
+    "const profile = {tests:[{file:'test/inherited.test.js',passed:false}, ...(mode === 'recorded-mixed' ? [{file:'test/new-red.test.js',passed:false}] : [])]};",
     'const environment = executionEnvironment();',
     "const execution = mode === 'generic' ? undefined : { executor: {kind:'local'}, environment: mode === 'unknown' ? null : mode === 'mismatch' ? {...environment,node:'99.0.0'} : environment };",
-    'const result = await compareMainFailures(root, profile, undefined, "", {execution});',
+    "let recordedRuns = []; if (mode.startsWith('recorded')) { const ids=[]; await compareMainFailures(root, profile, undefined, '', {execution, detailed:true, onMeasuredReceipt: value => { ids.push(value); }}); if (!ids.length) throw Error('native receipt missing'); recordedRuns = ids.map(id => readGateReceipt(receiptStore(root), id)); if (mode === 'recorded-altered') recordedRuns[0] = {...recordedRuns[0], green:true}; }",
+    'const result = await compareMainFailures(root, profile, undefined, "", {execution, detailed: mode.startsWith("recorded"), recordedRuns});',
+    "if (mode === 'recorded-mixed') { const old = result.files[0].failures[0]; const added = {file:'test/new-red.test.js',name:'new failure [G1]',signature:'0'.repeat(64)}; result.oldMatches = !!matchingMainFailures([old],result,result.main); result.bothMatch = !!matchingMainFailures([old,added],result,result.main); }",
     'console.log(JSON.stringify(result));',
   ].join('\n'));
   const run = mode => {
@@ -58,6 +64,17 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
   assert.equal(run('matching').files[0].result, 'red');
   assert.ok(runCount(box) > callsBefore, 'a pinned comparison executes rather than reusing generic evidence');
   assert.equal(readFileSync(cachePath, 'utf8'), cacheBefore, 'pinned evidence does not alter the generic cache');
+  const beforeRecorded = runCount(box);
+  assert.equal(run('recorded').files[0].result, 'red');
+  assert.equal(runCount(box), beforeRecorded + 1, 'a retained native comparison is reused without another main run');
+  const beforeAltered = runCount(box);
+  assert.equal(run('recorded-altered').files[0].result, 'red');
+  assert.equal(runCount(box), beforeAltered + 2, 'altered event evidence cannot avoid a fresh comparison');
+  const beforeMixed = runCount(box);
+  const mixed = run('recorded-mixed');
+  assert.equal(mixed.oldMatches, true, 'the inherited case is accounted for');
+  assert.equal(mixed.bothMatch, false, 'a new head failure remains blocking');
+  assert.equal(runCount(box), beforeMixed + 2, 'both recorded main files are reused without another run');
   const mismatch = run('mismatch');
   assert.deepEqual(mismatch.files, []);
   assert.match(mismatch.unavailable, /exact runtime/u);
@@ -431,9 +448,7 @@ test('an inherited red reads native spec reporter failure locations [V1]', t => 
   put(submitter.root, 'test/inherited.test.js', `${FAILING_TEST}// candidate-only comment\n`);
   commit(submitter.root, box.env, 'test(core): select spec-reported red [G2]');
   const before = runCount(box);
-  const unexplained = submitter.run('submit', String(submitItem));
-  assert.match(unexplained.err, /\[INFRA_NOTE_REQUIRED\]/u, 'test edits need an explanation before any inherited-red comparison');
-  const red = submitter.run('submit', String(submitItem), '--infra', 'append a candidate-only test marker to exercise native spec failure reporting');
+  const red = submitter.run('submit', String(submitItem));
   inheritedMessage(red, { row: 'G1', item: rework });
   const refusedItem = JSON.parse(submitter.run('show', String(submitItem), '--json').out);
   assert.equal(refusedItem.thread.some(entry => entry.kind === 'submit'), false, 'a red gate records no successful submit or infra note');

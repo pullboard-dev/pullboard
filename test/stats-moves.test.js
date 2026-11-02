@@ -10,7 +10,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { movesStats, movesLines, moveTranscripts } from '../packages/stats/index.js';
 import { importOnlyChange } from '../src/import-only-change.js';
-import { infraNote } from '../packages/commits/src/core/infra-note.js';
+import { infraNote } from '../packages/commits/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { commandOutput } from '../packages/config/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
@@ -120,7 +120,7 @@ test('real inbox history preserves numeric pagination and keeps its action disti
   assert.deepEqual(JSON.parse(projected.out), { version: 1, next: page.next });
 });
 
-test('automatic infra proof permits only import-path contents, preserving bindings and assertion bytes [C7,V4]', t => {
+test('automatic infra notes distinguish import-only proof from other guarded diffs [C7,V4]', t => {
   const { root, git } = fixture(t);
   const path = 'test/example.test.js';
   mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -137,14 +137,17 @@ test('automatic infra proof permits only import-path contents, preserving bindin
   assert.ok(infraNote({ ...options, commit }));
   writeFileSync(join(root, 'test/new.test.js'), 'assert.equal(value, 2);\n');
   git('add', 'test/new.test.js'); git('commit', '-qm', 'chore: add a test');
-  assert.throws(() => infraNote({ ...options, commit: git('rev-parse', 'HEAD').trim(), files: [path, 'test/new.test.js'] }), { code: 'INFRA_NOTE_REQUIRED' });
+  assert.match(infraNote({ ...options, commit: git('rev-parse', 'HEAD').trim(), files: [path, 'test/new.test.js'] }).note, /Automatically drafted from guarded diff/u);
   git('add', path); git('commit', '-qm', 'chore: alter assertion');
-  assert.throws(() => infraNote({ ...options, commit: git('rev-parse', 'HEAD').trim() }), { code: 'INFRA_NOTE_REQUIRED' });
+  const semantic = infraNote({ ...options, commit: git('rev-parse', 'HEAD').trim() });
+  assert.deepEqual(semantic.files, [path]);
+  assert.match(semantic.note, /No author rationale was supplied/u);
+  assert.doesNotMatch(semantic.note, /assertions.*unchanged/u);
   assert.equal(importOnlyChange(before, before.replace('{ value }', '{ other }'), { specifiersOnly: true }), false);
   assert.equal(importOnlyChange(before, before.replace('1);\n', '1);'), { specifiersOnly: true }), false);
   assert.equal(importOnlyChange("import('../a.js');", "import('../b.js');", { specifiersOnly: true }), false);
   assert.equal(importOnlyChange(before, changed + '// explanation\n', { specifiersOnly: true }), false);
-  assert.throws(() => infraNote({ ...options }), { code: 'INFRA_NOTE_REQUIRED' }, 'an absent candidate identity cannot authorize a draft');
+  assert.match(infraNote({ ...options }).note, /Automatically drafted/u, 'missing identity never fabricates import-only proof');
 });
 
 test('claim states header and infra rules once in text and preserves JSON [C7,V4]', t => {

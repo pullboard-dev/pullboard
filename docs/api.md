@@ -47,7 +47,7 @@ Freshness never rewrites the stored ACCEPT or its verdict row. New accept/reject
 
 For a stale acceptance, merge current main into the submitted work and commit a clean review HEAD. Another agent runs `pullboard verify <id> accept --note "what was re-reviewed"`; its frozen check runs at that combined HEAD, and a new verdict appends to the history while retaining the original submitted commit. A main move during the check refuses `VERDICT_TRUNK_MOVED` and requires another review. `resume` keeps stale acceptances out of its merge list. `land` excludes stale items (and reports their file and commit); when none remain ready, it refuses `STALE_VERDICT`. Nothing in this observation changes the approved criterion or grants person authority.
 
-The board setting `submit.requireInfraNote` in the coordinator's accepted `pullboard.json` is `false` by default. With it `true`, a submit that edits a test file, `pullboard.json`, a githook or a file a gate command names, and that already existed at the claim, is refused with `INFRA_NOTE_REQUIRED` until it carries `--infra "<why>"`. The refusal names the files. With either setting, a supplied note and those files are recorded on the item's `submit` event as `infra: {note, files}`, and `pullboard show` prints them for the reviewer as `infra note:`. A new test file needs no note.
+When a submit edits an existing test, `pullboard.json`, a githook or a file named by a gate command, it records the supplied `--infra "<why>"` note or drafts one from the diff. The submit event records `infra: {note, files}`, and `pullboard show` displays it to the reviewer. A new test file needs no note.
 
 A submit whose frozen check passes may retain red required tests only when a fresh exact-main comparison matches every failing file, case name and failure signature, and each failure has at most one owner: the single still-open `Main red:` repair whose frozen check names its test file, or, when several name the file, the one whose criterion names the exact case title. A case with several candidate owners and none naming it alone refuses submission, and the refusal lists the candidates. A failure with exactly one such repair is linked to it, and the ordered submit rechecks those links. Its receipt keeps `knownMainFailures: {main, failures: [{file, name, signature, item}]}`; the report also lists `knownMainReworks: [{file, name, item}]`, and the durable measurement fact names the repairs for reviewers in `show` text and JSON. A failure with no open repair is accepted the same way as an unowned frozen-check case: the report lists `knownMainUnowned: [{file, name}]`, a measurement fact names it, and one decision shout asks the coordinator to file or assign its repair; submit files no item. No matching cases or an unbound test path can authorize a known-main exception.
 
@@ -231,6 +231,7 @@ The `watch --json` stream prints one document per line and has no end-of-command
 | `maintenance` | `version:number`, `enabled:boolean`, `counts:object`, `pruned:number`, `archived:number` |
 | `stats moves` | `version:number`, `moves:object` |
 | `stats pipeline` | `version:number`, `pipeline:object` |
+| `stats time` | `version:number`, `time:object` |
 | `tool-build` | `version:number`, `build:object\|null` |
 <!-- api-command-shapes:end -->
 

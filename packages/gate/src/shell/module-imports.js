@@ -114,6 +114,9 @@ function pastGap(source, at) {
 /** Read import edges using the caller's compiler or the existing isolated V8 compiler. */
 export function importsIn(sources, parse = look) { return importsWithCompiler(sources, parse); }
 
+/** Return compile-only observations for bounded declaration probes; never link or evaluate modules. */
+export function moduleCompiles(sources) { return look(sources).map(row => row.compiles); }
+
 /** Detect CommonJS reads using the caller's compiler or the existing isolated V8 compiler. */
 export function commonJsIn(sources, parse = look) { return commonJsWithCompiler(sources, parse); }
 

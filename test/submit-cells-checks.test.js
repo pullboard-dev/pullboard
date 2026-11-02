@@ -6,6 +6,8 @@ import { withImportParseCache } from '../src/module-import-cache.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { checkCuts } from '../bin/cells-plan-cuts.js';
 import { computePlan } from '../bin/cells-plan.js';
 import { fixture } from './cells-plan-fixture.js';
@@ -55,7 +57,8 @@ test('submit cuts follow a declared root tool body so a stay cannot hide a later
 });
 
 import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
-import { withMainCheckout } from '../src/main-red.js';
+import { touchedCells } from '../bin/cells-submit-checks.js';
+import { withMainCheckout } from '../packages/landing/index.js';
 import { writePlan } from '../bin/cells-plan.js';
 import { readPlan } from '../bin/cells-plan.js';
 import { cellLintReport } from '../packages/codemap/index.js';
@@ -460,6 +463,30 @@ test('outside-cell changes do not widen touched cells but still refuse unplaced 
   await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /unplaced src\/unplanned.js/u);
 });
 
+/** The refusal text a candidate draws, or an empty string when submit accepts it. */
+async function refusal(promise) {
+  try { await promise; return ''; } catch (error) { return error.message; }
+}
+
+test('submit refuses deleting a module a test names inside a generated script, never for a comment or prose mention [C7,D3]', async t => {
+  for (const form of [() => './src/doomed.js', () => '${ROOT}/src/doomed.js', root => join(root, 'src/doomed.js'), root => pathToFileURL(join(root, 'src/doomed.js')).href]) {
+    const box = plannedFixture(t, fixture => {
+      fixture.put('src/doomed.js', "import { stats } from './stats.js';\nexport const doomed = stats;\n");
+      fixture.put('src/quiet.js', "import { stats } from './stats.js';\nexport const quiet = stats;\n");
+      fixture.put('test/child.test.js', `const script = \`import('${form(fixture.root)}').then(m => m.doomed);\`;\n// src/quiet.js once held the quiet value\nconst note = 'the old src/quiet.js held the quiet value';\nexport { script, note };\n`);
+    });
+    const remove = file => { git(box.root, 'rm', '-q', '--', file); writePlan(box.root, computePlan(box.root)); };
+    remove('src/doomed.js');
+    const named = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item));
+    assert.match(named, /test\/child\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
+    assert.doesNotMatch(named, /stale/u, 'the plan follows the deletion, so the string mention alone refuses');
+    git(box.root, 'checkout', '-q', box.main, '--', 'src/doomed.js', 'bin');
+    remove('src/quiet.js');
+    assert.doesNotMatch(await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item)), /names deleted/u,
+      'a comment or prose mention never holds a deletion');
+  }
+});
+
 test('submit cell receipt reuses exact input and invalidates changed cut authority [C7,D3,CD64]', async t => {
   const box = plannedFixture(t);
   let checkouts = 0, rows = [];
@@ -526,4 +553,82 @@ test('changed immutable source cannot poison the shared cell inventory [C7,D3]',
   const modes = [];
   inventoryCache(box.root, key, { importsIn, commonJsIn }, mode => modes.push(mode)).base(box.root, main);
   assert.equal(modes.at(-1), 'base-full', 'the interrupted census did not publish cache evidence');
+});
+
+test('only direct importing cells join a touched cell, including another file in that cell [C7,D3,CD64]', () => {
+  const cell = (name, paths) => ({ name, root: `packages/${name}`, frontDoor: `packages/${name}/index.js`, paths });
+  const plan = { cells: [cell('a', [['src/a.js', 'packages/a/src/a.js'], ['src/a-other.js', 'packages/a/src/other.js']]),
+    cell('b', [['src/b.js', 'packages/b/src/b.js']]), cell('c', [['src/c.js', 'packages/c/src/c.js']])] };
+  const inventory = { edges: new Map([['src/b.js', [{ target: 'src/a-other.js' }]], ['src/c.js', [{ target: 'src/b.js' }]]]) };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [inventory]), ['a', 'b']);
+  const forwarding = { ...inventory, files: new Map([['src/b.js', Buffer.from("export * from './a-other.js';\n")]]) };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [forwarding]), ['a', 'b', 'c'], 'effective importers through forwarding shims remain checked');
+  const declared = { edges: new Map([['src/c.js', [{ target: 'src/b.js' }]]]),
+    files: new Map([['src/a-other.js', Buffer.from('export const a = 1;')],
+      ['src/b.js', Buffer.from('/** @pullboard-module-loads src/a-other.js */\nawait import(name);\n')]]),
+    unknown: [{ file: 'src/b.js', specifier: '(computed)', reason: 'computed loader' }] };
+  assert.deepEqual(touchedCells(['src/a.js'], plan, plan, [declared]), ['a', 'b', 'c'], 'declared computed forwarders use the same edges as cut checking');
+  assert.deepEqual(touchedCells(['bin/cells-plan.json'], plan, plan, [inventory]), ['a', 'b', 'c'], 'shared authority invalidates every cell');
+  const withStay = { ...plan, stays: [{ path: 'bin/shared.js' }] };
+  assert.deepEqual(touchedCells(['bin/shared.js'], withStay, withStay, [inventory]), ['a', 'b', 'c'], 'unowned shared tool changes fail safely');
+});
+
+test('forwarding chains select every cell whose cut can change [C7,D3,CD64]', t => {
+  const box = fixture(t);
+  box.put('src/stats.js', "import './board.js'; export const stats = true;\n");
+  box.put('src/board.js', "export * from './refused.js';\n");
+  box.put('src/refused.js', 'export class Refused extends Error {}\n');
+  const plan = computePlan(box.root);
+  const oldInventory = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.deepEqual(checkCuts(box.root, plan, 'stats', { allLaterCells: true, inventory: oldInventory }), []);
+  box.put('src/refused.js', "export * from './cli.js';\n");
+  const newInventory = cellInventory(box.root, { importsIn, commonJsIn });
+  assert.ok(touchedCells(['src/refused.js'], plan, plan, [oldInventory, newInventory]).includes('stats'));
+  assert.ok(checkCuts(box.root, plan, 'stats', { allLaterCells: true, inventory: newInventory, acceptedInventory: oldInventory })
+    .some(problem => problem.includes('stats still imports later app:cli')), 'the upstream cut really changes through the forwarding chain');
+});
+
+test('a one-cell submit on a many-cell board stays under a minute and still refuses a new cut [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t, ({ put }) => {
+    const cells = { kernel: ['src/refused.js'], store: ['src/board.js'], items: ['src/claims.js'],
+      stats: ['src/stats.js'], 'app:cli': ['src/cli.js'] };
+    for (let index = 0; index < 32; index++) {
+      const name = `extra${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + index % 26)}`, file = `src/${name}.js`;
+      cells[name] = [file];
+      put(file, `export const ${name} = ${index};\n`);
+    }
+    put('bin/cells-plan/seed.json', JSON.stringify({ source: 'many-cell fixture', sha256: 'none', order: Object.keys(cells), cells, tests: {} }));
+    put('bin/cells-plan/transition.json', JSON.stringify({ version: 1, deleteItem: 1770 }));
+    moveFixtureKernel({ put }, 'export class Refused extends Error {}\n');
+  });
+  assert.ok(readPlan(box.root).cells.length >= 30, 'the real repository fixture has many planned cells');
+  box.put('packages/kernel/src/core/refused.js', 'export class Refused extends Error {} // one-cell change\n');
+  const candidate = commitCandidate(box);
+  const started = performance.now();
+  const result = await requireSubmitCells(box.root, box.main, candidate, box.item);
+  const elapsed = performance.now() - started;
+  t.diagnostic(`many-cell candidate stage: ${elapsed.toFixed(1)}ms`);
+  assert.ok(elapsed < 60_000, `the complete cell stage took ${elapsed.toFixed(1)}ms; limit 60000ms`); // budget: ceiling from the #2313 bar (60 s for an ordinary change)
+  assert.deepEqual(result.cells.sort(), ['kernel', 'store']);
+  box.put('packages/kernel/src/core/refused.js', "import '../../../../src/stats-flow.js'; export class Refused extends Error {}\n");
+  await assert.rejects(requireSubmitCells(box.root, box.main, commitCandidate(box), box.item), /kernel --cuts: kernel still imports later stats/u,
+    'the same many-cell board still refuses a new cut in a touched cell');
+});
+
+test('unchanged accepted cell cut evidence is reused across different candidate trees [C7,D3,CD64]', async t => {
+  const box = plannedFixture(t), events = [];
+  const services = { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+    readCutItems: (main, root) => acceptedCutItems(root, main), cacheEligible: () => true,
+    onCellObservation: (mode, name) => events.push([mode, name]) };
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 1];\n");
+  await preflight(box.root, box.main, commitCandidate(box), box.item, services);
+  assert.ok(events.some(([mode, name]) => mode === 'base-checked' && name === 'stats'));
+  events.length = 0;
+  box.put('src/stats.js', "import { board } from './board.js';\nimport { readFileSync } from 'node:fs';\nexport const stats = () => [board, readFileSync, 2];\n");
+  const second = await preflight(box.root, box.main, commitCandidate(box), box.item, services);
+  assert.ok(events.some(([mode, name]) => mode === 'base-reused' && name === 'stats'), 'the actual accepted-base result survives a changed candidate tree');
+  assert.deepEqual(second.problems, []);
+  box.put('src/refused.js', "import './stats-flow.js'; export class Refused extends Error {}\n");
+  await assert.rejects(preflight(box.root, box.main, commitCandidate(box), box.item, services), /kernel --cuts: kernel still imports later stats/u,
+    'cached accepted evidence cannot hide a new candidate cut');
 });

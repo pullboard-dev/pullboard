@@ -185,7 +185,7 @@
     },
     {
       "file": "test/git-sync-self-repair.test.js",
-      "line": 30,
+      "line": 33,
       "expression": "join(box.root, 'pullboard.json')",
       "kind": "config",
       "why": "Coordinator51385: reads the private Git fixture's generated root configuration, not the bundled src/blueprints/pullboard.json asset."
