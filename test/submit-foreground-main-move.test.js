@@ -1,6 +1,6 @@
-/** A foreground submit survives an unrelated main move during its check and refuses a real policy change [V4,H16,C7]. */
+/** Foreground and queued submits survive an unrelated main move during their check; a real policy change still refuses [V4,H16,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -9,19 +9,26 @@ import { runFixtureChild } from './fixture-child.js';
 
 /** Read the fixture item's durable status and submitted commit. */
 function item(box) {
-  // @pullboard-board-file journey: the real CLI owns every submission write.
+  return state(box).item;
+}
+
+/** Read the fixture item and its queued submit job, if any, without writing the board. */
+function state(box) {
+  // @pullboard-board-file journey: the real CLI owns every queue, submission and verdict write.
   const db = new DatabaseSync(join(box.repo, '.git/pullboard/board.sqlite'), { readOnly: true });
   try {
     db.exec('PRAGMA busy_timeout=5000');
-    return db.prepare('SELECT item_status,item_commit FROM item WHERE item_id=?').get(box.id);
+    const row = db.prepare('SELECT meta_value FROM board_meta WHERE meta_key=?').get(`submit_handoff:${box.id}`);
+    return { job: row ? JSON.parse(row.meta_value) : null,
+      item: db.prepare('SELECT item_status,item_commit,item_verdict FROM item WHERE item_id=?').get(box.id) };
   } finally { db.close(); }
 }
 
 /**
  * Build a claimed candidate whose frozen check commits to main once while it runs, the way a landing
- * does during a builder's long foreground check (#2181, #2326).
+ * does during a builder's long check (#2181, #2326). `handoff` queues the submit in the fixture's own policy.
  */
-function fixture(t, mode) {
+function fixture(t, mode, handoff = false) {
   // The landing is another lane's module no test imports; the check builds its path from pieces so selection never sees a read.
   const helpers = createE2eHelpers();
   const sandbox = helpers.sandbox();
@@ -47,7 +54,7 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   writeFileSync(join(box.repo, 'test/other.test.js'), "import {test} from 'node:test';import assert from 'node:assert/strict';import {other} from '../web/other.js';test('other [G1]',()=>assert.equal(other,'independent'));\n");
   writeFileSync(join(box.repo, 'bin/run-tests.js'), "import {spawnSync} from 'node:child_process';const env={...process.env};delete env.NODE_TEST_CONTEXT;const run=spawnSync(process.execPath,['--test','--test-reporter=tap',...process.argv.slice(2)],{encoding:'utf8',env});process.stdout.write(run.stdout??'');process.stderr.write(run.stderr??'');process.exitCode=run.status??1;\n");
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...helpers.CONFIG,
-    gate: 'node bin/run-tests.js test/feature.test.js', affectedTests: 'node bin/run-tests.js', submit: { handoff: false } }));
+    gate: 'node bin/run-tests.js test/feature.test.js', affectedTests: 'node bin/run-tests.js', submit: { handoff } }));
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-qm', 'chore: foreground submit policy [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -63,7 +70,7 @@ test('feature [G1]',()=>{ if(feature==='item' && !existsSync(marker)) {
   const main = box.git(box.repo, 'rev-parse', 'HEAD');
   const result = runFixtureChild(process.execPath, [helpers.BIN, 'submit', String(box.id), '--no-next'],
     { cwd: box.web, env: box.env, encoding: 'utf8' });
-  return { box, main, marker, result, output: result.stdout + result.stderr };
+  return { box, helpers, main, marker, result, output: result.stdout + result.stderr };
 }
 
 test('foreground submit lands green when unrelated main moves during its check [V4,H16,C7]', t => {
@@ -83,4 +90,31 @@ test('foreground submit still refuses when pullboard.json policy changes during 
   assert.match(output, /NO_POLICY|MAIN_NOT_COMPOSED/u);
   assert.match(output, /pullboard\.json|submit\.autoFileMainReds/u);
   assert.notEqual(item(box).item_status, 'submitted', output);
+});
+
+test('queued submit survives an unrelated main move during its gate and is accepted for landing [V4,H16,C7]', async t => {
+  const { box, helpers, main, marker, result, output } = fixture(t, 'unrelated', true);
+  assert.equal(result.status, 0, output);
+  assert.match(result.stdout, /queued gate/u);
+  await helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), // budget: real queued worker completion hang ceiling, no elapsed-time assertion.
+    'queued gate completion', 120000); // budget: owned-worker hang ceiling, no throughput claim.
+  const completed = state(box);
+  assert.ok(existsSync(marker), 'main moved while the queued gate ran');
+  assert.notEqual(box.git(box.repo, 'rev-parse', 'HEAD'), main, 'main moved while the queued gate ran');
+  assert.equal(completed.job.state, 'green', JSON.stringify(completed.job));
+  assert.equal(completed.item.item_status, 'submitted', JSON.stringify(completed));
+  // A second fixture seat reviews the submitted commit; its accept is the landing-ready verdict.
+  const reviewer = join(box.dir, 'reviewer');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, completed.item.item_commit);
+  assert.equal(box.run(reviewer, 'join', 'api').code, 0);
+  const accepted = box.run(reviewer, 'verify', String(box.id), 'accept', '--note', 'Ran the frozen check at the queued submission.', '--no-next');
+  assert.equal(accepted.code, 0, accepted.out + accepted.err);
+  const landed = state(box).item;
+  assert.ok(landed.item_verdict === 'ACCEPT' || ['accepted', 'merged'].includes(landed.item_status), JSON.stringify(landed));
+  const job = state(box).job;
+  await helpers.waitFor(() => { // budget: owned worker cleanup hang ceiling; no throughput claim.
+    const request = join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'request.json');
+    return existsSync(request) && !existsSync(JSON.parse(readFileSync(request, 'utf8')).tools)
+      && !existsSync(join(box.repo, '.git/pullboard/submit-handoffs', job.id, 'source'));
+  }, 'owned queued worker and tooling cleanup', 120000); // budget: owned-child hang ceiling, no elapsed-time assertion.
 });
