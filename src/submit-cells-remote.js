@@ -77,7 +77,6 @@ async function remoteCells(encoded) {
   const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  const { pathToFileURL } = await import('node:url');
   const input = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
   const root = process.cwd();
   const env = { ...process.env };
@@ -99,18 +98,18 @@ async function remoteCells(encoded) {
     writeFileSync(join(metadata, 'info/attributes'), '* -text -filter -ident -export-subst -export-ignore\n', { flag: 'wx' });
     const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', input.main);
     run('tar', ['-xf', '-', '-C', directory], { input: archive });
-    const load = path => import(pathToFileURL(join(directory, path)).href);
-    const checker = await load('bin/cells-submit-checks.js');
-    const gate = await load('packages/gate/index.js');
-    const landing = await load('packages/landing/index.js');
-    const result = await checker.requireSubmitCells(root, input.main, input.source,
-      { item_frozen: JSON.stringify({ criterion: input.criterion }) }, {
-        withMainCheckout: landing.withMainCheckout,
-        parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
-        withImportParseCache: gate.withImportParseCache,
-        cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
-        readCutItems: () => input.cutRows,
-      });
-    process.stdout.write(`PULLBOARD_CELLS_RESULT ${JSON.stringify(result)}\n`);
+    const entry = join(directory, 'trusted-cells-entry.mjs');
+    writeFileSync(entry, `import { requireSubmitCells } from './bin/cells-submit-checks.js';
+import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from './packages/gate/index.js';
+import { withMainCheckout } from './packages/landing/index.js';
+const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
+const result = await requireSubmitCells(process.argv[3], input.main, input.source,
+  { item_frozen: JSON.stringify({ criterion: input.criterion }) }, {
+    withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+    cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), readCutItems: () => input.cutRows,
+  });
+process.stdout.write('PULLBOARD_CELLS_RESULT ' + JSON.stringify(result) + '\\n');
+`, { flag: 'wx', mode: 0o600 });
+    process.stdout.write(run(process.execPath, [entry, encoded, root]));
   } finally { rmSync(directory, { recursive: true, force: true }); }
 }

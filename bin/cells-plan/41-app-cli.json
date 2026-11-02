@@ -270,7 +270,9 @@
   ["src/documentation/events/milestone_placed.json","apps/cli/src/shell/documentation/events/milestone_placed.json","rule"],
   ["src/commands/seats.js","apps/cli/src/shell/commands/seats.js","rule"],
   ["src/item-folder.js","apps/cli/src/shell/item-folder.js","rule"],
-  ["src/commands/slice.js","apps/cli/src/shell/commands/slice.js","rule"]
+  ["src/commands/slice.js","apps/cli/src/shell/commands/slice.js","rule"],
+  ["src/submit-cells-remote.js","apps/cli/src/shell/submit-cells-remote.js","rule"],
+  ["src/submit-controller-cache.js","apps/cli/src/shell/submit-controller-cache.js","rule"]
  ],
  "reexports": [
   "src/cli-context.js",

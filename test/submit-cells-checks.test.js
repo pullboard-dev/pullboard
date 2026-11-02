@@ -2,6 +2,7 @@ import { inventoryCache } from '../bin/cells-inventory-cache.js';
 import { observationCache } from '../bin/cells-inventory-cache.js';
 import { cellInventory } from '../packages/codemap/index.js';
 import { acceptedCutItems } from './cells-plan-fixture.js';
+import { cachedSubmitSourceStep } from '../src/submit-controller-cache.js';
 import { withImportParseCache } from '../packages/gate/index.js';
 /** Submit checks use canonical immutable-source cell diagnostics [C7,D3,CD64]. */
 import assert from 'node:assert/strict';
@@ -703,7 +704,6 @@ test('fixture binding compiler retries timeouts and names persistent timeouts [C
 });
 
 test('controller source steps cache only exact green source and base [C7,D3]', async t => {
-  const { cachedSubmitSourceStep } = await import('../src/submit-controller-cache.js');
   const box = plannedFixture(t);
   const code = [fileURLToPath(new URL('../src/submit-controller-cache.js', import.meta.url))];
   const run = { kind: 'fixture-submit-step', base: box.main, source: box.main, code };

@@ -1264,10 +1264,6 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
-      "path": "src/submit-controller-cache.js",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
       "path": "src/focus-boundary-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1277,10 +1273,6 @@
     },
     {
       "path": "src/move-history/205.json",
-      "reason": "explicit bounded placement: stays in place during the move"
-    },
-    {
-      "path": "src/submit-cells-remote.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
