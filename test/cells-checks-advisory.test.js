@@ -144,10 +144,33 @@ test('a new later-cell import and a deleted path named in a test string warn on 
   assert.match(refused?.message ?? '', /test\/child\.test\.js:1 names deleted src\/doomed\.js inside a string/u);
 });
 
+test('a singular Cells import cut title and an edited plan-data row are reorg; a data row for the item\'s own new test is not [C7,D3]', async t => {
+  const read = (file, line) => ({ file, line, expression: 'fixture.path', kind: 'spec', why: 'reads a generated fixture' });
+  const box = plannedFixture(t, { prepare: fixture => {
+    fixture.put('bin/cells-plan/data-reads/kernel.json', JSON.stringify({ version: 1, reads: [read('test/old.test.js', 3)] }, null, 2));
+  } });
+  box.put('src/refused.js', "export class Refused extends Error {}\nimport './stats-flow.js';\n");
+  const later = commitCandidate(box);
+  assert.deepEqual((await requireSubmitCells(box.root, box.main, later, ORDINARY)).problems, [], 'the import alone warns');
+  const cut = await refusal(requireSubmitCells(box.root, box.main, later, 'Cells import cut: kernel removes imports into later cells'));
+  assert.match(cut?.message ?? '', /kernel --cuts: kernel still imports later stats/u, 'the singular cut title is reorg work');
+  box.put('test/own.test.js', 'export const own = true;\n');
+  box.put('bin/cells-plan/data-reads/kernel.json', JSON.stringify({ version: 1, reads: [read('test/old.test.js', 3), read('test/own.test.js', 1)] }, null, 2));
+  const own = await requireSubmitCells(box.root, box.main, commitCandidate(box), ORDINARY);
+  assert.equal(own.reorg, null, 'a data row naming only the item\'s own new file is ordinary');
+  assert.ok(own.warnings.some(line => line.includes('kernel --cuts')));
+  box.put('bin/cells-plan/data-reads/kernel.json', JSON.stringify({ version: 1, reads: [read('test/old.test.js', 9), read('test/own.test.js', 1)] }, null, 2));
+  const edited = await refusal(requireSubmitCells(box.root, box.main, commitCandidate(box), ORDINARY));
+  assert.match(edited?.message ?? '', /kernel --cuts: kernel still imports later stats/u, 'editing an existing data-reads row is reorg work');
+});
+
 test('native submit of an ordinary item with unplaced source prints the warning and runs its check [C7,V4]', t => {
   const helpers = createE2eHelpers();
-  t.after(helpers.cleanup);
+  // A detached child the submit starts may still be writing its sandbox; retry the removal until it settles.
+  t.after(() => helpers.waitFor(() => { try { helpers.cleanup(); return true; } catch { return false; } }, 'sandbox removal', 60_000)); // budget: lingering detached child ceiling, not a performance assertion.
   const box = helpers.project('node check.cjs');
+  box.env.TMPDIR = join(box.dir, 'tmp');
+  mkdirSync(box.env.TMPDIR);
   const marker = join(box.dir, 'check-ran');
   writeFileSync(join(box.repo, 'check.cjs'), `require('node:fs').appendFileSync(${JSON.stringify(marker)}, 'ran\\n');\n`);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');

@@ -273,7 +273,8 @@ function inspectCellsSnapshotProblems(mainRoot, candidateRoot, { acceptedMain, c
   const changed = files ?? git(candidateRoot, ['diff', '--name-only', '--no-renames', '-z', acceptedMain, 'HEAD']).split('\0').filter(Boolean);
   const added = changed.filter(file => !existsSync(join(mainRoot, file)));
   const deleted = changed.filter(file => existsSync(join(mainRoot, file)) && !existsSync(join(candidateRoot, file)));
-  const reorg = cellsReorgReason({ title, criterion, changed, added, deleted, before, after, beforeMap: mainMap, afterMap: candidateMap });
+  const reorg = cellsReorgReason({ title, criterion, changed, added, deleted, before, after, beforeMap: mainMap, afterMap: candidateMap,
+    readData: file => ({ before: shimSnapshotFile(mainRoot, file), after: shimSnapshotFile(candidateRoot, file) }) });
   const warnings = [];
   const policy = policyProblems(before, after, mainMap, candidateMap, candidateRoot, mainRoot);
   const unplaced = unplanned(candidateRoot, after);
