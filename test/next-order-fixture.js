@@ -16,8 +16,9 @@ export const MID_ITEM_DETAILS = {
 export const FREEZE = (item) => ({ text: item.item_title, digest: `digest:${item.item_title}` });
 
 /** Open a real SQLite board and register a coordinator plus strong builder and reviewer agents. */
-export function boardFixture() {
+export function boardFixture(engine = null) {
   const board = openBoard(':memory:');
+  if (engine !== null) board.executionEngineVersion = engine;
   store.register(board, { lane: 'coordinator', path: '/coordinator' });
   const builder = store.register(board, { lane: 'core', path: '/builder', route: 'strong' });
   const reviewer = store.register(board, { lane: 'review', path: '/reviewer', route: 'strong' });
@@ -37,7 +38,7 @@ export function submitted(board, builder, title, route, number) {
 }
 
 /** A private real Git repository and SQLite queue; lifecycle records below are not gate executions. */
-export function lineOrderFixture(t) {
+export function lineOrderFixture(t, engine = null) {
   const helpers = createE2eHelpers();
   const box = helpers.sandbox();
   const root = join(box.dir, 'line-order');
@@ -45,6 +46,7 @@ export function lineOrderFixture(t) {
   box.git(root, 'init', '-q', '-b', 'main');
   box.git(root, 'commit', '--allow-empty', '-qm', 'test: seed the private line-order repository');
   const board = openBoard(join(root, 'board.sqlite'));
+  if (engine !== null) board.executionEngineVersion = engine;
   store.register(board, { lane: 'coordinator', path: root });
   const builder = store.register(board, { lane: 'core', path: join(root, 'builder'), route: 'strong', parent: 'builder-P', session: 'builder-child' });
   const reviewer = store.register(board, { lane: 'review', path: join(root, 'reviewer'), route: 'strong', parent: 'reviewer-R', session: 'reviewer-child' });

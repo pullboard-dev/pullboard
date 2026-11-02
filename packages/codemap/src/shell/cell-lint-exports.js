@@ -1,5 +1,7 @@
 /** Account for individual exports without executing modules; opaque uses remain per-entity debt [CD62,C7]. */
 import { bindingReadsForModules } from './cell-binding-uses.js';
+import { cachedBindingMetadata } from './cell-binding-uses.js';
+import { warmAllBindingReads } from './cell-binding-uses.js';
 import { lex } from '../../../kernel/index.js';
 import { testFile } from './cell-lint-inventory.js';
 
@@ -135,7 +137,8 @@ export function exportReachability(files, edges, reached) {
   const modules = new Map(), unknown = [], used = new Set(), opaque = new Set();
   for (const [file, imports] of edges) {
     if (testFile(file)) continue;
-    const metadata = bindings(files.get(file).toString('utf8'), imports);
+    const source = files.get(file).toString('utf8');
+    const metadata = cachedBindingMetadata(source, imports, () => bindings(source, imports));
     modules.set(file, metadata);
     for (const reason of metadata.unknown) unknown.push({ file, reason });
   }
@@ -161,9 +164,9 @@ export function exportReachability(files, edges, reached) {
   }
   /** Preserve an explicit import's namespace member context through re-export front doors. */
   function enqueue(target, name, members = null, uncertain = false) { pending.push({ target, name, members, uncertain }); }
-  const readsByModule = bindingReadsForModules((function* () {
-    for (const [file, module] of modules) if (reached.has(file)) yield { file, source: files.get(file).toString('utf8'), body: module.body, bindings: module.imports };
-  })());
+  const warmAll = warmAllBindingReads();
+  const readsByModule = bindingReadsForModules([...modules].filter(([file]) => warmAll || reached.has(file)).map(([file, module]) =>
+    ({ file, source: files.get(file).toString('utf8'), body: module.body, bindings: module.imports.map(({ local }) => ({ local })) })));
   for (const [file, module] of modules) {
     if (!reached.has(file)) continue;
     for (const use of module.dynamic) {
