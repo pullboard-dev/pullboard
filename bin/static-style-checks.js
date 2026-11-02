@@ -26,7 +26,8 @@ if (process.argv[2] === '--changed-files') {
   const sources = files.filter(file => /^(?:src|packages|apps)\//u.test(file) && /\.[cm]?js$/u.test(file))
     .map(file => ({ file, source: readFileSync(join(root, file), 'utf8') }));
   const failures = [
-    ...relayBoundaryProblems(sources).map(row => `${row.file}:${row.line}: ${row.text}`),
+    ...relayBoundaryProblems([...sources, ...files.filter(file => /^relay\/.*\.[cm]?js$/u.test(file))
+      .map(file => ({ file, source: readFileSync(join(root, file), 'utf8') }))]).map(row => `${row.file}:${row.line}: ${row.text}`),
     ...importStyleViolations(sources).map(row => `${row.file}:${row.line}: one import binding per line (${row.count} bindings)`),
     // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
     ...engineFolderProblems(root).filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`),

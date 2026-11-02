@@ -21,6 +21,7 @@ export function relayBoundaryProblems(sources) {
     const code = lex(source).code;
     const allowed = [...(NON_RELAY.get(file) ?? [])];
     const calls = [...code.matchAll(/\b(?:globalThis\s*\.\s*)?fetch\s*\(/gu)];
+    calls.push(...code.matchAll(/(?:=\s*(?:(?:globalThis|window)\s*\.\s*)?fetch\b(?!\s*\()|\{\s*fetch\s*\}\s*=\s*(?:globalThis|window)\b)/gu));
     for (const match of source.matchAll(/\b(?:globalThis|window)\s*\[\s*['"]fetch['"]\s*\]\s*\(/gu)) {
       if (code.slice(match.index, match.index + 6).trim()) calls.push(match);
     }
