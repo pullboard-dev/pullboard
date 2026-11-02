@@ -16,7 +16,7 @@ import {
 } from '../test-output-summary.js';
 import { checkAtCommit } from '../runner-private-check.js';
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices, compareMainFailures, failureSignatures, matchingMainFailures } from '../landing-shards.js';
+import { landingExecutionServices, compareMainFailures, failureSignatures, matchingMainFailures } from '../../packages/landing/index.js';
 import { trunkRef } from '../../packages/sandbox/index.js';
 import { selectAffectedTests } from '../affected-tests.js';
 import { committedItemAuthors } from '../../packages/verify/index.js';

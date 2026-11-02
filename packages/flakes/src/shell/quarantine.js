@@ -3,7 +3,7 @@ import { proofReceipts } from "../../../store/index.js";
 import { nativeProofBlockingGreen } from "../../../verify/index.js";
 import { landingGateRecords } from "../../../verify/index.js";
 import { MAIN_AUDIT_ENGINE } from "../../../../src/main-audit-engine.js";
-import { landingBatches } from "../../../../src/landing-batch-history.js";
+import { landingBatches } from "../../../landing/index.js";
 /**
  * Gate runs and flake quarantine [C7,D1]. Every real gate run leaves its tree, its failing test ids and the host load on
  * the board, as the receipt its gate wrote. When one tree has been both red and green for the same test, that is proof

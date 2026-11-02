@@ -1,4 +1,4 @@
-import { requirePreparedComputedConflict } from "../../../../src/computed-conflict-receipt.js";
+import { requirePreparedComputedConflict } from "../../../landing/index.js";
 import { withRecordedConflictContext } from "../../../state/index.js";
 /** Account-free ordered moves on the repository's own Git remote [H11,H10]. */
 import { spawn } from 'node:child_process';

@@ -9,7 +9,7 @@ import { installReleaseReceiptCases } from './release-receipt-cases.js';
 import { installReleaseTransportCases } from './release-transport-cases.js';
 import { installReleaseProducerCases } from './release-producer-cases.js';
 import './executor-affinity-cases.js';
-import { planReleaseShards, releasePlacement } from '../src/landing-shards.js';
+import { planReleaseShards, releasePlacement } from '../packages/landing/index.js';
 import { releaseParticipation } from '../src/gate-run-receipt.js';
 import { RELEASE_PARTICIPATION_PREFIX } from '../src/gate-run-receipt.js';
 import { createE2eHelpers } from './e2e-helpers.js';

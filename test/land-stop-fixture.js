@@ -1,7 +1,7 @@
 /** Exercise real landing-stop decisions against controlled observations and a private live child [Q1,Q3,C7]. */
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { stop } from '../src/landing-worker.js';
+import { stop } from '../packages/landing/index.js';
 import { parseProcessCensus } from '../packages/kernel/src/core/process-census.js';
 import { startFixtureChild } from './fixture-child.js';
 

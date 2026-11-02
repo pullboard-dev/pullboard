@@ -15,7 +15,7 @@ import { requireSubmitCells as preflight } from '../bin/cells-submit-checks.js';
 import { cellLintReport } from '../packages/codemap/index.js';
 import { cellLintBaseline } from '../packages/codemap/index.js';
 import { writeCellLintBaseline } from '../packages/codemap/index.js';
-import { withMainCheckout } from '../src/main-red.js';
+import { withMainCheckout } from '../packages/landing/index.js';
 import { importsIn } from '../src/module-imports.js';
 import { commonJsIn } from '../src/module-imports.js';
 import { foreignNodeOptions } from '../src/test-isolation.js';
