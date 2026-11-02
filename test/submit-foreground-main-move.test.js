@@ -1,6 +1,6 @@
 /** Foreground and queued submits survive an unrelated main move during their check; a real policy change still refuses [V4,H16,C7]. */
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
@@ -24,12 +24,10 @@ function state(box) {
   } finally { db.close(); }
 }
 
-/** Collect the queued worker's own text output so a stalled worker names its cause. */
-function handoffLogs(box) {
-  const root = join(box.repo, '.git/pullboard/submit-handoffs');
-  if (!existsSync(root)) return 'no submit-handoffs directory';
-  return readdirSync(root, { recursive: true }).map(String).filter(path => /\.(?:log|json|txt)$/u.test(path))
-    .map(path => `--- ${path}\n${readFileSync(join(root, path), 'utf8').slice(-1500)}`).join('\n');
+/** Read the queued worker's own log so a stalled worker names its cause. */
+function workerLog(box, job) {
+  const log = join(box.repo, '.git/pullboard/submit-handoffs', job?.id ?? 'none', 'worker.log');
+  return existsSync(log) ? readFileSync(log, 'utf8').slice(-1500) : 'no worker log';
 }
 
 /**
@@ -106,7 +104,7 @@ test('queued submit survives an unrelated main move during its gate and is accep
   assert.match(result.stdout, /queued gate/u);
   await helpers.waitFor(() => ['green', 'red', 'incomplete'].includes(state(box).job?.state), // budget: real queued worker completion hang ceiling, no elapsed-time assertion.
     'queued gate completion', 120000) // budget: owned-worker hang ceiling, no throughput claim.
-    .catch(error => { throw new Error(`${error.message}: ${JSON.stringify(state(box).job)}\n${handoffLogs(box)}`); });
+    .catch(error => { throw new Error(`${error.message}: ${JSON.stringify(state(box).job)}\n${workerLog(box, state(box).job)}`); });
   const completed = state(box);
   assert.ok(existsSync(marker), 'main moved while the queued gate ran');
   assert.notEqual(box.git(box.repo, 'rev-parse', 'HEAD'), main, 'main moved while the queued gate ran');
