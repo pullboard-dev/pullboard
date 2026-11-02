@@ -321,7 +321,7 @@ export async function requireSubmitCells(root, acceptedMain, commit, item, servi
   const canReuse = preloads !== null && samePreloads() && tryGit(root, ['rev-parse', 'HEAD']).stdout?.trim() === source;
   const receiptKey = canReuse ? checkReceiptKey(root, { kind: 'cells-submit', definition: 'immutable submit cell checks',
     config: inputs, code: [import.meta.url, '../src/commands/submit.js', '../src/module-imports.js',
-      '../src/module-import-cache.js', '../src/test-isolation.js', '../src/main-red.js']
+      '../src/module-import-cache.js', '../src/test-isolation.js', '../packages/landing/src/shell/main-red.js']
       .map(path => fileURLToPath(new URL(path, import.meta.url))), commands: [] }) : null;
   const cached = readCheckReceipt(root, receiptKey);
   if (cached && Array.isArray(cached.result?.cells) && Array.isArray(cached.result?.existingCuts)
