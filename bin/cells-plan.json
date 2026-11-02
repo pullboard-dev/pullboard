@@ -1265,7 +1265,7 @@
     },
     {
       "path": "src/focus-boundary-engine.js",
-      "reason": "canonical engine identity retained in src during package moves"
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
@@ -2975,14 +2975,6 @@
         "src/bar-corrections.js",
         "packages/verify/src/core/bar-corrections.js",
         "seed"
-      ]
-    },
-    {
-      "cell": "state",
-      "row": [
-        "src/focus-boundary-engine.js",
-        "packages/state/src/shell/focus-boundary-engine.js",
-        "rule"
       ]
     }
   ]
