@@ -13,7 +13,7 @@ import { openBoard } from '../src/native-board.js';
 import { git } from '../src/git.js';
 import { runGate } from '../packages/gate/index.js';
 import { boardReceiptStore, readGateReceipt, receiptBinds, receiptStore } from '../packages/gate/index.js';
-import { gateRuns, recordGateRun } from '../src/quarantine.js';
+import { gateRuns, recordGateRun } from '../packages/flakes/index.js';
 import { recordLandingTestDefect } from '../src/board-landing-test-defects.js';
 import { nativePushReceiptProblems as evaluateNativePushReceiptProblems } from '../packages/git/index.js';
 import { COORDINATOR } from '../packages/config/index.js';

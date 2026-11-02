@@ -58,6 +58,7 @@ export function settleReceipt(lease) {
   const sourcePreparation = sourcePreparationFields(lease.sourcePreparation);
   lease.receipt = { ...receiptOf(lease.tracker, { kind: lease.receiptKind, slot: lease.slot }), environment: lease.environment ?? null,
     runner: descriptor, admittedAt, finishedAt, timing: lease.timing === true, inherited: lease.inherited === true,
+    ...(lease.timingOperation ? { timingOperation: lease.timingOperation } : {}),
     occupiedSlots: lease.timing ? descriptor.slots.current : 1, load,
     ...(lease.runner?.dispatch ? { runnerDispatch: lease.runner.dispatch } : {}),
     executionPhases: lease.executionPhases ?? null,

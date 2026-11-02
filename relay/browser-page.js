@@ -37,6 +37,7 @@ const BROWSER_MODULES = {
   '/relay/browser-notice.js': new URL('./browser-notice.js', import.meta.url),
   '/relay/browser-upload-status.js': new URL('./browser-upload-status.js', import.meta.url),
   '/relay/browser-deadline.js': new URL('./browser-deadline.js', import.meta.url),
+  '/relay/browser-adapter.js': new URL('./browser-adapter.js', import.meta.url),
   '/relay/browser-stream.js': new URL('./browser-stream.js', import.meta.url),
   '/relay/browser-pages.js': new URL('./browser-pages.js', import.meta.url),
   '/relay/browser-history.js': new URL('./browser-history.js', import.meta.url),

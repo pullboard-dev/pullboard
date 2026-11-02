@@ -1,3 +1,4 @@
+import { relayFetch } from '../../../person/index.js';
 import { operationIntent } from '../../../state/src/core/relay-sender-policy.js';
 import { orderedMoveCommand } from '../core/relay-command-order.js';
 import { withRelayExclusion } from './relay-exclusion-state.js';
@@ -332,7 +333,7 @@ async function rawRequest(state, path, { method = 'GET', body, allowMissing = fa
     for (let attempt = 0; ; attempt += 1) {
       try {
         requestSignal ??= signal ? AbortSignal.any([signal, AbortSignal.timeout(io?.relayTimeoutMs ?? 10000)]) : AbortSignal.timeout(io?.relayTimeoutMs ?? 10000); // budget: original per-request transport ceiling, shared by a replacement GET.
-        response = await fetch(origin + path, {
+        response = await relayFetch(origin + path, {
           method, redirect: 'error', signal: requestSignal,
           headers: { 'x-pullboard-engine': String(ENGINE_VERSION), ...(token ? { authorization: 'Bearer ' + token } : {}), ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...(initialBaseline ? { 'if-none-match': '*' } : {}) },
           ...(body === undefined ? {} : { body: JSON.stringify(body) }),

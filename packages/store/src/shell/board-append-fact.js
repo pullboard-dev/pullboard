@@ -30,6 +30,10 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
     if (!board.db.prepare('SELECT 1 FROM agent WHERE agent_id = ?').get(agentId)) throw new Refused('NO_AGENT', `no registered agent ${agentId}; join a worktree before appending a fact`);
     requireFactKind(board, kind);
     if (typeof text !== 'string' || !text.trim()) throw new Refused('EMPTY_FACT', 'a fact needs nonempty text; supply the observation or judgement');
+    const urgency = kind === 'urgent';
+    if (urgency && (!asPerson || agentId !== COORDINATOR)) throw new Refused('B26_PERSON_APPROVAL', 'only the person marks urgent work: pullboard fact <id> urgent on --as person');
+    if (urgency && !['terminal', 'view'].includes(channel)) throw new Refused('B26_PERSON_CHANNEL', 'urgent marks use the person terminal or authenticated view');
+    if (urgency && !['on', 'off'].includes(text)) throw new Refused('URGENT_VALUE', 'mark urgent with on or off');
     const barFields = barCheckFactFields(board, item, { agentId, kind, text, answers, supersedes });
     if ((FACT_JUDGEMENTS.has(kind) || supersedes !== null) && agentId !== COORDINATOR && (!isHeld(board, item) || item.item_owner !== agentId)) {
       throw new Refused('FACT_JUDGEMENT', `only the item's live holder${isHeld(board, item) ? ' (' + item.item_owner + ')' : ''} or the coordinator may append a judgement or supersede a fact; append an observation or ask the coordinator`);
@@ -40,8 +44,10 @@ export function appendFact(board, id, { agentId, kind, text, ref = null, superse
       throw new Refused('NO_FACT', `no fact ${String(supersedes)} on item #${id}; use a fact id from pullboard show ${id} --json`);
     }
     const binding = factReference(ref);
-    if (neverAgain || asPerson || cause !== null) requireNeverAgain(id, { agentId, cause, neverAgain, asPerson, channel });
-    logEvent(board, neverAgain ? PERSON : agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes, ...barFields, ...(neverAgain ? { cause, neverAgain: true, channel } : {}), ...(implies?.length ? { implies } : {}) });
+    if (!urgency && (neverAgain || asPerson || cause !== null)) requireNeverAgain(id, { agentId, cause, neverAgain, asPerson, channel });
+    logEvent(board, neverAgain || urgency ? PERSON : agentId, 'fact', id, { id: factId, kind, text, ref: binding, supersedes, ...barFields, ...(neverAgain ? { cause, neverAgain: true, channel } : {}), ...(implies?.length ? { implies } : {}) });
+    if (urgency) board.db.prepare('INSERT INTO board_meta(meta_key,meta_value) VALUES (?,?) ON CONFLICT(meta_key) DO UPDATE SET meta_value=excluded.meta_value')
+      .run(`item_urgent:${id}`, text);
     const trigger = board.lastEvent;
     const result = tellFactImplications(board, (by, itemId, fact) => logEvent(board, by, 'fact', itemId, fact), factFromEvent(trigger), { id, implies, supersedes });
     if (neverAgain) postRigorNotices(board, trigger);
