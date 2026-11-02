@@ -33,6 +33,7 @@ test('changed source, main, criterion or incomplete evidence fails closed [C7,H1
   for (const mutate of [
     rows => rows.splice(2, 1),
     rows => { const value = JSON.parse(rows[2].event_detail); value.receipt.green = false; rows[2].event_detail = JSON.stringify(value); },
+    rows => { const value = JSON.parse(rows[2].event_detail); value.receipt.sourceClean = false; rows[2].event_detail = JSON.stringify(value); },
     rows => { const value = JSON.parse(rows[3].event_detail); value.submissionProof.deferred = true; rows[3].event_detail = JSON.stringify(value); },
     rows => { const value = JSON.parse(rows[3].event_detail); value.submissionProof.files = []; rows[3].event_detail = JSON.stringify(value); },
     rows => rows.splice(3, 0, event(3.5, 'proof-run', JSON.parse(rows[2].event_detail))),
