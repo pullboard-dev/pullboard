@@ -137,7 +137,7 @@ export async function ordered(ctx, board, operation, args) {
     const actor = ctx.info.isMain ? COORDINATOR : (submitHandoffActor(ctx, board, operation, args) ?? store.agentAt(board, ctx.info.root))?.agent_id;
     requireHandoffActive(board, actor, operation, args);
     if (!ctx.privateBoard && gitSyncRecoveryNeeded(ctx.info.root)) {
-      await (await import('../git-sync-repair.js')).repairGitSync(ctx.info.root, board, ctx.io);
+      await (await import('../../packages/sync/index.js')).repairGitSync(ctx.info.root, board, ctx.io);
     }
     ensureSpecApprovalCoordinator(ctx, board, initialBaseline, { relayLinked, relayRecovered: (root, options) => relayRecovered(root, options, ctx.io), gitSyncLinked, ensureCoordinator: store.ensureCoordinator });
     const write = () => writeBoardCommand(board, operation, args, actor);

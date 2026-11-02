@@ -18,7 +18,7 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { fetchLocal } from './local-fetch.js';
+import { fetchLocal } from '../packages/sync/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { registryFile } from './projects.js';
 import {
