@@ -467,3 +467,11 @@ test('landing move preserves Strict on every protected provider [V4,B26,C7]', ()
     assert.equal(gateJudgmentPath(ordinary), false, ordinary);
   }
 });
+
+test('lib move preserves exact relay worker review tiers [V4,B26]', () => {
+  for (const name of ['relay-checkpoint-worker', 'relay-sender-main']) {
+    assert.equal(gateJudgmentPath(`src/${name}.js`), true);
+    assert.equal(gateJudgmentPath(`apps/lib/src/shell/${name}.js`), true);
+  }
+  assert.equal(gateJudgmentPath('apps/lib/src/shell/cli-hook-work.js'), false);
+});
