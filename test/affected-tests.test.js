@@ -471,7 +471,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/shared-wait-guard.test.js',
     'test/view-test-policy.test.js',
     'test/wall-clock-budgets.test.js',
-  ];
+  ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
   const guards = affectedTests.selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');

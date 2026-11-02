@@ -6,9 +6,9 @@
 import {
   PERSON,
   atomic,
-  listAgents,
   logEvent,
 } from "../shell/board.js";
+import { hasAgent } from '../shell/board-query.js';
 import { RECURRING_JOB_ENGINE } from "../../../../src/job-engine.js";
 import { ENGINE_VERSION } from "../../../../src/machine.js";
 import { Refused } from "../../../kernel/core.js";
@@ -102,7 +102,7 @@ export function declareJob(board, { agentId, name, every, owner }) {
 export function recordJobRun(board, { agentId, name }) {
   return atomic(board, () => {
     requireJobEngine(board);
-    if (!listAgents(board).some(agent => agent.agent_id === agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a run: pullboard join <lane>');
+    if (!hasAgent(board, agentId)) throw new Refused('NOT_JOINED', 'join this board before recording a run: pullboard join <lane>');
     if (!recurringJobs(board).some(job => job.name === name)) {
       throw new Refused('UNKNOWN_JOB', `no job named ${name}; the coordinator declares it first: pullboard loop declare ${name} --every 10m --owner <seat or lane>`);
     }
