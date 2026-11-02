@@ -1,7 +1,7 @@
 /** The board's coordinator takeover move, composed from the seats cell's hold and the store's writers [E19,C7]. */
 import { atomic } from "./board-event-log.js";
 import { logEvent } from "./board-event-log.js";
-import { takeCoordinator as recordTakeover } from "../../../../src/coordinator-hold.js";
+import { takeCoordinator as recordTakeover } from "../../../seats/index.js";
 
 /**
  * Take the coordinator hold through the board's own transaction and event log.

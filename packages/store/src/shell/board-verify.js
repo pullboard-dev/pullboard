@@ -23,7 +23,7 @@ import { VERDICT_REVIEW_ENGINE } from "../../../state/index.js";
 import { IN_STATE } from "../../../state/index.js";
 import { MOVES } from "../../../state/index.js";
 import { Refused } from "../../../kernel/index.js";
-import { recordRejectedItemRoute } from "../../../../src/route-escalation.js";
+import { recordRejectedItemRoute } from "../../../seats/index.js";
 import { causeProblem } from "../core/board-rigor.js";
 import { tellVerdictImplications } from "../../../state/index.js";
 import { ACCEPT_REASON } from "./board.js";

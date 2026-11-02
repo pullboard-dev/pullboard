@@ -4,7 +4,7 @@ import * as store from '../board.js';
 import { idArg } from '../cli-context.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import { invalidateGitFacts } from '../git.js';
-import { laneOf } from '../lanes.js';
+import { laneOf } from '../../packages/seats/index.js';
 import { Refused } from '../../packages/kernel/index.js';
 import { briefFiles } from '../../packages/items/index.js';
 import { parseProblems } from '../sweep.js';

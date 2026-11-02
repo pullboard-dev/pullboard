@@ -8,7 +8,7 @@ import {
 } from '../../packages/person/index.js';
 import {
   listApiProjects,
-} from '../projects.js';
+} from '../../packages/seats/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';

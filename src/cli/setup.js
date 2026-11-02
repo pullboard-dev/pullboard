@@ -13,7 +13,7 @@ import { withBoard } from '../cli-context.js';
 import { COORDINATOR } from '../../packages/config/index.js';
 import * as gateConfig from '../gate-config.js';
 import { detectGate } from '../init.js';
-import { laneNames } from '../lanes.js';
+import { laneNames } from '../../packages/seats/index.js';
 import { applyStep } from '../../packages/spec/index.js';
 import { personAsk } from '../../packages/spec/index.js';
 import { requirementStep } from '../../packages/spec/index.js';
