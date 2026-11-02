@@ -125,3 +125,22 @@ await import(${JSON.stringify(pathToFileURL(entry).href)});`);
   publish(2, "import './second.js';");
   assert.deepEqual(await reply(2), { version: 1, id: 2, results: [{ compiles: true, imports: ['./second.js'] }] });
 });
+
+test('a slow real batch worker survives the old deadline and a hung worker reports timeout [C7,P3]', { timeout: 120_000 }, async t => {
+  const files = privateFixtureFiles('pullboard-parser-delay-');
+  t.after(() => rmSync(files.root, { recursive: true, force: true }));
+  files.write('slow.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 11000);\n");
+  files.write('hung.cjs', "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 180000);\n");
+  const spawn = childProcess.spawn;
+  let preload = 'slow.cjs';
+  t.mock.method(childProcess, 'spawn', (command, args, options) => spawn(command,
+    ['--require', join(files.root, preload), ...args], options));
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
+  const result = withCellLintParser(parse => parse(["import './real.js';", 'export const broken = ;']));
+  assert.deepEqual(result[0], { compiles: true, imports: ['./real.js'] });
+  assert.deepEqual(result[1], { compiles: false, imports: [] }, 'a real syntax failure remains a failed source');
+  preload = 'hung.cjs';
+  assert.throws(() => withCellLintParser(parse => parse(['export const value = 1;'])),
+    error => error.code === 'CELL_BINDING_TIMEOUT' && /extended batch wait/u.test(error.message));
+});
