@@ -1,6 +1,8 @@
 /** @pullboard-test-input source-tree bin/cells-plan.json bin/cells-plan/** */
 /** The committed cells move plan places each path once and orders cells leaf-first by real imports [D3,CD60,CD64]. */
 import { sourceAdvancePlan } from '../packages/codemap/index.js';
+import { withSourceComposition } from '../packages/merge/index.js';
+import { retryReviewCommit } from '../packages/verify/index.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
 import { importsIn } from '../packages/gate/index.js';
@@ -343,6 +345,8 @@ test('cut refresh refuses a newly tracked unplanned endpoint without changing an
 /** Two branches off one commit that each change the same file, merged in the given order into a real conflict. */
 function divergent(t, file, base, left, right) {
   const { root, put } = fixture(t);
+  git(root, 'config', 'user.name', 'Cells plan fixture');
+  git(root, 'config', 'user.email', 'cells@example.invalid');
   put(file, base); git(root, 'add', '-A'); git(root, 'commit', '-q', '-m', 'base');
   const main = git(root, 'rev-parse', 'HEAD').trim();
   const branch = (name, source) => {
@@ -457,5 +461,88 @@ test('moved shim exceptions require a live edge or trusted historical import [C7
       assert.deepEqual(problems, [], `${mode}: ${problems.join('\n')}`);
       assert.match(notes.join('\n'), mode === 'live' ? /live temporary edge #42/u : /sealed move history/u);
     } else assert.ok(problems.some(problem => problem.includes('src/refused.js bypasses front door')), `${mode}: ${problems.join('\n')}`);
+  }
+});
+
+
+/** Render the plan index's actual keyed placement rows. */
+function planIndex(stays) {
+  const engineStays = stays.map(({ path, reason }) => ({ cell: 'state', row: [path, 'packages/state/' + path, reason] }));
+  return JSON.stringify({ version: 1, cells: [], stays, engineStays }, null, 2) + '\n';
+}
+
+/** Render the test-tier manifest's actual file-keyed rows. */
+function tierManifest(files) { return JSON.stringify({ version: 1, files }, null, 2) + '\n'; }
+
+
+test('plan index disjoint additions compose identically in both orders [C7,D3]', async t => {
+  const row = path => ({ path: path, reason: 'T1' });
+  const base = [row('test/base.test.js')];
+  const { root, heads } = divergent(t, 'bin/cells-plan.json', planIndex(base),
+    planIndex([...base, row('test/zeta.test.js')]), planIndex([...base, row('test/alpha.test.js')]));
+  const sources = [];
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await withSourceComposition(root, ours, theirs, async composition => {
+      const source = readFileSync(join(composition.directory, 'bin/cells-plan.json'), 'utf8');
+      const document = JSON.parse(source), rows = document.stays;
+      assert.deepEqual(document.engineStays.map(entry => entry.row[0]), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.deepEqual(rows.map(entry => entry.path), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
+      sources.push(source);
+    });
+    const review = retryReviewCommit(root, ours, { commit: theirs });
+    assert.equal(git(root, 'show', `${review}:bin/cells-plan.json`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
+  }
+  assert.equal(sources.length, 2);
+  assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
+});
+
+test('plan index same-row edits refuse and name the row [C7,D3]', async t => {
+  const path = 'test/shared.test.js';
+  const row = value => [{ path: path, reason: value }];
+  const { root, heads } = divergent(t, 'bin/cells-plan.json', planIndex(row('T1')),
+    planIndex(row('T2')), planIndex(row('T3')));
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
+      assert.fail('a conflicting row must not reach the composed-source controller');
+    }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+    assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
+      error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+  }
+});
+
+
+test('test tiers disjoint additions compose identically in both orders [C7,D3]', async t => {
+  const row = path => ({ file: path, tier: 'T1' });
+  const base = [row('test/base.test.js')];
+  const { root, heads } = divergent(t, 'packages/gate/test-tiers.json', tierManifest(base),
+    tierManifest([...base, row('test/zeta.test.js')]), tierManifest([...base, row('test/alpha.test.js')]));
+  const sources = [];
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await withSourceComposition(root, ours, theirs, async composition => {
+      const source = readFileSync(join(composition.directory, 'packages/gate/test-tiers.json'), 'utf8');
+      const rows = JSON.parse(source).files;
+      assert.deepEqual(rows.map(entry => entry.file), ['test/alpha.test.js', 'test/base.test.js', 'test/zeta.test.js']);
+      assert.equal(git(composition.directory, 'rev-parse', 'HEAD').trim(), composition.head);
+      sources.push(source);
+    });
+    const review = retryReviewCommit(root, ours, { commit: theirs });
+    assert.equal(git(root, 'show', `${review}:packages/gate/test-tiers.json`) + '\n', sources.at(-1), 'review admission uses the same deterministic data merge');
+  }
+  assert.equal(sources.length, 2);
+  assert.equal(sources[0], sources[1], 'merge direction cannot change the generated manifest bytes');
+});
+
+test('test tiers same-row edits refuse and name the row [C7,D3]', async t => {
+  const path = 'test/shared.test.js';
+  const row = value => [{ file: path, tier: value }];
+  const { root, heads } = divergent(t, 'packages/gate/test-tiers.json', tierManifest(row('T1')),
+    tierManifest(row('T2')), tierManifest(row('T3')));
+  for (const [ours, theirs] of [heads, [...heads].reverse()]) {
+    await assert.rejects(withSourceComposition(root, ours, theirs, async () => {
+      assert.fail('a conflicting row must not reach the composed-source controller');
+    }), error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
+    assert.throws(() => retryReviewCommit(root, ours, { commit: theirs }),
+      error => error.code === 'MERGE_CONFLICT' && error.message.includes(path));
   }
 });

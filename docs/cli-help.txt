@@ -177,7 +177,7 @@ Work
                                         coverage rows retain whole-file observations; slow files require named checks and explicit landing coverage
   pullboard bar <id>                    show missing prerequisites and the current revision
   pullboard claim <id>                  take or renew a lease; the first claim freezes the criterion
-  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER [--note "why"] [--no-next]
+  pullboard release <id> --reason INELIGIBLE|ROUTED_ELSEWHERE|BLOCKED|BUDGET|OTHER [--note "why"] [--on <ids>] [--no-next]
                                         hand it back, naming why; OTHER needs the note; the reason is recorded on the release
   pullboard release <id> --stale --reason BLOCKED --note "why"  coordinator only; requires measured inactivity and a note
   pullboard release --session-end       the SessionEnd hook frees your build claims at once, keeping the work at a board ref
@@ -186,6 +186,7 @@ Work
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
+  pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result
   pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]
                                         two rejects of the same frozen clause hold the item for a sharper bar

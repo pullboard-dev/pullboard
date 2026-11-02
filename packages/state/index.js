@@ -27,6 +27,7 @@ export { submitAdmission } from './src/core/submit-admission.js';
 export { completesAdmittedSubmit } from './src/core/submit-admission.js';
 export { EXIT_RULES_ENGINE } from '../../src/exit-rules-engine.js';
 export { ENGINE_VERSION } from '../../src/engine-metadata.js';
+export { FOCUS_BOUNDARY_ENGINE } from '../../src/focus-boundary-engine.js';
 export { agentGrantMinimum } from "./src/core/agent-grant.js";
 export { requireAgentGrant } from "./src/core/agent-grant.js";
 export { engineDeclarationNames } from "./src/shell/engine-folder.js";

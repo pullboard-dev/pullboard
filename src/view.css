@@ -1556,3 +1556,6 @@ body:has(#settings-pane:not([hidden])) #share-note { display: none; }
 @media (max-width: 700px) { .first-run-checks li { flex-wrap: wrap; } .first-run-checks li small.hint { margin-left: 30px; flex-basis: 100%; } .first-run-line { flex-wrap: wrap; } }
 /* Phone setup lives in the checklist's last line while the first-run page shows, so the sign-in banner steps aside. */
 body:has(#dashboard:not([hidden]) .first-run) #share-note { display: none; }
+.focus-batch { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: grid; gap: var(--space-4); }
+.focus-batch p { margin: var(--space-1) 0; overflow-wrap: anywhere; }
+.focus-batch small { color: var(--muted, inherit); }

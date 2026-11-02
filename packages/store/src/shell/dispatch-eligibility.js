@@ -27,6 +27,6 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
     return { item: review.item, review: true, held: store.reviewHolder(board, review.item) === agentId, reasons: review.reasons };
   }
 
-  const build = store.nextFor(board, { agentId, lane, omitIds: assignedIds, observeIdle, workingFiles });
+  const build = store.nextFor(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: assignedIds, observeIdle, workingFiles });
   return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }

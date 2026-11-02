@@ -261,7 +261,7 @@ function* profiledExecution(root, command, { waitMs = 0, artifactDirectory, arti
     && run.executionSourceUnchanged !== false && (!gateLease?.runner || Boolean(executionSource))
     && (!executionSource || sameTimingSource(timingSourceBefore, executionSource))
     ? timingSourceBefore : null;
-  const rawResult = { ...profiledRun, profile, profilePath, logPath,
+  const rawResult = { ...profiledRun, id, profile, profilePath, logPath,
     ...(stages ? { stages: timingAccountingStages(run.stages, id, accountingSource, { collectionId: collectionId ?? id }) } : {}),
     suiteTiming: suiteTimingFromOutput(run.output, id, run.executionSource
       ? { head: run.executionSource.commit, tree: run.executionSource.tree } : timingSourceForReceipt(root)),

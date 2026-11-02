@@ -38,6 +38,7 @@ export const workHelp = `Work
   pullboard roadmap                     ordered milestones, N/M landed, targets, and each item as landed,
                                         accepted or its status
   pullboard milestone add <name> [--note ...] [--items 1,2,3 --reason "<why>"]   create a release catalog entry
+  pullboard milestone focus <name|off> [--overflow off|on]   focus next on one release
   pullboard milestone items <name> --add ids [--swap id] --reason "<why>"   override the board placement, recording why
   pullboard milestone items <name> --remove ids            remove items from the milestone
   pullboard milestone order <name> <ids> --reason "<why>"   override computed order (coordinator or person)
@@ -110,7 +111,7 @@ export const workHelp = `Work
     submit.handoff: true in pullboard.json queues that exact source and returns before the gate (default off).
     The builder may move HEAD and claim another item; show <id> retains the queued result and original refusal.
                                         --infra "<why>": required when the change edits an existing test or gate file; the reviewer reads it in show
-  pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
+  pullboard verify <id> --compare       rerun unit-test comparison; show and next print the automatic result\n  pullboard verify <id> accept [--no-next] --note "what you broke or which edge you tried, and what happened"
   pullboard verify <id> reject [--no-next] --reason TEST_FAILURE --clause "failing frozen requirement" --note "what failed" [--cause <key>]
                                         two rejects of the same frozen clause hold the item for a sharper bar
                                         submit, release and verdict take native next work; --no-next leaves the seat empty
