@@ -1,6 +1,6 @@
 /** A queued submit's whole analysis runs as one trusted runner job: main's committed archive, candidate as data [V4,C7]. */
-import { shellWord } from './runner-remote-tooling.js';
-import { effectiveRunners } from './runner-slots.js';
+import { effectiveRunners } from '../packages/runners/index.js';
+import { shellWord } from '../packages/runners/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
@@ -91,14 +91,14 @@ try {
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
   for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
-  await step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true }));
+  await step('placement', () => items.requirePlannedSource(root, input.trunk, input.source));
   if (input.staticChecks) await step('static', () => {
     const run = spawnSync('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2 });
     const output = String(run.stdout ?? '') + String(run.stderr ?? '');
     if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
   });
   if (input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
-  result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
+  result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }) }, {
     withMainCheckout: landing.withMainCheckout, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
     withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => input.cutRows,
@@ -181,7 +181,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
 export async function remoteSubmitAnalysis(root, request, lease, artifactDirectory) {
   const { main, source, readCutItems } = request;
   const cutRows = readCutItems();
-  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
+  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion,
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
     browserFreeChecks: request.browserFreeChecks === true, cutRows };
   const { value, directory, sha256 } = await trustedRunnerStep(root, { main, source, stage: 'analysis', entry: ANALYSIS_ENTRY, data }, lease, artifactDirectory);
