@@ -1,4 +1,6 @@
 import { REVIEW_ROUTING_ENGINE } from "../../../../../src/review-routing-engine.js";
+import { REVIEW_FAMILY_RELAX_ENGINE } from '../../../../../src/review-family-relax-engine.js';
+import { frozenRelaxationEngine } from '../review-relax-floor.js';
 import { anyItemReviewPolicyEngine } from "../../../../verify/src/core/review-policy.js";
 import { anyRequiredReviewFamilyEngine } from "../../../../verify/src/core/required-review-family.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
@@ -45,5 +47,5 @@ export default Object.freeze({ operation: "reserveNextReview", order: 17, engine
 
 /** Fresh review routing records its engine; older ordered moves keep their original guards. */
 function minimumEngine(args, board, at) {
-  return Math.max(Object.hasOwn(args[0] ?? {}, 'priority') ? REVIEW_ROUTING_ENGINE : 1, historicalMinimumEngine(args, board, at));
+  return Math.max(frozenRelaxationEngine(board), args[0]?.familyRelaxAt !== undefined ? REVIEW_FAMILY_RELAX_ENGINE : 1, Object.hasOwn(args[0] ?? {}, 'priority') ? REVIEW_ROUTING_ENGINE : 1, historicalMinimumEngine(args, board, at));
 }
