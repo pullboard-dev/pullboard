@@ -393,6 +393,7 @@ export async function submitHere(ctx, id, infra) {
     readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)),
     onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`) }); }
   finally { reportSubmitStage(ctx, 'cells', cellsStart); }
+  // A reused cells receipt never ran on a runner, so it has no slot; the check-receipt line cites it without one.
   if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
   for (const edge of cells.existingCuts ?? []) ctx.io.say(`cell cuts backlog: ${edge}`);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
