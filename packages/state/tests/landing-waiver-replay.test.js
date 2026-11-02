@@ -1,6 +1,6 @@
 /** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/machine.js */
-import { landingWaiverFor as nativeLandingWaiverFor } from '../../../src/landing-waivers.js';
-import { waivedLandingProof as nativeWaivedLandingProof } from '../../../src/landing-waivers.js';
+import { landingWaiverFor as nativeLandingWaiverFor } from '../../landing/index.js';
+import { waivedLandingProof as nativeWaivedLandingProof } from '../../landing/index.js';
 /** Preserve released person-waiver receipts on independent current replicas [B3,R3,H16]. */
 import { landingPorts } from '../../../test/landing-ports-fixture.js';
 import assert from 'node:assert/strict';

@@ -17,7 +17,7 @@ import { SUBMISSION_PROOF_ENGINE } from '../src/move-engine-constants.js';
 import { landingFileTimes } from '../packages/items/index.js';
 import { submitInvariantProposals } from '../packages/items/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { landingFailures } from '../src/land.js';
+import { landingFailures } from '../packages/landing/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { replayHistoricalSeatMove } from './pre-grant-seats.js';
 

@@ -7,7 +7,7 @@ import { readGateReceipt } from '../gate-run-receipt.js';
 import { checkAtCommit } from '../runner-private-check.js';
 /** The pullboard gate command, in its own module so an item adding another command never edits these lines. */
 import { runnerExecutionServices } from '../runners.js';
-import { landingExecutionServices } from '../landing-shards.js';
+import { landingExecutionServices } from '../../packages/landing/index.js';
 import {
   CONFIG_FILE,
 } from '../../packages/config/index.js';
@@ -24,7 +24,7 @@ import {
   liveWaiverProjection,
   waivedFailures,
   waiverLine,
-} from '../land.js';
+} from '../../packages/landing/index.js';
 import * as nativeFlakes from '../native-flake-cli.js';
 import {
   Refused,

@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { withMainCheckout } from '../src/main-red.js';
+import { withMainCheckout } from '../packages/landing/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
