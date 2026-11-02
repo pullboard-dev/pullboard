@@ -48,24 +48,19 @@ import {
   shellWord,
   timedMs,
 } from './api-fixture.js';
-
 // The newest event-log format this Pullboard reads: a board with signed person moves is format 2 [E22].
 const READABLE_EVENT_LOG = Math.max(EVENT_LOG_VERSION, SIGNED_EVENT_LOG_VERSION);
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
 const TEMP_DIRS = [];
 const covered = new Set();
 const coveredRoots = new Set();
-
 after(() => {
   for (const dir of TEMP_DIRS) rmSync(dir, { recursive: true, force: true });
 });
-
 const SPEC = `# API fixture
-
 ## G · Goals
 - G1 [approved, must] The fixture keeps its board. | gate: true
 `;
-
 test('apiBoardListing is exported and matches the board list [A2]', async (t) => {
   const apiBoardListing = apiExports.apiBoardListing;
   assert.equal(typeof apiBoardListing, 'function', 'the existing API listing classifier is exported');
@@ -86,11 +81,9 @@ test('apiBoardListing is exported and matches the board list [A2]', async (t) =>
   assert.deepEqual(listed.boards.map(({ root }) => root), [box.repo]);
   assert.deepEqual(listed.warnings.map(({ root, error }) => [root, error.error.code]), [[unreadableRoot, 'BOARD_UNAVAILABLE']]);
 });
-
 test('[A5] append-only event records expose format version one', () => {
   assert.equal(EVENT_LOG_VERSION, 1);
 });
-
 test('[O8] authenticated API state exposes model labels and configured stable display names', async (t) => {
   const box = project();
   const created = box.run(box.repo, 'worktree', 'app', '--model', 'Claude Sonnet', '--json');
@@ -112,7 +105,6 @@ test('[O8] authenticated API state exposes model labels and configured stable di
   const legacy = suffix.find((agent) => agent.agent_id === 'coordinator');
   assert.equal(legacy.model, 'unknown');
   assert.equal(legacy.displayName, 'coordinator (unknown)');
-
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
   config.agents = { names: 'prefix' };
@@ -124,7 +116,6 @@ test('[O8] authenticated API state exposes model labels and configured stable di
   assert.equal(prefix.find((agent) => agent.agent_id === 'app-1').displayName, 'claude-sonnet-app-1');
   assert.equal(prefix.find((agent) => agent.agent_id === 'coordinator').displayName, 'unknown-coordinator');
 });
-
 test('[A2] the local API admits only its listed origins', async (t) => {
   const box = project();
   const listedOrigin = 'https://app.pullboard.dev';
@@ -132,7 +123,6 @@ test('[A2] the local API admits only its listed origins', async (t) => {
   const listed = await apiFetch(configured, '/api/v1/boards', { headers: { origin: listedOrigin } });
   assert.equal(listed.status, 200);
   assert.equal((await listed.json()).boards.length, 1, 'the allowed origin reaches the regular board handler');
-
   for (const origin of [
     'https://app.pullboard.dev.attacker.invalid',
     'https://sub.app.pullboard.dev',
@@ -142,17 +132,14 @@ test('[A2] the local API admits only its listed origins', async (t) => {
     const response = await apiFetch(configured, '/api/v1/boards', { headers: { origin } });
     assert.equal((await apiError(response, 403)).code, 'API_ORIGIN', `an unlisted origin is refused: ${origin}`);
   }
-
   const missingKey = await apiFetch(configured, '/api/v1/boards', { noSecret: true, headers: { origin: listedOrigin } });
   assert.equal((await apiError(missingKey, 401)).code, 'AUTH_REQUIRED', 'an allowed origin still needs the session key');
   const wrongKey = await apiFetch(configured, '/api/v1/boards', { headers: { origin: listedOrigin, 'x-pullboard-key': randomUUID() } });
   assert.equal((await apiError(wrongKey, 401)).code, 'AUTH_REQUIRED', 'an allowed origin does not replace the session key');
-
   const defaulted = await startLocalHandler(t, box);
   const defaultOrigin = await apiFetch(defaulted, '/api/v1/boards', { headers: { origin: listedOrigin } });
   assert.equal((await apiError(defaultOrigin, 403)).code, 'API_ORIGIN', 'omitting the option preserves same-origin-only behavior');
 });
-
 test('local API admits only configured literal IPv4 hosts at their own origin [H19]', async (t) => {
   const box = project();
   const configured = await startLocalHandler(t, box, { allowedHosts: ['192.168.7.9'] });
@@ -174,7 +161,6 @@ test('local API admits only configured literal IPv4 hosts at their own origin [H
     secret: randomUUID(), getPort: () => 1, runCommand: main, projects: () => [], allowedHosts: [invalid],
   }), TypeError, `invalid LAN host ${invalid} is rejected`);
 });
-
 /** Make a disposable home and a real repo with isolated git settings. */
 function sandbox() {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pullboard-api-')));
@@ -208,7 +194,6 @@ function sandbox() {
   const run = (cwd, ...args) => runFixtureChild(process.execPath, [BIN, ...args], { cwd, env, encoding: 'utf8' });
   return { dir, env, git, run };
 }
-
 /** Initialize a real board with an undeclared legacy coordinator for the API protocol fixtures. */
 function project() {
   const box = sandbox();
@@ -239,14 +224,12 @@ function project() {
   box.git(repo, 'commit', '-q', '-m', 'chore: set up API fixture');
   return { ...box, repo, initialized };
 }
-
 /** Read the event-log marker without going through openBoard's version guard. */
 function readEventLogVersion(file) {
   const db = new DatabaseSync(file);
   try { return db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get('event_log_version')?.meta_value; }
   finally { db.close(); }
 }
-
 /** Set a private fixture's event-log marker to model another reader's persisted format. */
 function setEventLogVersion(file, version) {
   const db = new DatabaseSync(file);
@@ -255,7 +238,6 @@ function setEventLogVersion(file, version) {
       .run('event_log_version', String(version));
   } finally { db.close(); }
 }
-
 test('[A5] board opens upgrade older event logs and refuse future event logs before migration', () => {
   const box = project();
   const file = join(box.repo, '.git', 'pullboard', 'board.sqlite');
