@@ -8,7 +8,7 @@
   ["src/dispatch-health.js","packages/sentinels/src/shell/dispatch-health.js","imports"],
   ["src/gone-claims.js","packages/sentinels/src/core/gone-claims.js","imports"],
   ["src/health-sentinel.js","packages/sentinels/src/shell/health-sentinel.js","seed"],
-  ["src/rejected-work-return.js","packages/sentinels/src/core/rejected-work-return.js","imports"],
+  ["src/rejected-work-return.js","packages/sentinels/src/shell/rejected-work-return.js","imports"],
   ["src/sentinel-command.js","packages/sentinels/src/shell/sentinel-command.js","seed"],
   ["src/sentinel-cpu.js","packages/sentinels/src/shell/sentinel-cpu.js","seed"],
   ["src/sentinel-runner.js","packages/sentinels/src/shell/sentinel-runner.js","seed"],

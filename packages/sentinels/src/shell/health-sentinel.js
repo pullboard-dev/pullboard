@@ -1,6 +1,6 @@
 import { observeDirtyRunnerTooling } from '../../../runners/index.js';
 import { dispatchHealth } from "./dispatch-health.js";
-import { rejectedWorkReturns } from "../core/rejected-work-return.js";
+import { rejectedWorkReturns } from "./rejected-work-return.js";
 /** Snapshot health without keeping a board write lock across Git's merge checks [A6]. */
 import { existsSync } from 'node:fs';
 import { openBoardReadOnly } from "../../../store/index.js";

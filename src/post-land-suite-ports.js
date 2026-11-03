@@ -7,7 +7,7 @@ import { unownedMainReds } from '../packages/store/index.js';
 import { postLandSuiteEnabled } from '../packages/config/index.js';
 import { runFullSuite } from '../packages/gate/index.js';
 import { failureSignatures } from '../packages/landing/index.js';
-import { runnerExecutionServices } from './runners.js';
+import { runnerExecutionServices } from '../packages/runners/index.js';
 import { landingExecutionServices } from '../packages/landing/index.js';
 
 /** The previous batch's result lives beside the board's other private Git state, never in the tracked tree. */

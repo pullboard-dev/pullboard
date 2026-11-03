@@ -9,7 +9,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { after, test } from 'node:test';
 import { closeBoard, register } from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
-import { exportBoard, importBoard } from '../../src/exchange.js';
+import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { projectState } from '../../src/cli/view-state.js';
 import { exportView } from '../../src/commands/view.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
