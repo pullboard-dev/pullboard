@@ -40,7 +40,7 @@ import { JSON_SHAPES } from '../packages/config/index.js';
 import { exportView } from '../apps/cli/src/shell/commands/view.js';
 import { main as nativeTestMain } from '../test/native-cli-fixture.js';
 import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from '../apps/lib/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { discoverEngines } from '../src/engine-metadata.js';
 import { readEngineLeaves } from '../src/engine-numbers.js';

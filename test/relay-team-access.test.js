@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 import { test } from 'node:test';
 // The native child executes this entry point; keep its affected-test dependency explicit.
-import '../src/cli.js';
+import '../apps/cli/index.js';
 import { ACCESS_WINDOW_MS, createRelayAuth } from '../apps/relay/index.js';
 import { createAuthHandler } from '../apps/relay/index.js';
 import { createRelayHandler } from '../apps/relay/index.js';

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { knownMainCheck } from '../src/commands/verify.js';
+import { knownMainCheck } from '../apps/cli/index.js';
 
 const CHECK = 'node --test test/affected.test.js';
 // The case fails on main and on the candidate with different messages, so no exact comparison of the two runs can match it.
