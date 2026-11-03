@@ -13,6 +13,7 @@ import { takeResource } from '../packages/resources/index.js';
 import { recordRunnerFailure } from '../packages/resources/index.js';
 import { initializeRunnerRecovery } from '../packages/resources/index.js';
 import { openPoolReadOnly } from '../packages/resources/index.js';
+import { recoverUnavailableRunners } from '../packages/resources/index.js';
 import { scopedEnvironment } from '../apps/runner/src/shell/runner-worker-environment.js';
 import { scheduleWorktreeMaintenance } from '../src/worktree-maintenance-scheduler.js';
 import { scheduleToolBuildGate } from '../src/tool-build-scheduler.js';
@@ -157,4 +158,36 @@ test('one job recorded twice still costs one slot [C7]', async t => {
   } finally { db.close(); }
   const lease = await acquire(dir, runners);
   try { assert.equal(lease.runner.host, 'same-job-host', 'its other slot stays usable'); } finally { lease.release(); }
+});
+
+test('a controller killed mid-job costs its runner one slot, and proving that exact job clears it [C7]', async t => {
+  const { dir, pool } = machine(t);
+  const runners = [{ host: 'shared-host', slots: 2, browser: 0 }];
+  const resources = new URL('../packages/resources/index.js', import.meta.url).href;
+  const recovery = { version: 1, launchFence: 1, request: 'job-orphan-1', nonce: '00000000-0000-4000-8000-000000000001', tooling: 'a'.repeat(64) };
+  const script = `const r=await import(${JSON.stringify(resources)});`
+    + `const lease=await r.takeResource({name:'gate',capacity:1,browserCapacityProvider:()=>1,scope:'machine',root:${JSON.stringify(dir)},agent:'fixture-controller',remote:true,runnerOnly:true,runnerWaitMs:10000,runnerProvider:()=>${JSON.stringify(runners)}});`
+    + `const custody=r.controllerDeadline({token:lease.token,pool:lease.pool},process.pid);custody.job(${JSON.stringify(recovery)});`
+    + `process.stdout.write(lease.runner.host+'\\n');setInterval(()=>{},1000);`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', script], { env: process.env, stdio: ['ignore', 'pipe', 'inherit'] });
+  const exited = new Promise(resolve => child.once('exit', resolve));
+  const host = await new Promise(resolve => child.stdout.once('data', data => resolve(String(data).trim())));
+  assert.equal(host, 'shared-host');
+  child.kill('SIGKILL');
+  await exited;
+  const lease = await acquire(dir, runners);
+  try {
+    assert.equal(lease.runner.host, 'shared-host', 'the runner keeps taking work after its controller died');
+    const db = new DatabaseSync(pool);
+    try {
+      const row = db.prepare('SELECT detail, failure FROM runner_unavailable WHERE host = ?').get('shared-host');
+      assert.equal(row.detail, 'CLEANUP_UNVERIFIED');
+      assert.deepEqual(JSON.parse(row.failure).pending, [recovery], 'the orphan names its exact job');
+      const probed = [];
+      await recoverUnavailableRunners(db, runners, { now: Date.now() + 5_000,
+        probe: async (runner, pending) => { probed.push(pending); return { healthy: true, step: 'health' }; } });
+      assert.deepEqual(probed, [[recovery]], 'recovery checks that one job, not runner idleness');
+      assert.equal(db.prepare('SELECT COUNT(*) AS n FROM runner_unavailable').get().n, 0);
+    } finally { db.close(); }
+  } finally { lease.release(); }
 });
