@@ -8,6 +8,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { gitPath } from '../../../../src/git.js';
+import { statusPaths } from '../../../git/index.js';
+import { worktreeStatus } from '../../../git/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
 import { parseSpec } from '../../../spec/index.js';
 
@@ -48,8 +50,12 @@ export function activityWorkingFiles(root, builds) {
   if (!builds.length) return [];
   const files = new Set();
   let unknown = false;
-  const commands = [['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-only', '-z', 'HEAD'],
-    ['ls-files', '-z', '--others', '--exclude-standard']];
+  // One status gives the edits against HEAD and the untracked files, and other readers in this command share it.
+  try {
+    const { changed, untracked } = statusPaths(worktreeStatus(root));
+    for (const path of [...changed, ...untracked]) files.add(path);
+  } catch { unknown = true; }
+  const commands = [];
   for (const base of new Set(builds.map(item => item.item_claim_head))) {
     if (!/^[a-f0-9]{40}$/u.test(base ?? '')) { unknown = true; continue; }
     commands.push(['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-only', '-z', base, 'HEAD']);
