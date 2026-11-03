@@ -1,3 +1,5 @@
+import { CLAUSE_EVIDENCE_ENGINE } from '../../../state/index.js';
+import { requireCriterionEvidence } from '../../../state/index.js';
 import { saveExpectedBuildMinutes } from './expected-build-state.js';
 import { validateExpectedBuildMinutes } from '../../../items/index.js';
 import { EXPECTED_BUILD_ENGINE } from '../../../../src/expected-build-engine.js';
@@ -44,7 +46,7 @@ export function addItem(board, { by, lane, title, criterion = '', specIds = [], 
 }
 
 /** Insert an already validated ordinary or companion child without bypassing check or bar recording. */
-export function insertItem(board, item, { command, cleanTitle }) {
+export function insertItem(board, item, { command, cleanTitle, evidenceWarnings = [] }) {
   const { by, lane, criterion, specIds, parentId, after, brief, route, checkBaseline, barActor, reviewFamily } = item;
   const baseline = normalizeCheckBaseline(by, command, checkBaseline);
   const at = now(board);
@@ -62,7 +64,7 @@ export function insertItem(board, item, { command, cleanTitle }) {
   const reviewPolicy = twoTierReviews(board) ? reviewPolicyChange(board, null, item) : null;
   saveItemReviewPolicy(board, id, reviewPolicy);
   reviewFamilies.saveReviewFamily(board, id, reviewFamily);
-  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(item.expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes: item.expectedBuildMinutes }), ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
+  logEvent(board, by, 'add', id, { lane, specIds, after, route, ...(evidenceWarnings.length ? { criterionEvidenceWarnings: evidenceWarnings } : {}), ...(item.expectedBuildMinutes === undefined ? {} : { expectedBuildMinutes: item.expectedBuildMinutes }), ...(item.checkTiming === undefined ? {} : { checkTiming: item.checkTiming }), ...(reviewFamily !== undefined && !twoTierReviews(board) ? { reviewFamily: reviewFamily.trim() } : {}), ...(baseline ? { checkBaseline: baseline } : {}), ...(reviewPolicy ? { reviewPolicy } : {}) });
   recordBarRevision(board, itemById(board, id), by, null, barActor);
   return id;
 }
@@ -80,6 +82,7 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
   if (!cleanTitle) throw new Refused('NO_TITLE', 'an item needs a title');
   checkRoute(route);
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  const evidenceWarnings = engine >= CLAUSE_EVIDENCE_ENGINE ? requireCriterionEvidence(criterion) : [];
   if (engine >= REFERENCE_ENGINE) {
     const proof = sourceMove?.referenceProof;
     validateReferences(brief, { actor: proof?.actor ?? by,
@@ -96,5 +99,5 @@ export function validateItemAddition(board, { by, lane, title, criterion = '', p
     }
   }
   validateItemDependencies(board, null, after);
-  return { command, cleanTitle };
+  return { command, cleanTitle, evidenceWarnings };
 }
