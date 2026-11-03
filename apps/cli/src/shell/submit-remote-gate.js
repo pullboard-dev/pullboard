@@ -142,7 +142,7 @@ export async function trustedRunnerStep(root, { main, source, stage, entry, data
   const shell = trustedStepCommand({ main, entry, data, node: lease.runner.node ?? 'node' });
   const checkedSource = { commit: source, tree: git(root, ['rev-parse', `${source}^{tree}`]).trim() };
   const policy = privateCheckEnvelope({ kind: 'private-check', version: 1, install: '', check: shell, timeoutMs,
-    policyCommit: main, trunk: { ref: trunkRef(root), commit: main } });
+    policyCommit: main, trunk: { ref: trunkRef(root), commit: data?.trunk ?? main } });
   const parent = artifactDirectory ? join(artifactDirectory, stage) : gitPath(root, `pullboard-${stage}-output`);
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   const directory = mkdtempSync(join(parent, 'remote-'));
