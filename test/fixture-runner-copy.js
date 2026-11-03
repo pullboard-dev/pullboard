@@ -1,7 +1,7 @@
 /** Copy only the exercised canonical runner modules, not the complete shipped application [C7,V4]. */
-import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
-import { join, posix } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 import { importsIn } from '../packages/gate/index.js';
@@ -14,6 +14,8 @@ import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js
  * actual declarations. The real worker uses the existing bounded production package closure.
  * Command metadata validates its unchanged implementation paths without executing them.
  * Every copied executable module otherwise follows its literal imports and runtime-file URLs.
+ * The repository-only static checker also imports its unchanged test-source scanner; that one helper
+ * is private fixture support, copied separately without widening the shipped package manifest.
  */
 export function copyFixtureRunner(source, destination) {
   const sourceRoot = realpathSync(source);
@@ -52,5 +54,12 @@ export function copyFixtureRunner(source, destination) {
     if (!lstatSync(join(source, file)).isFile() || lstatSync(join(source, file)).isSymbolicLink()
       || !realpathSync(join(source, file)).startsWith(sourceRoot + '/')) throw new Error(`unsafe fixture runtime: ${file}`);
   }
-  return copyPackageFiles(source, destination, { files: [...files].sort() });
+  const scanner = 'test/wall-clock-budgets.js';
+  const copied = copyPackageFiles(source, destination, { files: [...files].filter(file => file !== scanner).sort() });
+  if (files.has(scanner)) {
+    mkdirSync(dirname(join(destination, scanner)), { recursive: true });
+    copyFileSync(join(source, scanner), join(destination, scanner));
+    copied.push(scanner);
+  }
+  return copied.sort();
 }
