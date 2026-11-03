@@ -54,11 +54,17 @@ async function fixture(t, { companion = false, deleted = false } = {}) {
   }
   const submitted = await cli(box.web, 'submit', String(item), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
-  const accepted = await cli(box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--no-next',
-    '--note', 'The actual frozen change-marker command passed.', '--json');
-  assert.equal(accepted.code, 0, accepted.err + accepted.out);
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => closeBoard(board));
+  const reviewer = join(box.dir, 'landing-reviewer');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, getItem(board, item).item_commit);
+  const joinedReviewer = await cli(reviewer, 'join', 'api', '--family', 'Fixture Review Vendor', '--json');
+  assert.equal(joinedReviewer.code, 0, joinedReviewer.err + joinedReviewer.out);
+  const reserved = await cli(reviewer, 'next', '--verify', String(item), '--json');
+  assert.equal(reserved.code, 0, reserved.err + reserved.out);
+  const accepted = await cli(reviewer, 'verify', String(item), 'accept', '--no-next',
+    '--note', 'The actual frozen change-marker command passed in the reserved composition.', '--json');
+  assert.equal(accepted.code, 0, accepted.err + accepted.out);
   assert.equal(getItem(board, item).item_status, 'verified');
   return { ...box, board, item, source, marker, cli, before: box.git(box.repo, 'rev-parse', 'main') };
 }
