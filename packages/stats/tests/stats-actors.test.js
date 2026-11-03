@@ -9,7 +9,7 @@ import { closeBoard } from '../../store/index.js';
 import { events } from '../../store/index.js';
 import { register } from '../../store/index.js';
 import { release } from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { exportBoard } from '../../store/index.js';
 import { importBoard } from '../../store/index.js';
 import { eventCounts } from '../src/shell/stats.js';

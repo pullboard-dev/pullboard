@@ -5,7 +5,7 @@ import {
   readFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 
 /** Observe only the private fixture's canonical delivery projection. */
 function receipts(box) {

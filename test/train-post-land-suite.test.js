@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { finishTrunk } from '../packages/landing/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { postLandSuite } from '../packages/landing/index.js';
 import { laneOf } from '../packages/seats/index.js';
 import { unownedMainReds } from '../packages/store/index.js';

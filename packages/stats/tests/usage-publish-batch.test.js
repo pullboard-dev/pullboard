@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { logEvent } from '../../store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
