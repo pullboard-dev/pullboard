@@ -32,7 +32,8 @@ export function copyFixtureRunner(source, destination) {
   const files = new Set(['package.json', ...Object.keys(runnerPackage(source).files),
     ...['src/command-docs', 'apps/cli/src/shell/command-docs'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.json')).map(file => `${folder}/${file}`)),
-    ...readdirSync(join(source, 'src/commands')).filter(file => file.endsWith('.js')).map(file => `src/commands/${file}`)]);
+    ...['src/commands', 'apps/cli/src/shell/commands'].filter(folder => existsSync(join(source, folder)))
+      .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`))]);
   let pending = ['bin/run-tests.js',
     ...['src/moves', 'packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].filter(folder => existsSync(join(source, folder)))
       .flatMap(folder => readdirSync(join(source, folder)).filter(file => file.endsWith('.js')).map(file => `${folder}/${file}`)),
