@@ -100,3 +100,14 @@ export function ambiguousMainReds(known, items, exclude) {
   return known.failures.map(failure => ({ file: failure.file, name: failure.name, candidates: ownersOf(failure, items, exclude).map(item => item.item_id).sort((a, b) => a - b) }))
     .filter(row => row.candidates.length > 1);
 }
+
+/**
+ * Split exact known main failures into those with at most one owning repair and those with several candidate owners.
+ * A case red on both main and the item is known-main whoever owns it; only the proof's owner link needs a single repair,
+ * so the ambiguous cases are reported by name and never fail the gate (#2528).
+ */
+export function splitAmbiguousMainReds(known, items, exclude) {
+  const ambiguous = ambiguousMainReds(known, items, exclude);
+  const clear = { ...known, failures: known.failures.filter(failure => !ambiguous.some(row => row.file === failure.file && row.name === failure.name)) };
+  return { clear, ambiguous };
+}
