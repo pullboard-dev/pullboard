@@ -78,7 +78,8 @@ export function composeHookTree(root, { indexFile, patches, env, directory }) {
 /**
  * Run a self-hosted pre-commit from the composed index and return its exit code, or null to run in this process:
  * another hook, a CLI that is not this checkout's own bin/pullboard.js, or a run that is already composed.
- * Checks see the composed index; paths only a companion changes are left out of the commit's own lane checks.
+ * Fixers run first against the real index; checks then see that index plus the companions, and paths only a companion
+ * changes are left out of the commit's own lane checks.
  * @param {string} entry this CLI's entry file
  * @param {string[]} args
  * @param {{ cwd: string, env: NodeJS.ProcessEnv }} context
@@ -91,15 +92,34 @@ export async function runComposedHook(entry, args, { cwd, env }) {
   if (!root || real(entry) !== join(root, 'bin', 'pullboard.js')) return null;
   const path = git(root, ['rev-parse', '--path-format=absolute', '--git-path', 'index'], env).stdout.trim();
   const indexFile = env.GIT_INDEX_FILE ? resolve(root, env.GIT_INDEX_FILE) : path;
-  const directory = mkdtempSync(join(tmpdir(), 'pullboard-hook-'));
+  const patches = await hookCompanionPatches(root, env);
+  const directories = [];
+  /** Compose the current real index with the companions into a fresh private index and tree. */
+  const compose = () => {
+    const directory = mkdtempSync(join(tmpdir(), 'pullboard-hook-'));
+    directories.push(directory);
+    return composeHookTree(root, { indexFile, patches, env, directory });
+  };
+  const blocked = refusal => { process.stderr.write(`pullboard pre-commit: blocked\n  - ${refusal}\n`); return 1; };
   try {
-    const composed = composeHookTree(root, { indexFile, patches: await hookCompanionPatches(root, env), env, directory });
-    if ('refusal' in composed) {
-      process.stderr.write(`pullboard pre-commit: blocked\n  - ${composed.refusal}\n`);
-      return 1;
+    let composed = compose();
+    if ('refusal' in composed) return blocked(composed.refusal);
+    // Fixers rewrite and stage files: they run against the real index, so the checked bytes are the committed bytes.
+    if (stagedFixers(root, { ...env, GIT_INDEX_FILE: indexFile })) {
+      const fixed = spawnSync(process.execPath, [join(composed.tree, 'bin', 'pullboard.js'), ...args], { cwd, stdio: 'inherit',
+        env: { ...env, GIT_INDEX_FILE: indexFile, PULLBOARD_HOOK_COMPOSED: 'fix' } });
+      if (fixed.status !== 0) return fixed.status ?? 1;
+      composed = compose();
+      if ('refusal' in composed) return blocked(composed.refusal);
     }
     const run = spawnSync(process.execPath, [join(composed.tree, 'bin', 'pullboard.js'), ...args], { cwd, stdio: 'inherit',
       env: { ...env, GIT_INDEX_FILE: composed.index, PULLBOARD_HOOK_COMPOSED: '1', PULLBOARD_HOOK_COMPANION_PATHS: JSON.stringify(composed.companionPaths) } });
     return run.status ?? 1;
-  } finally { rmSync(directory, { recursive: true, force: true }); }
+  } finally { for (const directory of directories) rmSync(directory, { recursive: true, force: true }); }
+}
+
+/** Whether the staged pullboard.json declares fixers; none means the fixer pass is skipped. */
+function stagedFixers(root, env) {
+  const shown = git(root, ['show', ':pullboard.json'], env);
+  try { return shown.status === 0 && Array.isArray(JSON.parse(shown.stdout).fix) && JSON.parse(shown.stdout).fix.length > 0; } catch { return false; }
 }

@@ -10,6 +10,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 const helpers = createE2eHelpers();
 after(helpers.cleanup);
 const HOOK_MODULE = pathToFileURL(resolve(import.meta.dirname, '../bin/hook-composed.js')).href;
+const REAL_CLI = pathToFileURL(resolve(import.meta.dirname, '../bin/pullboard.js')).href;
 const SHIM_IMPORT = "import { value } from '../web/shim.js';\nexport default value;\n";
 const REPOINT = 'diff --git a/api/serve.js b/api/serve.js\n--- a/api/serve.js\n+++ b/api/serve.js\n@@ -1,2 +1,2 @@\n'
   + "-import { value } from '../web/shim.js';\n+import { value } from '../web/real.js';\n export default value;\n";
@@ -34,8 +35,14 @@ function write(root, files) {
  * and that entry loads api/serve.js, which imports web/shim.js. A web item deletes the shim; its api companion
  * repoints the importer.
  */
-function fixture() {
+function fixture({ fixer = false } = {}) {
   const box = helpers.project('true');
+  if (fixer) {
+    // A fixer rewrites staged .txt files; the composed check hands the real hook to this checkout's CLI.
+    const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+    write(box.repo, { 'pullboard.json': JSON.stringify({ ...config, fix: [{ run: 'sh bin/fix.sh' }] }, null, 2),
+      'bin/fix.sh': 'for f; do case "$f" in *.txt) printf \'fixed\\n\' >> "$f";; esac; done\n', 'web/value.txt': 'raw\n' });
+  }
   write(box.repo, {
     'web/real.js': 'export const value = 1;\n',
     'web/shim.js': "export * from './real.js';\n",
@@ -43,7 +50,10 @@ function fixture() {
     'bin/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
       + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
       + 'if (composed !== null) process.exit(composed);\n'
-      + "await import('../api/serve.js');\n",
+      + "await import('../api/serve.js');\n"
+      + (fixer ? "if (process.env.PULLBOARD_HOOK_COMPOSED === '1') (await import('node:fs')).writeFileSync(process.env.PB_CHECKED_OUT, "
+        + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
+        + `await import(${JSON.stringify(REAL_CLI)});\n` : ''),
     '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-commit\n`,
   });
   chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
@@ -82,4 +92,17 @@ test('control: the same entry run from the working tree crashes on the deleted s
     { cwd: builder, env: { ...box.env, PULLBOARD_HOOK_COMPOSED: '1' }, encoding: 'utf8' });
   assert.notEqual(crashed.status, 0);
   assert.match(crashed.stderr, /ERR_MODULE_NOT_FOUND/u);
+});
+
+test('a fixer\'s rewrite reaches the real index, so the checked blob is the committed blob [C7]', () => {
+  const { box, builder } = fixture({ fixer: true });
+  const checked = join(box.dir, 'checked.txt');
+  box.env.PB_CHECKED_OUT = checked;
+  writeFileSync(join(builder, 'web/value.txt'), 'edited\n');
+  box.git(builder, 'add', 'web/value.txt');
+  const committed = box.tryGit(builder, 'commit', '-q', '-m', 'feat(web): edit the value [G1]');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
+  const blob = box.git(builder, 'show', 'HEAD:web/value.txt');
+  assert.equal(blob.trim(), 'edited\nfixed', 'the fixer\'s bytes are committed');
+  assert.equal(readFileSync(checked, 'utf8').trim(), blob.trim(), 'the composed check read the committed bytes');
 });
