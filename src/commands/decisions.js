@@ -2,6 +2,7 @@ import { projectRulingOwners } from '../../packages/spec/index.js';
 /** The pullboard decisions command, in its own module so an item adding another command never edits these lines. */
 import { basename } from 'node:path';
 import * as store from '../board.js';
+import { listApiProjects } from '../../packages/seats/index.js';
 import {
   projectPersonDecisions,
   projectSiblings,
@@ -25,7 +26,7 @@ import {
 export function run(io, { values }) {
   const ctx = context(io);
   const self = { root: ctx.info.root, name: ctx.config.name ?? basename(ctx.info.root) };
-  const found = projectSiblings(ctx.info.root, ctx.config);
+  const found = projectSiblings(ctx.info.root, ctx.config, listApiProjects);
   const labels = repoLabels(self, found);
   const siblings = found.map((entry) => ({ ...entry, label: labels.get(entry.root) }));
   const { asks, agents, project, asPerson } = withBoardRead(ctx, (board) => {

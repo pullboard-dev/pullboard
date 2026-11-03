@@ -46,7 +46,7 @@ import {
 import * as store from './board.js';
 import { releaseHeadlinesBetween } from '../packages/config/index.js';
 import { VERSION } from '../packages/config/index.js';
-import { displayAgentName } from './agent-names.js';
+import { displayAgentName } from '../packages/seats/index.js';
 import {
   COORDINATOR,
   DEFAULT_VIEW_PORT,
@@ -63,13 +63,13 @@ import {
   repoInfo,
   resolveCommit,
 } from './git.js';
-import { committedIds } from './history.js';
+import { committedIds } from '../packages/store/index.js';
 import { productSummaries } from '../packages/spec/index.js';
 import {
   forgetProject,
   listApiProjects,
   registryFile,
-} from './projects.js';
+} from '../packages/seats/index.js';
 import { fetchLocal } from '../packages/sync/index.js';
 import { Refused } from '../packages/kernel/index.js';
 import { relayLinkAvailability } from '../packages/link/index.js';
@@ -83,7 +83,7 @@ import { loadSpec } from '../packages/spec/index.js';
 import { gateFiles } from '../packages/spec/index.js';
 import { viewLanAddress } from './view/lan-address.js';
 import { publicSnapshot } from './view/public-export.js';
-import { openBoardForRead } from './board-read-open.js';
+import { openBoardForRead } from '../packages/store/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
 
 /** Shared Dashboard rules retain their cascade point before private-local styles are assembled. */

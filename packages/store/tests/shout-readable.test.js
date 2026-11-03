@@ -6,7 +6,7 @@ import {
 } from 'node:test';
 import { join } from 'node:path';
 import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../src/native-board.js";
+import { openBoard } from "../../../apps/lib/index.js";
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 
 const fixtures = createE2eHelpers();

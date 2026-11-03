@@ -5,7 +5,7 @@ import { after, test } from 'node:test';
 import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { refuseRestatedReport } from '../src/coordinator-shout-purpose.js';
 
 const fixtures = createE2eHelpers();

@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/index.js';
 /** Checkpoint invalidation follows sealed business inputs rather than private command recovery [H5,C6,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

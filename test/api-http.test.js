@@ -3,7 +3,7 @@ import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
 
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
@@ -20,7 +20,7 @@ import { applyStateDelta, createApiHandler } from '../packages/api/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';
 import { registryFile, registerProject, forgetProject } from '../packages/seats/index.js';
 import { Refused } from '../packages/kernel/core.js';
-import { board as store } from '../src/native-board.js';
+import { board as store } from '../apps/lib/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { receivePersonRequest } from '../packages/link/index.js';
 import { apiHttpFixture as fixture } from './api-fixture.js';

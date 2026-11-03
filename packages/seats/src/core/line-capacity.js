@@ -1,5 +1,4 @@
 /** Board-owned capacity uses recorded review work, never a seat's lane as its permanent role [N2,B13,H16]. */
-import { ENGINE_VERSION } from '../../../../src/machine.js';
 import { LINE_CAPACITY_ENGINE } from '../../../../src/line-capacity-engine.js';
 import { lineSettings } from '../../../state/src/core/line-settings-read.js';
 import { flowWindowBounds } from './flow-window-bounds.js';
@@ -11,7 +10,7 @@ import {
 
 /** Old ordered claims keep their original semantics even beside newer recorded controls. */
 export function capacitySettings(board) {
-  return (board.executionEngineVersion ?? ENGINE_VERSION) >= LINE_CAPACITY_ENGINE ? lineSettings(board) : {};
+  return (board.executionEngineVersion ?? Infinity) >= LINE_CAPACITY_ENGINE ? lineSettings(board) : {};
 }
 
 /** The controller and capacity count use the same validated flow-window boundaries; the default is one hour. */
