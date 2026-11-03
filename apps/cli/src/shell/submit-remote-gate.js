@@ -101,7 +101,7 @@ try {
   if (selected('preflight') && input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
   if (selected('cells')) result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
     withMainCheckout: landing.withMainCheckout, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
-    withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
+    withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS), collectMachinery: input.collectMachinery === true,
     readCutItems: () => input.cutRows,
     onInventory: mode => result.notes.push('submit cells inventory: ' + mode),
     onAllCells: file => result.notes.push('submit cells: checking all cells because shared policy or root-tool file changed: ' + file) }));
@@ -188,7 +188,7 @@ export async function remoteSubmitAnalysis(root, request, lease, artifactDirecto
   const cutRows = readCutItems();
   const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
-    browserFreeChecks: request.browserFreeChecks === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
+    browserFreeChecks: request.browserFreeChecks === true, collectMachinery: request.collectMachinery === true, cutRows, ...(request.parts ? { parts: request.parts } : {}) };
   let step;
   /** A Git read failure inside the runner is infrastructure: run the analysis again, and never refuse the builder for it (#2521). */
   for (let attempt = 1; attempt <= ANALYSIS_INFRA_ATTEMPTS; attempt++) {
