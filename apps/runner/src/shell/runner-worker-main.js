@@ -6,6 +6,7 @@ import { checkoutHistory } from './runner-worker-checkout.js';
 import { installDependencies } from './runner-worker-checkout.js';
 import { beginCleanup } from './runner-worker-cleanup.js';
 import { assertDiskFree } from './runner-disk-sweep.js';
+import { diskFloorBytes } from './runner-disk-sweep.js';
 import { sweepRunnerDiskForWorker } from './runner-disk-sweep.js';
 import { releaseDrainedLease } from './runner-worker-cleanup.js';
 import { reportCleanupTimeout } from './runner-worker-cleanup.js';
@@ -110,7 +111,7 @@ export async function main(S) {
     mkdirSync(base, { recursive: true, mode: 0o700 });
     chmodSync(base, 0o700);
     setupStep = 'disk sweep';
-    assertDiskFree(await sweepRunnerDiskForWorker(runnerRoot, spec.id, Date.now() + 60_000, api, machineHomePath));
+    assertDiskFree(await sweepRunnerDiskForWorker(runnerRoot, spec.id, Date.now() + 60_000, api, machineHomePath), diskFloorBytes(machineHomePath));
     setupStep = 'job directories';
     runDirectory = mkdtempSync(join(base, `${spec.id}-`));
     S.cleanupDirectory = runDirectory;

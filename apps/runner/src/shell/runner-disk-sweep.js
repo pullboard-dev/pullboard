@@ -1,4 +1,4 @@
-/** Sweep dead runner job folders, trim repos and cache to a budget, and keep the disk 20% free; a live job is never touched [C7]. */
+/** Sweep dead runner job folders, trim repos and cache to a budget, and keep an absolute amount of disk free; a live job is never touched [C7]. */
 import { spawnSync } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
@@ -18,7 +18,8 @@ import { DatabaseSync } from 'node:sqlite';
 const GIB = 1024 ** 3;
 export const DEFAULT_REPOS_BUDGET = 15 * GIB;
 export const DEFAULT_CACHE_BUDGET = 10 * GIB;
-export const MIN_FREE_FRACTION = 0.2;
+/** The free space a runner keeps after its sweep when no gate.diskFloorMB setting says otherwise: 10 GB, never a percentage. */
+export const DEFAULT_MIN_FREE_BYTES = 10 * GIB;
 const YOUNG_MS = 10 * 60 * 1000;
 const PIN = 'source-cache-pin.json';
 
@@ -147,22 +148,22 @@ function storeUnits(root, pinned, anyLive, deadline) {
 
 /**
  * Sweep one runner root: remove every job folder with no live owner, then trim repos and cache oldest-use first to their
- * budgets, then keep trimming until the disk is at least 20% free. Live job folders and the repos they pin are never touched.
+ * budgets, then keep trimming until at least the free-space floor (default 10 GB) is free. Live job folders and the repos they pin are never touched.
  *
  * @param {string} root - The runner root, normally ~/.pullboard-runner.
  * @param {{ census?: () => Map<number, object>|null, diskFree?: (path: string) => {free: number, total: number}|null,
- *   now?: number, deadline?: number, reposBudget?: number, cacheBudget?: number, minFree?: number }} [options]
- * @returns {{ skipped?: string, removedJobs: string[], keptJobs: string[], trimmed: string[], freeFraction: number|null }}
+ *   now?: number, deadline?: number, reposBudget?: number, cacheBudget?: number, minFreeBytes?: number }} [options]
+ * @returns {{ skipped?: string, removedJobs: string[], keptJobs: string[], trimmed: string[], freeBytes: number|null }}
  */
 export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = () => {}, census = processCensus, diskFree = diskSpace, now = Date.now(), deadline = Infinity,
-  reposBudget = DEFAULT_REPOS_BUDGET, cacheBudget = DEFAULT_CACHE_BUDGET, minFree = MIN_FREE_FRACTION } = {}) {
-  const report = { removedJobs: [], keptJobs: [], trimmed: [], freeFraction: null };
-  const fraction = () => { const space = diskFree(root); return space && space.total > 0 ? space.free / space.total : null; };
+  reposBudget = DEFAULT_REPOS_BUDGET, cacheBudget = DEFAULT_CACHE_BUDGET, minFreeBytes = DEFAULT_MIN_FREE_BYTES } = {}) {
+  const report = { removedJobs: [], keptJobs: [], trimmed: [], freeBytes: null };
+  const freeNow = () => { const space = diskFree(root); return space && space.total > 0 ? space.free : null; };
   const jobs = join(root, 'jobs');
   const observed = census();
   const held = folderHolders(jobs);
   const leases = machineHome ? leasedJobs(machineHome) : null;
-  if (!observed || !held || !leases) { report.skipped = 'custody unavailable'; report.freeFraction = fraction(); return report; }
+  if (!observed || !held || !leases) { report.skipped = 'custody unavailable'; report.freeBytes = freeNow(); return report; }
   let names = [];
   try { names = readdirSync(jobs); } catch { /* No jobs directory means no dead folders. */ }
   const live = [];
@@ -175,15 +176,15 @@ export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = ()
     catch { report.keptJobs.push(name); }
   }
   const pins = pinnedRepos(jobs);
-  if (!pins) { report.skipped = 'pin custody unavailable'; report.freeFraction = fraction(); return report; }
+  if (!pins) { report.skipped = 'pin custody unavailable'; report.freeBytes = freeNow(); return report; }
   const units = storeUnits(root, pins, live.length > 0, deadline);
   const total = kind => units.filter(unit => unit.kind === kind).reduce((sum, unit) => sum + unit.bytes, 0);
   const sizes = { repos: total('repos'), cache: total('cache') };
   const budgets = { repos: reposBudget, cache: cacheBudget };
   for (const unit of units.sort((a, b) => a.used - b.used)) {
-    const free = fraction();
+    const free = freeNow();
     const overBudget = sizes[unit.kind] > budgets[unit.kind];
-    if (unit.protected || Date.now() > deadline || !overBudget && (free === null || free >= minFree)) continue;
+    if (unit.protected || Date.now() > deadline || !overBudget && (free === null || free >= minFreeBytes)) continue;
     let lease;
     try {
       if (unit.kind === 'repos') {
@@ -205,7 +206,7 @@ export async function sweepRunnerDisk(root, { api, machineHome, onLeaseWait = ()
     } catch { /* Keep anything whose lease or deletion cannot be proved safe. */ }
     finally { lease?.release(); }
   }
-  report.freeFraction = fraction();
+  report.freeBytes = freeNow();
   return report;
 }
 
@@ -216,15 +217,26 @@ function envBytes(name, fallback) {
 }
 
 /**
+ * The free-space floor this runner keeps, in bytes: gate.diskFloorMB from the machine home's settings.json (declared in
+ * packages/config, validated there), else 10 GB. An unreadable or invalid value falls back to the default, never to a percentage.
+ */
+export function diskFloorBytes(machineHome) {
+  try {
+    const megabytes = JSON.parse(readFileSync(join(machineHome, 'settings.json'), 'utf8')).gate?.diskFloorMB;
+    return Number.isSafeInteger(megabytes) && megabytes >= 0 ? megabytes * 1024 ** 2 : DEFAULT_MIN_FREE_BYTES;
+  } catch { return DEFAULT_MIN_FREE_BYTES; }
+}
+
+/**
  * Run the sweep for the worker with budgets from PULLBOARD_RUNNER_REPOS_BUDGET_BYTES and PULLBOARD_RUNNER_CACHE_BUDGET_BYTES.
  * Return no report on failure so admission can fail closed when capacity cannot be verified.
  */
 export async function sweepRunnerDiskForWorker(root, workerId, deadline, api, machineHome) {
   try {
     const report = await sweepRunnerDisk(root, { api, machineHome, deadline, reposBudget: envBytes('PULLBOARD_RUNNER_REPOS_BUDGET_BYTES', DEFAULT_REPOS_BUDGET),
-      cacheBudget: envBytes('PULLBOARD_RUNNER_CACHE_BUDGET_BYTES', DEFAULT_CACHE_BUDGET) });
+      cacheBudget: envBytes('PULLBOARD_RUNNER_CACHE_BUDGET_BYTES', DEFAULT_CACHE_BUDGET), minFreeBytes: diskFloorBytes(machineHome) });
     if (report.removedJobs.length || report.trimmed.length || report.skipped) {
-      process.stderr.write(`PULLBOARD_RUNNER_DISK_SWEEP ${workerId} jobs=${report.removedJobs.length} trimmed=${report.trimmed.length} free=${report.freeFraction === null ? 'unknown' : Math.round(report.freeFraction * 100) + '%'}${report.skipped ? ' skipped=' + report.skipped.replace(/\s+/gu, '-') : ''}\n`);
+      process.stderr.write(`PULLBOARD_RUNNER_DISK_SWEEP ${workerId} jobs=${report.removedJobs.length} trimmed=${report.trimmed.length} free=${report.freeBytes === null ? 'unknown' : (report.freeBytes / GIB).toFixed(1) + 'GB'}${report.skipped ? ' skipped=' + report.skipped.replace(/\s+/gu, '-') : ''}\n`);
     }
     return report;
   } catch { process.stderr.write(`PULLBOARD_RUNNER_DISK_SWEEP ${workerId} unavailable\n`); return null; }
@@ -233,8 +245,8 @@ export async function sweepRunnerDiskForWorker(root, workerId, deadline, api, ma
 /**
  * Refuse admission when the swept disk is below the floor or its free space cannot be verified.
  */
-export function assertDiskFree(report, minFree = MIN_FREE_FRACTION) {
-  if (report && Number.isFinite(report.freeFraction) && report.freeFraction >= minFree) return;
-  if (!report || !Number.isFinite(report.freeFraction)) throw new Refused('RUNNER_DISK_FULL', 'runner free disk space could not be verified; inspect the runner disk before retrying');
-  throw new Refused('RUNNER_DISK_FULL', `this runner has ${Math.round(report.freeFraction * 100)}% of its disk free after a sweep; free space on the runner or lower PULLBOARD_RUNNER_REPOS_BUDGET_BYTES and PULLBOARD_RUNNER_CACHE_BUDGET_BYTES`);
+export function assertDiskFree(report, minFreeBytes = DEFAULT_MIN_FREE_BYTES) {
+  if (report && Number.isFinite(report.freeBytes) && report.freeBytes >= minFreeBytes) return;
+  if (!report || !Number.isFinite(report.freeBytes)) throw new Refused('RUNNER_DISK_FULL', 'runner free disk space could not be verified; inspect the runner disk before retrying');
+  throw new Refused('RUNNER_DISK_FULL', `this runner has ${(report.freeBytes / GIB).toFixed(1)} GB of disk free after a sweep, below its ${(minFreeBytes / GIB).toFixed(1)} GB floor; free space on the runner, lower PULLBOARD_RUNNER_REPOS_BUDGET_BYTES and PULLBOARD_RUNNER_CACHE_BUDGET_BYTES, or set gate.diskFloorMB`);
 }

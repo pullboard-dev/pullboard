@@ -1,14 +1,13 @@
+/** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
 /** Real relay browser journeys and their owned setup [N26]. */
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { press, stableChrome } from './stable.js';
-import { readPathMap } from '../../packages/codemap/index.js';
-import { mappedPath } from '../../packages/codemap/index.js';
 import { relayClientFixture } from '../relay-client-fixture.js';
 import { findChromeExecutable, relayWorkBudgetMs, startChrome } from '../relay-browser-fixture.js';
 import { machine, project, startView, target, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, proofShot } from './fixture.js';
@@ -35,8 +34,9 @@ test('the star line shows once to a signed-in person and stays dismissed [N26]',
     assert.equal(star.requests.get('/api/v1/boards'), undefined, 'a signed-out page never asks for the linked list');
     await chrome.send('Page.navigate', { url: star.live.link.href }).then(() => chrome.waitFor('!!data?.project'));
     assert.equal(await chrome.stable("document.querySelector('#star-line') === null && !document.body.textContent.includes('GitHub star')"), true, 'the local view never carries the star line');
-    const sourceMap = readPathMap(resolve(import.meta.dirname, '../..'));
-    for (const file of ['src/cli.js', 'src/mcp.js', 'src/help.js']) assert.ok(!readFileSync(new URL('../../' + mappedPath(sourceMap, file), import.meta.url), 'utf8').includes('GitHub star'), file + ' never prints the star line');
+    assert.ok(!readFileSync(new URL('../../apps/cli/src/shell/cli.js', import.meta.url), 'utf8').includes('GitHub star'), 'src/cli.js never prints the star line');
+    assert.ok(!readFileSync(new URL('../../packages/mcp/src/core/mcp.js', import.meta.url), 'utf8').includes('GitHub star'), 'src/mcp.js never prints the star line');
+    assert.ok(!readFileSync(new URL('../../apps/cli/src/core/help.js', import.meta.url), 'utf8').includes('GitHub star'), 'src/help.js never prints the star line');
     // The account read is refused while this machine's view still answers: the refusal answers the line too, "not
     // linked", and the line never asks again on its own (#817).
     star.state.refused = true;
@@ -185,7 +185,7 @@ process.stdout.write(JSON.stringify({other}));
 test('view sign-in keeps its key and intents inside the authenticated machine view [H5,N26]', { timeout: relayWorkBudgetMs() * 3 }, async (t) => {
   const box = await relayClientFixture(t);
   box.providerState.deviceAuthorized = false;
-  const serveModule = new URL('../../src/commands/view.js', import.meta.url).href;
+  const serveModule = new URL('../../apps/cli/src/shell/commands/view.js', import.meta.url).href;
   const viewModule = new URL('../../apps/view/index.js', import.meta.url).href;
   const machineModule = new URL('../../packages/link/index.js', import.meta.url).href;
   const result = await box.script(`

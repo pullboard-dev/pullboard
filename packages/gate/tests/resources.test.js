@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/cli.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js */
 /** Real-process resource queue and lease coverage [Q1,Q2,Q3]. */
 import { executionServicesSource } from '../../../test/gate-execution-fixture.js';
 import { awaitNestedRun } from '../src/shell/test-file-pool.js';
@@ -1535,7 +1535,7 @@ test('the pool holds work while the machine is out of memory and names the bigge
 });
 
 test('the memory hold is off until a floor is set, an unread machine warns once, and resources prints the memory line [C7]', async () => {
-  const { gateWaitReporter } = await import(CLI_MODULE);
+  const { gateWaitReporter } = await import('../index.js');
   const said = [];
   const report = gateWaitReporter({ say: (line) => said.push(line) });
   report({ holders: [], position: 1, memory: { checked: true, held: true, line: 'memory: holding the gate queue because pressure is critical: first' } });
