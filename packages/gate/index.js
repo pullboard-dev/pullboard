@@ -19,7 +19,7 @@ export { digestOf, writeTimingProfile } from "./src/shell/gate-output.js";
 export { runnerSource, RunnerDropped, validateRunner } from "./src/core/gate-policy-load.js";
 export { receiptLog, startReceipt, slotOf, phasesOf, receiptOf, recordReceipt, recentReceipts, retainedReceipts, receiptStats, receiptStatsLines, receiptLine, gateWaitStats } from "./src/shell/gate-receipt.js";
 export { receiptStore, boardReceiptStore, receiptBody, readGateReceipt, receiptBinds, formatCollectionReport, parseCollectionReports, releaseParticipation, landingShardProfile, RECEIPT_FOLDER, COLLECTION_ID_ENV, COLLECTION_REPORT_PREFIX, RELEASE_EXECUTORS_ENV, RELEASE_PARTICIPATION_PREFIX, receiptFields } from "./src/shell/gate-run-receipt.js";
-export { requireGateExecutionServices, settleReceipt, withGateSlot } from "./src/shell/gate-slot.js";
+export { requireGateExecutionServices, settleReceipt, withGateSlot, gateRunnerLoadPolicy } from "./src/shell/gate-slot.js";
 export { gateStages, stagedScript, readPipes, readStages } from "./src/shell/gate-stages.js";
 export { submitGateConfig, submitGatePlan, submitGateAdmission, runSubmitGate } from "./src/shell/gate-submit.js";
 export { gateWaitReporter } from "./src/core/gate-wait.js";
