@@ -142,9 +142,12 @@ test('a candidate that is exactly current main is measured against current main,
   assert.equal(result.holds, true);
 });
 
-test('a candidate that does not contain current main is refused, never measured against the older main [C7]', () => {
+test('a candidate that does not contain current main is composed with it, never refused for that alone [C7]', () => {
   const box = repo();
   writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
   const commit = commitAll(box.item, 'feat: change the app without main');
-  assert.throws(() => hold(box, commit), (error) => error.code === 'MAIN_NOT_COMPOSED' && error.message.includes(box.main.slice(0, 12)));
+  const [result] = hold(box, commit);
+  assert.equal(result.count, 1, 'the composed tree carries main\'s problem');
+  assert.equal(result.committed, 1);
+  assert.equal(result.holds, true);
 });
