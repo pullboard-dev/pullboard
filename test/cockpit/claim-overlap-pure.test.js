@@ -1,9 +1,9 @@
 /** The board view marks claimed items that change the same files, and files outside their scope [N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { overlapHtml } from '../../src/view/claim-overlap.js';
-import { overlapLines } from '../../src/view/claim-overlap.js';
-import { pageRenderScript } from '../../src/view/page-render.js';
+import { overlapHtml } from '../../apps/view/index.js';
+import { overlapLines } from '../../apps/view/index.js';
+import { pageRenderScript } from '../../apps/view/index.js';
 
 const state = { claimOverlaps: {
   7: { files: ['src/a.js', 'src/b.js'], unknown: false,
