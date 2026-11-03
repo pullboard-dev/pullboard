@@ -7,8 +7,8 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { recordRunnerGui } from '../packages/resources/index.js';
-import { placeRunner } from '../src/runner-stage.js';
-import { readRunnerStage } from '../src/runner-stage-read.js';
+import { placeRunner } from '../apps/runner/index.js';
+import { readRunnerStage } from '../apps/runner/index.js';
 import { runFixtureGit } from './fixture-child.js';
 
 test('GUI placement uses the common stage and excludes false or unknown desktop sessions [C7,O5,V4]', t => {

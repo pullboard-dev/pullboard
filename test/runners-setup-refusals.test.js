@@ -69,6 +69,10 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
   let remoteHolder = await onMachine(remoteMachineHome, () => takeResource({ name: 'gate', capacity: 2, scope: 'machine', root: repo,
     agent: 'fixture-remote-holder', item: 'remote-holder', kind: 'force-busy-runner' }));
 
+  // Safe decreases now allow one held slot; occupy both to prove an unsafe shrink is refused.
+  let secondRemoteHolder = await onMachine(remoteMachineHome, () => takeResource({ name: 'gate', capacity: 2, scope: 'machine', root: repo,
+    agent: 'fixture-second-remote-holder', item: 'second-remote-holder', kind: 'force-busy-runner' }));
+
   const previousHome = process.env.PULLBOARD_HOME;
   const previousMachineHome = process.env.PULLBOARD_MACHINE_HOME;
   process.env.PULLBOARD_HOME = home;
@@ -101,6 +105,8 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
     assert.equal(ended[0].workerStarted, true);
     assert.equal(ended[0].code, 0, 'the worker exits after its receipt');
 
+    secondRemoteHolder.release();
+    secondRemoteHolder = null;
     remoteHolder.release();
     remoteHolder = null;
     const remote = onMachine(remoteMachineHome, () => listResources({ scope: 'machine', root: repo }));
@@ -113,6 +119,7 @@ test('a refused remote setup fails the run by name [C7]', async (t) => {
   } finally {
     held?.release();
     remoteHolder?.release();
+    secondRemoteHolder?.release();
     if (run) {
       const ceiling = new Promise(resolve => { const timer = setTimeout(resolve, 20_000); timer.unref(); }); // budget: a hung controller must not hold the test file open.
       if (!(await Promise.race([run.closed.then(() => true), ceiling]))) run.child.kill('SIGTERM');

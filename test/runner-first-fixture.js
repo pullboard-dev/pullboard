@@ -40,6 +40,9 @@ export async function runnerFirstPolicyCase(e2e) {
   mkdirSync(probeBin);
   installRegistrationProbeStandIn({ bin: probeBin });
   box.env.PATH = `${probeBin}:${box.env.PATH}`;
+  // This case proves durable rotation, independently of the live-load ranking policy.
+  const rotation = box.run(box.repo, 'settings', 'gate.loadAwareDispatch', 'off');
+  assert.equal(rotation.code, 0, rotation.err);
   const hosts = ['a51', 'a52', 'a53'];
   for (const host of hosts) {
     const added = box.run(box.repo, 'runner', 'add', host, '--slots', '1', '--browser', '1');

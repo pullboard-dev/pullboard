@@ -115,7 +115,19 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith(
   const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
-  child.stderr.pipe(process.stderr);
+  // READY must stream; deliver the final receipt only after recording this completed transport.
+  let pendingStderr = '', receipt = '';
+  child.stderr.on('data', part => {
+    pendingStderr += part.toString();
+    for (;;) {
+      const newline = pendingStderr.indexOf('\\n');
+      if (newline < 0) break;
+      const line = pendingStderr.slice(0, newline + 1);
+      pendingStderr = pendingStderr.slice(newline + 1);
+      if (line.startsWith('PULLBOARD_RUNNER_RESULT ')) receipt += line;
+      else process.stderr.write(line);
+    }
+  });
 ${stderrLog ? `  child.stderr.on('data', part => { if (!registrationGuiProbe && !workerHealthProbe) appendFileSync(${JSON.stringify(stderrLog)}, part); });\n` : ''}${invalidSpec ? `  if (!registrationGuiProbe && !workerHealthProbe) {
     child.stdin.write('2\\n{}'); // Keep this owned pipe open: a refused worker must close it itself.
     process.stdin.resume();
@@ -143,6 +155,8 @@ ${invalidSpec ? '    process.stdin.destroy(); child.stdin.destroy();' : ''}
       localHeldMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_HELD'),
       localTokenMarkerInLocalSshEnv: Object.hasOwn(process.env, 'PULLBOARD_GATE_SLOT_TOKEN'),
       localMachineHomeInSshEnv: Object.hasOwn(process.env, 'PULLBOARD_MACHINE_HOME') });
+    if (pendingStderr) process.stderr.write(pendingStderr);
+    if (hold !== 'return' && receipt) process.stderr.write(receipt);
     process.exitCode = signal ? 128 : (code ?? 255);
   });
 }

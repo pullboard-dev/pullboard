@@ -83,10 +83,11 @@ test('remote flaky case', () => { const n = existsSync(${JSON.stringify(runs)}) 
     const finished = await awaitRoundTrip(run.child, run.closed, requests + '.phases', before, ROUND_TRIP_DEADLINES, firstReceiptAccepted);
     if (cpuLoad) await cpuLoad.assertProgress(cpuStartedAt, Date.now());
     assert.equal(finished.status, 1, 'the original red stays the gate result');
+    const [observation] = readdirSync(evidence).map(id => JSON.parse(readFileSync(join(evidence, id, 'observation.json'), 'utf8')));
+    t.diagnostic('paired runner observation: ' + JSON.stringify({ classification: observation.classification, reason: observation.reason, paired: observation.paired }));
     const pairedCalls = mode === 'no-load' ? 1 : 2;
     assert.deepEqual(phaseCounts(requests + '.phases'), { dispatched: pairedCalls, returned: pairedCalls },
       'the red check and required paired rerun each complete their runner round trip');
-    const [observation] = readdirSync(evidence).map(id => JSON.parse(readFileSync(join(evidence, id, 'observation.json'), 'utf8')));
     assert.equal(observation.main, box.git(repo, 'rev-parse', 'HEAD'), 'the pinned main is recorded');
     if (mode === 'remote-load') {
       assert.equal(observation.classification, 'flake', observation.reason);

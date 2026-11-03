@@ -23,6 +23,7 @@ import { reviewPatchAuthors } from '../../packages/verify/index.js';
 import { itemTrunkMove } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { linkKnownMainReworks } from '../../packages/store/index.js';
+import { splitAmbiguousMainReds } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
 import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
@@ -32,7 +33,7 @@ import {
   renderTestSummary,
   withTestOutput,
 } from '../test-output-summary.js';
-import { checkAtCommit } from '../runner-private-check.js';
+import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { compareMainFailures } from '../../packages/landing/index.js';
@@ -145,6 +146,9 @@ import { recordedRecovery } from '../../packages/state/index.js';
 import { retryReviewCommit } from '../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
 
+/** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
+const AMBIGUOUS_KNOWN = new WeakMap();
+
 /** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
 export async function knownMainCheck(root, check, { main, item, items, onWait, onMeasuredReceipt, runnerAdmission }) {
   if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
@@ -162,14 +166,19 @@ export async function knownMainCheck(root, check, { main, item, items, onWait, o
       execution: { executor: check.executionRunner ? { kind: 'ssh', host: check.executionRunner } : { kind: 'local' }, environment: check.environment },
     });
     const matched = matchingMainFailures(failures, comparison, main);
-    return linkKnownMainReworks(matched, items(), item);
+    // A case several repairs could own is still red on main, so it never keeps the check red (#2528).
+    const split = matched ? splitAmbiguousMainReds(matched, items(), item) : null;
+    const linked = split ? linkKnownMainReworks(split.clear, items(), item) : null;
+    if (linked && split.ambiguous.length) AMBIGUOUS_KNOWN.set(linked, split.ambiguous); // Kept off the sealed record, shown in the note only.
+    return linked;
   } catch { return null; } // Preserve CHECK_RED when comparison, identity or ownership cannot be established.
 }
 
 /** Retain exact case identities and repair links in the immutable verdict without calling the raw check green. */
 export function knownMainCheckNote(known) {
   return known ? `\nfrozen check remains red; identical on main ${known.main}:\n`
-    + known.failures.map(row => `${row.file} :: ${row.name}; open Main red repair #${row.item}`).join('\n') : '';
+    + [...known.failures.map(row => `${row.file} :: ${row.name}; open Main red repair #${row.item}`),
+      ...(AMBIGUOUS_KNOWN.get(known) ?? []).map(row => `${row.file} :: ${row.name}; several candidate repairs ${row.candidates.map(id => `#${id}`).join(', ')}`)].join('\n') : '';
 }
 
 /** Preserve policy refusals while representing unusable cited criteria as a changed digest. */

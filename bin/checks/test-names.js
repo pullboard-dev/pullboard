@@ -11,6 +11,8 @@
  *
  * A name carries a spec row id when it holds square brackets with at least one id in them, an
  * upper-case prefix and a number, as in `[G1.2]` or `[V4, C7]`. One problem per name without one.
+ *
+ * @file-local Reads only the files walk() returns, so submit may narrow it to the changed files.
  */
 import { lex, lineAt, readText, runCheck, TEST_FILE, walk } from './scan.js';
 

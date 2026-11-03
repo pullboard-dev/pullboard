@@ -48,6 +48,15 @@ export function resultFrom(request, result, { privateCheckPhases }) {
     throw refused;
   }
 
+  // Exit 127 before the pinned worker starts is a remote setup failure, not a test result or a lost SSH connection.
+  if (!result.error && result.status === 127 && request.phase !== 'ready' && output.length === 0 && receipts.length === 0) {
+    const diagnostic = runnerFailure(request, result, 'setup-command-missing').diagnostic;
+    const command = request.runner.node ?? 'node';
+    const refused = new Refused('RUNNER_SETUP', `runner ${request.runner.host} could not start ${JSON.stringify(command)} (remote exit 127); install it or update --node`);
+    refused.diagnostic = diagnostic;
+    throw refused;
+  }
+
   let receipt;
   try {
     if (receipts.length !== 1) throw new Error('missing receipt');
