@@ -2,13 +2,15 @@ import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
 /** Routing metadata owned by withdraw, discovered without a shared registry edit [C7,V4,H16]. */
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
+import { MAIN_RED_WITHDRAW_ENGINE } from "../../../../../src/main-red-withdraw-engine.js";
 
-/** Preserve this operation's historical first-matching engine conditions [H16]. */
+/** Preserve historical floors while versioning the conditional expected-item write [H16]. */
 function minimumEngine(args, board, at) {
-  if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) return RIGOR_AUTO_ENGINE;
-  if (args[0]?.landingFence !== undefined) return LANDING_LEASE_ENGINE;
-  if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) return BOARD_SENTINEL_ENGINE;
-  return 1;
+  let floor = 1;
+  if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('conflict:')) floor = RIGOR_AUTO_ENGINE;
+  else if (args[0]?.landingFence !== undefined) floor = LANDING_LEASE_ENGINE;
+  else if (typeof args[1]?.cause === 'string' && args[1].cause.startsWith('sentinel:')) floor = BOARD_SENTINEL_ENGINE;
+  return Math.max(floor, args[1]?.expected !== undefined ? MAIN_RED_WITHDRAW_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

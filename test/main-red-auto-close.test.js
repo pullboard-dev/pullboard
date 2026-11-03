@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import { runFixtureGit } from './fixture-child.js';
 import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
 import { closeAuditedMainReds, mainRedCheckFiles, mainRedFilesProven, mainRedFrozenCheck } from '../packages/gate/index.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
+import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { createHash } from 'node:crypto';
 
 const head = 'a'.repeat(40);
@@ -127,7 +129,19 @@ test('withdraw refuses when the frozen check or digest changed after the audit s
   const newFrozen = JSON.stringify({ title, criterion: 'The named file passes.', check: 'node --test test/b.test.js', rows: [] });
   const newDigest = createHash('sha256').update(newFrozen).digest('hex');
   db.db.prepare('UPDATE item SET item_frozen=?, item_frozen_digest=? WHERE item_id=?').run(newFrozen, newDigest, id);
+  const audited = { agentId: 'coordinator', reason: 'audit passed the old bar',
+    expected: { status: 'open', title, check, frozenDigest: oldDigest } };
+  const prepared = prepareEngineMove(db, 'withdraw', [id, audited]);
+  const floor = minimumMoveEngine('withdraw', [id, audited], db);
+  assert.ok(prepared.engine >= floor);
+  assert.throws(() => applyEngineMove(db, { ...prepared, engine: floor - 1 },
+    { sequence: 1, at: '2026-11-03T00:00:00.000Z' }), { code: 'RELAY_MOVE' });
+  assert.equal(store.getItem(db, id).item_status, 'open', 'the lower-engine replay leaves the row unchanged');
   assert.throws(() => store.withdraw(db, id, { agentId: 'coordinator', reason: 'audit passed the old bar',
     expected: { status: 'open', title, check, frozenDigest: oldDigest } }), error => error.code === 'STALE_MAIN_RED');
   assert.equal(store.getItem(db, id).item_status, 'open');
+  const legacy = prepareEngineMove(db, 'withdraw', [id, { agentId: 'coordinator', reason: 'legacy withdraw' }], { id: 'legacy-withdraw-without-cas' });
+  assert.equal(minimumMoveEngine('withdraw', legacy.args, db), 1, 'ordinary withdrawals retain their historical replay floor');
+  assert.equal(applyEngineMove(db, { ...legacy, engine: 1 }, { sequence: 1, at: '2026-11-03T00:01:00.000Z' }).error, undefined);
+  assert.equal(store.getItem(db, id).item_status, 'withdrawn');
 });
