@@ -31,6 +31,8 @@ import {
   invalidateGitFacts,
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
+import { createFastPass } from './doctrine-fast.js';
+import { fastCheckScript } from './doctrine-fast.js';
 import { lex } from '../../../kernel/index.js';
 import {
   checkFieldFindings,
@@ -274,6 +276,11 @@ export function hasSubmitRules(root, mainCommit, practice) {
   return checkRulesAt(root, mainCommit, practice).some((rule) => rule.runs === 'submit');
 }
 
+/** True when every submit rule is file-local, so the hold can run in-process over the changed files with no runner. */
+export function submitRulesNarrowable(root, mainCommit, practice) {
+  return checkRulesAt(root, mainCommit, practice).filter((rule) => rule.runs === 'submit').every((rule) => fastCheckScript(root, rule.command));
+}
+
 /** Run a check at an exact commit in a private shared clone, leaving every live worktree alone. */
 function* checkAtCommitExecution(root, commit, command, timeoutMs) {
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-doctrine-base-'));
@@ -340,26 +347,35 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
       if (inputs && !changed.some(path => globalInputs.includes(path) || inputs.some(input => input.path === `project:${path}`))) continue;
     }
     const committed = Math.min(rule.count, lowered.get(rule.id) ?? rule.count);
-    const run = yield { commit, command: rule.command, timeoutMs, candidate: true };
-    const count = run.problems.length;
-    const state = ruleState(rule, count, committed, run.broken);
-    const result = { id: rule.id, text: rule.text, command: rule.command, count, committed,
-      holds: state === 'holding' || state === 'watching', state, mode: rule.mode, runs: rule.runs, problems: run.problems, broken: run.broken };
-    results.push(result);
+    // A clean checkout lets a file-local rule look only at the changed paths (and the moved paths' origins).
+    const scope = canFingerprint ? changed.filter((path) => inScope(rule.files, path)) : undefined;
+    const run = yield { commit, command: rule.command, timeoutMs, candidate: true, scope };
     const name = `${rule.id} ${rule.text}`;
     // A broken check never passes, whatever its mode.
     if (run.broken) {
+      results.push({ id: rule.id, text: rule.text, command: rule.command, count: 0, committed, holds: false, state: 'uncounted', mode: rule.mode, runs: rule.runs, problems: [], broken: run.broken });
       uncounted.push(`${name} cannot count: its check ${run.broken}`);
       continue;
     }
-    if (rule.mode === 'watch') continue;
     const touched = changed.filter((path) => run.problems.some((line) => namesFile(line, path)));
-    const ran = touched.length ? yield { commit: base, command: rule.command, timeoutMs, candidate: false } : { problems: [], broken: '' };
+    // A narrowed run saw only changed files, so it always compares them with the base.
+    const ran = run.partial && rule.mode !== 'watch' ? yield { commit: base, command: rule.command, timeoutMs, candidate: false, scope: [...new Set([...scope, ...origins.values()])] }
+      : touched.length && rule.mode !== 'watch' ? yield { commit: base, command: rule.command, timeoutMs, candidate: false } : { problems: [], broken: '' };
     // A renamed file is compared with its origin: the origin's problems are carried to the new path.
     const before = { ...ran, problems: ran.problems.map((line) => carryRename(line, origins)) };
-    if (count > committed) {
-      const fresh = newLines(before.broken ? [] : before.problems, run.problems);
+    // Only changed files can differ from main, so a narrowed count is accepted main's count moved by them; a lowered declaration never lowers the measure.
+    const count = run.partial ? Math.max(0, rule.count + run.problems.length - (before.broken ? 0 : before.problems.length)) : run.problems.length;
+    const state = ruleState(rule, count, committed, false);
+    results.push({ id: rule.id, text: rule.text, command: rule.command, count, committed,
+      holds: state === 'holding' || state === 'watching', state, mode: rule.mode, runs: rule.runs, problems: run.problems, broken: '' });
+    if (rule.mode === 'watch') continue;
+    if (count > committed && !before.broken) {
+      const fresh = newLines(before.problems, run.problems);
       refusals.push(`${name} rose to ${count}, was ${committed}; new problems:\n${(fresh.length ? fresh : run.problems).map((line) => `  ${line}`).join('\n')}`);
+      continue;
+    }
+    if (count > committed) {
+      refusals.push(`${name} rose to ${count}, was ${committed}; new problems:\n${run.problems.map((line) => `  ${line}`).join('\n')}`);
       continue;
     }
     if (before.broken) {
@@ -403,12 +419,14 @@ export function holdDoctrine(root, options) {
 /** Await each actual rule and base comparison without blocking other admitted work or changing ratchet decisions. */
 export async function holdDoctrineAsync(root, options) {
   const execution = doctrineHoldExecution(root, options);
+  const pass = options.fast ? createFastPass(root) : null;
   try {
     let step = execution.next();
     while (!step.done) {
       const request = step.value;
-      let run;
-      if (options.runCheck) {
+      let run = pass ? await pass.answer(request) : null;
+      // A narrowed rule is answered in-process over the changed files; the rest follow the established paths.
+      if (!run && options.runCheck) {
         // Remote checks share the same per-tree receipts as local rule checks, but only when
         // this clean checkout describes the exact tree requested from the runner.
         const key = checkReceiptKey(root, { kind: 'doctrine', definition: request.command, config: { timeoutMs: request.timeoutMs }, code: [fileURLToPath(import.meta.url)] });
@@ -422,11 +440,11 @@ export async function holdDoctrineAsync(root, options) {
           run = await options.runCheck(request.commit, request.command, request.timeoutMs);
           if (!run.broken) writeCheckReceipt(root, matching, { result: run });
         }
-      } else run = request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
+      } else if (!run) run = request.candidate ? await runRuleCheckAsync(root, request.command, request.timeoutMs) : await runAtCommitAsync(root, request.commit, request.command, request.timeoutMs);
       step = execution.next(run);
     }
     return step.value;
-  } finally { execution.return(); }
+  } finally { execution.return(); pass?.close(); }
 }
 
 /** Reuse a complete successful hold before admitting any runner work. */

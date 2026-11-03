@@ -28,14 +28,15 @@ test('two repairs naming the same file each own the case their criterion names [
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });
 
-test('a case no single repair names is ambiguous: the submit refuses and lists both candidates [V4,B3]', t => {
+test('a case no single repair names is ambiguous but red on main, so submit accepts it and names the candidates [V4,B3,C7]', t => {
   const box = fixture(t, { affected: SHARED });
   const alpha = fileMainRed(box, "The case 'alpha case' passes on main.");
   const other = fileMainRed(box, 'The shared file passes on main.');
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  const error = JSON.parse(result.stdout).error;
-  assert.equal(error.code, 'GATE_RED');
-  assert.ok(error.message.includes(`several candidate owners, none naming the case alone: test/affected.test.js (beta case [G1]): #${alpha}, #${other}`), error.message);
-  assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 0);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const gate = JSON.parse(result.stdout).gate;
+  assert.deepEqual(gate.knownMainAmbiguous, [{ file: 'test/affected.test.js', name: 'beta case [G1]', candidates: [alpha, other] }]);
+  assert.deepEqual(gate.knownMainReworks.map(row => [row.name, row.item]), [['alpha case [G1]', alpha]]);
+  assert.match(gate.report, /several candidate owners/u);
+  assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);
 });

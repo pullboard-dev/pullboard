@@ -10,7 +10,7 @@ import {
   carriesFlakeDiagnostics,
 } from "../../../../../src/flake-engine.js";
 import { LOCAL_LANDING_ENGINE } from "../../../../../src/land-engine.js";
-import { landingBatches } from "../../../../../src/landing-batch-history.js";
+import { landingBatches } from "../../../../git/core.js";
 import { LANDING_ENVIRONMENT_ENGINE } from "../../../../../src/landing-environment-engine.js";
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { landingTestDefects } from "../../../../../src/board-landing-test-defect-history.js";
