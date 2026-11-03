@@ -266,8 +266,9 @@ test('an idle resident process closes its board connections and exits [H24]', ()
     { cwd: fx.repo, env, detached: true, stdio: ['ignore', output, output] });
   closeSync(output);
   daemon.unref();
-  // Each probe is a real child process, never a timer: wait for the pid file it writes once it listens.
-  const deadline = performance.now() + 15_000;
+  // Each probe is a real child process, never a timer: wait for the pid file it writes once it listens. A loaded runner
+  // can take many seconds to load the CLI's modules before the process listens.
+  const deadline = performance.now() + 60_000;
   while (fx.residentPid() !== daemon.pid && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
   assert.equal(fx.residentPid(), daemon.pid, `the resident process listens and records its pid: ${readFileSync(log, 'utf8')}`);
   const served = fx.runIn(fx.repo, ['show', '2'], { modules: true });

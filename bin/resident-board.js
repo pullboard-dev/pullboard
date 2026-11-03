@@ -5,16 +5,13 @@
  * forwarded command through src/cli-main.js, the same entry the in-process path uses, so a warm command pays only for
  * its own work [H24,C7].
  *
- * Commands may run concurrently, so each one's state stays its own: process.env reads and writes go to that command's
- * environment, the real working directory follows the command whose code is running (child processes and relative
- * paths resolve there), and its stdout and stderr, including direct process.stdout writes, stream to its client only.
- * Each command owns the connection it takes until it closes the board. It retires, closing every connection, when its
- * code is no longer the entry's code, after an hour, and when idle.
+ * Commands run one at a time, each with its own state: process.env reads and writes go to that command's environment,
+ * the real working directory is its own (child processes and relative paths resolve there), and its stdout and stderr,
+ * including direct process.stdout writes, stream to its client only. Why one at a time: a warm command takes tens of
+ * milliseconds, and following interleaved commands' directories cost every async callback a hook. Each command owns
+ * the connection it takes until it closes the board. The process retires, closing every connection, when its code is
+ * no longer the entry's code, after an hour, and when idle.
  */
-import {
-  AsyncLocalStorage,
-  createHook,
-} from 'node:async_hooks';
 import {
   appendFileSync,
   chmodSync,
@@ -39,14 +36,17 @@ const [socketPath, entry, loadedCode, pidFile] = process.argv.slice(2);
 const IDLE_MS = Number(process.env.PULLBOARD_RESIDENT_IDLE_MS) || 15 * 60_000;
 const MAX_AGE_MS = Number(process.env.PULLBOARD_RESIDENT_MAX_AGE_MS) || 60 * 60_000;
 const bornAt = Date.now();
-const commands = new AsyncLocalStorage();
 const baseEnv = process.env;
+/** The command running now, or null between commands. */
+let running = null;
+/** The tail of the queue of commands, each started when the one before it finishes. */
+let queue = Promise.resolve();
 const inFlight = new Set();
 let lastActive = Date.now();
 let retired = false;
 
 /** The environment of the command whose code is running, or the process's own between commands. */
-const activeEnv = () => commands.getStore()?.env ?? baseEnv;
+const activeEnv = () => running?.env ?? baseEnv;
 process.env = new Proxy({}, {
   get: (_, key) => typeof key === 'string' ? activeEnv()[key] : undefined,
   set: (_, key, value) => { if (typeof key === 'string') activeEnv()[key] = String(value); return true; },
@@ -57,22 +57,18 @@ process.env = new Proxy({}, {
     ? { value: activeEnv()[key], writable: true, enumerable: true, configurable: true } : undefined,
 });
 
-let directory = process.cwd();
-/** Make the real working directory the running command's own before any of its callbacks runs. */
+/** Make the real working directory the command's own; false when it no longer exists. */
 function enterDirectory(cwd) {
-  if (cwd === directory) return;
-  try { process.chdir(cwd); directory = cwd; } catch { /* A removed directory keeps the previous one. */ }
+  try { process.chdir(cwd); return true; } catch { return false; }
 }
-createHook({ before() { const store = commands.getStore(); if (store) enterDirectory(store.cwd); } }).enable();
 
 for (const [name, frame] of [['stdout', 'out'], ['stderr', 'err']]) {
   const stream = process[name];
   const write = stream.write.bind(stream);
   /** Route a direct process stream write to the command that made it; between commands it goes nowhere visible. */
   stream.write = (chunk, encoding, callback) => {
-    const store = commands.getStore();
-    if (!store) return write(chunk, encoding, callback);
-    store.send(frame, chunk);
+    if (!running) return write(chunk, encoding, callback);
+    running.send(frame, chunk);
     if (typeof encoding === 'function') encoding(); else if (typeof callback === 'function') callback();
     return true;
   };
@@ -161,6 +157,32 @@ function closeConnections() {
 // Every read open in this process, whichever module asks, takes a connection the process holds.
 holdReadConnections(takeConnection);
 
+const { gitLocation, headCommit } = await import('./resident-client.js');
+/** Boards found to run this entry rather than a pinned build, by board, main commit and published selection. */
+const unpinned = new Map();
+const UNPINNED_MS = 60_000;
+
+/**
+ * The pinned tool build a command must run instead of this entry, or null. Asking costs two Git processes, so a "no"
+ * is remembered for a minute while the board's main commit and published selection stay the same.
+ */
+async function pinnedToolEntry(cwd) {
+  let key = null;
+  try {
+    const location = gitLocation(cwd);
+    if (location) {
+      const main = headCommit({ gitDir: location.commonDir, commonDir: location.commonDir });
+      let published = 'none';
+      try { published = String(statSync(`${location.commonDir}/pullboard/tool-builds/current.json`).mtimeMs); } catch { /* None published. */ }
+      key = `${location.commonDir}\0${main}\0${published}`;
+    }
+  } catch { key = null; }
+  if (key && Date.now() - (unpinned.get(key) ?? -Infinity) < UNPINNED_MS) return null;
+  const selected = await selectedToolEntry(cwd, entry);
+  if (!selected && key) unpinned.set(key, Date.now());
+  return selected;
+}
+
 /** A per-command output stream that frames text to the client and reports the client's terminal. */
 function clientStream(store, frame, isTTY, columns) {
   return { isTTY, columns: columns ?? undefined, write(chunk, encoding, callback) {
@@ -181,13 +203,13 @@ async function serve(socket, request) {
     send: (frame, chunk) => send({ t: frame, d: typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8') }) };
   inFlight.add(store);
   lastActive = Date.now();
-  let status;
-  try {
-    status = await commands.run(store, async () => {
-      enterDirectory(store.cwd);
-      if (directory !== store.cwd) return null;
+  /** Run the command as the only one: its environment, directory and streams are the process's until it ends. */
+  const run = async () => {
+    running = store;
+    try {
+      if (!enterDirectory(store.cwd)) return null;
       // A pinned tool build runs its own entry, which the in-process path starts.
-      try { if (await selectedToolEntry(store.cwd, entry)) return null; } catch { return null; }
+      try { if (await pinnedToolEntry(store.cwd)) return null; } catch { return null; }
       send({ t: 'start' });
       try {
         return await main(request.argv, { cwd: store.cwd, loadNativeBoard, loadProcessPorts, stdin: process.stdin,
@@ -197,8 +219,13 @@ async function serve(socket, request) {
         store.send('err', `${error?.stack ?? String(error)}\n`);
         return 1;
       }
-    });
-  } finally {
+    } finally { running = null; }
+  };
+  let status;
+  const turn = queue.then(run);
+  queue = turn.catch(() => {});
+  try { status = await turn; }
+  finally {
     inFlight.delete(store);
     lastActive = Date.now();
   }
