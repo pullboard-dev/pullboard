@@ -59,12 +59,17 @@ test('plain next skips the builders own submitted source and claims other work [
   const box = await fixture(t);
   const submitted = box.add('Already submitted');
   box.submit(submitted);
-  const build = box.add('Independent next build');
+  const overlapping = box.add('Overlapping build stays blocked');
+  const build = box.add('Independent next build', {
+    brief: 'Files: web/independent.js\nTest: Native selection claims a separate file while the submitted source awaits review.',
+  });
   const taken = await cli(box, box.seats.builder.path, ['next']);
   assert.equal(taken.code, 0, taken.out + taken.err);
+  assert.ok(taken.document.item, taken.out + taken.err);
   assert.equal(taken.document.item.item_id, build);
   assert.equal(taken.document.review, false);
   assert.equal(store.getItem(box.board, build).item_owner, box.seats.builder.id);
+  assert.equal(store.getItem(box.board, overlapping).item_status, 'open', 'the submitted file still blocks overlapping work');
   assert.equal(store.getItem(box.board, submitted).item_status, 'submitted');
   assert.equal(store.getItem(box.board, submitted).item_review_by, null);
   assert.ok(Buffer.byteLength(taken.out + taken.err) <= 2048);
