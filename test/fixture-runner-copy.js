@@ -1,7 +1,16 @@
 /** Copy only the exercised canonical runner modules, not the complete shipped application [C7,V4]. */
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { copyFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { isBuiltin } from 'node:module';
-import { dirname, join, posix } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
+import { posix } from 'node:path';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 import { importsIn } from '../packages/gate/index.js';
