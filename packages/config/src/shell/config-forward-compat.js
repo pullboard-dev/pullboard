@@ -13,7 +13,7 @@ function schema(base) {
     spec: fields(['file', 'agentApproval']),
     flakes: fields(['rerun', 'quarantine']),
     rigor: fields(['budget']),
-    cells: fields(['cache']),
+    cells: fields(['cache', 'shimMaxAgeDays']),
     relay: fields(['outbox', 'board']),
     checks: fields(['provesNothing']),
     publish: fields(['pullRequest']),

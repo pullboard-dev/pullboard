@@ -112,7 +112,7 @@ test('check refusal stays typed and includes bounded diagnostics when artifact s
 
 test('private worker drains noisy output and reports a failed log path instead of timing out [V18,V19]', () => {
   const box = project();
-  const worker = resolve(import.meta.dirname, '../src/private-check-worker.js');
+  const worker = resolve(import.meta.dirname, '../apps/runner/src/shell/private-check-worker.js');
   const output = spawnSync(process.execPath, [worker], {
     input: JSON.stringify({ command: `node -e 'process.stdout.write("START-WORKER\\n"); process.stdout.write(Buffer.alloc(20 * 1024 * 1024, 120)); process.stdout.write("\\nEND-WORKER\\n")'`,
       timeout: 10_000, pidFile: join(box.dir, 'worker.pid'), logPath: join(box.dir, 'missing', 'check.log') }),

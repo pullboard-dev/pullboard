@@ -14,6 +14,9 @@ import { loadConfig } from '../packages/config/index.js';
 import { HELP } from '../src/cli.js';
 import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
 import { viewPureGate } from './checks/view-pure.js';
+import { testWaitReport } from './checks/test-waits.js';
+import { testWaitSites } from './checks/test-waits.js';
+import { testWaitGrowth } from './checks/test-waits.js';
 import { boardWriteIoProblems } from './checks/board-write-io.js';
 import { relayBoundaryProblems } from './checks/relay-boundary.js';
 import { fixedWallMargins } from '../test/wall-clock-budgets.js';
@@ -32,12 +35,22 @@ if (process.argv[2] === '--changed-files') {
     // The approved state metadata chain is proved across the whole tree, so judge the tree and report only changed files.
     ...engineFolderProblems(root).filter(row => files.includes(row.file)).map(row => `${row.file}:${row.line}: ${row.text}`),
   ];
+  const waitBaseline = JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8'));
   for (const file of files) {
-    if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) failures.push(...fixedWallMargins(readFileSync(join(root, file), 'utf8'), file));
+    if (/\.[cm]?js$/u.test(file) && (/(?:^|\/)test\//u.test(file) || /(?:^|\/)(?:test|test[-_.].+|.+[-_.]test)\.[cm]?js$/u.test(file))) {
+      const source = readFileSync(join(root, file), 'utf8');
+      failures.push(...fixedWallMargins(source, file));
+      failures.push(...testWaitGrowth(testWaitSites(source, file), waitBaseline).map(row => `${row.path}:${row.line}: ${row.text}`));
+    }
   }
   if (failures.length) { process.stderr.write(`${failures.join('\n')}\n`); process.exitCode = 1; }
 } else {
 let failed = false;
+const waitBaseline = JSON.parse(readFileSync(join(root, 'bin/checks/test-waits-baseline.json'), 'utf8'));
+for (const row of testWaitGrowth(testWaitReport(root), waitBaseline)) {
+  console.error(`${row.path}:${row.line}: ${row.text}`);
+  failed = true;
+}
 const sources = styleSources(root);
 const relaySources = readdirSync(join(root, 'relay'), { withFileTypes: true }).filter(entry => entry.isFile() && /\.[cm]?js$/u.test(entry.name)).map(entry => ({ file: `relay/${entry.name}`, source: readFileSync(join(root, 'relay', entry.name), 'utf8') }));
 for (const row of relayBoundaryProblems([...sources, ...relaySources])) {

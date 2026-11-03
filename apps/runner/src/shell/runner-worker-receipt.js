@@ -1,7 +1,7 @@
 /** Send the single result receipt and name a refused setup without leaking paths or credentials [C7]. */
 import { flushStdout } from './runner-worker-command.js';
 import { safeGitDiagnostic } from './runner-worker-git.js';
-import { executionEnvironment } from '../packages/sandbox/src/shell/execution-environment.js';
+import { executionEnvironment } from '../../../../packages/sandbox/src/shell/execution-environment.js';
 import { availableParallelism } from 'node:os';
 import { freemem } from 'node:os';
 import { loadavg } from 'node:os';

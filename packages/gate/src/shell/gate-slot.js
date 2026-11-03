@@ -86,6 +86,9 @@ export async function withGateSlot(root, action, options = {}) {
   const remoteCheck = gateRunnersFirstEnabled() && (options.itemCheck === true || options.kind === 'review');
   options = { ...options, runnerOnly: options.runnerOnly === true || remoteCheck,
     executionServices: requireGateExecutionServices(options.executionServices) };
+  // An awaited admission callback may own only unreferenced handles. Keep the gate alive until
+  // it records a result or throws; its lease heartbeat deliberately does not keep Node running.
+  const keepAlive = setInterval(() => {}, 1_000);
   try { return await withOneGateSlot(root, action, options); }
   catch (error) {
     if (remoteCheck && ['RUNNER_WAIT_DEADLINE', 'RUNNER_INFRA_RETRY_EXHAUSTED'].includes(error?.code)) {
@@ -112,6 +115,7 @@ export async function withGateSlot(root, action, options = {}) {
     if (result && typeof result === 'object') result.runnerAttempt = attempt;
     return result;
   }
+  finally { clearInterval(keepAlive); }
 }
 
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */

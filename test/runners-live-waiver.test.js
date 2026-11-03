@@ -107,7 +107,7 @@ test('review655 a registered runner honors the same live person waiver at landin
       assert.equal(existsSync(join(repo, '.git', 'pullboard-gate-green')), false);
       return { ...finished, document: JSON.parse(finished.stdout), raw: readFileSync(join(repo, '.git', 'pullboard-gate.log'), 'utf8') };
     };
-    const tests = 'node bin/run-tests.js --test-concurrency=1 ' + failing;
+    const tests = 'node tooling/bin/run-tests.js --test-concurrency=1 ' + failing;
     const throughCat = await remoteGate(tests + ' | cat', 'test: retain a remote TAP producer account');
     assert.equal(throughCat.status, 0, fixtureResultContext(throughCat));
     assert.equal(throughCat.document.green, false);
