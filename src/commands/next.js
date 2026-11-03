@@ -84,7 +84,7 @@ async function nextWithProgress(io, values, progress) {
   progress.enter('context');
   let ctx = context(io);
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
-  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board), store.listItems));
+  withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
     whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {

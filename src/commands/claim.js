@@ -30,7 +30,7 @@ export async function run(io, { first }) {
   return act(async (ctx, board, me) => {
   const id = idArg(first);
   sayQueuedReds(io, board, () => me);
-  cleanItemFolders(ctx, board, me, listItems);
+  cleanItemFolders(ctx, board, me);
   let result;
   for (;;) {
     try {

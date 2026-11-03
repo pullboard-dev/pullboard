@@ -1,5 +1,9 @@
 /** Per-item Git worktrees for a joined seat [B5,C7]. */
 import { existsSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
+import { basename } from 'node:path';
+import { dirname } from 'node:path';
 import { agentAt } from '../packages/store/index.js';
 import { getItem } from '../packages/store/index.js';
 import { Refused } from '../packages/kernel/index.js';
@@ -16,16 +20,42 @@ import { seatRoot } from './item-folder-identity.js';
 /** The item's branch in the seat's lane. */
 function branch(lane, id) { return `${lane}/item-${id}`; }
 
-/** Remove only clean worktrees with the exact seat path and item branch we created. */
-export function cleanItemFolders(ctx, board, me, items) {
+/** The item ids of this seat's folders beside its checkout, read from one directory listing. */
+function seatFolderIds(root) {
+  const prefix = `${basename(root)}-item-`;
+  let names;
+  try { names = readdirSync(dirname(root)); } catch { return []; }
+  return names.filter(name => name.startsWith(prefix) && /^[1-9]\d*$/u.test(name.slice(prefix.length))).map(name => Number(name.slice(prefix.length)));
+}
+
+/** Map each registered worktree path to its branch, from one Git launch for the whole repository. */
+function worktreeBranches(root) {
+  const branches = new Map();
+  for (const row of git(root, ['worktree', 'list', '--porcelain', '-z']).split('\0\0')) {
+    const fields = row.split('\0');
+    const path = fields.find(field => field.startsWith('worktree '))?.slice(9);
+    const head = fields.find(field => field.startsWith('branch refs/heads/'))?.slice(18);
+    if (path && head) branches.set(path, head);
+  }
+  return branches;
+}
+
+/**
+ * Remove only clean worktrees with the exact seat path and item branch we created.
+ * The seat is resolved once and only this seat's existing folders are read, so a board with
+ * thousands of items costs one directory listing, one worktree list and one status per folder.
+ */
+export function cleanItemFolders(ctx, board, me) {
   if (me.id === 'coordinator') return;
-  for (const item of items(board, { all: true })) {
-    const path = itemFolderPath(seatRoot(ctx, board, me), item.item_id);
-    if (!existsSync(path) || (item.item_status === 'claimed' && item.item_owner === me.id) || item.item_status === 'submitted') continue;
-    const ref = branch(me.lane, item.item_id);
-    const actual = tryGit(path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
-    const common = tryGit(path, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
-    if (actual.status !== 0 || actual.stdout !== ref || common.status !== 0 || common.stdout !== ctx.info.commonDir) continue;
+  const root = seatRoot(ctx, board, me);
+  let branches = null;
+  for (const id of seatFolderIds(root)) {
+    let item;
+    try { item = getItem(board, id); } catch { continue; }
+    if (!item || (item.item_status === 'claimed' && item.item_owner === me.id) || item.item_status === 'submitted') continue;
+    const path = itemFolderPath(root, id), ref = branch(me.lane, id);
+    branches ??= worktreeBranches(ctx.info.root);
+    if ((branches.get(path) ?? branches.get(realpathSync(path))) !== ref) continue;
     const status = tryGit(path, ['status', '--porcelain', '--untracked-files=all', '--ignored=matching']);
     if (status.status !== 0 || status.stdout) continue;
     git(ctx.info.root, ['worktree', 'remove', path]);
