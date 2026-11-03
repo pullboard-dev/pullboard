@@ -20,6 +20,7 @@ import {
   handoffWorkerCapacity,
   queueHandoffLaunch,
   reserveHandoffTicket,
+  withHandoffQueueOrder,
 } from '../packages/resources/index.js';
 import { waitForCondition } from './runner-fixture-state.js';
 
@@ -83,7 +84,7 @@ test('a burst of 20 submits with inverted completion and same-clock ids starts i
   const box = fixture(20);
   try {
     const places = [];
-    for (const job of box.jobs) places.push(await reserveHandoffTicket(job.id));
+    await Promise.all(box.jobs.map(job => withHandoffQueueOrder(async () => { places.push(await reserveHandoffTicket(job.id)); })));
     // Tooling copies finish in the opposite order: places, not completion or clock, set the line.
     for (let index = places.length - 1; index >= 0; index--) {
       const job = box.jobs[index];

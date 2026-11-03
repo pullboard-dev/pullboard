@@ -1,3 +1,4 @@
+import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
 import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js';
 import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
 import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
@@ -35,14 +36,14 @@ import { submitHandoffRoot } from './submit-handoff-origin.js';
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
 export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
-  const result = await withBoard(ctx, async board => {
+  const result = await withHandoffQueueOrder(() => withBoard(ctx, async board => {
     const queued = await ordered(ctx, board, 'queueSubmitHandoff', [item.item_id, {
     agentId: me.id, job: randomUUID(), main: candidate.main, executionCommit: candidate.companion?.commit ?? candidate.commit, executionTree: candidate.companion?.tree ?? candidate.tree, commit: candidate.commit, tree: candidate.tree,
     digest: item.item_frozen_digest, leaseMs: ctx.config.leaseMs, companionDigest: itemPatchDigest(board, item.item_id, candidate.commit),
   }]);
-    // Allocate while the board writer still serializes submissions, before any tooling copy.
+    // Keep the native move and reservation inside the machine ordering lock, before capture.
     return queued.created ? { ...queued, reservation: await reserveHandoffTicket(queued.job.id, { startOf: exactStart }) } : queued;
-  });
+  }));
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, result.job));
   if (result.created) {
     git(ctx.info.root, ['update-ref', `refs/pullboard/submit-handoffs/${result.job.id}`, result.job.commit]);

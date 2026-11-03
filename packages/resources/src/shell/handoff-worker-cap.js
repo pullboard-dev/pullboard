@@ -46,6 +46,13 @@ export function handoffWorkerCapacity({ env = process.env, cores = availablePara
   return Math.max(1, Math.min(4, cores));
 }
 
+/** Serialize the native queue move and ticket reservation, releasing before any tooling capture. */
+export async function withHandoffQueueOrder(work) {
+  const lock = await takeResource({ name: 'submit-handoff-order', capacity: 1, scope: 'machine', agent: 'handoff-order' });
+  try { return await work(); }
+  finally { lock.release(); }
+}
+
 /** The machine-wide directory of launches waiting for a worker slot. */
 export function handoffQueueDirectory() { return join(machineHome(), 'handoff-queue'); }
 

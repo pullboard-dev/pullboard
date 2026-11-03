@@ -1476,6 +1476,14 @@
       "path": "bin/handoff-worker-dispatcher.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "resources"
+    },
+    {
+      "path": "src/verified-item-hold-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/move-history/223.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
