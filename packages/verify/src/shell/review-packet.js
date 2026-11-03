@@ -7,13 +7,13 @@
  * never by checking anything out. The packet is stored under the board's directory, keyed by item
  * and head, so `show --review` and `next --verify` print it without a checkout or a test process.
  */
-import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { gitExecFileSync } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 import { testOutcomeFields } from '../../core.js';
 import { frozenBar } from '../core/frozen-clause.js';
@@ -30,7 +30,7 @@ const PATCH_LIMIT = 4 * 1024 * 1024;
 /** Run git with repository overrides stripped, so a hook's environment never redirects the read. */
 function gitRead(root, args, input) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
-  return execFileSync('git', ['-C', root, ...args], { env, maxBuffer: 64 * 1024 * 1024, ...(input === undefined ? { encoding: 'utf8' } : { input }) });
+  return gitExecFileSync(['-C', root, ...args], { env, maxBuffer: 64 * 1024 * 1024, ...(input === undefined ? { encoding: 'utf8' } : { input }) });
 }
 
 /**

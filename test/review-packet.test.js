@@ -1,7 +1,7 @@
 /** A green gate stores a review packet a reviewer reads instead of checking out and rerunning [V4,C7]. */
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
@@ -10,15 +10,10 @@ import { TIMING_RUN_ID_ENV } from '../packages/gate/index.js';
 import { testTierReport } from '../packages/gate/index.js';
 
 const helpers = createE2eHelpers();
-// A green submit starts the detached verification comparison, which can still be writing the board directory.
-after(async () => {
-  for (let attempt = 0; ; attempt++) {
-    try { helpers.cleanup(); return; }
-    catch (error) {
-      if (error.code !== 'ENOTEMPTY' || attempt >= 150) throw error;
-      await new Promise(done => setTimeout(done, 200));
-    }
-  }
+// A green submit starts the detached verification comparison, which can still be writing the board directory;
+// rmSync's own bounded retries wait out its ENOTEMPTY instead of a timer in the test.
+after(() => {
+  for (const dir of helpers.sandboxes) rmSync(dir, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
 });
 
 /** Run the actual CLI and keep its complete output when an assertion fails. */
