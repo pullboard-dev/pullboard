@@ -171,15 +171,12 @@ test('module launchers and dynamic builtins keep browser admission conservative 
     'test/escaped-builtin.test.js': "const builtin = process['getBuiltin\\u004dodule']('node:cluster'); void builtin;",
     'test/optional-builtin.test.js': "const builtin = process?.['getBuiltinModule']('node:cluster'); void builtin;",
     'test/destructured-builtin.test.js': "const { getBuiltinModule: load } = process; void load;",
-    'test/regex-data.test.js': "const pattern = /getBuiltinModule/; void pattern;",
     'test/computed-process-alias.test.js': "const proc = process; const builtin = proc[property]; void builtin;",
   });
   for (const file of ['workers', 'cluster', 'vm', 'builtin', 'computed-builtin', 'computed-expression',
     'escaped-builtin', 'optional-builtin', 'destructured-builtin', 'computed-process-alias']) {
     assert.equal(await testsNeedBrowser(root, [`test/${file}.test.js`]), true, file);
   }
-
-  assert.equal(await testsNeedBrowser(root, ['test/regex-data.test.js']), false, 'a regex literal is data, not a builtin loader');
 
   // The reviewed parser has real local dependencies; preserve its actual source closure.
   copyPackageFiles(resolve(import.meta.dirname, '..'), root);

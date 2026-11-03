@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { machineHome } from '../../../resources/index.js';
+import { machineHome } from '../../../resources/src/shell/machine-home.js';
 
 const MAX_ROWS = 400_000;
 

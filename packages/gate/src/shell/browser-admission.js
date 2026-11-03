@@ -24,12 +24,10 @@ import {
   git,
 } from '../../../../src/git.js';
 import { literalShellWords } from '../../../kernel/index.js';
-import { lex } from '../../../kernel/index.js';
 import { foreignNodeOptions } from './test-isolation.js';
 import { sourceLaunchesBrowser } from '../core/browser-launch-source.js';
 import { browserModuleReach } from '../core/browser-module-reach.js';
 import { browserSourceFiles } from './browser-source-files.js';
-import { hasImmutableBrowserSourceFiles } from './browser-source-files.js';
 
 const MODULE_SUFFIXES = ['.js', '.mjs', '.cjs', '.cts', '.json'];
 const CHROME_FIXTURE = 'test/chrome-fixture.js';
@@ -287,9 +285,7 @@ function namesChromeLauncher(source, path) {
  */
 function usesDynamicBuiltinLoader(source) {
   const loaderName = ['getBuiltin', 'Module'].join('');
-  const parsed = lex(source);
-  if (parsed.code.includes(loaderName) || parsed.strings.some(literal => literal.text.includes(loaderName))
-    || /getBuiltin\\u(?:004d|\{4d\})odule/iu.test(source)) return true;
+  if (source.includes(loaderName) || /getBuiltin\\u(?:004d|\{4d\})odule/iu.test(source)) return true;
   if (/\bprocess\s*(?:\?\.)?\s*\[\s*(?!(['"])env\1\s*\])/u.test(source)) return true;
   const aliases = [...source.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*process\b/gu)].map(match => match[1]);
   return aliases.some(alias => {
@@ -547,7 +543,7 @@ function parsedSources(sources, memo) {
  * @param {Map<string, Map<string, object>>} [reachMemo] - verified projections shared by source bytes and demanded exports
  * @returns {Promise<boolean>}
  */
-async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map(), targetMemo = new Map()) {
+async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map()) {
   byLaunch ??= await browserByLaunchSetting();
   if (!Array.isArray(files) || files.length === 0) return browserFallback(onFallback, '<test selection>', 'selection is empty or unavailable');
   const normalized = files.map((file) => repositoryPath(root, file));
@@ -595,7 +591,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       const reachKeys = [];
       const reaches = sources.map((source, index) => {
         if (!byLaunch) return { source, requests: new Map(), barrel: false };
-        const cache = foreignNodeOptions(process.env.NODE_OPTIONS) ? undefined : reachMemo.get(source);
+        const cache = process.env.NODE_OPTIONS ? undefined : reachMemo.get(source);
         const initial = cache?.get('all') ?? browserModuleReach(source);
         const value = demands.get(paths[index]);
         const selected = value.narrow || initial.barrel ? value.names : null;
@@ -617,7 +613,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         if (byLaunch) {
           const { proofs: _proofs, ...provenReach } = reaches[index];
           reaches[index] = provenReach;
-          if (!foreignNodeOptions(process.env.NODE_OPTIONS)) {
+          if (!process.env.NODE_OPTIONS) {
             const cache = reachMemo.get(sources[index]) ?? new Map();
             cache.set(reachKeys[index], provenReach);
             reachMemo.set(sources[index], cache);
@@ -655,11 +651,9 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
           if (request.startsWith('node:')) continue;
           if (byLaunch && request === COMPUTED_IMPORT) { starts[index] = true; continue; }
           if (!request.startsWith('.')) return browserFallback(onFallback, paths[index], `non-local import ${request} is not classified`);
-          const targetKey = `${paths[index]}\0${request}`;
-          if (!targetMemo.has(targetKey)) targetMemo.set(targetKey, committed
+          const target = committed
             ? committedTarget(committed, paths[index], request)
-            : await localTarget(root, paths[index], request));
-          const target = targetMemo.get(targetKey);
+            : await localTarget(root, paths[index], request);
           if (!target) return browserFallback(onFallback, paths[index], `import ${request} is missing or ambiguous`);
           if (target === FIXTURE_CHILD) {
             const key = `${request}\0${sources[index]}`;
@@ -720,29 +714,10 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     const memo = new Map();
     const launchFree = new Map();
     const safeChildImports = new Map();
-    const sourceMemo = new Map(), reachMemo = new Map(), targetMemo = new Map();
-    // A captured source view is immutable. Batch V8's initial parses instead of starting a parser per test file.
-    const immutable = hasImmutableBrowserSourceFiles();
-    if (immutable) {
-      for (let start = 0; start < files.length; start += 40) {
-        const sources = [];
-        for (const file of files.slice(start, start + 40)) {
-          const path = repositoryPath(root, file);
-          if (!path || path === JOURNEYS_TEST || path.startsWith('test/cockpit/') || /\.(?:cjs|cts|json)$/u.test(path)) continue;
-          try {
-            const absolute = resolve(root, ...path.split('/'));
-            if (!(await staysInside(root, absolute, true))) continue;
-            const source = await browserSourceFiles().readFile(absolute, 'utf8');
-            sourceMemo.set(path, source);
-            sources.push(source);
-          } catch { /* The ordinary per-file walk preserves a missing or unreadable source's fallback. */ }
-        }
-        try { parsedSources(sources, memo); } catch { /* Retry each source in the ordinary conservative walk. */ }
-      }
-    }
+    const sourceMemo = new Map(), reachMemo = new Map();
     const bound = [];
     for (const file of files) {
-      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, immutable ? targetMemo : new Map())) bound.push(file);
+      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo)) bound.push(file);
     }
     return bound;
   });
