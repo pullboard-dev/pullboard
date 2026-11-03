@@ -11,7 +11,7 @@ import { GATE_SLOT_HELD_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
 import { BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
-
+import { waitForFixtureProgress } from './fixture-progress.js';
 /** Read append-only subprocess markers; each completed line is one independently observed transition. */
 function markers(path) { return readFileSync(path, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)); }
 
@@ -159,11 +159,14 @@ function startParallelCli(box, BIN) {
     child.once('error', error => resolveClose({ error }));
     child.once('close', (code, signal) => resolveClose({ code, signal, stdout, stderr }));
   });
-  return { child, closed };
+  // Count observed CLI and gate-marker bytes while the real candidates are being prepared.
+  const progress = () => stdout.length + stderr.length + [box.calls, box.trace].reduce((bytes, file) =>
+    bytes + (file && existsSync(file) ? readFileSync(file).length : 0), 0);
+  return { child, closed, progress };
 }
 
 /** Exercise real CLI opt-in and authority loss on separate private, normally verified projects. */
-export async function assertParallelCliLease({ landProject, itemWorktree, submitItem, acceptItem, onBoard, waitFor, BIN }) {
+export async function assertParallelCliLease({ landProject, itemWorktree, submitItem, acceptItem, onBoard, BIN }) {
   for (const loseLease of [false, true]) {
     const box = parallelCliProject(landProject);
     const entries = [1, 2].map(number => itemWorktree(box, number));
@@ -174,10 +177,12 @@ export async function assertParallelCliLease({ landProject, itemWorktree, submit
     writeFileSync(box.hold, 'armed');
     const running = startParallelCli(box, BIN);
     let terminal;
+    let observationError;
     let held;
     let batch;
     try {
-      await waitFor(() => existsSync(box.entered), 'the parallel CLI entered its real gate');
+      await waitForFixtureProgress({ child: running.child, ready: () => existsSync(box.entered),
+        progress: running.progress, description: 'the parallel CLI entered its real gate' });
       ({ held, batch } = onBoard(box, board => ({ held: store.landingLeaseState(board).holder,
         batch: store.landingBatches(board).at(-1) })));
       assert.ok(held && Number.isSafeInteger(held.guardianPid) && held.guardianPid > 0, 'the real guardian is bound to an actual lease');
@@ -192,12 +197,14 @@ export async function assertParallelCliLease({ landProject, itemWorktree, submit
           token: held.token, generation: held.generation, branch: held.branch, pid: held.pid }));
         assert.equal(onBoard(box, board => store.landingLeaseState(board).holder), null);
       }
-    } finally {
+    } catch (error) { observationError = error; }
+    finally {
       // Always release the cooperative gate. Any authority-loss cancellation is the product
       // guardian's own fenced shutdown; this test never signals an arbitrary process/group.
       writeFileSync(box.release, 'release');
       terminal = await running.closed;
     }
+    if (observationError) throw new Error(`${observationError.message}\n${terminal.stdout}\n${terminal.stderr}`, { cause: observationError });
     assert.equal(terminal.error, undefined);
     assert.equal(terminal.signal, null, terminal.stderr);
     const result = JSON.parse(terminal.stdout);
