@@ -1,6 +1,6 @@
 /** @pullboard-test-loads src/cli/view-state.js */
 /** View projection refuses migrations from linked source and borrows staged boards without owning them [A5,A6,A2]. */
-import { copyPackageFiles } from '../../src/package-files.js';
+import { copyPackageFiles } from '../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
