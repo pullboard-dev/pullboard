@@ -356,10 +356,14 @@ export async function queuedLeaseProof(t, deps) {
     }, 'the real verify waiter and its item lease end');
     const build = leaseCommand(deps, box, box.web, 'submit', String(buildId), '--json');
     commands.push(build);
-    await waitUntil(() => {
-      assert.equal(build.exitResult, null, `submit exited before queueing: ${build.stdoutText}\n${build.stderrText}`);
-      return waiting(buildId)?.leaseUntil;
-    }, 'the real submit waiter and its item lease end');
+    try {
+      await waitUntil(() => {
+        assert.equal(build.exitResult, null, `submit exited before queueing: ${build.stdoutText}\n${build.stderrText}`);
+        return waiting(buildId)?.leaseUntil;
+      }, 'the real submit waiter and its item lease end', 30_000); // budget: the real CLI completes source and static preflight before entering the held pool.
+    } catch (error) {
+      throw new Error(`${error.message}\nsubmit stdout: ${build.stdoutText}\nsubmit stderr: ${build.stderrText}\nresource queue: ${JSON.stringify(privateList(box))}`, { cause: error });
+    }
     const check = leaseCommand(deps, box, box.checker, 'check', String(checkId), '--yes', '--json');
     commands.push(check);
     await waitUntil(() => waiting(checkId)?.leaseUntil, 'the independent owned check and its item lease end');
