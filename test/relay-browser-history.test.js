@@ -1,7 +1,7 @@
 /** Background checkpoints never rewind the live phone cursor or pretend partial history is complete [H15,H17]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createPhoneHistory } from '../relay/browser-history.js';
+import { createPhoneHistory } from '../apps/relay/index.js';
 
 /** Expose one explicit transition instead of relying on a timing-based confidence wait. */
 function deferred() {
