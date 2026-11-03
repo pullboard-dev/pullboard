@@ -5,6 +5,7 @@
  * files its check and affected tests read; anything else, or anything the selection cannot see, refuses as before.
  */
 import { execFileSync } from 'node:child_process';
+import { Refused } from '../../../kernel/index.js';
 
 /** Run git in the reviewer's checkout and return its trimmed output. */
 function git(root, args) {
@@ -19,6 +20,16 @@ function changedBetween(root, from, to) {
 /** Count every landed change, including one later reverted; a merge contributes its first-parent change. */
 function changedBy(root, commit) {
   return git(root, ['diff-tree', '--root', '--no-commit-id', '--no-renames', '--name-only', '--diff-merges=first-parent', '-r', '-z', commit]).split('\0').filter(Boolean);
+}
+
+/** A completed check remains bound to its reviewed paths; every intervening trunk commit must leave them alone. */
+export function itemTrunkMove(root, { from, to, paths }) {
+  try { git(root, ['merge-base', '--is-ancestor', from, to]); }
+  catch { throw new Refused('VERDICT_TRUNK_MOVED', 'main was rewound during review; restore its history and re-review'); }
+  const moved = git(root, ['rev-list', '--reverse', `${from}..${to}`]).split('\n').filter(Boolean);
+  const itemPaths = new Set(paths);
+  const overlap = [...new Set(moved.flatMap(commit => changedBy(root, commit)).filter(path => itemPaths.has(path)))].sort();
+  return { moved, overlap };
 }
 
 /**

@@ -26,7 +26,8 @@ export function claimOverlapLines(items, agents, agentId, project, observations 
     return [
       ...found.overlaps.map(other => `#${item.item_id} overlaps #${other.item} (${other.builder}) on ${other.files.join(', ')}`),
       ...found.outOfScope.map(other => `#${item.item_id} may be out of scope: #${other.item} names ${other.files.join(', ')}`),
-      ...(found.unknown ? [`#${item.item_id} worktree changes are unavailable; overlap is unknown`] : []),
+      // A claim maintenance has not observed yet says nothing; only a failed observation is named unknown.
+      ...(found.unknown && !observations.get(item.item_id)?.unrecorded ? [`#${item.item_id} worktree changes are unavailable; overlap is unknown`] : []),
     ];
   });
 }

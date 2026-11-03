@@ -131,7 +131,10 @@ import {
   companionMainFailuresUntouched,
   mainRedMessage,
 } from '../../packages/landing/index.js';
-import * as nativeFlakes from '../native-flake-cli.js';
+import {
+  observer as flakeObserver,
+  recordMainComparison,
+} from '../../packages/flakes/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -470,7 +473,7 @@ export async function submitHere(ctx, id, infra) {
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, ...(remote && !crossRun.tests.length && check === frozenCheck(held) ? { plan: remote.plan, admission: remote.admission } : {}), outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
-    onFailure: nativeFlakes.observer(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
+    onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   ctx.submitAttempt.stage = 'runner';
   let gate = await runGate(frozenCheck(held));
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
@@ -481,7 +484,7 @@ export async function submitHere(ctx, id, infra) {
     companion.receiptIds = gate.proofReceiptIds.filter(id => typeof id === 'string');
     companion.phases = gate.phasePlan.map(({ role, command }) => ({ role, command: createHash('sha256').update(command).digest('hex') }));
   }
-  const onMeasuredReceipt = receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
+  const onMeasuredReceipt = receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent });
   let comparison;
   const mainComparisonReceiptIds = new Map();
   /** Retain exact native comparison ids for the later origin-sealed submit. */
@@ -585,7 +588,7 @@ export async function submitHere(ctx, id, infra) {
   if (redCriterion || !gate.isGreen && !waived && !proofMatched) {
     const accountingNote = (checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '')
       + (ambiguous.length ? `\nknown main red with several candidate owners, none naming the case alone: ${ambiguous.map(row => `${row.file} (${row.name}): ${row.candidates.map(item => `#${item}`).join(', ')}`).join('; ')}; name the exact case in one repair's criterion` : '');
-    const message = `${plainMainFailures ? plainMainFailures + "\n" : ""}the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${displayedReport}${accountingNote}${criterionProblem}`;
+    const message = `${plainMainFailures ? plainMainFailures + "\n" : ""}the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gate.testTiers ? displayedReport.replace(scope, testTierReport(gate.testTiers, { names: false })) : displayedReport}${accountingNote}${criterionProblem}`;
     // No submission can follow this verdict. Read-only main comparisons must not retain the seat's write lease.
     CHECKOUT_LEASES.get(ctx.io)?.release();
     CHECKOUT_LEASES.delete(ctx.io);

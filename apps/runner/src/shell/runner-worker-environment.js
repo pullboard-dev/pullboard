@@ -28,6 +28,8 @@ function childEnvironment(S, home, temporary, machineHomePath = '', nodeOptions 
     // The spawn-journal preload is declared so a test's NODE_OPTIONS classifier knows it is the runner's own.
     ...(nodeOptions ? { NODE_OPTIONS: nodeOptions, PULLBOARD_RUNNER_PRELOAD: nodeOptions } : {}),
     ...(machineHomePath ? { PULLBOARD_MACHINE_HOME: machineHomePath } : {}),
+    // Marks every process of this job, so the CLI never starts a detached watcher that outlives it (#2513).
+    PULLBOARD_RUNNER_JOB: String(S.workerId || 'job'),
   };
 }
 

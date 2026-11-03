@@ -25,7 +25,9 @@ import {
   waivedFailures,
   waiverLine,
 } from '../../packages/landing/index.js';
-import * as nativeFlakes from '../native-flake-cli.js';
+import {
+  observer as flakeObserver,
+} from '../../packages/flakes/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -83,7 +85,7 @@ export async function run(io, { first, second, rest, values }) {
   const needsReceipt = values.landing && (values.receipt || config.landing?.requireReceipts === true);
   const quarantines = withBoard(ctx, quarantineVerdictSnapshot);
   const gate = await runGate(ctx.info.root, config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, trustStamp: !needsReceipt, landing: values.landing, runnerOnly: values['runner-only'] === true, agent: resourceAgent(ctx), onWait: gateWaitReporter(io), stages: Boolean(values.landing), waivers, quarantines,
-    onFailure: nativeFlakes.observer(ctx, { kind: values.landing ? 'land' : 'gate', config }, { ordered, withBoard, resourceAgent, checkAtCommit }) });
+    onFailure: flakeObserver(ctx, { kind: values.landing ? 'land' : 'gate', config }, { ordered, withBoard, resourceAgent, checkAtCommit }) });
   // Recording diagnostics is best effort; granting an exception always rechecks current authority.
   if (gate.blockingVerdict) withBoard(ctx, board => {
     const receipt = readGateReceipt(boardReceiptStore(board), gate.receiptId);

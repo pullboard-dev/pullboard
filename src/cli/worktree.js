@@ -107,9 +107,11 @@ export function primaryCheckoutRoot(info) {
   try { worktrees = withProjectGitTimeout(info.root, () => tryGit(info.root, ['worktree', 'list', '--porcelain', '-z'])); }
   catch (error) { if (error.code !== 'BOARD_UNAVAILABLE') throw error; worktrees = { status: 1, stdout: '' }; }
   if (worktrees.status === 0) {
+    // Git lists the main worktree first, so only that entry is checked: asking every linked worktree ran Git in
+    // every other seat's checkout on each claim (#2427).
     const candidates = worktrees.stdout.split('\0')
       .filter((field) => field.startsWith('worktree '))
-      .map((field) => field.slice('worktree '.length));
+      .map((field) => field.slice('worktree '.length)).slice(0, 1);
     const found = matches(candidates);
     if (found.length === 1) return found[0];
   }
