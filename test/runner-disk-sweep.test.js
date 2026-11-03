@@ -1,4 +1,4 @@
-/** A runner root sweeps unleased job folders, trims an oversized cache oldest first, and keeps 20% of the disk free [C7]. */
+/** A runner root sweeps unleased job folders, trims an oversized cache oldest first, and keeps an absolute amount of the disk free [C7]. */
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
@@ -59,16 +59,16 @@ function diskOf(root, spare) {
   return () => ({ free: total - treeBytes(root), total });
 }
 
-test('a sweep keeps the leased folder, removes unleased ones and reports at least 20% free [C7]', async t => {
+test('a sweep keeps the leased folder, removes unleased ones and reports at least the free-space floor [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const total = treeBytes(root);
-  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: diskOf(root, total * 0.1), reposBudget: 1000 * MB, cacheBudget: 1000 * MB });
+  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: diskOf(root, total * 0.1), reposBudget: 1000 * MB, cacheBudget: 1000 * MB, minFreeBytes: Math.floor(total * 0.22) });
   assert.ok(existsSync(join(root, 'jobs', 'live-AAAAAA', 'checkout', 'big.bin')), 'the leased folder survives');
   assert.ok(existsSync(join(root, 'jobs', 'young-DDDDDD')), 'a folder too new to have an owner record survives');
   assert.ok(!existsSync(join(root, 'jobs', 'dead-BBBBBB')) && !existsSync(join(root, 'jobs', 'ownerless-CCCCCC')));
   assert.deepEqual(report.removedJobs.sort(), ['dead-BBBBBB', 'ownerless-CCCCCC']);
-  assert.ok(report.freeFraction >= 0.2, `free ${report.freeFraction}`);
+  assert.ok(report.freeBytes >= Math.floor(total * 0.22), `free ${report.freeBytes}`);
   assert.ok(existsSync(join(root, 'cache', 'resource-pool', 'db')), 'the lease database is never trimmed');
 });
 
@@ -89,15 +89,15 @@ test('a sweep with no process census touches nothing [C7]', async t => {
   assert.ok(existsSync(join(root, 'jobs', 'dead-BBBBBB')));
 });
 
-test('a job is refused while protected data keeps the disk under 20% free after the sweep [C7]', async t => {
+test('a job is refused while protected data keeps the disk under the free-space floor after the sweep [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
   // The remaining disk is occupied outside the sweep's custody, so reclaiming fixtures cannot reach the floor.
-  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: () => ({ free: 10, total: 100 }), reposBudget: 1000 * MB, cacheBudget: 1000 * MB });
-  assert.ok(report.freeFraction < 0.2);
-  assert.throws(() => assertDiskFree(report), error => error.code === 'RUNNER_DISK_FULL');
-  assert.throws(() => assertDiskFree({ freeFraction: null }), { code: 'RUNNER_DISK_FULL' });
-  assert.doesNotThrow(() => assertDiskFree({ freeFraction: 0.3 }));
+  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: () => ({ free: 10, total: 100 }), reposBudget: 1000 * MB, cacheBudget: 1000 * MB, minFreeBytes: 50 });
+  assert.ok(report.freeBytes < 50);
+  assert.throws(() => assertDiskFree(report, 50), error => error.code === 'RUNNER_DISK_FULL');
+  assert.throws(() => assertDiskFree({ freeBytes: null }), { code: 'RUNNER_DISK_FULL' });
+  assert.doesNotThrow(() => assertDiskFree({ freeBytes: 60 }, 50));
 });
 
 
