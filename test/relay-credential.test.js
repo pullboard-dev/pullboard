@@ -116,7 +116,7 @@ test('every current operation selects its native actor credential without a seco
       batch: { root: box.root, items: [{ id: 999999 }], tip: 'a'.repeat(40) } }], kind, sent: false, expected: 'LAND_RECEIPT_REQUIRED' };
     if (operation === 'recordProofRun') return { operation, args, kind, sent: false, expected: 'PROOF_RUN_UNBOUND' };
     if (operation === 'recordGateRun') return { operation, args, kind, sent: false, expected: 'GATE_RUN_UNBOUND' };
-    if (operation === 'recordSelectorGap') return { operation, args, kind, sent: false, expected: 'SELECTOR_GAP_UNPROVED',
+    if (operation === 'recordSelectorGap') return { operation, args, kind, expectedResult: 'SELECTOR_GAP_UNPROVED',
       label: 'recordSelectorGap without an actual reviewed-failure receipt' };
     return { operation, args, kind, ...(kind === 'person' ? { sent: false } : {}) };
   });
@@ -140,6 +140,8 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'setBoardMembers', args: [{ document: null }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordNextIdle', args: [{ reason: 'nothing-eligible' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordActivityDelivery', args: [{ through: 0, interrupts: [] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
+    { operation: 'recordSelectorGap', args: [{ itemId: box.before.tables.item[0].item_id, receiptId: 'missing-selector-gap-review', review: null }],
+      kind: 'agent', sent: false, expected: 'RELAY_ACTOR', label: 'recordSelectorGap missing actor' },
     { operation: 'actOnActivity', args: [{ ids: ['event:1'] }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordSpecApprovalBaseline', args: [{ baseline: { version: 1, file: 'SPEC.md', anchor: null, rows: [] } }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordRowVerification', args: [{ source: '- G1 [approved, must] A credential fixture row. | gate: review', decision: 'accepted', reason: 'credential fixture' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
@@ -205,6 +207,7 @@ test('every current operation selects its native actor credential without a seco
   assert.equal(records.length, sentCases.length, 'valid agent and machine moves are acknowledged; invalid and person-only moves stop before transport');
   let recordIndex = 0;
   for (const [index, entry] of cases.entries()) {
+    if (entry.expectedResult) assert.equal(results[index].result, entry.expectedResult, `${entry.label ?? entry.operation} retains its native outcome after authenticated transport`);
     if (entry.sent === false) {
       assert.equal(results[index].result, entry.expected ?? 'HUMAN_REQUIRED', `${entry.label ?? entry.operation} retains its exact refusal before transport`);
       continue;
