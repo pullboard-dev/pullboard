@@ -77,7 +77,7 @@ test('the roadmap panel counts the next release by stage [N26]', {
         assert.deepEqual(counts.shipped, ['Last shipped', '0.8.6', shippedLabel], `${width}/${scheme}: the last shipped row names its recorded publish date without exposing the note`);
         assert.ok(counts.documentWidth <= counts.viewport, `${width}/${scheme}: the page never scrolls sideways`);
         if (width < 900) assert.ok(counts.heading.top < counts.mobileCounts.top && counts.mobile.height > 0 && counts.desktop.height === 0, `${width}/${scheme}: counts sit under the actual next release heading on the phone`);
-        else assert.ok(counts.desktop.height > 0 && counts.mobile.height > 0, `${width}/${scheme}: desktop shipping counts stay in the right panel alongside the header`);
+        else assert.ok(counts.desktop.height > 0 && counts.mobile.height === 0, `${width}/${scheme}: desktop shipping counts stay in the right panel alongside the header`);
       }
       await proofShot(chrome, 'roadmap-panel-counts', width);
     }
