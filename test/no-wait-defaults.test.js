@@ -1,6 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** The default agent loop takes independent work immediately and ends an empty turn [N41,N42,C7]. */
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { DEFAULT_NEXT_STEPS } from '../apps/cli/src/core/next-step-defaults.js';
@@ -8,6 +9,8 @@ import { NEXT_STEPS } from '../apps/cli/src/core/next-step-words.js';
 import { successfulNext } from '../packages/config/src/core/json-output.js';
 import { requireManualLanding } from '../packages/merge/index.js';
 import { fixture, cli } from './next-take-fixture.js';
+import { fixtureBoard } from './board-fixture.js';
+import { submitFixture } from './board-submit-fixture.js';
 import { main } from './native-cli-fixture.js';
 import * as store from '../packages/store/index.js';
 
@@ -85,4 +88,62 @@ test('an empty plain next exits zero with a bounded end-turn answer in text and 
   assert.doesNotMatch(out + err, /--wait|next waiting/u);
   assert.ok(Buffer.byteLength(out + err) <= 2048);
   assert.equal(store.getItem(box.board, ownSession).item_review_by, null);
+});
+
+
+test('selection shares the complete relaxation queue per threshold and reservation rechecks current authority [N41,V1,H16,C7]', t => {
+  const board = fixtureBoard(t);
+  let now = new Date('2026-01-01T00:00:00.000Z');
+  board.clock = { now: () => new Date(now) };
+  for (const [id, family, parent] of [
+    ['coordinator', 'human', 'a'], ['core-1', 'openai', 'b'],
+    ['core-2', 'openai', 'c'], ['core-3', 'openai', 'd'],
+    ['core-4', 'anthropic', 'b'],
+  ]) {
+    store.register(board, { id, lane: id === 'coordinator' ? 'coordinator' : 'core',
+      path: `/fixture/${id}`, route: 'strong', family, parentDigest: parent.repeat(64), model: 'fixture-model' });
+  }
+  /** Publish authentic native fixture history without claiming a gate ran. */
+  function submitted(builder, threshold) {
+    const id = store.addItem(board, { by: 'coordinator', lane: 'core', route: 'strong',
+      title: 'Relaxation selection fixture', criterion: 'The independent reviewer retains its exact authority.' });
+    const text = JSON.stringify({ policy: { verify: { family: 'require', familyRelaxAt: threshold } } });
+    store.claim(board, id, { agentId: builder, lane: 'core', leaseMs: 3_600_000,
+      freeze: () => ({ text, digest: createHash('sha256').update(text).digest('hex') }) });
+    submitFixture(board, id, { agentId: builder, commit: String(id).padStart(40, 'a'), tree: 'b'.repeat(40) });
+    return id;
+  }
+  // The first subjects do not qualify: the foreign sibling can review the first, and the second has a higher frozen threshold.
+  const unblocked = submitted('core-3', 2);
+  const higherThreshold = submitted('core-1', 10);
+  const blocked = Array.from({ length: 6 }, () => submitted('core-1', 2));
+  const options = { agentId: 'core-2', lane: 'core', verify: true, policy: 'any', familyPolicy: 'require' };
+  const prepare = board.db.prepare.bind(board.db);
+  let activityReads = 0;
+  board.db.prepare = sql => {
+    if (sql.includes('SELECT DISTINCT event.event_by AS id')) activityReads++;
+    return prepare(sql);
+  };
+  t.after(() => { board.db.prepare = prepare; });
+  const first = store.nextFor(board, options).item;
+  assert.ok(blocked.includes(first?.item_id), 'an initially unblocked subject cannot erase the later subjects relaxation witness');
+  assert.notEqual(first.item_id, unblocked);
+  assert.notEqual(first.item_id, higherThreshold, 'one subjects lower threshold never changes another frozen threshold');
+  assert.ok(activityReads <= 2, `${activityReads} activity reads for two frozen thresholds, not one per subject`);
+
+  // A new eligible foreign reviewer must invalidate the preview at the actual reservation boundary.
+  store.register(board, { id: 'core-5', lane: 'core', path: '/fixture/core-5', route: 'strong',
+    family: 'anthropic', parentDigest: 'e'.repeat(64), model: 'fixture-model' });
+  assert.throws(() => store.reserveReview(board, first.item_id, { ...options, leaseMs: 3_600_000 }), { code: 'SAME_FAMILY' });
+  assert.equal(store.getItem(board, first.item_id).item_review_by, null, 'a stale preview grants no reservation');
+  activityReads = 0;
+  assert.equal(store.nextFor(board, options).item, null, 'a fresh selection sees the newly available reviewer');
+  assert.ok(activityReads <= 2, `${activityReads} activity reads after the native queue changed`);
+
+  now = new Date(now.getTime() + 16 * 60_000);
+  activityReads = 0;
+  const later = store.nextFor(board, options).item;
+  assert.ok(later, 'a later selection rederives the activity window instead of retaining an empty result');
+  assert.notEqual(later.item_id, higherThreshold);
+  assert.ok(activityReads <= 2, `${activityReads} activity reads after the activity window changed`);
 });
