@@ -8,6 +8,7 @@
 import { loadMachineSettings } from '../../../../packages/config/index.js';
 import { effectiveRunners } from '../../../../packages/runners/index.js';
 import { probeRunnerTransport } from '../../../../packages/runners/index.js';
+import { withAvoidedRunners } from '../../../../packages/gate/index.js';
 
 /** Refusal codes that name the machinery, never the candidate: a rerun of the same source can go green. */
 export const INFRASTRUCTURE_CODES = Object.freeze(new Set([
@@ -42,6 +43,13 @@ export async function healthyExecutor({ settings = loadMachineSettings(), probe 
   return answers.some(Boolean);
 }
 
+/** Every runner host a failure names: the gate's own mark, a dropped runner, and its recorded attempts. */
+function failedHosts(error) {
+  const attempts = Array.isArray(error?.infrastructureAttempts) ? error.infrastructureAttempts : [];
+  return [error?.runnerHost, error?.name === 'RunnerDropped' ? error.host : null, ...attempts.map(row => row?.runner)]
+    .filter(host => typeof host === 'string' && host && host !== 'local');
+}
+
 /** Resolve after `ms`; a separate function so a fixture can supply its own clock. */
 function pause(ms) {
   return new Promise(done => setTimeout(done, ms));
@@ -49,23 +57,30 @@ function pause(ms) {
 
 /**
  * Run one queued submit attempt, and run the same candidate again after every infrastructure failure, with no retry
- * limit while any executor is healthy; with none healthy it waits for one. A real result, green or red, and any
+ * limit while any executor is healthy; with none healthy it waits for one. Every runner that failed is avoided by
+ * the later attempts, so the candidate moves to another runner; only when no other runner is configured does it go
+ * back to the full pool, after the health wait, because the failed host may be the only one left. A real result, green or red, and any
  * other refusal return or throw on the attempt that produced it, so only a test or check failure reaches the builder.
  *
  * @param {(attempt: number) => Promise<any>} run one complete attempt of the canonical submit
  * @param {{ say?: (line: string) => void, healthy?: () => Promise<boolean>, wait?: (ms: number) => Promise<void>, pauseMs?: number, noRunnerPauseMs?: number }} [options]
- * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string }> }>}
+ * @returns {Promise<{ result: any, attempts: Array<{ attempt: number, code: string, message: string, hosts: string[] }>, avoided: string[] }>}
  */
 export async function submitUntilSettled(run, { say = () => {}, healthy = healthyExecutor, wait = pause, pauseMs = PAUSE_MS, noRunnerPauseMs = NO_RUNNER_PAUSE_MS } = {}) {
   const attempts = [];
+  const avoided = new Set();
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return { result: await run(attempt), attempts };
+      const result = await withAvoidedRunners(avoided, () => run(attempt));
+      return { result, attempts, avoided: [...avoided] };
     } catch (error) {
       const code = infrastructureFailure(error);
       if (!code) throw error;
-      attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500) });
-      say(`queued gate attempt ${attempt} hit an infrastructure failure (${code}): ${String(error.message ?? '').split('\n')[0]}; requeueing the same candidate, not a red`);
+      const hosts = [...new Set(failedHosts(error))];
+      for (const host of hosts) avoided.add(host);
+      attempts.push({ attempt, code, message: String(error.message ?? '').slice(0, 500), hosts });
+      const away = avoided.size ? `, avoiding ${[...avoided].join(', ')}` : '';
+      say(`queued gate attempt ${attempt} hit an infrastructure failure (${code}): ${String(error.message ?? '').split('\n')[0]}; requeueing the same candidate${away}, not a red`);
       while (!(await healthy())) {
         say(`no healthy runner or local gate slot yet; the candidate waits in the queue and retries in ${Math.round(noRunnerPauseMs / 1000)} s`);
         await wait(noRunnerPauseMs);
