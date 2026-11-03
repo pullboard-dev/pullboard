@@ -142,8 +142,9 @@ export function registerMaintenanceSchedulerTests() {
     const ctx = project(t, true), directory = join(ctx.info.commonDir, 'pullboard', 'worktree-maintenance');
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     fs.writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
-    const started = cp.execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
-      { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim();
+    const started = cp.execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='], {
+      encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' },
+    }).trim().split(/\s+/u).join(' ');
     const owner = { version: 1, token: randomUUID(), pid: process.pid, started,
       dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: ctx.info.root, common: ctx.info.commonDir };
     const file = join(directory, 'timer.json'), bytes = JSON.stringify(owner) + '\n';

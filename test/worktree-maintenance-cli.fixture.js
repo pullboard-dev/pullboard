@@ -62,7 +62,8 @@ export function registerMaintenanceCliTests() {
     assert.equal(claimed.code, 0, claimed.err);
     const bytes = Buffer.from([0, 5, 6, 255]);
     fs.writeFileSync(join(owner, 'unfinished.bin'), bytes);
-    const released = box.run(owner, 'release', String(id), '--no-next', '--json');
+    const released = box.run(owner, 'release', String(id), '--reason', 'OTHER', '--note',
+      'Fixture releases the owner claim for maintenance cleanup.', '--no-next', '--json');
     assert.equal(released.code, 0, released.err);
     assert.equal(fs.existsSync(join(owner, 'unfinished.bin')), false, released.err);
     assert.equal(box.git(owner, 'status', '--porcelain').trim(), '');
