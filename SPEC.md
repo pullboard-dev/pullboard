@@ -48,6 +48,9 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - B33 [draft, aim] The view shows an item's thread in its detail, with code references live. | gate: test/cockpit.test.js | serves: B29
 - B34 [approved, must] The trunk is the main checkout's branch, whatever its name; nothing assumes main. | gate: packages/sandbox/tests/trunk.test.js | serves: P2
 - B35 [draft, must] Anything that can be code is code: the coordinator turns intent into items, rules new cases and sharpens criteria. | gate: test/board.test.js | serves: B25
+- B37 [draft, must] When lanes are on, every item is built in its own lane; the coordinator claims only coordinator-lane items. (Proposed change to B12, Corey approved 3 Nov.) | gate: review
+- B38 [draft, must] When lanes are on, below strong an item needs a criterion, a check command, and a brief naming its test and in-lane files. (Proposed change to B14, Corey approved 3 Nov.) | gate: review
+- B39 [draft, must] When lanes are on and only work above an agent's tier is open in its lane, next names it and the ways through. (Proposed change to B16, Corey approved 3 Nov.) | gate: review
 
 ## M · Machine
 - M1 [approved, must] One declaration holds every item state, move, guard and refusal; code, help and docs derive from it. | gate: test/machine.test.js
@@ -91,6 +94,9 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - L2 [approved, must] The longest owned prefix decides a path's lane. Unowned paths are the coordinator's. | gate: packages/config/tests/lanes.test.js
 - L3 [approved, must] In a lane's worktree, pre-commit refuses changes outside the lane, moves included. | gate: test/e2e.test.js
 - L4 [approved, must] A worktree that has not joined a lane cannot commit. | gate: test/e2e.test.js
+- L5 [draft, must] When lanes are off, a seat joins the board, next offers any item its route covers, and pre-commit and submit check the claimed item's cells. (Corey approved lanes off, 3 Nov.) | gate: review
+- L6 [draft, must] When lanes are on, in a lane's worktree pre-commit refuses changes outside the lane, moves included. (Proposed change to L3, Corey approved 3 Nov.) | gate: review
+- L7 [draft, must] When lanes are on, a worktree that has not joined a lane cannot commit. (Proposed change to L4, Corey approved 3 Nov.) | gate: review
 
 ## S · Spec
 - S1 [approved, must] SPEC.md holds one row per line: id, status, text, gate, what it serves. | gate: test/spec.test.js
@@ -197,6 +203,8 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N38 [draft, must] Every tab, item, row and shout in the view has its own address, so any of them can be linked. | gate: test/cockpit.test.js | serves: N26
 - N39 [approved, must] The view's secret never stays in the address bar: the first link trades it for a cookie. | gate: test/e2e-view.test.js | serves: N26
 - N40 [draft, must] Every action in the view answers within 100 ms and never over 250 ms, on a board of 3,000 items with eight projects open. | gate: test/cockpit/perf.test.js | serves: N26
+- N41 [draft, must] `pullboard next` takes an eligible review first, else claims the next free build my route covers, else prints "nothing for this seat: end your turn". It never blocks. --verify names work I did not build. (Proposed replacement for N2, Corey approved 3 Nov.) | gate: review
+- N42 [draft, must] Pullboard never suggests a wait; every next step names work to take now, or says to end the turn. (Proposed replacement for N25, Corey approved 3 Nov.) | gate: review
 
 ## A · API: the engine others build on
 - A1 [approved, must] Every command prints --json in a documented shape, stable within a major version. | gate: test/api.test.js
