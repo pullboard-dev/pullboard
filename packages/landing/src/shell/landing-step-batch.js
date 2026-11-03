@@ -12,6 +12,7 @@ import { hostname } from 'node:os';
 import { createHash } from 'node:crypto';
 import * as store from '../../../../src/board.js';
 import { git } from '../../../../src/git.js';
+import { tryGit } from '../../../git/index.js';
 import { isClean } from '../../../../src/git.js';
 import { invalidateGitFacts } from '../../../../src/git.js';
 import { mainCheckout } from '../../../../src/git.js';
@@ -159,13 +160,28 @@ export async function land(options) {
   }
 }
 
+/**
+ * Drop an unpublished batch whose every item already has a merged commit from another path, removing its worktree.
+ * Why: nothing could drop such a batch, so automatic landing kept adopting and retrying work already on main (#2624).
+ */
+async function dropLandedElsewhere(root, board, write, say, batch) {
+  const entries = batch.candidates ?? batch.items ?? [];
+  if (['pushed', 'trunk'].includes(batch.state) || !entries.length || !entries.every(entry => store.getItem(board, entry.id)?.item_merged_commit)) return false;
+  await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', dropped: 'every item already landed another way' }, revision: batch.revision }]);
+  if (existsSync(batch.root)) tryGit(root, ['worktree', 'remove', '--force', '--', batch.root]);
+  say(`landing dropped batch ${batch.id}: ${entries.map(entry => `#${entry.id}`).join(', ')} already landed`);
+  return true;
+}
+
 /** Select only after admission, retaining the existing batch, proof and adoption rules. */
 export async function runLandingBatch({ root, board, config, write, say, owner, maximum = Infinity, dryRun = false, adopt = false, automatic = false, due = false, onWait, checkLease, checkLeaseNow, fence, checkAtCommit, candidateWorkerFile, landingPorts }) {
   landingPorts = landingOperations(landingPorts);
   let trunk = mainCheckout(root);
   if (fence && trunk?.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the trunk branch changed while landing waited; start a new land command for its current branch');
   if (!dryRun && trunk?.commit) requirePublishGreen(root, board, policyAt(root, trunk.commit).config, landingPorts);
-  const unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
+  let unfinished = store.landingBatches(board).findLast((batch) => batch.state !== 'landed' && batch.state !== 'blocked');
+  // A dropped batch leaves nothing to adopt; the run continues as an ordinary landing.
+  if (!dryRun && unfinished && await dropLandedElsewhere(root, board, write, say, unfinished)) { unfinished = null; adopt = false; }
   if (fence && unfinished && unfinished.branch !== fence.branch) throw new Refused('LAND_LEASE_LOST', 'the interrupted batch belongs to another trunk branch; restore that branch and start a fresh land --adopt');
   if (!dryRun && unfinished) for (const entry of unfinished.items ?? []) requireOutsideOwner(board, store.getItem(board, entry.id));
   const recorded = store.landingBatches(board).findLast((batch) => batch.state === 'landed' && batch.base === trunk?.commit);

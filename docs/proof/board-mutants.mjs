@@ -39,7 +39,7 @@ const MUTANTS = [
   ['B14', 'an item below strong needs no brief, criterion or check', [['src/board.js', "  if (route === 'strong') return;", '  return;']], ['test/board.test.js', 'below strong, an item is buildable cold'], 'red'],
   ['B15', 'escalate keeps the route', [['src/board.js', 'const nextRoute = (route) => ROUTES[Math.min(ROUTES.indexOf(route) + 1, ROUTES.length - 1)];', 'const nextRoute = (route) => route;']], ESCALATE, 'red'],
   ['B15', 'escalate drops what was tried', [['src/board.js', 'note: note.trim(), ...(attempt ? { attempt } : {})', "note: '', ...(attempt ? { attempt } : {})"]], ESCALATE, 'red'],
-  ['B15', "the runner never pins a failed attempt", [['src/run.js', '    git(root, [\'update-ref\', ref, commit]);\n    return ref;', '    return ref;']], ['test/e2e.test.js', 'run builds routed items unattended'], 'red'],
+  ['B15', "the runner never pins a failed attempt", [['packages/runners/src/shell/run.js', '    git(root, [\'update-ref\', ref, commit]);\n    return ref;', '    return ref;']], ['test/e2e.test.js', 'run builds routed items unattended'], 'red'],
 ];
 
 audit(MUTANTS);

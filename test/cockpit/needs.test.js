@@ -194,7 +194,7 @@ test("the page's Needs-you comes from the shared builder [N26]", { timeout: 180_
       try {
         if (url.pathname === '/') return response.writeHead(200, { 'content-type': 'text/html' }).end(cockpitPage('', { readOnly: true, transportModule: '/transport.js', stylesheet: '/view.css' }));
         if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transport);
-        if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(new URL('../../src/view.css', import.meta.url)));
+        if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url)));
         if (url.pathname.startsWith('/upstream/')) {
           const reply = await fetchLive(view.base + url.pathname.slice('/upstream'.length) + url.search, { headers: { 'x-pullboard-key': view.key } });
           return response.writeHead(reply.status, { 'content-type': 'application/json' }).end(await reply.text());

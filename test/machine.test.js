@@ -1385,7 +1385,7 @@ test('a helper added to the board that changes a status outside moveItem is refu
     const boardFile = join(dir, 'src', 'board.js');
     fs.appendFileSync(boardFile, `\nexport function reopenByHand(board, id) {\n  board.db.prepare("update item set item_status = 'open', item_owner = null, item_lease_until = null where item_id = ?").run(id);\n}\n`);
     const copy = await import(pathToFileURL(boardFile).href);
-    const copyNative = await import(pathToFileURL(join(dir, 'src', 'native-board.js')).href);
+    const copyNative = await import(pathToFileURL(join(dir, 'apps', 'lib', 'index.js')).href);
     const board = copyNative.openBoard(':memory:');
     copy.register(board, { lane: 'coordinator', path: '/repo', family: 'human' });
     copy.register(board, { lane: 'web', path: '/repo-web-1', family: 'builder-vendor' });
