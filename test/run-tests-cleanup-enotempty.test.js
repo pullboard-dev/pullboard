@@ -71,6 +71,7 @@ test('the owned child writes during runner cleanup [C7]', async () => {
   const child = spawn(process.execPath, [${JSON.stringify(join(directory, 'writer.cjs'))}, sandbox, ${JSON.stringify(release)}, ${JSON.stringify(done)}],
     { env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
   await once(child, 'message');
+  writeFileSync(${JSON.stringify(marker + '.writer')}, String(child.pid));
   child.disconnect();
   child.unref();
 });
@@ -87,12 +88,13 @@ test('the owned child writes during runner cleanup [C7]', async () => {
     return existsSync(marker);
   }, 'the actual worker to enter child cleanup', { signal: t.signal });
   assert.equal(finished, false, 'the runner remains active while its child is held');
-  assert.deepEqual(JSON.parse(readFileSync(marker, 'utf8')), { phase: 'waiting', children: 1 });
+  assert.deepEqual(JSON.parse(readFileSync(marker, 'utf8')), { phase: 'waiting', children: 1,
+    pids: [Number(readFileSync(marker + '.writer', 'utf8'))] }, 'cleanup owns the actual fixture writer');
   writeFileSync(release, 'finish');
   const result = await outcome;
   assert.equal(result.status, 0, result.context + result.stdout);
   assert.match(result.stdout, /# fail 0/u);
-  assert.doesNotMatch(result.stderr, /SANDBOX_CLEANUP_DEFERRED/u, result.context);
+  assert.doesNotMatch(result.stderr, /SANDBOX_CLEANUP_DEFERRED/u, result.context + result.stdout);
   assert.equal(readFileSync(done, 'utf8'), '32', 'all late writes finished');
   assert.deepEqual(JSON.parse(readFileSync(exiting, 'utf8')), { writerFinished: true }, 'the child closed before its worker exited');
   assert.equal(existsSync(readFileSync(sandboxFile, 'utf8')), false, 'the real runner removed its sandbox without a second fixture cleanup');

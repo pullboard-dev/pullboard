@@ -43,7 +43,7 @@ export function installTestChildDrain({ sandbox, timeoutMs, onStart = () => {}, 
   let abandoned = false;
   const children = channel('child_process');
   const lifecycle = channel('pullboard:test-child-drain');
-  /** Retain the actual child object until both its process and owned pipes have closed. */
+  /** Retain the actual child until its OS exit; a deferred IPC or pipe close cannot keep a dead writer pending. */
   function observe({ process: child }) {
     if (!child || typeof child.once !== 'function') return;
     let closed;
@@ -51,6 +51,7 @@ export function installTestChildDrain({ sandbox, timeoutMs, onStart = () => {}, 
     live.add(record);
     /** Release one exact child, including a spawn failure with no process to drain. */
     function finish() { live.delete(record); closed(); }
+    child.once('exit', finish);
     child.once('close', finish);
     child.once('error', () => { if (!child.pid) finish(); });
   }
@@ -69,16 +70,23 @@ export function installTestChildDrain({ sandbox, timeoutMs, onStart = () => {}, 
       appendFileSync(marker, 'owned child cleanup pending\n');
       const deadline = new Promise(resolve => { timer = setTimeout(() => resolve(false), timeoutMs); });
       while (live.size) {
-        const batch = [...live];
+        const batch = [...live].filter(record => {
+          if (typeof record.child.exitCode === 'number' || typeof record.child.signalCode === 'string') {
+            live.delete(record);
+            return false;
+          }
+          return true;
+        });
+        if (!batch.length) break;
         for (const record of batch) { owned.add(record); record.child.ref(); }
-        lifecycle.publish({ phase: 'waiting', children: batch.length });
+        lifecycle.publish({ phase: 'waiting', children: batch.length, pids: batch.map(record => record.child.pid) });
         complete = await Promise.race([Promise.all(batch.map(record => record.closed)).then(() => true), deadline]);
         if (!complete) break;
       }
       if (!complete) {
         abandoned = true;
         // Keep the directory for the ordinary sweep while an owned child might still recreate it.
-        write('run-tests: SANDBOX_CLEANUP_DEFERRED: owned test children did not close; the test outcome stands\n');
+        write(`run-tests: SANDBOX_CLEANUP_DEFERRED: owned test children did not exit (${[...live].map(record => `pid=${record.child.pid},exit=${record.child.exitCode},signal=${record.child.signalCode}`).join('; ')}); the test outcome stands\n`);
       } else rmSync(marker, { force: true });
     } catch (error) {
       abandoned = true;
