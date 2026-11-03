@@ -151,7 +151,7 @@ test('show, inbox, claim and next run through a warm resident process in under 2
     assert.equal(warm.status, 0, `${args.join(' ')}: ${warm.stdout}${warm.stderr}`);
     assert.ok(warm.loaded.length < 20, `${args.join(' ')} loaded ${warm.loaded.length} modules in the client: ${warm.loaded.join(', ')}`);
     const ms = median(cwd, args);
-    assert.ok(ms < BUDGET_MS, `${args.join(' ')} took a median ${Math.round(ms)} ms through the warm resident process`);
+    assert.ok(ms < BUDGET_MS, `${args.join(' ')} took a median ${Math.round(ms)} ms through the warm resident process`); // budget: approved row H24 bar, every warm board command under 200 ms
   }
   const shown = fx.runIn(fx.repo, ['show', '1']);
   assert.match(shown.stdout, /#1 {2}claimed core-1/u, 'the claim made through the resident process is on the board');
