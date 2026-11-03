@@ -86,3 +86,4 @@ export {
 } from './src/shell/test-child-drain.js';
 export { gateMachineHome, gateRuntimeCaptureSource } from './src/core/preload-policy.js';
 export { changedStaticFailures, stagedHookFailures } from './src/shell/changed-static.js';
+export { acceptedCellsIdentity, readAcceptedCells, warmAcceptedCells, nudgeAcceptedCells, recordAcceptedCellsFailure } from './src/shell/accepted-cells-inventory.js';

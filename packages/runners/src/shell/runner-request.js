@@ -19,6 +19,7 @@ import { protectHistory } from './runner-source-scan.js';
 import { protectionAt } from './runner-source-scan.js';
 import { sourceGit } from './runner-source-scan.js';
 import { sourceObjects } from './runner-source-scan.js';
+import { readAnalysisArtifact } from './runner-analysis-artifact.js';
 import { createHash } from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
@@ -29,13 +30,14 @@ import { isAbsolute } from 'node:path';
 import { join } from 'node:path';
 
 /** Prepare the pinned request before negotiating history; cleanup owns only its scratch directory. */
-export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath }, { privateCheckEnvelope }) {
+export async function requestFor(root, command, { runner, source, browser = false, byLaunch, pipefail = false, stages = false, waivers = [], metadata = {}, privateCheck, checkedSource, rawOutputPath, analysisArtifact }, { privateCheckEnvelope }) {
   runner = validateRunner(runner);
   const current = runnerSource(root);
   if (!current || (source && (current.commit !== source.commit || current.tree !== source.tree))) {
     throw new Refused('RUNNER_SOURCE_CHANGED', 'the queued source changed; restore the committed tree and retry the run');
   }
   const trustedMode = privateCheck ? privateCheckEnvelope(privateCheck) : null;
+  const artifact = analysisArtifact === undefined ? null : readAnalysisArtifact(analysisArtifact, trustedMode?.sha256);
   let selected = current;
   if (!trustedMode && metadata.trunk !== undefined) {
     if (!validRunnerTrunk(metadata.trunk, current.commit)) throw new Refused('NO_POLICY', 'the admitted runner policy is invalid; rerun through the controller with its pinned coordinator policy');
@@ -77,6 +79,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     const spec = { version: 1, id, recovery: { version: 1, launchFence: 1, request: id, nonce: randomUUID(), tooling: tooling.sha256 }, repoId, ...(originBase ? { origin, originBase } : {}), runtime, tooling, tags, commit: selected.commit, tree: selected.tree, command, pipefail, slots: runner.slots,
       ...(reuse ? { testResults: { inputKeys: exchange?.inputKeys ?? [], packet: exchange?.packet ?? null, stage, origin: runner.host } } : {}),
       ...(trustedMode ? { trustedMode } : {}),
+      ...(artifact ? { analysisArtifact: artifact.descriptor } : {}),
       ...(!trustedMode && metadata.trunk ? { trunk: { ...metadata.trunk } } : {}),
       browser: runner.browser, browserRequired: browser, guiRequired: metadata.gui === true, landing: metadata.landing === true, auditCoverage: metadata.auditCoverage === true,
       ...(typeof metadata.timingRunId === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(metadata.timingRunId) ? { timingRunId: metadata.timingRunId } : {}),
@@ -102,7 +105,7 @@ export async function requestFor(root, command, { runner, source, browser = fals
     // These are transport hang ceilings, independent of the command's execution budget.
     return { spec, runner, exchange, args: ['-T', '-o', 'BatchMode=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'SendEnv=-*', '-o', 'ConnectTimeout=10', '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3',
-      '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([Buffer.from(`${encodedSpec.length}\n`), encodedSpec]), env: sshEnvironment(),
+      '--', runner.host, remote], root, source: selected, ...(trustedMode ? { rawOutputPath } : {}), directory, frame: Buffer.concat([Buffer.from(`${encodedSpec.length}\n`), encodedSpec, ...(artifact ? [artifact.bytes] : [])]), env: sshEnvironment(),
     cleanup() { rmSync(directory, { recursive: true, force: true }); } };
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });

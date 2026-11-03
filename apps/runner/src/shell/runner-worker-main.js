@@ -25,6 +25,7 @@ import { safeSetupMessage } from './runner-worker-receipt.js';
 import { setupRefusalCode } from './runner-worker-receipt.js';
 import { stopReading } from './runner-worker-receipt.js';
 import { readSpec } from './runner-worker-spec.js';
+import { receiveAnalysisArtifact } from '../../../../packages/runners/index.js';
 import { captureTestRuntimes } from '../../../../packages/sandbox/src/shell/execution-environment.js';
 import { guiSession } from '../../../../packages/gate/src/shell/gui-session.js';
 import { Refused } from '../../../../packages/kernel/index.js';
@@ -116,6 +117,8 @@ export async function main(S) {
     runDirectory = mkdtempSync(join(base, `${spec.id}-`));
     S.cleanupDirectory = runDirectory;
     recordRunnerOwner(runDirectory, processCensus);
+    setupStep = 'analysis artifact';
+    const analysisArtifactPath = spec.analysisArtifact ? await receiveAnalysisArtifact(S, runDirectory, spec.analysisArtifact) : null;
     const root = join(runDirectory, 'checkout');
     const privateHome = join(runDirectory, 'home');
     const temporary = join(runDirectory, 'tmp');
@@ -167,7 +170,7 @@ export async function main(S) {
     const resultStore = join(runnerRoot, 'test-results', spec.repoId);
     if (spec.testResults) importTestResults(resultStore, spec.testResults.packet, spec.testResults.inputKeys);
     // A request without an exchange comes from a caller that opted out of reuse: run every file, read no store.
-    const commandEnv = { ...env, ...(spec.testResults ? { [TEST_RESULT_STORE_ENV]: resultStore,
+    const commandEnv = { ...env, ...(analysisArtifactPath ? { PULLBOARD_RUNNER_ANALYSIS_ARTIFACT: analysisArtifactPath } : {}), ...(spec.testResults ? { [TEST_RESULT_STORE_ENV]: resultStore,
       [TEST_RESULT_ORIGIN_ENV]: spec.testResults.origin, [TEST_RESULT_REQUEST_ENV]: spec.id, PULLBOARD_TEST_STAGE: spec.testResults.stage } : { PULLBOARD_TEST_REUSE: '0' }),
       // An audit-coverage run always executes every file, whatever the exchange holds.
       ...auditAdapterEnvironment(spec.auditCoverage),
@@ -175,6 +178,7 @@ export async function main(S) {
       PULLBOARD_TEST_CACHE_TOOLING: spec.tooling.sha256,
       ...(spec.timingRunId ? { PULLBOARD_TIMING_RUN_ID: spec.timingRunId } : {}),
       PULLBOARD_LANDING_RUN: spec.landing === true ? '1' : '0', [api.BROWSER_REFUSAL_FILE_ENV]: browserRefusal, ...(typeof spec.browserByLaunch === 'boolean' ? { PULLBOARD_TEST_BROWSER_BY_LAUNCH: spec.browserByLaunch ? '1' : '0' } : {}), PULLBOARD_LANDING_WAIVERS: JSON.stringify(spec.landing === true ? spec.waivers ?? [] : []) };
+    if (!analysisArtifactPath) delete commandEnv.PULLBOARD_RUNNER_ANALYSIS_ARTIFACT;
     process.stderr.write(`PULLBOARD_RUNNER_READY ${spec.id}\n`);
     phases.mark('commandMs');
     final = { ...(spec.trustedMode ? await runPrivateCheck(S, spec, root, commandEnv, sink, tracker) : await runCommand(S, spec, root, commandEnv, sink, tracker)), root };
