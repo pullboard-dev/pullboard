@@ -226,7 +226,7 @@ export function boundedMainRedShout(id, failures, main) {
  * Which red check cases open Main red repairs' own checks fail on this main. A repair whose recorded baseline names no
  * failing case, or was taken on another main, is re-taken on this main first (#2594).
  */
-function mainRedCheckCases(root, failures, items, id, main, retaken) {
+export function mainRedCheckCases(root, failures, items, id, main, retaken) {
   const files = [...new Set(failures.map(row => row.file))];
   for (const item of mainRedBaselinesToRetake(items, files, id, main)) {
     if (!retaken.has(item.item_id)) retaken.set(item.item_id, retakeCheckBaseline(root, item.item_check, { main }));
