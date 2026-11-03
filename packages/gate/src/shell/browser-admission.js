@@ -1,5 +1,4 @@
 /** Classify whether selected tests may launch Chrome; uncertainty keeps browser coverage enabled. */
-import { createHash } from 'node:crypto';
 import {
   accessSync,
   constants,
@@ -66,7 +65,6 @@ const FLAG_OPTIONS = new Set(['--test-only']);
 const SAFE_CHILD_PROCESS_MODULES = new Map([
   ['test/fixture-child.js', 'shared fixture runner for explicit fixture commands'],
   ['src/git.js', 'runs Git commands for repository inspection'],
-  ['packages/gate/src/shell/affected-tests.js', 'runs fixed Git commands to read the committed selection graph'],
   ['packages/gate/src/shell/module-imports.js', 'runs the Node parser in an isolated child'],
   ['packages/resources/index.js', 'reads process identity with /bin/ps'],
 ]);
@@ -275,16 +273,6 @@ function launchFreeChromeImport(source, request) {
   }).join('\n');
   if (!removed) return false;
   try { return !importsIn([remaining])[0].includes(request); } catch { return false; }
-}
-
-/** Admit only the reviewed graph reader's two fixed Git process calls; changes fail closed. */
-function safeSelectionGit(source) {
-  const code = lex(source).code;
-  const bindings = [...code.matchAll(/\bspawnSync\b/gu)].length;
-  const calls = [...code.matchAll(/\bspawnSync\s*\(/gu)];
-  const fixed = calls.filter(call => /^spawnSync\s*\(\s*(['"])git\1\s*,/u.test(source.slice(call.index))).length;
-  return /^import\s*\{\s*spawnSync\s*\}\s*from\s*(['"])node:child_process\1\s*;?\s*$/mu.test(source)
-    && bindings === 3 && fixed === 2;
 }
 
 /** Detect direct literal Chrome launchers without treating help text or refusal messages as launches. */
@@ -558,7 +546,7 @@ function parsedSources(sources, memo) {
  * @param {Map<string, Map<string, object>>} [reachMemo] - verified projections shared by source bytes and demanded exports
  * @returns {Promise<boolean>}
  */
-async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map()) {
+async function testsNeedBrowserInTree(root, files, committed = null, onFallback, byLaunch = undefined, memo = new Map(), launchFree = new Map(), safeChildImports = new Map(), sourceMemo = new Map(), reachMemo = new Map(), targetMemo = new Map()) {
   byLaunch ??= await browserByLaunchSetting();
   if (!Array.isArray(files) || files.length === 0) return browserFallback(onFallback, '<test selection>', 'selection is empty or unavailable');
   const normalized = files.map((file) => repositoryPath(root, file));
@@ -651,14 +639,9 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       for (let index = 0; index < imports.length; index += 1) {
         for (const request of imports[index]) {
           if (byLaunch && PROCESS_STARTERS.has(request)) { starts[index] = true; continue; }
-          // This exact guard only wraps launches; a changed guard loses the exception.
-          const reviewedGuard = paths[index] === 'packages/gate/src/shell/browser-slot-guard.js'
-            && createHash('sha256').update(sources[index]).digest('hex') === 'c62c476197859e93b5fad4a7c9fbc3649dc17beebbd2870dff0548ce790a70fe';
-          if (reviewedGuard && (request === 'node:child_process' || request === 'node:module')) continue;
           if (request === 'node:child_process') {
             const policy = SAFE_CHILD_PROCESS_MODULES.get(paths[index]);
-            if (!policy || paths[index] === 'packages/gate/src/shell/affected-tests.js' && !safeSelectionGit(sources[index]))
-              return browserFallback(onFallback, paths[index], 'child_process use has no reviewed path-and-reason exception');
+            if (!policy) return browserFallback(onFallback, paths[index], 'child_process use has no reviewed path-and-reason exception');
             continue;
           }
           if (request === 'node:module') return browserFallback(onFallback, paths[index], 'node:module can create a dynamic loader');
@@ -671,9 +654,11 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
           if (request.startsWith('node:')) continue;
           if (byLaunch && request === COMPUTED_IMPORT) { starts[index] = true; continue; }
           if (!request.startsWith('.')) return browserFallback(onFallback, paths[index], `non-local import ${request} is not classified`);
-          const target = committed
+          const targetKey = `${paths[index]}\0${request}`;
+          if (!targetMemo.has(targetKey)) targetMemo.set(targetKey, committed
             ? committedTarget(committed, paths[index], request)
-            : await localTarget(root, paths[index], request);
+            : await localTarget(root, paths[index], request));
+          const target = targetMemo.get(targetKey);
           if (!target) return browserFallback(onFallback, paths[index], `import ${request} is missing or ambiguous`);
           if (target === FIXTURE_CHILD) {
             const key = `${request}\0${sources[index]}`;
@@ -734,11 +719,10 @@ export async function browserBoundFiles(root, files, { byLaunch } = {}) {
     const memo = new Map();
     const launchFree = new Map();
     const safeChildImports = new Map();
-    const sourceMemo = new Map(), reachMemo = new Map();
+    const sourceMemo = new Map(), reachMemo = new Map(), targetMemo = new Map();
     const bound = [];
-    for (const [index, file] of files.entries()) {
-      if (process.env.PULLBOARD_BROWSER_CENSUS_TRACE && index % 50 === 0) process.stderr.write(`census ${file}\n`);
-      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo)) bound.push(file);
+    for (const file of files) {
+      if (await testsNeedBrowserInTree(root, [file], null, undefined, byLaunch, memo, launchFree, safeChildImports, sourceMemo, reachMemo, targetMemo)) bound.push(file);
     }
     return bound;
   });
