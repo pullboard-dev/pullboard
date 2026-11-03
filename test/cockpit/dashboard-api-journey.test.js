@@ -47,8 +47,8 @@ test('Dashboard API binds native summary leases, merge receipts and complete his
     agentId: 'tests-1', leaseMs: 60 * 60_000, policy: 'any',
   }));
   earlier(alpha.repo, Date.now(), board => store.holdItem(board, 4, { agentId: 'coordinator', reason: 'Keep this item paused.' }));
-  box.run(alpha.repo, 'milestone', 'add', '0.1.0', '--items', '1,2,3,4,5,6');
-  box.run(alpha.repo, 'milestone', 'order', '0.1.0', '6,5,4,3,2,1');
+  box.run(alpha.repo, 'milestone', 'add', '0.1.0', '--items', '1,2,3,4,5,6', '--reason', 'Arrange the dashboard fixture');
+  box.run(alpha.repo, 'milestone', 'order', '0.1.0', '6,5,4,3,2,1', '--reason', 'Arrange the dashboard fixture');
 
   // More than the API's recent-event window, plus actual out-of-window and future-dated fixture events.
   earlier(alpha.repo, Date.now() - 5 * 60 * 60_000, board => store.shout(board, {
