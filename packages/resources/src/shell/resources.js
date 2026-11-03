@@ -1327,7 +1327,7 @@ export async function takeResource(options) {
           }
           db.close();
           const retryingInfrastructure = quarantine || infrastructureRetryCount > 0;
-          return takeResource({ ...options, requiredExecutor: retryRestriction, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
+          return takeResource({ ...options, requiredExecutor: retryRestriction ?? undefined, ...(local && !runnerOnly ? { remote: false } : {}), _resume: { token, ticket: requeueTicket ?? acquired.ticket, queueTicket: requeueOpportunity,
             queuedAt, requestedAt: retryingInfrastructure ? Date.now() : requestedAt,
             runnerDeadlineAt: retryingInfrastructure ? 0 : runnerDeadlineAt,
             runnerDispatched: retryingInfrastructure ? false : runnerDispatched,

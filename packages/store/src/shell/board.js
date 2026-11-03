@@ -149,6 +149,7 @@ export { coordinatorCheck, completeCheckBaseline, itemCheckAuthor } from "./item
 export { atomic, logEvent };
 export { verdictReviewProblem, verdictsFor, acceptedVerdict, checkedLandingCommit };
 export { landingTestDefects, recordLandingTestDefect } from "../core/board-landing-test-defects.js";
+export { recordSelectorGap, selectorGapCandidate } from "../core/board-selector-gap.js";
 export { landingLeaseMove, landingLeaseState } from "../core/board-landing-lease.js";
 export { boardBusyError } from "./board-access.js";
 export { schemaMissing, writeRefused } from "./board-migrate.js";
