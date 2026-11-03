@@ -32,18 +32,18 @@ test('no-item answer comes first and fifty held items fit in a short response [N
   assert.ok(Buffer.byteLength(result.text) < 2048, `response was ${Buffer.byteLength(result.text)} bytes`);
 });
 
-test('claim action is the first line before skipped held work [N2,C7]', async t => {
+test('claim action is the first line before unread message details [N2,C7]', async t => {
   const box = await fixture(t);
-  const held = box.add('Held item precedes the claim');
-  store.holdItem(box.board, held, { agentId: 'coordinator', reason: 'Wait for its bar to be reworked' });
   const ready = box.add('Ready item to claim');
+  const message = 'The seat has a message behind its next action';
+  store.shout(box.board, { from: 'coordinator', to: box.seats.actor.id, text: message, lanes: ['web'] });
 
   const result = await answer(box);
   const first = result.text.split(/\r?\n/u, 1)[0];
 
   assert.equal(result.code, 0, result.text);
   assert.match(first, new RegExp(`^claimed #${ready}: Ready item to claim$`, 'u'));
-  assert.ok(result.text.includes(`#${held} is held by coordinator: Wait for its bar to be reworked`));
+  assert.ok(result.text.includes(`coordinator -> ${box.seats.actor.id}: ${message}`));
   assert.equal(store.getItem(box.board, ready).item_owner, box.seats.actor.id);
 });
 
