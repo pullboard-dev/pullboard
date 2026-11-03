@@ -134,3 +134,61 @@ test('control: a builder who stages a file of another lane is still refused [C7]
   assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}${box.git(builder, 'log', '-1', '--format=%s')}`);
   assert.match(`${refused.stdout}${refused.stderr}`, /outside the web lane: .*api/u);
 });
+
+/**
+ * A core builder whose item has an attached companion touching the coordinator-owned .githooks directory: the real
+ * CLI behind the composed entry runs the lane rule, which must see only the builder's staged paths.
+ */
+function hooksFixture() {
+  const box = helpers.project('true');
+  const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  config.lanes.core = { owns: ['core/'], specs: ['G1'] };
+  write(box.repo, {
+    'pullboard.json': JSON.stringify(config, null, 2),
+    'core/value.txt': 'one\n',
+    '.githooks/pre-commit': '#!/bin/sh\nexit 0\n',
+    'bin/pullboard.js': `const { runComposedHook } = await import(${JSON.stringify(HOOK_MODULE)});\n`
+      + 'const composed = await runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });\n'
+      + 'if (composed !== null) process.exit(composed);\n'
+      + `await import(${JSON.stringify(REAL_CLI)});\n`,
+    '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-commit\n`,
+  });
+  chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
+  box.git(box.repo, 'add', '-A');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a core lane and a hooks file');
+  const core = join(box.dir, 'core-1');
+  box.git(box.repo, 'worktree', 'add', '-q', core, '-b', 'core/one');
+  assert.match(box.run(core, 'join', 'core').out, /joined as core-/u);
+  const author = run(box, core, 'whoami').id;
+  const item = run(box, box.repo, 'add', 'core', 'Edit the core value', '--specs', 'G1').item.item_id;
+  box.git(core, 'merge', '-q', '--ff-only', 'main');
+  const claimed = run(box, core, 'claim', String(item));
+  const builder = claimed.itemFolder ?? core;
+  const source = box.git(builder, 'rev-parse', 'HEAD').trim();
+  const patch = join(box.dir, 'hooks.patch');
+  writeFileSync(patch, 'diff --git a/.githooks/pre-commit b/.githooks/pre-commit\n--- a/.githooks/pre-commit\n+++ b/.githooks/pre-commit\n@@ -1,2 +1,2 @@\n'
+    + ' #!/bin/sh\n-exit 0\n+exit 0 # companion\n');
+  run(box, box.repo, 'patch', 'attach', String(item), patch, '--key', 'hooks', '--author', author, '--source', source);
+  box.git(box.repo, 'config', 'core.hooksPath', '.selfhooks');
+  return { box, builder };
+}
+
+test('a staged core change commits cleanly beside an attached .githooks companion [C7]', () => {
+  const { box, builder } = hooksFixture();
+  writeFileSync(join(builder, 'core/value.txt'), 'two\n');
+  box.git(builder, 'add', 'core/value.txt');
+  const committed = box.tryGit(builder, 'commit', '-q', '-m', 'feat(core): edit the value [G1]');
+  assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
+  assert.equal(box.git(builder, 'show', 'HEAD:core/value.txt').trim(), 'two', 'the core change is committed');
+  assert.equal(box.git(builder, 'show', 'HEAD:.githooks/pre-commit'), '#!/bin/sh\nexit 0\n', 'the .githooks companion is checked, never committed');
+});
+
+test('control: a builder who stages a .githooks file is still refused [C7]', () => {
+  const { box, builder } = hooksFixture();
+  writeFileSync(join(builder, 'core/value.txt'), 'two\n');
+  writeFileSync(join(builder, '.githooks/pre-commit'), '#!/bin/sh\nexit 1\n');
+  box.git(builder, 'add', 'core/value.txt', '.githooks/pre-commit');
+  const refused = box.tryGit(builder, 'commit', '-q', '-m', 'feat(core): edit the value [G1]');
+  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
+  assert.match(`${refused.stdout}${refused.stderr}`, /outside the core lane: .*githooks/u);
+});
