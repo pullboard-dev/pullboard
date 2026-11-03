@@ -58,7 +58,7 @@ test('a warm one-file selection takes under 2 s and picks what a cold selection 
   const started = Date.now();
   const warm = withStore(warmStore, () => selectAffectedTests(box.root, { base: second, commit: third }));
   const elapsed = Date.now() - started;
-  assert.ok(elapsed < 2000, `warm selection took ${elapsed} ms`);
+  assert.ok(elapsed < 2000, `warm selection took ${elapsed} ms`); // budget: declared ceiling in the item #2536 criterion, selection under 2 s warm
   const cold = withStore(coldStore, () => selectAffectedTests(box.root, { base: second, commit: third }));
   assert.deepEqual(warm, cold);
   const expected = Array.from({ length: 25 }, (_, at) => `test/t${(at + 5) * 10}.test.js`).sort();
