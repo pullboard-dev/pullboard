@@ -59,7 +59,7 @@ try {
 }
 `;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script,
-    pathToFileURL(resolve(import.meta.dirname, '../src/view-session.js')).href], {
+    pathToFileURL(resolve(import.meta.dirname, '../apps/view/index.js')).href], {
     cwd: dir, encoding: 'utf8',
     env: { ...process.env, HOME: join(dir, 'home'), PULLBOARD_HOME: join(dir, 'home', '.pullboard'),
       PULLBOARD_MACHINE_HOME: join(dir, 'machine-home') },
@@ -723,7 +723,7 @@ try {
 }
 `;
   const result = runFixtureChild(process.execPath, ['--input-type=module', '-e', script,
-    new URL('../src/view-session.js', import.meta.url).href], { encoding: 'utf8' });
+    new URL('../apps/view/index.js', import.meta.url).href], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   const document = JSON.parse(result.stdout);
   assert.ok(document.calls.length > 0);

@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { cellInventory, mappedPath, readPathMap } from '../packages/codemap/index.js';
 import { commonJsIn, importsIn } from '../packages/gate/index.js';
 import { readPlan } from '../bin/cells-plan.js';
-import { nativeBoardPorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts, openBoard } from '../apps/lib/index.js';
 import * as queries from '../packages/store/index.js';
 import * as store from '../src/board.js';
 import { readyItems } from '../src/queue-readiness.js';
@@ -28,7 +28,7 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 test('the actual stats seats verify items and queue graphs have no board-query imports [C7,CD64]', () => {
   const plan = readPlan(ROOT), map = readPathMap(ROOT);
-  const provider = plan.cells.flatMap(cell => cell.paths).find(([from]) => from === 'src/board-query.js');
+  const provider = plan.cells.flatMap(cell => cell.paths).find(([, to]) => to === 'packages/store/src/shell/board-query.js');
   assert.ok(provider, 'the real committed plan retains the native query provider');
   const targets = new Set([...provider.slice(0, 2), mappedPath(map, provider[0])]);
   const { files, edges } = cellInventory(ROOT, { importsIn, commonJsIn });

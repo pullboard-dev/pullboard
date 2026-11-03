@@ -40,7 +40,7 @@ test('two claimed Git worktrees name shared edits and protect an open item until
   assert.match(leftNotice, /#1 overlaps #2 \(two\) on shared\.js/);
   assert.match(rightNotice, /#2 overlaps #1 \(one\) on shared\.js/);
   assert.match(leftNotice, /#1 may be out of scope: #3 names shared\.js/);
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
   const { heartbeatCommand } = await import('../apps/cli/index.js');
   const board = openBoard(':memory:');
@@ -65,7 +65,7 @@ test('two claimed Git worktrees name shared edits and protect an open item until
 });
 
 test('next skips a named file being edited and offers it after release [N2]', async t => {
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
   const board = openBoard(':memory:');
   t.after(() => store.closeBoard(board));
@@ -116,7 +116,7 @@ test('a merged main change is not attributed to the claimed worktree [N2]', t =>
 
 test('the real next command routes around a live worktree edit [N2]', async t => {
   const { createE2eHelpers } = await import('./e2e-helpers.js');
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard } = await import('../apps/lib/index.js');
   const store = await import('../src/board.js');
   const { mkdirSync } = await import('node:fs');
   const helpers = createE2eHelpers();
@@ -145,7 +145,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   assert.equal(JSON.parse(next.out).item.item_id, free, `#${blocked} must wait while #${changed} edits web/shared.js`);
   const { createServer } = await import('node:http');
   const { createLocalApiHandler } = await import('../packages/api/index.js');
-  const { viewApiPorts } = await import('../src/view-api-ports.js');
+  const { viewApiPorts } = await import('../apps/view/index.js');
   const { apiBoardOpeners } = await import('./board-fixture.js');
   const { refusalDocument } = await import('../apps/cli/index.js');
   const { main } = await import('./native-cli-fixture.js');

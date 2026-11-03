@@ -1,4 +1,4 @@
-// @pullboard-test-loads src/relay.js apps/cli/src/shell/cli.js
+// @pullboard-test-loads packages/link/src/shell/relay.js apps/cli/src/shell/cli.js
 /** A transport canary proves relay acknowledgment even when ordinary writes are local first [H21,H16]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -13,7 +13,7 @@ import { runFixtureChildAsync, runFixtureGit } from './fixture-child.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = fileURLToPath(new URL('../bin/pullboard.js', import.meta.url));
-const RELAY = new URL('../src/relay.js', import.meta.url).href;
+const RELAY = new URL('../packages/link/index.js', import.meta.url).href;
 const POLICY = new URL('../src/cli.js', import.meta.url).href;
 
 /** Commit the actual absent-setting default before real device sign-in; no environment-token shortcut is used. */

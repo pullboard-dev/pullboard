@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Person requests stay open until answered and their messages enter the event log (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createLocalApiHandler } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';

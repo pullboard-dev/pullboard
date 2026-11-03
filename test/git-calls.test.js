@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /** Count real Git child processes and prove command-scoped facts refresh after a commit [C7]. */
@@ -8,7 +8,7 @@ import {
   randomUUID,
 } from 'node:crypto';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { receiptBody } from '../packages/gate/index.js';
 import { runFixtureExecFile as execFileSync, runFixtureChild as spawnSync, runFixtureChild } from './fixture-child.js';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ import { pathToFileURL } from 'node:url';
 import { fetchFresh } from './http-fixture.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/run.js')).href;
+const RUN_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/runners/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
 const GIT_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/git.js')).href;
 

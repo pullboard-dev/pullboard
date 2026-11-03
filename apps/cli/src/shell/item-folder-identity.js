@@ -1,5 +1,6 @@
 /** Validate per-item worktree identity against the registered seat and live claim [B5,C7]. */
 import { readFileSync } from 'node:fs';
+import { lstatSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
@@ -9,6 +10,7 @@ import { repoInfo } from '../../../../packages/git/index.js';
 import { tryGit } from '../../../../packages/git/index.js';
 import { agentAt } from '../../../../packages/store/index.js';
 import { agentById } from '../../../../packages/store/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 
 /** A seat's item folders are siblings of its checkout, never inside its working tree. */
 export function itemFolderPath(root, id) { return join(dirname(root), `${basename(root)}-item-${id}`); }
@@ -63,4 +65,27 @@ export function seatAt(board, root) {
  */
 export function seatRoot(ctx, board, me) {
   return (board && board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(me.id)?.agent_path) ?? ctx.info.root;
+}
+
+/** Resolve a claimed item's validated worktree, falling back to its seat only when no item folder exists. */
+export function claimedItemRoot(board, item) {
+  const agent = agentById(board, item.item_owner);
+  if (!agent) return null;
+  const path = itemFolderPath(agent.agent_path, item.item_id);
+  try { lstatSync(path); }
+  catch (error) { if (error.code === 'ENOENT') return agent.agent_path; throw error; }
+  const identity = itemFolderIdentity(board, path);
+  if (identity?.agent.agent_id !== agent.agent_id || identity.item !== item.item_id) {
+    throw new Refused('ITEM_PATCH_SOURCE', `item folder ${path} is not the claimed builder's verified worktree`);
+  }
+  const seatHead = tryGit(agent.agent_path, ['rev-parse', '--verify', 'HEAD']).stdout;
+  const itemHead = tryGit(path, ['rev-parse', '--verify', 'HEAD']).stdout;
+  if (!seatHead || !itemHead) throw new Refused('ITEM_PATCH_SOURCE', 'cannot read the builder checkout heads');
+  if (seatHead !== itemHead) {
+    if (tryGit(path, ['merge-base', '--is-ancestor', itemHead, seatHead]).status === 0) return agent.agent_path;
+    if (tryGit(path, ['merge-base', '--is-ancestor', seatHead, itemHead]).status !== 0) {
+      throw new Refused('ITEM_PATCH_SOURCE', 'the seat and item folder have diverged; reconcile their commits before attaching a companion');
+    }
+  }
+  return path;
 }

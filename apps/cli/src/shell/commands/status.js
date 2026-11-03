@@ -18,7 +18,7 @@ import { relayMachineDirectory } from '../../../../../packages/store/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
-import { personNeedsSummary } from '../../../../../src/needs-summary.js';
+import { personNeedsSummary } from '../../../../view/index.js';
 import { identifyCaller } from '../cli-read-context.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { unlinkedRelayStatus } from '../../../../../packages/link/index.js';
@@ -61,9 +61,9 @@ export async function run(io, { values }) {
   const ctx = context(io);
   const hasRelayState = relayStateExists(ctx.info.commonDir);
   if (hasRelayState) await io.prepareProcessPorts?.();
-  const relay = hasRelayState ? await import('../../../../../packages/link/index.js') : null;
+  const relay = hasRelayState ? (({ relayLinked, relayStatus }) => ({ relayLinked, relayStatus }))(await import('../../../../../packages/link/index.js')) : null;
   const environment = hasRelayState && process.env.PULLBOARD_RELAY_TOKEN !== undefined
-    ? await import('../../../../../packages/link/index.js') : null;
+    ? (({ environmentAgent }) => ({ environmentAgent }))(await import('../../../../../packages/link/index.js')) : null;
   const summary = await withBoardRead(ctx, async (board, readers) => {
     const me = identifyCaller(ctx, board, { environmentAgent: environment?.environmentAgent ?? (() => null),
       relayLinked: relay?.relayLinked ?? (() => false) }, readers);

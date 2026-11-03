@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js apps/cli/src/shell/cli.js src/board-event-log.js */
+/** @pullboard-test-loads src/board.js apps/cli/src/shell/cli.js packages/store/src/shell/board-event-log.js */
 /** Criterion preparation must not occupy the actual SQLite writer lease [B2,C7,V2]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -155,7 +155,7 @@ test('a non-claim native command retains its own arguments and domain guards [B2
 
 /** Static fixtures describe source only; the guard never imports or executes these module bodies. */
 function guardSources(source, extra = []) {
-  return [{ file: 'src/board-event-log.js', source: 'export function atomic(board, work) { return work(); }' },
+  return [{ file: 'packages/store/src/shell/board-event-log.js', source: 'export function atomic(board, work) { return work(); }' },
     { file: 'src/fixture-writer.js', source }, ...extra];
 }
 
@@ -235,7 +235,7 @@ test('receipt reads are refused in every writer, including the train writer [C7,
 });
 
 test('the transaction implementation is audited after acquisition, keeping preparation outside [C7,CD39]', () => {
-  const kernel = { file: 'src/board-event-log.js', source:
+  const kernel = { file: 'packages/store/src/shell/board-event-log.js', source:
     "import {readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; function prepareBoardWriteIdentity() { execFileSync('ps'); } export function atomic(board, work) { prepareBoardWriteIdentity(); beginImmediateQueued(board.db); readFileSync('inside'); return work(); }" };
   const problems = boardWriteIoProblems(guardSources('', [kernel]), { pending: {} });
   assert.ok(problems.some(row => row.call === 'node:fs#readFileSync'), 'the actual wrapper is not a hidden I/O boundary');
@@ -247,7 +247,7 @@ test('native transaction source contains no unassigned named external I/O [C7,CD
 });
 
 test('exact moved store writer identities preserve guard coverage and reject adjacent I/O [C7,CD39]', () => {
-  for (const atomicPath of ['src/board-event-log.js', 'packages/store/src/shell/board-event-log.js']) {
+  for (const atomicPath of ['packages/store/src/shell/board-event-log.js']) {
     const atomic = { file: atomicPath, source: 'export function atomic(board, work) { beginImmediateQueued(board.db); return work(); }' };
     const caller = { file: 'src/fixture-writer.js', source: `import {atomic} from '../${atomicPath}'; import {readFileSync} from 'node:fs'; export function write(board) { return atomic(board, () => readFileSync('bad')); }` };
     assert.ok(boardWriteIoProblems([atomic, caller], { pending: {} }).some(row => row.call === 'node:fs#readFileSync'), atomicPath);

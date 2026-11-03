@@ -1,9 +1,9 @@
 /** Pure populated Dashboard HTML from deterministic data; native wiring remains in the audit journey [N26]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { dashboardHtml } from '../../src/view/dashboard-render.js';
-import { dashboardModel } from '../../src/view/dashboard-model.js';
-import { roadmapSummary } from '../../src/view/roadmap-summary.js';
+import { dashboardHtml } from '../../apps/view/src/core/view/dashboard-render.js';
+import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
+import { roadmapSummary } from '../../apps/view/src/core/view/roadmap-summary.js';
 import { dashboardData } from './view-data.js';
 import { compareFlowWindows } from '../../packages/stats/src/core/stats-flow.js';
 

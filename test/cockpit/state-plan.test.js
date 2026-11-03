@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { projectState } from '../../apps/cli/src/shell/cli/view-state.js';
 import { createE2eHelpers } from '../e2e-helpers.js';
 

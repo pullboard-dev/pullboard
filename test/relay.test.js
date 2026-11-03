@@ -8,9 +8,9 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { createGitHubClient } from '../relay/github.js';
-import { createRelayAuth, ACCESS_WINDOW_MS } from '../relay/auth.js';
-import { serveRelay } from '../relay/service.js';
+import { createGitHubClient } from '../apps/relay/index.js';
+import { createRelayAuth, ACCESS_WINDOW_MS } from '../apps/relay/index.js';
+import { serveRelay } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { serveView } from '../apps/cli/src/shell/commands/view.js';
@@ -64,8 +64,8 @@ function linkedBoardCount(database) {
   finally { db.close(); }
 }
 
-const relaySetupURL = new URL('../src/relay-setup.js', import.meta.url).href;
-const relayMachineURL = new URL('../src/relay-machine.js', import.meta.url).href;
+const relaySetupURL = new URL('../packages/link/index.js', import.meta.url).href;
+const relayMachineURL = new URL('../packages/link/index.js', import.meta.url).href;
 const relayDeviceKeysURL = new URL('../packages/keys/index.js', import.meta.url).href;
 
 /** Call the shared setup flow with a private caller signal and credential-free output streams. */

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Regenerate committed declaration-derived documentation, or check it without writing [C7]. */
 import { fileURLToPath } from 'node:url';
-const { openBoard } = await import('../src/native-board.js');
+const { openBoard } = await import('../apps/lib/index.js');
 import { generatedDocDrift } from '../apps/cli/index.js';
 import { generatedDocs } from '../apps/cli/index.js';
 import { writeGeneratedDocs } from '../apps/cli/index.js';

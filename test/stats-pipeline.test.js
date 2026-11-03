@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Exact pipeline accounting over an imported native SQLite fixture [R1,R2,A1,A2,C7]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { pipelineStats, pipelineLimit, pipelineLines } from '../packages/stats/index.js';

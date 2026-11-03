@@ -1,7 +1,7 @@
 import { hasTestTiers } from '../../../gate/index.js';
 import { requireTestTierAccount } from '../../../gate/index.js';
 /** Coordinator landing diagnose step; source-preserving partition of land.js [B3,R3,C7]. */
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { dirname } from 'node:path';
 import * as store from '../../../../src/board.js';

@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real device-flow CLI ordering through the opaque relay [H1,H7,H15]. */
 import { withApiCommandEnvironment } from './api-fixture.js';
 import { apiBoardOpeners } from './board-fixture.js';
@@ -12,13 +12,13 @@ import { delimiter, dirname, join, relative, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { after, test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createRelayAuth } from '../relay/auth.js';
-import { createRelayHandler } from '../relay/service.js';
-import { createGitHubClient } from '../relay/github.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createRelayAuth } from '../apps/relay/index.js';
+import { createRelayHandler } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
 import { decodeBoardKey, encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { githubFixture } from './relay-fixture.js';
-import { board as store } from '../src/native-board.js';
+import { board as store } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';

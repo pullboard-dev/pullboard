@@ -46,6 +46,12 @@ if (process.argv.length === 3 && process.argv[2] === '--version') {
   process.exit(0);
 }
 
+// A self-hosted pre-commit runs from the staged index with the item's companions applied, never the working tree (#2593).
+if (process.argv[2] === 'hook') {
+  const composed = await (await import('./hook-composed.js')).runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });
+  if (composed !== null) process.exit(composed);
+}
+
 // A worktree behind the main checkout runs the main checkout's CLI, so landed fixes reach every agent (B17).
 const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1]);
 if (handed !== null) process.exit(handed);
@@ -76,7 +82,13 @@ if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
 // The entry loads only the dispatcher; each command's modules load through its own import() [C7].
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
-  loadNativeBoard: () => import('../src/native-board.js'),
+  loadNativeBoard: () => import('../apps/lib/index.js'),
+  /** The queue-wait reporter is composed here so the CLI never imports the gate; the gate loads on the first wait line. */
+  gateWaitReporter: (io) => {
+    let report;
+    const ready = import('../packages/gate/index.js').then(({ gateWaitReporter }) => { report = gateWaitReporter(io); });
+    return (wait) => { if (report) report(wait); else ready.then(() => report(wait)); };
+  },
   /** Compose process-only capabilities after a command actually requests them. */
   loadProcessPorts: () => Promise.all([import('node:url'), import('../packages/outbox/index.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
     outboxFields,
@@ -100,7 +112,7 @@ process.exitCode = await main(process.argv.slice(2), {
     submitHandoffWorker: fileURLToPath(new URL('../apps/lib/src/shell/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
-      void import('../src/relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+      void import('../apps/lib/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
     },
   })),
   stdout: process.stdout,

@@ -12,12 +12,12 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { main } from './native-cli-fixture.js';
 import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index.js';
-import { exportView } from '../src/serve.js';
-import { serveView, projectState as unprovidedProjectState } from '../src/serve.js';
+import { exportView } from '../apps/view/index.js';
+import { serveView, projectState as unprovidedProjectState } from '../apps/view/index.js';
 import { cockpitPage as unprovidedPage } from '../apps/cli/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { nativeBoardOpeners } from '../apps/cli/index.js';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
 
 /** Match a required service refusal without accepting unrelated setup or transport failures. */

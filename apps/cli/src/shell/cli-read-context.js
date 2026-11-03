@@ -106,6 +106,8 @@ export function sayBrief(io, brief) {
  * @returns {any}
  */
 export function context(io) {
+  // Every CLI io, whoever builds it (the handoff worker, hook work, the relay sender, tests), gets a silent queue-wait reporter unless one was supplied.
+  io.gateWaitReporter ??= () => () => {};
   const info = repoInfo(io.cwd);
   if (info.isMain) io.caller?.('coordinator', info.root);
   const config = configHere(info);

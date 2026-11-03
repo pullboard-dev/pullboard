@@ -1,8 +1,8 @@
 /** Awaited production CLI calls with isolated output and serialized process-global environment [C7,A1]. */
 import { Readable } from 'node:stream';
 import { main } from './native-cli-fixture.js';
-import { HOOK_WORKER } from '../src/cli-hook-work.js';
-import { launchRelaySender } from '../src/relay-sender-main.js';
+import { HOOK_WORKER } from '../apps/lib/index.js';
+import { launchRelaySender } from '../apps/lib/index.js';
 
 let pending = Promise.resolve();
 
@@ -29,7 +29,7 @@ export function captureCommandInProcess(command, argv, { cwd = process.cwd(), en
     const stdin = Readable.from([input]);
     try {
       if (environment !== undefined) restoreEnvironment(environment);
-      const status = await command(args, { cwd, stdin, hookWorker: HOOK_WORKER, launchRelaySender, loadNativeBoard: () => import('../src/native-board.js'),
+      const status = await command(args, { cwd, stdin, hookWorker: HOOK_WORKER, launchRelaySender, loadNativeBoard: () => import('../apps/lib/index.js'),
         stdout: { isTTY: false, write(text) { stdout += String(text); return true; } },
         stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
         ...(personChannel === undefined ? {} : { personChannel }) });

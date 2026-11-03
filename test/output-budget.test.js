@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { DEFAULT_OUTPUT_BUDGET, LINE_BUDGET, commandName, commandOutput, cutLine, outputBudget } from '../packages/config/index.js';
 import { COMMANDS } from '../apps/cli/index.js';

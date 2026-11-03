@@ -10,10 +10,15 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 import { gatedToolBuild } from '../apps/cli/src/shell/pinned-tool-publish.js';
-import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
+import { scheduleToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
+import { runScheduledToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
 import { configFromSource } from '../packages/config/index.js';
-import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { selectedToolEntry } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { toolBuildLocation } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { toolBuildPolicy } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { readToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { writeToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 // These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
 delete process.env.PULLBOARD_RUNNER_JOB;
@@ -22,7 +27,7 @@ after(e2e.cleanup);
 
 /** Produce a real native full landing receipt, never a caller-written green proof. */
 function gate(box) {
-  const module = new URL('../src/gate.js', import.meta.url).href;
+  const module = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = `import {runGate} from ${JSON.stringify(module)};
 import {loadConfig} from ${JSON.stringify(new URL('../packages/config/src/shell/config.js', import.meta.url).href)};
 ${executionServicesSource(module)}

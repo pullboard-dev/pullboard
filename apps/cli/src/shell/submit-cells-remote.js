@@ -99,9 +99,9 @@ async function remoteCells(encoded) {
     const archive = git('--git-dir', metadata, '-c', 'core.autocrlf=false', '-c', 'core.attributesFile=/dev/null', 'archive', '--format=tar', input.main);
     run('tar', ['-xf', '-', '-C', directory], { input: archive });
     const entry = join(directory, 'trusted-cells-entry.mjs');
-    writeFileSync(entry, `import { requireSubmitCells } from '../../../../src/bin/cells-submit-checks.js';
-import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from '../../../../src/packages/gate/index.js';
-import { withMainCheckout } from '../../../../src/packages/landing/index.js';
+    writeFileSync(entry, `import { requireSubmitCells } from './bin/cells-submit-checks.js';
+import { importsIn, commonJsIn, withImportParseCache, foreignNodeOptions } from './packages/gate/index.js';
+import { withMainCheckout } from './packages/landing/index.js';
 const input = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
 const result = await requireSubmitCells(process.argv[3], input.main, input.source,
   { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {

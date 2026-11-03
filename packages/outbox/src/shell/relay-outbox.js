@@ -44,7 +44,7 @@ import {
   unseal,
 } from '../../../kernel/src/core/seal.js';
 import { captureBoardChanges } from '../../../store/index.js';
-import { undoQueued } from '../core/relay-outbox-undo.js';
+import { undoQueued } from './relay-outbox-undo.js';
 import { stampCoordinatorHolder } from '../../../seats/index.js';
 import { Refused } from '../../../kernel/index.js';
 import {

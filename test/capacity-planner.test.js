@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Seeded native history drives the same capacity projection in status and the daily digest [N2,R1,R2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';

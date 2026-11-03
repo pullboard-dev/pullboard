@@ -109,7 +109,7 @@ import {
 } from '../../../../../packages/spec/index.js';
 import {
   renderSpecView,
-} from '../../../../../src/view.js';
+} from '../../../../view/index.js';
 import {
   mkdirSync,
   readFileSync,

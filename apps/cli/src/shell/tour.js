@@ -59,12 +59,12 @@ const FIRST = 'export const greet = (name) => `Hello, ${name}!`;\n';
 const FIXED = "export const greet = (name) => `Hello, ${name.trim() || 'world'}!`;\n";
 const TEST = `import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { greet } from '../../../../src/greet.mjs';
+import { greet } from './greet.mjs';
 
 test('greets by name [G1]', () => assert.equal(greet('Ada'), 'Hello, Ada!'));
 `;
 const EDGE_TEST = `${TEST}test('a blank name greets the world [G1]', () => assert.equal(greet(' '), 'Hello, world!'));\n`;
-const TRY_EDGE = ['--input-type=module', '-e', "const { greet } = await import('../../../../src/src/greet.mjs'); console.log(greet(''))"];
+const TRY_EDGE = ['--input-type=module', '-e', "const { greet } = await import('./src/greet.mjs'); console.log(greet(''))"];
 const PROMPT_COLOR = { coordinator: 36, 'app-1': 33, 'review-1': 35 };
 
 /** Whether this person asked for terminal colors, unless NO_COLOR explicitly disables them. */

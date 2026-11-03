@@ -8,6 +8,8 @@ import { runPrivateBoard } from '../../../../../packages/github/index.js';
 import { nativeBoardOpeners } from '../cli-context.js';
 import { projectBoardIdentity } from '../../../../../packages/seats/index.js';
 import { registerProject } from '../../../../../packages/seats/index.js';
+import { relayMachineOwner } from '../../../../../packages/link/index.js';
+import { relayMachineContext } from '../../../../../packages/link/index.js';
 import { relayCommandReceipt } from '../../../../../packages/link/index.js';
 import { relayCommandReceiptReported } from '../../../../../packages/link/index.js';
 import { assertRehomeSourceItemOrdered } from '../../../../../packages/link/index.js';
@@ -28,7 +30,7 @@ async function withLocalBoard(ctx, teamBoard, teamAgent, currentBoardId, referen
   }
   if (reference.repoBoardId !== currentBoardId) throw new Refused('BOARD_REFERENCE', 'open the repo checkout that owns this private board before moving its items');
   if (ctx.privateBoard) return withBoard(ctx, board => work(ctx, board, whoAmI(ctx, board)));
-  return runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners(ctx.io) });
+  return runPrivateBoard(ctx, work, { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, relayMachineOwner, relayMachineContext, ...nativeBoardOpeners(ctx.io) });
 }
 
 /** Run an internal ordered operation without reusing the outer CLI command's relay receipt. */
@@ -159,6 +161,6 @@ export async function run(io, args) {
     if (!args.values.private) return moveFromContext(io, ctx, ctx, teamBoard, teamAgent, teamBoard, args);
     return runPrivateBoard(ctx, (privateCtx, privateBoard, privateAgent) =>
       moveFromContext(io, ctx, privateCtx, teamBoard, teamAgent, privateBoard, args),
-    { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, ...nativeBoardOpeners(ctx.io) });
+    { withBoard, whoAmI, checkoutLeases: CHECKOUT_LEASES, checkoutBoardOnly: CHECKOUT_BOARD_ONLY, relayMachineOwner, relayMachineContext, ...nativeBoardOpeners(ctx.io) });
   });
 }

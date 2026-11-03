@@ -1,5 +1,5 @@
 /** @pullboard-test-gui */
-/** @pullboard-test-input src/view.css src/view/cost.css src/view/doctrine.css */
+/** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/cost.css apps/view/src/shell/view/doctrine.css */
 /** Private cost presentation and actual local-board rendering with configured machine prices [N26]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -11,9 +11,9 @@ import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { costTabHtml } from '../../src/view/cost-tab.js';
-import { costTabModel } from '../../src/view/cost-tab.js';
-import { counterDelta } from '../../src/view/cost-tab.js';
+import { costTabHtml } from '../../apps/view/index.js';
+import { costTabModel } from '../../apps/view/index.js';
+import { counterDelta } from '../../apps/view/index.js';
 import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
 import * as store from '../../src/board.js';
 import { SPEC } from './fixture.js';
@@ -27,7 +27,7 @@ import { openSnapshotChrome } from './fixture.js';
 import { closeSnapshotChrome } from './fixture.js';
 import { press } from './fixture.js';
 import { serveFolder } from './fixture.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 
 /** Make one deterministic presenter-only usage history; it is not native provider data. */
 function pricedHistory() {

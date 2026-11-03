@@ -9,7 +9,7 @@ import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { findChromeExecutable, startChrome } from './relay-browser-fixture.js';
 import { relayClientFixture } from './relay-client-fixture.js';
-import { createRelayBrowserHandler } from '../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../apps/relay/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { emptyPhoneFixture, emptyPhoneScreen } from './relay-empty-phone-fixture.js';
 

@@ -1,5 +1,5 @@
-/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js relay/passkeys.js */
-import { viewApiPorts } from '../src/view-api-ports.js';
+/** @pullboard-test-loads src/board.js src/engine.js src/exchange.js src/person-signing.js apps/relay/src/shell/passkeys.js */
+import { viewApiPorts } from '../apps/view/index.js';
 /** Scenario partition: original case bytes and deadlines remain unchanged. */
 import { apiBoardOpeners } from './board-fixture.js';
 

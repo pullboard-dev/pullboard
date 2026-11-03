@@ -123,9 +123,9 @@ function submittedProof(box) {
 }
 
 /** Attach a real committed-source companion through the authenticated coordinator. */
-function attachCompanion(box, file, before, after) {
+function attachCompanion(box, file, source, before, after) {
   const agent = JSON.parse(cli(box, box.builder, 'whoami').stdout).id;
-  const lines = readFileSync(join(box.builder, file), 'utf8').replace(/\n$/u, '').split('\n');
+  const lines = source.replace(/\n$/u, '').split('\n');
   assert.equal(lines[0], before, 'the patch binds the actual first-line preimage');
   const replacement = [after, ...lines.slice(1)];
   const patch = ['diff --git a/' + file + ' b/' + file, '--- a/' + file, '+++ b/' + file,
@@ -140,7 +140,7 @@ function attachCompanion(box, file, before, after) {
 
 test('an untouched inherited failure passes with a real docs companion [V4,B3]', t => {
   const box = fixture(t);
-  attachCompanion(box, 'docs/companion.md', 'Before.', 'After.');
+  attachCompanion(box, 'docs/companion.md', readFileSync(join(box.builder, 'docs/companion.md'), 'utf8'), 'Before.', 'After.');
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const report = JSON.parse(result.stdout);
@@ -152,7 +152,7 @@ test('an untouched inherited failure passes with a real docs companion [V4,B3]',
 
 test('a companion frozen-check red retains its required refusal [V4,B3]', t => {
   const box = fixture(t, { check: 'node test/runner.js test/inherited.test.js' });
-  attachCompanion(box, 'docs/companion.md', 'Before.', 'After.');
+  attachCompanion(box, 'docs/companion.md', readFileSync(join(box.builder, 'docs/companion.md'), 'utf8'), 'Before.', 'After.');
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 1, result.stdout + result.stderr);
   const response = JSON.parse(result.stdout);
@@ -163,7 +163,7 @@ test('a companion frozen-check red retains its required refusal [V4,B3]', t => {
 
 test('editing a failed test in a companion never inherits its main failure [V4,B3]', t => {
   const box = fixture(t);
-  attachCompanion(box, 'test/inherited.test.js', "import assert from 'node:assert/strict';", "import assert from 'node:assert/strict'; // Companion edit.");
+  attachCompanion(box, 'test/inherited.test.js', readFileSync(join(box.builder, 'test/inherited.test.js'), 'utf8'), "import assert from 'node:assert/strict';", "import assert from 'node:assert/strict'; // Companion edit.");
   const result = cli(box, box.builder, 'submit', String(box.item), '--no-next');
   assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.equal(JSON.parse(result.stdout).error.code, 'GATE_RED', result.stdout + result.stderr);

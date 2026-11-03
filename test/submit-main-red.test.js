@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureGit } from './fixture-child.js';
+import * as store from '../packages/store/index.js';
+import { fixtureBoard } from './board-fixture.js';
 import { submissionProof } from '../packages/state/src/core/submission-proof.js';
 import { KNOWN_MAIN_FAILURES_ENGINE } from '../src/known-main-failures-engine.js';
 import { matchingMainFailures } from '../packages/landing/index.js';
@@ -102,8 +104,6 @@ test('repair links retain historical receipts and reject closed, stale or ambigu
 });
 
 test('ordered submit refuses a closed repair and an old-engine linked envelope without changing item history [V4,B3,H16]', async t => {
-  const store = await import('../src/board.js');
-  const { fixtureBoard } = await import('./board-fixture.js');
   const at = '2026-10-28T00:00:00.000Z';
   const source = fixtureBoard(t, { clock: { now: () => new Date(at) } });
   source.executionEngineVersion = KNOWN_MAIN_FAILURES_ENGINE;
