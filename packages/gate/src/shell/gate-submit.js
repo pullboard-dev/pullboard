@@ -1,4 +1,5 @@
 import { submitReusePlanDigest } from '../../../verify/index.js';
+import { countTrialGate } from './refusal-trial.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
 import { selectTestTiers } from './test-tier-selection.js';
 import { testTierProofFiles } from './test-tier-selection.js';
@@ -260,12 +261,15 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const phase = plan.testTiers ? testTierReport(plan.testTiers) : deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
-    writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
+    // Every completed gate counts toward the trials of new or changed refusals, and its output says where each stands (#2611).
+    let trials = [];
+    try { trials = countTrialGate(outputRoot); } catch { /* A trial ledger never changes the gate's verdict. */ }
+    writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}${trials.length ? `\n${trials.join('\n')}\n` : ''}`);
     if (!proof.isGreen && onFailure) await onFailure(proof, { root,
       command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease });
     await recordRun(onFailure, proof);
     refuseSandboxBlocked(criterion);
-    const result = finish(proof);
+    const result = { ...finish(proof), refusalTrials: trials };
     return criterion.isGreen ? result : { ...result, isGreen: false, completedProof: proof,
       criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),
