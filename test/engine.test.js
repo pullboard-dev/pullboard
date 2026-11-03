@@ -25,7 +25,7 @@ import { engineReceipt } from '../packages/state/index.js';
 import { refuseRelayMove } from '../packages/state/index.js';
 import { startRelayEpoch } from '../packages/state/index.js';
 import { checkpointSequence } from '../packages/state/index.js';
-import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../src/move-registry.js';
+import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
 import { COMMAND_CANDIDATE } from '../packages/kernel/index.js';
 import { COMMAND_FILE } from '../packages/kernel/index.js';
 import { discovered } from '../packages/kernel/index.js';

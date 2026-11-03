@@ -55,7 +55,6 @@
   ["src/post-land-suite.js","packages/landing/src/shell/post-land-suite.js","rule"]
  ],
  "reexports": [
-  "src/landing-batch-history.js",
   "src/landing-failure-report.js",
   "src/landing-shards.js",
   "src/landing-test-policy.js",

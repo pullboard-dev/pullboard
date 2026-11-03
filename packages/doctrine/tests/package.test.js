@@ -236,8 +236,10 @@ test('every import is a node: built-in or a relative file [P3]', () => {
     ...readdirSync(join(ROOT, 'src'), { recursive: true }).filter((name) => /\.m?js$/.test(name)).map((name) => join(ROOT, 'src', name)),
     join(ROOT, 'bin', 'pullboard.js'),
   ];
-  const moveFiles = readdirSync(join(ROOT, 'src', 'moves')).filter(name => name.endsWith('.js'));
-  assert.ok(moveFiles.length > 0 && moveFiles.every(name => files.includes(join(ROOT, 'src', 'moves', name))), 'all discovered move modules remain inside the no-dependencies scan');
+  const moveDirectory = join(ROOT, 'packages', 'moves', 'src', 'core', 'moves');
+  const moveFiles = readdirSync(moveDirectory).filter(name => name.endsWith('.js'));
+  files.push(...moveFiles.map(name => join(moveDirectory, name)));
+  assert.ok(moveFiles.length > 0, 'all discovered move modules remain inside the no-dependencies scan');
   const found = importsIn(files.map(file => packageSource(file, readFileSync(file, 'utf8'))));
   files.forEach((file, index) => {
     for (const target of found[index]) assert.ok(target.startsWith('node:') || target.startsWith('.'), `${file} imports ${target}`);
