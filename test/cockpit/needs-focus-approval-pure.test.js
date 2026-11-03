@@ -1,7 +1,7 @@
 /** A focus approval batch renders as one grouped Needs-you entry with its rows and items [B26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { needsPanelHtml, needsPanelModel } from '../../src/view/needs-panel.js';
+import { needsPanelHtml, needsPanelModel } from '../../apps/view/index.js';
 
 test('one focus-approval batch lists each draft row with kind, text and referencing items [B26,C7]', () => {
   const call = { kind: 'focus-approval-batch', id: 'focus-approval:0.9.3', ref: '0.9.3', text: '2 draft rows rest under 0.9.3 items',

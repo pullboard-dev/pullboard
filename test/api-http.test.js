@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real HTTP calls against an isolated Git repo and the actual board engine (A2). */
 import { apiBoardOpeners } from './board-fixture.js';
 import { main as nativeTestMain } from './native-cli-fixture.js';
@@ -13,8 +13,8 @@ import { createServer, request as httpRequest } from 'node:http';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createLocalApiHandler, serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
-import { serveView } from '../src/commands/view.js';
+import { refusalDocument } from '../apps/cli/index.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { main } from './native-cli-fixture.js';
 import { applyStateDelta, createApiHandler } from '../packages/api/index.js';
 import { WHOLE_STATE_DELTA_FIELDS } from '../packages/api/index.js';
@@ -383,11 +383,11 @@ test('a detail read after a cache miss on a linked board spawns no git process [
   try {
     const result = runFixtureChild(process.execPath, [
       '--input-type=module', '-e', REPEATED_READ_HARNESS,
-      join(codeLinked, 'src', 'commands', 'view.js'), JSON.stringify(projects), privateCommonDir,
+      join(codeLinked, 'apps', 'cli', 'src', 'shell', 'commands', 'view.js'), JSON.stringify(projects), privateCommonDir,
     ], { cwd: box.root, env: box.env, encoding: 'utf8' });
     const initialContext = JSON.stringify({
       route: 'GET /api/v1/boards; 3x state; 3x item detail; GET /',
-      argv: [process.execPath, '--input-type=module', '-e', 'REPEATED_READ_HARNESS', join(codeLinked, 'src', 'commands', 'view.js'), 'projects-json', privateCommonDir],
+      argv: [process.execPath, '--input-type=module', '-e', 'REPEATED_READ_HARNESS', join(codeLinked, 'apps', 'cli', 'src', 'shell', 'commands', 'view.js'), 'projects-json', privateCommonDir],
       cwd: box.root, status: result.status, stderr: String(result.stderr ?? '').slice(-2_000), failure: String(result.failure ?? '').slice(-2_000),
     });
     assert.ok(result.stdout.trim(), initialContext);
@@ -459,7 +459,7 @@ test('a repeated read through the view page spawns no process [A2,N26]', (t) => 
   // Keep the fixture's ordinary private Git config and identity; run-tests removes inherited repo/object selectors.
   const result = runFixtureChild(process.execPath, [
     '--input-type=module', '-e', REPEATED_READ_HARNESS,
-    resolve(import.meta.dirname, '../src/commands/view.js'), JSON.stringify(projects),
+    resolve(import.meta.dirname, '../apps/cli/src/shell/commands/view.js'), JSON.stringify(projects),
   ], { cwd: box.root, env: box.env, encoding: 'utf8' });
   assert.ok(result.stdout.trim(), result.failure ?? result.stderr);
   const lines = result.stdout.trim().split('\n');

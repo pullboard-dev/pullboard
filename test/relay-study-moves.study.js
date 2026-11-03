@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../apps/lib/index.js';
 import { proposeSentinel as nativeProposeSentinel } from '../packages/sentinels/index.js';
@@ -20,7 +20,7 @@ import { relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { presentationState } from '../apps/relay/index.js';
 import { apiFetch } from './api-fixture.js';

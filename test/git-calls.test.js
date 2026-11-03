@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { recordGateRun as nativeRecordGateRun } from '../packages/flakes/index.js';
 /** Count real Git child processes and prove command-scoped facts refresh after a commit [C7]. */
@@ -18,7 +18,7 @@ import { test } from 'node:test';
 import { main } from './native-cli-fixture.js';
 import { headCommit, withGitFacts } from '../src/git.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { pathToFileURL } from 'node:url';
 import { fetchFresh } from './http-fixture.js';
 

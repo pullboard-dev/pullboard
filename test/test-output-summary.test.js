@@ -1,6 +1,6 @@
-/** @pullboard-test-loads src/commands/test.js */
-/** @pullboard-test-loads src/commands/submit.js */
-/** @pullboard-test-loads src/commands/verify.js */
+/** @pullboard-test-loads apps/cli/src/shell/commands/test.js */
+/** @pullboard-test-loads apps/cli/src/shell/commands/submit.js */
+/** @pullboard-test-loads apps/cli/src/shell/commands/verify.js */
 /** Agent presentation keeps real test evidence in its full log instead of the context [C7,V10]. */
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';

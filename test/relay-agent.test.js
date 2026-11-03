@@ -1,5 +1,5 @@
 /** @pullboard-test-gui */
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Private end-to-end proof for ordered agent enrollment and scoped relay credentials [H2,H9,A4]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -15,7 +15,7 @@ import { claim as claimStoredItem, closeBoard, register as registerStoredAgent }
 import { openBoard } from '../apps/lib/index.js';
 import { submitFixture as submitStoredItem } from './board-submit-fixture.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { decodeBoardKey, unseal } from '../packages/kernel/src/core/seal.js';

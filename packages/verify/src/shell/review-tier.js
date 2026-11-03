@@ -64,6 +64,8 @@ const SOURCE_FILES = new Set([
   'src/verdict-trunk.js', 'src/verdict-withdrawal.js', 'src/merge-only-verdict.js',
   'src/moves/reserveReview.js', 'src/moves/reserveNextReview.js', 'src/moves/verify.js', 'src/moves/submit.js',
   'src/commands/submit.js', 'src/commands/verify.js', 'src/commands/gate.js', 'src/commands/flakes.js',
+  'apps/cli/src/shell/commands/submit.js', 'apps/cli/src/shell/commands/verify.js', 'apps/cli/src/shell/commands/gate.js',
+  'apps/cli/src/shell/commands/flakes.js', 'apps/cli/src/core/runner-loss-health.js',
   // Kernel replay, explicit authentication boundaries and source-bound receipt/landing checks.
   'src/machine.js', 'src/engine.js', 'src/move-registry.js', 'src/registry-guards.js',
   'src/refused.js', 'src/discovery.js', 'src/js-lex.js', 'src/literal-shell-words.js',

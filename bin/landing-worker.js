@@ -10,7 +10,7 @@ if (process.argv[1] === FILE && process.send) {
   else if (process.argv[2] === 'worker') {
     const { openBoard } = await import('../apps/lib/index.js');
     const { checkAtCommit } = await import('../apps/runner/index.js');
-    const { badgeCounts, writeBadges } = await import('../src/badge.js');
+    const { badgeCounts, writeBadges } = await import('../apps/view/index.js');
     const { flakeLedger } = await import('../packages/flakes/index.js');
     const { flakeSource, observeNativeFailure } = await import('../packages/flakes/index.js');
     const { landingFlakeRatchet } = await import('../packages/flakes/index.js');

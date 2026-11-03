@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js src/cli/claim.js packages/gate/src/shell/check-baseline-worker.js */
+/** @pullboard-test-loads src/board.js apps/cli/src/shell/cli/claim.js packages/gate/src/shell/check-baseline-worker.js */
 /** Native baseline completion must not strand a claim whose source remains valid [B2,C7,V2]. */
 // Recovered unchanged from core-716's eacc75698b7 deterministic baseline-worker reproduction.
 import assert from 'node:assert/strict';
@@ -11,8 +11,8 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
-import { claimFreezer } from '../src/cli/claim.js';
-import { context } from '../src/cli-context.js';
+import { cliClaim$claimFreezer as claimFreezer } from '../apps/cli/index.js';
+import { context } from '../apps/cli/index.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { prepareCheckBaseline } from '../packages/gate/index.js';
 import { runFixtureChildAsync } from './fixture-child.js';
