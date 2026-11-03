@@ -99,8 +99,8 @@ test('actual CLI help and API catalog work through a named cell command front do
   copyPackageFiles(REPO, box.root);
   const manifest = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
   box.put('package.json', JSON.stringify({ ...manifest, imports: MAP }));
-  copyPackageSubset(REPO, box.root, [{ path: 'src/commands/version.js', as: 'packages/sample/index.js' }]);
-  box.put('src/commands/version.js', "export { run } from '#sample';\n");
+  copyPackageSubset(REPO, box.root, [{ path: 'apps/cli/src/shell/commands/version.js', as: 'packages/sample/index.js' }]);
+  box.put('apps/cli/src/shell/commands/version.js', "export { run } from '#sample';\n");
   /** Exercise the real command registry through its named package shim. */
   const run = (...args) => runFixtureChild(process.execPath, ['bin/pullboard.js', ...args], { cwd: box.root, encoding: 'utf8' });
   const version = run('version', '--json');

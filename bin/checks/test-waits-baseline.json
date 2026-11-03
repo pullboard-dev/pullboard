@@ -348,7 +348,7 @@
     "poll": 2,
     "sleep": 2
   },
-  "test/worktree-maintenance-scheduler.fixture.js": {
+  "apps/cli/tests/worktree-maintenance-scheduler.fixture.js": {
     "poll": 2,
     "sleep": 3
   }

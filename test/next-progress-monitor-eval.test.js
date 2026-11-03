@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/cli.js src/next-progress-monitor.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js apps/cli/src/shell/next-progress-monitor.js */
 /** Eval callers retain real CLI progress and every non-input-type Worker flag [C7]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

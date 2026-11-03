@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 /** Read independent data declarations without loading command implementations. */
 export function commandDocs(root = dirname(fileURLToPath(new URL('../../../../package.json', import.meta.url)))) {
-  const directory = join(root, 'src', 'command-docs');
+  const directory = join(root, 'apps', 'cli', 'src', 'shell', 'command-docs');
   const names = new Set();
   return readdirSync(directory).filter(file => file.endsWith('.json')).sort().map(file => {
     const path = join(directory, file);
@@ -22,7 +22,7 @@ export function commandDocs(root = dirname(fileURLToPath(new URL('../../../../pa
           || typeof value !== 'string' || !/^(?:string|number|boolean|object|array)(?:\|null)?$/u.test(value))) {
       throw new Error(`invalid or duplicate command declaration ${file}`);
     }
-    if (!lstatSync(join(root, 'src', 'commands', `${entry.name.split(' ')[0]}.js`)).isFile()) {
+    if (!lstatSync(join(root, 'apps', 'cli', 'src', 'shell', 'commands', `${entry.name.split(' ')[0]}.js`)).isFile()) {
       throw new Error(`${file} needs its actual command implementation`);
     }
     names.add(entry.name);
