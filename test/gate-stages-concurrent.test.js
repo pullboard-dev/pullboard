@@ -62,8 +62,11 @@ test('the first red stage cancels the others and refuses at once [C7]', async ()
 
 test('submit starts static, cells, doctrine and the test gate together [C7]', () => {
   const source = readFileSync(new URL('../src/commands/submit.js', import.meta.url), 'utf8');
-  const call = source.slice(source.indexOf('await runGateStages('));
-  assert.ok(source.includes('await runGateStages('), 'submit runs its gate stages through runGateStages');
-  for (const name of ['static', 'cells', 'doctrine', 'tests']) assert.match(call.slice(0, 6_000), new RegExp(`name: '${name}'`, 'u'));
+  const start = source.indexOf('await runGateStages(');
+  assert.ok(start >= 0, 'submit runs its gate stages through runGateStages');
+  const end = source.indexOf('\n  ]);', start);
+  assert.ok(end > start, 'the complete stage list closes');
+  const call = source.slice(start, end);
+  for (const name of ['static', 'cells', 'doctrine', 'tests']) assert.match(call, new RegExp(`name: '${name}'`, 'u'));
 });
 
