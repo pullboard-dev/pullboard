@@ -3,6 +3,7 @@ import { sayQueuedReds } from '../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../packages/verify/index.js';
 import { recordedClaimWorktrees } from '../../packages/activity/index.js';
+import { takeWaitShouts } from '../../packages/activity/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../board.js';
@@ -103,9 +104,17 @@ async function nextWithProgress(io, values, progress) {
   }
   values = { ...values, observeIdle: true };
   let lastIdleReason;
+  const heardShouts = new Set();
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
   for (;;) {
+    const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
+    for (const line of heard?.lines ?? []) io.say(line);
+    if (heard?.item) {
+      io.result?.({ item: heard.item, review: false, held: false, shared: [], reasons: heard.lines });
+      io.say(`a shout asks you to act on #${heard.item.item_id}: ${heard.item.item_title}; pullboard show ${heard.item.item_id}`);
+      return 0;
+    }
     const takeMainRed = await progress.run('main-red routing', null, () => !values.build && !values.verify && values.verifyId === undefined && mainRedBuildOffer(ctx, values, takeServices));
     const found = await progress.run('selection', values.verifyId === undefined ? null : Number(values.verifyId), () => values.take || takeMainRed ? nextTake(ctx, values, takeServices) : nextOnce(ctx, values));
     if (found.context) ctx = found.context;

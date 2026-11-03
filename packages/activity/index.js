@@ -7,3 +7,4 @@ export { budgetInbox } from './src/core/inbox-budget.js';
 export { claimWorktrees, claimOverlapLines } from './src/shell/claim-worktrees.js';
 export { recordClaimWorktrees } from './src/shell/worktree-observations.js';
 export { recordedClaimWorktrees } from './src/shell/worktree-observations.js';
+export { takeWaitShouts } from './src/shell/next-wait-shouts.js';
