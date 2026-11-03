@@ -5,6 +5,8 @@ import { lex } from '../../packages/kernel/index.js';
 const NON_RELAY = new Map([
   ['packages/link/src/shell/relay-handover.js', ["fetch(new URL('users/'"]],
   ['relay/github.js', ['fetch(url, { method: form || json']],
+  // The Cells move (#1592) puts the same GitHub client here; relay/github.js stays allowed while its shim remains.
+  ['apps/relay/src/shell/github.js', ['fetch(url, { method: form || json']],
   ['src/view/page-script-2.js', ["fetch(base + '/local/protocol'", 'fetch(path, { method: body']],
   ['src/view/cockpit-live.js', ['fetch(path, {']],
 ]);
