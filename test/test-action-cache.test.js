@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** A test file whose inputs did not change reuses its green result; a changed import, a red result or a bad entry runs it [C7]. */
 import { copyPackageFiles } from '../packages/runners/index.js';
-import { toolSourcePath } from '../packages/runners/index.js';
+import { toolSourcePath } from '../packages/runners/src/shell/package-files.js';
 import assert from 'node:assert/strict';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
