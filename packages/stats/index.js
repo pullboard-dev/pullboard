@@ -90,6 +90,11 @@ export {
   checkpointAfterMove,
 } from './src/shell/cost-checkpoint.js';
 export {
+  USAGE_CHECKPOINT_ENV,
+  drainUsageCheckpoints,
+  usageDueDirectory,
+} from './src/shell/cost-due.js';
+export {
   usageCheckpoint,
 } from './src/shell/cost-ledger.js';
 export {
