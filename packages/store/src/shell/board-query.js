@@ -9,6 +9,7 @@ import { projectReviewFamily } from "../../../verify/index.js";
 import { withSeatPresence } from "./seat-presence.js";
 import { projectItemDecisions } from "../../../items/index.js";
 import { itemById } from "../core/board-item-read.js";
+import { submitGateInFlight } from "../core/red-return-lease.js";
 import {
   activityEventDetail,
   activityInterests,
@@ -50,14 +51,15 @@ export const PERSON = 'person';
 export const now = (board) => board.clock.now().toISOString();
 
 /**
- * True while someone holds the item under a lease that has not lapsed.
+ * True while someone holds the item under a lease that has not lapsed, or while the holder's own queued gate waits or
+ * runs: that gate is the holder's work, so its claim never reads as open mid-gate (#2561).
  *
  * @param {any} board
  * @param {any} item
  * @returns {boolean}
  */
 export function isHeld(board, item) {
-  return item.item_status === 'claimed' && (item.item_lease_until ?? '') > now(board);
+  return item.item_status === 'claimed' && ((item.item_lease_until ?? '') > now(board) || submitGateInFlight(board, item));
 }
 
 /**
