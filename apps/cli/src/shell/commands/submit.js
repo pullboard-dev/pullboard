@@ -5,6 +5,7 @@ import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
 import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
+import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
@@ -97,7 +98,7 @@ import {
   submitRulesNarrowable,
   ruleLine,
 } from '../../../../../packages/doctrine/index.js';
-import * as gateReceipt from '../../../../../packages/gate/index.js';
+import { receiptLine as gateReceiptLine } from '../../../../../packages/gate/index.js';
 import { recordNativeProof } from '../../../../../packages/verify/index.js';
 import { proofRunReceipt } from '../../../../../packages/store/index.js';
 import {
@@ -189,6 +190,10 @@ import { mainFailureNotices } from '../../../../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../../../../packages/store/index.js';
 import { unownedMainReds } from '../../../../../packages/store/index.js';
 import { splitAmbiguousMainReds } from '../../../../../packages/store/index.js';
+import { mainRedBaselinesToRetake } from '../../../../../packages/store/index.js';
+import { mainRedItemCases } from '../../../../../packages/store/index.js';
+import { itemCheckBaseline } from '../../../../../packages/store/index.js';
+import { checkBaseline as retakeCheckBaseline } from '../../../../../packages/gate/index.js';
 import { submitReferenceReminders } from '../../../../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 
@@ -215,6 +220,18 @@ export function boundedMainRedShout(id, failures, main) {
   const chars = Array.from(detail);
   const excerpt = chars.length > room ? chars.slice(0, Math.max(0, room - 1)).join('') + '…' : detail;
   return prefix + excerpt + suffix;
+}
+
+/**
+ * Which red check cases open Main red repairs' own checks fail on this main. A repair whose recorded baseline names no
+ * failing case, or was taken on another main, is re-taken on this main first (#2594).
+ */
+export function mainRedCheckCases(root, failures, items, id, main, retaken) {
+  const files = [...new Set(failures.map(row => row.file))];
+  for (const item of mainRedBaselinesToRetake(items, files, id, main)) {
+    if (!retaken.has(item.item_id)) retaken.set(item.item_id, retakeCheckBaseline(root, item.item_check, { main }));
+  }
+  return mainRedItemCases(failures, items, id, main, retaken);
 }
 
 export async function submitHere(ctx, id, infra) {
@@ -293,8 +310,8 @@ export async function submitHere(ctx, id, infra) {
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A live handoff owns its captured source; never rewrite it underneath its queued worker.
   const pendingHandoff = !isSubmitHandoffWorker(ctx) ? (await (await import('../submit-handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held))) : null;
-  if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
-  if (!isSubmitHandoffWorker(ctx) && !pendingHandoff) {
+  const pending = pendingHandoff && pendingHandoff.commit !== commit ? await (await import('../submit-handoff.js')).replaceSubmitHandoff(ctx, id, held.item_owner, pendingHandoff) : pendingHandoff;
+  if (!isSubmitHandoffWorker(ctx) && !pending) {
     const composed = mergeSubmissionMain(root, acceptedMain.commit);
     commit = composed.commit;
     if (composed.merged) {
@@ -303,6 +320,7 @@ export async function submitHere(ctx, id, infra) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
+  requireNonEmptySubmit(root, id, commit, acceptedMain.commit);
   let trunk;
   let regenerated = null;
   try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
@@ -378,7 +396,7 @@ export async function submitHere(ctx, id, infra) {
   const infraRecord = infraNotes.infraNote({ root, claimHead, commit, files: filesSince(root, id, claimHead, commit), gates: [ctx.config.gate, acceptedMain.config.gate], infra, requireInfraNote: acceptedMain.config.submit.requireInfraNote });
   const regeneratedFrom = toolRegenerationSource(root, commit);
   // Queue all captured sources before cell compilation; the bound worker runs the same checks and refusal path.
-  if (pendingHandoff || handoffEnabled) {
+  if (pending || handoffEnabled) {
     const { enqueueSubmitHandoff } = await import('../submit-handoff.js');
     return enqueueSubmitHandoff(ctx, held, me, { commit, tree: headTree(root), companion, infra, main: acceptedMain.commit });
   }
@@ -464,7 +482,7 @@ export async function submitHere(ctx, id, infra) {
         practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }
       finally { remoteDoctrine?.finish(); }
     },
-      { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceipt.receiptLine(receipt)}`) }))
+      { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceiptLine(receipt)}`) }))
     : []); }
   finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
   for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
@@ -528,6 +546,21 @@ export async function submitHere(ctx, id, infra) {
       }
     } catch (error) { criterionProblem = `\nknown-main acceptance of the frozen check failed: ${error?.message ?? error}`; /* Unavailable exact-main proof never authorizes a red frozen check. */ }
   }
+  // A case an open Main red repair's own check fails on this main never fails another item's check (#2594).
+  let criterionMainRed = [];
+  const retakenBaselines = new Map();
+  const mainRedItems = () => withBoard(ctx, board => store.listItems(board, { all: true })
+    .map(item => { const baseline = itemCheckBaseline(board, item); return baseline ? { ...item, item_check_baseline: baseline } : item; }));
+  if (criterionCases && !criterionMatched) {
+    try {
+      const mainRed = mainRedCheckCases(root, criterionCases, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      if (mainRed.owned.length && !mainRed.rest.length) {
+        criterionMatched = { main: mainFailureBase, failures: criterionCases };
+        criterionMainRed = mainRed.owned;
+        criterionProblem = '';
+      }
+    } catch { /* An unavailable baseline never authorizes a red frozen check. */ }
+  }
   if (criterionMatched && gate.completedProof) {
     gate = { ...gate, ...gate.completedProof, log: gate.log, check: gate.check, criterionRed: gate.criterionRed };
   } else if (criterionMatched) {
@@ -582,6 +615,17 @@ export async function submitHere(ctx, id, infra) {
         proofKnown = owned.length ? linkKnownMainReworks({ main: matched.main, failures: owned }, rows(), id) : null;
       }
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
+  }
+  // The proof is judged like the check: a case an open Main red repair's own check fails on this main is known main (#2594).
+  let proofMainRed = [];
+  if (failures && mainFailureBase && !proofMatched && !companion) {
+    try {
+      const mainRed = mainRedCheckCases(root, failures, mainRedItems(), id, mainFailureBase, retakenBaselines);
+      if (mainRed.owned.length && !mainRed.rest.length) {
+        proofMatched = { main: mainFailureBase, failures };
+        proofMainRed = mainRed.owned;
+      }
+    } catch { /* An unavailable baseline never authorizes a red submission. */ }
   }
   const mainFailures = [...new Map([...criterionNotices, ...proofNotices].map(row => [JSON.stringify([row.file, row.name, row.status]), row])).values()];
   const plainMainFailures = mainFailures.map(row => row.message).join('\n');
@@ -641,6 +685,8 @@ export async function submitHere(ctx, id, infra) {
     // The waived run is written to the item's thread before the submission, so no waived proof reads as green.
     if (waived) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} was red and is recorded as waived, not green; every failure is covered by a live person waiver:\n${waivedLines.join('\n')}` }]);
     if (criterionNames.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `frozen check red at ${commit.slice(0, 12)} only in cases that fail identically on main at ${criterionMatched.main}: ${criterionNames.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. Reviewers: these known main reds are listed, not blocking; any case green on main would have refused.` }]);
+    if (criterionMainRed.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `frozen check red at ${commit.slice(0, 12)} only in cases that open Main red repairs' own checks fail on main at ${criterionMatched.main}: ${criterionMainRed.map(row => `${row.file} (${row.name}), repair #${row.item}`).join('; ')}. Reviewers: these known main reds are listed, not blocking.` }]);
+    if (proofMainRed.length) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof red at ${commit.slice(0, 12)} only in cases that open Main red repairs' own checks fail on main at ${proofMatched.main}: ${[...new Map(proofMainRed.map(row => [`${row.file}\0${row.name}`, row])).values()].map(row => `${row.file} (${row.name}), repair #${row.item}`).join('; ')}. No new failure is accepted.` }]);
     if (criterionUnowned.length && !autoMainReds) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the frozen check fails identically on main at ${criterionMatched.main} in ${criterionUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator.` }]);
     if (proofUnowned.length && !autoMainReds) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `unowned known main red: the submission proof at ${commit.slice(0, 12)} fails identically on main at ${proofMatched.main} in ${proofUnowned.map(red => `${red.file} (${red.names.join('; ')})`).join('; ')}, and no open Main red item names the file; a decision was shouted to the coordinator. The item check passed; no new failure is accepted.` }]);
     if (knownMainFailures) await ordered(ctx, board, 'appendFact', [id, { agentId: me.id, kind: 'measurement', text: `submission proof at ${commit.slice(0, 12)} remains red; known main failures at ${knownMainFailures.main}: ${knownMainFailures.failures.map(row => `${row.file} (${row.name}), open repair #${row.item}`).join('; ')}. The item check passed; no new or unaccounted failure is accepted.` }]);
