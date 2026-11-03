@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import {
   readFileSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
+import { delimiter, join } from 'node:path';
 import { test } from 'node:test';
 import { MOVE_OPERATIONS as ENGINE_OPERATIONS } from '../packages/moves/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
@@ -13,11 +15,17 @@ import {
   unseal,
 } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
+import { runFixtureGit } from './fixture-child.js';
 import { syntheticFlakeObservation } from './flake-observation-fixture.js';
 
 test('every current operation selects its native actor credential without a second authorization policy [H2,H9,H16]', async (t) => {
   const box = await relayClientFixture(t);
   await box.link();
+  symlinkSync(new URL('../bin/pullboard.js', import.meta.url), join(box.env.PATH.split(delimiter)[0], 'pullboard'));
+  runFixtureGit(['add', 'pullboard.json'], { cwd: box.root, env: box.env, stdio: 'pipe' });
+  runFixtureGit(['commit', '-q', '-m', 'chore(test): commit relay policy fixture', '--', 'pullboard.json'], {
+    cwd: box.root, env: box.env, stdio: 'pipe',
+  });
   const actor = 'coordinator';
   assert.equal(box.before.tables.item[0].item_status, 'open', 'the first follow control starts with a genuinely unclaimed row');
   assert.ok(ENGINE_OPERATIONS.indexOf('claim') < ENGINE_OPERATIONS.indexOf('followItemPatches'), 'the later source-fence control follows the actual claim operation');
