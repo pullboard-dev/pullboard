@@ -94,6 +94,7 @@ import {
 import {
   hasSubmitRules,
   holdDoctrineAsync,
+  submitRulesNarrowable,
   ruleLine,
 } from '../../packages/doctrine/index.js';
 import * as gateReceipt from '../gate-receipt.js';
@@ -188,7 +189,7 @@ import { matchingMainFailures } from '../../packages/landing/index.js';
 import { mainFailureNotices } from '../../packages/landing/index.js';
 import { linkKnownMainReworks } from '../../packages/store/index.js';
 import { unownedMainReds } from '../../packages/store/index.js';
-import { ambiguousMainReds } from '../../packages/store/index.js';
+import { splitAmbiguousMainReds } from '../../packages/store/index.js';
 import { submitReferenceReminders } from '../../packages/spec/index.js';
 import { waitForSubmitGate } from '../submit-gate-wait.js';
 
@@ -292,7 +293,7 @@ export async function submitHere(ctx, id, infra) {
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A live handoff owns its captured source; never rewrite it underneath its queued worker.
-  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? withBoard(ctx, board => pendingSubmitHandoff(board, held)) : null;
+  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? (await (await import('../submit-handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held))) : null;
   if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
   if (!isSubmitHandoffWorker(ctx) && !pendingHandoff) {
     const composed = mergeSubmissionMain(root, acceptedMain.commit);
@@ -456,7 +457,9 @@ export async function submitHere(ctx, id, infra) {
   let doctrine;
   const doctrineStart = performance.now();
   try { doctrine = await (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
+    ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
+      ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
+      : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
       const remoteDoctrine = gateAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
       try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
         practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }
@@ -498,6 +501,8 @@ export async function submitHere(ctx, id, infra) {
   let criterionUnowned = [];
   // Known main reds with several candidate owners and none naming the case alone; the refusal lists them (#2016).
   const ambiguous = [];
+  /** The check and the proof can both see one case; it is reported once. */
+  const noteAmbiguous = rowsFound => { for (const row of rowsFound) if (!ambiguous.some(seen => seen.file === row.file && seen.name === row.name)) ambiguous.push(row); };
   let criterionProblem = '';
   const companionAllowsMain = failures => !companion || companionMainFailuresUntouched(root,
     { base: mainFailureBase, source: commit, composed: companion.commit }, failures);
@@ -513,12 +518,13 @@ export async function submitHere(ctx, id, infra) {
       const matched = matchingMainFailures(criterionCases, comparison, mainFailureBase);
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Cases with a unique open Main red repair link to it; the rest are recorded as unowned for the coordinator, never filed here.
-      const missing = matched ? unownedMainReds(matched, rows(), id) : null;
-      if (matched && !missing) ambiguous.push(...ambiguousMainReds(matched, rows(), id));
+      const split = matched ? splitAmbiguousMainReds(matched, rows(), id) : null;
+      if (split) noteAmbiguous(split.ambiguous);
+      const missing = split ? unownedMainReds(split.clear, rows(), id) : null;
       if (missing) {
         criterionMatched = matched;
         criterionUnowned = missing;
-        const owned = matched.failures.filter(row => !missing.some(red => red.file === row.file));
+        const owned = split.clear.failures.filter(row => !missing.some(red => red.file === row.file));
         criterionKnown = owned.length ? linkKnownMainReworks({ main: matched.main, failures: owned }, rows(), id) : null;
       }
     } catch (error) { criterionProblem = `\nknown-main acceptance of the frozen check failed: ${error?.message ?? error}`; /* Unavailable exact-main proof never authorizes a red frozen check. */ }
@@ -567,12 +573,13 @@ export async function submitHere(ctx, id, infra) {
       const matched = matchingMainFailures(failures, comparison, mainFailureBase);
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Affected cases are judged like the frozen check (#1917, #1986): owned reds link to their repair, unowned ones are recorded for the coordinator.
-      const missing = matched ? unownedMainReds(matched, rows(), id) : null;
-      if (matched && !missing) ambiguous.push(...ambiguousMainReds(matched, rows(), id));
+      const split = matched ? splitAmbiguousMainReds(matched, rows(), id) : null;
+      if (split) noteAmbiguous(split.ambiguous);
+      const missing = split ? unownedMainReds(split.clear, rows(), id) : null;
       if (missing) {
         proofMatched = matched;
         proofUnowned = missing;
-        const owned = matched.failures.filter(row => !missing.some(red => red.file === row.file));
+        const owned = split.clear.failures.filter(row => !missing.some(red => red.file === row.file));
         proofKnown = owned.length ? linkKnownMainReworks({ main: matched.main, failures: owned }, rows(), id) : null;
       }
     } catch { /* Unavailable exact-main proof never authorizes a red submission. */ }
@@ -583,12 +590,12 @@ export async function submitHere(ctx, id, infra) {
   const unownedMain = (criterionMatched ?? proofMatched)?.main;
   const redCriterion = criterionRed && !criterionMatched;
   const criterionNames = criterionKnown ? criterionKnown.failures : [];
-  let knownMainFailures = criterionKnown && proofKnown ? { main: proofKnown.main, failures: [...criterionKnown.failures, ...proofKnown.failures] }
+  let knownMainFailures = criterionKnown && proofKnown ? { main: proofKnown.main, failures: [...new Map([...criterionKnown.failures, ...proofKnown.failures].map(row => [`${row.file}\0${row.name}`, row])).values()] }
     : criterionKnown ?? proofKnown;
   if (redCriterion || !gate.isGreen && !waived && !proofMatched) {
     const accountingNote = (checkAccepted && !failures ? '\nknown-main acceptance unavailable: the proof has no complete named failure diagnostics' : '')
-      + (ambiguous.length ? `\nknown main red with several candidate owners, none naming the case alone: ${ambiguous.map(row => `${row.file} (${row.name}): ${row.candidates.map(item => `#${item}`).join(', ')}`).join('; ')}; name the exact case in one repair's criterion` : '');
-    const message = `${plainMainFailures ? plainMainFailures + "\n" : ""}the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${displayedReport}${accountingNote}${criterionProblem}`;
+      + (ambiguous.length ? `\nknown main with several candidate owners (these never fail the gate; the failure is elsewhere): ${ambiguous.map(row => `${row.file} (${row.name}): ${row.candidates.map(item => `#${item}`).join(', ')}`).join('; ')}` : '');
+    const message = `${plainMainFailures ? plainMainFailures + "\n" : ""}the submission proof is red at ${commit.slice(0, 12)}; fix it, commit, submit again. ${gate.testTiers ? displayedReport.replace(scope, testTierReport(gate.testTiers, { names: false })) : displayedReport}${accountingNote}${criterionProblem}`;
     // No submission can follow this verdict. Read-only main comparisons must not retain the seat's write lease.
     CHECKOUT_LEASES.get(ctx.io)?.release();
     CHECKOUT_LEASES.delete(ctx.io);
@@ -681,8 +688,8 @@ export async function submitHere(ctx, id, infra) {
   if (sizeNote) ctx.io.say(`note: ${sizeNote}`);
   for (const reminder of submitReferenceReminders(root, held, commit)) ctx.io.err(reminder);
   const unownedNames = (autoMainReds ? [] : unowned).flatMap(red => red.names.map(name => `${red.file} (${name})`));
-  const report = knownMainFailures || unowned.length
-    ? `submission proof red with ${(knownMainFailures?.failures.length ?? 0) + unownedNames.length} known main failure(s) at ${unownedMain ?? knownMainFailures.main}; ${criterionMatched ? 'item check red only in known main cases' : 'item check green'}; no new failures accepted.${unownedNames.length ? ` Unowned${autoMainReds ? ", repairs filed by submit" : ", shouted to the coordinator"}: ${unownedNames.join('; ')}.` : ''} ${displayedReport}`
+  const report = knownMainFailures || unowned.length || ambiguous.length
+    ? `submission proof red with ${(knownMainFailures?.failures.length ?? 0) + unownedNames.length + ambiguous.length} known main failure(s) at ${unownedMain ?? knownMainFailures.main}; ${criterionMatched ? 'item check red only in known main cases' : 'item check green'}; no new failures accepted.${unownedNames.length ? ` Unowned${autoMainReds ? ", repairs filed by submit" : ", shouted to the coordinator"}: ${unownedNames.join('; ')}.` : ''}${ambiguous.length ? ` Known main with several candidate owners (still not failing the gate): ${ambiguous.map(row => `${row.file} (${row.name}): ${row.candidates.map(item => `#${item}`).join(', ')}`).join('; ')}.` : ''} ${displayedReport}`
     : waived
     ? `submission proof waived, not green: ${waived.length} failure(s), each covered by a live person waiver.\n${waivedLines.join('\n')}\n${displayedReport}`
     : displayedReport;
@@ -694,6 +701,7 @@ export async function submitHere(ctx, id, infra) {
     ...(companion ? { companion } : {}),
     ...(knownMainFailures ? { knownMainFailures } : {}),
     ...(knownMainFailures ? { knownMainReworks: knownMainFailures.failures.map(({ file, name, item }) => ({ file, name, item })) } : {}),
+    ...(ambiguous.length ? { knownMainAmbiguous: ambiguous } : {}),
     ...(unowned.length && !autoMainReds ? { knownMainUnowned: unowned.flatMap(red => red.names.map(name => ({ file: red.file, name }))) } : {}),
     ...(waived ? { waived: waived.map(({ file, name, waiver }) => ({ file, name, waiver: waiver.id, reason: waiver.reason, until: waiver.until })) } : {}) }, doctrine);
 }

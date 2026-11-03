@@ -44,7 +44,10 @@ export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTimi
 export { NAMEABLE_ORIGINS, carriesOrigin, answerProvenance } from './src/core/decision-origin.js';
 export { ITEM_NOTE_KINDS, FACT_KINDS, requireFactKind, itemNotesText } from './src/core/item-notes.js';
 export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies } from './src/shell/family-declaration.js';
-export { hasForeignDependencies } from './src/core/item-dependencies.js';
+export { hasForeignDependencies, localDependencyIds } from './src/core/item-dependencies.js';
 export { itemPatchRecords, itemPatches } from './src/shell/item-patch-state.js';
 export { outsideSource } from './src/core/outside-source.js';
 export { itemPatchPaths } from './src/core/item-patch-paths.js';
+export { itemFiles } from './src/core/item-files.js';
+export { itemSummary, withListFields } from './src/core/item-list.js';
+export { conflictCause, reopenConflictEvidence } from './src/core/reopen-cause.js';

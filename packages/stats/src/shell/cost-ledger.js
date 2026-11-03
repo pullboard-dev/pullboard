@@ -9,6 +9,7 @@ import { unlinkSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentSessionDigest } from '../../core.js';
+import { pruneCursors } from './cost-cursor.js';
 import { sessionSnapshot } from './cost-session.js';
 import { sessionSource } from './cost-session.js';
 import { usageDifference } from './cost-session.js';
@@ -65,7 +66,7 @@ function advance(state, entry, now, changed) {
     if (!row) { row = empty(model); total.records.push(row); }
     return row;
   };
-  const current = sessionSnapshot(entry.source, entry.snapshot, now);
+  const current = sessionSnapshot(entry.source, entry.snapshot, now, state.cursors ??= {});
   const deltas = entry.ambiguous ? [{ model: entry.model, ...unknownInputSplit(), inputTokens: null, outputTokens: null }]
     : usageDifference(entry.snapshot, current, entry.model);
   for (const delta of deltas) {
@@ -106,6 +107,8 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
       if (!state.totals[key]) state.totals[key] = structuredClone(value);
     }
     const changed = new Set();
+    state.cursors ??= {};
+    pruneCursors(state.cursors, now);
     sharedBefore(state, session, now, advance, changed);
     state.seenClaims ??= {};
     for (const interval of intervals) {
@@ -120,7 +123,7 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
       advance(state, recovered, end, changed);
       if (interval.end === null) {
         recovered.source = sessionSource(environment);
-        recovered.snapshot = sessionSnapshot(recovered.source, undefined, now);
+        recovered.snapshot = sessionSnapshot(recovered.source, undefined, now, state.cursors);
         state.active.push(recovered);
       }
     }
@@ -139,7 +142,7 @@ export function usageCheckpoint(info, { agent, item, operation, model, now = Dat
         for (const peer of peers) { advance(state, peer, now, changed); peer.ambiguous = true; }
         const source = sessionSource(environment);
         const interval = intervals.findLast((value) => value.item === item && value.end === null);
-        const snapshot = sessionSnapshot(source, undefined, interval?.start ?? now);
+        const snapshot = sessionSnapshot(source, undefined, interval?.start ?? now, state.cursors);
         const entry = { agent, item, claim: interval?.key, model: snapshot?.model ?? model ?? 'unknown', session, source, snapshot,
           at: interval?.start ?? now, ambiguous: peers.length > 0 };
         state.active.push(entry);
