@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 const { openBoardForRead } = nativeBoard;
 import { runnerExecutionServices } from '../packages/runners/index.js';
 import { landingExecutionServices } from '../packages/landing/index.js';

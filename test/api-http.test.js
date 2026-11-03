@@ -184,7 +184,7 @@ try {
   const provenanceChecks = [];
   if (codeMetadataMarker) {
     const { apiBoards } = await import(new URL('../api.js', pathToFileURL(serveFile)));
-    const { openBoard, openBoardForRead } = await import(new URL('../native-board.js', pathToFileURL(serveFile)));
+    const { openBoard, openBoardForRead } = await import(new URL('../../apps/lib/index.js', pathToFileURL(serveFile)));
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const { withGitReadFacts } = await import(new URL('../git.js', pathToFileURL(serveFile)));
     // A deliberately stale board stamp forces a write-open below. Warm its one-time own-PID

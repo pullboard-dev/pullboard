@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { setTimeout as pause } from 'node:timers/promises';
 import { openBoard } from '../apps/lib/index.js';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import * as store from '../src/board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChildAsync } from './fixture-child.js';

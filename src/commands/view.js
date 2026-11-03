@@ -48,7 +48,7 @@ import {
 } from 'node:path';
 import { cockpitPage } from '../cli/cockpit-renderer.js';
 import { nativeBoardOpeners } from '../cli-context.js';
-import * as nativeBoard from '../native-board.js';
+import * as nativeBoard from '../../apps/lib/index.js';
 import { refusalDocument } from '../next-step-words.js';
 import {
   context,

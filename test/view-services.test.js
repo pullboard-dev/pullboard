@@ -17,7 +17,7 @@ import { serveView, projectState as unprovidedProjectState } from '../apps/view/
 import { cockpitPage as unprovidedPage } from '../src/cockpit.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { nativeBoardOpeners } from '../src/cli-context.js';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import { projectState } from '../src/cli/view-state.js';
 
 /** Match a required service refusal without accepting unrelated setup or transport failures. */
