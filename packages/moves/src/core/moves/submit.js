@@ -1,3 +1,4 @@
+import { STRICT_RENAME_ENGINE } from '../../../../state/index.js';
 import { CLAUSE_INSPECTION_ENGINE } from '../../../../../src/clause-inspection-engine.js';
 import { KNOWN_MAIN_AUTOFILE_ENGINE } from "../../../../../src/known-main-autofile-engine.js";
 import { KNOWN_MAIN_OWNER_PATTERN_ENGINE } from "../../../../../src/known-main-owner-pattern-engine.js";
@@ -37,7 +38,7 @@ function existingEngine(args, board, at) {
 function minimumEngine(args, board, at) {
   const outside = board && Boolean(outsideSource(board, args[0]));
   const presubmit = board && itemPatchRecords(board, args[0]).some(record => record.presubmit === true);
-  return Math.max(Object.hasOwn(args[1] ?? {}, 'clausePolicyCommit') || args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
+  return Math.max(args[1]?.strictRenames !== undefined ? STRICT_RENAME_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'clausePolicyCommit') || args[1]?.inspectClauses === true ? CLAUSE_INSPECTION_ENGINE : 1, args[1]?.autoMainReds !== undefined ? KNOWN_MAIN_AUTOFILE_ENGINE : 1, Object.hasOwn(args[1] ?? {}, 'quarantineProofIds') ? QUARANTINE_VERDICT_ENGINE : 1, itemReviewPolicyEngine(board, args[0]), args[1]?.companion || presubmit ? ITEM_PATCH_SUBMIT_ENGINE : 1, args[1]?.gateGreen !== undefined ? MERGE_ONLY_VERDICT_ENGINE : 1,
     Array.isArray(args[1]?.submissionProof?.knownMainFailures?.failures)
       && args[1].submissionProof.knownMainFailures.failures.some(row => row?.item !== undefined) ? ((board?.executionEngineVersion ?? ENGINE_VERSION) >= KNOWN_MAIN_OWNER_PATTERN_ENGINE
         ? KNOWN_MAIN_OWNER_PATTERN_ENGINE : KNOWN_MAIN_REWORKS_ENGINE) : 1,
