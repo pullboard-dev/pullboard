@@ -39,7 +39,7 @@ function child(box, source) {
 
 test('one runner deadline requeues the same item ticket once and records both attempts [C7]', t => {
   const box = fixture(t);
-  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const resources = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const command = deadlineRetrySource(gate, resources, box.runner,
     `node -e 'console.log("INFRA_RETRY_OK")'`, executionServicesSource(gate));
@@ -59,7 +59,7 @@ test('one runner deadline requeues the same item ticket once and records both at
 
 test('a late transport failure receives one fresh bounded runner admission window [C7]', t => {
   const box = fixture(t);
-  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const source = lateTransportRetrySource(gate, box.runner, executionServicesSource(gate));
   const result = child(box, source);
   assert.equal(result.green, true);
@@ -77,7 +77,7 @@ test('a real command failure on an admitted slot is returned on its first attemp
   const box = fixture(t);
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   writeFileSync(settings, JSON.stringify({ gateSlots: 1, browserSlots: 1, gate: { runnersFirst: false }, runners: [] }));
-  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const command = `import { withGateSlot, runProfiledShellAsync } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 let calls=0;const receipts=[];

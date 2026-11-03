@@ -1,4 +1,5 @@
 import * as store from "./board.js";
+import { nextWithReleaseCooldown } from "./next-release-cooldown.js";
 
 /**
  * Select one piece of work for the already-resolved native seat without opening another seat or
@@ -9,10 +10,10 @@ import * as store from "./board.js";
  *
  * @param {any} board
  * @param {{ agent_id: string, agent_lane: string }} nativeSeat - The exact seat resolved by the caller.
- * @param {{ policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[] }} [options]
+ * @param {{ policy?: string, familyPolicy?: string, skipIds?: number[], assignedIds?: number[], releaseCooldown?: { minutes: number, now: number } | null }} [options]
  * @returns {{ item: any | null, review: boolean, held: boolean, reasons: string[] }}
  */
-export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, workingFiles = new Map() } = {}) {
+export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy = 'off', skipIds = [], assignedIds = [], priority = [], observeIdle = false, workingFiles = new Map(), releaseCooldown = null } = {}) {
   const agentId = nativeSeat.agent_id;
   const lane = nativeSeat.agent_lane;
 
@@ -27,6 +28,8 @@ export function dispatchWork(board, nativeSeat, { policy = 'any', familyPolicy =
     return { item: review.item, review: true, held: store.reviewHolder(board, review.item) === agentId, reasons: review.reasons };
   }
 
-  const build = store.nextFor(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: assignedIds, observeIdle, workingFiles });
+  // A seat's own recent releases wait out the cooldown unless nothing else is open for it (#2587); off when not passed.
+  const build = nextWithReleaseCooldown(board, { agentId, lane, policy, familyPolicy, skipIds, omitIds: assignedIds, observeIdle, workingFiles },
+    releaseCooldown?.minutes ?? 0, store.nextFor, releaseCooldown?.now);
   return { item: build.item, review: false, held: false, ...(observeIdle && !build.item ? { idleReason: [review.idleReason, build.idleReason].find(reason => ['held', 'review-family', 'main-red'].includes(reason)) ?? build.idleReason ?? 'unknown' } : {}), reasons: build.item ? build.reasons : [...new Set([...review.reasons, ...build.reasons])] };
 }
