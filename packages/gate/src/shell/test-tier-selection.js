@@ -148,8 +148,8 @@ function sealedSkips(root, seals, manifest, packages) {
 /**
  * Refuse a plan whose skipped packages include one the change unseals, or one skipped without a current seal holding
  * its named receipt, so a selection that hides a change fails instead of reporting green (RFC 0006 A3 control).
- * It also refuses a unit test of a package that must run (one the plan names or the change unseals) that is missing
- * from the plan's units, and, given `proofFiles`, a unit that neither the check nor the proof files run: an omitted
+ * It also refuses a unit test of a package that must run (one the plan names or the change unseals), or a contract at a
+ * changed front door, that is missing from the plan's units, and, given `proofFiles`, a unit that neither the check nor the proof files run: an omitted
  * test can never vanish from both units and skipped.
  *
  * @param {string} root
@@ -160,12 +160,18 @@ export function requireSealedSkips(root, plan, { proofFiles, check } = {}) {
   if (plan?.skipped?.length) requireSkipReceipts(root, plan);
   if (!plan?.units) return;
   const mustRun = new Set(plan.packages ?? []);
-  const unsealed = plan.base ? unsealedPackages(root, { base: plan.base, head: plan.commit }).unsealed.filter(row => row.hash).map(row => row.package) : [];
+  const seals = plan.base ? unsealedPackages(root, { base: plan.base, head: plan.commit }) : null;
+  const unsealed = (seals?.unsealed ?? []).filter(row => row.hash).map(row => row.package);
   for (const name of unsealed) mustRun.add(name);
   const after = snapshotAt(root, plan.commit);
   const own = row => row.reasons.every(reason => reason.startsWith('cross-package:'))
     && unsealed.includes(ownerOf(row.file, after.packageFiles, after.owners));
-  const required = after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => mustRun.has(name))) || own(row)).map(row => row.file);
+  // Every contract at a changed front door runs too; the doors come from Git, never from the plan's own change list.
+  const changed = plan.base ? sourceGit(root, ['diff', '--no-renames', '--name-only', '-z', plan.base, plan.commit]).split('\0').filter(Boolean) : [];
+  const doors = new Set([...(seals?.doors ?? []), ...changed.filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);
+  const contractRoots = [...doors].map(door => ownerOf(door, after.packageFiles, after.owners)).filter(Boolean).map(name => `${name}/contract/`);
+  const contract = row => contractRoots.some(prefix => row.file.startsWith(prefix));
+  const required = after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => mustRun.has(name))) || own(row) || contract(row)).map(row => row.file);
   const missing = required.filter(file => !plan.units.includes(file)).sort();
   if (missing.length) throw new Refused('TEST_SELECTION_INCOMPLETE', `unit tests of unsealed packages are neither selected nor skipped: ${missing.join(', ')}; select tests from the committed diff`);
   if (!proofFiles) return;

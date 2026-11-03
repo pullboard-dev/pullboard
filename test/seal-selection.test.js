@@ -103,7 +103,7 @@ test('control: a plan that hides a real change from its run fails, so skip logic
   assert.throws(() => requireSealedSkips(root, { ...plan, base: null }), { code: 'SEAL_STALE' });
 });
 
-test('control: the real submit path refuses a unit dropped from both units and skipped, and one missing from the run [C7,CD44]', async t => {
+test('control: the real submit path refuses a unit or front-door contract dropped from both units and skipped, and one missing from the run [C7,CD44]', async t => {
   const { root, first } = fixture(t);
   const head = commit(root, { 'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const two = 2;\n' });
   const config = { gate: 'true', affectedTests: 'node --test', submitInvariants: [], registryGuards: [] };
@@ -119,6 +119,12 @@ test('control: the real submit path refuses a unit dropped from both units and s
   const unrun = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== USER_TEST) };
   await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: unrun, staticChecked: true }),
     { code: 'TEST_SELECTION_INCOMPLETE', message: /missing from the submit run: packages\/user\/tests\/user\.test\.js/u });
+  assert.ok(plan.testTiers.units.includes(CONTRACT) && plan.proofFiles.includes(CONTRACT), 'the real selection runs the changed front door contract');
+  const noContract = { ...plan, proofFiles: plan.proofFiles.filter(file => file !== CONTRACT),
+    testTiers: { ...plan.testTiers, units: plan.testTiers.units.filter(file => file !== CONTRACT) } };
+  assert.deepEqual(noContract.testTiers.skipped, plan.testTiers.skipped, 'nothing is added to skipped');
+  await assert.rejects(runSubmitGate(root, config, { base: first, check: plan.check, plan: noContract, staticChecked: true }),
+    { code: 'TEST_SELECTION_INCOMPLETE', message: /neither selected nor skipped: packages\/base\/contract\/user\.test\.js/u });
 });
 
 test('an unchanged package with no current seal runs its tests, and a skip without a current seal receipt refuses [C7,CD44]', t => {
