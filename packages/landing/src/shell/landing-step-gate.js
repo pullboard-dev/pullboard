@@ -1,5 +1,8 @@
 import { requireTestTierAccount } from '../../../gate/index.js';
 import { selectTestTiers } from '../../../gate/index.js';
+import { requireSealedSkips } from '../../../gate/index.js';
+import { packageHashesAt } from '../../../gate/index.js';
+import { TEST_TIERS_FILE } from '../../../gate/index.js';
 import { testTierCommand } from '../../../gate/index.js';
 import { VALUE_GATE } from '../../../gate/index.js';
 import { blockingFailures } from '../../../verify/index.js';
@@ -34,6 +37,9 @@ import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { coveredFailures } from './landing-step-failures.js';
 import { accountedFailures } from './landing-step-failures.js';
+import { knownMainAccount } from './landing-known-main.js';
+import { knownMainFields } from './landing-known-main.js';
+import { knownMainLine } from './landing-known-main.js';
 import { liveWaiverProjection } from './landing-step-failures.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { landingOperations } from './landing-step-merge.js';
@@ -54,7 +60,12 @@ function batchAffectedTests(state) {
   const root = state.batch.root;
   const commit = headCommit(root);
   const testTiers = selectTestTiers(root, { base: state.batch.base, commit, runner: state.config.affectedTests });
-  if (testTiers) return { full: false, mandatory: [], testTiers, files: [...new Set([...testTiers.journeys, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
+  if (testTiers) {
+    requireSealedSkips(root, testTiers);
+    const proven = submittedUnits(state, commit);
+    const units = testTiers.units.filter(file => !proven.has(file));
+    return { full: false, mandatory: [], testTiers, files: [...new Set([...testTiers.journeys, ...units, ...deferredSelections(state).flatMap(row => row.files)])].sort() };
+  }
   const selection = state.config.affectedTests
     ? selectAffectedTests(root, { base: state.batch.base, commit })
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] };
@@ -137,6 +148,8 @@ export async function gateGroup(state, label, options) {
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
+  const known = await knownMainAccount(state, result);
+  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),
@@ -180,6 +193,32 @@ export async function runLandingCandidate({ root, board, config, batch, entries,
   if (!claimed.cached) await finishGate(tree, gate);
   await save(state, { state: gate.isGreen ? 'ready' : 'blocked' });
   return { batch: state.batch, gate };
+}
+
+/**
+ * The unit and contract files some batch item's exact submit already ran on the same test bytes and the same content of
+ * every package the test covers, so landing reuses that proof (RFC 0006 A4).
+ * Why: any other freshly selected unit, such as a contract that reached main after the submit, must run at landing.
+ */
+function submittedUnits(state, commit) {
+  const root = state.batch.root, proven = new Set();
+  let manifest;
+  try { manifest = JSON.parse(git(root, ['show', `${commit}:${TEST_TIERS_FILE}`], { maxBuffer: 256 * 1024 * 1024 })); } catch { return proven; }
+  const rows = new Map((manifest?.files ?? []).map(row => [row.file, row]));
+  const blob = (rev, file) => { try { return git(root, ['rev-parse', `${rev}:${file}`]).trim(); } catch { return null; } };
+  for (const entry of state.batch.items) {
+    const event = store.events(state.board, { itemId: entry.id }).findLast((row) => row.event_kind === 'submit');
+    const detail = event ? JSON.parse(event.event_detail) : null;
+    const files = detail?.commit === entry.commit ? detail.submissionProof?.files ?? [] : [];
+    if (!files.length) continue;
+    const [then, now] = packageHashesAt(root, [entry.commit, commit]);
+    for (const file of files) {
+      const row = rows.get(file);
+      if (!row || proven.has(file) || blob(entry.commit, file) === null || blob(entry.commit, file) !== blob(commit, file)) continue;
+      if (row.packages.every(name => then.get(name)?.hash === now.get(name)?.hash)) proven.add(file);
+    }
+  }
+  return proven;
 }
 
 /** The affected test files each batch item's submission moved to the landing gate, read from its exact submit. */

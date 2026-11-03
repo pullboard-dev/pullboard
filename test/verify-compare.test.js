@@ -1,4 +1,4 @@
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 import { installSshStandIn, HOST } from './runner-ssh-fixture.js';

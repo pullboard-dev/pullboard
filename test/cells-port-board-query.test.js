@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { cellInventory, mappedPath, readPathMap } from '../packages/codemap/index.js';
 import { commonJsIn, importsIn } from '../packages/gate/index.js';
 import { readPlan } from '../bin/cells-plan.js';
-import { nativeBoardPorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts, openBoard } from '../apps/lib/index.js';
 import * as queries from '../packages/store/index.js';
 import * as store from '../src/board.js';
 import { readyItems } from '../src/queue-readiness.js';
