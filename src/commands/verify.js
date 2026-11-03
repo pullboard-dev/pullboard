@@ -145,18 +145,28 @@ import {
 import { recordedRecovery } from '../../packages/state/index.js';
 import { retryReviewCommit } from '../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
+import { mainRedCheckCases } from './submit.js';
+import { itemCheckBaseline } from '../../packages/store/index.js';
 
 /** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
 const AMBIGUOUS_KNOWN = new WeakMap();
 
 /** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
-export async function knownMainCheck(root, check, { main, item, items, onWait, onMeasuredReceipt, runnerAdmission }) {
+export async function knownMainCheck(root, check, { main, item, items, mainRedItems = items, onWait, onMeasuredReceipt, runnerAdmission }) {
   if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
+  const viaMainRedRepairs = failures => {
+    // The submit rule: a case an open Main red repair's own check fails on this main never fails a re-run (#2610).
+    try {
+      const mainRed = mainRedCheckCases(root, failures, mainRedItems(), item, main, new Map());
+      return mainRed.owned.length && !mainRed.rest.length ? { main, failures: mainRed.owned } : null;
+    } catch { return null; } // An unavailable baseline never grants a pass.
+  };
+  let failures = null;
   try {
     const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : check.output;
     const run = { ...check, isGreen: false, output,
       stages: [{ status: check.exitCode, output }] };
-    const failures = failureSignatures(run, root);
+    failures = failureSignatures(run, root);
     if (!failures?.length) return null;
     // Private checks report paths under their temporary checkout; use the already
     // validated repository-relative failure identities to select main's files.
@@ -170,8 +180,9 @@ export async function knownMainCheck(root, check, { main, item, items, onWait, o
     const split = matched ? splitAmbiguousMainReds(matched, items(), item) : null;
     const linked = split ? linkKnownMainReworks(split.clear, items(), item) : null;
     if (linked && split.ambiguous.length) AMBIGUOUS_KNOWN.set(linked, split.ambiguous); // Kept off the sealed record, shown in the note only.
-    return linked;
-  } catch { return null; } // Preserve CHECK_RED when comparison, identity or ownership cannot be established.
+    if (linked) return linked;
+  } catch { /* An unavailable comparison falls back to the open Main red repairs below. */ }
+  return failures?.length ? viaMainRedRepairs(failures) : null; // Preserve CHECK_RED when ownership cannot be established.
 }
 
 /** Retain exact case identities and repair links in the immutable verdict without calling the raw check green. */
@@ -360,6 +371,8 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (check.state === 'red') {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
             items: () => store.listItems(board, { all: true }), runnerAdmission,
+            mainRedItems: () => store.listItems(board, { all: true })
+              .map(row => { const baseline = itemCheckBaseline(board, row); return baseline ? { ...row, item_check_baseline: baseline } : row; }),
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
             onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
           });
