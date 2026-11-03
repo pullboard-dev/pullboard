@@ -13,6 +13,7 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
 import { AGENT_SHELL_MARKERS } from '../../../kernel/index.js';
 
 /** `inline` runs the checkpoint inside the command, as before #2504; any other value defers it to the worker. */
@@ -21,6 +22,8 @@ export const USAGE_CHECKPOINT_ENV = 'PULLBOARD_USAGE_CHECKPOINT';
 const SESSION_ENV = [...AGENT_SHELL_MARKERS, 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'HOME'];
 const REQUEST = /^\d{15}-\d{12}-[0-9a-z-]+\.json$/u;
 const LOG_LIMIT = 256 * 1024;
+/** How long a due checkpoint waits for another writer of the private ledger before it counts as failed. */
+const LEDGER_WAIT_MS = 120_000;
 
 /** True when this process must checkpoint in its own foreground, the pre-#2504 behaviour. */
 export function usageCheckpointInline(environment = process.env) {
@@ -111,8 +114,14 @@ export async function drainUsageCheckpoints(commonDir, run) {
         let request = null;
         try { request = JSON.parse(readFileSync(file, 'utf8')); } catch { logFailure(directory, 'stage=request'); }
         // A failed checkpoint keeps today's semantics: unpublished revisions go out with the next checkpoint.
-        if (request) {
-          try { await run(request); } catch (error) { logFailure(directory, `stage=checkpoint code=${typeof error?.code === 'string' ? error.code : 'unknown'}`); }
+        for (const started = Date.now(); request;) {
+          try { await run(request); break; }
+          catch (error) {
+            // Another writer holds the private ledger; off the command path, waiting for it costs no one.
+            if (error?.code === 'USAGE_LEDGER' && Date.now() - started < LEDGER_WAIT_MS) { await pause(200); continue; }
+            logFailure(directory, `stage=checkpoint code=${typeof error?.code === 'string' ? error.code : 'unknown'}`);
+            break;
+          }
         }
         rmSync(file, { force: true });
       }
