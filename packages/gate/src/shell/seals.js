@@ -1,6 +1,7 @@
 /** Each package's verdict is sealed to a content hash, and a change unseals exactly the packages whose hash it changes (RFC 0006 A1, A2) [C7,CD44]. */
 import { createHash } from 'node:crypto';
 import {
+  existsSync,
   mkdirSync,
 } from 'node:fs';
 import {
@@ -121,13 +122,17 @@ export function packageHashesAt(root, revs) {
  *
  * @param {string} root
  * @param {{ base: string, head?: string }} change
- * @returns {{ unsealed: { package: string, reason: string, hash: string | null }[], kept: string[] }}
+ * @returns {{ unsealed: { package: string, reason: string, hash: string | null }[], kept: string[], hashes: Map<string, string>, doors: string[] }}
+ *   hashes holds each package's hash at head; doors lists the imported front doors whose bytes changed
  */
 export function unsealedPackages(root, { base, head = 'HEAD' }) {
   const [before, after] = packageHashesAt(root, [base, head]);
-  const unsealed = [], kept = [];
+  const unsealed = [], kept = [], doors = new Set();
   for (const name of [...new Set([...before.keys(), ...after.keys()])].sort()) {
     const was = before.get(name), now = after.get(name);
+    for (const door of new Set([...(was?.doors.keys() ?? []), ...(now?.doors.keys() ?? [])])) {
+      if (was?.doors.get(door) !== now?.doors.get(door) && was?.doors.has(door) && now?.doors.has(door)) doors.add(door);
+    }
     if (was && now && was.hash === now.hash) { kept.push(name); continue; }
     let reason;
     if (!was) reason = 'added';
@@ -136,7 +141,7 @@ export function unsealedPackages(root, { base, head = 'HEAD' }) {
     else reason = `front door ${[...new Set([...was.doors.keys(), ...now.doors.keys()])].filter(door => was.doors.get(door) !== now.doors.get(door)).join(', ')}`;
     unsealed.push({ package: name, reason, hash: now?.hash ?? null });
   }
-  return { unsealed, kept };
+  return { unsealed, kept, hashes: new Map([...after].map(([name, row]) => [name, row.hash])), doors: [...doors].sort() };
 }
 
 /** The seal store sits beside the board in the common Git directory, so every worktree shares one record. */
@@ -185,6 +190,19 @@ export function sealOf(file, name, hash) {
     const row = db.prepare('SELECT package, hash, receipts, tests, sealed_at FROM package_seal WHERE package=? AND hash=?').get(name, hash);
     return row ? { package: row.package, hash: row.hash, receipts: JSON.parse(row.receipts), tests: JSON.parse(row.tests), sealedAt: row.sealed_at } : null;
   } finally { db.close(); }
+}
+
+/**
+ * Whether the store holds any seal at all.
+ * Why: until the first seal exists, selection follows RFC 0006 A6 (touched packages only); after it, A3 applies and a
+ * package with no current seal runs its tests.
+ *
+ * @param {string} file
+ */
+export function sealsExist(file) {
+  if (!existsSync(file)) return false;
+  const db = openSeals(file);
+  try { return Boolean(db.prepare('SELECT 1 FROM package_seal LIMIT 1').get()); } finally { db.close(); }
 }
 
 /**
