@@ -76,6 +76,7 @@ import { claim as applyPreparedClaim } from "./board-claim.js";
 import { release } from "./board-release.js";
 import { submit } from "./board-submit.js";
 import { sealClauseInspection } from "./board-submit.js";
+import { sealStrictRenames } from "./board-submit.js";
 import { reviewReleaseNoteProblem } from "./board-review-release-note.js";
 import { reviewOffer } from "./board-review-offer.js";
 import { reserveReview } from "./board-reserve-review.js";
@@ -424,7 +425,7 @@ export {
   attachItemPatch,
   removeItemPatch,
   release,
-  submit, sealClauseInspection,
+  submit, sealClauseInspection, sealStrictRenames,
   reviewReleaseNoteProblem,
   reviewOffer,
   reserveReview,

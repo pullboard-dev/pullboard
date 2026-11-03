@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
@@ -524,7 +524,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
 
   const surfaceProbe = join(linked, '.schema-surface-probe.mjs');
   writeFileSync(surfaceProbe, `
-    import { serveApi } from './src/api.js'; import { viewApiPorts } from './src/view-api-ports.js'; import { refusalDocument } from './src/next-step-words.js';
+    import { serveApi } from './src/api.js'; import { viewApiPorts } from './apps/view/index.js'; import { refusalDocument } from './src/next-step-words.js';
     import { openBoard, openBoardForRead } from './apps/lib/index.js';
     const apiBoardOpeners = { openBoard, openBoardForRead };
     const root = process.env.PULLBOARD_FIXTURE_REPO;

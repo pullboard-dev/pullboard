@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { test } from 'node:test';
-import { pageRenderScript } from '../../src/view/page-render.js';
+import { pageRenderScript } from '../../apps/view/index.js';
 
 test('page renderer embeds the pure Agents model and HTML renderer as parseable script [N26]', () => {
   const source = pageRenderScript();

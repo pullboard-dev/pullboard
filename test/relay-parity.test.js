@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-import { browserModules } from '../relay/browser-page.js';
+import { browserModules } from '../apps/relay/index.js';
 import { presentationShout } from '../packages/pages/core.js';
 import { presentationShout as nodePresentationShout } from '../packages/pages/index.js';
 import { importsIn } from '../packages/gate/index.js';

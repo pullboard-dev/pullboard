@@ -1,5 +1,5 @@
 /** Compose standalone view projection with the native board opener; borrowed connections keep their owner [N26,A5]. */
-import { projectState as projectProvidedState } from '../serve.js';
+import { projectState as projectProvidedState } from '../../apps/view/index.js';
 import { nativeBoardOpeners } from '../cli-context.js';
 import * as nativeBoard from '../../apps/lib/index.js';
 

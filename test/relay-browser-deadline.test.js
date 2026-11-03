@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { setImmediate as nextTurn } from 'node:timers/promises';
-import { BROWSER_IO_TIMEOUT_MS, browserJSON, withBrowserDeadline } from '../relay/browser-deadline.js';
+import { BROWSER_IO_TIMEOUT_MS, browserJSON, withBrowserDeadline } from '../apps/relay/index.js';
 
 test('a browser operation that ignores cancellation still ends at its deadline [H5,H16]', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
