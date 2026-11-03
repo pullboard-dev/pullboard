@@ -38,9 +38,10 @@ function commitAll(root, message) {
 
 /**
  * The item's frozen base has a clean src/view.css; main then gains one problem there without
- * raising its declared count. The item is built from the frozen base in its own worktree.
+ * raising its declared count, and may rewrite its doctrine rows. The item is built from the
+ * frozen base in its own worktree.
  */
-function repo() {
+function repo({ mainRules } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'doctrine-measured-'));
   roots.push(dir);
   const root = join(dir, 'main');
@@ -51,6 +52,7 @@ function repo() {
   writeFileSync(join(root, 'src', 'app.js'), 'export const app = 1;\n');
   const frozen = commitAll(root, 'chore: frozen base');
   writeFileSync(join(root, 'src', 'view.css'), `${CSS}/* OVER the cap */\n`);
+  if (mainRules) writeFileSync(join(root, 'DOCTRINE.md'), `## C · Code\n${mainRules.join('\n')}\n`);
   const main = commitAll(root, 'feat: main grows the stylesheet over the cap');
   const item = join(dir, 'item');
   git(root, 'worktree', 'add', '-q', '-b', 'core/item', item, frozen);
@@ -107,5 +109,24 @@ test('a second hold on the same main commit reads main\'s measured count from th
   for (const name of cached) writeFileSync(join(folder, name), JSON.stringify({ problems: ['src/view.css:3:/* OVER the cap */', 'src/view.css:4:/* OVER again */'] }));
   const [result] = hold(box, commit);
   assert.equal(result.committed, 2);
+  assert.equal(result.holds, true);
+});
+
+test('a rule added on main after the frozen base holds the item [C7]', () => {
+  const box = repo({ mainRules: [RULE, '- C10 [approved, must] Scripts carry no TODO markers. | gate: check grep -rn TODO src || true | count: 0'] });
+  git(box.item, 'merge', '-q', '--no-edit', 'main');
+  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2; // TODO\n');
+  const commit = commitAll(box.item, 'feat: change the app');
+  assert.throws(() => hold(box, commit), (error) => error.code === 'RATCHET_ROSE' && error.message.includes('C10 Scripts carry no TODO markers. rose to 1, was 0'));
+});
+
+test('a declared count above main\'s measured total never loosens the baseline [C7]', () => {
+  const box = repo({ mainRules: [RULE.replace('count: 0', 'count: 2')] });
+  writeFileSync(join(box.item, 'src', 'app.js'), 'export const app = 2;\n');
+  commitAll(box.item, 'feat: change the app');
+  git(box.item, 'merge', '-q', '--no-edit', 'main');
+  const [result] = hold(box, git(box.item, 'rev-parse', 'HEAD'));
+  assert.equal(result.count, 1);
+  assert.equal(result.committed, 1, 'declared 2, measured 1: the baseline is 1');
   assert.equal(result.holds, true);
 });

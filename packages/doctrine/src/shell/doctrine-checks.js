@@ -378,9 +378,10 @@ function* measuredMain(root, mainCommit, command, timeoutMs) {
  * @returns {ReturnType<typeof doctrineReport>}
  */
 function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_FILE, timeoutMs = DEFAULT_TIMEOUT_MS, runCheck }) {
+  // Current main is resolved first, so a rule added or changed on main since the frozen base applies.
+  mainCommit = currentMain(root, mainCommit, commit);
   const rules = checkRulesAt(root, mainCommit, practice).filter((rule) => rule.runs === 'submit');
   if (!rules.length) return [];
-  mainCommit = currentMain(root, mainCommit, commit);
   const lowered = new Map(checkRulesAt(root, commit, practice).map((rule) => [rule.id, rule.count]));
   const base = (gitOut(root, ['merge-base', mainCommit, commit]) ?? '').trim() || mainCommit;
   const diff = gitOut(root, ['diff', '-z', '--no-renames', '--name-only', base, commit, '--']);
@@ -400,10 +401,11 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
       const globalInputs = [practice, DOCTRINE_FILE, LEGACY_DOCTRINE_FILE, 'pullboard.json', 'package.json'];
       if (inputs && !changed.some(path => globalInputs.includes(path) || inputs.some(input => input.path === `project:${path}`))) continue;
     }
-    // Main's measured problems are the baseline; an item that lowers its declared count is held to that.
+    // Main's measured total is the baseline, never its declared count; an item that lowers its declaration is held below it.
     const main = rule.mode === 'watch' ? { problems: [], broken: '' } : yield* measuredMain(root, mainCommit, rule.command, timeoutMs);
     const declared = lowered.get(rule.id) ?? rule.count;
-    const committed = declared < rule.count ? declared : main.broken ? rule.count : Math.max(rule.count, main.problems.length);
+    const measured = main.broken || rule.mode === 'watch' ? rule.count : main.problems.length;
+    const committed = declared < rule.count ? Math.min(declared, measured) : measured;
     // A clean checkout lets a file-local rule look only at the changed paths (and the moved paths' origins).
     const scope = canFingerprint ? changed.filter((path) => inScope(rule.files, path)) : undefined;
     const run = yield { commit, command: rule.command, timeoutMs, candidate: true, scope };
