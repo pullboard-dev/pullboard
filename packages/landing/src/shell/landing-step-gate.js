@@ -38,6 +38,9 @@ import { landingFailures } from './landing-step-failures.js';
 import { save } from './landing-step-merge.js';
 import { coveredFailures } from './landing-step-failures.js';
 import { accountedFailures } from './landing-step-failures.js';
+import { knownMainAccount } from './landing-known-main.js';
+import { knownMainFields } from './landing-known-main.js';
+import { knownMainLine } from './landing-known-main.js';
 import { liveWaiverProjection } from './landing-step-failures.js';
 import { mergeGroup } from './landing-step-merge.js';
 import { landingOperations } from './landing-step-merge.js';
@@ -146,6 +149,8 @@ export async function gateGroup(state, label, options) {
   if (!failures) throw new Refused('LAND_DIAGNOSTIC', 'the gate lost its complete native quarantine failure account');
   const result = { ...gate, failures, accounted: blockingFailures(gate, accountedFailures(gate, state.batch.root)), complete: completeGate(gate),
     requiresGreen: Boolean(cached && !completeGate(cached)), tree, logPath, affectedGate };
+  const known = await knownMainAccount(state, result);
+  if (known) { Object.assign(result, knownMainFields(result, known)); state.say(knownMainLine(known)); await save(state, { knownMain: known.known }); }
   state.gates.set(tree, result);
   const evidence = state.batch.invariantEvidence ?? { version: 1, gates: [], diagnostics: [] };
   const tested = { commit, isGreen: gate.isGreen && completeGate(gate),
