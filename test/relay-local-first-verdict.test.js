@@ -41,7 +41,7 @@ function submittedBoard(t) {
   // Synthetic replay actors use native registration, not forged credentials or a production board.
   const reviewer = store.register(board, { lane: 'web', path: join(box.dir, 'offline-reviewer') });
   const peer = store.register(board, { lane: 'web', path: join(box.dir, 'peer-reviewer') });
-  return { box, board, item, reviewer, peer, handles };
+  return { box, helpers, board, item, reviewer, peer, handles };
 }
 
 /** Bind a verdict to the submitted and checked head, using the current native review wire shape. */
@@ -58,7 +58,7 @@ function apply(board, move, sequence) {
 }
 
 test('a queued accept for an old head is refused after a peer resubmission on both replicas [H21,V1,H16]', async t => {
-  const { box, board, item, reviewer, peer, handles } = submittedBoard(t);
+  const { box, helpers, board, item, reviewer, peer, handles } = submittedBoard(t);
   const directory = join(box.dir, 'replay-copies');
   mkdirSync(directory);
   const snapshot = exportBoard(board);
@@ -84,10 +84,13 @@ test('a queued accept for an old head is refused after a peer resubmission on bo
     head: item.item_commit, freeze: () => ({ text: frozen, digest: createHash('sha256').update(frozen).digest('hex') }) }],
   { id: 'peer-claims-rework', actor: item.item_built_by });
   assert.equal(apply(online, claim, 2).error, undefined);
-  const nextCommit = 'b'.repeat(40);
+  assert.equal(helpers.commitFile(box, box.web, 'web/page.html', '<h1>Updated head</h1>',
+    'feat(web): update the private page [G1]').status, 0);
+  const nextCommit = box.git(box.web, 'rev-parse', 'HEAD');
+  const nextTree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
   // Only this replacement submission is synthetic: its descriptor explicitly declares that it ran no gate.
   const submission = prepareEngineMove(online, 'submit', [1, { agentId: item.item_built_by, commit: nextCommit,
-    tree: 'c'.repeat(40), submissionProof: { version: 1, files: [], full: false, deferred: true,
+    tree: nextTree, submissionProof: { version: 1, files: [], full: false, deferred: true,
       reason: 'synthetic resubmission for replay semantics; no gate execution' } }],
   { id: 'peer-submits-new-head', actor: item.item_built_by });
   assert.equal(apply(online, submission, 3).error, undefined);
