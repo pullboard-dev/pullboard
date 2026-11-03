@@ -49,6 +49,7 @@ function finish() {
   for (let i = 0; i < 32; i++) fs.writeFileSync(path.join(late, String(i)), 'late write');
   fs.writeFileSync(done, '32');
   watcher.close();
+  process.exit(0);
 }
 const watcher = fs.watch(path.dirname(release), finish);
 fs.writeFileSync(done + '.ready', 'ready');
@@ -65,8 +66,10 @@ writeFileSync(${JSON.stringify(sandboxFile)}, sandbox);
 channel('pullboard:test-child-drain').subscribe(event => writeFileSync(${JSON.stringify(marker)}, JSON.stringify(event)));
 process.once('exit', () => writeFileSync(${JSON.stringify(exiting)}, JSON.stringify({ writerFinished: existsSync(${JSON.stringify(done)}) })));
 test('the owned child writes during runner cleanup [C7]', async () => {
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT; // This finite writer is not another native test worker.
   const child = spawn(process.execPath, [${JSON.stringify(join(directory, 'writer.cjs'))}, sandbox, ${JSON.stringify(release)}, ${JSON.stringify(done)}],
-    { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
+    { env, stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
   await once(child, 'message');
   child.disconnect();
   child.unref();
@@ -89,6 +92,7 @@ test('the owned child writes during runner cleanup [C7]', async () => {
   const result = await outcome;
   assert.equal(result.status, 0, result.context + result.stdout);
   assert.match(result.stdout, /# fail 0/u);
+  assert.doesNotMatch(result.stderr, /SANDBOX_CLEANUP_DEFERRED/u, result.context);
   assert.equal(readFileSync(done, 'utf8'), '32', 'all late writes finished');
   assert.deepEqual(JSON.parse(readFileSync(exiting, 'utf8')), { writerFinished: true }, 'the child closed before its worker exited');
   assert.equal(existsSync(readFileSync(sandboxFile, 'utf8')), false, 'the real runner removed its sandbox without a second fixture cleanup');
