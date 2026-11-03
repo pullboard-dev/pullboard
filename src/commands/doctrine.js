@@ -1,5 +1,5 @@
 /** The pullboard doctrine command, in its own module so an item adding another command never edits these lines. */
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import {
   checkRulesAt,

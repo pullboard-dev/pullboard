@@ -47,7 +47,7 @@ import { remoteSubmitAnalysis } from '../submit-remote-gate.js';
 import { doctrineRunnerChecks } from '../submit-remote-gate.js';
 export { doctrineExecutionPhases } from '../submit-remote-gate.js';
 import { loadMachineSettings } from '../../packages/config/index.js';
-import { effectiveRunners } from '../runner-slots.js';
+import { effectiveRunners } from '../../packages/runners/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
 import {
   retainTestOutput,
@@ -60,7 +60,7 @@ import { quarantineVerdictSnapshot } from '../../packages/flakes/index.js';
 import { withBoardRead as waitBoardRead } from '../cli-context.js';
 import { retrySync } from '../cli-sync.js';
 import { checkAtCommit } from '../../apps/runner/index.js';
-import { runnerExecutionServices } from '../runners.js';
+import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { submitGateConfig } from '../../packages/gate/index.js';
 import { createHash } from 'node:crypto';

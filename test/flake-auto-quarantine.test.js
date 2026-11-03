@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { flakyProject, TITLE } from '../packages/git/tests/flakes-fixture.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import { commitFixtureFiles } from './package-copy-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
 import { openBoard, flakeQuarantines, gateRuns } from '../apps/lib/index.js';

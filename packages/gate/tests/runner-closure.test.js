@@ -6,7 +6,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { runnerPackage } from '../../../src/runner-package.js';
+import { runnerPackage } from '../../runners/index.js';
 
 const ROOT = dirname(fileURLToPath(new URL('../../../package.json', import.meta.url)));
 /** The gate modules the worker closure reached before the move, by their old paths. */
