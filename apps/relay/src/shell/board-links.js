@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Refused } from '../../../../packages/kernel/index.js';
 import { apiJson } from '../../../../packages/api/index.js';
 import { readApiBody } from '../../../../packages/api/index.js';
-import { openBoard } from '../../../../src/native-board.js';
+import { openBoard } from '../../../../apps/lib/index.js';
 import { closeBoard } from '../../../../packages/store/index.js';
 import { atomic } from '../../../../packages/store/index.js';
 import { readBoardLinks } from '../../../../packages/store/index.js';
