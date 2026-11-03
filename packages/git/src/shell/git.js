@@ -54,12 +54,13 @@ export function withGitReadFacts(work) {
  * @returns {Promise<unknown>}
  */
 export async function withGitFacts(work, { resumeSources = false } = {}) {
-  const cache = { active: true, facts: new Map(), adapterFacts: new WeakMap(), resumeSources };
+  const cache = { active: true, facts: new Map(), observations: new Map(), adapterFacts: new WeakMap(), resumeSources };
   const run = () => gitFacts.run(cache, async () => {
     try { return await work(); }
     finally {
       cache.active = false;
       cache.facts.clear();
+      cache.observations.clear();
     }
   });
   // CLI authority must always use fresh Git facts, even when invoked from an API read callback.
@@ -370,6 +371,23 @@ export function commandFact(key, read) {
   return fact(`command:${key}`, read);
 }
 
+/**
+ * Reuse one observation of working files for the rest of this command. Unlike a fact it outlives the fresh-facts reset
+ * a write takes before its lock: that reset is for policy, and a command reports one view of each seat's edits.
+ *
+ * @param {string} key
+ * @param {() => any} read
+ * @returns {any}
+ */
+export function commandObservation(key, read) {
+  const cache = gitFacts.getStore();
+  if (!cache?.active || currentGitAdapter() !== realGitAdapter) return read();
+  if (cache.observations.has(key)) return cache.observations.get(key);
+  const value = read();
+  cache.observations.set(key, value);
+  return value;
+}
+
 /** Read one Git config value with its status, reusing the same query for this command.
  *
  * @param {string} root
@@ -431,6 +449,8 @@ export function mainSourceBlobs(root) {
  * @returns {{ branch: string, commit: string | null } | null}
  */
 function readMainCheckout(root) {
+  const files = fileMainCheckout(root);
+  if (files !== undefined) return files;
   const env = cleanGitEnvironment();
   /** Run one Git lookup with the sanitized environment. */
   const gitCall = (args) => gitSpawnSync([...GIT_FLAGS, ...args], {
@@ -446,6 +466,94 @@ function readMainCheckout(root) {
   const resolved = gitCall(['--git-dir', commonDir, 'rev-parse', '--verify', '--quiet', `${branch}^{commit}`]);
   if (resolved.status !== 0 && resolved.status !== 1) throw new Refused('NO_POLICY', 'the primary checkout commit cannot be read; restore its Git objects and ask the coordinator to retry');
   return { branch, commit: resolved.status === 0 ? resolved.stdout.trim() : null };
+}
+const OBJECT_ID = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
+
+/**
+ * Locate a checkout's Git metadata from its files: the worktree Git dir and the shared one. Undefined when an inherited
+ * selector, a reftable store or an unusual layout means only Git can answer, so callers fall back to Git itself.
+ * Why: a board command read these three facts with three Git processes, each costing more than the read.
+ */
+function fileLocation(root) {
+  if (!plainRepositoryEnvironment()) return undefined;
+  try {
+    let top = resolve(root);
+    while (!existsSync(join(top, '.git'))) { const parent = dirname(top); if (parent === top) return undefined; top = parent; }
+    const marker = join(top, '.git');
+    let gitDir = marker;
+    if (!statSync(marker).isDirectory()) {
+      const match = /^gitdir:\s*(.+)$/u.exec(readFileSync(marker, 'utf8').trim());
+      if (!match) return undefined;
+      gitDir = resolve(top, match[1].trim());
+    }
+    const commonFile = join(gitDir, 'commondir');
+    const commonDir = existsSync(commonFile) ? resolve(gitDir, readFileSync(commonFile, 'utf8').trim()) : gitDir;
+    if (existsSync(join(commonDir, 'reftable'))) return undefined;
+    return { gitDir, commonDir };
+  } catch { return undefined; }
+}
+
+/** Read a HEAD file: its symbolic ref, or null when detached; undefined when the file is not a plain HEAD. */
+function fileHeadRef(gitDir) {
+  try {
+    const head = readFileSync(join(gitDir, 'HEAD'), 'utf8').trim();
+    if (head.startsWith('ref: refs/')) return head.slice('ref: '.length);
+    return OBJECT_ID.test(head) ? null : undefined;
+  } catch { return undefined; }
+}
+
+/** Resolve a branch from a loose or packed ref: its commit, null when absent, undefined when unreadable. */
+function fileRefCommit(commonDir, ref) {
+  try {
+    const loose = join(commonDir, ref);
+    if (existsSync(loose)) { const value = readFileSync(loose, 'utf8').trim(); return OBJECT_ID.test(value) ? value : undefined; }
+    const packed = join(commonDir, 'packed-refs');
+    if (!existsSync(packed)) return null;
+    const line = readFileSync(packed, 'utf8').split('\n').find(row => row.endsWith(` ${ref}`) && !row.startsWith('#') && !row.startsWith('^'));
+    if (!line) return null;
+    const value = line.slice(0, line.indexOf(' '));
+    return OBJECT_ID.test(value) ? value : undefined;
+  } catch { return undefined; }
+}
+
+/** The primary checkout's branch and commit from Git's files, or undefined when Git must answer. */
+function fileMainCheckout(root) {
+  const location = fileLocation(root);
+  if (!location) return undefined;
+  const branch = fileHeadRef(location.commonDir);
+  if (branch === undefined) return undefined;
+  if (branch === null) return null;
+  const commit = fileRefCommit(location.commonDir, branch);
+  return commit === undefined ? undefined : { branch, commit };
+}
+
+/**
+ * The short branch name a checkout has checked out, or null when detached or unknown, read from its HEAD file when
+ * Git's own files can answer; otherwise Git answers, as symbolic-ref --short does.
+ *
+ * @param {string} root
+ * @returns {string | null}
+ */
+export function checkoutBranch(root) {
+  const location = fileLocation(root);
+  const ref = location ? fileHeadRef(location.gitDir) : undefined;
+  if (ref !== undefined) return ref === null ? null : ref.replace(/^refs\/heads\//u, '');
+  const result = tryGit(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  return result.status === 0 ? result.stdout : null;
+}
+
+/**
+ * A checkout's shared Git directory, read from its files when they can answer; otherwise from Git in env.
+ *
+ * @param {string} root
+ * @param {{ env?: NodeJS.ProcessEnv }} [options]
+ * @returns {string | null}
+ */
+export function checkoutCommonDir(root, { env = process.env } = {}) {
+  const location = fileLocation(root);
+  if (location) return location.commonDir;
+  const result = tryGit(root, ['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], { env });
+  return result.status === 0 ? result.stdout : null;
 }
 const CODE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -827,8 +935,11 @@ export function contains(root, ancestor, descendant) {
  * @returns {string}
  */
 export function gitPath(root, name) {
-  return fact(`gitPath:${JSON.stringify([resolve(root), name])}`,
-    () => resolve(root, git(root, ['rev-parse', '--git-path', name])));
+  return fact(`gitPath:${JSON.stringify([resolve(root), name])}`, () => {
+    // Pullboard's own per-worktree files are names Git does not share, which Git places in the worktree's Git dir.
+    const location = /^pullboard-[\w.-]+$/u.test(name) ? fileLocation(root) : undefined;
+    return location ? join(location.gitDir, name) : resolve(root, git(root, ['rev-parse', '--git-path', name]));
+  });
 }
 
 /** Refuse lane-sensitive history checks while grafts can rewrite commit ancestry despite replacement guards [L3]. */

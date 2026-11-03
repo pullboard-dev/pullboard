@@ -1,5 +1,5 @@
 import { activityWorkingFiles } from './activity-inbox.js';
-import { commandFact } from '../../../git/index.js';
+import { commandObservation } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 
 /** Observe each claimed seat from Git, including staged, unstaged, untracked and committed changes. */
@@ -9,12 +9,13 @@ export function claimWorktrees(items, agents) {
     const root = seats.get(item.item_owner);
     if (!root) return [item.item_id, { files: [], unknown: true }];
     // One command reads each seat's worktree once, however many of its steps ask (next asked four times).
-    return [item.item_id, commandFact(JSON.stringify(['claim-worktree', root, item.item_claim_head ?? null]), () => {
+    return [item.item_id, commandObservation(JSON.stringify(['claim-worktree', root, item.item_claim_head ?? null]), () => {
       // A merged trunk commit belongs to main, not this claim. Retain the claim anchor when main is unavailable.
       const common = tryGit(root, ['merge-base', 'HEAD', 'main']);
       const base = common.status === 0 ? common.stdout.trim() : '';
+      // A commit is its own ancestor, so the common case of an unmoved claim base needs no Git process.
       const validBase = /^[a-f0-9]{40}$/u.test(base) && /^[a-f0-9]{40}$/u.test(item.item_claim_head ?? '')
-        && tryGit(root, ['merge-base', '--is-ancestor', item.item_claim_head, base]).status === 0;
+        && (item.item_claim_head === base || tryGit(root, ['merge-base', '--is-ancestor', item.item_claim_head, base]).status === 0);
       return activityWorkingFiles(root, [{ ...item, item_claim_head: validBase ? base : item.item_claim_head }]);
     })];
   }));
