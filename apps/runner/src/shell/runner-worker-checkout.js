@@ -30,6 +30,12 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
+/**
+ * A job checkout's fetches advertise only refs as haves, never a detached HEAD, so a borrowed warm
+ * checkout names its base here; without it the cache resends the whole history on every job.
+ */
+const WARM_BASE_REF = 'refs/pullboard/warm-base';
+
 /** Receive the negotiated history pack after the worker announces the cache's candidate tips. */
 async function receivePack(packFile) {
   await pipeline(process.stdin, createWriteStream(packFile, { mode: 0o600, flags: 'wx' }));
@@ -158,9 +164,16 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     const candidateHistory = new Set((await git(S, cache, ['rev-list', spec.commit], env)).split(/\r?\n/u).filter(Boolean));
     if (!candidateHistory.size) throw new Error('source history is incomplete');
     if (spec.originBase && !candidateHistory.has(spec.originBase)) throw new Error('source history does not contain its origin base');
-    const closure = new Set((await git(S, cache, ['rev-list', '--objects', ...roots], env)).split(/\r?\n/u)
-      .map(line => line.match(/^([a-f0-9]{40,64})(?:\s|$)/u)?.[1]).filter(Boolean));
-    closure.add(spec.commit);
+    /** Objects reachable from the roots, optionally excluding what the cache's earlier tips already reach. */
+    const reachable = async (exclude = []) => {
+      const objects = new Set((await git(S, cache, ['rev-list', '--objects', '--stdin'], env,
+        `${[...roots, ...exclude.map(tip => `^${tip}`)].join('\n')}\n`)).split(/\r?\n/u)
+        .map(line => line.match(/^([a-f0-9]{40,64})(?:\s|$)/u)?.[1]).filter(Boolean));
+      objects.add(spec.commit);
+      return objects;
+    };
+    // The pack was cut against the announced tips, so only new objects need walking; the full closure is the fallback.
+    let closure = await reachable(uniqueTips);
     const tagObjects = new Set(spec.tags.flatMap(tag => tag.chain));
     const packDirectory = join(cache, 'objects', 'pack');
     const newIndexes = readdirSync(packDirectory).filter(name => name.endsWith('.idx') && !priorIndexes.has(name));
@@ -171,9 +184,9 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
         if (object) received.add(object);
       }
     }
-    if ([...received].some(object => !closure.has(object) && !tagObjects.has(object))) {
-      throw new Error('source history pack contains missing or unrelated objects');
-    }
+    const unrelated = () => [...received].some(object => !closure.has(object) && !tagObjects.has(object));
+    if (uniqueTips.length && unrelated()) closure = await reachable();
+    if (unrelated()) throw new Error('source history pack contains missing or unrelated objects');
     const tagBodies = requestedTagObjects.length
       ? tagObjectBodies(requestedTagObjects, await gitBytes(S, cache, ['cat-file', '--batch'], env, `${requestedTagObjects.join('\n')}\n`))
       : new Map();
@@ -200,7 +213,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
           }
           target = next;
         }
-      } else if (tag.object !== tag.peeledCommit || !closure.has(tag.object)) {
+      } else if (tag.object !== tag.peeledCommit || !candidateHistory.has(tag.object)) {
         throw new Error('lightweight source tag does not point into candidate history');
       }
       if (!candidateHistory.has(tag.peeledCommit)) throw new Error('source tag is not an ancestor of the candidate');
@@ -213,6 +226,7 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     measured.reusedCommit = warm?.reusedCommit ?? null;
     if (!measured.reusedCommit) await git(S, root, ['init', '-q', `--object-format=${spec.commit.length === 64 ? 'sha256' : 'sha1'}`], env);
     if (measured.reusedCommit !== spec.commit) {
+      if (measured.reusedCommit) await git(S, root, ['update-ref', WARM_BASE_REF, measured.reusedCommit], env);
       await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache, `refs/pullboard/candidates/${spec.commit}`], env);
       await git(S, root, ['checkout', '--detach', 'FETCH_HEAD'], env);
     }
@@ -220,8 +234,11 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
     if (spec.trunk) {
       await git(S, root, ['check-ref-format', spec.trunk.ref], env);
       if (candidateHistory.has(spec.trunk.commit)) await git(S, root, ['update-ref', spec.trunk.ref, spec.trunk.commit], env);
-      else await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
-        `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
+      else {
+        await git(S, root, ['update-ref', WARM_BASE_REF, spec.commit], env);
+        await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', cache,
+          `refs/pullboard/candidates/${spec.trunk.commit}:${spec.trunk.ref}`], env);
+      }
       await git(S, root, ['config', '--local', '--replace-all', 'pullboard.trunk', spec.trunk.ref], env);
       writeFileSync(join(root, '.git', RUNNER_POLICY_FILE), JSON.stringify(runnerPolicyRecord(spec)), { mode: 0o600 });
     }
