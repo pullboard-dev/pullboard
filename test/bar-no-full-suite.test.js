@@ -59,7 +59,7 @@ test('add and edit refuse per-item criteria that require the full suite or CI [S
   }
 });
 
-test('the coordinator sweep edits open and claimed legacy bars, records old wording, and reports submitted bars', () => {
+test('the coordinator sweep edits open and claimed legacy bars, records old wording, and reports submitted bars [S10]', () => {
   const sandbox = e2e.sandbox();
   sandbox.env.PULLBOARD_MODEL = 'Fixture coordinator';
   const box = e2e.project('true', sandbox);
