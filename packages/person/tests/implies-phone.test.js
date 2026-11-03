@@ -12,6 +12,7 @@ import {
 } from "../../kernel/src/core/seal.js";
 import { ENGINE_VERSION } from "../../state/index.js";
 
+const outboxUrl = pathToFileURL(resolve(import.meta.dirname, '../../outbox/index.js')).href;
 const url = (name) => pathToFileURL(resolve(import.meta.dirname, '../../../src/' + name + '.js')).href;
 
 /**
@@ -33,11 +34,12 @@ async function phoneAnswer(box, phone, { id, ask, args, options }) {
     const {syncRelay,relayRequestDevice,relayOperation}=await import(${JSON.stringify(url('relay'))});
     const {personRequestRecords,requestIntentDigest,requestStageText}=await import(${JSON.stringify(url('relay-requests'))});
     const store=await import(${JSON.stringify(url('board'))});
-    const {openBoard}=await import(${JSON.stringify(url("native-board"))});
+    const {openBoard,nativeBoardPorts}=await import(${JSON.stringify(url("native-board"))});
+    const {replay:replayConflictRecord,ACKNOWLEDGED_OPERATIONS,outboxQueueable,...outboxDoors}=await import(${JSON.stringify(outboxUrl)});
     const {loadConfig}=await import(${JSON.stringify(url('config'))});
     const {laneNames}=await import(${JSON.stringify(url('lanes'))});
     const root=process.cwd(), sink={isTTY:false,write(){}};
-    const io={cwd:root,stdout:sink,stderr:sink,say(){},err(){},onEvent(){},skipPersonRequests:true};
+    const io={...outboxDoors,replayConflictRecord,outboxPolicy:()=>({acknowledgedOperations:ACKNOWLEDGED_OPERATIONS,outboxQueueable}),openBoard,nativeBoardPorts,cwd:root,stdout:sink,stderr:sink,say(){},err(){},onEvent(){},skipPersonRequests:true};
     await syncRelay(root,io);
     const executor=await relayRequestDevice(root);
     const read=()=>{const b=openBoard(root+'/.git/pullboard/board.sqlite');try{return personRequestRecords(b).find(r=>r.id===${JSON.stringify(id)}&&!r.duplicateOf);}finally{store.closeBoard(b);}};
