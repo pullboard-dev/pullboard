@@ -221,6 +221,8 @@ function itemLeaseFixture(t, helpers) {
     const root = join(box.dir, `queue-review-${number}`);
     box.git(box.repo, 'worktree', 'add', '-q', '--detach', root, box.reviewCommits[number - 1]);
     clockedCli(box, root, 'join', 'api', '--json');
+    // A distinct clean reviewer HEAD prevents proof reuse: this fixture must exercise a queued real check.
+    box.git(root, 'commit', '--allow-empty', '-q', '-m', 'test: run the queued review check');
     box.reviewers.push(root);
   }
   box.checker = join(box.dir, 'queue-build-check');
