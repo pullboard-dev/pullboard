@@ -1,6 +1,6 @@
 /** Unmerged source protects both shared formats, including indirect openers and real hooks [A5,A6]. */
-import { copyPackageFiles } from '../src/package-files.js';
-import { toolSourcePath } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { toolSourcePath } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';

@@ -2,7 +2,7 @@ import { prepareFlakeLanding } from './landing-step-publish.js';
 import { hasTestTiers } from '../../../gate/index.js';
 /** Coordinator landing trunk step; source-preserving partition of land.js [B3,R3,C7]. */
 import { completeGate } from './landing-completion.js';
-import { runnerExecutionServices } from '../../../../src/runners.js';
+import { runnerExecutionServices } from '../../../runners/index.js';
 import { landingExecutionServices } from './landing-shards.js';
 import { runDeferredGuards } from './landing-deferred-run.js';
 import { requireLocalGuardClassification } from '../core/land-local-guard.js';

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { after, test } from 'node:test';
-import { checkSourceTagNames } from '../src/runner-source-cache.js';
+import { checkSourceTagNames } from '../packages/runners/index.js';
 import { takeResource } from '../packages/resources/index.js';
 import { cleanupFixtureChildren, runFixtureChild } from './fixture-child.js';
 import { HOST, installSshStandIn, shellQuote } from './runner-ssh-fixture.js';

@@ -33,6 +33,7 @@ import { ENGINE_VERSION } from '../src/shell/machine.js';
 import { QUOTED_LANDING_FAILURE_ENGINE } from '../../../src/quoted-landing-failure-engine.js';
 import { AGENT_GRANT_ENGINE } from '../../../src/agent-grant-engine.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { runCliInProcess } from '../../../test/cli-in-process-fixture.js';
 import { safeFixtureDiagnostic } from '../../../test/fixture-child.js';
 import { correctedNoVerdictReopen } from '../../items/index.js';
 import { unpackRelease } from '../../../test/release-archive.js';
@@ -51,6 +52,11 @@ function project(...args) {
     return run(cwd, ...argv);
   };
   return box;
+}
+
+/** Run repeated reopen probes through awaited production parsing and native board dispatch. */
+function reopenCommand(box, cwd, ...args) {
+  return runCliInProcess(['reopen', ...args], { cwd, env: box.env });
 }
 
 /** Open the real board SQLite file created by the CLI fixture and close it with the test. */
@@ -250,26 +256,26 @@ async function assertLegacyVerifiedReopen(t, box, item, note) {
   }
 }
 
-test('the coordinator reopens a submitted item without a verdict [V2,V6,O8]', (t) => {
+test('the coordinator reopens a submitted item without a verdict [V2,V6,O8]', async (t) => {
   const box = project();
   const submitted = submitFixture(box);
   reserveFixtureReview(box);
 
-  const wrongCaller = box.run(box.web, 'reopen', '1', '--note', 'criterion wording needs correction', '--json');
+  const wrongCaller = await reopenCommand(box, box.web, '1', '--note', 'criterion wording needs correction', '--json');
   assert.equal(wrongCaller.code, 1);
   assert.equal(JSON.parse(wrongCaller.out).error.code, 'COORDINATOR_ONLY');
-  const missingNote = box.run(box.repo, 'reopen', '1', '--note', ' ', '--json');
+  const missingNote = await reopenCommand(box, box.repo, '1', '--note', ' ', '--json');
   assert.equal(missingNote.code, 1);
   assert.equal(JSON.parse(missingNote.out).error.code, 'NOTE_REQUIRED');
 
   assert.notEqual(box.git(box.repo, 'rev-parse', 'HEAD'), submitted.commit, 'the coordinator stays at its own head');
-  const reopened = box.run(box.repo, 'reopen', '1', '--note', 'correct the frozen criterion, not the work', '--json');
+  const reopened = await reopenCommand(box, box.repo, '1', '--note', 'correct the frozen criterion, not the work', '--json');
   assert.equal(reopened.code, 0, reopened.err);
   const result = JSON.parse(reopened.out);
   assert.equal(result.version, 1);
   assert.equal(result.id, 1);
   assert.equal(result.commit, submitted.commit);
-  const alreadyOpen = box.run(box.repo, 'reopen', '1', '--note', 'try twice', '--json');
+  const alreadyOpen = await reopenCommand(box, box.repo, '1', '--note', 'try twice', '--json');
   assert.equal(alreadyOpen.code, 1);
   assert.equal(JSON.parse(alreadyOpen.out).error.code, 'NOT_SUBMITTED');
 
@@ -305,11 +311,11 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   acceptLandingFixture(box, item);
   const mergeCommit = 'b'.repeat(40);
   const note = `web/landing.test.js: "keeps; the \\"landed\\" behavior"; web/other.test.js: "finds; the event"; merge commit ${mergeCommit}`;
-  const malformed = box.run(box.repo, 'reopen', String(item.id), '--note',
+  const malformed = await reopenCommand(box, box.repo, String(item.id), '--note',
     `web/landing.test.js: "keeps; the landed behavior; merge commit ${mergeCommit}`, '--json');
   assert.equal(malformed.code, 1);
   assert.equal(JSON.parse(malformed.out).error.code, 'LANDING_FAILURE_REQUIRED');
-  const malformedUnquoted = box.run(box.repo, 'reopen', String(item.id), '--note',
+  const malformedUnquoted = await reopenCommand(box, box.repo, String(item.id), '--note',
     `web/landing.test.js: ; merge commit ${mergeCommit}`, '--json');
   assert.equal(malformedUnquoted.code, 1);
   assert.equal(JSON.parse(malformedUnquoted.out).error.code, 'LANDING_FAILURE_REQUIRED');
@@ -322,7 +328,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   }
   finally { store.closeBoard(board); }
 
-  const reopened = box.run(box.repo, 'reopen', String(item.id), '--note', note, '--json');
+  const reopened = await reopenCommand(box, box.repo, String(item.id), '--note', note, '--json');
   assert.equal(reopened.code, 0, [reopened.err, reopened.out].filter(Boolean).join('\n'));
   assert.match(JSON.parse(malformed.out).error.next,
     /--note '<test file>: "<test name; with semicolon>"; merge commit <sha>'/u,
@@ -411,7 +417,7 @@ test('a reopen note can cite a test whose name contains a semicolon [V2,V6,H16]'
   const unquotedItem = submitLandingFixture(box, 62, 'export const status = "PASS_UNQUOTED";\n', unquotedWorktree);
   acceptLandingFixture(box, unquotedItem);
   const unquotedNote = `review context: web/landing.test.js: keeps the landed behavior; merge commit ${'c'.repeat(40)}`;
-  const unquotedReopen = box.run(box.repo, 'reopen', String(unquotedItem.id), '--note', unquotedNote, '--json');
+  const unquotedReopen = await reopenCommand(box, box.repo, String(unquotedItem.id), '--note', unquotedNote, '--json');
   assert.equal(unquotedReopen.code, 0, [unquotedReopen.err, unquotedReopen.out].filter(Boolean).join('\n'));
   assert.deepEqual(JSON.parse(unquotedReopen.out).landingFailure.tests,
     [{ file: 'web/landing.test.js', name: 'keeps the landed behavior' }],
@@ -427,7 +433,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   assert.ok(originalAccept, 'the item begins with an actual accept event');
   requireLandingBehavior(box);
 
-  const nonCoordinator = box.run(item.cwd, 'reopen', String(item.id), '--note', 'coordinator only', '--json');
+  const nonCoordinator = await reopenCommand(box, item.cwd, String(item.id), '--note', 'coordinator only', '--json');
   assert.equal(JSON.parse(nonCoordinator.out).error.code, 'COORDINATOR_ONLY');
 
   const landing = box.run(box.repo, 'land', '--max', '1', '--json');
@@ -504,7 +510,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   }, 'the exact landing-generated note prefix retains every failure when the batch is absent');
   assert.deepEqual(JSON.parse(store.events(generatedBoard).at(-1).event_detail).landingFailure, generatedReopen.landingFailure,
     'the absent-batch fallback records every generated failure in immutable history');
-  const noNamedTest = manualBox.run(manualBox.repo, 'reopen', String(manualItem.id), '--note', `merge commit ${'d'.repeat(40)}`, '--json');
+  const noNamedTest = await reopenCommand(manualBox, manualBox.repo, String(manualItem.id), '--note', `merge commit ${'d'.repeat(40)}`, '--json');
   assert.equal(noNamedTest.code, 1);
   assert.equal(JSON.parse(noNamedTest.out).error.code, 'LANDING_FAILURE_REQUIRED');
   for (const invalidNote of [
@@ -512,7 +518,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
     `Landing gate red on the runner: see the log; merge commit ${'d'.repeat(40)}`,
     `Reopening #12: the gate was red; merge commit ${'d'.repeat(40)}`,
   ]) {
-    const refused = manualBox.run(manualBox.repo, 'reopen', String(manualItem.id), '--note', invalidNote, '--json');
+    const refused = await reopenCommand(manualBox, manualBox.repo, String(manualItem.id), '--note', invalidNote, '--json');
     assert.equal(refused.code, 1, invalidNote);
     assert.equal(JSON.parse(refused.out).error.code, 'LANDING_FAILURE_REQUIRED', invalidNote);
     assert.equal(readItem(manualBox, manualItem.id).item_status, 'verified', 'a malformed manual note leaves the item verified');
@@ -520,7 +526,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   assert.match(JSON.parse(noNamedTest.out).error.message,
     /<test file>: <test name>; merge commit <sha>/u, 'the refusal explains the exact manual evidence format');
   const manualNote = `web/landing.test.js: keeps the landed behavior; merge commit ${'d'.repeat(40)}`;
-  const manual = manualBox.run(manualBox.repo, 'reopen', String(manualItem.id), '--note', manualNote, '--json');
+  const manual = await reopenCommand(manualBox, manualBox.repo, String(manualItem.id), '--note', manualNote, '--json');
   assert.equal(manual.code, 0, manual.err);
   const manuallyReturned = readItem(manualBox, manualItem.id);
   assert.equal(manuallyReturned.item_status, 'open');
@@ -535,7 +541,7 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
     'the prior manual accept remains immutable in history');
 
   const nextManualNote = `web/landing.test.js: keeps the landed behavior; merge commit ${'e'.repeat(40)}`;
-  const returnedAgain = box.run(box.repo, 'reopen', String(item.id), '--note', nextManualNote, '--json');
+  const returnedAgain = await reopenCommand(box, box.repo, String(item.id), '--note', nextManualNote, '--json');
   assert.equal(returnedAgain.code, 0, returnedAgain.err);
   const returnedAgainItem = readItem(box, item.id);
   const returnedAgainEvent = returnedAgainItem.thread.filter((event) => event.type === 'move' && event.kind === 'reopen').at(-1);
@@ -567,12 +573,12 @@ test('a red landing gate returns a verified item to its builder [B3,V4]', async 
   const merged = readItem(box, item.id);
   assert.equal(merged.item_status, 'verified');
   assert.ok(merged.item_merged_commit);
-  const mergedReopen = box.run(box.repo, 'reopen', String(item.id), '--note', landingNote, '--json');
+  const mergedReopen = await reopenCommand(box, box.repo, String(item.id), '--note', landingNote, '--json');
   assert.equal(mergedReopen.code, 1);
   assert.equal(JSON.parse(mergedReopen.out).error.code, 'ALREADY_MERGED');
 });
 
-test('manual reopen accepts a failing root-level test after an unrecorded two-parent merge [B3,V4]', (t) => {
+test('manual reopen accepts a failing root-level test after an unrecorded two-parent merge [B3,V4]', async (t) => {
   const box = landingProject();
   const item = submitLandingFixture(box, 1, 'export const status = "RED";\n');
   acceptLandingFixture(box, item);
@@ -605,7 +611,7 @@ test('manual reopen accepts a failing root-level test after an unrecorded two-pa
   const accepted = readItem(box, item.id).thread.findLast((event) => event.type === 'move' && event.kind === 'accept');
   assert.ok(accepted, 'the item has the original accept that the landing failure supersedes');
   const note = `root.test.js: root-level landing behavior remains green; merge commit ${mergeCommit}`;
-  const reopened = box.run(box.repo, 'reopen', String(item.id), '--note', note, '--json');
+  const reopened = await reopenCommand(box, box.repo, String(item.id), '--note', note, '--json');
   assert.equal(reopened.code, 0, [reopened.err, reopened.out].filter(Boolean).join('\n'));
   assert.deepEqual(JSON.parse(reopened.out).landingFailure, {
     batch: null,
@@ -623,7 +629,7 @@ test('manual reopen accepts a failing root-level test after an unrecorded two-pa
     'the append-only accept remains in history');
 });
 
-test('manual reopen records a timestamp-prefixed failing test after an unrecorded two-parent merge [B3,V4]', (t) => {
+test('manual reopen records a timestamp-prefixed failing test after an unrecorded two-parent merge [B3,V4]', async (t) => {
   const box = landingProject();
   const item = submitLandingFixture(box, 1, 'export const status = "RED";\n');
   acceptLandingFixture(box, item);
@@ -657,7 +663,7 @@ test('manual reopen records a timestamp-prefixed failing test after an unrecorde
   const accepted = readItem(box, item.id).thread.findLast((event) => event.type === 'move' && event.kind === 'accept');
   assert.ok(accepted, 'the verified item keeps its original accept');
   const note = `Gate red at 10:30, test/a.test.js: keeps it; merge commit ${mergeCommit}`;
-  const reopened = box.run(box.repo, 'reopen', String(item.id), '--note', note, '--json');
+  const reopened = await reopenCommand(box, box.repo, String(item.id), '--note', note, '--json');
   assert.equal(reopened.code, 0, [reopened.err, reopened.out].filter(Boolean).join('\n'));
   const landingFailure = {
     batch: null,
@@ -770,7 +776,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
     assert.equal(appliedSequence(replica), 2);
   }
 
-  const reopened = box.run(box.repo, 'reopen', '1', '--note', 'correct the frozen criterion');
+  const reopened = await reopenCommand(box, box.repo, '1', '--note', 'correct the frozen criterion');
   assert.equal(reopened.code, 0, reopened.err);
   const claimedBeforeCorrection = box.run(box.web, 'claim', '1');
   assert.equal(claimedBeforeCorrection.code, 0, claimedBeforeCorrection.err);
@@ -788,7 +794,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   assert.equal(JSON.parse(sameContentResubmission.out).commit, submitted.commit,
     'an explicit coordinator refreeze is a new frozen bar even when its text is unchanged');
 
-  const secondReopen = box.run(box.repo, 'reopen', '1', '--note', 'correct the frozen criterion to match the implemented heading');
+  const secondReopen = await reopenCommand(box, box.repo, '1', '--note', 'correct the frozen criterion to match the implemented heading');
   assert.equal(secondReopen.code, 0, secondReopen.err);
   const edited = box.run(box.repo, 'edit', '1', '--criterion', 'The page renders a heading.', '--reason', 'the fixture corrects its bar');
   assert.equal(edited.code, 0, edited.err);
@@ -879,7 +885,7 @@ test('a reopened bar takes the same commit again [V2,V6,H16]', async (t) => {
   assert.equal(store.getItem(board, 1).item_verdict, 'REJECT');
 });
 
-test('retained main controls builder first refusal during detached review [B13,B5,H16]', t => {
+test('retained main controls builder first refusal during detached review [B13,B5,H16]', async t => {
   const box = project();
   const { commit } = submitFixture(box);
   const configPath = join(box.repo, 'pullboard.json');
@@ -938,17 +944,17 @@ function withdrawalFixture(t) {
   return { box, reviewer, board, original, submitted };
 }
 
-test('a reviewer withdraws its own accept before landing and the builder gets the item back [V2,V6,H16]', t => {
+test('a reviewer withdraws its own accept before landing and the builder gets the item back [V2,V6,H16]', async t => {
   for (const coordinator of [false, true]) {
     const { box, reviewer, board, original, submitted } = withdrawalFixture(t);
     const initial = store.itemThread(board, 1).find(row => row.kind === 'accept');
     if (coordinator) {
-      const stranger = box.run(box.web, 'reopen', '1', '--withdraw-verdict', '--note', 'not my verdict', '--json');
+      const stranger = await reopenCommand(box, box.web, '1', '--withdraw-verdict', '--note', 'not my verdict', '--json');
       assert.equal(JSON.parse(stranger.out).error.code, 'VERDICT_WITHDRAW_FORBIDDEN');
-      const missing = box.run(box.repo, 'reopen', '1', '--withdraw-verdict', '--note', ' ', '--json');
+      const missing = await reopenCommand(box, box.repo, '1', '--withdraw-verdict', '--note', ' ', '--json');
       assert.equal(JSON.parse(missing.out).error.code, 'NOTE_REQUIRED');
     }
-    const result = box.run(coordinator ? box.repo : reviewer, 'reopen', '1', '--withdraw-verdict',
+    const result = await reopenCommand(box, coordinator ? box.repo : reviewer, '1', '--withdraw-verdict',
       '--note', 'the accepted interpretation missed a recorded ruling', '--json');
     assert.equal(result.code, 0, result.err + result.out);
     const item = store.getItem(board, 1);
@@ -979,7 +985,7 @@ test('a reviewer withdraws its own accept before landing and the builder gets th
   const merged = box.run(box.repo, 'merged', '1', box.git(box.repo, 'rev-parse', 'HEAD'), '--json');
   assert.equal(merged.code, 0, merged.err + merged.out);
   for (const caller of [box.repo, reviewer]) {
-    const refused = box.run(caller, 'reopen', '1', '--withdraw-verdict', '--note', 'too late', '--json');
+    const refused = await reopenCommand(box, caller, '1', '--withdraw-verdict', '--note', 'too late', '--json');
     assert.equal(JSON.parse(refused.out).error.code, 'ALREADY_MERGED');
   }
 });

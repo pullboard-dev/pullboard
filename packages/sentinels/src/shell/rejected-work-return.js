@@ -1,5 +1,5 @@
 /** Preserve native seat observation at the sentinel provider boundary [B13,H16]. */
-import { withSeatPresence } from "../../../../src/seat-presence.js";
+import { withSeatPresence } from "../../../store/index.js";
 import { withDerivedFamily } from "../../../items/index.js";
 import { rejectedWorkReturns as deriveRejectedWorkReturns } from "../../../state/src/core/rejected-work-return.js";
 
