@@ -57,9 +57,10 @@ test('inbox reads leave the writer available and acknowledge only after selectio
   const seat = store.register(board, { lane: 'web', path: '/lock/worker', session: 'private-lock-worker' });
   const original = board.db.prepare.bind(board.db);
   let reads = 0;
+  let observing = false;
   /** An independent connection must acquire the writer while the inbox prepares its selection. */
   board.db.prepare = sql => {
-    if (sql.includes('FROM shout')) {
+    if (observing && sql.includes('FROM shout')) {
       assert.doesNotThrow(() => competitor.exec('BEGIN IMMEDIATE; ROLLBACK'), 'message selection holds no writer');
       reads++;
     }
@@ -67,7 +68,9 @@ test('inbox reads leave the writer available and acknowledge only after selectio
   };
   for (const markRead of [false, true]) {
     const sent = store.shout(board, { from: 'coordinator', to: seat, text: 'Read after selection', lanes: ['coordinator', 'web'] });
+    observing = true;
     const delivered = store.inbox(board, seat, { markRead });
+    observing = false;
     assert.ok(delivered.some(shout => shout.shout_id === sent));
     assert.equal(store.agentById(board, seat).agent_last_shout_id, markRead ? sent : 0);
   }
@@ -118,7 +121,7 @@ test('status moves are feed events and the board sends no status shout [B3,R2,N2
   assert.equal(committed.status, 0, committed.stderr);
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
   const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'activity-reviewer'), family: 'Fixture Activity Reviewer Vendor' });
@@ -478,7 +481,7 @@ test('interrupts arrive at once and the digest arrives as a short summary at a b
   const tree = box.git(box.web, 'rev-parse', 'HEAD^{tree}');
   // A real sibling commit keeps this rejected fixture out of the later item's ancestry.
   const rejectedCommit = box.git(box.repo, 'commit-tree', tree, '-p', base, '-m', 'private rejected sibling');
-  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
+  const board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), undefined, { gitRoot: box.repo });
   t.after(() => store.closeBoard(board));
   requireFixtureReviewFamilies(board);
   const reviewer = store.register(board, { lane: 'api', path: join(box.dir, 'interrupt-reviewer'), family: 'Fixture Interrupt Reviewer Vendor' });

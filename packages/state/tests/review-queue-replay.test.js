@@ -37,8 +37,9 @@ const REVIEW_SKIPPED = {
 };
 
 /** Create one seed board and two independent in-memory replicas with different ambient clocks. */
-function memoryCopies(t, historicalSeats = false) {
+function memoryCopies(t, historicalSeats = false, historicalSetup = false) {
   const source = openBoard(':memory:', { now: () => new Date('2026-10-08T10:00:00.000Z') });
+  if (historicalSetup) source.executionEngineVersion = 4;
   /** Engine-1 claim history starts with real engine-1 joins, not a newer seat's activated grant. */
   const register = who => historicalSeats
     ? replayHistoricalSeatMove(source, 1, 'register', [who])
@@ -51,7 +52,9 @@ function memoryCopies(t, historicalSeats = false) {
   const copies = ['one', 'two'].map((name, index) => {
     const clock = { now: () => new Date(`2026-10-08T${String(index + 8).padStart(2, '0')}:00:00.000Z`) };
     const board = openBoard(':memory:', clock);
+    if (historicalSetup) board.executionEngineVersion = 4;
     importBoard(board, snapshot);
+    if (historicalSetup) delete board.executionEngineVersion;
     return board;
   });
   t.after(() => {
@@ -107,7 +110,7 @@ test('review-skip semantics seal after released engine 1, accept legacy claims a
 });
 
 test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1,R1,H16]', (t) => {
-  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t);
+  const { copies: [legacyBoard, currentBoard], item } = memoryCopies(t, false, true);
   for (const board of [legacyBoard, currentBoard]) {
     if (board === legacyBoard) board.executionEngineVersion = 4;
     store.claim(board, item, { agentId: 'web-1', lane: 'web', leaseMs: LEASE_MS,
