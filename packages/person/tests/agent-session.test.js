@@ -31,6 +31,7 @@ import {
 import { DatabaseSync } from 'node:sqlite';
 import { listResources } from "../../resources/index.js";
 import { SSH_SHELL_MARKERS } from "../../kernel/src/core/discovery.js";
+import { waitForCondition } from "../../../test/runner-fixture-state.js";
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
 const DIRS = [];
@@ -238,7 +239,8 @@ test('a shout from the local view as the person is recorded as the person [N26,B
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
     const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)});
-    const apiBoardOpeners = { openBoard, openBoardForRead };
+    const { moveArgs } = await import(${JSON.stringify(new URL('../index.js', import.meta.url).href)});
+    const apiBoardOpeners = { moveArgs, openBoard, openBoardForRead };
     const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'web', text: 'actual view action' } }, main, undefined, undefined, undefined, apiBoardOpeners);
     const asAgent = await executeMove(process.cwd(), { verb: 'shout', agent: 'web-1', args: { to: 'coordinator', text: 'Which path should web-1 use?', kind: 'question' } }, main, undefined, undefined, undefined, apiBoardOpeners);
     process.stdout.write(JSON.stringify({ ...response, asAgent }));
@@ -371,7 +373,15 @@ test('a remote shell is recognized by any SSH marker [B26,E22]', () => {
   assert.match(relayError.message, /\/auth\/device\/start/u, 'relay on over SSH starts its device sign-in (#615)');
 });
 
-test('a verdict from the agent session that built the item is refused under any seat [V1,B3]', () => {
+/** Submit's detached review comparison writes its own fact; a board snapshot is stable only once it has finished. */
+async function waitForReviewComparison(box) {
+  const jobs = resolve(box.repo, box.git(box.repo, 'rev-parse', '--git-common-dir'), 'pullboard', 'review-comparisons');
+  const finished = () => existsSync(jobs) && readdirSync(jobs).some((job) => existsSync(join(jobs, job, 'result.json')));
+  await waitForCondition(finished, 'the submitted item\'s review comparison finishes',
+    { signal: AbortSignal.timeout(60_000), state: () => existsSync(jobs) ? readdirSync(jobs) : 'no comparison jobs' });
+}
+
+test('a verdict from the agent session that built the item is refused under any seat [V1,B3]', { timeout: 120_000 }, async () => {
   const box = project();
   const builder = 'codex-thread-secret-builder-921';
   const build = (args) => box.run(box.web, args, { session: builder, sessionKey: 'CODEX_THREAD_ID' });
@@ -380,6 +390,7 @@ test('a verdict from the agent session that built the item is refused under any 
   box.git(box.web, 'commit', '-qam', 'feat(web): build the fixture item [G1]');
   const submitted = build(['submit', '1', '--json']);
   assert.equal(submitted.status, 0, `${submitted.stdout}${submitted.stderr}`);
+  await waitForReviewComparison(box);
   // The same session opens a review seat of its own: a different seat name, the same session.
   const review = join(box.dir, 'review-seat');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, box.git(box.web, 'rev-parse', 'HEAD'));
