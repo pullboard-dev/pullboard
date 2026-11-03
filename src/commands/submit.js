@@ -495,6 +495,8 @@ export async function submitHere(ctx, id, infra) {
   let criterionUnowned = [];
   // Known main reds with several candidate owners and none naming the case alone; the refusal lists them (#2016).
   const ambiguous = [];
+  /** The check and the proof can both see one case; it is reported once. */
+  const noteAmbiguous = rowsFound => { for (const row of rowsFound) if (!ambiguous.some(seen => seen.file === row.file && seen.name === row.name)) ambiguous.push(row); };
   let criterionProblem = '';
   const companionAllowsMain = failures => !companion || companionMainFailuresUntouched(root,
     { base: mainFailureBase, source: commit, composed: companion.commit }, failures);
@@ -511,7 +513,7 @@ export async function submitHere(ctx, id, infra) {
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Cases with a unique open Main red repair link to it; the rest are recorded as unowned for the coordinator, never filed here.
       const split = matched ? splitAmbiguousMainReds(matched, rows(), id) : null;
-      if (split) ambiguous.push(...split.ambiguous);
+      if (split) noteAmbiguous(split.ambiguous);
       const missing = split ? unownedMainReds(split.clear, rows(), id) : null;
       if (missing) {
         criterionMatched = matched;
@@ -566,7 +568,7 @@ export async function submitHere(ctx, id, infra) {
       const rows = () => withBoard(ctx, board => store.listItems(board, { all: true }));
       // Affected cases are judged like the frozen check (#1917, #1986): owned reds link to their repair, unowned ones are recorded for the coordinator.
       const split = matched ? splitAmbiguousMainReds(matched, rows(), id) : null;
-      if (split) ambiguous.push(...split.ambiguous);
+      if (split) noteAmbiguous(split.ambiguous);
       const missing = split ? unownedMainReds(split.clear, rows(), id) : null;
       if (missing) {
         proofMatched = matched;
