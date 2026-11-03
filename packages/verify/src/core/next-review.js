@@ -150,6 +150,8 @@ export async function nextReview(ctx, board, me, values, { ordered, idArg, trunk
     const preview = nextFor(board, { ...selection, verify: true });
     if (!preview.item) return preview;
   }
-  const found = await ordered('reserveNextReview', [selection]);
+  const { omitIds = [], ...reservationSelection } = selection;
+  const found = await ordered('reserveNextReview', [{ ...reservationSelection,
+    skipIds: [...new Set([...reservationSelection.skipIds, ...omitIds])] }]);
   return composedReservation(ctx, board, found, getItem);
 }
