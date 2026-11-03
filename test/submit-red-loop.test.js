@@ -46,7 +46,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
   fs.writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: true },
-    verify: { ...config.verify, inspectClauses: true } }, null, 2) + '\n');
+    verify: { policy: 'any', family: 'off', reviewRatio: 3, inspectClauses: true } }, null, 2) + '\n');
   fs.mkdirSync(join(box.repo, 'test'), { recursive: true });
   fs.writeFileSync(join(box.repo, 'test/red-loop-gate.test.cjs'), [
     "const assert = require('node:assert/strict');",
@@ -59,6 +59,7 @@ test('default clause inspection notes do not reset two red handoffs; later code 
   fs.writeFileSync(join(box.repo, 'web/snapshot.txt'), 'base\n');
   box.git(box.repo, 'add', 'pullboard.json', 'test/red-loop-gate.test.cjs', 'web/snapshot.txt');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: prepare red loop fixture [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const check = 'node --test test/red-loop-gate.test.cjs';
   item = document(box.run(box.repo, 'add', 'web', 'Bound repeated red submissions', '--specs', 'G1',
