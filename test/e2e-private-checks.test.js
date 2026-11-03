@@ -112,7 +112,7 @@ test('check refusal stays typed and includes bounded diagnostics when artifact s
 
 test('private worker drains noisy output and reports a failed log path instead of timing out [V18,V19]', () => {
   const box = project();
-  const worker = resolve(import.meta.dirname, '../src/private-check-worker.js');
+  const worker = resolve(import.meta.dirname, '../apps/runner/src/shell/private-check-worker.js');
   const output = spawnSync(process.execPath, [worker], {
     input: JSON.stringify({ command: `node -e 'process.stdout.write("START-WORKER\\n"); process.stdout.write(Buffer.alloc(20 * 1024 * 1024, 120)); process.stdout.write("\\nEND-WORKER\\n")'`,
       timeout: 10_000, pidFile: join(box.dir, 'worker.pid'), logPath: join(box.dir, 'missing', 'check.log') }),
@@ -182,7 +182,7 @@ test('a check output survives the browser launch guard [V18,V2]', () => {
   const probe = sandbox();
   const observed = join(probe.dir, 'guard-stdio.json');
   const preload = join(probe.dir, 'observe-guard.mjs');
-  const guard = pathToFileURL(resolve(import.meta.dirname, '../src/browser-slot-guard.js')).href;
+  const guard = pathToFileURL(resolve(import.meta.dirname, '../packages/gate/src/shell/browser-slot-guard.js')).href;
   // Observe only the node -e check writer. Other CLI processes legitimately use their own stdio.
   writeFileSync(preload, `
 const fs = process.getBuiltinModule('node:fs');

@@ -1,6 +1,12 @@
 import { asSubmitted } from '../../packages/verify/index.js';
 import { refuseUnreviewable } from '../../packages/verify/index.js';
 import { normalizeItemPatch } from '../item-patch-paths.js';
+import { itemPatchParts } from '../../packages/items/index.js';
+import { laneOf } from '../../packages/seats/index.js';
+import { mkdirSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { itemPolicy } from '../../packages/sandbox/index.js';
 import { headCommit } from '../git.js';
 /** Attach, inspect, or remove an immutable source-bound patch for a submitted item [V4,H16]. */
@@ -33,6 +39,34 @@ function patchText(root, file) {
   const text = bytes.toString('utf8');
   if (!Buffer.from(text, 'utf8').equals(bytes)) throw new Refused('ITEM_PATCH_FORMAT', 'patch file must contain valid UTF8');
   return text;
+}
+
+/** Describe actual owning lanes and registered owner seats without attaching or confirming their work. */
+function splitPatch(board, config, patch) {
+  const groups = new Map();
+  for (const part of itemPatchParts(patch)) {
+    const lane = laneOf(config, part.paths[0]);
+    const group = groups.get(lane) ?? { lane, paths: [], patch: '' };
+    group.paths.push(...part.paths); group.patch += part.patch;
+    groups.set(lane, group);
+  }
+  const seats = board.db.prepare('SELECT agent_id, agent_lane FROM agent ORDER BY agent_id').all();
+  return [...groups.values()].map(part => ({ ...part,
+    owners: part.lane === 'coordinator' ? ['coordinator'] : seats.filter(seat => seat.agent_lane === part.lane).map(seat => seat.agent_id),
+  }));
+}
+
+/** Write explicit draft outputs exclusively; existing owner files are never overwritten. */
+function writeParts(root, directory, parts) {
+  const target = resolve(root, directory);
+  const files = parts.map(part => {
+    if (!/^[a-z0-9][a-z0-9-]*$/u.test(part.lane)) throw new Refused('ITEM_PATCH_FORMAT', 'owning lane cannot name a portable split output');
+    return join(target, part.lane + '.patch');
+  });
+  if (files.some(file => existsSync(file))) throw new Refused('ITEM_PATCH_OUTPUT', 'a split output already exists; choose a fresh --out directory');
+  mkdirSync(target, { recursive: true });
+  for (const [n, file] of files.entries()) writeFileSync(file, parts[n].patch, { flag: 'wx' });
+  return parts.map((part, n) => ({ ...part, file: files[n] }));
 }
 
 /** Apply an already-recorded receipt to this CLI invocation without rereading its patch file. */
@@ -83,6 +117,14 @@ export async function run(io, { first, second, rest, values }) {
       if (me.id !== 'coordinator') throw new Refused('COORDINATOR_ONLY', 'only the coordinator attaches item patches');
       const patch = normalizeItemPatch(patchText(ctx.info.root, rest[0]));
       const policy = itemPolicy(ctx.info.root, item);
+      let parts = splitPatch(board, policy.config, patch);
+      if (parts.length > 1) {
+        if (values.out) parts = writeParts(ctx.info.root, values.out, parts);
+        io.result?.({ item: id, attached: false, needsConfirmation: true, parts });
+        for (const part of parts) io.say(`${part.lane}: ${part.paths.join(', ')}; owner seats: ${part.owners.join(', ') || 'none registered'}${part.file ? '; draft: ' + part.file : ''}`);
+        io.say('No patch attached. Each owning seat must confirm its part; attach each confirmed part separately with its registered --author. Use --out <directory> to write per-lane drafts.');
+        return 0;
+      }
       validateItemPatchInput(board, policy.config, values.author, patch, policy.commit);
       const builderPath = item.item_status === 'claimed' ? store.listAgents(board).find(agent => agent.agent_id === item.item_owner)?.agent_path : null;
       const builderHead = builderPath ? headCommit(builderPath) : null;

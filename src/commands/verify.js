@@ -20,6 +20,7 @@ import { testTierCommand } from '../../packages/gate/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
+import { itemTrunkMove } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { linkKnownMainReworks } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
@@ -181,6 +182,21 @@ export function verificationCriterionDigest(freeze, item) {
 }
 
 /**
+ * Render a failed private check's own diagnostics: its output digest, sanitized tail and private full-output path.
+ *
+ * The test-output summary reads test counts and failing cases, which a plain shell check or install has none of,
+ * so a refusal must still carry the digest, tail and path the check recorded [V18,V2].
+ */
+function privateCheckEvidence(check) {
+  const digest = check.report ? `; output digest:\n${check.report.replace(/^/gm, '  ')}` : '';
+  const tail = check.checked
+    ? `\nlast output lines (up to 40):\n${(check.outputTail ?? '(no output)').split('\n').map(line => `  ${line}`).join('\n')}\nfull output file: ${check.outputPath ?? `(unavailable${check.outputError ? `: ${check.outputError}` : ''})`}`
+    : '';
+  const timings = check.profilePath ? `\n${timingDigest(check.profile)}\ntiming profile: ${check.profilePath}` : '';
+  return `${digest}${tail}${timings}`;
+}
+
+/**
  * Verify from this checkout (V3, V7): the submitted commit must be here, at or under HEAD, and the
  * criterion is re-read from the spec, so a verdict is never given against a moved bar.
  *
@@ -329,7 +345,7 @@ export async function verifyHere(ctx, id, { second, values }) {
         if (check.checked && !check.reused) verificationOutput = check.outputPath
           ? testOutputSummary(check.outputPath, { root: check.executionRoot ?? root, profile: check.profile })
           : retainTestOutput(root, check.output ?? check.report ?? '', { root: check.executionRoot ?? root, profile: check.profile });
-        const evidence = verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '';
+        const evidence = privateCheckEvidence(check) + (verificationOutput ? `\n${renderTestSummary(verificationOutput)}` : '');
         if (check.state === 'unverified') throw withTestOutput(new Refused('CHECK_UNVERIFIED', `the frozen ${check.stage} could not be verified at the ${checkedLabel}; restore the install or check environment, then retry verification${evidence}`), verificationOutput);
         if (check.state === 'red') {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
@@ -342,12 +358,20 @@ export async function verifyHere(ctx, id, { second, values }) {
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
         submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
         const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
-        // With verify.unrelatedTrunkMoves on, a move through commits that touch nothing this review read keeps its verdict (#928).
-        const judged = check.reused || currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
-          : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles });
         if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
           throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
         }
+        const moved = currentTrunk.commit === trunk.commit ? null
+          : itemTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, paths: review.paths });
+        if (moved?.overlap.length) throw new Refused('VERDICT_TRUNK_MOVED',
+          `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
+        if (moved && !knownMain) {
+          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and its files are unchanged`;
+          refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
+          break;
+        }
+        const judged = check.reused || currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
+          : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles });
         if (currentTrunk.commit !== trunk.commit && (knownMain || !judged || judged.overlap)) {
           if (proofRetries++ >= 1) {
             const reach = judged ? (await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles }, { all: true })).overlaps : [];

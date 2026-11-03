@@ -6,6 +6,7 @@ import {
   events,
   getItem,
   listItems,
+  sayQueuedReds,
 } from '../../packages/store/index.js';
 import { itemFileCollisions } from '../../packages/items/index.js';
 import { sayMapSlice } from '../../packages/codemap/index.js';
@@ -28,7 +29,8 @@ export async function run(io, { first }) {
   const act = (work) => actOn(io, work);
   return act(async (ctx, board, me) => {
   const id = idArg(first);
-  cleanItemFolders(ctx, board, me, listItems);
+  sayQueuedReds(io, board, () => me);
+  cleanItemFolders(ctx, board, me);
   let result;
   for (;;) {
     try {

@@ -8,7 +8,7 @@ import {
   mainRedBuildRouting,
 } from '../../../store/index.js';
 /** Current-seat dispatch shares board eligibility with the heartbeat warning [N2,V1,B3]. */
-import * as store from '../../../../src/board.js';
+import * as store from '../../../store/index.js';
 import {
   dispatchWork,
 } from '../../../store/index.js';
@@ -31,6 +31,12 @@ function selected(ctx, board, values, services) {
   const { checkMainVerifier, whoAmI, mainRedReworkItems, mainRedReviewItems, agentSessionDigest } = services;
   checkMainVerifier(ctx, board, values);
   const me = whoAmI(ctx, board);
+  const mandatory = store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true,
+    policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family,
+    skipIds: ownSessionReviews(ctx.info, board, agentSessionDigest(), { listItems: store.listItems }) });
+  if (mandatory?.mandatory && !store.listItems(board).some(item => item.item_status === 'claimed' && item.item_owner === me.id)) {
+    return { item: mandatory.item, review: true, held: false, reasons: [] };
+  }
   const routing = mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
     workingFiles: services.claimWorktrees?.(store.listItems(board), store.listAgents(board)) });
   if (routing) {
@@ -48,6 +54,7 @@ function selected(ctx, board, values, services) {
 export function mainRedBuildOffer(ctx, values = {}, { withBoardRead, whoAmI, mainRedReworkItems, claimWorktrees }) {
   return withBoardRead(ctx, board => {
     const me = whoAmI(ctx, board);
+    if (store.reviewOffer(board, { agentId: me.id, lane: me.lane, mandatoryOnly: true, policy: ctx.config.verify.policy, familyPolicy: ctx.config.verify.family })?.mandatory) return null;
     return mainRedBuildRouting(board, { priority: mainRedReworkItems(ctx.info.root, board), caller: me.id, runnable: values.runnable, routes: values.routes,
       workingFiles: claimWorktrees?.(store.listItems(board), store.listAgents(board)) });
   });
@@ -74,6 +81,9 @@ export async function nextTake(ctx, values = {}, services) {
     const picked = selected(ctx, board, values, services);
     const me = whoAmI(ctx, board);
     if (picked.buildOffer || picked.releaseRequest || picked.held && !picked.review || !picked.item) return picked;
+    if (!picked.review && (picked.item.item_lane !== me.lane || !store.ROUTES.includes(me.route)
+      || !store.ROUTES.includes(picked.item.item_route) || !store.canTake(me.route, picked.item.item_route)))
+      return { reasons: [`#${picked.item.item_id} is available in ${picked.item.item_lane} on the ${picked.item.item_route} route; this seat leaves it unclaimed`], idleReason: 'nothing-eligible' };
     ctx.io.nextPhase?.(picked.review ? 'review reservation' : 'claim', picked.item.item_id);
     if (picked.review) {
       const reviewed = await nextReview(ctx, board, me, values, {

@@ -1312,7 +1312,7 @@ test('landing tests candidate batches in parallel and lands the longest green pr
 () => assertParallelLanding({ landProject, itemWorktree, submitItem, acceptItem, json }));
 
 test('parallel CLI landing retains its lease and fences lost authority [B3,V4,Q1,Q3]', { timeout: 180_000 }, // budget: two private CLI landings with cooperative gate barriers; hang ceiling only, no speed threshold.
-async () => assertParallelCliLease({ landProject, itemWorktree, submitItem, acceptItem, onBoard, waitFor, BIN }));
+async () => assertParallelCliLease({ landProject, itemWorktree, submitItem, acceptItem, onBoard, BIN }));
 
 test('parallel landing refuses a live inherited gate before scheduling [B3,V4,Q1,Q3]', { timeout: 90_000 }, // budget: private verified item plus two immediate guarded entries; hang ceiling only.
 () => assertParallelNestedGate({ landProject, itemWorktree, submitItem, acceptItem, onBoard, BIN }));
