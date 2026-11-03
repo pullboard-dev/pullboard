@@ -50,6 +50,9 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
   assert.ok(!document(await second.cliAt(sender.path, 'inbox')).shouts.some(row => row.shout_id === sent.id), 'the sender is not the addressee');
   assert.equal(document(await box.cliAt(recipient.path, 'whoami')).address, initial.address, 'pairing and synchronization do not rename a seat');
 
+  const senderAddress = document(await second.cliAt(sender.path, 'whoami')).address;
+  const pending = document(await second.cliAt(sender.path, 'shout', senderAddress, 'Unread message before revocation'));
+
   const foreign = initial.address.replace(/^pullboard:[0-9a-f]{32}:/u, 'pullboard:ffffffffffffffffffffffffffffffff:');
   const ungranted = await second.cliAt(sender.path, 'shout', foreign, 'Must not be delivered');
   assert.notEqual(ungranted.code, 0);
@@ -89,6 +92,7 @@ test("a message sent to a seat address lands in that seat's inbox and nowhere el
     const agent = replica.prepare('SELECT * FROM agent WHERE agent_id=?').get(sender.id);
     localInbox = replica.prepare(`SELECT * ${UNREAD_SHOUT_SQL}`).all(...unreadShoutBindings(0, sender.id, agent.agent_lane));
   } finally { replica.close(); }
+  assert.ok(localInbox.some(row => row.shout_id === pending.id), 'the revoked inbox write leaves its pending message unread');
   for (const rows of [document(await box.cliAt(recipient.path, 'inbox')).shouts,
     document(await box.cli('inbox')).shouts, localInbox]) {
     assert.ok(!rows.some(row => row.shout_id === queued.id
