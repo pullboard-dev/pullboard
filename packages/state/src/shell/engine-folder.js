@@ -40,9 +40,32 @@ function stateExitRuleExport(sources, file, seen = new Set()) {
   return targets.length === 1 && stateExitRuleExport(sources, targets[0], seen);
 }
 
+/** Trust only the state's exact named forwarding of an existing canonical root declaration. */
+function stateEngineExports(sources) {
+  const entries = sources.filter(row => row.file === 'packages/state/index.js');
+  if (entries.length !== 1) return new Set();
+  const { code, strings } = lex(entries[0].source), names = new Set();
+  const literals = new Map(strings.map(literal => [literal.start, literal.text]));
+  for (const list of code.matchAll(/\bexport\s*\{([^}]*)\}/gu)) {
+    const end = list.index + list[0].length, from = /^\s*from\b\s*/u.exec(code.slice(end));
+    const target = from ? literals.get(end + from[0].length) : null;
+    if (!target || !/^\.{1,2}\//u.test(target) || target.includes('\\')) continue;
+    const file = posix.normalize(posix.join('packages/state', target));
+    if (!/^src\/[^/]+\.[cm]?js$/u.test(file)) continue;
+    const definitions = sources.filter(row => row.file === file);
+    if (definitions.length !== 1) continue;
+    const canonical = lex(definitions[0].source).code;
+    for (const entry of list[1].split(',')) {
+      const name = /^([A-Z][A-Z0-9_]*_ENGINE)$/u.exec(entry.trim())?.[1];
+      if (name && new RegExp(`\\bexport\\s+(?:const|let|var)\\s+${name}\\b`, 'u').test(canonical)) names.add(name);
+    }
+  }
+  return names;
+}
+
 /** Find declarations that would split the existing engine folder during a package move. */
 export function engineFolderViolations(sources) {
-  const problems = [];
+  const problems = [], stateExports = stateEngineExports(sources);
   for (const { file, source } of sources) {
     if (!/^(?:src|packages|apps)\//u.test(file)) continue;
     if (/^src\/[^/]+\.[cm]?js$/u.test(file)) continue;
@@ -59,6 +82,9 @@ export function engineFolderViolations(sources) {
       for (const entry of list[1].split(',')) {
         const exported = /(?:^|\bas\s+)([A-Z][A-Z0-9_]*_ENGINE)\s*$/u.exec(entry.trim());
         if (!exported || declared.has(exported[1])) continue;
+        if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
+          && posix.normalize(posix.join(posix.dirname(file), target)) === 'packages/state/index.js'
+          && entry.trim() === exported[1] && stateExports.has(exported[1])) continue;
         if (target && /^\.{1,2}\//u.test(target) && !target.includes('\\')
           && entry.trim() === 'EXIT_RULES_ENGINE'
           && stateExitRuleExport(sources, posix.normalize(posix.join(posix.dirname(file), target)))) continue;
