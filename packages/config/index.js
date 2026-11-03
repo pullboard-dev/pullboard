@@ -28,6 +28,7 @@ export {
 } from './src/shell/settings-inventory.js';
 export {
   loadMachineSettings,
+  declaredMachineSlots,
   validateRunner,
   relayCanaryConfig,
   DEFAULT_RUNNER_WAIT_MS,
