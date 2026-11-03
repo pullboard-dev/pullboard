@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { browserJSON } from '../relay/browser-deadline.js';
+import { browserJSON } from '../apps/relay/index.js';
 import { relayBoundaryProblems } from '../bin/checks/relay-boundary.js';
 import { createFakeRelayAdapter } from '../packages/person/index.js';
 import { realRelayAdapter } from '../packages/person/index.js';

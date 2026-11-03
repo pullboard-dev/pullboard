@@ -1,8 +1,8 @@
 /** Exercise the relay browser's SSE retry and queue lifecycle without launching Chrome [H16,H3,H5,H15]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { enqueueStream, followStream } from '../relay/browser-stream.js';
-import { recordBrowserReadFailure, clearBrowserReadFailure, noticeLines, reconcileOwnedRequests, rememberOwnedRequestId, storedOwnedRequestState } from '../relay/browser-notice.js';
+import { enqueueStream, followStream } from '../apps/relay/index.js';
+import { recordBrowserReadFailure, clearBrowserReadFailure, noticeLines, reconcileOwnedRequests, rememberOwnedRequestId, storedOwnedRequestState } from '../apps/relay/index.js';
 
 /** Build a finite standards-shaped stream response for a deterministic transport probe. */
 function eventResponse(id) {

@@ -116,7 +116,7 @@ import {
 } from '../packages/pages/index.js';
 import {
   snapshotState,
-} from '../relay/browser-model.js';
+} from '../apps/relay/index.js';
 import {
   unpackRelease,
 } from './release-archive.js';

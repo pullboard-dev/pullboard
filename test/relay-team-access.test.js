@@ -9,10 +9,10 @@ import { delimiter, join, resolve } from 'node:path';
 import { test } from 'node:test';
 // The native child executes this entry point; keep its affected-test dependency explicit.
 import '../src/cli.js';
-import { ACCESS_WINDOW_MS, createRelayAuth } from '../relay/auth.js';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createRelayHandler } from '../relay/service.js';
-import { createRelayJournal } from '../relay/journal.js';
+import { ACCESS_WINDOW_MS, createRelayAuth } from '../apps/relay/index.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createRelayHandler } from '../apps/relay/index.js';
+import { createRelayJournal } from '../apps/relay/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureChildAsync } from './fixture-child.js';
 

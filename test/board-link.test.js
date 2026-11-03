@@ -10,7 +10,7 @@ import * as store from '../src/board.js';
 
 test('opening a relay journal installs delivery storage before the first link envelope [E32,H16,H17]', async t => {
   const { DatabaseSync } = await import('node:sqlite');
-  const { createRelayJournal } = await import('../relay/journal.js');
+  const { createRelayJournal } = await import('../apps/relay/index.js');
   const directory = mkdtempSync(join(tmpdir(), 'pullboard-link-opener-'));
   const boardId = 'a'.repeat(32);
   const file = join(directory, boardId + '.journal.sqlite');
