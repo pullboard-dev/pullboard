@@ -1388,6 +1388,10 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "bin/checks/changed-static.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
       "path": "src/main-red-failure-lines-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
     },
@@ -1450,6 +1454,11 @@
       "reason": "explicit bounded placement: stays in place during the move"
     },
     {
+      "path": "src/dead-handoff-retry-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
+    },
+    {
       "path": "src/move-history/220.json",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
@@ -1458,6 +1467,10 @@
       "path": "src/move-history/221.json",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "state"
+    },
+    {
+      "path": "src/move-history/222.json",
+      "reason": "explicit bounded placement: stays in place during the move"
     },
     {
       "path": "src/verified-item-hold-engine.js",

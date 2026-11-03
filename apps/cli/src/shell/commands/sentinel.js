@@ -17,7 +17,8 @@ import { events } from '../../../../../packages/store/index.js';
 /** Run `pullboard sentinel` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
   const ctx = personCommandContext(io, { main, ordered });
-  const result = await sentinelCommand({ ctx, words: [first, second, ...rest].filter(value => value !== undefined), values, withBoard, whoAmI, ordered, parseProcessCensus });
+  const result = await sentinelCommand({ ctx, words: [first, second, ...rest].filter(value => value !== undefined), values, withBoard, whoAmI, ordered, parseProcessCensus,
+    sweepSubmitHandoffs: () => import('../submit-handoff.js').then(module => module.sweepDeadSubmitHandoffs(ctx)) });
   if (first === 'run' && second === undefined && ctx.info.isMain) {
     withBoard(ctx, board => { if (whoAmI(ctx, board).id === 'coordinator') recordTimeCheckpoint(ctx, board, { reason: 'weekly', retainedReceipts, events }); });
   }

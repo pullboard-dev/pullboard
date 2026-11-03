@@ -1,4 +1,7 @@
 import { requireKernelApproval } from '../../../../../packages/verify/index.js';
+import { machineryRefusal } from '../../../../../packages/gate/index.js';
+import { runMachineryGuard } from '../../../../../packages/gate/index.js';
+import { countTrialGate } from '../../../../../packages/gate/index.js';
 import { itemFolderIdentity } from '../item-folder.js';
 import { itemCollisionPlan } from '../../../../../packages/items/index.js';
 import { heartbeatCommand } from '../cli-presence.js';
@@ -392,7 +395,9 @@ export async function submitHere(ctx, id, infra) {
   reportSubmitStage(ctx, 'authorization and source', preflightStart);
   // The candidate must contain the main this proof pins; a main that moves on before or during the proof is judged after it.
   const compositionStart = performance.now();
-  try { if (requireComposition && !remoteMode) requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit); }
+  try { if (requireComposition && !remoteMode) await runMachineryGuard(root,
+    () => requireSubmitComposition(root, commit, { commit: acceptedMain.commit }, acceptedMain.commit),
+    { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) }); }
   finally { reportSubmitStage(ctx, 'composition', compositionStart); }
   withBoard(ctx, (board) => refuseUnverifiedStack(root, board, held, commit, trunk));
   machineNameProblems(root, `${acceptedMain.commit}..${commit}`, { refuse: acceptedMain.config.commits.noHostName === true, say: (line) => ctx.io.say(line) });
@@ -417,19 +422,21 @@ export async function submitHere(ctx, id, infra) {
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
   // Each trusted analysis part gets its own runner lease and a main-pinned private check.
-  const runRemotePart = (part) => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
+  const runRemotePart = (part) => runMachineryGuard(root, () => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
     lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
       trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
       title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks,
-      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, parts: [part] }, lease, ctx.submitHandoffOutput),
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, parts: [part], collectMachinery: true }, lease, ctx.submitHandoffOutput),
     { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: `analysis-${part}`, ...gateAdmission,
-      onWait: queuedItemLease(ctx, held, me.id, 'build') }));
+      onWait: queuedItemLease(ctx, held, me.id, 'build') })),
+    { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) });
   const crossRun = await withBoardRead(ctx, board => {
     board.gitRoot = ctx.info.root;
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
   const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+    countTrials: false, onMachineryNote: line => ctx.io.say(line),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
   /** Judge the test result, including exact-main comparison, while other independent stages run. */
@@ -604,9 +611,9 @@ export async function submitHere(ctx, id, infra) {
     ...(remoteMode ? [{ name: 'selection', run: () => runRemotePart('selection') }] : []),
     { name: 'cells', run: async () => {
       const cellsStart = performance.now();
-      try { return remoteMode ? (await runRemotePart('cells')).cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
+      try { const result = await (remoteMode ? (await runRemotePart('cells')).cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
         ? await withGateSlot(root, async lease => {
-          try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput); }
+          try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput, { collectMachinery: true }); }
           finally {
             const admitted = Date.parse(lease.executionAdmission?.admittedAt ?? '');
             if (Number.isFinite(admitted)) ctx.io.say(`submit runner admitted: ${lease.executionAdmission.admittedAt} (approximately ${((admitted - preflightWallStart) / 1000).toFixed(2)}s from controller start; runner clock)`);
@@ -615,16 +622,18 @@ export async function submitHere(ctx, id, infra) {
           { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
             agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, remote: true, runnerOnly: true,
             onWait: queuedItemLease(ctx, held, me.id, 'build') })
-        : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+        : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { collectMachinery: true, withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
         readCutItems,
         onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
-        onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
+        onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }));
+        for (const diagnostic of result.machinery ?? []) machineryRefusal(root, diagnostic, line => ctx.io.say(line));
+        return result; }
       finally { reportSubmitStage(ctx, 'cells', cellsStart); }
     } },
     { name: 'doctrine', run: async () => {
       // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
       const doctrineStart = performance.now();
-      try { return await (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
+      try { return await runMachineryGuard(root, () => (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
         ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
           ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
           : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
@@ -634,7 +643,8 @@ export async function submitHere(ctx, id, infra) {
           finally { remoteDoctrine?.finish(); }
         },
           { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceiptLine(receipt)}`) }))
-        : []); }
+        : []), { kind: 'doctrine', fallback: [], say: line => ctx.io.say(line),
+          rule: null }); }
       finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
     } },
     { name: 'static', run: async () => {
@@ -687,9 +697,10 @@ export async function submitHere(ctx, id, infra) {
     currentTrunk = acceptedMain;
   }
   if (requireComposition && !companion && currentTrunk.commit !== acceptedMain.commit) {
-    const composed = await composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
+    const composed = await runMachineryGuard(root, () => composeAfterProof(root, { id, proofCommit: commit, proved: acceptedMain.commit, item: held, check: frozenCheck(held),
       readTrunk: () => requireTrunkMerge(root, commit) }, { selectAffectedTests, explicitCheckFiles, judgeTrunkMove,
-        ...(ctx.submitHandoffOutput ? { onMergeFailure: error => writeFileSync(join(ctx.submitHandoffOutput, 'merge-failure.log'), String(error.stderr || error.stack || error.message), { mode: 0o600 }) } : {}) });
+        ...(ctx.submitHandoffOutput ? { onMergeFailure: error => writeFileSync(join(ctx.submitHandoffOutput, 'merge-failure.log'), String(error.stderr || error.stack || error.message), { mode: 0o600 }) } : {}) }),
+      { kind: 'composition', rule: composeAfterProof.toString(), say: line => ctx.io.say(line), fallback: { commit, evidence: null } });
     submitted = composed.commit;
     trunkMove = composed.evidence;
     currentTrunk = requireTrunkMerge(root, submitted);
@@ -698,7 +709,9 @@ export async function submitHere(ctx, id, infra) {
   const size = measuredLines === null ? undefined : {
     base: currentTrunk.commit, head: submitted, lines: measuredLines, method: SUBMISSION_SIZE_METHOD,
   };
-  if (requireComposition) requireSubmitComposition(root, submitted, currentTrunk, trunkMove ? trunkMove.to : acceptedMain.commit);
+  if (requireComposition) await runMachineryGuard(root,
+    () => requireSubmitComposition(root, submitted, currentTrunk, trunkMove ? trunkMove.to : acceptedMain.commit),
+    { kind: 'composition', rule: requireSubmitComposition.toString(), say: line => ctx.io.say(line) });
   const waivedLines = waived ? waived.map(waiverLine) : [];
   const autoMainReds = unowned.length && acceptedMain.config.submit?.autoFileMainReds === true
     ? { main: unownedMain, candidateReceiptIds: [...new Set(submissionReceiptIds)], mainReceiptIds: [...new Set(mainComparisonReceiptIds.values())] } : null;
@@ -747,6 +760,8 @@ export async function submitHere(ctx, id, infra) {
     return submittedMove;
   });
   if (gate.isGreen && !waived && !criterionMatched) {
+    try { if (submissionReceiptIds.length) for (const line of countTrialGate(root, { id: JSON.stringify([...submissionReceiptIds].sort()) })) ctx.io.say(line); }
+    catch { ctx.io.err('could not record this gate in the refusal-trial ledger'); }
     try { await (await import('./verify.js')).startAutomaticComparison(ctx, id); }
     catch (error) { ctx.io.err(`comparison could not start for #${id}: ${error.message}`); }
   }

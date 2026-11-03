@@ -37,10 +37,10 @@ export function lineCount(text) {
  * @param {string} root
  * @returns {{ path: string, line: number, text: string }[]}
  */
-export function fileSizeProblems(root) {
+export function fileSizeProblems(root, files = walk(root, /\.(?:[cm]?js|css)$/u), read = path => readText(root, path)) {
   const problems = [];
-  for (const path of walk(root, /\.(?:[cm]?js|css)$/u)) {
-    const lines = lineCount(readText(root, path));
+  for (const path of files.filter(path => /\.(?:[cm]?js|css)$/u.test(path))) {
+    const lines = lineCount(read(path));
     for (let first = CAP + 1; first <= lines; first += BLOCK) {
       problems.push({ path, line: first, text: `lines ${first}-${first + BLOCK - 1} are over the ${CAP}-line cap` });
     }
