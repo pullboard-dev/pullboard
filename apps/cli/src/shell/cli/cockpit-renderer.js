@@ -2,7 +2,7 @@
 import { cockpitPage as renderPage } from '../cockpit.js';
 import { commandPhrases } from '../../core/help.js';
 
-/** Preserve the public catalog without reading help while the view's import cycle initializes. */
+/** Keep the existing prose inventory in the higher renderer that owns the command catalog; help computes it after HELP. */
 export { PULLBOARD_COMMANDS } from '../../core/help.js';
 
 /** Bind the current catalog for local, relay and exported pages without giving the view a CLI dependency. */
