@@ -161,11 +161,12 @@ export async function knownMainCheck(root, check, { main, item, items, mainRedIt
       return mainRed.owned.length && !mainRed.rest.length ? { main, failures: mainRed.owned } : null;
     } catch { return null; } // An unavailable baseline never grants a pass.
   };
+  let failures = null;
   try {
     const output = check.outputPath ? readFileSync(check.outputPath, 'utf8') : check.output;
     const run = { ...check, isGreen: false, output,
       stages: [{ status: check.exitCode, output }] };
-    const failures = failureSignatures(run, root);
+    failures = failureSignatures(run, root);
     if (!failures?.length) return null;
     // Private checks report paths under their temporary checkout; use the already
     // validated repository-relative failure identities to select main's files.
@@ -179,8 +180,9 @@ export async function knownMainCheck(root, check, { main, item, items, mainRedIt
     const split = matched ? splitAmbiguousMainReds(matched, items(), item) : null;
     const linked = split ? linkKnownMainReworks(split.clear, items(), item) : null;
     if (linked && split.ambiguous.length) AMBIGUOUS_KNOWN.set(linked, split.ambiguous); // Kept off the sealed record, shown in the note only.
-    return linked ?? viaMainRedRepairs(failures);
-  } catch { return null; } // Preserve CHECK_RED when comparison, identity or ownership cannot be established.
+    if (linked) return linked;
+  } catch { /* An unavailable comparison falls back to the open Main red repairs below. */ }
+  return failures?.length ? viaMainRedRepairs(failures) : null; // Preserve CHECK_RED when ownership cannot be established.
 }
 
 /** Retain exact case identities and repair links in the immutable verdict without calling the raw check green. */
