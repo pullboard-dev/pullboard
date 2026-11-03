@@ -28,6 +28,7 @@ import {
   Refused,
 } from '../../packages/kernel/index.js';
 import { seatLeadLine } from '../../packages/seats/index.js';
+import { wakeRoutedSeat } from '../../packages/seats/index.js';
 import { cleanItemFolders } from '../item-folder.js';
 import {
   agentDisplayName,
@@ -128,6 +129,10 @@ async function nextWithProgress(io, values, progress) {
     if (found.item) {
       found.reasons = [...(found.reasons ?? []), ...inboxReasons(ctx)];
       if (found.buildOffer || found.releaseRequest) {
+        const route = found.buildOffer ?? found.releaseRequest;
+        const target = withBoardRead(ctx, board => ({ boardId: store.boardId(board), seat: store.listAgents(board).find(agent => agent.agent_id === route.seat) }));
+        const wake = await wakeRoutedSeat(ctx.info, { ...target, item: found.item.item_id });
+        if (wake.error) io.err?.(`seat wake unavailable: ${wake.error}`);
         io.result?.({ item: found.item, review: false, held: false,
           ...(found.buildOffer ? { buildOffer: found.buildOffer } : { releaseRequest: found.releaseRequest }) });
         if (found.buildOffer) io.say(`main-red build #${found.item.item_id} offered to free seat ${found.buildOffer.seat}: ${cdTo(found.buildOffer.path)} pullboard next --take`);

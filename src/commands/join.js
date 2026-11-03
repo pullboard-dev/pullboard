@@ -7,6 +7,8 @@ import {
 import {
   displayAgentName,
 } from '../../packages/seats/index.js';
+import { seatWakeCommand } from '../../packages/seats/index.js';
+import { registerSeatWake } from '../../packages/seats/index.js';
 import {
   COORDINATOR,
 } from '../../packages/config/index.js';
@@ -36,6 +38,7 @@ import {
 /** Run `pullboard join` and return its exit code. */
 export async function run(io, { first, values }) {
   const ctx = context(io);
+  const wake = seatWakeCommand(values.wake, ctx.info.root);
   const runtime = runtimeSessionIdentity();
   const parent = values.parent === undefined ? runtime?.parent : parentIdentity(values.parent);
   const parentDigest = parent ? parentSessionDigest(parent) : undefined;
@@ -53,6 +56,7 @@ export async function run(io, { first, values }) {
     }));
     registerProject(ctx.info.root, new Date(), ctx.config, projectBoardIdentity(ctx.info.root, joined.boardId));
     const id = joined.id;
+    registerSeatWake(ctx.info, joined.boardId, id, wake);
     const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
     io.result?.({ agent: id, lane: COORDINATOR, route, path: ctx.info.root, model, displayName });
     io.say(`declared ${displayName} in the coordinator lane`);
@@ -71,6 +75,7 @@ export async function run(io, { first, values }) {
   }));
   registerProject(projectRoot, new Date(), ctx.config, projectBoardIdentity(projectRoot, joined.boardId));
   const id = joined.id;
+  registerSeatWake(ctx.info, joined.boardId, id, wake);
   const displayName = displayAgentName({ agent_id: id, agent_model: model }, ctx.config.agents.names);
   io.result?.({ agent: id, lane: first, route, path: ctx.info.root, model, displayName });
   io.say(`joined as ${displayName} in the ${first} lane${route === 'light' ? ', on the light route' : ''}`);
