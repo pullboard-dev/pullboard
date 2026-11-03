@@ -152,14 +152,14 @@ function submit(box, id, name) {
   const committed = runFixtureChild('git', ['commit', '-m', `feat(web): build ${name} [G1]`], { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(committed.status, 0, `${committed.stdout}${committed.context}`);
   const head = box.git(box.web, 'rev-parse', 'HEAD');
-  succeeds(box, box.web, 'submit', String(id));
+  succeeds(box, box.web, 'submit', String(id), '--no-next');
   return head;
 }
 
 /** Verify a submitted private fixture commit as the coordinator without touching any real board. */
 function accept(box, id, commit) {
   box.git(box.root, 'switch', '--detach', commit);
-  succeeds(box, box.root, 'verify', String(id), 'accept', '--as', 'coordinator', '--note', 'checked the private fixture commit');
+  succeeds(box, box.root, 'verify', String(id), 'accept', '--no-next', '--as', 'coordinator', '--note', 'checked the private fixture commit');
   box.git(box.root, 'switch', 'main');
 }
 
@@ -188,7 +188,7 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
 
   ids.open = addItem(box, 'Open stale item');
   claim(box, ids.open);
-  succeeds(box, box.web, 'release', String(ids.open), '--reason', 'BLOCKED');
+  succeeds(box, box.web, 'release', String(ids.open), '--reason', 'BLOCKED', '--no-next');
 
   ids.submitted = addItem(box, 'Submitted stale item');
   submit(box, ids.submitted, 'submitted');
@@ -205,12 +205,12 @@ test('[S19,V3] doctor and resume list stale frozen items in every lifecycle stat
 
   ids.withdrawn = addItem(box, 'Withdrawn stale item');
   claim(box, ids.withdrawn);
-  succeeds(box, box.web, 'release', String(ids.withdrawn), '--reason', 'BLOCKED');
+  succeeds(box, box.web, 'release', String(ids.withdrawn), '--reason', 'BLOCKED', '--no-next');
   succeeds(box, box.root, 'withdraw', String(ids.withdrawn), 'no longer needed');
 
   ids.unaffected = addItem(box, 'Unaffected G3 item', 'G3');
   claim(box, ids.unaffected);
-  succeeds(box, box.web, 'release', String(ids.unaffected), '--reason', 'BLOCKED');
+  succeeds(box, box.web, 'release', String(ids.unaffected), '--reason', 'BLOCKED', '--no-next');
 
   ids.claimed = addItem(box, 'Claimed stale item');
   claim(box, ids.claimed);
@@ -290,10 +290,10 @@ test('[A5,S19,V3] doctor and resume distinguish unchanged doctrine citations fro
   const box = project(t);
   const doctrineItem = addItem(box, 'Doctrine citation', 'doctrine:PB1');
   claim(box, doctrineItem);
-  succeeds(box, box.web, 'release', String(doctrineItem), '--reason', 'BLOCKED');
+  succeeds(box, box.web, 'release', String(doctrineItem), '--reason', 'BLOCKED', '--no-next');
   const specItem = addItem(box, 'Unchanged spec citation', 'G3');
   claim(box, specItem);
-  succeeds(box, box.web, 'release', String(specItem), '--reason', 'BLOCKED');
+  succeeds(box, box.web, 'release', String(specItem), '--reason', 'BLOCKED', '--no-next');
   const baseline = receiptSnapshot(box);
   const before = jsonOf(succeeds(box, box.root, 'resume', '--diagnostics', '--json'));
   assert.deepEqual(before.stale, [], 'a namespaced citation with unchanged inherited text is current');
