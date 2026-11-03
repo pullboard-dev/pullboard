@@ -68,6 +68,8 @@ const CRITERION = 'The page shows a greeting. The greeting names the visitor by 
 
 test('a green gate stores a packet whose clauses map to its runs, names the uncovered ones, and show --review reads it in under 2 s with no checkout or test [V4,C7]', { timeout: 240_000 }, () => {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  // The fixture's own `node --test` must run its files, not see this runner's context and skip them.
+  delete box.env.NODE_TEST_CONTEXT;
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.submitGate = 'landing';
   config.affectedTests = RUN;
