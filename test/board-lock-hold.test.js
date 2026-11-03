@@ -36,7 +36,7 @@ test('a board whose counters are current opens for writing while another process
     const other = openBoard(file);
     const elapsed = performance.now() - started;
     store.closeBoard(other);
-    assert.ok(elapsed < 1_000, `opening took ${Math.round(elapsed)} ms; it must not wait for the write lock`);
+    assert.ok(elapsed < 1_000, `opening took ${Math.round(elapsed)} ms; it must not wait for the write lock`); // budget: declared 1 s write-lock ceiling of #2578; the old path waited the 10 s busy timeout
   } finally { holder.exec('ROLLBACK'); }
 });
 
@@ -47,7 +47,7 @@ test('a move holds the write lock under 1 s and derives no capacity forecast ins
   const id = store.addItem(board, { by: 'coordinator', lane: 'core', title: 'Timed write' });
   const held = performance.now() - started;
   assert.ok(id > 0);
-  assert.ok(held < 1_000, `the write held its transaction ${Math.round(held)} ms`);
+  assert.ok(held < 1_000, `the write held its transaction ${Math.round(held)} ms`); // budget: declared 1 s write-lock ceiling of #2578; the old path waited the 10 s busy timeout
   assert.equal(derived(board, 'capacity-snapshot'), before, 'the move did not rebuild the capacity forecast');
   const stored = refreshCapacityOutsideWrite(board, store.atomic, { force: true });
   assert.ok(stored.includes('capacity-snapshot'), 'background maintenance stores the forecast in its own short write');
@@ -63,7 +63,7 @@ test('a checkpoint never blocks a reader, during or after it [C7]', t => {
   for (let n = 0; n < 20; n += 1) store.addItem(board, { by: 'coordinator', lane: 'core', title: `After the reader ${n}` });
   const started = performance.now();
   const result = checkpointBoard(board.db);
-  assert.ok(performance.now() - started < 1_000, 'a passive checkpoint returns at once');
+  assert.ok(performance.now() - started < 1_000, 'a passive checkpoint returns at once'); // budget: declared 1 s write-lock ceiling of #2578; the old path waited the 10 s busy timeout
   assert.equal(typeof result.walFrames, 'number');
   assert.equal(reader.prepare('SELECT count(*) AS n FROM item').get().n, seen, 'the open reader keeps its snapshot, unblocked');
   reader.exec('COMMIT');
