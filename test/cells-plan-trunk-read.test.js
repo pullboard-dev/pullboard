@@ -43,3 +43,10 @@ test('a failed-then-successful trunk read repeats the queued analysis instead of
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /^# pass 1$/mu, 'the runner-retry fixture really ran');
 });
+
+test('an infrastructure Git read stopping the queued gate is never returned to the builder as red [C7]', () => {
+  const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern=never returned to the builder as red', 'test/submit-handoff.test.js'],
+    { cwd: join(import.meta.dirname, '..'), encoding: 'utf8', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') && key !== 'NODE_TEST_CONTEXT')) });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.match(run.stdout, /^# pass 1$/mu, 'the handoff completion fixture really ran');
+});
