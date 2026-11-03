@@ -1,4 +1,5 @@
 import { claimOverlapLines } from '../packages/activity/index.js';
+import { recordedClaimWorktrees } from '../packages/activity/index.js';
 import { claimOverlaps } from '../packages/items/index.js';
 import { listItems } from '../packages/store/index.js';
 import { listAgents } from '../packages/store/index.js';
@@ -24,7 +25,9 @@ export function heartbeatCommand(io, { ctx: suppliedContext, board: suppliedBoar
     const seat = board.db.prepare('SELECT agent_id FROM agent WHERE agent_path=?').get(ctx.info.root);
     if (seat && heartbeatSeat(board, seat.agent_id)) {
       recorded.add(io);
-      for (const line of claimOverlapLines(listItems(board), listAgents(board), seat.agent_id, claimOverlaps)) io.err(line);
+      // Overlap reads the recorded worktree files; it never runs Git in another seat's worktree (#2427).
+      const items = listItems(board), agents = listAgents(board);
+      for (const line of claimOverlapLines(items, agents, seat.agent_id, claimOverlaps, recordedClaimWorktrees(items, agents, board))) io.err(line);
     }
   } catch (error) {
     if (!['NO_CONFIG', 'NOT_A_REPO'].includes(error.code)) io.err(`presence heartbeat unavailable: ${error.message}`);
