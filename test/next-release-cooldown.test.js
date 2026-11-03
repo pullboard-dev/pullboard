@@ -27,6 +27,17 @@ test('a seat that released item A is offered item B, and A once the cooldown pas
   assert.equal(later.document.item.item_id, a, 'after 30 minutes the released item is offered again');
 });
 
+test('plain next, the command seats loop on, also offers item B after item A was released [B3,N2]', async t => {
+  const box = await fixture(t);
+  const a = box.add('Item A');
+  const b = box.add('Item B');
+  claimAndRelease(box, a);
+  const offered = await cli(box, box.seats.actor.path, ['next', '--build']);
+  assert.equal(offered.code, 0, offered.out + offered.err);
+  assert.equal(store.getItem(box.board, b).item_owner, box.seats.actor.id, offered.out);
+  assert.equal(store.getItem(box.board, a).item_status, 'open');
+});
+
 test('with only the released item open, the seat is offered it [B3,N2]', async t => {
   const box = await fixture(t);
   const a = box.add('Item A');
