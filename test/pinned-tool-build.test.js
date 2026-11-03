@@ -10,9 +10,14 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 import { gatedToolBuild } from '../apps/cli/src/shell/pinned-tool-publish.js';
-import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
+import { scheduleToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
+import { runScheduledToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
 import { configFromSource } from '../packages/config/index.js';
-import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { selectedToolEntry } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { toolBuildLocation } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { toolBuildPolicy } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { readToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { writeToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 
 // These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
