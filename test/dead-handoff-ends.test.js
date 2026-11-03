@@ -1,0 +1,170 @@
+/** One health sweep ends a submit handoff whose worker is gone, whichever seat queued it and whatever its item's state [C7,V4]. */
+import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { test } from 'node:test';
+import { createE2eHelpers } from './e2e-helpers.js';
+import { openBoard } from '../apps/lib/index.js';
+import { getItem } from '../packages/store/index.js';
+import { submitHandoff, endedSubmitHandoff } from '../packages/store/index.js';
+
+/** Require authentic command success before interpreting any native result. */
+function document(result) {
+  assert.equal(result.code, 0, `${result.err}\n${result.out}`);
+  return JSON.parse(result.out);
+}
+
+/** Read the real SQLite state the separate worker wrote, without writing anything. */
+function state(box, id, endedId) {
+  // @pullboard-board-file journey: observe the detached worker's actual persisted queue record.
+  const board = openBoard(box.boardFile);
+  try { return { item: getItem(board, id), job: submitHandoff(board, id),
+    ended: endedId ? endedSubmitHandoff(board, endedId) : null,
+    returns: board.db.prepare("SELECT COUNT(*) AS n FROM event WHERE item_id=? AND event_kind='submit_handoff_returned'").get(id).n }; }
+  finally { board.db.close(); }
+}
+
+/** Quote a private fixture path for the configured shell command. */
+function word(value) { return `'${value.replaceAll("'", "'\\''")}'`; }
+
+/** Whether a process is gone; any other signal error leaves it presumed alive. */
+function gone(pid) {
+  try { process.kill(pid, 0); return false; }
+  catch (error) { return error.code === 'ESRCH'; }
+}
+
+/** A native project with handoff on and a gate that holds while the candidate says "hold", until released. */
+function fixture(t) {
+  const helpers = createE2eHelpers();
+  const isolated = helpers.sandbox();
+  for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
+  let box;
+  try { box = helpers.project('true', isolated); }
+  catch (error) { helpers.cleanup(); throw error; }
+  const release = join(box.dir, 'release'), started = join(box.dir, 'started');
+  const script = join(box.dir, 'gate.cjs');
+  writeFileSync(script, [
+    "const fs = require('node:fs');",
+    "const value = fs.existsSync('web/snapshot.txt') ? fs.readFileSync('web/snapshot.txt', 'utf8').trim() : 'base';",
+    "if (value === 'hold') {",
+    ` fs.writeFileSync(${JSON.stringify(started)}, 'started');`,
+    ' const deadline = Date.now() + 120000;',
+    ` while (!fs.existsSync(${JSON.stringify(release)})) { if (Date.now() > deadline) throw Error('fixture release never arrived'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,20); }`,
+    '}',
+  ].join('\n'));
+  const configFile = join(box.repo, 'pullboard.json');
+  const config = JSON.parse(readFileSync(configFile, 'utf8'));
+  writeFileSync(configFile, JSON.stringify({ ...config, submit: { handoff: true } }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: configure native submit handoff [G1]');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
+  box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
+  const id = document(box.run(box.repo, 'add', 'web', 'Swept dead handoff', '--specs', 'G1',
+    '--criterion', 'A dead handoff ends within one sweep.', '--check', `${word(process.execPath)} ${word(script)}`, '--wait', '--json')).item.item_id;
+  document(box.run(box.web, 'claim', String(id), '--json'));
+  t.after(async () => {
+    writeFileSync(release, 'release\n');
+    await helpers.waitFor(() => !['queued', 'running'].includes(state(box, id).job?.state), 'queued worker finished', 120000); // budget: cleanup ceiling, no timing assertion.
+    helpers.cleanup();
+  });
+  return { ...box, helpers, id, started, release };
+}
+
+/** Start a held gate for the item, then kill its worker's whole process group, as a crash would. */
+async function killedRunningHandoff(box) {
+  assert.equal(box.helpers.commitFile(box, box.web, 'web/snapshot.txt', 'hold\n', 'feat(web): held candidate [G1]').status, 0);
+  assert.equal(document(box.run(box.web, 'submit', String(box.id), '--no-next', '--json')).queued, true);
+  await box.helpers.waitFor(() => existsSync(box.started) && state(box, box.id).job?.state === 'running', 'the gate is running', 120000); // budget: real worker start ceiling, no timing assertion.
+  const job = state(box, box.id).job;
+  sweep(box);
+  assert.equal(state(box, box.id).job.id, job.id, 'a live worker is never replaced');
+  await killWorker(box, job);
+  return job;
+}
+
+/** Kill only this fixture's recorded detached group and observe its actual exit, not a fabricated pid. */
+async function killWorker(box, job) {
+  const owner = JSON.parse(readFileSync(join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'worker.json'), 'utf8'));
+  process.kill(-owner.pid, 'SIGKILL');
+  await box.helpers.waitFor(() => gone(owner.pid), 'the worker is gone', 120000); // budget: kill ceiling, no timing assertion.
+  assert.equal(state(box, box.id).job.state, 'running', 'the dead worker left its job marked running');
+}
+
+/** Run one health sweep as the coordinator, from the main checkout; no command by the item's seat runs. */
+function sweep(box) {
+  const run = box.run(box.repo, 'sentinel', 'run', '--health-only');
+  assert.equal(run.code, 0, `${run.err}\n${run.out}`);
+}
+
+test('one sweep ends a killed worker as infrastructure and retries its exact candidate without builder red [C7,V4]', async t => {
+  const box = fixture(t);
+  const job = await killedRunningHandoff(box);
+  const before = state(box, box.id).item;
+  const ownerFile = join(box.repo, '.git', 'pullboard', 'submit-handoffs', job.id, 'worker.json');
+  const owner = readFileSync(ownerFile, 'utf8');
+  writeFileSync(ownerFile, JSON.stringify({ job: job.id, pid: process.pid, started: null }));
+  sweep(box);
+  assert.equal(state(box, box.id).job.id, job.id, 'an unreadable live incarnation is left alone');
+  assert.equal(state(box, box.id).job.state, 'running');
+  writeFileSync(ownerFile, owner);
+  sweep(box);
+  const after = state(box, box.id, job.id);
+  assert.equal(after.ended.state, 'infrastructure', 'native history reports the stopped incarnation within one sweep');
+  assert.equal(after.ended.error.code, 'SUBMIT_HANDOFF_DEAD');
+  assert.notEqual(after.job.id, job.id, 'the old worker cannot write for its successor');
+  for (const field of ['commit', 'tree', 'main', 'executionCommit', 'executionTree', 'digest', 'companionDigest']) {
+    assert.equal(after.job[field], job[field], `same-candidate recovery preserves ${field}`);
+  }
+  assert.equal(after.job.recoveryRetries, 1);
+  assert.equal(after.item.item_status, 'claimed');
+  assert.equal(after.item.item_owner, before.item_owner);
+  assert.equal(after.item.item_lease_until, before.item_lease_until, 'recovery does not replace or renew the claim');
+  assert.equal(after.returns, 0, 'no builder-red return is recorded');
+  writeFileSync(box.release, 'release\n');
+  await box.helpers.waitFor(() => ['green', 'submitted'].includes(state(box, box.id).job?.state), 'the recovered candidate finishes', 120000); // budget: worker completion ceiling, no timing assertion.
+  assert.equal(state(box, box.id).item.item_status, 'submitted');
+  assert.equal(state(box, box.id).job.commit, job.commit, 'no builder command or newer source was required');
+});
+
+test('a dead handoff on an item its seat no longer holds also ends within one sweep [C7,V4]', async t => {
+  const box = fixture(t);
+  const job = await killedRunningHandoff(box);
+  const released = box.run(box.web, 'release', String(box.id), '--reason', 'OTHER', '--note', 'fixture releases the item', '--no-next');
+  assert.equal(released.code, 0, `${released.err}\n${released.out}`);
+  assert.notEqual(state(box, box.id).item.item_status, 'claimed');
+  assert.equal(state(box, box.id).job.state, 'running', 'releasing the item left the dead job running');
+  sweep(box);
+  const after = state(box, box.id).job;
+  assert.equal(after.id, job.id);
+  assert.equal(after.error?.code, 'SUBMIT_HANDOFF_DEAD');
+  assert.equal(after.state, 'infrastructure');
+  assert.equal(state(box, box.id).returns, 0);
+});
+
+
+test('three same-candidate crash retries are bounded and exhaustion stays infrastructure [C7,V4]', async t => {
+  const box = fixture(t);
+  let job = await killedRunningHandoff(box);
+  const commit = job.commit;
+  for (let retry = 1; retry <= 3; retry += 1) {
+    sweep(box);
+    const next = state(box, box.id, job.id);
+    assert.equal(next.ended.state, 'infrastructure');
+    assert.equal(next.job.recoveryRetries, retry);
+    assert.equal(next.job.commit, commit);
+    assert.notEqual(next.job.id, job.id);
+    job = next.job;
+    await box.helpers.waitFor(() => state(box, box.id).job?.state === 'running', 'the recovery worker runs', 120000); // budget: real worker readiness ceiling, no timing assertion.
+    await killWorker(box, job);
+  }
+  sweep(box);
+  const after = state(box, box.id, job.id);
+  assert.equal(after.job.id, job.id, 'no fourth retry is queued');
+  assert.equal(after.job.state, 'infrastructure');
+  assert.equal(after.job.recoveryRetries, 3);
+  assert.equal(after.job.error.code, 'SUBMIT_HANDOFF_DEAD');
+  assert.equal(after.item.item_status, 'claimed');
+  assert.equal(after.returns, 0, 'infrastructure never becomes a builder red');
+});
