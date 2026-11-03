@@ -10,7 +10,7 @@ import { openBoard } from '../../src/native-board.js';
 import { recordGateRun } from '../../src/native-board.js';
 import { applyRelayMove, appliedSequence, prepareEngineMove } from '../../src/engine.js';
 import { activityWords } from '../../src/view/activity-words.js';
-import { runGate } from '../../src/gate.js';
+import { runGate } from '../../packages/gate/index.js';
 import { runnerExecutionServices } from '../../src/runners.js';
 import { landingExecutionServices } from '../../src/landing-shards.js';
 import { readGateReceipt, receiptStore } from '../../src/gate-run-receipt.js';

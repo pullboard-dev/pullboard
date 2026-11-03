@@ -46,7 +46,7 @@ test('sync and async admitted runner profiles retain the actual worker source ph
   writeFileSync(join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1,
     browserSlots: 0, runners: [{ host: HOST, slots: 1, browser: 0 }],
     gate: { runnersOnly: true, memoryFloorMB: 0 } }));
-  const gateUrl = pathToFileURL(join(committedToolingSnapshot(join(import.meta.dirname, '..'), box.env), 'src/gate.js')).href;
+  const gateUrl = pathToFileURL(join(committedToolingSnapshot(join(import.meta.dirname, '..'), box.env), 'packages/gate/index.js')).href;
   const command = `node -e "console.log('SOURCE_PREPARATION_CAPTURED')"`;
   for (const mode of ['sync', 'async']) {
     const driver = `import {readFileSync} from 'node:fs';

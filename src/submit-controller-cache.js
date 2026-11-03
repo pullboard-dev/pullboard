@@ -6,7 +6,7 @@ import { checkReceiptKey } from '../packages/git/index.js';
 import { readCheckReceipt } from '../packages/git/index.js';
 import { writeCheckReceipt } from '../packages/git/index.js';
 import { tryGit } from '../packages/git/index.js';
-import { foreignNodeOptions } from './test-isolation.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
 
 /** Bind recognized preloads to their actual bytes; unknown options can never reuse a receipt. */
 function preloadState() {

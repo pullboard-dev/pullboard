@@ -16,7 +16,7 @@ import { lex } from '../packages/kernel/index.js';
 import { copyPackageFiles } from '../packages/runners/index.js';
 import { packageFiles } from '../packages/runners/index.js';
 import { copyPackageSubset } from './package-copy-fixture.js';
-import * as affectedTests from '../src/affected-tests.js';
+import { selectTestTreeGuards } from '../packages/gate/index.js';
 import { installSubmitTestTreeCases } from './submit-test-tree-cases.js';
 
 installSubmitTestTreeCases();
@@ -412,10 +412,10 @@ test('repo-wide test guards survive declaration removal and use committed leadin
   box.put('test/scanner.test.js', 'export const scan = false;\n');
   box.put('test/new.test.js', 'export const added = true;\n');
   const commit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), ['test/scanner.test.js'], 'source changes retain the old explicit repo-guard obligation');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js']);
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }), ['test/scanner.test.js'], 'source changes retain the old explicit repo-guard obligation');
   box.put('test/text.test.js', header + 'export const dirty = true;\n');
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'], 'dirty declarations have no authority');
 });
 
 
@@ -430,11 +430,11 @@ test('a repo guard the base names follows its file through a rename, and a delet
   box.git('mv', 'test/old-scanner.test.js', 'packages/area/tests/scanner.test.js');
   rmSync(join(box.root, 'test/doomed.test.js'));
   const commit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }),
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit, changed: ['src/api.js'] }),
     ['packages/area/tests/scanner.test.js', 'test/doomed.test.js'], 'the renamed guard is read at its new path; the deleted guard keeps the old path so submit refuses it');
   box.put('packages/area/tests/scanner.test.js', body);
   const stripped = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit: stripped, changed: ['src/api.js'] }),
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit: stripped, changed: ['src/api.js'] }),
     ['packages/area/tests/scanner.test.js', 'test/doomed.test.js'], 'a renamed guard that drops its declaration still counts as a guard');
 });
 
@@ -447,17 +447,17 @@ test('explicit pure repo guards cover source and test changes while behavior rea
   const base = box.commit();
   box.put('src/api.js', 'export const value = 2;\n');
   const sourceCommit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit: sourceCommit }), ['test/repo-scanner.test.js']);
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit: sourceCommit }), ['test/repo-scanner.test.js']);
   assert.ok(selectAffectedTests(box.root, { base, commit: sourceCommit }).files.includes('test/behavior.test.js'), 'real source-tree behavior remains selected by ordinary affected policy');
   box.put('test/new.test.js', 'export const added = true;\n');
   const testCommit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: sourceCommit, commit: testCommit }), ['test/repo-scanner.test.js']);
+  assert.deepEqual(selectTestTreeGuards(box.root, { base: sourceCommit, commit: testCommit }), ['test/repo-scanner.test.js']);
   box.put('test/repo-scanner.test.js', 'export const scan = false;\n');
   box.put('src/api.js', 'export const value = 3;\n');
   const removed = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'the old committed guard obligation survives removal');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'the old committed guard obligation survives removal');
   box.put('test/text.test.js', guardHeader + 'export const dirty = true;\n');
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'dirty and string-only headers never create native obligations');
+  assert.deepEqual(selectTestTreeGuards(box.root, { base: testCommit, commit: removed, changed: ['src/api.js'] }), ['test/repo-scanner.test.js'], 'dirty and string-only headers never create native obligations');
 });
 
 /** Keep only source-text scanners in the mandatory test-edit guard set. */
@@ -473,7 +473,7 @@ test('the repository test-tree guards list only source scanners and launch no br
     'test/view-test-policy.test.js',
     'test/wall-clock-budgets.test.js',
   ].map(identity => mappedWorkingSource(root, identity).implementationPath).sort();
-  const guards = affectedTests.selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
+  const guards = selectTestTreeGuards(root, { commit: 'HEAD', changed: ['test/changed-input.test.js'] });
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
   assert.deepEqual(await browserBoundFiles(root, guards, { byLaunch: true }), [], 'no guard path or import graph launches a browser');
@@ -502,7 +502,7 @@ test('the repository test-tree guards list only source scanners and launch no br
 
 test('gate source changes still select the static failure regression [C7]', () => {
   const root = join(import.meta.dirname, '..');
-  const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['src/gate.js'] });
+  const selection = selectAffectedTests(root, { base: 'HEAD', commit: 'HEAD', changed: ['packages/gate/src/shell/gate.js'] });
   assert.equal(selection.full, false, selection.reason);
   assert.ok(selection.files.includes('test/submit-gate.test.js'),
     'the test that imports refuseSandboxBlocked stays selected for gate changes');
@@ -517,7 +517,7 @@ test('repo-wide test guards are found in a CommonJS project while affected tests
   const base = box.commit();
   box.put('src/api.js', 'module.exports = { value: 2 };\n');
   const commit = box.commit();
-  assert.deepEqual(affectedTests.selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'],
+  assert.deepEqual(selectTestTreeGuards(box.root, { base, commit }), ['test/scanner.test.js'],
     'a header scan needs no ES-module graph, so a plain project is not refused');
   const selected = selectAffectedTests(box.root, { base, commit, changed: ['src/api.js'] });
   assert.equal(selected.full, true, 'the import-graph selection still refuses to guess for CommonJS');

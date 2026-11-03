@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/gate.js src/trusted-policy-read.js */
+/** @pullboard-test-loads packages/gate/index.js src/trusted-policy-read.js */
 /** Real detached fake-SSH jobs carry admitted policy into nested shards [C7,V4]. */
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

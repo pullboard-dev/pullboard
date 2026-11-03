@@ -11,7 +11,8 @@ import { setTimeout as pause } from 'node:timers/promises';
 import { gzipSync } from 'node:zlib';
 import { runnerPackage } from '../packages/runners/src/shell/runner-package.js';
 import { createRunnerModuleParser } from '../packages/runners/src/shell/runner-module-parser.js';
-import * as moduleImports from '../src/module-imports.js';
+import { importsIn } from '../packages/gate/index.js';
+import { commonJsIn } from '../packages/gate/index.js';
 import { runtimeUrls } from '../packages/runners/src/core/runner-runtime-urls.js';
 import { captureRunnerTooling, currentRunnerTooling } from '../packages/runners/src/shell/runner-tooling-snapshot.js';
 import { installRunnerPackage } from '../packages/runners/src/shell/runner-package-install.js';
@@ -22,7 +23,7 @@ import { pathToFileURL } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
 import { copyPackageFiles, packageFiles } from '../packages/runners/index.js';
-import { toolSourcePath } from '../packages/runners/src/shell/package-files.js';
+import { toolSourcePath } from '../packages/runners/index.js';
 
 /** Create isolated package bytes and remove only this test's owned temporary directory. */
 function fixture(t, files = ['src', 'packages/*/src']) {
@@ -65,8 +66,8 @@ test('the private closure compiler preserves V8 edges and refusals without execu
     "const generated = \"require('data')\";",
     `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'executed');`,
   ];
-  assert.deepEqual(moduleImports.importsIn(sources, parser.parse), moduleImports.importsIn(sources));
-  assert.deepEqual(moduleImports.commonJsIn(sources, parser.parse), moduleImports.commonJsIn(sources));
+  assert.deepEqual(importsIn(sources, parser.parse), importsIn(sources));
+  assert.deepEqual(commonJsIn(sources, parser.parse), commonJsIn(sources));
   const repeated = parser.parse(["import './required.js';", "import './required.js';"]);
   repeated[0].imports.length = 0;
   assert.deepEqual(repeated[1].imports, ['./required.js'], 'one returned row cannot erase another source dependency');
@@ -76,7 +77,7 @@ test('the private closure compiler preserves V8 edges and refusals without execu
   assert.deepEqual(runtimeUrls(runtime, parser.parse), ['./file.js', '../second.json', './file.js']);
   assert.deepEqual(runtimeUrls(runtime, parser.parse), runtimeUrls(runtime));
   assert.equal(runtimeUrls('new URL(name, import.meta.url);', parser.parse), null);
-  assert.throws(() => moduleImports.importsIn(['import {'], parser.parse), /does not compile/u);
+  assert.throws(() => importsIn(['import {'], parser.parse), /does not compile/u);
   assert.throws(() => readFileSync(marker), { code: 'ENOENT' }, 'compile-only source never executes its filesystem effect');
 });
 
