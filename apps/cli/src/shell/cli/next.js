@@ -157,7 +157,7 @@ function nextPick(ctx, board, values) {
   const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
-  const { item, reasons, shared } = picked;
+  const { item, reasons, shared, lightReserved } = picked;
   const held = item?.item_status === 'claimed';
   /** Offer only reviews this seat may give; a linked board previews its engine-27 verifier standing (#579). */
   const findOffer = () => store.reviewOffer(board, { agentId: me.id, lane: me.lane, policy: ctx.config.verify.policy,
@@ -187,6 +187,6 @@ function nextPick(ctx, board, values) {
   if (item.item_lane !== me.lane) return otherLaneWork(me, item, reasons);
   if (!store.ROUTES.includes(me.route) || !store.ROUTES.includes(item.item_route) || !store.canTake(me.route, item.item_route))
     return { reasons: [...(reasons ?? []), `#${item.item_id} is available on the ${item.item_route} route; this seat serves ${me.route} and leaves it unclaimed`], idleReason: 'nothing-eligible' };
-  return { claim: true, me, item, held, shared, reasons, reviewSkipped };
+  return { claim: true, me, item, held, shared, reasons, reviewSkipped, ...(lightReserved ? { lightReserved } : {}) };
 }
 
