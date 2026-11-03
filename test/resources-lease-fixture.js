@@ -176,7 +176,8 @@ function itemLeaseFixture(t, helpers) {
   const box = helpers.project('true');
   const configFile = join(box.repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, lease: '1m', reviewLease: '1m' }));
+  // This scenario observes the synchronous submit's live queue lease; asynchronous handoffs return before that wait.
+  writeFileSync(configFile, JSON.stringify({ ...config, lease: '1m', reviewLease: '1m', submit: { ...config.submit, handoff: false } }));
   box.git(box.repo, 'add', 'pullboard.json');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queue lease fixture');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
@@ -355,7 +356,10 @@ export async function queuedLeaseProof(t, deps) {
     }, 'the real verify waiter and its item lease end');
     const build = leaseCommand(deps, box, box.web, 'submit', String(buildId), '--json');
     commands.push(build);
-    await waitUntil(() => waiting(buildId)?.leaseUntil, 'the real submit waiter and its item lease end');
+    await waitUntil(() => {
+      assert.equal(build.exitResult, null, `submit exited before queueing: ${build.stdoutText}\n${build.stderrText}`);
+      return waiting(buildId)?.leaseUntil;
+    }, 'the real submit waiter and its item lease end');
     const check = leaseCommand(deps, box, box.checker, 'check', String(checkId), '--yes', '--json');
     commands.push(check);
     await waitUntil(() => waiting(checkId)?.leaseUntil, 'the independent owned check and its item lease end');
