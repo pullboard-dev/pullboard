@@ -140,7 +140,7 @@ test('native review records sealed citations and reuses the actual submit execut
     writeFileSync(join(box.repo, 'packages', name, 'tests/value.test.js'),
       "import { test } from 'node:test';\nimport assert from 'node:assert/strict';\nimport { appendFileSync } from 'node:fs';\n"
       + "import { value } from '../index.js';\n"
-      + `test('the fixture value is positive [G1]', () => { assert.ok(value > 0); appendFileSync(${JSON.stringify(marker)}, 'x'); });\n`);
+      + `test('the fixture value is positive [G1]', () => { assert.ok(value > 0); ${name === 'base' ? 'if (value === 2) ' : ''}appendFileSync(${JSON.stringify(marker)}, 'x'); });\n`);
   }
   writeTestTiers(box.repo);
   box.git(box.repo, 'add', '-A'); box.git(box.repo, 'commit', '-qm', 'chore: private sealed packages');
@@ -154,14 +154,14 @@ test('native review records sealed citations and reuses the actual submit execut
     '--criterion', 'The base value remains positive.', '--check', 'node --test packages/base/tests/value.test.js', '--wait', '--json');
   assert.equal(added.code, 0, added.err + added.out);
   const id = JSON.parse(added.out).item.item_id;
-  const baselineCount = readFileSync(baseRuns, 'utf8');
+  assert.equal(existsSync(baseRuns), false, 'the baseline value does not count as candidate execution');
   const claimed = await cli(box.web, 'claim', String(id)); assert.equal(claimed.code, 0, claimed.err);
   writeFileSync(join(box.web, 'packages/base/index.js'), 'export const value = 2;\n');
   box.git(box.web, 'add', '-A'); box.git(box.web, 'commit', '-qm', 'feat(web): change private base [G1]');
   const submitted = await cli(box.web, 'submit', String(id), '--wait', '--no-next', '--json');
   assert.equal(submitted.code, 0, submitted.err + submitted.out);
   const count = readFileSync(baseRuns, 'utf8');
-  assert.equal(count, baselineCount + 'x', 'submit executes the actual frozen test exactly once');
+  assert.equal(count, 'x', 'submit executes the actual candidate test exactly once');
   assert.equal(existsSync(aloneRuns), false, 'the unchanged sealed package did not execute');
   const reviewer = join(box.dir, 'reviewer');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
