@@ -5,7 +5,6 @@ import { briefSections } from "../../../spec/core.js";
 import { refuseMaskedExit } from "../../../kernel/src/core/literal-shell-words.js";
 import { REFERENCE_ENGINE } from "../../../../src/reference-engine.js";
 import { Refused } from "../../../kernel/core.js";
-import { criterionSize } from "./criterion-size.js";
 
 const BRIEF_LIMIT = 8000;
 
@@ -16,11 +15,6 @@ const BRIEF_LIMIT = 8000;
  *
  * @param {{ brief: string, route: string, criterion: string, check: string }} item
  */
-export function defaultItemRoute(criterion, catalog = []) {
-  const size = criterionSize(criterion, catalog);
-  return size.cells.length > 1 || size.clauses > 2 ? 'mid' : 'light';
-}
-
 /** Fill absent low-route file and test sections from literal test paths in the item's check. */
 function inferBrief(brief, check, engine) {
   const referenceOptions = { references: engine >= REFERENCE_ENGINE };

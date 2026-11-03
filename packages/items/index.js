@@ -1,5 +1,5 @@
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
-export { criterionSize } from './src/core/criterion-size.js';
+export { criterionSize, defaultItemRoute } from './src/core/criterion-size.js';
 export { itemCollisionPlan } from './src/shell/item-function-planning.js';
 export { criterionCells } from './src/shell/criterion-cells.js';
 export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords } from './src/shell/blocks.js';
@@ -28,7 +28,7 @@ export { itemPatchRecords, itemPatchSetDigest, itemPatches, itemPatchDigest, ite
 export { itemPatchResetFields, invalidateItemPatch, followItemPatches, applyItemPatchFollow, refuseLiveAttach, applyItemPatchAttachment, applyItemPatchRemoval, itemPatchReviewProblem } from './src/shell/item-patches.js';
 export { minimalItemReceipt, verifyItemReceipt } from './src/shell/item-receipt.js';
 export { reserveRehomeItemId, itemRedirect, rehomeImport, rehomeDestinationItemId, rehomeItem, applyRehomeItem } from './src/shell/item-rehome.js';
-export { checkRouted, checkRoute, defaultItemRoute } from './src/core/item-routing.js';
+export { checkRouted, checkRoute } from './src/core/item-routing.js';
 export { requireLedger, recordItemSession, refuseSelfSession } from './src/shell/item-sessions.js';
 export { requireOutsideReceipt } from './src/shell/outside-proof.js';
 export { OUTSIDE_SENSITIVE_PATHS, SENSITIVE_CELLS, planSensitivePaths, outsideSensitivePaths, outsideSensitivity } from './src/core/outside-sensitive.js';
