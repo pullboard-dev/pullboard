@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { configFromSource } from '../packages/config/index.js';
-import { runSubmitGate } from '../src/gate-submit.js';
+import { runSubmitGate } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Require actual successful native CLI execution before inspecting its document. */

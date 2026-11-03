@@ -117,7 +117,7 @@ test('a narrow body cannot expand into a higher barrel through the alias cut [C7
 
 
 test('generated landing bindings keep the actual provider for legacy and canonical gate entries [C7,H16]', async () => {
-  for (const entry of ['src/gate.js', 'src/gate-submit.js', 'src/gate-slot.js', 'packages/gate/index.js', 'packages/gate/src/shell/gate-slot.js']) {
+  for (const entry of ['src/gate-wait.js', 'src/test-run.js', 'src/gate-slot.js', 'packages/gate/index.js', 'packages/gate/src/shell/gate-slot.js']) {
     const source = executionServicesSource(new URL('../' + entry, import.meta.url).href);
     const loaded = await import('data:text/javascript,' + encodeURIComponent(source + '\nexport { executionServices };'));
     assert.equal(loaded.executionServices.runners.runOnRunner, runnerExecutionServices().runOnRunner, entry);
