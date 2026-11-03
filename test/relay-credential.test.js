@@ -45,6 +45,8 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'addItem') args = [{ by: actor, lane: box.lane, title: 'credential actor fixture' }];
     if (operation === 'requestCompanion') args = [{ agentId: actor, parentId: 999999, lane: box.lane,
       key: 'credential-companion', title: 'credential actor fixture' }];
+    if (operation === 'createItemSlice') args = [{ agentId: actor, parentId: 999999,
+      parentDigest: 'f'.repeat(64), title: 'credential slice fixture', lane: box.lane, files: ['src/credential-fixture.js'] }];
     if (operation === 'shout') args = [{ from: actor, to: 'all', text: 'credential actor fixture', lanes: [box.lane] }];
     if (operation === 'release') args = [999999, actor];
     // State-bound companion sealing reads the real item before choosing its replay protocol.
