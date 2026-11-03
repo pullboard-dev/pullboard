@@ -38,7 +38,7 @@ function fixture(t, { second = false } = {}) {
  * the way runners fail (transport lost, cleanup timeout, wait deadline) before a real green, or returns `final`.
  */
 function scenario(box, failures, final = '{isGreen:true,output:"REQUEUE_OK"}', { brokenFirstHost = null } = {}) {
-  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const source = `import { withGateSlot } from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
 import { RunnerDropped } from ${url('packages/gate/src/core/gate-policy-load.js')};
