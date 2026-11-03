@@ -227,7 +227,12 @@ async function runMain(argv, streams) {
     CHECKOUT_BOARD_ONLY.delete(io);
     checkoutSession?.lease?.release();
     if (automaticLandingAfterCommand) {
-      try { await (await import('../../../../../packages/landing/index.js')).recoverAutomaticLanding(automaticLandingAfterCommand.info.root, new URL('../../../../../bin/automatic-landing.js', import.meta.url)); }
+      try {
+        const root = automaticLandingAfterCommand.info.root;
+        const worker = await import('../../../../../packages/landing/index.js');
+        const recovered = await worker.recoverAutomaticLanding(root, new URL('../../../../../bin/automatic-landing.js', import.meta.url));
+        if (!recovered) await (await import('../../../../../bin/automatic-landing.js')).bootstrapLandingWake(root);
+      }
       catch (error) { io.err(`automatic landing wake unavailable: ${error.code ?? error.name}: ${error.message}`); }
     }
     if (maintenanceAfterCommand) {
