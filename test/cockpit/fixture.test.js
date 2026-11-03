@@ -14,10 +14,10 @@ import { test } from 'node:test';
 import { waitForStableBoxes } from './stable.js';
 import { addItem, closeBoard } from '../../src/board.js';
 import { openBoard } from '../../src/native-board.js';
-import { exportBoard, importBoard } from '../../src/exchange.js';
+import { exportBoard, importBoard } from '../../packages/store/index.js';
 import { projectState } from '../../src/cli/view-state.js';
 import { testsNeedBrowser } from '../../src/browser-admission.js';
-import { copyPackageFiles } from '../../src/package-files.js';
+import { copyPackageFiles } from '../../packages/runners/index.js';
 import { scratch, machine, project, build, fetchView, fetchLive, startView, styleOf, openPage, boardId, boardOf, assertObservationsEqual, chromeExecutable, startSnapshotChrome, openSnapshotChrome, stopOwnedChrome, closeSnapshotChrome } from './fixture.js';
 
 test('the view fixture refuses to launch Chrome outside a browser slot [C7,O5]', async t => {

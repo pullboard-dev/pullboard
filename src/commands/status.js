@@ -24,9 +24,9 @@ import { relayStateExists } from '../../packages/store/index.js';
 import { unlinkedRelayStatus } from '../../packages/link/index.js';
 import { ruleProofCounts } from '../../packages/verify/index.js';
 import { memoryHeldRuns } from '../../packages/store/index.js';
-import { readRunnerUtilization } from '../runner-utilization.js';
+import { readRunnerUtilization } from '../../packages/runners/index.js';
 import { runnerDeadlineLine } from '../../packages/resources/index.js';
-import { runnerDeadlineRuns } from '../runner-wait.js';
+import { runnerDeadlineRuns } from '../../packages/runners/index.js';
 import { reviewQueueLine } from '../../packages/verify/index.js';
 import {
   productLine,

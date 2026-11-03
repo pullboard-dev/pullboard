@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { packText } from '../src/run.js';
+import { packText } from '../packages/runners/index.js';
 import { doctrineText, loadDoctrine, standardDoctrine, STANDARD_VERSION } from '../src/doctrine.js';
 import { lintSpec, parseSpec } from '../packages/spec/index.js';
 import { renderSpecView } from '../apps/view/index.js';

@@ -1,12 +1,12 @@
 /** Hosted and Settings presentation takes plain data; network, filesystem and DOM contracts stay separate [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { settingsMarkup } from '../../src/view/settings-render.js';
-import { settingsContentHtml } from '../../src/view/settings-render.js';
-import { starHtml } from '../../src/view/star-render.js';
-import { hostedMarkup } from '../../src/view/hosted-render.js';
-import { hostedBrowser } from '../../src/view/hosted-render.js';
-import { hostedState } from '../../src/view/hosted-render.js';
+import { settingsMarkup } from '../../apps/view/src/core/view/settings-render.js';
+import { settingsContentHtml } from '../../apps/view/src/core/view/settings-render.js';
+import { starHtml } from '../../apps/view/src/core/view/star-render.js';
+import { hostedMarkup } from '../../apps/view/src/core/view/hosted-render.js';
+import { hostedBrowser } from '../../apps/view/src/core/view/hosted-render.js';
+import { hostedState } from '../../apps/view/src/core/view/hosted-render.js';
 
 test('Settings preserves value types, selected scope and masked fields from API data [N26,O5,O6,C7]', () => {
   const rows = [false, 0, '', null, { nested: '<data>' }].map((value, index) => ({ scope: 'machine', key: 'key' + index, value, default: null, source: 'machine' }));

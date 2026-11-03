@@ -1,7 +1,7 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-loads src/cli.js src/board.js src/board-hot.js src/board-migrate.js src/cli-context.js src/commands/status.js src/commands/show.js src/commands/list.js src/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
-import { copyPackageFiles } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';

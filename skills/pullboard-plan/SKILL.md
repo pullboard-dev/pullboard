@@ -12,22 +12,22 @@ You turn approved rows into items builders can claim. You do not build.
 3. **One item per verifiable piece.** Each item:
    - sits in the lane that owns its files
    - cites with `--specs` only the rows it meets in full; a verifier rejects an item that cites a row it does not meet
-   - has a `--criterion` a stranger could check without asking you, with the exact command, input and expected output
+   - has a `--criterion` a stranger could check without asking you, with the exact command, input and expected output. Write it as at most 3 numbered clauses, each one checkable requirement; split a clause that says "and" into two, or into two items
    - has a `--brief` (or `--brief-file`) when a builder starting cold would need more than the criterion. The criterion says what; the brief says how. Write it in four labelled parts:
 
      ```
      Files:
-     - src/store.js
-     - test/store.test.js
+     - packages/store/index.js
+     - packages/store/tests/store.test.js
      Change:
      - add(text) returns the new task's number; numbers start at 1 and are never reused
      Test:
-     - in test/store.test.js, two adds return 1 and 2, and a remove then an add returns 3
+     - in packages/store/tests/store.test.js, two adds return 1 and 2, and a remove then an add returns 3
      Out of scope: every other file; no new dependencies
      ```
 
      Builders commit and submit their own work, so a brief never forbids git. Only the packs `pullboard run` writes say so, because there the runner commits.
-   - has a `--check` when it can: the one command that proves it, such as `node --test test/store.test.js`.
+   - has a `--check`, set at filing, whenever it can: the one command that proves it, such as `node --test packages/store/tests/store.test.js`. The check must fail before the work and pass after it.
 4. **Route each item to the cheapest model that can build it.** Every item an expensive model builds that a cheaper one could have is waste.
    - `--route light`: a small or local model can build it from the brief alone. Mechanical work: wiring, a field through three files, a test for a stated case, a rename.
    - `--route mid`: a capable model such as Haiku or Sonnet: a small feature, a bug with a known cause.
@@ -40,11 +40,11 @@ You turn approved rows into items builders can claim. You do not build.
 8. Rows gated by review (style, constraints) need no item of their own unless there is work to do; list them in your report.
 
 ```
-pullboard add store "Task file format and store module" --specs G7,D3 --criterion "store.add('x') returns 1 and writes the file in TODO_FILE"
-pullboard add cli "todo add prints the new number" --specs G1 --after 1 --criterion "todo add 'buy milk' exits 0 and prints 1"
+pullboard add store "Task file format and store module" --specs G7,D3 --criterion "1. store.add('x') returns 1. 2. It writes the file in TODO_FILE." --check "node --test packages/store/tests/store.test.js"
+pullboard add cli "todo add prints the new number" --specs G1 --after 1 --criterion "todo add 'buy milk' exits 0 and prints 1" --check "node --test apps/cli/tests/cli.test.js"
 pullboard add cli "todo help lists every command" --specs G9 --after 2 --route light \
-  --criterion "todo help exits 0 and names add, list, done and remove" \
-  --brief "Add a help case to the command switch in src/cli.js, next to add. Copy how add prints. Test it in test/cli.test.js the way the add test runs the CLI."
+  --criterion "todo help exits 0 and names add, list, done and remove" --check "node --test apps/cli/tests/cli.test.js" \
+  --brief "Add a help case to the command switch in apps/cli/index.js, next to add. Copy how add prints. Test it in apps/cli/tests/cli.test.js the way the add test runs the CLI."
 ```
 
 To change a brief or a route later: `pullboard edit <id> --brief "..."` or `--route strong|light`. The criterion changes only by `pullboard refreeze`.
