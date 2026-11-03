@@ -38,7 +38,19 @@ import { unpackRelease } from '../../../test/release-archive.js';
 
 const e2e = createE2eHelpers();
 after(e2e.cleanup);
-const { project, commitFile } = e2e;
+const { commitFile } = e2e;
+
+/** Complete each private submit before inspecting state and suppress unrelated next-work dispatch. */
+function project(...args) {
+  const box = e2e.project(...args);
+  const run = box.run;
+  box.run = (cwd, ...argv) => {
+    if (argv[0] === 'submit') argv.push('--wait', '--no-next');
+    if (argv[0] === 'verify') argv.push('--no-next');
+    return run(cwd, ...argv);
+  };
+  return box;
+}
 
 /** Open the real board SQLite file created by the CLI fixture and close it with the test. */
 function openFixtureBoard(t, box) {

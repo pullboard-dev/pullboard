@@ -13,6 +13,7 @@ import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 import { relayClientFixture } from '../../../test/relay-client-fixture.js';
 import { ENGINE_VERSION } from '../src/shell/machine.js';
 
@@ -58,6 +59,9 @@ function securityStandIn(box) {
 
 test('owner-only key file links and reads with a locked keychain, migrates once, and supports the environment key [H15,H17]', async (t) => {
   const box = await relayClientFixture(t);
+  // Item reads use accepted main's family policy, so commit the policy that init generated.
+  runFixtureGit(['add', 'pullboard.json', 'SPEC.md', 'AGENTS.md'], { cwd: box.root, env: box.env });
+  runFixtureGit(['commit', '-q', '-m', 'chore: commit private relay policy'], { cwd: box.root, env: box.env });
   const legacyStore = securityStandIn(box);
 
   const linked = await box.cli('relay', 'on', '--url', box.origin);

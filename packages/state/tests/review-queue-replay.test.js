@@ -111,11 +111,10 @@ test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   unpackRelease('v0.8.2', directory);
   const released = await import(pathToFileURL(join(directory, 'src/board.js')).href);
-  const exchange = await import(pathToFileURL(join(directory, 'src/exchange.js')).href);
   const machine = await import(pathToFileURL(join(directory, 'src/machine.js')).href);
   assert.equal(machine.ENGINE_VERSION, 5);
-  const seed = released.openBoard(':memory:', { now: () => new Date('2026-10-08T08:00:00.000Z') });
-  t.after(() => released.closeBoard(seed));
+  const seedFile = join(directory, 'seed.sqlite');
+  const seed = released.openBoard(seedFile, { now: () => new Date('2026-10-08T08:00:00.000Z') });
   for (const [lane, path] of [['coordinator', '/fixture'], ['web', '/fixture/web-1'], ['web', '/fixture/web-2']])
     released.register(seed, { lane, path });
   const item = released.addItem(seed, { by: 'coordinator', lane: 'web', title: 'Review queue fixture' });
@@ -123,7 +122,12 @@ test('v4 review releases keep their replay semantics; v5 notes add cooldowns [V1
     freeze: () => ({ text: 'review criterion', digest: 'c'.repeat(64) }) });
   released.submit(seed, item, { agentId: 'web-1', commit: 'a'.repeat(40), tree: 'b'.repeat(40) });
   released.reserveReview(seed, item, { agentId: 'web-2', leaseMs: LEASE_MS, policy: 'any' });
-  const snapshot = exchange.exportBoard(seed);
+  released.closeBoard(seed);
+  // Upgrade the genuine released database through the normal opener before exporting its current schema.
+  const migrated = openBoard(seedFile, { now: () => new Date('2026-10-08T08:00:00.000Z') });
+  let snapshot;
+  try { snapshot = exportBoard(migrated); }
+  finally { store.closeBoard(migrated); }
   const [legacyBoard, currentBoard] = [0, 1].map(() => {
     const board = openBoard(':memory:', { now: () => new Date('2026-10-08T08:00:00.000Z') });
     importBoard(board, snapshot);

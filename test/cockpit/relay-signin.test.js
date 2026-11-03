@@ -87,7 +87,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { main } from ${JSON.stringify(new URL('../native-cli-fixture.js', import.meta.url).href)};
-import { updateRelayMachine } from ${JSON.stringify(module('relay-machine.js'))};
+import { updateRelayMachine } from ${JSON.stringify(new URL('../../packages/link/index.js', import.meta.url).href)};
 import { runFixtureGit } from ${JSON.stringify(fixtureModule)};
 const other = join(dirname(${JSON.stringify(box.root)}), 'second-view-board');
 mkdirSync(other);
@@ -187,7 +187,7 @@ test('view sign-in keeps its key and intents inside the authenticated machine vi
   box.providerState.deviceAuthorized = false;
   const serveModule = new URL('../../src/commands/view.js', import.meta.url).href;
   const viewModule = new URL('../../src/serve.js', import.meta.url).href;
-  const machineModule = new URL('../../src/relay-machine.js', import.meta.url).href;
+  const machineModule = new URL('../../packages/link/index.js', import.meta.url).href;
   const result = await box.script(`
 import { request } from 'node:http';
 import { serveView } from ${JSON.stringify(serveModule)};

@@ -49,6 +49,8 @@ export function reportCleanupTimeout(S) {
       writeFileSync(join(S.cleanupDirectory, 'cleanup-timeout.json'), JSON.stringify(details) + '\n', { mode: 0o600 });
     } catch { /* The named red result remains authoritative if diagnostic storage fails. */ }
   }
+  // The result already went out: the unverified leftovers stay on the runner for the sweep, never in the gate's verdict (#2538).
+  if (S.resultSent) return;
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_DETAILS ${S.workerId} ${Buffer.from(JSON.stringify(details)).toString('base64')}\n`);
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${S.workerId} ${details.reason || S.cleanupStage}\n`);
   process.stderr.write(`PULLBOARD_RUNNER_CLEANUP_TIMEOUT ${S.workerId}\n`);
