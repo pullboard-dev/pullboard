@@ -2,6 +2,7 @@ import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waiv
 /** Coordinator landing selection step; source-preserving partition of land.js [B3,R3,C7]. */
 import { localDependencyIds } from '../../../items/index.js';
 import { landingChangedFiles } from '../core/land-collisions.js';
+import { runnerSourceHold } from '../core/runner-source-hold.js';
 import { deferredLandingPriorities } from '../core/land-collisions.js';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -50,8 +51,8 @@ export function landingEntry(item) {
 }
 
 /** Select in verdict order; a read-only preflight may stop at its first eligible item [B3,R3]. */
-export function candidates(board, root, base, maximum, { firstReady = false, landingPorts } = {}) {
-  const all = store.listItems(board, { all: true });
+export function candidates(board, root, base, maximum, { firstReady = false, landingPorts, listItems = store.listItems } = {}) {
+  const all = listItems(board, { all: true });
   const projector = verdictProjector(root, board, { main: base }, { events: store.events, acceptedVerdict: store.acceptedVerdict, verdictReviewProblem: store.verdictReviewProblem });
   const pending = all.filter((item) => item.item_status === 'verified' && !item.item_merged_commit);
   const order = new Map();
@@ -74,6 +75,8 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
   const touched = new Map();
   const knownReds = batches.flatMap((batch) => batch.culprits ?? []);
   for (const original of pending) {
+    // A held verified item keeps its accept but joins no batch until the hold is lifted.
+    if (original.item_hold_at) { blocked.push({ id: original.item_id, code: 'ITEM_HELD', message: original.item_hold_reason ?? 'held' }); continue; }
     const item = { ...original, item_landing_commit: store.checkedLandingCommit(board, original) };
     const stale = projector.state(item);
     if (stale) { blocked.push({ id: item.item_id, ...stale }); continue; }
@@ -83,6 +86,8 @@ export function candidates(board, root, base, maximum, { firstReady = false, lan
       blocked.push({ id: item.item_id, code: 'LAND_KNOWN_RED', tests: known.tests });
       continue;
     }
+    const retried = runnerSourceHold(batches, item, base);
+    if (retried) { blocked.push({ id: item.item_id, ...retried }); continue; }
     const dependencies = localDependencyIds(item);
     if (dependencies.some((id) => !all.find((other) => other.item_id === id)?.item_merged_commit && !ready.some((other) => other.item_id === id))) continue;
     const stacked = store.unverifiedSubmissions(board).find((other) => other.item_id !== item.item_id
@@ -122,6 +127,6 @@ export function idleLanding(board, trunk) {
 export function emptyLanding(selected, say) {
   const stale = selected.blocked.find(item => item.code === 'STALE_VERDICT');
   if (stale) throw staleVerdictRefusal({ item_id: stale.id }, stale);
-  for (const entry of selected.blocked) say(`${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}`);
+  for (const entry of selected.blocked) say(`${entry.code} #${entry.id}${entry.stacked ? ` carries #${entry.stacked}` : ''}${entry.message ? `: ${entry.message}` : ''}`);
   return { batch: null, landed: [], conflicts: [], blocked: selected.blocked, culprits: [], flakes: [] };
 }

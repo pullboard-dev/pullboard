@@ -236,7 +236,7 @@ export function createDescendantTracker(directory, { census: processCensusHook =
       for (const row of current.values()) {
         if (/^Z/u.test(row.state)) continue;
         for (const event of eventsByChild.get(row.pid) ?? []) {
-          if (consumedEvents.has(event.eventId)) continue;
+          if (consumedEvents.has(event.eventId) && !pendingIdentities.get(row.pid)?.eventIds.has(event.eventId)) continue;
           const parentPid = instancePids.get(event.instance);
           // A preload instance exists only in the private job environment. The receipt
           // binds its child to that exact process instance even after the parent exits.
@@ -247,13 +247,24 @@ export function createDescendantTracker(directory, { census: processCensusHook =
           if (!prior && baseline.get(row.pid)?.birth === row.birth) { consumedEvents.add(event.eventId); continue; }
           // A receipt names its child by pid and exact start, read before the child could be reaped. The same pid with
           // the same exact start is that child, even once its parent exited unseen; a reused pid starts later (#1063).
-          if (event.start && (row.ppid !== event.ppid || !ownedPids.has(event.ppid)) && startOf(row.pid) === event.start) {
-            if (row.pgid === row.pid) detachedGroups.set(row.pid, row.birth);
-            known.set(row.pid, { ...row, commandSha256: event.commandSha256, root: false, group: row.pgid });
-            consumedEvents.add(event.eventId);
-            pendingIdentities.delete(row.pid);
-            ownedPids.add(row.pid);
-            continue;
+          if (event.start && (row.ppid !== event.ppid || !ownedPids.has(event.ppid))) {
+            const actualStart = startOf(row.pid);
+            if (actualStart && actualStart !== event.start) {
+              // Positive kernel evidence disproves this receipt's ownership: the pid was reused.
+              // Retire only this receipt, preserving any other unresolved evidence for this process.
+              consumedEvents.add(event.eventId);
+              const pending = pendingIdentities.get(row.pid);
+              if (pending?.birth === row.birth && pending.eventIds.delete(event.eventId) && !pending.eventIds.size) pendingIdentities.delete(row.pid);
+              continue;
+            }
+            if (actualStart === event.start) {
+              if (row.pgid === row.pid) detachedGroups.set(row.pid, row.birth);
+              known.set(row.pid, { ...row, commandSha256: event.commandSha256, root: false, group: row.pgid });
+              consumedEvents.add(event.eventId);
+              pendingIdentities.delete(row.pid);
+              ownedPids.add(row.pid);
+              continue;
+            }
           }
           // A spawn receipt must be observed while its exact parent instance still owns it.
           // A same-numbered PID first seen after reparenting is ambiguous and never adopted.

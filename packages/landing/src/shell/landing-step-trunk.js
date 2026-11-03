@@ -24,6 +24,7 @@ import { bisect } from './landing-step-diagnose.js';
 import { fileFlakes } from './landing-step-diagnose.js';
 import { fileTestDefects } from './landing-step-diagnose.js';
 import { finishTrunk } from './landing-step-publish.js';
+import { refusalRecord } from '../core/runner-source-hold.js';
 
 /**
  * Prove a tier-1 batch's actual merged diff with submit's affected map (#1277). Fixed invariants and registry
@@ -85,7 +86,8 @@ export async function landOnTrunk(state) {
     }
   } catch (error) {
     if (!(error instanceof Refused)) throw error;
-    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }] });
+    // The refusal is kept with its code so a RUNNER_SOURCE count across these blocked batches can hold the items [C7].
+    if (!['flaky', 'test-defect'].includes(state.batch.state)) await save(state, { state: 'blocked', failures: [{ file: null, name: error.message }], ...refusalRecord(state.batch, error, state.board.clock.now().toISOString()) });
     state.say(`nothing landed: ${error.message}`);
     return;
   }
