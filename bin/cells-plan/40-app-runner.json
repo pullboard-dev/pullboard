@@ -7,7 +7,9 @@
  "paths": [
   ["src/chrome-clone-cleanup.js","apps/runner/src/shell/chrome-clone-cleanup.js","rule"],
   ["src/private-check-worker.js","apps/runner/src/shell/private-check-worker.js","seed"],
+  ["src/runner-custody.js","apps/runner/src/shell/runner-custody.js","seed"],
   ["src/runner-private-check.js","apps/runner/src/shell/runner-private-check.js","seed"],
+  ["src/runner-private-mode.js","apps/runner/src/shell/runner-private-mode.js","seed"],
   ["src/runner-stage-read.js","apps/runner/src/shell/runner-stage-read.js","seed"],
   ["src/runner-stage.js","apps/runner/src/core/runner-stage.js","seed"],
   ["src/runner-worker.js","apps/runner/src/shell/runner-worker.js","seed"],
@@ -26,7 +28,9 @@
  "reexports": [
   "src/private-check-worker.js",
   "src/process-census.js",
+  "src/runner-custody.js",
   "src/runner-private-check.js",
+  "src/runner-private-mode.js",
   "src/runner-stage-read.js",
   "src/runner-stage.js"
  ],
@@ -42,7 +46,7 @@
  "cuts": [],
  "ratchets": {
   "legacySource": -1,
-  "shims": 5,
+  "shims": 7,
   "boundaries": 2,
   "strays": 0,
   "documents": 0,
