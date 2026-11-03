@@ -720,7 +720,7 @@ function unavailableRunnerHosts(db, now, runners = []) {
   const charges = cleanupCharges(db), slots = new Map(runners.map(runner => [runner.host, runner.slots]));
   return new Set([
     ...db.prepare('SELECT * FROM runner_unavailable').all()
-      .filter(row => !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
+      .filter(row => row.healing === 1 && row.probe_until > now || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }

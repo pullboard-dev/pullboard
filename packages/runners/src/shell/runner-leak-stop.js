@@ -9,10 +9,17 @@ import { sshEnvironment } from './runner-remote-tooling.js';
  */
 function stopScript(root) {
   const base = root ? shellWord(root) : '"$HOME/.pullboard-runner"';
-  return `R=${base}; J="$R/jobs/"; me=$$; `
-    + `pids=$(ps -axo pid=,args= | J="$J" awk -v me="$me" -v pp="$PPID" 'index($0,ENVIRON["J"])>0 && $1!=me && $1!=pp {print $1}'); `
-    + `[ -n "$pids" ] || exit 0; kill $pids 2>/dev/null; sleep 1; `
-    + `for p in $pids; do kill -0 $p 2>/dev/null && kill -9 $p 2>/dev/null; done; echo $pids`;
+  // Each target is recorded as pid@start-time and signalled again only while that exact start time still belongs to the pid.
+  const stamp = "awk '{print $1\"_\"$2\"_\"$3\"_\"$4\"_\"$5}'";
+  const script = `R=${base}; J="$R/jobs/"; me=$$; `
+    + `recs=$(ps -axo pid=,lstart=,args= | J="$J" awk -v me="$me" -v pp="$PPID" 'index($0,ENVIRON["J"])>0 && $1!=me && $1!=pp {print $1"@"$2"_"$3"_"$4"_"$5"_"$6}'); `
+    + `[ -n "$recs" ] || exit 0; `
+    + `same() { [ "$(ps -o lstart= -p "\${1%%@*}" 2>/dev/null | ${stamp} | tr -s '_')" = "$(echo "\${1#*@}" | tr -s '_')" ]; }; `
+    + `for r in $recs; do same "$r" && kill "\${r%%@*}" 2>/dev/null; done; sleep 1; `
+    + `for r in $recs; do same "$r" && kill -9 "\${r%%@*}" 2>/dev/null; done; `
+    + `for r in $recs; do echo "\${r%%@*}"; done`;
+  // The remote login shell may not split words (zsh), so a plain POSIX shell runs the script.
+  return 'sh -c ' + shellWord(script);
 }
 
 /**

@@ -15,7 +15,7 @@ export function initializeRunnerRecovery(db) {
   db.exec('CREATE TABLE IF NOT EXISTS runner_recovery_event(id TEXT PRIMARY KEY,host TEXT NOT NULL,at TEXT NOT NULL,kind TEXT NOT NULL,detail TEXT NOT NULL)');
   const columns = new Set(db.prepare('PRAGMA table_info(runner_unavailable)').all().map(row => row.name));
   for (const [name, type] of [['failure', "TEXT NOT NULL DEFAULT ''"], ['probe_after', 'INTEGER NOT NULL DEFAULT 0'],
-    ['probe_token', "TEXT NOT NULL DEFAULT ''"], ['probe_until', 'INTEGER NOT NULL DEFAULT 0'], ['probe_attempts', 'INTEGER NOT NULL DEFAULT 0']]) {
+    ['probe_token', "TEXT NOT NULL DEFAULT ''"], ['probe_until', 'INTEGER NOT NULL DEFAULT 0'], ['probe_attempts', 'INTEGER NOT NULL DEFAULT 0'], ['healing', 'INTEGER NOT NULL DEFAULT 0']]) {
     if (!columns.has(name)) db.exec(`ALTER TABLE runner_unavailable ADD COLUMN ${name} ${type}`);
   }
 }
@@ -151,7 +151,7 @@ export async function recoverUnavailableRunners(db, runners, { probe, idleProbe,
     // A cleanup re-check is cheap and the runner keeps its other slots, so it comes round every minute; a no-holder runner is healed twice as fast.
     const delay = row.detail === 'CLEANUP_UNVERIFIED' ? healDelay(db, row, leakProbe) : row.detail === 'WORKER_UNRESPONSIVE'
       ? 300_000 : Math.min(60_000, 1_000 * 2 ** Math.min(6, attempts));
-    db.prepare(`UPDATE runner_unavailable SET probe_token='',probe_until=0,probe_after=?,probe_attempts=?,failure=?
+    db.prepare(`UPDATE runner_unavailable SET probe_token='',probe_until=0,healing=0,probe_after=?,probe_attempts=?,failure=?
       WHERE host=? AND since=? AND probe_token=?`)
       .run(now + delay, attempts, JSON.stringify({ ...retained, latestProbe: result }), row.host, row.since, token);
     return false;

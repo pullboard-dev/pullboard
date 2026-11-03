@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
-import { initializeRunnerRecovery, updateRunnerSettings, recordRunnerFailure, recoverUnavailableRunners } from '../packages/resources/index.js';
+import { initializeRunnerRecovery, takeResource, updateRunnerSettings, recordRunnerFailure, recoverUnavailableRunners } from '../packages/resources/index.js';
 import { HEAL_RETRY_MS } from '../packages/resources/src/shell/runner-leak-heal.js';
 import { stopLeakedRunnerJobs } from '../packages/runners/src/shell/runner-leak-stop.js';
 
@@ -108,4 +108,52 @@ test('a registration during the leaked job cleanup cannot clear the quarantine o
   assert.equal(during?.host, m.runner.host, 'registration left the quarantine standing while cleanup ran');
   assert.equal(recovered, true);
   assert.equal(m.alive(pid), false);
+});
+
+/** Point machine admission at the fixture's own database for one test, restoring the environment afterwards. */
+function useMachineHome(t, dir) {
+  const saved = process.env.PULLBOARD_MACHINE_HOME;
+  process.env.PULLBOARD_MACHINE_HOME = dir;
+  t.after(() => { if (saved === undefined) delete process.env.PULLBOARD_MACHINE_HOME; else process.env.PULLBOARD_MACHINE_HOME = saved; });
+}
+
+/** Ask the real admission queue for one runner-only gate lease from the given runners. */
+function admit(dir, runners, runnerWaitMs) {
+  return takeResource({ name: 'gate', capacity: 1, browserCapacityProvider: () => 1, scope: 'machine', root: dir,
+    agent: 'fixture-self-heal', remote: true, runnerOnly: true, runnerWaitMs, runnerProvider: () => runners });
+}
+
+test('a multi-slot host admits no work while its leaked jobs are being stopped, then admits again [C7]', async t => {
+  const m = machine(t), pid = m.leak();
+  useMachineHome(t, m.dir);
+  const runners = [{ ...m.runner, slots: 3 }];
+  m.quarantine();
+  let during;
+  const leakProbe = async runner => {
+    try { during = await admit(m.dir, runners, 1_000); } catch (error) { during = error; }
+    return stopLeakedRunnerJobs(runner);
+  };
+  const recovered = await recoverUnavailableRunners(m.db, runners,
+    { probe: async () => ({ healthy: false, step: 'cleanup' }), idleProbe: m.idleProbe, leakProbe, now: Date.now() + 2000 });
+  assert.equal(recovered, true);
+  assert.equal(typeof during?.release, 'undefined', 'no lease was granted during the cleanup');
+  assert.equal(m.db.prepare('SELECT COUNT(*) AS n FROM holder').get().n, 0, 'no holder was admitted during the cleanup');
+  assert.equal(m.alive(pid), false);
+  const after = await admit(m.dir, runners, 10_000);
+  try { assert.equal(after.runner.host, m.runner.host, 'the healed host admits work again'); } finally { after.release(); }
+});
+
+test('recovery keeps the runner settings, node path and root, exactly as configured [C7]', async t => {
+  const m = machine(t);
+  m.leak();
+  const configured = { ...m.runner, node: '/opt/fixture/bin/node', slots: 4, browser: 2 };
+  const before = structuredClone(configured), seen = [];
+  const leakProbe = async runner => { seen.push(structuredClone(runner)); return stopLeakedRunnerJobs(runner); };
+  const idleProbe = async runner => { seen.push(structuredClone(runner)); return m.idleProbe(runner); };
+  m.quarantine();
+  const recovered = await recoverUnavailableRunners(m.db, [configured],
+    { probe: async () => ({ healthy: false, step: 'cleanup' }), idleProbe, leakProbe, now: Date.now() + 2000 });
+  assert.equal(recovered, true);
+  assert.deepEqual(configured, before, 'the configured runner is unchanged after recovery');
+  assert.ok(seen.length >= 3 && seen.every(runner => runner.node === before.node && runner.root === before.root), 'every probe saw the configured node path and root');
 });

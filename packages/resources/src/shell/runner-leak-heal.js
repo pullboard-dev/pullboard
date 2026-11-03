@@ -25,9 +25,10 @@ export function healDelay(db, row, leakProbe) {
  */
 export async function healLeakedRunner(db, row, runner, result, { idleProbe, leakProbe, token, now = Date.now() }) {
   if (typeof leakProbe !== 'function' || typeof idleProbe !== 'function' || runnerHolders(db, row.host) !== 0) return result;
-  // Reserve this quarantine generation: registration will not clear it and no holder can be admitted while it stands.
-  const reserved = db.prepare('UPDATE runner_unavailable SET probe_until=? WHERE host=? AND since=? AND probe_token=?')
+  // Fence the whole host for this quarantine generation: registration will not clear it and admission skips every slot while it stands.
+  const reserved = db.prepare('UPDATE runner_unavailable SET probe_until=?,healing=1 WHERE host=? AND since=? AND probe_token=?')
     .run(now + HEAL_RESERVE_MS, row.host, row.since, token).changes;
+  if (reserved && runnerHolders(db, row.host) !== 0) db.prepare('UPDATE runner_unavailable SET healing=0 WHERE host=? AND since=?').run(row.host, row.since);
   if (!reserved || runnerHolders(db, row.host) !== 0) return result;
   let leak;
   try { leak = await leakProbe(runner); } catch { return result; }
