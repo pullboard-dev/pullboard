@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 import { addItem, closeBoard, register } from '../packages/store/index.js';
-import { openBoard, openBoardForRead } from '../src/native-board.js';
+import { openBoard, openBoardForRead } from '../apps/lib/index.js';
 import { clearProofCounters, currentProofCounters, proofCounter } from '../packages/verify/index.js';
 import { proofStats } from '../packages/stats/index.js';
 import { proofStats as legacyProofStats } from './fixtures/proof-stats-legacy.js';

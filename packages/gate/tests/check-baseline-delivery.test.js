@@ -21,7 +21,7 @@ import { addItem } from '../../store/index.js';
 import { closeBoard } from '../../store/index.js';
 import { events } from '../../store/index.js';
 import { getItem } from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { prepareCheckBaseline } from '../src/shell/check-baseline.js';
 
 const BIN = resolve(import.meta.dirname, '../../../bin/pullboard.js');
