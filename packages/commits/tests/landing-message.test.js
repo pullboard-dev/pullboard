@@ -30,7 +30,7 @@ function localProject() {
   assert.equal(initialized.code, 0, initialized.err);
   const configFile = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configFile, 'utf8'));
-  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', verify: 'any', lanes: { web: { owns: ['web/'], specs: ['G1', ...ROWS] } } }, null, 2));
+  writeFileSync(configFile, JSON.stringify({ ...config, gate: 'true', verify: 'any', landing: { ...config.landing, manualOverride: true }, lanes: { web: { owns: ['web/'], specs: ['G1', ...ROWS] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), `# Message fixture\n\n## Goals\n- G1 [approved, must] The result exists. | gate: true\n${ROWS.map((id) => `- ${id} [approved, must] Row ${id} holds. | gate: true`).join('\n')}\n`);
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure local landing');
