@@ -347,7 +347,10 @@ export async function queuedLeaseProof(t, deps) {
     const review = leaseCommand(deps, box, reviewer, 'verify', String(reviewId), 'accept',
       '--note', 'Private fixture: waited behind held capacity and ran the frozen check.', '--json');
     commands.push(review);
-    await waitUntil(() => waiting(reviewId)?.leaseUntil, 'the real verify waiter and its item lease end');
+    await waitUntil(() => {
+      assert.equal(review.exitResult, null, `verify exited before queueing: ${review.stdoutText}\n${review.stderrText}`);
+      return waiting(reviewId)?.leaseUntil;
+    }, 'the real verify waiter and its item lease end');
     const build = leaseCommand(deps, box, box.web, 'submit', String(buildId), '--json');
     commands.push(build);
     await waitUntil(() => waiting(buildId)?.leaseUntil, 'the real submit waiter and its item lease end');
