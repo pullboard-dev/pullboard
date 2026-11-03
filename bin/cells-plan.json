@@ -1479,6 +1479,11 @@
     {
       "path": "src/move-history/223.json",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/clause-evidence-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "state"
     }
   ],
   "retired": [
