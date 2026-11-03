@@ -1,6 +1,6 @@
 /** Exercise empty hosted screens in a real, private phone browser without a user's account [H5,H17]. */
 import { createServer } from 'node:http';
-import { createRelayBrowserHandler } from '../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../apps/relay/index.js';
 import { startChrome } from './relay-browser-fixture.js';
 
 /** Serve only synthetic authorized metadata and keep the production browser transport and device storage. */

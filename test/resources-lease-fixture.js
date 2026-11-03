@@ -14,7 +14,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { appliedSequence, applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { SUBMIT_ADMISSION_ENGINE } from '../src/submit-admission-engine.js';
 import { registerProject } from '../packages/seats/index.js';
-import { serveView } from '../src/commands/view.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { runFixtureChild } from './fixture-child.js';
 
 /** Build the resource test's child programs with the importing test's absolute module URLs. */
@@ -499,3 +499,37 @@ export async function queuedLeaseProof(t, deps) {
     for (const child of commands) child.lines.close();
   }
 }
+
+/** Create the previous private queue schema so simultaneous openers exercise its migration. */
+export function oldSchema(box) {
+  mkdirSync(box.home, { recursive: true });
+  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
+  try {
+    db.exec(`CREATE TABLE resource (name TEXT PRIMARY KEY, capacity INTEGER NOT NULL);
+      CREATE TABLE holder (token TEXT PRIMARY KEY, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE INDEX holder_name ON holder(name);
+      CREATE TABLE waiter (ticket INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, pid INTEGER NOT NULL, agent TEXT NOT NULL, repo TEXT NOT NULL, since TEXT NOT NULL, heartbeat INTEGER NOT NULL);
+      CREATE INDEX waiter_name_ticket ON waiter(name, ticket);`);
+  } finally { db.close(); }
+}
+
+/** Force a stale private fixture row with a mismatched process start identity. */
+export function staleIdentity(box, table, agent) {
+  assert.ok(['holder', 'waiter'].includes(table));
+  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
+  try {
+    const result = db.prepare(`UPDATE ${table} SET started = ?, heartbeat = 0 WHERE agent = ?`).run('old-process-start', agent);
+    assert.equal(result.changes, 1, `${agent} has a private ${table} row`);
+  } finally { db.close(); }
+}
+
+/** Expire a private lease heartbeat without changing its recorded OS identity. */
+export function expireHeartbeat(box, table, agent) {
+  assert.ok(['holder', 'waiter'].includes(table));
+  const db = new DatabaseSync(join(box.home, 'resources.sqlite'));
+  try {
+    const result = db.prepare(`UPDATE ${table} SET heartbeat = 0 WHERE agent = ?`).run(agent);
+    assert.equal(result.changes, 1, `${agent} has a private ${table} row`);
+  } finally { db.close(); }
+}
+

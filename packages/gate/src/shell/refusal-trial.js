@@ -10,6 +10,7 @@ import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { repoInfo } from '../../../git/index.js';
 import { Refused } from '../../../kernel/index.js';
 
@@ -49,6 +50,20 @@ function writeLedger(file, ledger) {
   renameSync(temporary, file);
 }
 
+/** Serialize read/replace operations across real gate processes with a private OS-released SQLite lock. */
+function updateLedger(file, change) {
+  mkdirSync(dirname(file), { recursive: true });
+  const lock = new DatabaseSync(`${file}.guard.sqlite`);
+  try {
+    lock.exec('PRAGMA busy_timeout = 10000; BEGIN IMMEDIATE');
+    const ledger = readLedger(file);
+    const result = change(ledger);
+    writeLedger(file, ledger);
+    lock.exec('COMMIT');
+    return result;
+  } finally { lock.close(); }
+}
+
 /** Whether a code is on trial: changed since the list was frozen, or not on it at all. */
 function onTrial(code, { enforced = ENFORCED_REFUSALS, changed = CHANGED_REFUSALS, rule } = {}) {
   return rule !== undefined || Object.hasOwn(changed, code) || !enforced.has(code);
@@ -81,12 +96,10 @@ export function trialRefusal(root, code, message, say, options = {}) {
   const { mode, clean } = refusalMode(root, code, options);
   if (mode === 'enforce') return true;
   const file = options.file ?? refusalTrialFile(root);
-  const ledger = readLedger(file);
   const identity = ruleIdentity(code, options);
-  if (ledger.codes[code]?.identity !== identity) {
-    ledger.codes[code] = { identity, start: ledger.gates, falseRefusals: 0 };
-    writeLedger(file, ledger);
-  }
+  updateLedger(file, ledger => {
+    if (ledger.codes[code]?.identity !== identity) ledger.codes[code] = { identity, start: ledger.gates, falseRefusals: 0 };
+  });
   say(`would refuse ${code} (report-only, ${clean}/${CLEAN_GATES_TO_ENFORCE} clean gates): ${message}`);
   return false;
 }
@@ -99,21 +112,51 @@ export function gateRefuse(root, code, message, say, options = {}) {
   if (trialRefusal(root, code, message, say, options)) throw new Refused(code, message);
 }
 
+/** Machinery diagnostics are explicit; a test, identity, source or receipt refusal can never enter this adapter. */
+const MACHINERY_CODES = Object.freeze({
+  selection: new Set(['TEST_SELECTION_INCOMPLETE']),
+  placement: new Set(['CELLS_PLAN_UNPLACED']),
+  plan: new Set(['CELLS_SUBMIT']),
+  doctrine: new Set(['RATCHET_ROSE']),
+  composition: new Set(['MAIN_NOT_COMPOSED']),
+});
+
+/** Apply the trial only to a source-identified diagnostic from a machinery guard's own boundary. */
+export function machineryRefusal(root, { kind, code, message, rule }, say, options = {}) {
+  if (!Object.hasOwn(MACHINERY_CODES, kind) || !MACHINERY_CODES[kind].has(code) || typeof rule !== 'string' || !rule) throw new Refused(code, message);
+  gateRefuse(root, code, message, say, { ...options, rule: [kind, rule] });
+}
+
+/** Keep integrity failures fatal while reporting a completed machinery check's diagnostic. */
+export async function runMachineryGuard(root, work, { kind, rule, say, fallback, ...options }) {
+  try { return await work(); }
+  catch (error) {
+    const identity = error?.machineryRule ?? rule;
+    if (!(error instanceof Refused) || !Object.hasOwn(MACHINERY_CODES, kind) || !MACHINERY_CODES[kind].has(error.code) || typeof identity !== 'string' || !identity) throw error;
+    if (trialRefusal(root, error.code, error.message, say, { ...options, rule: [kind, identity] })) throw error;
+    return fallback;
+  }
+}
+
 /** Count one real gate and return the lines the gate's output records, one per refusal on trial. */
-export function countTrialGate(root, { file = refusalTrialFile(root) } = {}) {
-  const ledger = readLedger(file);
-  ledger.gates += 1;
-  writeLedger(file, ledger);
-  return Object.entries(ledger.codes).map(([code, row]) => {
-    const clean = ledger.gates - row.start;
-    return `refusal trial ${code}: ${clean >= CLEAN_GATES_TO_ENFORCE ? 'enforce' : 'report'} (${Math.min(clean, CLEAN_GATES_TO_ENFORCE)}/${CLEAN_GATES_TO_ENFORCE} clean gates)`;
+export function countTrialGate(root, { file = refusalTrialFile(root), id } = {}) {
+  return updateLedger(file, ledger => {
+    const key = typeof id === 'string' && id ? createHash('sha256').update(id).digest('hex') : null;
+    ledger.seen ??= {};
+    if (key && Object.hasOwn(ledger.seen, key)) return [];
+    if (key) ledger.seen[key] = true;
+    ledger.gates += 1;
+    return Object.entries(ledger.codes).map(([code, row]) => {
+      const clean = ledger.gates - row.start;
+      return `refusal trial ${code}: ${clean >= CLEAN_GATES_TO_ENFORCE ? 'enforce' : 'report'} (${Math.min(clean, CLEAN_GATES_TO_ENFORCE)}/${CLEAN_GATES_TO_ENFORCE} clean gates)`;
+    });
   });
 }
 
 /** Record that a refusal on trial would have refused good work: its trial starts over, so it keeps reporting. */
 export function recordFalseRefusal(root, code, { file = refusalTrialFile(root) } = {}) {
-  const ledger = readLedger(file);
-  const row = ledger.codes[code] ?? { falseRefusals: 0 };
-  ledger.codes[code] = { ...row, identity: row.identity ?? ruleIdentity(code), start: ledger.gates, falseRefusals: row.falseRefusals + 1 };
-  writeLedger(file, ledger);
+  updateLedger(file, ledger => {
+    const row = ledger.codes[code] ?? { falseRefusals: 0 };
+    ledger.codes[code] = { ...row, identity: row.identity ?? ruleIdentity(code), start: ledger.gates, falseRefusals: row.falseRefusals + 1 };
+  });
 }

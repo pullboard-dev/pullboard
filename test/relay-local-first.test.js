@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { ACCESS_WINDOW_MS } from '../relay/auth.js';
+import { ACCESS_WINDOW_MS } from '../apps/relay/index.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { captureBoardChanges } from '../packages/store/index.js';

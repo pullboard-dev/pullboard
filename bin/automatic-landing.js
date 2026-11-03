@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /** An authenticated landing wake holds no foreground lease while it waits [B35,B3,R3]. */
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import * as outbox from '../packages/outbox/index.js';
-import { context } from '../src/cli.js';
-import { landAfterAcceptance } from '../src/commands/land.js';
+import { context } from '../apps/cli/index.js';
+import { landAfterAcceptance } from '../apps/cli/index.js';
 import { resumeAutomaticLanding } from '../packages/landing/index.js';
 import { AGENT_SESSION_IDS } from '../packages/kernel/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';

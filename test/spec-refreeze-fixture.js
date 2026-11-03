@@ -11,7 +11,7 @@ import { exportBoard, importBoard } from '../packages/store/index.js';
 import { loadDoctrine } from '../src/doctrine.js';
 import { planRowApply, prepareRowDecisions, writeRowApply } from '../packages/spec/index.js';
 import { rowDecisions } from '../packages/spec/index.js';
-import { freezer } from '../src/cli.js';
+import { freezer } from '../apps/cli/index.js';
 import { prepareSpecRefreezes } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';

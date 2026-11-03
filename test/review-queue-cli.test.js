@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Real CLI and authenticated API review suggestions preserve explicit build and review intent [Q1,V15,A1,A2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
@@ -14,7 +14,7 @@ import * as store from '../src/board.js';
 import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { fetchFresh } from './http-fixture.js';
 

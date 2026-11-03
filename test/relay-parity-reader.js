@@ -1,15 +1,15 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Complete authenticated HTTP and pinned API2 reader oracle [H5,H16,A2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { main } from './native-cli-fixture.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { openPagedSnapshot } from '../packages/pages/index.js';
-import { snapshotState } from '../relay/browser-model.js';
+import { snapshotState } from '../apps/relay/index.js';
 
 /** Deliberate machine-local differences; all other fields retain complete reader parity. */
 export const LOCAL_PARITY_FIELDS = Object.freeze([

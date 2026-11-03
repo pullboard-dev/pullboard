@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { browserJSON } from '../relay/browser-deadline.js';
+import { browserJSON } from '../apps/relay/index.js';
 import { relayBoundaryProblems } from '../bin/checks/relay-boundary.js';
 import { createFakeRelayAdapter } from '../packages/person/index.js';
 import { realRelayAdapter } from '../packages/person/index.js';
@@ -68,6 +68,6 @@ test('relay lint refuses a stray direct fetch [C7]', () => {
   assert.equal(relayBoundaryProblems([{ file: 'src/stray.js', source: "globalThis['fetch']('/relay')" }]).length, 1);
   assert.equal(relayBoundaryProblems([{ file: 'src/stray.js', source: 'const send = globalThis.fetch; send(url);' }]).length, 1);
   assert.equal(relayBoundaryProblems([{ file: 'src/stray.js', source: 'const { fetch } = globalThis; fetch(url);' }]).length, 2);
-  assert.equal(relayBoundaryProblems([{ file: 'relay/github.js', source: "fetch(url, { method: form || json }); fetch('/relay');" }]).length, 1);
+  assert.equal(relayBoundaryProblems([{ file: 'apps/relay/src/shell/github.js', source: "fetch(url, { method: form || json }); fetch('/relay');" }]).length, 1);
   assert.deepEqual(relayBoundaryProblems([{ file: 'src/fixture.js', source: 'const example = "fetch(url)"; // fetch(url)' }]), []);
 });

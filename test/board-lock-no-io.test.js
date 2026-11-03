@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js src/cli.js packages/store/src/shell/board-event-log.js */
+/** @pullboard-test-loads src/board.js apps/cli/src/shell/cli.js packages/store/src/shell/board-event-log.js */
 /** Criterion preparation must not occupy the actual SQLite writer lease [B2,C7,V2]. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -204,7 +204,7 @@ test('the native write publication admits no filesystem or process call [C7,CD39
 });
 
 test('the named policy witness cannot hide unrelated reads or a child process [C7,CD39]', () => {
-  const policy = { file: 'src/cli-read-context.js', source:
+  const policy = { file: 'apps/cli/src/shell/cli-read-context.js', source:
     "import {readFileSync} from 'node:fs'; import {execFileSync} from 'node:child_process'; function policyRefBytes() { return readFileSync('ref'); } function writePolicySignature() { policyRefBytes(); readFileSync('unrelated'); execFileSync('git'); }" };
   const problems = boardWriteIoProblems(guardSources('', [policy]));
   assert.equal(problems.filter(row => row.call === 'node:fs#readFileSync').length, 1, 'only the exact ref helper is exempt');

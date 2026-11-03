@@ -15,7 +15,7 @@ import { applyEngineMove } from '../packages/state/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { importBoard } from '../packages/store/index.js';
 import { healthLines } from '../packages/health/index.js';
-import { withOpenedBoard } from '../src/cli-read-context.js';
+import { withOpenedBoard } from '../apps/cli/index.js';
 import { atomic } from '../packages/store/index.js';
 
 const LEASE = 3_600_000;

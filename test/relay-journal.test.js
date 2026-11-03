@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { cleanupFixtureChildren, runFixtureChildAsync } from './fixture-child.js';
-import { createRelayJournal } from '../relay/journal.js';
+import { createRelayJournal } from '../apps/relay/index.js';
 
 const ID = 'a'.repeat(32);
 const AGENT = { kind: 'agent', userId: '101', agent: 'client-one' };
@@ -85,7 +85,7 @@ test('[A4,H7] two real processes cannot publish the same next sequence', async (
   const box = fixture(t);
   box.journal.close();
   const worker = join(box.directory, 'worker.mjs');
-  const module = new URL('../relay/journal.js', import.meta.url).href;
+  const module = new URL('../apps/relay/index.js', import.meta.url).href;
   writeFileSync(worker, [
     'import { createRelayJournal } from ' + JSON.stringify(module) + ';',
     'const journal = createRelayJournal({ directory: process.argv[2], boardId: process.argv[3] });',

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDeviceKeys, signDeviceEnrollment } from '../packages/keys/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
-import { relayOutboxSetting } from '../src/cli.js';
+import { relayOutboxSetting } from '../apps/cli/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { prepareKeylessInbox, readKeylessInbox } from './inbox-key-fixture.js';
 import { runFixtureGit } from './fixture-child.js';
@@ -450,7 +450,7 @@ test('a deleted-copy pending move survives interrupted cleanup and is returned o
       cleanupError = error.message;
     } finally { fs.default.renameSync = rename; syncBuiltinESMExports(); }
     const { localRecords } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
-    const { openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const { openBoard } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const beforeCleanup = localRecords(openBoard, ${JSON.stringify(box.root)}, board => ({
       firstCount: board.db.prepare('SELECT COUNT(*) AS count FROM item WHERE item_title=?').get(${JSON.stringify(firstTitle)}).count,
       cursor: board.db.prepare("SELECT meta_value FROM board_meta WHERE meta_key='relay_applied_sequence'").get()?.meta_value

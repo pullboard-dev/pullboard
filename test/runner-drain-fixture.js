@@ -33,6 +33,8 @@ export function runnerRemoveKeepsSettings(t, e2e) {
   assert.equal(secondAdded.code, 0, secondAdded.err);
   removed.gui = JSON.parse(firstAdded.out).runner.gui;
   remaining.gui = JSON.parse(secondAdded.out).runner.gui;
+  remaining.node = JSON.parse(secondAdded.out).runner.node;
+  assert.equal(remaining.node, process.execPath, 'registration discovers the worker Node path before removal');
   removed.cores = JSON.parse(firstAdded.out).runner.cores;
   remaining.cores = JSON.parse(secondAdded.out).runner.cores;
   removed.memoryMB = JSON.parse(firstAdded.out).runner.memoryMB;

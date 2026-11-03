@@ -12,9 +12,11 @@ import { Refused } from "../../../kernel/index.js";
 const OBJECT_ENV = /^GIT_(?:DIR|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|WORK_TREE|INDEX_FILE)$/u;
 
 /**
- * Read one trunk tree entry. When main landed mid-handoff the trunk commit can be missing from the handoff copy, so a
- * failed read is retried through the repository's common Git dir and then after fetching trunk. A read that still
- * fails is an infrastructure error (not a Refused), so the gate retries it and the builder is never blamed (#2521).
+ * Read one trunk tree entry. Main lands while a job runs, so the trunk commit can be missing from the checkout that
+ * reads it: a failed read is retried through the repository's common Git dir, then the commit is fetched from the
+ * checkout's recorded source (a runner job checkout has no remote; it records pullboard.fetchSource) and every remote,
+ * and read again, once more after a second fetch. A read that still fails is an infrastructure error (not a Refused),
+ * so the gate retries it and the builder never sees 'not a tree object' (#2521, #2534).
  *
  * @param {string} root
  * @param {string} base
@@ -31,11 +33,25 @@ export function readTrunkEntry(root, base, file) {
     result = tryGit(root, ['--git-dir', common.stdout, ...args], { env });
     if (result.status === 0) return result;
   }
-  tryGit(root, ['fetch', '--quiet', '--no-tags', 'origin', base], { env });
-  result = tryGit(root, args, { env });
-  if (result.status === 0) return result;
-  throw Object.assign(new Error(`the accepted cells-plan presence could not be read from Git (infrastructure error, retry the submit: ${result.stderr.split('\n')[0] || 'trunk object missing'})`),
+  const sources = trunkSources(root, env);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const fetched = sources.map(source => tryGit(root, ['-c', 'protocol.version=2', '-c', 'protocol.file.allow=always', 'fetch', '--quiet', '--no-tags', source, base], { env }));
+    result = tryGit(root, args, { env });
+    if (result.status === 0) return result;
+    if (!fetched.length) break;
+    const failed = fetched.find(row => row.status !== 0);
+    if (failed?.stderr) result = { ...result, stderr: `${result.stderr}\nfetch: ${failed.stderr}` };
+  }
+  throw Object.assign(new Error(`the accepted cells-plan presence could not be read from Git (infrastructure error, retry the submit: ${result.stderr.split('\n')[0] || 'trunk object missing'}; fetched from ${sources.length ? sources.join(', ') : 'no recorded source'})`),
     { name: 'GitReadInfrastructureError', code: 'GIT_READ_INFRASTRUCTURE', retryable: true });
+}
+
+/** Where a missing trunk commit can be fetched from: the recorded job source first, then each named remote. */
+function trunkSources(root, env) {
+  const recorded = tryGit(root, ['config', '--get', 'pullboard.fetchSource'], { env });
+  const remotes = tryGit(root, ['remote'], { env });
+  return [...new Set([...(recorded.status === 0 && recorded.stdout ? [recorded.stdout] : []),
+    ...(remotes.status === 0 ? remotes.stdout.split('\n').filter(Boolean) : [])])];
 }
 
 /**

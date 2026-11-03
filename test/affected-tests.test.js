@@ -330,9 +330,9 @@ test('a declaration counts only in the header, globs expand, and literal URLs re
 test('a discovered command module or engine leaf selects what reads its registry [C7,V4]', (t) => {
   const box = graph(t);
   box.put('bin/pullboard.js', "import '../src/cli.js';\n");
-  box.put('src/cli.js', "import './commands/index.js';\nimport './machine.js';\n");
-  box.put('src/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
-  box.put('src/commands/alpha.js', 'export function run() { return 0; }\n');
+  box.put('src/cli.js', "import '../apps/cli/src/shell/commands/index.js';\nimport './machine.js';\n");
+  box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
+  box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 0; }\n');
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
   box.put('src/x-engine.js', 'export const X_ENGINE = 1;\n');
   box.put('src/unrelated.js', 'export const value = 1;\n');
@@ -341,7 +341,7 @@ test('a discovered command module or engine leaf selects what reads its registry
   box.put('test/unrelated.test.js', "import '../src/unrelated.js';\n");
   const base = box.commit();
 
-  box.put('src/commands/alpha.js', 'export function run() { return 1; }\n');
+  box.put('apps/cli/src/shell/commands/alpha.js', 'export function run() { return 1; }\n');
   const commandCommit = box.commit();
   const command = selectAffectedTests(box.root, { base, commit: commandCommit });
   assert.equal(command.full, false, command.reason);
@@ -359,13 +359,13 @@ test('a discovered command module or engine leaf selects what reads its registry
 test('runtime discovery and the selector agree on which files are engines and commands [C7,V4]', (t) => {
   const box = graph(t);
   box.put('src/machine.js', "import { readFileSync } from 'node:fs';\nexport const ENGINE_VERSION = readFileSync('x-engine.js', 'utf8').length;\n");
-  box.put('src/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
+  box.put('apps/cli/src/shell/commands/index.js', "const modules = (file) => import(new URL(file, import.meta.url).href);\nexport const COMMANDS = { alpha: () => modules('./alpha.js') };\n");
   box.put('test/reader.test.js', "import '../src/machine.js';\n");
-  box.put('test/commands.test.js', "import '../src/commands/index.js';\n");
+  box.put('test/commands.test.js', "import '../apps/cli/src/shell/commands/index.js';\n");
   box.put('test/unrelated.test.js', 'export const value = 1;\n');
   let base = box.commit();
   for (const [file, reader] of [['src/check-alpha-engine.js', 'test/reader.test.js'], ['src/check.alpha-engine.js', 'test/reader.test.js'],
-    ['src/commands/beta.js', 'test/commands.test.js'], ['src/commands/gamma.delta.js', 'test/commands.test.js']]) {
+    ['apps/cli/src/shell/commands/beta.js', 'test/commands.test.js'], ['apps/cli/src/shell/commands/gamma.delta.js', 'test/commands.test.js']]) {
     box.put(file, 'export const ENGINE = 1;\n');
     const commit = box.commit();
     const selected = selectAffectedTests(box.root, { base, commit });
@@ -477,7 +477,7 @@ test('the repository test-tree guards list only source scanners and launch no br
   assert.deepEqual(guards, expected, 'the committed repository guard census names every selected file');
   assert.equal(testsNeedGui(root, guards), false, 'the test-edit guard set needs no GUI session');
   assert.deepEqual(await browserBoundFiles(root, guards, { byLaunch: true }), [], 'no guard path or import graph launches a browser');
-  const forbiddenImports = new Set(['../src/board.js', '../src/serve.js', '../src/gate.js', './board-fixture.js',
+  const forbiddenImports = new Set(['../src/board.js', '../apps/view/index.js', '../src/gate.js', './board-fixture.js',
     './e2e-helpers.js', './cockpit/fixture.js', './chrome-fixture.js']);
   const scanFiles = [
     'packages/gate/tests/gui-marker-guard.test.js',

@@ -5,7 +5,7 @@ import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { createRelayJournal } from '../relay/journal.js';
+import { createRelayJournal } from '../apps/relay/index.js';
 
 const ID = 'd'.repeat(32);
 const PERSON = { kind: 'person', userId: '101' };

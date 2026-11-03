@@ -1,5 +1,6 @@
 import { submitReusePlanDigest } from '../../../verify/index.js';
 import { countTrialGate } from './refusal-trial.js';
+import { runMachineryGuard } from './refusal-trial.js';
 import { requireTestTierAccount } from './test-tier-selection.js';
 import { selectTestTiers } from './test-tier-selection.js';
 import { testTierProofFiles } from './test-tier-selection.js';
@@ -151,7 +152,7 @@ function submitTestOutcomes(profiles) {
  * @param {{base:string|null, trunk?:string, changed?:string[], check:string, timing?:boolean, agent?:string, item?:string|number, kind?:string, onWait?:(state:object)=>void, onBrowserFallback?:(decision:{file:string,reason:string})=>void}} options
  * @returns {Promise<any>}
  */
-export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [] }) {
+export async function runSubmitGate(root, config, { base, trunk, changed, check, timing = false, agent, item = '', kind = 'submit', onWait, onStart, onBrowserFallback, onFailure, proofContext, sourceAdvance = false, outputRoot = root, outputLog, runnerAdmission = {}, executionServices, signatureCapture, staticChecked = false, plan: planned, admission, crossRunTests = [], countTrials = true, onMachineryNote = text => process.stderr.write(text + '\n') }) {
 
   if (!config.gate.trim()) throw missingGate(root);
   // One pinned main per submit: every phase reads this commit, so a landing mid-submit cannot split the seal (#1777).
@@ -165,7 +166,11 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
   const reusePlan = submitReusePlanDigest({ check, files: proofFiles, full: selection.full, deferred, proofCommand: plan.proofCommand });
-  if (plan.testTiers) { requireSealedSkips(root, plan.testTiers, { proofFiles, check }); config = { ...config, affectedTests: plan.testRunner }; }
+  if (plan.testTiers) {
+    await runMachineryGuard(outputRoot, () => requireSealedSkips(root, plan.testTiers, { proofFiles, check }),
+      { kind: 'selection', rule: requireSealedSkips.toString(), say: onMachineryNote });
+    config = { ...config, affectedTests: plan.testRunner };
+  }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }
@@ -209,10 +214,14 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
       return run;
     };
     lease.tracker?.mark('runAt');
-    /** Run the criterion with its own source context and receipt. */
-    const criterionRun = () => check
-      ? runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
-      : Promise.resolve({ isGreen: true, output: '', seconds: 0 });
+    /** Retain completed check evidence even when the later proof refuses its runner. */
+    const criterionRun = async () => {
+      const run = check
+        ? await runProfiledShellAsync(root, check, { waitMs: lease.waitMs, profileFile: `${checkLog}.profile.json`, gateLease: criterionLease, stages: true })
+        : { isGreen: true, output: '', seconds: 0 };
+      if (check) writeFileSync(checkLog, safeLog(run.output), { mode: 0o600 });
+      return run;
+    };
     // One remote lease holds one controller at a time. Local phases can still overlap; either way,
     // drain both phases even on rejection so their receipts and the admission lease stay accurate.
     const outcomes = lease.runner
@@ -228,7 +237,6 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const failure = outcomes.find(outcome => outcome.status === 'rejected');
     if (failure) throw failure.reason;
     const [criterion, proof] = outcomes.map(outcome => outcome.value);
-    if (check) writeFileSync(checkLog, safeLog(criterion.output), { mode: 0o600 });
     await recordRun(onFailure, criterion);
     const receipt = { command: check, green: criterion.isGreen, seconds: criterion.seconds, checked: Boolean(check),
       ...(criterion.blockingVerdict ? { rawExitCode: criterion.exitCode, blockingVerdict: criterion.blockingVerdict } : {}),
@@ -261,15 +269,19 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     const phase = plan.testTiers ? testTierReport(plan.testTiers) : deferFullFallback || deferSelection
       ? `submit invariants: ${invariants.length ? invariants.join(', ') : 'none'}; ${deferSelection ? `${selection.files.length} affected test files` : 'full suite'} deferred to the landing gate`
       : selection.full ? 'full gate' : 'affected tests';
-    // Every completed gate counts toward the trials of new or changed refusals, and its output says where each stands (#2611).
-    let trials = [];
-    try { trials = countTrialGate(outputRoot); } catch { /* A trial ledger never changes the gate's verdict. */ }
-    writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}${trials.length ? `\n${trials.join('\n')}\n` : ''}`);
+    writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}`);
     if (!proof.isGreen && onFailure) await onFailure(proof, { root,
       command: !deferFullFallback && selection.full ? fullConfig.gate : `${config.affectedTests.trimEnd()} ${proofFiles.map(path => commandWord('./' + path)).join(' ')}`, lease: proofLease });
     await recordRun(onFailure, proof);
     refuseSandboxBlocked(criterion);
-    const result = { ...finish(proof), refusalTrials: trials };
+    const result = finish(proof);
+    let trials = [];
+    const observed = result.proofReceiptIds.filter(id => typeof id === 'string');
+    if (countTrials && criterion.isGreen && result.isGreen && observed.length) {
+      try { trials = countTrialGate(outputRoot, { id: JSON.stringify(observed.sort()) }); } catch { /* A ledger failure cannot alter the recorded test proof. */ }
+    }
+    if (trials.length) writeFileSync(log, `item check:\n${criterion.output}\n${phase}:\n${proof.output}\n${trials.join('\n')}\n`);
+    result.refusalTrials = trials;
     return criterion.isGreen ? result : { ...result, isGreen: false, completedProof: proof,
       criterionRed: { isGreen: false, output: criterion.output, stages: criterion.stages,
         ...(criterion.blockingVerdict ? { blockingVerdict: criterion.blockingVerdict, exitCode: criterion.exitCode, rawIsGreen: false, quarantineFailures: criterion.quarantineFailures } : {}),

@@ -127,26 +127,26 @@ test('only the imported, unshadowed copier exempts a mention; shadows and lookal
   }
 });
 
-test('only an import that resolves to the canonical src/package-files.js makes a copier [C7]', () => {
+test('only an import that resolves to the canonical copier body makes a copier [C7]', () => {
   const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\n";
   const unrelated = 'const other = readFileSync(somewhere);\n';
   const withImport = (specifier, file) => fixtureSourceEdits(
     `import { readFileSync } from 'node:fs'; import { join } from 'node:path';\nimport { toolSourcePath } from '${specifier}';\n${read}${unrelated}`,
     { ...options, file });
   const clean = { edits: [], problems: [] };
-  assert.deepEqual(withImport('../src/package-files.js', 'test/a.test.js'), clean);
-  assert.deepEqual(withImport('../../src/package-files.js', 'test/sub/a.test.js'), clean, 'a relative variant that resolves to the canonical file');
-  assert.deepEqual(withImport('./../src/package-files.js', 'test/a.test.js'), clean);
+  assert.deepEqual(withImport('../packages/runners/src/shell/package-files.js', 'test/a.test.js'), clean);
+  assert.deepEqual(withImport('../../packages/runners/src/shell/package-files.js', 'test/sub/a.test.js'), clean, 'a relative variant that resolves to the canonical file');
+  assert.deepEqual(withImport('./../packages/runners/src/shell/package-files.js', 'test/a.test.js'), clean);
   for (const [specifier, file] of [['./private/package-files.js', 'test/a.test.js'], ['../private/package-files.js', 'test/a.test.js'],
-    ['../src/package-files.js', 'test/sub/a.test.js'], ['../lib/package-files.js', 'test/a.test.js']]) {
+    ['../packages/runners/src/shell/package-files.js', 'test/sub/a.test.js'], ['../lib/package-files.js', 'test/a.test.js']]) {
     const result = withImport(specifier, file);
     assert.ok(result.edits.length + result.problems.length > 0, `${specifier} from ${file} is a lookalike`);
   }
 });
 
-test('the copier is also accepted at the cells-plan target of src/package-files.js, read from the plan [C7]', () => {
-  const target = [...canonicalCopierPaths()].find(path => path !== 'src/package-files.js');
-  assert.ok(target, 'the committed plan names where src/package-files.js moves');
+test('the copier is also accepted at the cells-plan target of the old copier path, read from the plan [C7]', () => {
+  const target = [...canonicalCopierPaths()].find(path => path.startsWith('packages/'));
+  assert.ok(target, 'the committed plan names where the old copier path moves');
   const read = "const a = readFileSync(toolSourcePath(dir, 'src/foo.js'));\nconst other = readFileSync(somewhere);\n";
   const as = (specifier, file) => fixtureSourceEdits(
     `import { readFileSync } from 'node:fs';\nimport { toolSourcePath } from '${specifier}';\n${read}`, { ...options, file });
