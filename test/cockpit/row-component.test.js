@@ -1,6 +1,6 @@
 /** @pullboard-test-input source-tree */
 /** @pullboard-test-gui */
-/** @pullboard-test-input src/view.css src/view/item-rows.css */
+/** @pullboard-test-input apps/view/src/shell/view.css apps/view/src/shell/view/item-rows.css */
 /** Shared rows preserve accepted variants and provide native in-place expansion [N26]. */
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
