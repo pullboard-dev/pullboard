@@ -30,7 +30,7 @@ import {
   formatTable,
   writeFormatTable,
 } from '../packages/state/index.js';
-import { discoverMoves } from '../src/move-registry.js';
+import { discoverMoves } from '../packages/moves/index.js';
 import {
   GATE_SLOT_HELD_ENV,
   GATE_SLOT_POOL_ENV,

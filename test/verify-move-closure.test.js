@@ -38,7 +38,7 @@ function closure(entries, read) {
 }
 
 const WORKER = ['src/runner-worker.js'];
-const MOVES = discovered(readdirSync(join(ROOT, 'src/moves')), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => `src/moves/${file}`);
+const MOVES = ['packages/moves/src/core/moves', 'packages/moves/src/shell/moves'].flatMap(folder => discovered(readdirSync(join(ROOT, folder)), MOVE_CANDIDATE, MOVE_FILE, 'move').map(file => `${folder}/${file}`));
 const SOURCES = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT))).map(({ file, body }) => [file, body.toString('utf8')]));
 /** Read only the bounded working inventory, never a path outside it. */
 const read = file => {
