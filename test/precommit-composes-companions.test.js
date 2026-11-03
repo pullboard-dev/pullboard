@@ -55,8 +55,10 @@ function fixture({ fixer = false } = {}) {
         + "(await import('node:child_process')).execFileSync('git', ['show', ':web/value.txt']));\n"
         + `await import(${JSON.stringify(REAL_CLI)});\n` : ''),
     '.selfhooks/pre-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-commit\n`,
+    '.selfhooks/pre-merge-commit': `#!/bin/sh\nroot=$(git rev-parse --show-toplevel)\nexec "${process.execPath}" "$root/bin/pullboard.js" hook pre-merge-commit\n`,
   });
   chmodSync(join(box.repo, '.selfhooks/pre-commit'), 0o755);
+  chmodSync(join(box.repo, '.selfhooks/pre-merge-commit'), 0o755);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a self-hosted entry and a shim');
   const api = join(box.dir, 'api-1');
@@ -105,4 +107,27 @@ test('a fixer\'s rewrite reaches the real index, so the checked blob is the comm
   const blob = box.git(builder, 'show', 'HEAD:web/value.txt');
   assert.equal(blob.trim(), 'edited\nfixed', 'the fixer\'s bytes are committed');
   assert.equal(readFileSync(checked, 'utf8').trim(), blob.trim(), 'the composed check read the committed bytes');
+});
+
+test('a merge of main commits cleanly when an attached companion changes a path of another lane [C7]', () => {
+  const { box, builder } = fixture();
+  box.git(builder, 'rm', '-q', 'web/shim.js');
+  const first = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
+  assert.equal(first.status, 0, `${first.stdout}${first.stderr}`);
+  write(box.repo, { 'web/other.txt': 'main moved\n' });
+  box.git(box.repo, 'add', 'web/other.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'chore: advance main');
+  const merged = box.tryGit(builder, 'merge', '--no-edit', 'main');
+  assert.equal(merged.status, 0, `${merged.stdout}${merged.stderr}${merged.failure ?? ''}`);
+  assert.equal(box.git(builder, 'show', 'HEAD:api/serve.js').trim(), SHIM_IMPORT.trim(), 'the companion is never committed');
+});
+
+test('control: a builder who stages a file of another lane is still refused [C7]', () => {
+  const { box, builder } = fixture();
+  box.git(builder, 'rm', '-q', 'web/shim.js');
+  write(builder, { 'api/own.js': 'export default 2;\n' });
+  box.git(builder, 'add', 'api/own.js');
+  const refused = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
+  assert.notEqual(refused.status, 0);
+  assert.match(`${refused.stdout}${refused.stderr}`, /outside the web lane: .*api/u);
 });
