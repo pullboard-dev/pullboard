@@ -1,4 +1,5 @@
 import { itemCheckBaseline } from '../../../../../packages/store/index.js';
+import { listItems } from '../../../../../packages/store/index.js';
 import {
   confirmBarEffect,
   executingBarEffect,
@@ -33,7 +34,7 @@ export async function run(io, { first, second, rest, values }) {
       const result = await sweepFullSuiteBars({
         board,
         agent: me.id,
-        listItems: store.listItems,
+        listItems,
         edit: (id, change) => ordered(ctx, board, 'editItem', [id, change]),
       });
       io.result?.(result);
