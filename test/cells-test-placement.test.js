@@ -33,7 +33,7 @@ test('the repository census accounts for every tracked test and docs check [C7,C
   const { fileURLToPath } = await import('node:url');
   const { readPlan } = await import('../bin/cells-plan.js');
   const { cellInventory } = await import('../packages/codemap/index.js');
-  const { importsIn, commonJsIn } = await import('../src/module-imports.js');
+  const { importsIn, commonJsIn } = await import('../packages/gate/index.js');
   const root = fileURLToPath(new URL('../', import.meta.url));
   const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0').filter(Boolean);
   const inventory = cellInventory(root, { importsIn, commonJsIn });

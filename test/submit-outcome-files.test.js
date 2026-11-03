@@ -12,17 +12,17 @@ import { fixture } from './submit-outcome-fixture.js';
 import { submittedProof } from './submit-outcome-fixture.js';
 import { put } from './submit-outcome-fixture.js';
 import { source } from './submit-outcome-fixture.js';
-import { TIMING_RUN_ID_ENV } from '../src/run-timing.js';
-import { SUITE_TIMING_PREFIX } from '../src/run-timing.js';
-import { timingAccountingStages } from '../src/run-timing.js';
+import { TIMING_RUN_ID_ENV } from '../packages/gate/index.js';
+import { SUITE_TIMING_PREFIX } from '../packages/gate/index.js';
+import { timingAccountingStages } from '../packages/gate/index.js';
 import { accountedFailures } from '../packages/landing/index.js';
-import { testOutputSummary } from '../src/test-output-summary.js';
+import { testOutputSummary } from '../packages/gate/index.js';
 
 /** A portable copy of the production collector observes real Node events inside the worker's source tree. */
 function beforeMain({ duplicate = false, phases = false, timing = true, corrupt = null } = {}) {
   return box => {
     const files = ['test/inherited.test.js', ...(duplicate ? ['test/second.test.js'] : []), ...(phases ? ['test/shared-pass.test.js'] : [])];
-    const timingModule = new URL('../src/run-timing.js', import.meta.url).href;
+    const timingModule = new URL('../packages/gate/index.js', import.meta.url).href;
     const beginTiming = timing ? 'beginSuiteTiming(process.cwd(), process.argv.slice(2));' : '';
     if (duplicate) put(box.root, 'test/second.test.js', source());
     if (phases) {

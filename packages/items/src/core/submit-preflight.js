@@ -8,14 +8,43 @@ import { tryGit } from "../../../git/index.js";
 import { inPlanScope } from "../../../codemap/index.js";
 import { Refused } from "../../../kernel/index.js";
 
+/** Git variables that could narrow which objects a read sees; trunk reads run without them. */
+const OBJECT_ENV = /^GIT_(?:DIR|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|WORK_TREE|INDEX_FILE)$/u;
+
+/**
+ * Read one trunk tree entry. When main landed mid-handoff the trunk commit can be missing from the handoff copy, so a
+ * failed read is retried through the repository's common Git dir and then after fetching trunk. A read that still
+ * fails is an infrastructure error (not a Refused), so the gate retries it and the builder is never blamed (#2521).
+ *
+ * @param {string} root
+ * @param {string} base
+ * @param {string} file
+ * @returns {{ status: number, stdout: string, stderr: string }}
+ */
+export function readTrunkEntry(root, base, file) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !OBJECT_ENV.test(key)));
+  const args = ['ls-tree', '-z', base, '--', file];
+  let result = tryGit(root, args, { env });
+  if (result.status === 0) return result;
+  const common = tryGit(root, ['rev-parse', '--path-format=absolute', '--git-common-dir'], { env });
+  if (common.status === 0 && common.stdout) {
+    result = tryGit(root, ['--git-dir', common.stdout, ...args], { env });
+    if (result.status === 0) return result;
+  }
+  tryGit(root, ['fetch', '--quiet', '--no-tags', 'origin', base], { env });
+  result = tryGit(root, args, { env });
+  if (result.status === 0) return result;
+  throw Object.assign(new Error(`the accepted cells-plan presence could not be read from Git (infrastructure error, retry the submit: ${result.stderr.split('\n')[0] || 'trunk object missing'})`),
+    { name: 'GitReadInfrastructureError', code: 'GIT_READ_INFRASTRUCTURE', retryable: true });
+}
+
 /**
  * Bind placement to committed source, never an unstaged plan or the process working directory. With deferUnplaced
  * a missing placement returns to the cells check, which refuses it only on Cells reorg work (#2473).
  */
 export function requirePlannedSource(root, base, commit, { deferUnplaced = false } = {}) {
   const index = 'bin/cells-plan.json';
-  const accepted = tryGit(root, ['ls-tree', '-z', base, '--', index]);
-  if (accepted.status !== 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the accepted cells-plan presence could not be read from Git');
+  const accepted = readTrunkEntry(root, base, index);
   if (!accepted.stdout) return;
   if (!/^100(?:644|755) blob /u.test(accepted.stdout)) throw new Refused('CELLS_PLAN_UNPLACED', 'restore a regular cells-plan index on accepted main');
   /** Read only regular committed JSON blobs from the exact candidate. */

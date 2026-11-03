@@ -127,7 +127,9 @@ test('Git renames preserve built-in and configured sensitive tiers with an unrel
     freeze: () => ({ text: '{}', digest: 'rename-git-fixture' }) });
   f.board.gitRoot = box.repo;
   const witness = sealStrictRenames(f.board, id, { commit });
-  assert.deepEqual(witness.strictRenames, [['data/private.json', 'lib/renamed.json'], ['src/quarantine.js', 'lib/renamed.js']]);
+  assert.deepEqual([...witness.strictRenames].sort(([left], [right]) => left.localeCompare(right)),
+    [['data/private.json', 'lib/renamed.json'], ['src/quarantine.js', 'lib/renamed.js']],
+    'both exact rename pairs are retained independently of Git destination ordering');
   delete f.board.gitRoot;
   submitFixture(f.board, id, { agentId: 'core-1', commit, tree: box.git(box.repo, 'rev-parse', 'HEAD^{tree}'),
     files: ['lib/renamed.js', 'lib/renamed.json', 'lib/unrelated.js'], strictRenames: witness.strictRenames });

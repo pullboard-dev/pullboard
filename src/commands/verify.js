@@ -32,7 +32,7 @@ import {
   retainTestOutput,
   renderTestSummary,
   withTestOutput,
-} from '../test-output-summary.js';
+} from '../../packages/gate/index.js';
 import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
