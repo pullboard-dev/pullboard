@@ -31,7 +31,8 @@ import {
   invalidateGitFacts,
 } from '../../../../src/git.js';
 import { Refused } from '../../../kernel/index.js';
-import { fastAnswer, fastCheckScript } from './doctrine-fast.js';
+import { fastAnswer } from './doctrine-fast.js';
+import { fastCheckScript } from './doctrine-fast.js';
 import { lex } from '../../../kernel/index.js';
 import {
   checkFieldFindings,

@@ -56,7 +56,7 @@ test('a one-file change holds doctrine in under 5 s over the changed file only [
   const options = change(box, 'src/clean.js', 'export const clean = 2;\n');
   const started = performance.now();
   const results = await holdDoctrineAsync(box.root, options);
-  assert.ok(performance.now() - started < 5000, 'the hold finishes inside 5 s');
+  assert.ok(performance.now() - started < 5000, 'the hold finishes inside 5 s'); // budget: declared by item 2532's frozen bar
   assert.deepEqual(results.map(row => [row.id, row.state, row.count, row.problems.length]), [['Q1', 'holding', 2, 0]]);
 });
 

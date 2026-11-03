@@ -5,9 +5,14 @@
  * only rise in changed files, so those files at the merge base and at the candidate decide it.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { spawnCaptured } from '../../../sandbox/index.js';
 
 /** The process environment without git's repository variables, so a hook's GIT_DIR never redirects a child. */
