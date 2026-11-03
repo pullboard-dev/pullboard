@@ -59,7 +59,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
     'src/affected-tests.js', 'src/test-selection.js', 'src/submit-admission.js', 'src/known-main-reworks.js',
     'src/review-eligibility.js', 'src/verdict-admission.js', 'src/landing-test-policy.js', 'src/runner-worker.js',
     'src/train-mechanical-merge.js', 'src/pre-push-receipts.js', 'src/gate-run-receipt.js',
-    'src/moves/reserveReview.js', 'src/commands/submit.js', 'src/commands/verify.js',
+    'src/moves/reserveReview.js', 'src/commands/submit.js', 'apps/cli/src/shell/commands/verify.js',
     'src/relay-key.js', 'packages/kernel/src/core/seal.js', 'src/source-advance.js', 'src/source-advance-worker.js',
     'packages/spec/src/shell/signature.js',
     'packages/sandbox/src/shell/source-advance.js', 'packages/sandbox/src/shell/source-advance-worker.js',
@@ -73,7 +73,7 @@ test('ruled judgment areas and named guard tests are Strict while broad product 
   assert.equal(gateJudgmentPath('packages/github/src/shell/pr-github.js'), false, 'no widening to the other github modules');
   for (const path of ['docs/gate.md', 'README.md', 'relay/README.md', 'packages/gate/README.md',
     'packages/sandbox/src/shell/trusted-policy.js', 'packages/sandbox/src/shell/source-advance-origin.js',
-    'packages/seats/src/core/seat-address.js', 'packages/seats/src/shell/lanes.js', 'packages/seats/src/core/verdict-rows.js', 'src/view/projector.js', 'src/help/gate.js', 'src/gateway-display.js', 'test/cockpit/detail-model.test.js',
+    'packages/seats/src/core/seat-address.js', 'packages/seats/src/shell/lanes.js', 'packages/seats/src/core/verdict-rows.js', 'src/view/projector.js', 'apps/cli/src/core/help/gate.js', 'src/gateway-display.js', 'test/cockpit/detail-model.test.js',
     'src/test-value.js', 'src/test-economics.js', 'src/board.js', 'src/board-query.js',
     'src/review-queue-line.js', 'src/person-signing-words.js',
     'src/check-words.js', 'src/line-settings.js', 'src/cli-main.js',
@@ -545,4 +545,13 @@ test('lib move preserves exact relay worker review tiers [V4,B26]', () => {
     assert.equal(gateJudgmentPath(`apps/lib/src/shell/${name}.js`), true);
   }
   assert.equal(gateJudgmentPath('apps/lib/src/shell/cli-hook-work.js'), false);
+});
+
+test('cli move preserves strict tier on every previously strict body, and only those [V4,B26,C7]', () => {
+  const paths = JSON.parse(readFileSync(new URL('../bin/cells-plan/path-map/cli.json', import.meta.url), 'utf8'));
+  for (const [oldPath, movedPath] of Object.entries(paths)) assert.equal(gateJudgmentPath(movedPath), gateJudgmentPath(oldPath), movedPath);
+  assert.equal(gateJudgmentPath('apps/cli/src/shell/commands/submit.js'), true);
+  assert.equal(gateJudgmentPath('apps/cli/src/core/runner-loss-health.js'), true);
+  assert.equal(gateJudgmentPath('apps/cli/src/shell/commands/status.js'), false);
+  assert.equal(gateJudgmentPath('apps/cli/src/core/runner-loss-extra.js'), false);
 });

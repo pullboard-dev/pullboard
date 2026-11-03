@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/coordinator-shout-purpose.js src/commands/shout.js src/lane-lead.js */
+/** @pullboard-test-loads apps/cli/src/core/coordinator-shout-purpose.js apps/cli/src/shell/commands/shout.js src/lane-lead.js */
 /** Explicit coordinator kinds keep item progress on facts without classifying prose [C7]. */
 import assert from 'node:assert/strict';
 import { after } from 'node:test';

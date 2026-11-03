@@ -1,8 +1,8 @@
 /** @pullboard-test-input source-tree */
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { runnerLossHealth } from '../src/runner-loss-health.js';
-import { runnerLossLines } from '../src/runner-loss-health.js';
+import { runnerLossHealth } from '../apps/cli/src/core/runner-loss-health.js';
+import { runnerLossLines } from '../apps/cli/src/core/runner-loss-health.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';

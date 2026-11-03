@@ -27,8 +27,8 @@ import { addItem as addBoardItem, allShouts, EVENT_LOG_VERSION, closeBoard, even
 import { openBoard } from '../apps/lib/index.js';
 import { presentationShout, relayPresentation } from '../packages/pages/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
-import { projectState } from '../src/cli/view-state.js';
-import { serveView } from '../src/commands/view.js';
+import { projectState } from '../apps/cli/src/shell/cli/view-state.js';
+import { serveView } from '../apps/cli/src/shell/commands/view.js';
 import { registerProject } from '../packages/seats/index.js';
 import { SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
