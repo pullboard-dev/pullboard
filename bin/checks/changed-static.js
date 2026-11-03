@@ -62,9 +62,21 @@ export function changedStaticFailures(root, files, { staged = false } = {}) {
   return failures;
 }
 
+/** Fast hook entry; leave projects with fixers or a different static policy to the ordinary hook. */
+export function stagedHookFailures(root) {
+  let config;
+  try { config = JSON.parse(readFileSync(join(root, 'pullboard.json'), 'utf8')); }
+  catch { return []; }
+  if (!/\bbin\/static-style-checks\.js\b/u.test(config.staticChecks ?? '') || config.fix?.length) return [];
+  const diff = spawnSync('git', ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8' });
+  if (diff.status !== 0) throw new Error('cannot enumerate staged files');
+  return changedStaticFailures(root, diff.stdout.split('\0').filter(Boolean), { staged: true });
+}
+
 // Run directly (node --experimental-vm-modules changed-static.js <files...>) it judges the files in the current directory.
 if (process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
   const staged = process.argv[2] === '--staged';
-  const failures = changedStaticFailures(process.cwd(), process.argv.slice(staged ? 3 : 2), { staged });
+  const failures = process.argv[2] === '--staged-hook' ? stagedHookFailures(process.cwd())
+    : changedStaticFailures(process.cwd(), process.argv.slice(staged ? 3 : 2), { staged });
   if (failures.length) { process.stderr.write(`${failures.join('\n')}\n`); process.exitCode = 1; }
 }

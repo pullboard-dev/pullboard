@@ -22,8 +22,8 @@ function staticProject() {
   mkdirSync(join(box.repo, 'bin', 'checks'), { recursive: true });
   copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'bin', 'checks', 'test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'bin', 'checks', 'changed-static.js'), [
-    `import { changedStaticFailures } from ${JSON.stringify(pathToFileURL(join(REAL, 'changed-static.js')).href)};`,
-    "const failures = changedStaticFailures(process.cwd(), process.argv.slice(3), { staged: process.argv[2] === '--staged' });",
+    `import { changedStaticFailures, stagedHookFailures } from ${JSON.stringify(pathToFileURL(join(REAL, 'changed-static.js')).href)};`,
+    "const failures = process.argv[2] === '--staged-hook' ? stagedHookFailures(process.cwd()) : changedStaticFailures(process.cwd(), process.argv.slice(3), { staged: process.argv[2] === '--staged' });",
     "if (failures.length) { process.stderr.write(failures.join('\\n') + '\\n'); process.exitCode = 1; }", ''].join('\n'));
   writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...JSON.parse(box.git(box.repo, 'show', 'HEAD:pullboard.json')), gate: 'true',
     staticChecks: 'node bin/static-style-checks.js' }, null, 2));
