@@ -204,6 +204,7 @@ Statuses: approved = decided · draft = proposed · pending = open question · f
 - N39 [approved, must] The view's secret never stays in the address bar: the first link trades it for a cookie. | gate: test/e2e-view.test.js | serves: N26
 - N40 [draft, must] Every action in the view answers within 100 ms and never over 250 ms, on a board of 3,000 items with eight projects open. | gate: test/cockpit/perf.test.js | serves: N26
 - N41 [draft, must] `pullboard next` takes an eligible review first, else claims the next free build my route covers, else prints "nothing for this seat: end your turn". It never blocks. --verify names work I did not build. (Proposed replacement for N2, Corey approved 3 Nov.) | gate: review
+- N42 [draft, must] Pullboard never suggests a wait; every next step names work to take now, or says to end the turn. (Proposed replacement for N25, Corey approved 3 Nov.) | gate: review
 
 ## A · API: the engine others build on
 - A1 [approved, must] Every command prints --json in a documented shape, stable within a major version. | gate: test/api.test.js
