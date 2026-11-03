@@ -8,15 +8,15 @@ import { tmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { cellLintBaseline } from '../packages/codemap/index.js';
-import { cellLintGrowth } from '../packages/codemap/index.js';
-import { cellLintReport } from '../packages/codemap/index.js';
-import { lowerCellLintBaseline } from '../packages/codemap/index.js';
-import { rootAllowed } from '../packages/codemap/index.js';
-import { strayNextStep } from '../packages/codemap/index.js';
-import { commonJsIn } from '../packages/gate/index.js';
-import { importsIn } from '../packages/gate/index.js';
-import { runFixtureGit } from './fixture-child.js';
+import { cellLintBaseline } from '../index.js';
+import { cellLintGrowth } from '../index.js';
+import { cellLintReport } from '../index.js';
+import { lowerCellLintBaseline } from '../index.js';
+import { rootAllowed } from '../index.js';
+import { strayNextStep } from '../index.js';
+import { commonJsIn } from '../../gate/index.js';
+import { importsIn } from '../../gate/index.js';
+import { runFixtureGit } from '../../../test/fixture-child.js';
 
 /** A private repository with one app, one package and today's kinds of root strays. */
 function fixture(t) {
