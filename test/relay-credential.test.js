@@ -86,8 +86,10 @@ test('every current operation selects its native actor credential without a seco
       args = [{ agentId: 'person', channel: 'terminal', name: 'credential-watch', digest: 'f'.repeat(64), decision: 'approve' }];
       kind = 'person';
     }
-    // This missing-item fixture still supplies modern proof metadata before testing submit's transport credential.
-    if (operation === 'submit') args = [999999, { ...options, submissionProof: { version: 1, files: [], full: false, deferred: false, reason: '' } }];
+    // Keep a modern proof payload so this missing item reaches its exact native refusal.
+    if (operation === 'submit') return { operation,
+      args: [999999, { ...options, submissionProof: { version: 1, files: [], full: false, deferred: false, reason: '' } }],
+      kind, sent: false, expected: 'NO_ITEM', label: 'submit with proof for a missing item' };
     if (operation === 'completeCheckBaseline') args = [999999, { ...options,
       expected: { command: 'true', main: 'a'.repeat(40), result: 'pending', request: '11111111-1111-4111-8111-111111111111' },
       baseline: { command: 'true', main: 'a'.repeat(40), result: 'green' },
