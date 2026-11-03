@@ -159,7 +159,8 @@ function hooksFixture() {
   const core = join(box.dir, 'core-1');
   box.git(box.repo, 'worktree', 'add', '-q', core, '-b', 'core/one');
   assert.match(box.run(core, 'join', 'core').out, /joined as core-/u);
-  const author = run(box, core, 'whoami').id;
+  // The coordinator owns .githooks, so its seat authors the companion.
+  const author = run(box, box.repo, 'whoami').id;
   const item = run(box, box.repo, 'add', 'core', 'Edit the core value', '--specs', 'G1').item.item_id;
   box.git(core, 'merge', '-q', '--ff-only', 'main');
   const claimed = run(box, core, 'claim', String(item));
