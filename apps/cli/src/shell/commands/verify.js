@@ -4,7 +4,7 @@ import { generateTestTiers } from '../../../../../packages/gate/index.js';
 import { fileURLToPath } from 'node:url';
 import { submitGateConfig } from '../../../../../packages/gate/index.js';
 import { submitGatePlan } from '../../../../../packages/gate/index.js';
-import { reusableSubmitProof } from '../../../../../src/submit-proof-reuse.js';
+import { reusableSubmitProof } from '../../../../../packages/verify/index.js';
 import { selectTestTiers } from '../../../../../packages/gate/index.js';
 import { compareVerification } from '../../../../../packages/verify/index.js';
 import { comparisonCommand } from '../../../../../packages/verify/index.js';
@@ -19,6 +19,8 @@ import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { testTierProofFiles } from '../../../../../packages/gate/index.js';
 import { testTierCommand } from '../../../../../packages/gate/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
+import { reviewCitations } from '../../../../../packages/gate/index.js';
+import { citedReceiptsNote } from '../../../../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../../../../packages/verify/index.js';
 import { itemTrunkMove } from '../../../../../packages/verify/index.js';
@@ -116,6 +118,7 @@ import {
 import {
   composeReview,
   composesAtAdmission,
+  recordNativeProof,
 } from '../../../../../packages/verify/index.js';
 import {
   captureVerdictReview,
@@ -278,7 +281,7 @@ export async function verifyHere(ctx, id, { second, values }) {
     let digest = 'missing';
     let check;
     let review;
-    let unaffectedMove = '';
+    let unaffectedMove = '', cited = [];
     let knownMain = null;
     const companionDigest = store.itemPatchDigest(board, id);
     const missing = missingCompanionKeys(root, board, item, head,
@@ -316,13 +319,13 @@ export async function verifyHere(ctx, id, { second, values }) {
         const supplement = testTiers ? testTierCommand(testTiers, testTierProofFiles(testTiers, frozenCheck(item))) : '';
         /** Keep the frozen command and selected units inside one immutable private check. */
         const tierCheck = testTiers ? (root, item, options) => checkAtCommit(root, item, { ...options, supplement, testTiers }) : checkAtCommit;
-        if (testTiers) ctx.io.say(testTierReport(testTiers));
+        if (testTiers) { ctx.io.say(testTierReport(testTiers)); cited = reviewCitations(root, testTiers); } // A4: cite seals, never re-check them
         let expectedPlan = null;
         if (head === checkedCommit && isClean(root) && !untracked(root).length && !companionDigest && !item.item_effective_head) {
           try {
             const config = submitGateConfig(ctx.config, policyAt(root, trunk.commit).config);
             const plan = submitGatePlan(root, config, { base: item.item_claim_head, trunk: trunk.commit, commit: checkedCommit, check: frozenCheck(item) });
-            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand };
+            expectedPlan = { check: plan.check, files: plan.proofFiles, full: plan.selection.full, deferred: plan.deferred, proofCommand: plan.proofCommand, tiered: Boolean(plan.testTiers) };
           } catch { /* A plan that cannot be reproduced cannot grant reuse. */ }
         }
         const reused = expectedPlan ? reusableSubmitProof(store.events(board, { itemId: id }), { item, commit: checkedCommit,
@@ -376,6 +379,15 @@ export async function verifyHere(ctx, id, { second, values }) {
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
             onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
           });
+          if (!knownMain && check.proofReceiptId) {
+            await recordNativeProof(ctx, checkedItem, check, { ordered, withBoard, resourceAgent, proofRunReceipt: store.proofRunReceipt,
+              exitFailures: true }, board);
+            const gap = store.selectorGapCandidate(board, { agentId: me.id, itemId: id, receiptId: check.proofReceiptId, review });
+            if (gap) {
+              const recorded = await ordered(ctx, board, 'recordSelectorGap', [{ agentId: me.id, itemId: id, receiptId: check.proofReceiptId, review }]);
+              return { decision: 'SELECTOR_GAP', repairItem: recorded.item, filed: recorded.filed };
+            }
+          }
           if (!knownMain) throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
         }
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
@@ -424,7 +436,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + citedReceiptsNote(cited) + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,
@@ -451,6 +463,11 @@ export async function verifyHere(ctx, id, { second, values }) {
   });
   const primary = { id, ...result, ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
+  if (result.decision === 'SELECTOR_GAP') {
+    ctx.io.say(`Recorded a selector gap for #${id}; repair item #${result.repairItem} is open. #${id} remains submitted for review.`);
+    if (ctx.verdictResult) ctx.verdictResult.value = primary;
+    return 0;
+  }
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'

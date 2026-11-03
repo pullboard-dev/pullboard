@@ -1,16 +1,16 @@
+import { withHandoffQueueOrder } from '../../../../packages/resources/index.js';
+import { ensureHandoffDispatcher } from '../../../../packages/resources/index.js';
+import { queueHandoffLaunch } from '../../../../packages/resources/index.js';
+import { reserveHandoffTicket } from '../../../../packages/resources/index.js';
 import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
-import { once } from 'node:events';
 import { exactStart } from '../../../../packages/gate/index.js';
 /** Queue only after canonical Submit has checked the exact source, lane, bar and companion composition [V4]. */
 import { randomUUID } from 'node:crypto';
-import { spawn } from 'node:child_process';
 import {
   mkdirSync,
   mkdtempSync,
-  openSync,
-  closeSync,
   cpSync,
   realpathSync,
   readFileSync,
@@ -36,10 +36,14 @@ import { submitHandoffRoot } from './submit-handoff-origin.js';
 
 /** Persist the immutable native request before detaching one worker; acknowledgment is not gate green. */
 export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
-  const result = await withBoard(ctx, board => ordered(ctx, board, 'queueSubmitHandoff', [item.item_id, {
+  const result = await withHandoffQueueOrder(() => withBoard(ctx, async board => {
+    const queued = await ordered(ctx, board, 'queueSubmitHandoff', [item.item_id, {
     agentId: me.id, job: randomUUID(), main: candidate.main, executionCommit: candidate.companion?.commit ?? candidate.commit, executionTree: candidate.companion?.tree ?? candidate.tree, commit: candidate.commit, tree: candidate.tree,
     digest: item.item_frozen_digest, leaseMs: ctx.config.leaseMs, companionDigest: itemPatchDigest(board, item.item_id, candidate.commit),
-  }]));
+  }]);
+    // Keep the native move and reservation inside the machine ordering lock, before capture.
+    return queued.created ? { ...queued, reservation: await reserveHandoffTicket(queued.job.id, { startOf: exactStart }) } : queued;
+  }));
   const directory = dirname(submitHandoffRoot(ctx.info.commonDir, result.job));
   if (result.created) {
     git(ctx.info.root, ['update-ref', `refs/pullboard/submit-handoffs/${result.job.id}`, result.job.commit]);
@@ -53,7 +57,7 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
     writeFileSync(join(directory, 'request.json'), JSON.stringify({ item: item.item_id, job: result.job.id,
       commonDir: ctx.info.commonDir, origin: ctx.info.root, commit: result.job.commit, infra: candidate.infra,
       companion: candidate.companion, tools }) + '\n', { flag: 'wx', mode: 0o600 });
-    await launchCapturedWorker(directory, tools, ctx.info.commonDir, result.job);
+    await launchCapturedWorker(directory, tools, ctx.info.commonDir, result.job, 0, result.reservation);
   } else {
     await recoverSubmitHandoff(ctx, item.item_id, me.id, result.job);
   }
@@ -68,23 +72,11 @@ export async function enqueueSubmitHandoff(ctx, item, me, candidate) {
   return 0;
 }
 
-/** Start only captured tooling by its canonical path; capture one incarnation before acknowledgment. */
-async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0) {
-  const log = openSync(join(directory, 'worker.log'), 'a', 0o600);
-  try {
-    const worker = spawn(process.execPath, [join(realpathSync(tools), 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), join(directory, 'request.json')],
-      { cwd: commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
-    await once(worker, 'spawn');
-    const started = exactStart(worker.pid);
-    try { writeFileSync(join(directory, 'worker.json'), JSON.stringify({ version: 1, job: job.id, pid: worker.pid, started, relaunches }) + '\n', { mode: 0o600 }); }
-    catch (error) {
-      const closed = once(worker, 'close');
-      worker.kill('SIGTERM');
-      await closed;
-      throw new Refused('SUBMIT_HANDOFF_SOURCE', `queued worker stopped because its incarnation could not be retained: ${error.message}`);
-    }
-    worker.unref();
-  } finally { closeSync(log); }
+/** Queue every initial or recovery launch behind the same machine cap, without spawning a waiting worker. */
+async function launchCapturedWorker(directory, tools, commonDir, job, relaunches = 0, reservation) {
+  const ticket = reservation ?? await reserveHandoffTicket(job.id, { startOf: exactStart });
+  queueHandoffLaunch({ directory, tools, commonDir, job: job.id, relaunches }, ticket);
+  await ensureHandoffDispatcher(tools, commonDir, { startOf: exactStart });
 }
 
 /** An absent process or a different exact incarnation proves death; unavailable identity never does. */
