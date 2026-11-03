@@ -1,3 +1,4 @@
+/** @pullboard-test-input source-tree */
 /** One unverified cleanup costs one runner slot, runner jobs start no detached watcher, and a held pool lock never fails a gate [C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -15,6 +16,10 @@ import { openPoolReadOnly } from '../packages/resources/index.js';
 import { scopedEnvironment } from '../apps/runner/src/shell/runner-worker-environment.js';
 import { scheduleWorktreeMaintenance } from '../src/worktree-maintenance-scheduler.js';
 import { scheduleToolBuildGate } from '../src/tool-build-scheduler.js';
+import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Point machine admission at a disposable machine home for one test, restoring the environment after. */
 function machine(t, extra = {}) {
@@ -111,4 +116,31 @@ test('a gate whose slot release meets a held pool lock records its release once 
     assert.equal(reader.prepare('SELECT COUNT(*) AS n FROM holder').get().n, 0, 'the release committed after the lock cleared');
   } finally { reader.close(); }
   assert.equal(await exited, 0);
+});
+
+test('a real CLI child of a runner job, with maintenance enabled, leaves no watcher behind [C7]', t => {
+  const helpers = createE2eHelpers();
+  t.after(helpers.cleanup);
+  const box = helpers.project('true', undefined, { withWorktree: false });
+  const file = join(box.repo, 'pullboard.json');
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), worktreeMaintenance: { enabled: true, every: '1h', grace: '1d', exclude: [] } }));
+  box.git(box.repo, 'add', '.');
+  box.git(box.repo, 'commit', '-qm', 'test: enable the maintenance timer');
+  const common = box.git(box.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir').trim();
+  const timer = join(common, 'pullboard', 'worktree-maintenance', 'timer.json');
+  box.env.PULLBOARD_RUNNER_JOB = 'job-fixture';
+  const marked = box.run(box.repo, 'status');
+  assert.equal(marked.code, 0, marked.err || marked.out);
+  assert.equal(existsSync(timer), false, 'a CLI inside a runner job registers no detached watcher');
+  delete box.env.PULLBOARD_RUNNER_JOB;
+  const plain = box.run(box.repo, 'status');
+  assert.equal(plain.code, 0, plain.err || plain.out);
+  assert.equal(existsSync(timer), true, 'the same command outside a job does start one, so the marker is what stops it');
+  const owner = JSON.parse(readFileSync(timer, 'utf8'));
+  try { process.kill(owner.pid, 'SIGKILL'); } catch { /* already gone */ }
+});
+
+test('run-tests keeps the runner job marker for its test children [C7]', () => {
+  const source = readFileSync(new URL('../bin/run-tests.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /delete env(?:\.PULLBOARD_RUNNER_JOB|\[['"]PULLBOARD_RUNNER_JOB['"]\])/u, 'test children and their CLI descendants stay marked');
 });
