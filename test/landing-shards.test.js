@@ -680,7 +680,7 @@ test('a collect-all shard cancelled by its owner reports drained but incomplete 
   writeFileSync(join(box.repo,'test/a.test.js'),source);
   for(const name of NAMES.slice(1))rmSync(join(box.repo,'test',name+'.test.js'));
   git(box.repo,box.env,'add','-A');git(box.repo,box.env,'commit','-q','-m','test: real collect-all cancellation');
-  const gateUrl=pathToFileURL(join(box.repo,'src/gate.js')).href;
+  const gateUrl=pathToFileURL(join(box.repo,'packages/gate/index.js')).href;
   const resourceUrl=pathToFileURL(join(box.repo,'packages/resources/index.js')).href;
   const reportUrl=pathToFileURL(join(box.repo,'src/gate-run-receipt.js')).href;
   const id='11111111-1111-4111-8111-111111111111';
