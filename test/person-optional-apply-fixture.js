@@ -14,7 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { attestAuthority, setPersonSigning, verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import { presenceAttestation } from '../packages/person/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';

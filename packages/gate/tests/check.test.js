@@ -21,7 +21,7 @@ import { test } from 'node:test';
 import { addItem } from '../../store/index.js';
 import { closeBoard } from '../../store/index.js';
 import { validateItemAddition } from '../../store/index.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { prepareCheckBaseline } from '../src/shell/check-baseline.js';
 import { removeFixtureDirectory } from '../../../test/cleanup-diagnostics.js';
 

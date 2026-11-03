@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/index.js';
 /** A refusal that stops someone reaches whoever can clear it, is recorded, and repeats are counted [C6,N26]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';

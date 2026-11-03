@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { prepareItemPatchReview } from '../packages/items/index.js';
 import { effectiveItemHead } from '../packages/verify/index.js';
 import { itemPolicy } from '../packages/sandbox/index.js';

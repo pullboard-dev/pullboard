@@ -144,7 +144,7 @@ function startNode(args, env) {
 async function runRegistryBurst(sandbox, label, roots, forgotten, env) {
   const barrier = join(sandbox, `${label}.start`);
   const worker = `import { existsSync } from 'node:fs';
-import { registerProject, forgetProject, listProjects } from ${JSON.stringify(new URL('../../../src/projects.js', import.meta.url).href)};
+import { registerProject, forgetProject, listProjects } from ${JSON.stringify(new URL('../../seats/index.js', import.meta.url).href)};
 const [operation, root, barrier] = process.argv.slice(1);
 console.log('ready');
 while (!existsSync(barrier)) await new Promise((resolve) => setTimeout(resolve, 1));

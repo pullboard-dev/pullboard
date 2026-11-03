@@ -17,7 +17,7 @@ import { test } from 'node:test';
 import { bridgeProject, bridgeProvider, landBridgeItems, landBridgeRepair, mergeBridgeAs, runBridgeCLI } from './pr-bridge-fixture.js';
 import { onBoard } from './land-board-fixture.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { PR_BRIDGE_ENGINE } from '../src/pr-bridge-engine.js';

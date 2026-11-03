@@ -18,7 +18,7 @@ import { githubFixture } from './relay-fixture.js';
 import { serveView } from '../src/commands/view.js';
 import { registerProject } from '../packages/seats/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 
 import { main } from './native-cli-fixture.js';
 import { exportBoard, restoreRelaySnapshot, semanticBoardDigest } from '../packages/store/index.js';

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { clearProofCounters } from '../packages/verify/index.js';
 import { rebuildProofCounters } from '../packages/verify/index.js';
 import { ensureRigorCounters } from '../packages/rigor/index.js';

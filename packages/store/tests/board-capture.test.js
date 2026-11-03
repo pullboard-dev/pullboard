@@ -17,7 +17,7 @@ import {
   atomic,
   closeBoard,
 } from "../src/shell/board.js";
-import { openBoard } from "../../../src/native-board.js";
+import { openBoard } from "../../../apps/lib/index.js";
 import { captureBoardChanges } from "../src/shell/board-capture.js";
 import { boardWriteHolderText } from "../src/shell/board-write-lock.js";
 

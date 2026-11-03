@@ -17,7 +17,7 @@ import {
   receiptStore,
 } from '../packages/gate/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { invalidateGitFacts } from '../src/git.js';
 import { runLandingBatch } from '../packages/landing/index.js';
 import { assertLandingLease } from '../src/board-landing-lease.js';
