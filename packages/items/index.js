@@ -48,7 +48,7 @@ export { waitForSubmissionVerdict } from './src/shell/submit-wait.js';
 export { EFFORT, milestoneRanks, workOrderActive, milestoneOverrides, unblockCounts, computedOrder, workOrderCompare, queueReasons } from './src/core/work-order.js';
 export { validateCheckTiming, saveCheckTiming, frozenCheckTiming, parseCheckTiming, checkTimingEngine } from './src/core/check-timing.js';
 export { itemEditBar } from './src/core/item-edit-bar.js';
-export { safeItemPatchPath, itemPatchPaths, normalizeItemPatch } from './src/core/item-patch-paths.js';
+export { safeItemPatchPath, itemPatchPaths, itemPatchParts, normalizeItemPatch } from './src/core/item-patch-paths.js';
 export { prepareItemPatchSubmit, sealItemPatchFollow, checkItemPatchSubmit, sealItemPatchSubmit, withItemPatchSubmit } from './src/shell/item-patch-submit.js';
 export { lifecycleMove, lifecycleEvent, lifecycleSteps, recordedWithdrawalFrom } from './src/core/lifecycle-move.js';
 export { recordFamilyDeclareActivation, namesFamily, originalSession, derivedFamily, seatFamily, familyDeclareFloor, withDerivedFamily, withDerivedFamilies } from './src/shell/family-declaration.js';

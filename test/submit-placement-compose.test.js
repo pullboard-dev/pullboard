@@ -67,7 +67,7 @@ test('native view submit validates its core companion placement on the composed 
     success(box, path, 'join', lane);
   }
   const author = success(box, core, 'whoami').id;
-  const id = success(box, box.repo, 'add', 'view', 'Place through a core companion', '--specs', 'G1',
+  const id = success(box, box.repo, 'add', 'view', 'Cells move 1/1: place through a core companion', '--specs', 'G1',
     '--criterion', 'The new view source is placed by its core companion.', '--check', 'node check.cjs', '--wait').item.item_id;
   success(box, view, 'claim', String(id));
   const file = 'src/view/plan-companion-added.js';

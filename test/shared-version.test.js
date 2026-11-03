@@ -114,7 +114,7 @@ test('a roadmap external-board open refuses unmerged event-log source [A5,A6]', 
     import * as store from './src/board.js';
     import { registerProject } from './src/projects.js';
     import { milestoneRoadmap } from './packages/roadmap/index.js';
-    import { workQueue } from './src/queue.js';
+    import { workQueue } from './packages/items/index.js';
     registerProject(${JSON.stringify(box.root)}, new Date(), {name:'external'});
     const board = openBoard(':memory:');
     addMilestone(board, {agentId:'coordinator',name:'External',items:['repo#1']});

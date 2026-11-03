@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { renameSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanupTimeoutDetails } from '../packages/runners/src/core/cleanup-diagnostics.js';
+import { cleanupTimeoutDetails } from '../../../../packages/runners/src/core/cleanup-diagnostics.js';
 
 const CLEANUP_BUDGET_MS = 30_000;
 

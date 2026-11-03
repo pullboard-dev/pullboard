@@ -74,7 +74,7 @@ function fixture(t, { enabled = true, result = 'green', companion = false, cells
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   const check = `${word(process.execPath)} ${word(script)}`;
-  const id = document(box.run(box.repo, 'add', 'web', 'Captured submit source', '--specs', 'G1',
+  const id = document(box.run(box.repo, 'add', 'web', cells ? 'Cells move 1/1: captured submit source' : 'Captured submit source', '--specs', 'G1',
     '--criterion', 'The captured candidate passes its real gate.', '--check', check, '--wait', '--json')).item.item_id;
   const third = document(box.run(box.repo, 'add', 'web', 'Third ordinary build', '--specs', 'G1',
     '--criterion', 'An ordinary third build stays refused.', '--check', 'true', '--wait', '--json')).item.item_id;

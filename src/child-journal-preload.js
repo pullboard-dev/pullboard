@@ -1,1 +1,1 @@
-export { exactStart, childJournalPreloadSource } from "../packages/gate/src/shell/child-journal-preload.js";
+export { exactStart, childJournalPreloadSource } from "../packages/gate/index.js";
