@@ -66,3 +66,4 @@ export { TEST_TIERS_FILE, generateTestTiers, formatTestTiers, writeTestTiers } f
 export { requireTestTierAccount, hasTestTiers, selectTestTiers, testTierProofFiles, testTierCommand, testTierCheckCommand, testTierReport } from './src/shell/test-tier-selection.js';
 
 export { testTimeBudget, testTimeBudgetLines } from './src/core/test-time-budget.js';
+export { packageHashesAt, unsealedPackages, sealStoreFile, recordSeal, sealOf, sealStatus, checkSkippedSeals } from './src/shell/seals.js';
