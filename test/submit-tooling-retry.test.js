@@ -63,7 +63,7 @@ export function moveTooling() {
   assertRunnerModuleParserCurrent();
 }
 `);
-  const submitFile = join(tooling, 'src/commands/submit.js');
+  const submitFile = join(tooling, 'apps/cli/src/shell/commands/submit.js');
   const source = readFileSync(submitFile, 'utf8');
   const anchor = '  ctx.submitAttempt = { agentId: held.item_owner, digest: held.item_frozen_digest };';
   assert.ok(source.includes(anchor), 'the fixture injects at the real owned submit boundary');

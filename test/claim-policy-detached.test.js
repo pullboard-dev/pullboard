@@ -4,7 +4,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { verificationCriterionDigest } from '../src/commands/verify.js';
+import { verificationCriterionDigest } from '../apps/cli/src/shell/commands/verify.js';
 import { Refused } from '../packages/kernel/core.js';
 
 /** Require each actual native fixture command to finish successfully. */

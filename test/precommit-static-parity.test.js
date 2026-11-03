@@ -17,8 +17,16 @@ after(() => helpers.cleanup());
 const REAL = join(import.meta.dirname, '..', 'bin', 'checks');
 
 /** A project whose static checks name the repository checker; its shared list is the real module, so hook and gate cannot drift. */
-function staticProject() {
+function staticProject(accepted = {}) {
   const box = helpers.project('true', helpers.sandbox(), { withWorktree: false });
+  for (const [file, source] of Object.entries(accepted)) {
+    mkdirSync(join(box.repo, file, '..'), { recursive: true });
+    writeFileSync(join(box.repo, file), source);
+  }
+  if (Object.keys(accepted).length) {
+    box.git(box.repo, 'add', '-A');
+    box.git(box.repo, 'commit', '-q', '-m', 'chore: record existing source before static policy');
+  }
   mkdirSync(join(box.repo, 'bin', 'checks'), { recursive: true });
   copyFileSync(join(REAL, 'test-waits-baseline.json'), join(box.repo, 'bin', 'checks', 'test-waits-baseline.json'));
   writeFileSync(join(box.repo, 'bin', 'checks', 'changed-static.js'), [
@@ -87,5 +95,39 @@ test('the hook refuses the other named static checks [C7]', () => {
     const refused = box.tryGit(box.repo, 'commit', '-q', '-m', 'bad static');
     assert.notEqual(refused.status ?? refused.code, 0);
     assert.match(`${refused.stderr ?? refused.err}${refused.stdout ?? refused.out ?? ''}`, message);
+  }
+});
+
+
+test('the shared hook and gate ratchet accepted oversized files without accepting new or growing excess [C7]', () => {
+  const file = 'src/existing-large.js';
+  const source = '// accepted line\n'.repeat(1501);
+  for (const lines of [1501, 1500, 1601]) {
+    const box = staticProject({ [file]: source });
+    const candidate = '// edited line\n'.repeat(lines);
+    const result = commitSource(box, file, candidate);
+    assert.equal(result.status === 0, lines <= 1501, result.stderr);
+    if (lines > 1501) assert.match(result.stderr + result.stdout, /over the 1500-line cap/u);
+  }
+  const fresh = staticProject();
+  const refused = commitSource(fresh, 'src/new-large.js', source);
+  assert.notEqual(refused.status, 0);
+  assert.match(refused.stderr + refused.stdout, /over the 1500-line cap/u);
+});
+
+test('same-count accepted empty catches and source-reader declarations retain gate parity [C7]', () => {
+  const examples = [
+    ['src/debt.js', 'try { first(); } catch {}\n', 'try { second(); } catch {}\n', 'try { first(); } catch {} try { second(); } catch {}\n'],
+    ['test/debt.test.js', "readFileSync(new URL('../src/first.js', import.meta.url));\n", "readFileSync(new URL('../src/second.js', import.meta.url));\n", null],
+  ];
+  for (const [file, accepted, same, grown] of examples) {
+    const box = staticProject({ [file]: accepted });
+    const done = commitSource(box, file, same);
+    assert.equal(done.status, 0, done.stderr);
+    if (grown) {
+      const refused = commitSource(box, file, grown);
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr + refused.stdout, /empty catch names no reason/u);
+    }
   }
 });

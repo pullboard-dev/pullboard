@@ -1,0 +1,204 @@
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { stagedShimImportProblems } from '../../../../../packages/codemap/index.js';
+import { importsIn } from '../../../../../packages/gate/index.js';
+import { itemFolderIdentity } from '../item-folder.js';
+import { pendingSubmitHandoff } from '../../../../../packages/store/index.js';
+import { submitHandoffHookActor } from '../submit-handoff-origin.js';
+import { waivedLandingProof as nativeWaivedLandingProof } from '../../../../../packages/landing/index.js';
+import { quarantineWaivers } from '../../../../../packages/flakes/index.js';
+/** The pullboard hook command, in its own module so an item adding another command never edits these lines. */
+import { boardBusyError } from '../../../../../packages/store/index.js';
+import { openBoardReadOnly } from '../../../../../packages/store/index.js';
+import { rowDecisions } from '../../../../../packages/spec/index.js';
+import { checkLoosening } from '../../../../../packages/doctrine/index.js';
+import { runnerExecutionServices } from '../../../../../packages/runners/index.js';
+import { landingExecutionServices } from '../../../../../packages/landing/index.js';
+
+const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
+import { gitBoardDataPush } from '../../../../../packages/commits/src/core/board-format.js';
+import * as store from '../../../../../packages/store/index.js';
+import { pendingCommitSignoffProblem } from '../../../../../packages/commits/index.js';
+import { prepareCommitMetadata } from '../../../../../packages/commits/index.js';
+import { landingBatchOwnsRoot } from '../../../../../packages/landing/index.js';
+import { fixStagedImportBindings } from '../../../../../packages/commits/index.js';
+import { landingRows } from '../../../../../packages/commits/src/core/landing-rows.js';
+import {
+  hookRead,
+  readStdin,
+} from '../cli-support.js';
+import {
+} from '../../../../../packages/gate/index.js';
+import {
+  gateReport,
+  runGate,
+} from '../../../../../packages/gate/index.js';
+import {
+  headTree,
+  headCommit,
+  tryGit,
+  isClean,
+  repoInfo,
+  untracked,
+  gitPath,
+} from '../../../../../packages/git/index.js';
+import {
+  applyFixers,
+  commitCitationWarnings,
+  commitMsgProblems,
+  FIX_NOTE,
+  preCommitProblems,
+  prePushProblems,
+  pushesTrunk,
+} from '../../../../../packages/commits/index.js';
+import {
+  Refused,
+} from '../../../../../packages/kernel/index.js';
+import {
+  withRowDrafts,
+} from '../../../../../packages/spec/index.js';
+import {
+  loadSpec,
+} from '../../../../../packages/spec/index.js';
+import {
+  trunkRef,
+} from '../../../../../packages/sandbox/index.js';
+import {
+  readFileSync,
+  existsSync,
+  writeFileSync,
+} from 'node:fs';
+import {
+  context,
+  resourceAgent,
+  withBoard,
+} from '../cli.js';
+
+/**
+ * The hooks git runs. In a repo without pullboard.json they pass, so a stray hook never blocks.
+ *
+ * @param {any} io
+ * @param {any} args
+ * @returns {Promise<number>}
+ */
+export async function hookCommand(io, { first, second }) {
+  const info = repoInfo(io.cwd);
+  let ctx;
+  try {
+    ctx = context(io);
+  } catch (error) {
+    if (error instanceof Refused && error.code === 'NO_CONFIG') return 0;
+    throw error;
+  }
+  let problems = [];
+  if (first === 'pre-commit' || first === 'pre-merge-commit') {
+    // A composed run's fixers already ran against the real index, so the checked bytes are the committed bytes (#2593).
+    if (process.env.PULLBOARD_HOOK_COMPOSED !== '1') [...applyFixers(info.root, ctx.config.fix), ...fixStagedImportBindings(info.root)].forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    if (process.env.PULLBOARD_HOOK_COMPOSED === 'fix') return 0;
+    const staticProblems = await stagedStaticProblems(info.root, ctx.config);
+    if (staticProblems.length) {
+      io.err(`pullboard ${first}: blocked\n${staticProblems.map(problem => `  - ${io.guidance(problem)}`).join('\n')}\n${FIX_NOTE}`);
+      return 1;
+    }
+    const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
+      ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
+    const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
+    if (landing) io.caller('coordinator', info.root);
+    else if (agent) io.caller('seat', info.root);
+    const criterion = agent ? hookRead(ctx, board => {
+      const folderItem = itemFolderIdentity(board, info.root)?.item;
+      const claims = store.listItems(board).filter(item => item.item_status === 'claimed'
+        && item.item_owner === agent.agent_id && (folderItem === undefined || item.item_id === folderItem)
+        && !pendingSubmitHandoff(board, item));
+      return claims.length === 1 && claims[0].item_frozen ? JSON.parse(claims[0].item_frozen).criterion ?? '' : '';
+    }) ?? '' : '';
+    const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
+    const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
+    problems = preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
+  } else if (first === 'commit-msg') {
+    const originalMessage = readFileSync(second ?? '', 'utf8');
+    const metadataContext = hookRead(ctx, board => {
+      const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
+      const items = store.listItems(board, { all: true });
+      const folderItem = itemFolderIdentity(board, info.root)?.item;
+      const landing = info.isMain || store.landingBatches(board).some(batch => landingBatchOwnsRoot(batch, info.root));
+      return {
+        migration: landing && existsSync(gitPath(info.root, 'MERGE_HEAD'))
+          ? { base: headCommit(info.root), side: tryGit(info.root, ['rev-parse', '--verify', 'MERGE_HEAD']).stdout } : null,
+        claims: items.filter(item => item.item_status === 'claimed' && item.item_owner === agent?.agent_id && (folderItem === undefined || item.item_id === folderItem) && !pendingSubmitHandoff(board, item)),
+        landings: landing ? items.filter(item => item.item_status === 'verified' && !item.item_merged_commit) : [],
+      };
+    }) ?? {};
+    const spec = withRowDrafts(loadSpec(info.root, ctx.config), hookRead(ctx, (board) => store.rowDrafts(board)));
+    const prepared = prepareCommitMetadata(originalMessage, { ...metadataContext, spec, syncMerge: existsSync(gitPath(info.root, 'MERGE_HEAD')) });
+    const message = prepared.message;
+    const signoff = pendingCommitSignoffProblem(info.root, message);
+    if (signoff) { io.err(signoff); return 1; }
+    commitCitationWarnings(message, { spec, doctrine: ctx.doctrine })
+      .forEach((warning) => io.say(`pullboard commit-msg: warning: ${warning}`));
+    const claimedItems = spec.rows.some(row => row.status === 'approved') ? [] : (hookRead(ctx, board => {
+      const agent = (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent);
+      return agent ? store.listItems(board, { lane: agent.agent_lane }).filter(item =>
+        item.item_status === 'claimed' && item.item_owner === agent.agent_id && !pendingSubmitHandoff(board, item)).map(item => item.item_id) : [];
+    }) ?? []);
+    // Only the main checkout or a landing worktree merges a verified item; elsewhere no trailer exempts a header.
+    const rowlessLandings = hookRead(ctx, (board) => (info.isMain || store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root))
+      ? store.listItems(board, { all: true }).filter((item) => item.item_status === 'verified' && !item.item_merged_commit && !landingRows(item).length).map((item) => item.item_id)
+      : [])) ?? [];
+    problems = [...prepared.problems, ...commitMsgProblems(message, { rules: ctx.config.commits, spec, doctrine: ctx.doctrine, claimedItems, rowlessLandings })];
+    if (!problems.length && message !== originalMessage) writeFileSync(second, message);
+  } else if (first === 'pre-push') {
+    const refsText = await readStdin(io.stdin);
+    if (gitBoardDataPush(info.root, refsText)) {
+      io.say('pre-push: validated append-only board data; no code refs are updated');
+      return 0;
+    }
+    problems = prePushProblems(info.root, refsText);
+    if (!problems.length) {
+      const landing = pushesTrunk(refsText, trunkRef(info.root));
+      const waived = landing && withBoard(ctx, (board) => nativeWaivedLandingProof(board, headTree(info.root), { quarantineWaivers }));
+      const recordedException = landing && withBoard(ctx, (board) => store.landingBatches(board).some((batch) => batch.proof?.tree === headTree(info.root) && batch.proof.failures?.length));
+      // A batch whose every red case is red identically on its main base records a known-main proof for this tree (#2586).
+      const knownMain = landing && withBoard(ctx, (board) => store.landingBatches(board).findLast((batch) => ['ready', 'pushed'].includes(batch.state)
+        && batch.proof?.tree === headTree(info.root) && !batch.proof.failures?.length && batch.proof.knownMain?.length));
+      if (waived && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree covered by live person waivers in batch ${waived.id}; no ordinary green stamp`);
+      else if (knownMain && isClean(info.root) && !untracked(info.root).length) io.say(`pre-push: exact landing tree red only in cases red on main in batch ${knownMain.id}: ${knownMain.proof.knownMain.map((row) => `${row.file} :: ${row.name}`).join('; ')}`);
+      else if (recordedException) problems = ['the landing proof has an expired or missing person waiver; ask the person for a new expiring waiver'];
+      else {
+        const gate = await runGate(info.root, ctx.config, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, landing, agent: resourceAgent(ctx), onWait: io.gateWaitReporter(io) });
+        if (gate.isCached) io.say('pre-push: the gate passed on this exact tree; not running it twice');
+        if (!gate.isGreen) problems = [`the gate is red; fix it before pushing. ${gateReport(gate)}`];
+      }
+    }
+  } else {
+    throw new Refused('USAGE', 'pullboard hook pre-commit | pre-merge-commit | commit-msg <file> | pre-push');
+  }
+  if (!problems.length) return 0;
+  io.err(`pullboard ${first}: blocked\n${problems.map((problem) => `  - ${io.guidance(problem)}`).join('\n')}\n${FIX_NOTE}`);
+  return 1;
+}
+
+/**
+ * Run the gate's changed-file static checks on the staged files, so a static red is refused at commit and never costs a gate run.
+ * It reuses bin/checks/changed-static.js, the same list the gate runs, and only where the project's static checks use it.
+ *
+ * @param {string} root - The checkout the commit is made in.
+ * @param {{ staticChecks?: string }} config - Project config.
+ * @returns {Promise<string[]>} The gate's own `path:line: message` lines; empty when clean or not applicable.
+ */
+async function stagedStaticProblems(root, config) {
+  const shared = join(root, 'bin', 'checks', 'changed-static.js');
+  if (!/\bbin\/static-style-checks\.js\b/u.test(config.staticChecks ?? '') || !existsSync(shared)) return [];
+  const merging = tryGit(root, ['rev-parse', '--verify', 'MERGE_HEAD']).status === 0;
+  const staged = tryGit(root, ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR', ...(merging ? ['MERGE_HEAD'] : [])]).stdout.split('\0').filter(Boolean);
+  if (!staged.length) return [];
+  // The import-style check needs vm modules, which the hook process lacks, so the shared list runs in one small child.
+  const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', shared, '--staged', ...staged], { cwd: root, encoding: 'utf8' });
+  if (run.error) return [`changed-file static checks could not run: ${run.error.message}`];
+  return run.status === 0 ? [] : [`changed-file static checks are red; fix the named source before committing:\n${(run.stderr || run.stdout).trim()}`];
+}
+
+/** Run `pullboard hook` and return its exit code. */
+export async function run(io, args) {
+  return await hookCommand(io, args);
+}

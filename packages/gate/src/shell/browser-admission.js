@@ -77,7 +77,7 @@ const REVIEWED_EXECUTORS = new Map([
       body: 'const browser = browserInCall(method, input); if (browser) return Promise.reject(browserSlotRefusal(browser)); return custom.apply(this, input);',
       reason: 'the installed promise wrapper checks browserInCall before forwarding the original process operation' },
   ]],
-  ['src/cli/sweep.js', [{ function: 'sweepHere',
+  ['apps/cli/src/shell/cli/sweep.js', [{ function: 'sweepHere',
     site: "spawnSync(item.check, { cwd: ctx.info.root, shell: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })",
     reason: 'sweep runs the separately selected checker; importing the CLI does not select or run it' }]],
   ['packages/sentinels/src/shell/sentinel-runner.js', [{ function: 'executeSentinel',
@@ -114,7 +114,8 @@ function explicitRunnerFiles(args) {
     }
     files.push(argument);
   }
-  return files.length && files.every(file => /^test\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
+  return files.length && files.every(file => !file.split('/').some(part => part === '.' || part === '..')
+    && /^(?:test|(?:packages|apps)\/[^/]+\/tests)\/.+\.test\.(?:js|mjs|cjs|cts)$/u.test(file)) ? files : null;
 }
 
 /** Resolve a command word through PATH using the same inherited environment as the check shell.

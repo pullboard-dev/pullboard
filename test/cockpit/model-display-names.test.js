@@ -2,10 +2,10 @@
 /** Approved private model names, aliases and rate matching [N26,N2]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { modelPresentation, costTabModel } from '../../src/view/cost-tab.js';
+import { modelPresentation, costTabModel } from '../../apps/view/index.js';
 import { machine, project, startView, chromeExecutable, openSnapshotChrome, closeSnapshotChrome, press } from './fixture.js';
 import { join } from 'node:path';
-import { cockpitPage } from '../../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../../apps/cli/index.js';
 
 test('private model names follow the approved known, family and fallback rules [N26]', () => {
   const fixtures = [

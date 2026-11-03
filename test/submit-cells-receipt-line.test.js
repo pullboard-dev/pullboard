@@ -11,6 +11,6 @@ const reused = { kind: 'cells', id: 'r1', tree: 'a'.repeat(40), by: 'core-1', at
 test('submit cites a reused cells receipt with the check-receipt line, which needs no slot [C7,D3]', () => {
   assert.match(cellsReceiptLine(reused), /^cells check reused receipt r1 for tree aaaaaaaaaaaa/u);
   assert.throws(() => gateReceiptLine(reused), TypeError, 'the gate line reads a runner slot a cells receipt never has');
-  const submit = readFileSync(new URL('../src/commands/submit.js', import.meta.url), 'utf8');
+  const submit = readFileSync(new URL('../apps/cli/src/shell/commands/submit.js', import.meta.url), 'utf8');
   assert.match(submit, /if \(cells\.reused\) ctx\.io\.say\(cellsReceiptLine\(cells\.receipt\)\);/u);
 });

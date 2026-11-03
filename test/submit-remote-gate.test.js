@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os';
 import { basename } from 'node:path';
 import { dirname } from 'node:path';
 import { join } from 'node:path';
-import { remoteSubmitAnalysis } from '../src/submit-remote-gate.js';
-import { remoteGateWanted } from '../src/submit-remote-gate.js';
+import { remoteSubmitAnalysis } from '../apps/cli/src/shell/submit-remote-gate.js';
+import { remoteGateWanted } from '../apps/cli/src/shell/submit-remote-gate.js';
 
 // Captured before any patching, so the fake runner's own processes never count as the controller's.
 const unpatchedExecFileSync = childProcess.execFileSync;
@@ -194,4 +194,19 @@ test('queued submits go remote when a runner is registered or runners-only is se
   assert.equal(remoteGateWanted({}, { runners: [] }), false);
   assert.equal(remoteGateWanted({ runnerOnly: true }, { runners: [] }), true);
   assert.equal(remoteGateWanted({}, { runners: [{ host: 'runner-1', slots: 9 }] }), true);
+});
+
+test('independent trusted analysis parts run only their named work [C7]', async t => {
+  const box = fixture(t), artifacts = join(box.dir, 'parts');
+  const select = async part => remoteSubmitAnalysis(box.controller, { ...request(box), parts: [part] }, fakeRunner(box), artifacts);
+  const preflight = await select('preflight');
+  assert.deepEqual(Object.keys(preflight.steps), ['placement', 'composition']);
+  const cells = await select('cells');
+  assert.deepEqual(Object.keys(cells.steps), ['cells']);
+  assert.deepEqual(cells.cells.cells, ['trusted-main']);
+  const selection = await select('selection');
+  assert.deepEqual(Object.keys(selection.steps), ['selection', 'admission']);
+  assert.deepEqual(selection.plan.proofFiles, ['test/a.test.js']);
+  const statics = await select('static');
+  assert.deepEqual(Object.keys(statics.steps), ['static']);
 });

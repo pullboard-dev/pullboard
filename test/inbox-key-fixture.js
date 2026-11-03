@@ -31,7 +31,7 @@ function cursor(box) {
 export async function prepareKeylessInbox(box) {
   const result = await box.script(`
     import * as store from ${JSON.stringify(new URL('../src/board.js', import.meta.url).href)};
-    import { openBoard } from ${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)};
+    import { openBoard } from ${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)};
     import { join } from 'node:path';
     const board = openBoard(join(process.cwd(), '.git', 'pullboard', 'board.sqlite'));
     try {
