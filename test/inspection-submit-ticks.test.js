@@ -64,7 +64,7 @@ test('submit requires named evidence for every clause and the reviewer packet bi
   const builder = join(box.dir, 'web-builder');
   box.git(box.repo, 'worktree', 'add', '-q', builder, '-b', 'web/inspection');
   ok(box, builder, 'join', 'web', '--model', 'inspection-fixture');
-  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Inspect every clause', '--criterion', CRITERION,
+  const added = JSON.parse(ok(box, box.repo, 'add', 'web', 'Inspect every clause', '--specs', 'G1', '--criterion', CRITERION,
     '--check', RUN, '--brief', 'Files:\n- web/page.html\nTest:\n- each named case cites its clause', '--json').out);
   const id = added.item.item_id;
   ok(box, builder, 'claim', String(id));
@@ -80,7 +80,7 @@ test('submit requires named evidence for every clause and the reviewer packet bi
     "test('clause 3: the page fits at 375px', () => assert.match(page, /Fits at 375px/u));",
     '',
   ].join('\n'));
-  commit(box, builder, 'test(web): inspect each numbered clause');
+  commit(box, builder, 'feat(web): inspect each numbered clause [G1]');
 
   const missing = box.run(builder, 'submit', String(id), '--no-next');
   assert.notEqual(missing.code, 0, 'an uninspected criterion cannot submit');
