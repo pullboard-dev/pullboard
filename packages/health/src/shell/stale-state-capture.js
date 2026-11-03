@@ -4,7 +4,7 @@ import { ENGINE_VERSION } from '../../../state/index.js';
 import { staleInstant } from '../../../../src/board-stale-state-policy.js';
 import { staleStateLimits } from '../../../../src/board-stale-state-policy.js';
 /** Native maintenance captures local inputs once, before sending a replay-independent observation [B4,H16]. */
-import { staleStateSnapshot } from '../core/stale-state-query.js';
+import { staleStateSnapshot } from './stale-state-snapshot.js';
 import { observeStaleWork } from './stale-work-observation.js';
 import { releaseBlockingItems } from '../core/stale-state-blockers.js';
 import { CLAIM_STALL_MS } from '../core/stale-state-query.js';
