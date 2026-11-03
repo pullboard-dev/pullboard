@@ -31,9 +31,9 @@ function wakeFixture(t) {
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), clock);
   t.after(() => closeBoard(board));
   heartbeatSeat(board, seat);
-  const added = box.run(box.repo, 'add', 'api', 'Wake the routed seat', '--specs', 'G2', '--criterion', 'The wake receives this item.', '--check', 'true', '--json');
+  const added = box.run(box.repo, 'add', 'api', 'Wake the routed seat', '--specs', 'G2', '--criterion', 'The wake receives this item.', '--check', 'test -f api/wake-ready', '--json');
   assert.equal(added.code, 0, added.err + added.out);
-  const item = JSON.parse(added.out).id;
+  const item = JSON.parse(added.out).item.item_id;
   /** Execute the real CLI with this fixture's deterministic presence clock. */
   const cli = argv => captureCommandInProcess((args, streams) => main(args, { ...streams, clock }), argv, { cwd: box.repo, env: box.env });
   return { ...box, board, seat, seatRoot, item, command, output, clock, cli,
