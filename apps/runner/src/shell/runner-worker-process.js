@@ -2,13 +2,16 @@
 import { beginCleanup } from './runner-worker-cleanup.js';
 import { spawn } from 'node:child_process';
 
-/** Start a subprocess in a private process group so this worker can drain only its own descendants. */
-export function spawnOwned(S, command, args, options = {}) {
+/**
+ * Start a subprocess in a private process group so this worker can drain only its own descendants.
+ * bindLater defers the leader's census binding to the next census, for short runner-owned commands.
+ */
+export function spawnOwned(S, command, args, { bindLater = false, ...options } = {}) {
   assertTransportLive(S);
   const child = spawn(command, args, { ...options, detached: true });
   let settle;
   const closed = new Promise(resolveClose => { settle = resolveClose; });
-  const identity = S.activeDescendantTracker?.registerRoot(child.pid);
+  const identity = S.activeDescendantTracker?.registerRoot(child.pid, { bindNow: !bindLater });
   const record = { ...identity, child, pid: child.pid, command, closed, drainPromise: null };
   S.ownedChildren.set(child, record);
   child.once('error', error => settle({ error }));
@@ -23,7 +26,8 @@ export function drainOwned(S, record, terminate = false, tracker = S.activeDesce
     if (terminate) await stopOwnedGroup(record.pid, record.closed, tracker);
     else {
       await record.closed;
-      await stopOwnedGroup(record.pid, record.closed, tracker);
+      // An emptied group has nothing left to stop; only a group with members needs a census-proven signal.
+      if (groupHasMembers(record.pid)) await stopOwnedGroup(record.pid, record.closed, tracker);
     }
     S.ownedChildren.delete(record.child);
   })();
@@ -76,6 +80,13 @@ export function assertTransportLive(S) {
 export async function drainAllOwned(S) {
   await Promise.all([...S.ownedChildren.values()].map(record => drainOwned(S, record, S.transportLost)));
   if (S.transportDrain) await S.transportDrain;
+}
+
+/** Ask the kernel whether any process is left in a group; anything but a definite no keeps the census path. */
+function groupHasMembers(pgid) {
+  if (!pgid) return false;
+  try { process.kill(-pgid, 0); return true; }
+  catch (error) { return error.code !== 'ESRCH'; }
 }
 
 /** Stop only the detached command process group owned by this worker, then await its close event. */

@@ -86,7 +86,7 @@ test('warm runner source moves a clean base and sends only the changed history [
     assert.ok(changed.sourcePreparation.packBytes > 32, 'new source sends actual new objects');
     assert.ok(changed.sourcePreparation.packBytes < cold.sourcePreparation.packBytes / 4, 'unchanged bulk objects are not resent');
     const sourced = changed.sourcePreparation.totalMs - changed.sourcePreparation.stages.cacheWaitMs;
-    assert.ok(sourced < 1_000, `a job whose parent is warm sources in under 1 s, after any queue for the cache: ${sourced} ms`);
+    assert.ok(sourced < 1_000, `a job whose parent is warm sources in under 1 s, after any queue for the cache: ${sourced} ms ${JSON.stringify(changed.sourcePreparation)}`);
     assert.ok(Number.isSafeInteger(warm.executionPhases.sourceMs));
     // Bounded work, not elapsed time: warm and parent-held preparation reuse the base and resend no bulk history.
     assert.ok(Number.isSafeInteger(changed.executionPhases.sourceMs));
