@@ -374,10 +374,15 @@ export function createDescendantTracker(directory, { census: processCensusHook =
     } finally { busy = false; }
   }
 
-  /** Bind the launched leader now, retaining its executable and OS start for a later pipe drain. */
-  function registerRoot(pid) {
+  /**
+   * Bind the launched leader now, retaining its executable and OS start for a later pipe drain.
+   * With bindNow false the leader is only recorded: the next census binds it while its parent is still
+   * this worker, so a short trusted command skips a whole-machine process listing at launch.
+   */
+  function registerRoot(pid, { bindNow = true } = {}) {
     if (!Number.isSafeInteger(pid) || pid < 1) return;
     roots.add(pid);
+    if (!bindNow) return;
     // Bind the spawned leader while its actual parent is still this worker; later
     // group membership alone is never sufficient to adopt an unknown process.
     const census = processCensusHook();
