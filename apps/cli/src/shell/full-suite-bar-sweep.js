@@ -1,6 +1,6 @@
-import { stripPerItemFullSuiteCriterion } from '../../../../../packages/items/index.js';
-import { COORDINATOR } from '../../../../../packages/config/index.js';
-import { Refused } from '../../../../../packages/kernel/index.js';
+import { stripPerItemFullSuiteCriterion } from '../../../../packages/items/index.js';
+import { COORDINATOR } from '../../../../packages/config/index.js';
+import { Refused } from '../../../../packages/kernel/index.js';
 
 const ACTIVE = new Set(['open', 'claimed', 'submitted']);
 const REASON = 'S10 full-suite strip';
