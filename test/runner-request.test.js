@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { landedCutItemRows } from '../bin/cells-submit-checks.js';
-import { remoteSubmitCells } from '../src/submit-cells-remote.js';
+import { remoteSubmitCells } from '../apps/cli/src/shell/submit-cells-remote.js';
 
 const LIMIT = 1024 ** 2;
 

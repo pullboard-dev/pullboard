@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 /** Seeded native history drives the same capacity projection in status and the daily digest [N2,R1,R2]. */
 import { apiBoardOpeners } from './board-fixture.js';
 
