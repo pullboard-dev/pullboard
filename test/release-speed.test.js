@@ -60,8 +60,8 @@ test('a release request with no executors refuses before running or leaving a gr
   t.after(helpers.cleanup);
   const box = helpers.project('node -e "process.exit(99)"', undefined, { withWorktree: false });
   const source = `import assert from 'node:assert/strict';
-import {runGate} from ${JSON.stringify(new URL('../src/gate.js', import.meta.url).href)};
-${executionServicesSource(new URL('../src/gate.js', import.meta.url).href)}
+import {runGate} from ${JSON.stringify(new URL('../packages/gate/index.js', import.meta.url).href)};
+${executionServicesSource(new URL('../packages/gate/index.js', import.meta.url).href)}
 await assert.rejects(runGate(process.cwd(),{gate:'node -e "process.exit(99)"'},
  { executionServices,trustStamp:false,landing:true,collectAll:true,releaseRequest:{version:1,id:'6af8c70a-65f0-4a61-8040-3f1f278d9a10',executors:[]}}),
  error=>error.code==='GATE_RUN_EVIDENCE');`;

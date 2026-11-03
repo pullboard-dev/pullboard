@@ -1,4 +1,4 @@
-/** Persist complete committed graphs without losing conservative unknown edges [C7,V4]. */
+/** Persist complete committed graphs machine-wide, so a fresh checkout reuses main's graph without losing conservative unknown edges [C7,V4]. */
 import { cachedMainFact } from '../../../../src/main-facts-cache.js';
 import { mainFactToolIdentity } from '../../../../src/main-facts-cache.js';
 import { foreignNodeOptions } from './test-isolation.js';
@@ -60,6 +60,6 @@ export function cachedAffectedGraph(root, commit, derive) {
   if (!tool) return derive();
   const identity = { version: 1, commit, tool, node: process.versions.node,
     executable: process.execPath, nodeOptions: process.env.NODE_OPTIONS ?? null };
-  const value = cachedMainFact(root, 'affected-graph', identity, () => encode(derive()), validGraph);
+  const value = cachedMainFact(root, 'affected-graph', identity, () => encode(derive()), validGraph, { shared: true });
   return decode(value);
 }

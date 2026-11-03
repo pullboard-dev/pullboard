@@ -8,7 +8,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { runFixtureChild } from './fixture-child.js';
 
 const BIN = resolve(import.meta.dirname, '../bin/pullboard.js');
-const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href;
+const GATE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/gate/index.js')).href;
 const RELEASE_WORKER = `
 import { withGateSlot } from ${JSON.stringify(GATE_MODULE)};
 ${executionServicesSource(GATE_MODULE)}

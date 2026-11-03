@@ -108,6 +108,7 @@ const ROWS = [
   // This repo: Claims
   ['lease', 'Build claim length', 'How long a build claim lasts before it expires.', 'Claims', 'duration'],
   ['reviewLease', 'Review claim length', 'How long a review reservation lasts before it expires.', 'Claims', 'duration'],
+  ['claims.releaseCooldownMinutes', 'Release cooldown', 'After a seat releases an item, next offers it other work for this many minutes unless nothing else is open.', 'Claims', 'minutes'],
   ['claims.releaseGone', 'Release claims of gone agents', 'Claims held by agents that have disappeared are released automatically.', 'Claims', 'on/off'],
   ['claim.reopenFirstRefusalMinutes', 'Builder repair window', 'After a reopen, the original builder gets this long to repair it first; 0 turns it off.', 'Claims', 'minutes'],
   // This repo: Landing
