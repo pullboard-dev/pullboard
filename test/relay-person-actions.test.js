@@ -92,7 +92,7 @@ async function pairedTransport(chrome, box, title, timing = null) {
   timing?.begin('page transport readiness', relayWorkBudgetMs());
   await chrome.waitFor('typeof transport?.request === "function"', relayWorkBudgetMs(), 'real page transport ready');
   assert.equal(await chrome.stable(`(() => { window.__personActionTransport = transport;
-    return window.__personActionTransport === transport; })()`, 'use real paired person transport'), true,
+    return window.__personActionTransport === transport; })()`), true,
     'fixture commands use the page-owned transport and its single stream queue');
   timing?.finish();
   return link;
