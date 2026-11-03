@@ -3,8 +3,6 @@
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { serveRunnerController } from '../src/runners.js';
-import { privateCheckEnvelope } from '../src/runner-private-mode.js';
-import { privateCheckPhases } from '../src/runner-private-mode.js';
 import { runnerItemState } from '../packages/resources/index.js';
 import { controllerDeadline } from '../packages/resources/index.js';
 import { probeRunnerJob } from '../src/runners.js';
@@ -16,5 +14,8 @@ function isRunnerControllerEntry() {
   catch { return false; }
 }
 
-if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, controllerDeadline, probeRunnerJob })
+/** The runner port: private mode is loaded from the runner app's front door only when the controller starts. */
+function runnerPort() { return import('../apps/runner/index.js'); }
+
+if (isRunnerControllerEntry()) runnerPort().then(({ privateCheckEnvelope, privateCheckPhases }) => serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, controllerDeadline, probeRunnerJob }))
   .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
