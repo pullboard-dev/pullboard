@@ -16,7 +16,7 @@ import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { ACTIVITY_NEWS_ENGINE } from '../src/activity-news-engine.js';
 import { ITEM_SHOUT_ENGINE } from '../src/item-shout-engine.js';
 import { LANDING_LEASE_ENGINE } from '../src/landing-lease-engine.js';
-import shoutMove from '../src/moves/shout.js';
+import { shout as shoutMove } from '../packages/moves/index.js';
 import { ACTIVITY_DELIVERY_ENGINE } from '../src/activity-delivery-engine.js';
 const { relaySenderProblem } = nativeBoardPorts().enginePorts;
 import { prepareSpecRefreezes } from '../packages/spec/index.js';

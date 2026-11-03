@@ -6,7 +6,7 @@ import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import { DECISION_ORIGIN_ENGINE } from '../src/decision-origin-engine.js';
 import { originOf } from '../packages/commits/src/core/decision-origin.js';
 import { whyFile } from '../packages/commits/index.js';
