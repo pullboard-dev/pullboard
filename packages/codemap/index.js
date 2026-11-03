@@ -6,6 +6,7 @@ export * from './src/shell/cell-lint-ratchet.js';
 export * from './src/shell/cell-lint-store.js';
 export { mainCommit, mainCellLintReport } from './src/shell/main-cell-lints.js';
 export * from './src/shell/cell-lints.js';
+export { ROOT_FILES, ROOT_FOLDERS, rootAllowed, strayNextStep } from './src/core/root-allowlist.js';
 export * from './src/core/cells-plan-cuts.js';
 export * from './src/shell/cells-plan.js';
 export * from './src/shell/code-map.js';
@@ -24,3 +25,5 @@ export { shimImportProblems, stagedShimImportProblems } from './src/shell/shim-i
 export { shimCountProblems, shimCountBaseline } from './src/core/shim-count-ratchet.js';
 export { shimLifecycle } from './src/shell/shim-lifecycle.js';
 export { predictItemFunctions, compareItemFunctions } from './src/core/item-functions.js';
+
+export { createFixtureMemo } from './src/shell/cells-fixture-memo.js';

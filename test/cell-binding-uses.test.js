@@ -374,7 +374,7 @@ function mappedProducer(identity) {
 }
 
 /** Read exact regular committed producer bytes from this source-only test checkout, never machine state. */
-const sourceSnapshot = file => mappedProducer('src/projects.js')(file);
+const sourceSnapshot = file => mappedProducer('packages/seats/src/shell/projects.js')(file);
 
 test('actual api-http fixture config reads resolve without changing their source or move proof [C7]', () => {
   assert.throws(() => sourceSnapshot('src/git.js'), /exactly its actual imported producer source/);

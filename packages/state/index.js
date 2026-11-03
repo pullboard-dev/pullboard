@@ -179,3 +179,7 @@ export { CLAIM_RETURNS_ENGINE } from '../../src/claim-returns-engine.js';
 export { COORDINATOR_ACTIONS_ENGINE } from '../../src/coordinator-actions-engine.js';
 
 export { criterionClauses, clauseTicks, clauseInspectionProblem, clauseInspectionSummary } from './src/core/inspection-clauses.js';
+
+export { STRICT_RENAME_ENGINE } from '../../src/strict-rename-engine.js';
+
+export { DEAD_HANDOFF_RETRY_ENGINE } from '../../src/dead-handoff-retry-engine.js';

@@ -322,10 +322,17 @@ export function withDerivedFamilies(board, rows) {
   } finally { board.db.exec('RELEASE family_bulk_read'); }
 }
 
+const FAMILY_PROJECTION_MARKER = FAMILY_RECORD_PREFIX + '@projection-v1';
+
+/** Whether the family projection is already warm, so opening a current board needs no write lock (#2578). */
+export function familyProjectionCurrent(board) {
+  return !!board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(FAMILY_PROJECTION_MARKER);
+}
+
 /** Populate the local projection once on a writable board, including seats imported from older histories. */
 export function warmFamilyProjection(board) {
-  const marker = FAMILY_RECORD_PREFIX + '@projection-v1';
-  if (board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(marker)) return;
+  const marker = FAMILY_PROJECTION_MARKER;
+  if (familyProjectionCurrent(board)) return;
   const rows = board.db.prepare('SELECT agent_id, agent_path, agent_family FROM agent').all();
   withDerivedFamilies(board, rows);
   const stored = storedFamilies(board, rows);

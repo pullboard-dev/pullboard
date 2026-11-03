@@ -9,11 +9,16 @@ import { randomUUID } from 'node:crypto';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
-import { gatedToolBuild } from '../src/pinned-tool-publish.js';
-import { scheduleToolBuildGate, runScheduledToolBuildGate } from '../src/tool-build-scheduler.js';
+import { gatedToolBuild } from '../apps/cli/src/shell/pinned-tool-publish.js';
+import { scheduleToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
+import { runScheduledToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
 import { configFromSource } from '../packages/config/index.js';
-import { selectedToolEntry, toolBuildLocation, toolBuildPolicy, readToolBuild, writeToolBuild } from '../src/pinned-tool-build.js';
-import { copyPackageFiles } from '../src/package-files.js';
+import { selectedToolEntry } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { toolBuildLocation } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { toolBuildPolicy } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { readToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { writeToolBuild } from '../apps/cli/src/shell/pinned-tool-build.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
 
 // These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
 delete process.env.PULLBOARD_RUNNER_JOB;
@@ -22,7 +27,7 @@ after(e2e.cleanup);
 
 /** Produce a real native full landing receipt, never a caller-written green proof. */
 function gate(box) {
-  const module = new URL('../src/gate.js', import.meta.url).href;
+  const module = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = `import {runGate} from ${JSON.stringify(module)};
 import {loadConfig} from ${JSON.stringify(new URL('../packages/config/src/shell/config.js', import.meta.url).href)};
 ${executionServicesSource(module)}
@@ -35,7 +40,7 @@ if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:res
 
 /** Commit a complete installable synthetic generation with the ordinary hooks still enabled. */
 function generation(box, label) {
-  writeFileSync(join(box.repo, 'src', 'commands', 'version.js'), `/** Synthetic generation probe for the pin integration fixture. */
+  writeFileSync(join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'version.js'), `/** Synthetic generation probe for the pin integration fixture. */
 import {existsSync,writeFileSync} from 'node:fs';
 import packageData from '../../package.json' with {type:'json'};
 /** Retain this loaded generation while the fixture promotes another build. */
@@ -46,7 +51,7 @@ export async function run(io){
  io.say('${label}');return 0;
 }
 `);
-  const hookFile = join(box.repo, 'src', 'commands', 'hook.js');
+  const hookFile = join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js');
   const originalHook = box.originalHook;
   writeFileSync(hookFile, `import {writeFileSync as writePinHookMarker} from 'node:fs';\nif(process.env.PULLBOARD_PIN_HOOK_MARKER)writePinHookMarker(process.env.PULLBOARD_PIN_HOOK_MARKER,'${label}');\n${originalHook}`);
   box.git(box.repo, 'add', '-A');
@@ -70,7 +75,7 @@ function project(source) {
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
-  const originalHook = readFileSync(join(repo, 'src', 'commands', 'hook.js'), 'utf8');
+  const originalHook = readFileSync(join(repo, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js'), 'utf8');
   // This private project has one committed test; copied package fixtures are not this project's tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });
   box.git(repo, 'add', '-A');

@@ -20,7 +20,7 @@ import { dirname } from 'node:path';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { main } from './native-cli-fixture.js';
 import { appliedSequence } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';

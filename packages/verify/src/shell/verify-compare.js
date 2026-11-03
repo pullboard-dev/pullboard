@@ -57,7 +57,7 @@ function differences(head, base) {
 }
 
 /** Run both sides concurrently, falling back only when the original base cannot produce a test account. */
-export async function compareVerification(root, item, { main, selectTests, runTests }) {
+export async function compareVerification(root, item, { main, selectTests, runTests, runnerAvailable }) {
   if (!item.item_commit) throw new Refused('NOT_SUBMITTED', 'submit the item before comparing its head');
   const originalHead = git(root, ['rev-parse', `${item.item_commit}^{commit}`]);
   const originalBase = git(root, ['merge-base', originalHead, main]);
@@ -82,6 +82,10 @@ export async function compareVerification(root, item, { main, selectTests, runTe
     if (!Array.isArray(selected.files)) throw new Refused('COMPARE_SELECTION', 'the changed test closure could not be selected');
     const headFiles = sourceFiles(root, head), baseFiles = sourceFiles(root, base);
     const files = [...new Set([...selected.files, ...additional])].filter(file => headFiles.has(file)).sort();
+    // A diagnostic cannot acquire a runner from an empty configured pool; retain unavailable instead of queueing.
+    if (files.length && !runnerAvailable()) {
+      throw new Refused('COMPARE_RUNNER_REQUIRED', 'comparison unavailable: no configured runner; register a runner and retry pullboard verify --compare');
+    }
     const baseSelected = files.filter(file => baseFiles.has(file));
     const settled = await Promise.allSettled([runAt(head, files), runAt(base, baseSelected)]);
     /** Retain infrastructure failures without turning an unobserved run into a passing account. */

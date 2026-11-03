@@ -1,7 +1,7 @@
 /** Exact case guidance carries the real main receipt in text and JSON, without changing verdicts [V4,B3,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { runProfiledShellAsync } from '../src/gate-execution.js';
+import { runProfiledShellAsync } from '../packages/gate/index.js';
 import { existsSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { mainFailureNotices } from '../packages/landing/index.js';

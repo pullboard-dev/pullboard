@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { Refused } from "../../../kernel/index.js";
+import { BOARD_WAL_LIMIT_BYTES } from "./board-checkpoint.js";
 import {
   SCHEMA,
   SCHEMA_VERSION,
@@ -86,7 +87,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
   const runtimePorts = requireRuntimePorts(ports);
   if (!clock || typeof clock.now !== 'function') throw new Refused('NO_POLICY', 'Supply the native board clock before opening storage.');
   const { guardStore, refreshStoreDeclarations, storeTriggers } = runtimePorts.guards;
-  const { atomic, ensureProofCounters, warmFamilyProjection, ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes } = runtimePorts.lifecycle;
+  const { atomic, ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes, missingAdditiveIndexes, ensureAdditiveIndexes } = runtimePorts.lifecycle;
   const { sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
     boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion,
     migrateEventLogVersion } = runtimePorts.query;
@@ -124,7 +125,7 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
   let db;
   try {
     db = new DatabaseSync(file);
-    db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}`);
+    db.exec(`PRAGMA busy_timeout = ${BOARD_BUSY_TIMEOUT_MS}; PRAGMA journal_size_limit = ${BOARD_WAL_LIMIT_BYTES}`);
     if (file !== ':memory:' && isMain !== false) configureBoardJournal(db, writeContext);
     const board = { db, clock, writeContext, gitRoot, onDiagnostic, runtimePorts, nativePorts: runtimePorts.nativePorts, enginePorts: runtimePorts.enginePorts };
     let warmCounters = true;
@@ -159,7 +160,16 @@ export function openBoardStore(file, clock, { isMain, onDiagnostic, writeContext
     // Writable commands catch up old writers or missing local projections once. Read-only open
     // never calls this path; drifted stores remain untouched, and invalid history stays invalid.
     // Proof warming also preserves the Rigor projection, including after a proof-cache rebuild.
-    if (warmCounters) atomic(board, () => { ensureProofCounters(board); warmFamilyProjection?.(board); }, { reviewPolicy: false });
+    // Only a board whose counters or family projection are behind takes the write lock here;
+    // a current one opens with no write at all (#2578).
+    if (warmCounters) {
+      const countersCold = !board.nativePorts.currentProofCounters?.(board);
+      const familyCold = !!warmFamilyProjection && !familyProjectionCurrent?.(board);
+      if (countersCold || familyCold) atomic(board, () => {
+        if (countersCold) ensureProofCounters(board, { refresh: false });
+        if (familyCold) warmFamilyProjection(board);
+      }, { reviewPolicy: false });
+    }
     return board;
   } catch (error) {
     try { db?.close(); if (db) closeBoardWrites(db); } catch { /* Preserve the opening failure when SQLite cleanup also fails. */ }

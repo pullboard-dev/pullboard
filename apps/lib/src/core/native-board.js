@@ -4,7 +4,7 @@ import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
   submitGateConfig,
   submitGatePlan,
-} from '../../../../src/gate-submit.js';
+} from '../../../../packages/gate/index.js';
 import {
   nativeProofBlockingGreen,
   receiptBlockingGreen,
@@ -16,6 +16,7 @@ import {
 } from '../../../../packages/items/index.js';
 import { itemFileCollisions } from '../../../../packages/items/index.js';
 import { warmFamilyProjection } from '../../../../packages/items/index.js';
+import { familyProjectionCurrent } from '../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 import { policyAt } from '../../../../packages/sandbox/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
@@ -268,7 +269,7 @@ import {
 
 import { normalizeReviewDefaults } from '../../../../packages/verify/index.js';
 
-import * as self from '../../../../src/native-board.js';
+import * as self from './native-board.js';
 import * as milestoneOperations from '../../../../src/board-milestones.js';
 
 /** The library's board surface: the store namespace plus the native operations this root composes [C7]. */
@@ -330,8 +331,8 @@ export function nativeBoardPorts() {
 
     verification: Object.freeze({ agentAt, itemById, itemCheckBaseline, events, acceptedVerdict, verdictReviewProblem, boardId, appendRigorCounter, ensureRigorCounters }),
     guards: Object.freeze({ guardStore, refreshStoreDeclarations, storeTriggers }),
-    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, ensureHotIndexes, missingAdditiveIndexes,
-      ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
+    lifecycle: Object.freeze({ atomic, normalizeReviewDefaults: board => normalizeReviewDefaults(board, { logEvent }), ensureProofCounters, warmFamilyProjection, familyProjectionCurrent, ensureHotIndexes,
+      missingAdditiveIndexes, ensureAdditiveIndexes, configureBoardJournal, closeBoardWrites }),
     query: Object.freeze({ sharedSchemaOwner, expectedBoardSchema, sharedSchemaDiagnostic, reportSharedSchema,
       boardStanding, migrate, recordSchemaStamp, reportDrift, openBoardReadOnly, readEventLogVersion, migrateEventLogVersion }),
     auth: Object.freeze({ boardNotWritable, boardBusyError }),

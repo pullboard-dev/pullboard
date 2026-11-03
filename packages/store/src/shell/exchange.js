@@ -316,7 +316,7 @@ function restoreDocument(board, document, replace = false, expectedNativeDigest 
     }
     const restoreLocal = db.prepare('INSERT OR REPLACE INTO board_meta(meta_key,meta_value) VALUES (?,?)');
     for (const row of localLanding) restoreLocal.run(row.meta_key, row.meta_value);
-    rebuildProofCounters(board);
+    rebuildProofCounters(board, { refresh: false });
     warmFamilyProjection(board);
     restoreGuards();
     db.exec('COMMIT');
