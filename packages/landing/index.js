@@ -48,3 +48,4 @@ export * from "./src/shell/landing-history-plan.js";
 export * from "./src/shell/train-check-repoints.js";
 export * from "./src/shell/post-land-suite.js";
 export * from "./src/shell/landing-plan-check.js";
+export { requireLandingCompanions, requireLandingModuleResolution } from './src/shell/landing-composition-guards.js';

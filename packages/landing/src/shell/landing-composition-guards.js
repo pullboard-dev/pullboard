@@ -1,0 +1,62 @@
+/** Validate the composed source before any landing publication [B35]. */
+import { cellInventory } from '../../../codemap/index.js';
+import { updateCellInventory } from '../../../codemap/index.js';
+import { commonJsIn } from '../../../gate/index.js';
+import { importsIn } from '../../../gate/index.js';
+import { git } from '../../../git/index.js';
+import { repoInfo } from '../../../git/index.js';
+import { tryGit } from '../../../git/index.js';
+import { composeItemPatches } from '../../../items/index.js';
+import { Refused } from '../../../kernel/index.js';
+import { getItem } from '../../../store/index.js';
+import { itemPatches } from '../../../store/index.js';
+import { withMainCheckout } from './main-red.js';
+
+const graphs = new Map();
+const parsers = { importsIn, commonJsIn };
+
+/** Check all ordered companion effects as one patch set, allowing unrelated later main edits. */
+export function requireLandingCompanions(root, board, entries, tip) {
+  const tree = git(root, ['rev-parse', `${tip}^{tree}`]);
+  for (const entry of entries) {
+    const item = getItem(board, entry.id ?? entry.item_id);
+    const patches = itemPatches(board, item.item_id);
+    if (!patches.length) continue;
+    const expected = composeItemPatches(root, item, patches);
+    const merged = tryGit(root, ['merge-tree', '--write-tree', `--merge-base=${item.item_commit}`, tip, expected.commit]);
+    if (!Number.isInteger(merged.status) || merged.status < 0 || merged.status > 1) throw new Refused('LAND_COMPANION_SOURCE', `cannot read the exact companion composition for #${item.item_id}; restore its Git objects before landing`);
+    if (merged.status !== 0 || merged.stdout.split('\n')[0] !== tree) {
+      throw new Refused('LAND_COMPANION_MISSING', `landing #${item.item_id} does not contain its complete attached companion set; rebuild the batch from the checked composition`);
+    }
+  }
+}
+
+/** Cache only immutable source trees, and update importer edges when an imported target disappears. */
+async function graphAt(root, commit, prior, changed) {
+  const key = `${repoInfo(root).commonDir}:${git(root, ['rev-parse', `${commit}^{tree}`])}`;
+  if (graphs.has(key)) return graphs.get(key);
+  const graph = await withMainCheckout(root, commit, checkout => prior
+    ? updateCellInventory(checkout, parsers, prior, changed) : cellInventory(checkout, parsers));
+  if (graph?.unavailable) throw new Refused('LAND_MODULE_SOURCE', `cannot inspect exact landing modules: ${graph.unavailable}; restore the source and retry`);
+  graphs.set(key, graph);
+  if (graphs.size > 8) graphs.delete(graphs.keys().next().value);
+  return graph;
+}
+
+/** A literal local import is a resolution failure; computed loaders remain the full gate's responsibility. */
+function missingImports(graph) {
+  return graph.unknown.filter(row => /^missing import target /u.test(row.reason ?? ''));
+}
+
+/** Identify inherited main debt without exempting a new importer or a newly deleted target. */
+function edgeKey(row) { return JSON.stringify([row.file, row.specifier, row.reason]); }
+
+/** Inspect source only: no candidate module is imported or evaluated before main moves. */
+export async function requireLandingModuleResolution(root, base, tip) {
+  const before = await graphAt(root, base);
+  const changed = git(root, ['diff', '--no-renames', '--name-only', '-z', base, tip]).split('\0').filter(Boolean);
+  const after = await graphAt(root, tip, before, changed);
+  const inherited = new Set(missingImports(before).map(edgeKey));
+  const missing = missingImports(after).filter(row => !inherited.has(edgeKey(row)));
+  if (missing.length) throw new Refused('LAND_MODULE_RESOLUTION', `the composed landing leaves missing module targets: ${missing.map(row => `${row.file}: ${row.specifier} (${row.reason})`).join('; ')}; restore or repoint every importer before landing`);
+}
