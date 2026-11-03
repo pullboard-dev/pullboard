@@ -1,3 +1,5 @@
+import { requireLandingCompanions } from './landing-composition-guards.js';
+import { requireLandingModuleResolution } from './landing-composition-guards.js';
 import { quarantineBatchGates } from '../../../verify/index.js';
 import { landingWaiverFor as nativeLandingWaiverFor } from '../core/landing-waivers.js';
 /** Coordinator landing publish step; source-preserving partition of land.js [B3,R3,C7]. */
@@ -57,6 +59,7 @@ export function requirePushTarget(root, branch) {
 /** Recheck immutable publication inputs after the last awaited canonical operation. */
 function publicationInputs(state, batch) {
   requireLandingCarries(state, batch);
+  requireLandingCompanions(batch.root, state.board, batch.items, batch.tip);
   state.landingPorts.validateQuarantineLandingProof(state.board, batch);
   for (const entry of batch.items) {
     const item = store.getItem(state.board, entry.id);
@@ -112,6 +115,7 @@ export async function prepareFlakeLanding(state) {
 export async function publish(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   let batch = state.batch;
+  await requireLandingModuleResolution(batch.root, batch.base, batch.tip);
   requireLandingCarries(state, batch);
   const remote = requirePushTarget(state.root, batch.branch);
   if (batch.proof?.failures?.length && batch.state !== 'pushed') {
@@ -164,6 +168,7 @@ function requireLandingCarries(state, batch) {
 export async function finishTrunk(state) {
   await finalizeLandingEnvelope(state, save, () => landingRunObserver(state, state.config, headCommit(state.batch.root)));
   await state.checkLease();
+  await requireLandingModuleResolution(state.batch.root, state.batch.base, state.batch.tip);
   publicationInputs(state, state.batch);
   state.batch = state.config.landing?.requireReceipts === true
     ? await state.write('recordTrainLanding', [prepareNativeTrainLanding(state.batch.root, state.board, state.batch.id, state.batch.proof?.receipt?.id)])
