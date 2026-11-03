@@ -19,6 +19,7 @@ import {
   takeResource,
 } from './resources.js';
 import { machineHome } from './machine-home.js';
+import { AGENT_SESSION_IDS } from '../../../kernel/index.js';
 import { Refused } from '../../../kernel/index.js';
 
 /** The machine resource whose slots count running handoff workers. */
@@ -29,6 +30,13 @@ export const HANDOFF_DISPATCHER_RESOURCE = 'submit-handoff-dispatcher';
 
 /** The environment variable that overrides the worker cap. */
 export const HANDOFF_WORKER_CAP_ENV = 'PULLBOARD_HANDOFF_WORKERS';
+
+/** Preserve the launching seat's environment while preventing detached processes from inheriting its session identity. */
+function handoffProcessEnvironment(env = process.env) {
+  const clean = { ...env };
+  for (const name of AGENT_SESSION_IDS) delete clean[name];
+  return clean;
+}
 
 /**
  * Count of handoff workers allowed at once: the override when set, else the cores up to a default of 4, raised to
@@ -124,7 +132,7 @@ async function startWorker(launch, relaunches, startOf) {
   const log = openSync(join(launch.directory, 'worker.log'), 'a', 0o600);
   try {
     const worker = spawn(process.execPath, [join(realpathSync(launch.tools), 'apps', 'lib', 'src', 'shell', 'submit-handoff-worker.js'), join(launch.directory, 'request.json')],
-      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: { ...process.env } });
+      { cwd: launch.commonDir, detached: true, stdio: ['ignore', log, log], env: handoffProcessEnvironment() });
     await once(worker, 'spawn');
     try { writeFileSync(join(launch.directory, 'worker.json'), JSON.stringify({ version: 1, job: launch.job, pid: worker.pid, started: startOf(worker.pid), relaunches }) + '\n', { mode: 0o600 }); }
     catch (error) {
@@ -217,7 +225,7 @@ export async function ensureHandoffDispatcher(tools, cwd, { startOf = () => '' }
       } catch (error) { if (error.code !== 'ESRCH') throw error; }
     }
     const entry = join(realpathSync(tools), 'bin', 'handoff-worker-dispatcher.js');
-    const dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: 'ignore', env: { ...process.env } });
+    const dispatcher = spawn(process.execPath, [entry], { cwd, detached: true, stdio: 'ignore', env: handoffProcessEnvironment() });
     await once(dispatcher, 'spawn');
     try { writeFileSync(receipt, JSON.stringify({ pid: dispatcher.pid, started: startOf(dispatcher.pid) }) + '\n', { mode: 0o600 }); }
     catch (error) { const closed = once(dispatcher, 'close'); dispatcher.kill('SIGTERM'); await closed; throw error; }
