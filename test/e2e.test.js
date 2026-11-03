@@ -125,6 +125,8 @@ test("the coordinator's resume names its next step from the spec and the board, 
   const repo = join(fresh.dir, 'fresh');
   mkdirSync(repo);
   fresh.git(repo, 'init', '-q', '-b', 'main');
+  fresh.git(repo, 'config', 'user.name', 'Test Agent');
+  fresh.git(repo, 'config', 'user.email', 'agent@example.com');
   const initialized = fresh.run(repo, 'init', '--verbose', '--yes');
   assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
