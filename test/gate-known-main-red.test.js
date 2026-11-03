@@ -27,6 +27,7 @@ test('a check case red on main with two candidate repairs is reported as known-m
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const gate = JSON.parse(result.stdout).gate;
   assert.deepEqual(gate.knownMainAmbiguous, [{ file: 'test/affected.test.js', name: 'beta case [G1]', candidates: [alpha, shared] }]);
+  assert.deepEqual(gate.knownMainReworks.map(row => [row.name, row.item]), [['alpha case [G1]', alpha]], 'the uniquely owned case keeps its repair link');
   assert.match(gate.report, /known main failure\(s\)/u);
   assert.match(gate.report, /beta case \[G1\]/u);
   assert.equal(rows(box, "SELECT event_id FROM event WHERE item_id=? AND event_kind='submit'", box.item).length, 1);

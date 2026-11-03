@@ -29,7 +29,11 @@ export function takeWaitShouts(ctx, seen, { withBoard, withBoardRead, whoAmI }) 
     for (const shout of heard.fresh) {
       const named = ASK.exec(shout.shout_text)?.[1];
       if (named === undefined) continue;
-      try { return getItem(board, Number(named)); } catch { /* an unknown id asks nothing */ }
+      try {
+        const asked = getItem(board, Number(named));
+        // A finished item asks nothing: an old backlog shout must not end the wait on landed work.
+        if (!['verified', 'withdrawn'].includes(asked.item_status)) return asked;
+      } catch { /* an unknown id asks nothing */ }
     }
     return null;
   });
