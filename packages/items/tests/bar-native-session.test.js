@@ -16,7 +16,7 @@ import { runFixtureChild } from "../../../test/fixture-child.js";
 import { join } from 'node:path';
 import { createE2eHelpers } from "../../../test/e2e-helpers.js";
 import * as store from "../../../src/board.js";
-import { openBoard } from "../../../src/native-board.js";
+import { openBoard } from "../../../apps/lib/index.js";
 import { parentSessionDigest } from "../src/shell/parent-session.js";
 
 const fixtures=createE2eHelpers();

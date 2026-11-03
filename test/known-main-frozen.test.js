@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { submitFixture } from './board-submit-fixture.js';
 

@@ -13,7 +13,7 @@ import { localDependencyIds } from "./item-dependencies.js";
 import { engineAtLeast } from "../../../state/core.js";
 import { MILESTONE_RANK_ENGINE } from "../../../../src/milestone-rank-engine.js";
 import { WORK_ORDER_ENGINE } from "../../../../src/work-order-engine.js";
-import { ROUTES } from "../../../../src/route-escalation.js";
+import { ROUTES } from "../../../seats/core.js";
 
 /** Effort per route: what one item of that route costs to build. */
 export const EFFORT = Object.freeze({ light: 1, mid: 2, strong: 3 });

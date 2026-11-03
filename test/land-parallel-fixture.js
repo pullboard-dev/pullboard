@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { GATE_SLOT_HELD_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';

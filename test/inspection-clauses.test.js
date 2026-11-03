@@ -7,7 +7,7 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { prepareEngineMove, applyEngineMove, appliedSequence } from '../src/engine.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { clauseInspectionProblem } from '../packages/state/index.js';
 import { clauseInspectionSummary } from '../packages/state/index.js';

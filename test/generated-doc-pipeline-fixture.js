@@ -1,5 +1,5 @@
 /** Exercise optional native renewal metadata without manufacturing production proof authority [A5,V4,H16]. */
-import { openBoard, closeBoard } from '../src/native-board.js';
+import { openBoard, closeBoard } from '../apps/lib/index.js';
 import { ensureCoordinator, register, addItem, claim, events } from '../src/board.js';
 
 /** Return the actual optional-field union alongside the existing ordinary renew fixture rows. */
