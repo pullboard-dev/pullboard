@@ -126,7 +126,7 @@ test("the coordinator's resume names its next step from the spec and the board, 
   mkdirSync(repo);
   fresh.git(repo, 'init', '-q', '-b', 'main');
   const initialized = fresh.run(repo, 'init', '--verbose');
-  assert.match(initialized.out, /^Next: ask your agent to set up Pullboard here; in Claude Code, start a new session first so it loads the Pullboard skills\.$/m, 'init gives one setup instruction and preserves Claude Code skill loading');
+  assert.match(initialized.out, /^wrote Claude Code skills: pullboard-decompose, pullboard-plan, pullboard-signoff, pullboard-spec-review, pullboard-verify, pullboard-run, pullboard-triage$/m, 'init installs the Claude Code skills');
   const firstSetup = JSON.parse(fresh.run(repo, 'resume', '--diagnostics', '--json').out).setup;
   assert.equal(firstSetup?.step, 1, 'a new board starts by asking what the person wants');
   assert.equal(next(fresh, repo), firstSetup.command);
