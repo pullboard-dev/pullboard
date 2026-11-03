@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { preparePersonRequest } from '../packages/person/core.js';
 import { personRequestRecords, receivePersonRequest, requestIntentDigest, requestStageText } from '../packages/link/index.js';
