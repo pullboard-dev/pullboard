@@ -594,7 +594,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
       const reachKeys = [];
       const reaches = sources.map((source, index) => {
         if (!byLaunch) return { source, requests: new Map(), barrel: false };
-        const cache = process.env.NODE_OPTIONS ? undefined : reachMemo.get(source);
+        const cache = foreignNodeOptions(process.env.NODE_OPTIONS) ? undefined : reachMemo.get(source);
         const initial = cache?.get('all') ?? browserModuleReach(source);
         const value = demands.get(paths[index]);
         const selected = value.narrow || initial.barrel ? value.names : null;
@@ -616,7 +616,7 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
         if (byLaunch) {
           const { proofs: _proofs, ...provenReach } = reaches[index];
           reaches[index] = provenReach;
-          if (!process.env.NODE_OPTIONS) {
+          if (!foreignNodeOptions(process.env.NODE_OPTIONS)) {
             const cache = reachMemo.get(sources[index]) ?? new Map();
             cache.set(reachKeys[index], provenReach);
             reachMemo.set(sources[index], cache);
