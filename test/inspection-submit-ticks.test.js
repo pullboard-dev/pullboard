@@ -80,7 +80,7 @@ test('submit requires named evidence for every clause and the reviewer packet bi
     "test('clause 3: the page fits at 375px', () => assert.match(page, /Fits at 375px/u));",
     '',
   ].join('\n'));
-  commit(box, builder, 'feat(web): inspect each numbered clause [C7]');
+  commit(box, builder, 'test(web): inspect each numbered clause');
 
   const missing = box.run(builder, 'submit', String(id), '--no-next');
   assert.notEqual(missing.code, 0, 'an uninspected criterion cannot submit');
