@@ -27,7 +27,7 @@ import { syntheticFlakeObservation } from '../test/flake-observation-fixture.js'
 import { reviewDefaultEventContract } from '../test/generated-doc-review-default-fixture.js';
 import { pipelineEventContract } from '../test/generated-doc-pipeline-fixture.js';
 import { sourceAdvanceEventContract } from '../test/generated-doc-source-advance-fixture.js';
-import { recordFlakeObservation, openBoard, draftSpecRow } from '../src/native-board.js';
+import { recordFlakeObservation, openBoard, draftSpecRow } from '../apps/lib/index.js';
 import { recordNextIdle } from '../src/board.js';
 import { addMilestone, editMilestoneItems } from '../packages/store/index.js';
 import { proposeSentinel } from '../packages/sentinels/index.js';
@@ -39,7 +39,7 @@ import { declarationDocBlocks } from '../src/generated-doc-declarations.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { exportView } from '../src/commands/view.js';
 import { main as nativeTestMain } from '../test/native-cli-fixture.js';
-import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from '../src/native-board.js';
+import { openBoard as nativeOpenBoard, openBoardForRead as nativeOpenBoardForRead } from '../apps/lib/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { discoverEngines } from '../src/engine-metadata.js';

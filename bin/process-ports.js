@@ -6,7 +6,7 @@
 
 /** Load the native board only when a command asks for it. */
 export function loadNativeBoard() {
-  return import('../apps/lib/src/core/native-board.js');
+  return import('../apps/lib/index.js');
 }
 
 /** Compose process-only capabilities after a command actually requests them. */
@@ -33,7 +33,7 @@ export function loadProcessPorts() {
     submitHandoffWorker: fileURLToPath(new URL('../apps/lib/src/shell/submit-handoff-worker.js', import.meta.url)),
     /** Start only an actually requested sender; ordinary reads never load its modules. */
     launchRelaySender: (root, env) => {
-      void import('../apps/lib/src/shell/relay-sender-main.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
+      void import('../apps/lib/index.js').then(sender => sender.launchRelaySender(root, env)).catch(() => {});
     },
   }));
 }

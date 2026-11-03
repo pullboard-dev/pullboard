@@ -81,7 +81,7 @@ test('a failed SSH call preserves its command exit and stderr through the synchr
 
 test('one transient SSH failure is confirmed before a healthy runner is readmitted without quarantine [C7]', t => {
   const box = fixture(t);
-  const url = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const url = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const command = `node -e 'console.log("RECOVERED_EXECUTION")'`;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(url)};
 ${executionServicesSource(url)}
@@ -122,7 +122,7 @@ test('a worker missing READY yields to a free runner in the next admission cycle
   const second = { ...box.runner, host: HOST + '-setup' };
   writeFileSync(settings, JSON.stringify({ ...configured, runners: [box.runner, second],
     gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
-  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
     import {DatabaseSync} from 'node:sqlite';
@@ -157,7 +157,7 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
-  const gate = pathToFileURL(join(import.meta.dirname, '../src/gate.js')).href;
+  const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
   const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};

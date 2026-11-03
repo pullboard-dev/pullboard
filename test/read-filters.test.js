@@ -7,7 +7,7 @@ import { selectFields } from '../packages/config/index.js';
 import { join } from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 
 const helpers = createE2eHelpers();
 after(helpers.cleanup);

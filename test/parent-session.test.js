@@ -1,5 +1,5 @@
 import * as queueStore from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem as queueEligibility } from '../packages/verify/index.js';
 /** Parent discovery reads the invoking runtime record and preserves unknown identity [V1,B3]. */

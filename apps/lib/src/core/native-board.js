@@ -4,7 +4,7 @@ import { withDerivedFamily } from '../../../../src/family-declaration.js';
 import {
   submitGateConfig,
   submitGatePlan,
-} from '../../../../src/gate-submit.js';
+} from '../../../../packages/gate/index.js';
 import {
   nativeProofBlockingGreen,
   receiptBlockingGreen,

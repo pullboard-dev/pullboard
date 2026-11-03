@@ -14,31 +14,18 @@ import { COORDINATOR } from '../../../config/index.js';
 import { COORDINATOR_HOLD_ENGINE } from '../../../../src/coordinator-hold-engine.js';
 import { Refused } from '../../../kernel/index.js';
 import { computerName } from '../core/computer-name.js';
+import { HOLDER_KEY } from '../core/coordinator-holder.js';
+import { computerLabel } from '../core/coordinator-holder.js';
+import { coordinatorHolder } from '../core/coordinator-holder.js';
+import { machineOf } from '../core/coordinator-holder.js';
+
+export { computerLabel, coordinatorHolder };
 import { COMPUTER_NAME_ENGINE } from '../../../../src/computer-name-engine.js';
 import { ENGINE_VERSION } from '../../../state/index.js';
 
-const HOLDER_KEY = 'coordinator_holder';
 const MACHINE = /^[A-Za-z0-9_.-]{1,128}$/u;
 /** Operations a non-holding main checkout may still send: seat creation and path upkeep stay per machine. */
 const UNHELD_OPERATIONS = new Set(['register', 'ensureCoordinator', 'takeCoordinator']);
-
-/**
- * The name a linked main checkout goes by: its computer, by the end of the machine id the relay gave it when it
- * was linked, as the device roster shows a computer. It carries no host name or path, since every member of a
- * team board reads it.
- *
- * @param {unknown} machine the link's relay machine id
- * @returns {string}
- */
-export function computerLabel(machine, name) {
-  if (name !== undefined) return computerName(name);
-  return typeof machine === 'string' && MACHINE.test(machine) ? `computer ${machine.slice(-8)}` : 'another main checkout';
-}
-
-/** A move's machine id when it names a valid one. */
-function machineOf(machine) {
-  return typeof machine === 'string' && MACHINE.test(machine) ? machine : null;
-}
 
 /**
  * Name the sending checkout on a coordinator move, by its relay machine id, so a hold follows the checkout.
@@ -53,22 +40,6 @@ export function stampCoordinatorHolder(move, machine, name, { credentialActor })
     if (move.engine >= COMPUTER_NAME_ENGINE && name !== undefined) move.holderName = computerName(name);
   }
   return move;
-}
-
-/**
- * The checkout that holds this board's coordinator, or null before any linked coordinator move at this engine.
- *
- * @param {any} board
- * @returns {{ machine: string | null, lineage: string, label: string, at: string } | null}
- */
-export function coordinatorHolder(board) {
-  const row = board.db.prepare('SELECT meta_value FROM board_meta WHERE meta_key = ?').get(HOLDER_KEY);
-  if (!row) return null;
-  try {
-    const value = JSON.parse(row.meta_value);
-    return typeof value?.lineage === 'string'
-      ? { machine: machineOf(value.machine), lineage: value.lineage, label: computerLabel(value.machine, value.name), at: String(value.at ?? '') } : null;
-  } catch { return null; }
 }
 
 /** Record a holder in the caller's transaction and return its name. */

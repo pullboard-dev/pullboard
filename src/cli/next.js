@@ -162,7 +162,7 @@ function nextPick(ctx, board, values) {
   if (mandatory?.mandatory && !items.some(item => item.item_status === 'claimed' && item.item_owner === me.id && !pendingSubmitHandoff(board, item))) {
     return { autoReview: mandatory.item, item: mandatory.item, reasons: [] };
   }
-  const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextFor(board, selection);
+  const own = heldItem && !rejectionReturnEnabled(board) ? { item: heldItem, reasons: [], shared: [] } : store.nextWithReleaseCooldown(board, selection, ctx.config.claims?.releaseCooldownMinutes ?? 30, store.nextFor, ctx.clock.now().getTime());
   const picked = own.item || !seats ? own : store.nextFor(board, { ...selection,
     lanes: laneNames(ctx.config).filter(lane => lane !== COORDINATOR && lane !== me.lane) });
   const { item, reasons, shared } = picked;

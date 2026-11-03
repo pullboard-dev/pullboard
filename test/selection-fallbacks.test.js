@@ -85,13 +85,13 @@ test('malformed, unmatched and unsafe real input annotations retain conservative
 
 test('declared global-file readers and ordinary global module importers select their complete reach [V4,C7]', t => {
   const box = graph(t);
-  box.put('src/gate.js', 'export const gate = 1;\n');
-  box.put('test/gate.test.js', "import '../src/gate.js';\n");
+  box.put('src/widget.js', 'export const gate = 1;\n');
+  box.put('test/widget.test.js', "import '../src/widget.js';\n");
   box.put('test/package.test.js', '/** @pullboard-test-input package.json */\nimport { readFileSync } from "node:fs"; readFileSync("package.json");\n');
   const base = box.commit();
-  box.put('src/gate.js', 'export const gate = 2;\n');
+  box.put('src/widget.js', 'export const gate = 2;\n');
   const gate = box.commit();
-  selected(box, base, gate, ['test/gate.test.js']);
+  selected(box, base, gate, ['test/widget.test.js']);
   box.put('package.json', '{"type":"module","private":true,"description":"changed metadata"}\n');
   const metadata = box.commit();
   selected(box, gate, metadata, ['test/package.test.js']);
