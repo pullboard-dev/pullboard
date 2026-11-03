@@ -59,6 +59,8 @@ test('every current operation selects its native actor credential without a seco
     if (operation === 'setBarReady') args = [{ agentId: actor, enabled: false }];
     if (operation === 'maintainStaleState') args = [{ agentId: actor, snapshot: null }];
     if (operation === 'recordHealthFindings') args = [{ agentId: actor, observedRevision: 0, findings: [] }];
+    if (operation === 'recordSelectorGap') args = [{ agentId: actor, itemId: box.before.tables.item[0].item_id,
+      receiptId: 'missing-selector-gap-review', review: null }];
     if (operation === 'recordNextIdle') args = [{ agentId: actor, reason: 'nothing-eligible' }];
     if (operation === 'recordActivityDelivery') args = [{ agentId: actor, through: 0, interrupts: [] }];
     if (operation === 'actOnActivity') args = [{ agentId: actor, ids: ['event:1'] }];
@@ -114,6 +116,8 @@ test('every current operation selects its native actor credential without a seco
       batch: { root: box.root, items: [{ id: 999999 }], tip: 'a'.repeat(40) } }], kind, sent: false, expected: 'LAND_RECEIPT_REQUIRED' };
     if (operation === 'recordProofRun') return { operation, args, kind, sent: false, expected: 'PROOF_RUN_UNBOUND' };
     if (operation === 'recordGateRun') return { operation, args, kind, sent: false, expected: 'GATE_RUN_UNBOUND' };
+    if (operation === 'recordSelectorGap') return { operation, args, kind, sent: false, expected: 'SELECTOR_GAP_UNPROVED',
+      label: 'recordSelectorGap without an actual reviewed-failure receipt' };
     return { operation, args, kind, ...(kind === 'person' ? { sent: false } : {}) };
   });
   cases.unshift({ operation: 'followItemPatches', args: [box.before.tables.item[0].item_id, { agentId: actor, commit: '0'.repeat(40) }],
