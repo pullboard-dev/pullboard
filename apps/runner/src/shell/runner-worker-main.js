@@ -82,7 +82,10 @@ export async function main(S) {
       S.cleanupStage = 'result receipt';
       await receipt(spec, { ...final, gui }, sink);
       S.resultSent = true;
-    } catch { S.transportDrop(); }
+    } catch (error) {
+      try { process.stderr.write(`PULLBOARD_RUNNER_RESULT_UNSENT ${S.workerId} ${String(error?.code ?? error?.name).slice(0, 64)}\n`); } catch { /* A dead transport has no one to tell. */ }
+      S.transportDrop();
+    }
   }
   try {
     const runnerHome = isAbsolute(process.env.HOME || '') ? process.env.HOME : userInfo().homedir;
