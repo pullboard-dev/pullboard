@@ -292,7 +292,7 @@ export async function submitHere(ctx, id, infra) {
   let commit = headCommit(root);
   if (!commit) throw new Refused('NO_COMMIT', 'nothing committed yet');
   // A live handoff owns its captured source; never rewrite it underneath its queued worker.
-  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? withBoard(ctx, board => pendingSubmitHandoff(board, held)) : null;
+  const pendingHandoff = !isSubmitHandoffWorker(ctx) ? (await (await import('../submit-handoff.js')).recoverItemSubmitHandoff(ctx, id, held.item_owner), withBoard(ctx, board => pendingSubmitHandoff(board, held))) : null;
   if (pendingHandoff && pendingHandoff.commit !== commit) throw new Refused('SUBMIT_HANDOFF_PENDING', 'the original immutable candidate is still queued; continue your current build and read its result with pullboard show <id>');
   if (!isSubmitHandoffWorker(ctx) && !pendingHandoff) {
     const composed = mergeSubmissionMain(root, acceptedMain.commit);

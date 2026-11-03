@@ -23,7 +23,7 @@ import { openBoard } from '../src/native-board.js';
 import { appliedSequence, prepareEngineMove } from '../packages/state/index.js';
 import { requireComputedConflict, requireComputedConflictObjects } from '../packages/landing/index.js';
 import { withRecordedConflictContext } from '../packages/state/index.js';
-import reopenMove from '../src/moves/reopen.js';
+import { reopen as reopenMove } from '../packages/moves/index.js';
 import { MECHANICAL_MERGE_ENGINE } from '../src/mechanical-merge-engine.js';
 import { AGENT_GRANT_ENGINE } from '../src/agent-grant-engine.js';
 
