@@ -1,6 +1,7 @@
 /** Fix the one-import-binding-per-line style in the files a commit stages, so the gate never refuses for it [C7]. */
 import {
   existsSync,
+  lstatSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs';
@@ -22,6 +23,7 @@ export function fixStagedImportBindings(root) {
   const fixed = [];
   for (const path of written) {
     if (!/^(?:src|packages|apps)\/.*\.[cm]?js$/u.test(path) || unstaged.has(path) || !existsSync(join(root, path))) continue;
+    if (!lstatSync(join(root, path)).isFile()) continue; // Never follow a staged symlink to rewrite its target.
     const before = readFileSync(join(root, path), 'utf8');
     const { source, changed } = splitImportBindings(before);
     if (!changed) continue;

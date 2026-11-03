@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -124,4 +125,18 @@ test('the installed pre-commit hook lands a two-binding import already split and
   assert.equal(box.git(box.repo, 'diff', '--name-only'), '');
   assert.equal(box.git(box.repo, 'diff', '--cached', '--name-only'), '');
   assert.deepEqual(importsIn([landed])[0], importsIn([TWO])[0]);
+});
+
+
+test('a staged source symlink never makes the fixer rewrite its target [C7]', t => {
+  const box = repository(t);
+  box.put('target.js', TWO);
+  mkdirSync(join(box.root, 'src'));
+  symlinkSync('../target.js', join(box.root, 'src/link.js'));
+  box.git('add', '-A');
+  const staged = box.git('show', ':src/link.js');
+  assert.deepEqual(fixStagedImportBindings(box.root), []);
+  assert.equal(readFileSync(join(box.root, 'target.js'), 'utf8'), TWO);
+  assert.equal(box.git('show', ':src/link.js'), staged);
+  assert.equal(box.git('diff', '--name-only'), '');
 });

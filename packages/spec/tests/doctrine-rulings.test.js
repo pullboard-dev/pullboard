@@ -21,7 +21,7 @@ function apiMove(box, cwd, move) {
   const source = `
     const { executeMove } = await import(${JSON.stringify(api)});
     const { main } = await import(${JSON.stringify(cli)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../src/native-board.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../../../apps/lib/index.js', import.meta.url).href)});
     const apiBoardOpeners = { openBoard, openBoardForRead };
     process.stdout.write(JSON.stringify(await executeMove(process.cwd(), ${JSON.stringify(move)}, main, undefined, 'api', undefined, apiBoardOpeners)));
   `;

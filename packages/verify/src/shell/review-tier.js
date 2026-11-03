@@ -1,3 +1,4 @@
+import { STRICT_RENAME_ENGINE } from '../../../state/index.js';
 /** Deterministic classification uses native submitted paths, never prose or receiver files [V4,B26,H16]. */
 import { REVIEW_DEFAULT_ENGINE } from '../../../../src/review-default-engine.js';
 import { REVIEW_TIER_ENGINE } from '../../../../src/review-tier-engine.js';
@@ -135,6 +136,8 @@ export function gateJudgmentItem(board, id) {
  */
 export function classifiedStrict(board, id) {
   const engine = board.executionEngineVersion ?? ENGINE_VERSION;
+  const renamed = engine >= STRICT_RENAME_ENGINE && board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`strict_rename:${id}`);
+  if (renamed && outsideSource(board, id)?.kind !== 'pull-request') return true;
   const judgment = engine >= REVIEW_TIER_ENGINE
     && outsideSource(board, id)?.kind !== 'pull-request' && gateJudgmentItem(board, id);
   if (engine >= REVIEW_DEFAULT_ENGINE && board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get()) return false;
@@ -144,6 +147,8 @@ export function classifiedStrict(board, id) {
 /** Once a new native prefix exists, older envelopes cannot bypass the classification it activates. */
 export function reviewTierFloor(board, id) {
   if (!board) return 1;
+  const renamed = id === undefined ? board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key LIKE 'strict_rename:%' LIMIT 1").get() : board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`strict_rename:${id}`);
+  if (renamed) return STRICT_RENAME_ENGINE;
   if (id === undefined
     ? board.db.prepare("SELECT 1 FROM board_meta WHERE meta_key='review_default:active'").get()
     : board.db.prepare('SELECT 1 FROM board_meta WHERE meta_key=?').get(`review_default:normalized:${id}`)) return REVIEW_DEFAULT_ENGINE;

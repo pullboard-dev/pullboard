@@ -51,7 +51,7 @@ function observeGates(box) {
 function runBatch(box, enabled) {
   const source = [
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
-    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/native-board.js')).href)};`,
+    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/src/shell/config.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
@@ -245,7 +245,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
   const url = name => pathToFileURL(join(import.meta.dirname, '../src', name)).href;
   const direct = [
     `import * as store from ${JSON.stringify(url('board.js'))};`,
-    `import { openBoard } from ${JSON.stringify(url("native-board.js"))};`,
+    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
     `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/runner/index.js')).href)};`,

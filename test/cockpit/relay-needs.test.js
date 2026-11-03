@@ -58,7 +58,7 @@ test('read-only Needs-you preserves each entry as text while its transport stays
     }
     if (url.pathname === '/view.css') {
       response.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
-      response.end(readFileSync(new URL('../../src/view.css', import.meta.url), 'utf8'));
+      response.end(readFileSync(new URL("../../apps/view/src/shell/view.css", import.meta.url), 'utf8'));
       return;
     }
     if (!url.pathname.startsWith('/fixture/')) {
