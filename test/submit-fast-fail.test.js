@@ -5,6 +5,7 @@ import { statSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { runFixtureGit } from './fixture-child.js';
 import { builderRepo } from './submit-gate-fixture.js';
 import { commitAll } from './submit-gate-fixture.js';
@@ -14,15 +15,25 @@ import { put } from './submit-gate-fixture.js';
 // Budget: the criterion's ten-second bound for a main conflict, which needs only a local merge-tree.
 const CONFLICT_REFUSAL_BOUND_MS = 10_000;
 const MARK = path => `node test/mark.mjs ${path}`;
+const GATE_FRONT_DOOR = fileURLToPath(new URL('../packages/gate/index.js', import.meta.url));
 
 /** A joined builder whose gate, static check and item check each leave their own marker when they run. */
 function project(t, { staticFails = false, staticLint = false } = {}) {
   const box = privateRepo(t);
   const markers = { gate: join(box.dir, 'gate.log'), staticCheck: join(box.dir, 'static.log'), item: join(box.dir, 'item.log'), doctrine: join(box.dir, 'doctrine.log') };
   put(box.root, 'pullboard.json', JSON.stringify({ gate: MARK(markers.gate), affectedTests: 'node --test', submitGate: 'landing',
-    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node bin/static-style-checks.js' : staticFails ? 'node test/static-problem.mjs' : 'true'}`,
+    staticChecks: `${MARK(markers.staticCheck)} && ${staticLint ? 'node --experimental-vm-modules bin/static-style-checks.js' : staticFails ? 'node test/static-problem.mjs' : 'true'}`,
     shared: ['pullboard.json'] }));
-  if (staticLint) put(box.root, 'bin/checks/test-waits-baseline.json', '{}\n');
+  if (staticLint) {
+    put(box.root, 'bin/checks/test-waits-baseline.json', '{}\n');
+    put(box.root, 'bin/static-style-checks.js', `import { readFileSync } from 'node:fs';
+import { importStyleViolations } from ${JSON.stringify(GATE_FRONT_DOOR)};
+const sources = ['src/a.js'].map(file => ({ file, source: readFileSync(file, 'utf8') }));
+const failures = importStyleViolations(sources);
+for (const row of failures) console.error(row.file + ':' + row.line + ': one import binding per line (' + row.count + ' bindings)');
+if (failures.length) process.exitCode = 1;
+`);
+  }
   put(box.root, 'src/a.js', 'export const value = 1;\n');
   put(box.root, 'test/mark.mjs', "import { appendFileSync } from 'node:fs';\nappendFileSync(process.argv[2], `ran ${Date.now()}\\n`);\n");
   put(box.root, 'test/static-problem.mjs', "console.error('src/a.js:1: a static problem');\nprocess.exit(1);\n");
@@ -77,10 +88,12 @@ test('a static failure is refused and a clean change reaches the gate [V4,C7]', 
 
 
 test('changed import style is refused while other stages may run [V4,C7]', t => {
-  const { box } = project(t, { staticLint: true });
+  const { box, markers } = project(t, { staticLint: true });
   put(box.root, 'src/a.js', "import { readFile, writeFile } from 'node:fs';\nexport { readFile, writeFile };\n");
   commitAll(box, 'feat(core): change source with bad import style [G1]');
   const result = box.run('submit', '1', '--json', '--infra', 'static preflight fixture');
   assert.notEqual(result.code, 0);
   assert.match(result.err + result.out, /src\/a\.js:1: one import binding per line/u);
+  assert.equal(existsSync(markers.staticCheck), true, 'the actual static checker ran');
+  for (const name of ['item', 'gate', 'doctrine']) assert.equal(existsSync(markers[name]), false, `${name} proof did not run before static refusal`);
 });
