@@ -1,8 +1,8 @@
 /** Current capacity descriptors for completed-receipt utilization, without admission writes [C7,O5]. */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { machineHome } from '../../../resources/index.js';
+import { openPoolReadOnly } from '../../../resources/index.js';
 import { loadMachineSettings } from '../../../config/index.js';
 import { validateRunner } from '../../../config/index.js';
 import { localRunnerDescriptor } from './runner-load.js';
@@ -63,7 +63,7 @@ export function readRunnerCapacities(receipts = []) {
   const settings = loadMachineSettings();
   const file = join(machineHome(), 'resources.sqlite');
   if (!existsSync(file)) return descriptors(settings, null, receipts);
-  const db = new DatabaseSync(file, { readOnly: true });
+  const db = openPoolReadOnly(file);
   try {
     db.exec('BEGIN');
     const rows = descriptors(settings, db, receipts);

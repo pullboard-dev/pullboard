@@ -3,6 +3,11 @@ import { sourcePreparationFields } from '../../core.js';
 /** Machine admission and receipts without eagerly loading board or full proof execution [Q1,Q2,Q3,C7]. */
 import { Refused } from '../../../kernel/index.js';
 import { recordRunnerMeasurement } from '../../../config/index.js';
+import { declaredMachineSlots } from '../../../config/index.js';
+import { machineHome } from '../../../resources/index.js';
+import { DatabaseSync } from 'node:sqlite';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   inheritedGateSlot,
   memoryAdmission,
@@ -109,6 +114,40 @@ export async function withGateSlot(root, action, options = {}) {
   finally { clearInterval(keepAlive); }
 }
 
+/**
+ * The gate's live-load dispatch policy (#2509): on when gate.loadAwareDispatch is on, and by default for any
+ * fleet with a measured runner (its cores are known, so 1.5x cores means something); off only when set off.
+ * refreshRunnerMeasurements reads the same rule, so the gate measures exactly what it dispatches by.
+ */
+export function gateRunnerLoadPolicy(settings) {
+  const setting = settings?.gate?.loadAwareDispatch;
+  const measured = (settings?.runners ?? []).some(runner => Number.isSafeInteger(runner?.cores));
+  return { enabled: setting === true || setting !== false && measured, ceiling: settings?.gate?.runnerBusyCeiling ?? 90 };
+}
+
+/**
+ * The capacity this machine's pool already records for a resource, or null. A runner's settings usually leave its slot
+ * counts unset while its own jobs size the pool; a landing reshard inside such a job then asked for the default 2 against
+ * the recorded 9 and stopped with RESOURCE_CAPACITY_MISMATCH (#2541).
+ */
+function recordedCapacity(name) {
+  const file = join(machineHome(), 'resources.sqlite');
+  if (!existsSync(file)) return null;
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    db.exec('PRAGMA busy_timeout = 10000');
+    const capacity = db.prepare('SELECT capacity FROM resource WHERE name = ?').get(name)?.capacity;
+    return Number.isSafeInteger(capacity) && capacity > 0 ? capacity : null;
+  } catch { return null; } finally { db.close(); }
+}
+
+/** Use a declared slot count, else the pool's recorded capacity, else the settings default. */
+function machineSlots(settings) {
+  const declared = declaredMachineSlots();
+  return { gate: declared.gate ? settings.gateSlots : recordedCapacity('gate') ?? settings.gateSlots,
+    browser: declared.browser ? settings.browserSlots : recordedCapacity('browser') ?? settings.browserSlots };
+}
+
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
 async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false } = {}) {
   const browserByLaunch = browserByLaunchEnabled();
@@ -146,7 +185,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
   const settingsProvider = () => loadMachineSettings();
   if (remote) await refreshRunnerMeasurements(settingsProvider(), { measure: probeRunnerTransport, record: recordRunnerMeasurement });
   const floorMB = memoryFloorMB();
-  const capacityProvider = () => settingsProvider().gateSlots;
+  const capacityProvider = () => machineSlots(settingsProvider()).gate;
   const source = runnerSource(root);
   const retryInfrastructure = (infrastructureRetry || itemCheck || kind === 'review') && (itemCheck || kind === 'review');
   const infrastructureAttempts = [];
@@ -162,7 +201,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     capacityProvider,
     shortCapacityProvider: () => gateShortSlots(),
     shortEligible,
-    browserCapacityProvider: () => settingsProvider().browserSlots,
+    browserCapacityProvider: () => machineSlots(settingsProvider()).browser,
     scope: 'machine',
     root,
     repo: root,
@@ -181,7 +220,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => effectiveRunners(loadMachineSettings()),
-    runnerLoadPolicyProvider: () => ({ enabled: settingsProvider().gate?.loadAwareDispatch === true, ceiling: settingsProvider().gate?.runnerBusyCeiling ?? 90 }),
+    runnerLoadPolicyProvider: () => gateRunnerLoadPolicy(settingsProvider()),
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
     runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),
