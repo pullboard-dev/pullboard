@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { runFixtureChild, startFixtureChild } from './fixture-child.js';
+import { cleanupFixtureChildren, runFixtureChild, startFixtureChild } from './fixture-child.js';
 import { gatedToolBuild } from '../apps/cli/src/shell/pinned-tool-publish.js';
 import { scheduleToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
 import { runScheduledToolBuildGate } from '../apps/cli/src/shell/tool-build-scheduler.js';
@@ -23,7 +23,10 @@ import { copyPackageFiles } from '../packages/runners/index.js';
 // These tests start maintenance or tool-build timers on purpose; they opt out of the runner job's no-timer marker (#2513).
 delete process.env.PULLBOARD_RUNNER_JOB;
 const e2e = createE2eHelpers();
-after(e2e.cleanup);
+after(async () => {
+  await cleanupFixtureChildren();
+  for (const directory of e2e.sandboxes) rmSync(directory, { recursive: true, force: true, maxRetries: 150, retryDelay: 200 });
+});
 
 /** Produce a real native full landing receipt, never a caller-written green proof. */
 function gate(box) {
