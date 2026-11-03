@@ -41,6 +41,14 @@ function commitWeb(box, files, message) {
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}`);
 }
 
+/** Preserve exact doctrine rows while accounting only for the CLI's navigation footer. */
+function assertDoctrineReport(output, expected) {
+  const text = output.endsWith('\n') ? output.slice(0, -1) : output;
+  const footer = '\nnext: pullboard next --wait 1';
+  assert.ok(text.endsWith(footer), 'doctrine check appends its exact navigation footer');
+  assert.equal(text.slice(0, -footer.length), expected);
+}
+
 /** Replace the rule's committed fields on main and try to commit them through the hooks. */
 function editRule(box, from, to) {
   const file = join(box.repo, 'DOCTRINE.md');
@@ -88,7 +96,7 @@ test("a doctrine rule's check holds its count [D1,D3]", () => {
   assert.match(fell.out, /Q1 Web pages carry no TODO markers\. · 1, was 2 · holding/);
   const report = box.run(box.web, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
-  assert.equal(report.out.trim(), [
+  assertDoctrineReport(report.out, [
     'Q1 Web pages carry no TODO markers. · 1, was 2 · holding',
     'Q3 Api work keeps the TODO count. · 1, was 2 · holding',
     'Q4 The keep file stays. · 0, was 0 · holding',
@@ -152,7 +160,7 @@ test("a doctrine rule's check holds its count when its row is demoted [D1,D3]", 
 
   const report = box.run(box.web, 'doctrine', 'check');
   assert.equal(report.code, 0, report.err);
-  assert.equal(report.out.trim(), 'Q1 Web pages carry no TODO markers. · 2, was 2 · holding', 'doctrine check still lists the rule');
+  assertDoctrineReport(report.out, 'Q1 Web pages carry no TODO markers. · 2, was 2 · holding');
 
   commitWeb(box, { 'b.html': 'TODO three\n' }, 'feat(web): add a page [G1]');
   const rose = box.run(box.web, 'submit', '1');
