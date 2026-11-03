@@ -20,7 +20,7 @@ async function pausedCrypto(box) {
     const original = crypto.subtle.encrypt.bind(crypto.subtle);
     let encryptions = 0;
     crypto.subtle.encrypt = (...args) => { encryptions++; return original(...args); };
-    const { syncRelay } = await import(${JSON.stringify(new URL('../src/relay.js', import.meta.url).href)});
+    const { syncRelay } = await import(${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)});
     const { nativeBoardPorts, openBoard } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
     const lines = [], outbox = await import(${JSON.stringify(new URL('../packages/outbox/index.js', import.meta.url).href)});
     const { replay: replayConflictRecord, ACKNOWLEDGED_OPERATIONS, outboxQueueable, ...outboxDoors } = outbox;

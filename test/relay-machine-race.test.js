@@ -13,10 +13,10 @@ import { personRequestRecords, requestIntentDigest } from '../packages/link/inde
 import { decodeBoardKey, seal } from '../packages/kernel/src/core/seal.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 
-const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay.js')).href;
+const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
 const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/native-board.js')).href;
-const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/relay-requests.js')).href;
+const REQUESTS_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;
 const LANES_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/seats/index.js')).href;
 

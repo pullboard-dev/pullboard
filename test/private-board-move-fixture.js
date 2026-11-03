@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/relay-machine.js */
+/** @pullboard-test-loads packages/link/src/shell/relay-machine.js */
 /** Real private-board CLI and ordered-replay fixture controls [E11,E13,E14,E15,H16]. */
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync } from 'node:fs';
@@ -286,7 +286,7 @@ export async function privateBoardMoves(box, privateFile) {
   assert.equal(signedIn.code, 0, 'the real machine sign-in writer records its GitHub login: ' + JSON.stringify(signedIn.document?.error));
   assert.equal(signedIn.document.paired, true, 'existing authenticated protocol enrollment avoids waiting for a new browser pairing');
   const owner = await box.script(`
-    import { relayMachineOwner } from ${JSON.stringify(new URL('../src/relay-machine.js', import.meta.url).href)};
+    import { relayMachineOwner } from ${JSON.stringify(new URL('../packages/link/index.js', import.meta.url).href)};
     const owner = relayMachineOwner();
     process.stdout.write(JSON.stringify({ account: owner.account, login: owner.login }));
   `);
