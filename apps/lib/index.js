@@ -6,3 +6,4 @@ export { SENDER_WORKER, launchRelaySender } from "./src/shell/relay-sender-main.
 export { runSubmitHandoffWorker } from "./src/shell/submit-handoff-worker.js";
 export { submitHandoffWorkerEntrypoint } from "./src/shell/submit-handoff-worker.js";
 export { superviseSubmitHandoffWorker } from "./src/shell/submit-handoff-worker.js";
+export { INFRASTRUCTURE_CODES, healthyExecutor, infrastructureFailure, submitUntilSettled } from "./src/shell/submit-infra-requeue.js";
