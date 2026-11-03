@@ -53,10 +53,13 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/boards/${id}/events?after=${after}`, { headers: { accept: 'text/event-stream' } });
   reader = response.body.getReader();
   await reader.read();
-  let timer, cpuStart, quietCpu, quietAt, askedAt, output = '', sent = false;
+  let timer, cpuStart, quietCpu, quietAt, askedAt, shoutFinishedAt, outputAt, output = '', sent = false;
   try {
     const code = await main(['next', '--wait', '1'], { cwd: actor.path, clock: box.clock,
-      stdout: { isTTY: false, write: text => { output += text; } },
+      stdout: { isTTY: false, write: text => {
+        if (outputAt === undefined && text.includes(`act on #${target}`)) outputAt = performance.now();
+        output += text;
+      } },
       stderr: { write: text => {
         if (cpuStart || !text.includes('next waiting')) return;
         cpuStart = process.cpuUsage(); quietAt = performance.now();
@@ -65,14 +68,19 @@ test('a seat and gate event stream idle for 30 seconds below the declared CPU bu
           quietCpu = process.cpuUsage(cpuStart);
           sent = true; askedAt = performance.now();
           shout(box.board, { from: 'coordinator', to: actor.id, text: `please build #${target} now`, lanes: ['web', 'review', 'docs'] });
+          shoutFinishedAt = performance.now();
         }, 30_000);
       } } });
+    const returnedAt = performance.now();
     const totalCpu = process.cpuUsage(cpuStart);
     assert.equal(code, 0, output);
     assert.equal(sent, true, 'the seat reached idle and received the actual timed shout');
     assert.ok(askedAt - quietAt >= 30_000); // budget: declared #2518 requires measurement across 30 seconds.
     assert.ok(quietCpu.user + quietCpu.system < 300_000, JSON.stringify({ quietCpu, totalCpu })); // budget: declared #2518 caps CPU at 0.3 seconds across that quiet interval.
-    assert.ok(performance.now() - askedAt < 1_000, output); // budget: declared #2518 requires return within one second of the shout.
+    const wakeDetails = JSON.stringify({ output,
+      shoutMs: shoutFinishedAt - askedAt, outputMs: outputAt - askedAt,
+      completionMs: returnedAt - askedAt });
+    assert.ok(returnedAt - askedAt < 1_000, wakeDetails); // budget: declared #2518 requires return within one second of the shout.
     assert.ok(output.includes(`act on #${target}`), output);
     let received = '';
     while (!received.includes('"event_kind":"shout"')) {
