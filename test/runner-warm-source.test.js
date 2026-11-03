@@ -34,6 +34,9 @@ test('warm runner source moves a clean base and sends only the changed history [
   writeFileSync(join(repo, 'tracked.txt'), 'base source\n');
   // Real incompressible tracked bytes make a missing full-history transfer observable.
   writeFileSync(join(repo, 'unchanged.bin'), Buffer.concat([Buffer.from([0]), randomBytes(128 * 1024)]));
+  // Past Git's 100-object unpack limit, a resent base history lands as a second pack in the job checkout.
+  mkdirSync(join(repo, 'many'));
+  for (let index = 0; index < 120; index++) writeFileSync(join(repo, 'many', `file-${index}.txt`), `unchanged ${index}\n`);
   git(repo, env, 'add', '.'); git(repo, env, 'commit', '-qm', 'test: warm source base');
   const base = git(repo, env, 'rev-parse', 'HEAD');
   const sourceTags = Array.from({ length: 40 }, (_, index) => `source-${String(index).padStart(2, '0')}`);
@@ -48,7 +51,7 @@ test('warm runner source moves a clean base and sends only the changed history [
   const receipts = () => readFileSync(stderrLog, 'utf8').split(/\r?\n/u).filter(line => line.startsWith('PULLBOARD_RUNNER_RESULT '))
     .map(line => JSON.parse(Buffer.from(line.split(' ')[2], 'base64').toString('utf8')));
   /** Run actual source assertions and return this run's source measurement. */
-  const run = async (expected, mutate = false, forbidden = null, expectedTags = sourceTags) => {
+  const run = async (expected, mutate = false, forbidden = null, expectedTags = sourceTags, packs = null) => {
     const body = `const a=require('node:assert/strict'),f=require('node:fs'),c=require('node:child_process');
       a.equal(f.readFileSync('tracked.txt','utf8'),${JSON.stringify(expected)});
       a.equal(f.existsSync('command-poison'),false);
@@ -58,10 +61,13 @@ test('warm runner source moves a clean base and sends only the changed history [
       a.equal(c.execFileSync('git',['rev-parse','--is-shallow-repository'],{encoding:'utf8'}).trim(),'false');
       a.equal(c.execFileSync('git',['rev-parse','HEAD^{tree}'],{encoding:'utf8'}).trim(),${JSON.stringify(git(repo, env, 'rev-parse', 'HEAD^{tree}'))});
       a.equal(f.existsSync('.git/objects/info/alternates'),false);
+      ${packs === null ? '' : `a.equal(f.readdirSync('.git/objects/pack').filter(n=>n.endsWith('.pack')).length,${packs},'job checkout holds the base pack and only the new objects');`}
       ${forbidden ? `a.notEqual(c.spawnSync('git',['cat-file','-e',${JSON.stringify(forbidden)}],{encoding:'utf8'}).status,0);` : ''}
       ${mutate ? "f.writeFileSync('tracked.txt','command mutation');f.writeFileSync('command-poison','private job mutation');c.execFileSync('git',['tag','command-poison']);" : ''}
       process.stdout.write('SOURCE_ASSERTIONS_PASSED\\n');`;
-    const result = await runThroughGate(repo, env, `node -e ${shellQuote(body)}`, { browser: false, requests });
+    // budget: dispatch waits on this host's own admission queue, which a loaded reviewer machine can hold past the default
+    // 20 s; this file proves the worker-measured source phase, so dispatch gets 60 s and the remaining deadlines stay.
+    const result = await runThroughGate(repo, env, `node -e ${shellQuote(body)}`, { browser: false, requests, deadlines: { dispatch: 60_000 } });
     assert.equal(result.status, 0, fixtureResultContext(result));
     assert.equal(gateResult(result.stdout).runner, HOST);
     assert.match(result.stdout, /SOURCE_ASSERTIONS_PASSED/u);
@@ -77,10 +83,12 @@ test('warm runner source moves a clean base and sends only the changed history [
     assert.ok(cold.sourcePreparation.packBytes > 64 * 1024, 'cold transport contained the real bulk history');
     writeFileSync(join(repo, 'tracked.txt'), 'changed source\n');
     git(repo, env, 'add', 'tracked.txt'); git(repo, env, 'commit', '-qm', 'test: changed source delta');
-    const changed = await run('changed source\n');
+    const changed = await run('changed source\n', false, null, sourceTags, 1);
     assert.equal(changed.sourcePreparation.reusedCommit, base, 'descendant source reuses the prior base before checkout');
     assert.ok(changed.sourcePreparation.packBytes > 32, 'new source sends actual new objects');
     assert.ok(changed.sourcePreparation.packBytes < cold.sourcePreparation.packBytes / 4, 'unchanged bulk objects are not resent');
+    const sourced = changed.sourcePreparation.totalMs - changed.sourcePreparation.stages.cacheWaitMs;
+    assert.ok(sourced < 1_000, `a job whose parent is warm sources in under 1 s, after any queue for the cache: ${sourced} ms ${JSON.stringify(changed.sourcePreparation)}`);
     assert.ok(Number.isSafeInteger(warm.executionPhases.sourceMs));
     // Bounded work, not elapsed time: warm and parent-held preparation reuse the base and resend no bulk history.
     assert.ok(Number.isSafeInteger(changed.executionPhases.sourceMs));

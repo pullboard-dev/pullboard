@@ -4,7 +4,7 @@ import { nativeBoardOpeners } from '../cli-context.js';
 
 /** Complete opted-in automatic relay linking, loading relay setup only when a project registers, as before. */
 async function autoLinkProject(root, io) {
-  const { autoLinkProject: link } = await import('../relay-setup.js');
+  const { autoLinkProject: link } = await import('../../packages/link/index.js');
   return link(root, io, nativeBoardOpeners(io));
 }
 
