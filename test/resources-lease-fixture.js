@@ -188,7 +188,7 @@ function itemLeaseFixture(t, helpers) {
   box.env.PULLBOARD_FIXTURE_CLOCK = box.clockFile;
   box.clock = { now: () => new Date(Number(readFileSync(box.clockFile, 'utf8'))) };
   box.advance = (ms) => writeFileSync(box.clockFile, String(box.clock.now().getTime() + ms));
-  box.board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), box.clock);
+  box.board = openBoard(join(box.repo, '.git', 'pullboard', 'board.sqlite'), box.clock, { gitRoot: box.repo });
   t.after(() => store.closeBoard(box.board));
   box.gates = [];
   box.ids = [];
@@ -240,12 +240,13 @@ function refuseFreshExpiredSubmit(box, id) {
     { cwd: box.web, env: box.env, encoding: 'utf8' });
   assert.equal(late.status, 1, late.stdout);
   assert.equal(JSON.parse(late.stdout).error.code, 'NOT_YOURS', 'a new submit cannot start on an expired claim');
-  const replica = openBoard(join(box.dir, 'expired-submit-receiver.sqlite'), box.clock);
+  const replica = openBoard(join(box.dir, 'expired-submit-receiver.sqlite'), box.clock, { gitRoot: box.repo });
   try {
     importBoard(replica, exportBoard(box.board));
     const before = store.itemById(replica, id);
     const move = prepareEngineMove(replica, 'submit', [id, { agentId: before.item_owner,
       commit: box.git(box.web, 'rev-parse', 'HEAD'), tree: box.git(box.web, 'rev-parse', 'HEAD^{tree}'),
+      policyCommit: box.git(box.repo, 'rev-parse', 'main'),
       submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'receiver negative control; no completed proof' } }]);
     const result = applyEngineMove(replica, move, { sequence: appliedSequence(replica) + 1, at: box.clock.now().toISOString() });
     assert.equal(result.error?.code, 'AGENT_GRANT_EXPIRED', 'even a real admission nonce grants no receiver completion without its native final proof');
@@ -261,7 +262,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
   for (const scenario of ['same admission', 'admission engine', 'different commit', 'different tree', 'reclaim', 'historical engine']) {
     let instant = box.clock.now().getTime();
     const clock = { now: () => new Date(instant) };
-    const peer = openBoard(join(box.dir, `completion-${scenario.replaceAll(' ', '-')}.sqlite`), clock);
+    const peer = openBoard(join(box.dir, `completion-${scenario.replaceAll(' ', '-')}.sqlite`), clock, { gitRoot: box.repo });
     try {
       importBoard(peer, snapshot);
       assert.equal(applyEngineMove(peer, proof, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() }).error, undefined);
@@ -281,6 +282,7 @@ function admittedCompletionReplicas(box, id, snapshot) {
       const move = prepareEngineMove(peer, 'submit', [id, { agentId: receipt.seat,
         commit: scenario === 'different commit' ? '1'.repeat(receipt.commit.length) : receipt.commit,
         tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
+        policyCommit: box.git(box.repo, 'rev-parse', 'main'),
         submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private replay of actual native proof' } }]);
       if (scenario === 'admission engine') move.engine = SUBMIT_ADMISSION_ENGINE;
       // Historical means before admission support, regardless of later engine allocations.
