@@ -12,7 +12,7 @@ import {
   gitPath,
 } from './git.js';
 import { Refused } from '../packages/kernel/index.js';
-import { privateCheckEnvelope } from './runner-private-mode.js';
+import { privateCheckEnvelope } from '../apps/runner/index.js';
 import { trunkRef } from '../packages/sandbox/index.js';
 
 /** Accept only a complete authenticated response for the same source, policy and board snapshot. */

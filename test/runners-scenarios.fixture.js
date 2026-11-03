@@ -105,7 +105,7 @@ import {
 } from './runner-orphan-fixture.js';
 import {
   createDescendantTracker,
-} from '../src/runner-custody.js';
+} from '../apps/runner/index.js';
 import {
   createE2eHelpers,
 } from './e2e-helpers.js';

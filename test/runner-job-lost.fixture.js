@@ -14,7 +14,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runnerJobReply } from '../packages/runners/index.js';
-import { processCensus } from '../src/runner-custody.js';
+import { processCensus } from '../apps/runner/index.js';
 import { isolateTestMachine } from '../packages/gate/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
@@ -55,7 +55,7 @@ function transport(t, mode) {
   const ssh = installSshStandIn({ bin, worker, home, machineHome, requests, nodeCommand: process.execPath });
   renameSync(ssh, join(bin, 'ssh-delegate'));
   const ownerSource = `import {claimRunnerLaunch,claimRunnerWorker} from ${JSON.stringify(sourceURL('src/runner-transport.js'))};
-import {processCensus} from ${JSON.stringify(sourceURL('src/runner-custody.js'))};
+import {processCensus} from ${JSON.stringify(sourceURL('apps/runner/index.js'))};
 const [root,encoded]=process.argv.slice(1), recovery=JSON.parse(encoded);
 if(!claimRunnerLaunch(root,recovery)||!claimRunnerWorker(root,recovery,processCensus))process.exit(2);
 process.stdout.write('CLAIMED\\n');setInterval(()=>{},1000);`;
@@ -64,7 +64,7 @@ import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import {appendFileSync,mkdirSync,readFileSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {processCensus} from ${JSON.stringify(sourceURL('src/runner-custody.js'))};
+import {processCensus} from ${JSON.stringify(sourceURL('apps/runner/index.js'))};
 const args=process.argv.slice(2), command=args.at(-1), mode=${JSON.stringify(mode)}, root=${JSON.stringify(root)};
 if(command.includes(' --health ')||command.includes(' --restart ')||command.includes('/* pullboard registration GUI probe */')||command.includes('process.stdout.write(JSON.stringify({nonce:')){
  const child=spawn(process.execPath,[${JSON.stringify(join(bin, 'ssh-delegate'))},...args],{stdio:['inherit','pipe','inherit']});

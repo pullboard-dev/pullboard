@@ -12,7 +12,7 @@ import { recordReceipt } from '../packages/gate/index.js';
 import * as runnerApi from '../packages/runners/index.js';
 import { runFixtureGit } from './fixture-child.js';
 import { takeResource } from '../packages/resources/index.js';
-import { readRunnerStage } from '../src/runner-stage-read.js';
+import { readRunnerStage } from '../apps/runner/index.js';
 
 /** Capture the actual CLI response while supplying a deterministic observation clock. */
 async function run(root, args, clock) {

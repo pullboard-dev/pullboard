@@ -1,6 +1,6 @@
 import { seatAt } from '../item-folder-identity.js';
 import { frozenCheckTiming } from '../check-timing.js';
-import { checkAtCommit } from '../runner-private-check.js';
+import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../../packages/runners/index.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
