@@ -2,13 +2,15 @@
 // The subprocess invokes this entry point; retain its import edges for future affected-test selection.
 import '../apps/cli/index.js';
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { GATE_SLOT_HELD_ENV } from '../packages/resources/index.js';
+import { readGateReceipt } from '../packages/gate/index.js';
 import { runFixtureChild, runFixtureGit, startFixtureChild } from './fixture-child.js';
 
 const BIN = join(import.meta.dirname, '../bin/pullboard.js');
@@ -43,6 +45,7 @@ function launch(box, ...args) {
   let err = '';
   child.stdout.setEncoding('utf8').on('data', part => { out += part; });
   child.stderr.setEncoding('utf8').on('data', part => { err += part; });
+  Object.defineProperties(child, { capturedStdout: { get: () => out }, capturedStderr: { get: () => err } });
   child.closed = new Promise(resolveClose => child.once('close', (code, signal) => resolveClose({ code, signal, out, err })));
   box.children.push(child);
   return child;
@@ -53,6 +56,24 @@ async function observed(predicate, label) {
   const deadline = Date.now() + 20_000; // budget: hang ceiling for fixture file and queue handshakes, not a throughput expectation.
   while (!predicate() && Date.now() < deadline) await new Promise(done => setTimeout(done, 10));
   assert.ok(predicate(), label);
+}
+
+/** Preserve the hang ceiling while reporting a submit that exits before its comparison runner starts. */
+async function comparisonStarted(box, submission, label) {
+  await observed(() => events(box).some(event => event.phase === 'start') || submission.exitCode !== null, label);
+  const started = events(box).some(event => event.phase === 'start');
+  const phases = rows(box.board, 'SELECT event_kind,event_detail FROM event WHERE item_id=? ORDER BY event_id', [box.item])
+    .map(event => ({ kind: event.event_kind, detail: JSON.parse(event.event_detail) }));
+  assert.ok(started, `${label}; submit exit=${submission.exitCode}; stdout=${submission.capturedStdout}; stderr=${submission.capturedStderr}; phases=${JSON.stringify(phases)}; runnerEvents=${JSON.stringify(events(box))}`);
+}
+
+/** Read authentic main-red receipts retained by the native gate, bound to the fixture's exact main commit. */
+function mainReceipts(box) {
+  const folder = join(box.root, '.git', 'pullboard', 'gate-receipts');
+  return readdirSync(folder).filter(name => name.endsWith('.json'))
+    .map(name => readGateReceipt(folder, name.slice(0, -5)))
+    .filter(receipt => receipt?.kind === 'main-red' && receipt.head === box.main && receipt.main === box.main)
+    .sort((left, right) => Date.parse(left.at) - Date.parse(right.at));
 }
 
 /** Read a private queue or board, allowing the same short SQLite writer contention as the resource API. */
@@ -163,7 +184,7 @@ async function assertRed(box, submission) {
 test('a shout completes while a submit compares with main [V4,C7,B7]', async t => {
   const box = fixture(t, 1);
   const submission = launch(box, 'submit', String(box.item));
-  await observed(() => events(box).some(event => event.phase === 'start'), 'the real main comparison is waiting');
+  await comparisonStarted(box, submission, 'the real main comparison is waiting');
   const shout = launch(box, 'shout', 'all', 'Comparison is still running');
   await observed(() => shout.exitCode !== null || (rows(box.repoQueue,
     "SELECT token FROM holder WHERE name LIKE 'checkout-session:%' AND pid=?", [submission.pid]).length > 0
@@ -184,8 +205,7 @@ test('a shout completes while a submit compares with main [V4,C7,B7]', async t =
 test('a red submit reruns its failed files one slot at a time within the pool [V4,C7,Q4]', async t => {
   const box = fixture(t, 3, 2);
   const submission = launch(box, 'submit', String(box.item));
-  await observed(() => events(box).filter(event => event.phase === 'start').length === 1,
-    'the first exact-main comparison starts');
+  await comparisonStarted(box, submission, 'the first exact-main comparison starts');
   assert.equal(rows(box.machineQueue, "SELECT token FROM holder WHERE name='gate'").length, 1,
     'the running comparison holds one actual pool slot');
   assert.equal(rows(box.machineQueue, "SELECT ticket FROM waiter WHERE name='gate'").length, 0,
@@ -194,8 +214,11 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   writeFileSync(join(box.control, first + '.release'), 'release');
   await observed(() => events(box).filter(event => event.phase === 'start').length === 2,
     'the second file starts after the first finishes');
-  assert.equal(JSON.parse(readFileSync(box.cache, 'utf8')).entries[box.main][`test/${first}.test.js`].result,
-    first === 'b' ? 'red' : 'green', 'the completed result is saved while other files still wait');
+  const firstReceipt = mainReceipts(box).find(receipt => receipt.command);
+  assert.ok(firstReceipt, 'the completed native receipt is retained while other files still wait');
+  assert.equal(firstReceipt.green, first !== 'b', 'the receipt preserves the exact main-file verdict');
+  assert.deepEqual(firstReceipt.failures.map(row => row.name), first === 'b' ? ['b native comparison [G1]'] : [],
+    'the native receipt retains the exact red case identity');
   for (const name of box.names) writeFileSync(join(box.control, name + '.release'), 'release');
   await assertRed(box, submission);
   let active = 0;
@@ -207,19 +230,26 @@ test('a red submit reruns its failed files one slot at a time within the pool [V
   }
   assert.equal(maximum, 1, 'one submit leaves the other machine slot available');
   assert.equal(active, 0);
-  const cached = JSON.parse(readFileSync(join(box.root, '.git/pullboard/main-red.json'), 'utf8')).entries[box.main];
-  assert.deepEqual(Object.fromEntries(Object.entries(cached).map(([file, row]) => [file, { result: row.result }])), {
-    'test/a.test.js': { result: 'green' }, 'test/b.test.js': { result: 'red' }, 'test/c.test.js': { result: 'green' },
+  const receipts = mainReceipts(box);
+  assert.equal(receipts.length, 3, 'each exact-main file has one retained native comparison receipt');
+  const byFile = Object.fromEntries(receipts.map(receipt => {
+    const file = box.names.map(name => `test/${name}.test.js`).find(path => receipt.command === createHash('sha256')
+      .update(`PULLBOARD_TEST_REUSE=0 node test/runner.js './${path}'`).digest('hex'));
+    assert.ok(file, `native receipt command identifies one exact main file: ${receipt.command}`);
+    return [file, receipt];
+  }));
+  assert.deepEqual(Object.fromEntries(Object.entries(byFile).map(([file, receipt]) => [file, receipt.green])), {
+    'test/a.test.js': true, 'test/b.test.js': false, 'test/c.test.js': true,
   });
-  assert.deepEqual(cached['test/a.test.js'].failures, []);
-  assert.deepEqual(cached['test/c.test.js'].failures, []);
-  assert.equal(cached['test/b.test.js'].failures.length, 1);
-  const [known] = cached['test/b.test.js'].failures;
-  assert.equal(known.file, 'test/b.test.js');
-  assert.equal(known.name, 'b native comparison [G1]');
-  assert.match(known.signature, /^[a-f0-9]{64}$/u);
+  assert.deepEqual(byFile['test/a.test.js'].failures, []);
+  assert.deepEqual(byFile['test/c.test.js'].failures, []);
+  assert.deepEqual(byFile['test/b.test.js'].failures, [{ file: 'test/b.test.js', name: 'b native comparison [G1]' }]);
+  assert.equal(byFile['test/b.test.js'].failureSignatures.failures.length, 1);
+  assert.match(byFile['test/b.test.js'].failureSignatures.failures[0].signature, /^[a-f0-9]{64}$/u);
   assert.equal(rows(box.machineQueue, 'SELECT token FROM holder').length, 0, 'all machine leases are released');
   const before = events(box).length;
+  const receiptCount = mainReceipts(box).length;
   await assertRed(box, launch(box, 'submit', String(box.item)));
-  assert.equal(events(box).length, before, 'a later red submission reuses every exact-main cached result');
+  assert.equal(events(box).length, before + 3, 'each later red submission retains fresh exact-main runner observations');
+  assert.equal(mainReceipts(box).length, receiptCount + 3, 'pinned comparison evidence is retained as native receipts, not generic cache rows');
 });
