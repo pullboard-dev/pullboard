@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileChangeWaiter } from '../../../../../packages/activity/index.js';
 import { nextIdleChanged } from '../../../../../packages/store/index.js';
 import { sayQueuedReds } from '../../../../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../../../../packages/verify/index.js';
@@ -66,6 +69,17 @@ function inboxReasons(ctx) {
   });
 }
 
+/** Watch symbolic ref targets as well as HEAD, including projects whose trunk is not named main. */
+function nextChangeInputs(ctx) {
+  const heads = [...new Set([join(ctx.info.gitDir, 'HEAD'), join(ctx.info.commonDir, 'HEAD')])];
+  const refs = heads.flatMap(path => {
+    try { const ref = /^ref: (.+)$/mu.exec(readFileSync(path, 'utf8')); return ref ? [join(ctx.info.commonDir, ref[1])] : []; }
+    catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  });
+  return [ctx.file, ctx.file + '-wal', ...heads, ...refs, join(ctx.info.commonDir, 'packed-refs'),
+    join(ctx.info.root, 'pullboard.json'), join(ctx.info.root, ctx.config.spec || 'SPEC.md'), join(ctx.info.root, ctx.config.practice || 'DOCTRINE.md')];
+}
+
 /**
  * `pullboard next` (N2): the whole start of an agent's loop in one command. With --wait, it keeps
  * looking until something is free, so an agent blocked on other work needs no polling of its own.
@@ -109,7 +123,9 @@ async function nextWithProgress(io, values, progress) {
   const heardShouts = new Set();
   const deadline = Date.now() + minutes * 60_000;
   const origin = ctx.info.root;
-  for (;;) {
+  const wake = minutes > 0 ? fileChangeWaiter(nextChangeInputs(ctx)) : null;
+  let wakeVersion = wake?.version();
+  try { for (;;) {
     const heard = minutes > 0 ? takeWaitShouts(ctx, heardShouts, { withBoard, withBoardRead, whoAmI }) : null;
     for (const line of heard?.lines ?? []) io.say(line);
     if (heard?.item) {
@@ -203,8 +219,26 @@ async function nextWithProgress(io, values, progress) {
       return refuseNextIdle(io, found.reasons, found.reasons.map((reason) => displayedWait(reason, agents, ctx.config)), { minutes, verify: values.verify, laneWork: found.laneWork, lane: seat.lane, route: seat.route });
     }
     if (found.retry) await progress.retry(found);
-    else await progress.idle(found.reasons, () => new Promise((done) => setTimeout(done, 5000)));
-  }
+    else {
+      wake.update(nextChangeInputs(ctx));
+      const until = withBoardRead(ctx, board => {
+        const now = ctx.clock.now().toISOString();
+        const row = board.db.prepare(`SELECT MIN(expiry) AS expiry FROM (
+          SELECT item_lease_until AS expiry FROM item WHERE item_status='claimed' AND item_lease_until>?
+          UNION ALL SELECT item_review_until AS expiry FROM item WHERE item_status='submitted' AND item_review_until>?)`).get(now, now);
+        const due = row?.expiry ? [Date.parse(row.expiry)] : [];
+        const cooldown = (ctx.config.claims?.releaseCooldownMinutes ?? 30) * 60_000;
+        if (cooldown > 0) {
+          const release = board.db.prepare("SELECT MIN(event_at) AS at FROM event WHERE event_kind='release' AND event_by=? AND event_at>?")
+            .get(whoAmI(ctx, board).id, new Date(ctx.clock.now().getTime() - cooldown).toISOString());
+          if (release?.at) due.push(Date.parse(release.at) + cooldown);
+        }
+        return due.length ? Math.min(deadline, Date.now() + Math.min(...due) - ctx.clock.now().getTime()) : deadline;
+      });
+      await progress.idle(found.reasons, () => wake.wait({ after: wakeVersion, deadline: until }));
+      wakeVersion = wake.version();
+    }
+  } } finally { wake?.close(); }
 }
 
 /** Run `pullboard next` and return its exit code. */

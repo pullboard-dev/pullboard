@@ -8,3 +8,5 @@ export { claimWorktrees, claimOverlapLines } from './src/shell/claim-worktrees.j
 export { recordClaimWorktrees } from './src/shell/worktree-observations.js';
 export { recordedClaimWorktrees } from './src/shell/worktree-observations.js';
 export { takeWaitShouts } from './src/shell/next-wait-shouts.js';
+
+export { fileChangeWaiter } from './src/shell/file-change-wait.js';
