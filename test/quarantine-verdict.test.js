@@ -51,7 +51,7 @@ import {policyAt} from './tooling/src/trusted-policy-read.js';
 import {git} from './tooling/src/git.js';
 import {runGate,runProfiledShell,runFrozenProof,runSubmitGate,withGateSlot} from './tooling/packages/gate/index.js';
 import {receiptRecorder} from './tooling/packages/flakes/index.js';
-import {context,ordered,withBoard,resourceAgent,freezer} from './tooling/src/cli.js';
+import {context,ordered,withBoard,resourceAgent,freezer,queuedItemLease} from './tooling/src/cli.js';
 import {runnerExecutionServices} from './tooling/src/runners.js';
 import {landingExecutionServices} from './tooling/packages/landing/index.js';
 import {readGateReceipt,receiptStore,receiptBody,receiptFields} from './tooling/src/gate-run-receipt.js';
@@ -77,7 +77,8 @@ import {checkAtCommit} from './tooling/apps/runner/index.js';
 import * as store from './tooling/src/board.js';
 import * as nativeBoard from './tooling/apps/lib/index.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
-const ctx=context({cwd:root,nativeBoard,say(){},err(){}}),agentId=resourceAgent(ctx);
+const io={cwd:root,nativeBoard,say(){},err(){},gateWaitReporter:()=>()=>{}};
+const ctx=context(io),agentId=resourceAgent(ctx);
 const observer=Object.assign(async()=>{}, {recordRun:receiptRecorder(ctx,{agentId,acceptedConfig:config,ordered,withBoard})});
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 const snapshot=()=>withBoard(ctx,quarantineVerdictSnapshot);
@@ -255,10 +256,14 @@ try {
  });
  assert.notEqual(binding.commit,source);
  const composedConfig=submitGateConfig(policyAt(root,binding.commit).config,policyAt(root,source).config);
+ const admission={commit:binding.commit,tree:binding.tree};
+ const builderCtx=context({...io,cwd:builderRoot});
+ const onWait=queuedItemLease(builderCtx,companionItem,builder,'build',admission);
  const composed=await withItemPatchSubmit(builderRoot,binding,gateRoot=>runSubmitGate(gateRoot,composedConfig,
   {base:source,trunk:source,check:config.gate,agent:builder,outputRoot:builderRoot,executionServices,
+   onWait,
    proofContext:{companion:true,item:companionItem.item_id,frozenDigest:companionItem.item_frozen_digest,seat:builder,
-    admission:{commit:binding.commit,tree:binding.tree},quarantines}}));
+    admission,quarantines}}));
  assert.equal(composed.isGreen,true,composed.output);
  assert.ok(composed.proofReceiptIds.length>0);
  binding.receiptIds=composed.proofReceiptIds;
