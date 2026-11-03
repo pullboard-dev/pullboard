@@ -16,7 +16,7 @@ import { relayClientFixture } from './relay-client-fixture.js';
 
 const CLI = resolve(import.meta.dirname, '../bin/pullboard.js');
 const BOARD_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/board.js')).href;
-const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../src/native-board.js')).href;
+const NATIVE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../apps/lib/index.js')).href;
 const EXCHANGE_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/store/index.js')).href;
 const RELAY_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/link/index.js')).href;
 const CONFIG_MODULE = pathToFileURL(resolve(import.meta.dirname, '../packages/config/src/shell/config.js')).href;

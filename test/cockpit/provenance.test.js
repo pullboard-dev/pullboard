@@ -11,7 +11,7 @@ import { pathToFileURL } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { addItem, closeBoard } from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
 import { beginCommandPhase } from '../../packages/link/index.js';
 import { disableFixtureBackgroundView } from './background-view-fixture.js';

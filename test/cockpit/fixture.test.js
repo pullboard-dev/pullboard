@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { waitForStableBoxes } from './stable.js';
 import { addItem, closeBoard } from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { exportBoard, importBoard } from '../../src/exchange.js';
 import { projectState } from '../../src/cli/view-state.js';
 import { testsNeedBrowser } from '../../src/browser-admission.js';

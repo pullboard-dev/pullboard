@@ -8,7 +8,7 @@ import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { serveApi } from '../../src/api.js';
 import { refusalDocument } from '../../src/next-step-words.js';
 import { main } from '../native-cli-fixture.js';

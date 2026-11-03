@@ -6,7 +6,7 @@ import { join, dirname } from 'node:path';
 import { project, build } from './fixture.js';
 import { intakeFixture, fixtureJSON } from '../intake-fixture.js';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 
 /** Observe genuine rare journeys and reject absent/non-native receipts before checking the live API.
  * Ports must run existing real CLI journeys, not return fabricated events or precomputed counts.

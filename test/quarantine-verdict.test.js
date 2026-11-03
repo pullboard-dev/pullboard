@@ -79,7 +79,7 @@ import {fullGateRun,recordRun} from './packages/gate/index.js';
 import {accountedFailures} from './packages/landing/index.js';
 import {checkAtCommit} from './apps/runner/index.js';
 import * as store from './src/board.js';
-import * as nativeBoard from './src/native-board.js';
+import * as nativeBoard from './apps/lib/index.js';
 const root=process.cwd(),config=JSON.parse(readFileSync('pullboard.json','utf8'));
 const ctx=context({cwd:root,nativeBoard,say(){},err(){}}),agentId=resourceAgent(ctx);
 const observer=Object.assign(async()=>{}, {recordRun:receiptRecorder(ctx,{agentId,acceptedConfig:config,ordered,withBoard})});

@@ -1,5 +1,5 @@
 import { flakyProject, writeTarget, TITLE } from '../packages/git/tests/flakes-fixture.js';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import { repoInfo } from '../src/git.js';
 import { selectAffectedTests } from '../packages/gate/index.js';
 import { selectTestTreeGuards } from '../packages/gate/index.js';
