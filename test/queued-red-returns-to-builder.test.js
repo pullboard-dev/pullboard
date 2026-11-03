@@ -34,6 +34,7 @@ function read(box, id, clock) {
 function fixture(t) {
   const helpers = createE2eHelpers();
   const isolated = helpers.sandbox();
+  isolated.env.PULLBOARD_MODEL = 'Queued red fixture model';
   for (const key of ['PULLBOARD_GATE_SLOT_HELD', 'PULLBOARD_GATE_SLOT_POOL', 'PULLBOARD_GATE_SLOT_TOKEN', 'PULLBOARD_BROWSER_SLOT_HELD']) delete isolated.env[key];
   let box;
   try { box = helpers.project('true', isolated); }
@@ -48,9 +49,9 @@ function fixture(t) {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: configure queued submit with a cells plan [G1]');
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   box.boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
-  const add = title => document(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
-    '--criterion', `${title} passes its gate.`, '--check', 'true', '--wait', '--json')).item.item_id;
-  const ids = [add('Refused queued build'), add('Green queued build'), add('Later build')];
+  const add = (title, criterion = `${title} passes its gate.`) => document(box.run(box.repo, 'add', 'web', title, '--specs', 'G1',
+    '--criterion', criterion, '--check', 'true', '--wait', '--json')).item.item_id;
+  const ids = [add('Refused queued build', 'Cells cut: queued red fixture [test]'), add('Green queued build'), add('Later build')];
   t.after(async () => {
     for (const id of ids) {
       const job = read(box, id).job;
