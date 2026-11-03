@@ -1,22 +1,22 @@
 /** View rendering logic receives plain data and returns HTML without a browser or native board [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { recordRowHtml } from '../../src/view/record-row.js';
-import { pipelineHtml } from '../../src/view/pipeline-render.js';
-import { selectItemsView } from '../../src/view/items-selection.js';
-import { timelineBodyHtml } from '../../src/view/timeline-body.js';
-import { timelineHtml } from '../../src/view/timeline-render.js';
-import { lifecycleDiagramHtml } from '../../src/view/lifecycle-diagram.js';
-import { needsEntries, renderNeedsRow } from '../../src/view/needs-list.js';
-import { needsPanelHtml } from '../../src/view/needs-panel.js';
-import { needsPanelModel } from '../../src/view/needs-panel.js';
-import { homeRules } from '../../src/view/home.js';
-import { roadmapSummary, roadmapHeaders } from '../../src/view/roadmap-summary.js';
-import { roadmapBlock } from '../../src/view/roadmap-block.js';
-import { dashboardModel } from '../../src/view/dashboard-model.js';
-import { activityWords } from '../../src/view/activity-words.js';
-import { viewTestProblems } from '../../src/view/test-policy.js';
-import { ruleListModel } from '../../src/view/rule-list-model.js';
+import { recordRowHtml } from '../../apps/view/src/core/view/record-row.js';
+import { pipelineHtml } from '../../apps/view/src/core/view/pipeline-render.js';
+import { selectItemsView } from '../../apps/view/src/core/view/items-selection.js';
+import { timelineBodyHtml } from '../../apps/view/src/core/view/timeline-body.js';
+import { timelineHtml } from '../../apps/view/src/core/view/timeline-render.js';
+import { lifecycleDiagramHtml } from '../../apps/view/src/core/view/lifecycle-diagram.js';
+import { needsEntries, renderNeedsRow } from '../../apps/view/src/core/view/needs-list.js';
+import { needsPanelHtml } from '../../apps/view/src/core/view/needs-panel.js';
+import { needsPanelModel } from '../../apps/view/src/core/view/needs-panel.js';
+import { homeRules } from '../../apps/view/src/core/view/home.js';
+import { roadmapSummary, roadmapHeaders } from '../../apps/view/src/core/view/roadmap-summary.js';
+import { roadmapBlock } from '../../apps/view/src/shell/view/roadmap-block.js';
+import { dashboardModel } from '../../apps/view/src/shell/view/dashboard-model.js';
+import { activityWords } from '../../apps/view/src/core/view/activity-words.js';
+import { viewTestProblems } from '../../apps/view/src/shell/view/test-policy.js';
+import { ruleListModel } from '../../apps/view/src/core/view/rule-list-model.js';
 
 test('Spec and Doctrine selection keeps local decisions, inherited defaults and addressed rows explicit [N26,B26,C7]', () => {
   const rows = [

@@ -1,7 +1,7 @@
 /** @pullboard-test-gui */
 /** @pullboard-test-loads test/relay-client-fixture.js */
 /** Cockpit prose checks, using the shared real-board fixtures [N26]. */
-import { copyPackageFiles } from '../../src/package-files.js';
+import { copyPackageFiles } from '../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

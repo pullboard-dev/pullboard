@@ -8,6 +8,7 @@ import { MERGE_ONLY_VERDICT_ENGINE } from '../../../../src/merge-only-verdict-en
 /** Seal a submit's patches, proof, merge-only carry and size before any replica sees it [V4,H16]. */
 export function prepareBefore(board, values, { ports, store }) {
   values[1] = store.sealClauseInspection(board, values[0], values[1]);
+  values[1] = store.sealStrictRenames(board, values[0], values[1]);
   values[1] = ports.sealKnownMainAutofile(board, values[0], values[1]);
   values[1] = ports.sealItemPatchSubmit(board, values[0], values[1]);
   if (ENGINE_VERSION >= SUBMISSION_PROOF_ENGINE) submissionProof(values[1]?.submissionProof);

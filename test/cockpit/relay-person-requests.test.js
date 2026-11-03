@@ -132,7 +132,7 @@ test('relay person requests stay explicit, read-only and visible [H12,H5]', { ti
       return response.writeHead(upstream.status, { 'content-type': 'application/json' }).end(await upstream.text());
     }
     if (url.pathname === '/transport.js') return response.writeHead(200, { 'content-type': 'text/javascript' }).end(transportModule);
-    if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(resolve(import.meta.dirname, '../../src/view.css')));
+    if (url.pathname === '/view.css') return response.writeHead(200, { 'content-type': 'text/css' }).end(readFileSync(new URL('../../apps/view/src/shell/view.css', import.meta.url)));
     return fixtureRequest(request, response);
   });
   await new Promise((resolve) => pageServer.listen(0, '127.0.0.1', resolve));

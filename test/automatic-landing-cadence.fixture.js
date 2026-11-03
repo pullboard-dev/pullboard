@@ -1,6 +1,6 @@
 /** Native landing is resumed by a captured wake with an injected board clock, never by editing board history [B35,B3,R3]. */
 import assert from 'node:assert/strict';
-import * as nativeBoard from '../src/native-board.js';
+import * as nativeBoard from '../apps/lib/index.js';
 import * as store from '../packages/store/index.js';
 import * as outbox from '../packages/outbox/index.js';
 import { repoInfo } from '../packages/git/index.js';
