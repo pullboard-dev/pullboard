@@ -124,3 +124,65 @@ test('an adopted batch carrying a held verified item is retired, the item keeps 
   assert.deepEqual(result.ready, []);
   assert.deepEqual(result.readyAfter, [entry.item], 'hold --off returns it to landing');
 });
+
+/**
+ * Land the item on the local trunk until the batch saves 'trunk', then crash before its receipts or trunk move; hold
+ * the item, adopt the crashed batch, lift the hold and land again, reporting main and the item at each step.
+ */
+function trunkCrashRuns(box, entry) {
+  const source = [
+    `import * as store from ${href('../src/board.js')};`,
+    `import { openBoard } from ${href('../apps/lib/index.js')};`,
+    `import { loadConfig } from ${href('../packages/config/index.js')};`,
+    `import { runLandingBatch } from ${href('../packages/landing/index.js')};`,
+    `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
+    `import { checkAtCommit } from ${href('../apps/runner/index.js')};`,
+    `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
+    "import { join } from 'node:path'; import { execFileSync } from 'node:child_process';",
+    'const [root, itemId] = process.argv.slice(1), id = Number(itemId);',
+    'const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',
+    'const head = () => execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();',
+    'const item = () => { const row = store.getItem(board, id); return { status: row.item_status, merged: row.item_merged_commit }; };',
+    'let crashAtTrunk = true; const lines = [], errors = [];',
+    'const write = async (operation, args) => {',
+    '  const result = board.enginePorts.store[operation](board, ...args);',
+    '  if (crashAtTrunk && operation === "recordLandingBatch" && args[0].batch.state === "trunk") { crashAtTrunk = false; throw Object.assign(new Error("crash after saving trunk"), { code: "FIXTURE_CRASH" }); }',
+    '  return result;',
+    '};',
+    'const land = async adopt => { try { return await runLandingBatch({ landingPorts, checkAtCommit, candidateWorkerFile, root, board, config: loadConfig(root), owner: "coordinator", adopt, write, say: line => lines.push(line), checkLease: async () => {}, checkLeaseNow: () => {} }); } catch (failure) { errors.push(failure.code ?? String(failure)); return null; } };',
+    'try {',
+    'const base = head();',
+    'await land(false);',
+    'const crashed = store.landingBatches(board).at(-1);',
+    'const atCrash = { state: crashed.state, main: head(), ...item() };',
+    'store.holdItem(board, id, { agentId: "coordinator", reason: "hold the crashed trunk batch" });',
+    'await land(true);',
+    'const retired = store.landingBatches(board).find(row => row.id === crashed.id);',
+    'const afterAdopt = { state: retired.state, blocked: retired.blocked, main: head(), batches: store.landingBatches(board).length, ...item() };',
+    'store.releaseItemHold(board, id, { agentId: "coordinator" });',
+    'await land(false);',
+    'const afterOff = { main: head(), ...item() };',
+    'console.log("RESULT " + JSON.stringify({ base, errors, lines, atCrash, afterAdopt, afterOff }));',
+    '} finally { store.closeBoard(board); }',
+  ].join('\n');
+  const run = runFixtureChild(process.execPath, ['--input-type=module', '-e', source, box.repo, String(entry.item)],
+    { cwd: box.repo, env: { ...box.env }, encoding: 'utf8' });
+  assert.equal(run.status, 0, `${run.failure ?? run.stderr}\n${run.stdout}`);
+  return JSON.parse(run.stdout.split('\n').find(line => line.startsWith('RESULT ')).slice('RESULT '.length));
+}
+
+test('a trunk batch that crashed before its receipts is retired when its item is held: main stays, the accept stays, and hold --off lands it [C7]', () => {
+  const { box, entry } = acceptedProject({ separate: true });
+  const result = trunkCrashRuns(box, entry);
+  const trace = JSON.stringify(result);
+  assert.equal(result.atCrash.state, 'trunk', `the crash leaves the batch saved as trunk: ${trace}`);
+  assert.equal(result.atCrash.main, result.base, 'the crash comes before the trunk move');
+  assert.deepEqual([result.atCrash.status, result.atCrash.merged], ['verified', null], 'and before the merged receipts');
+  assert.equal(result.afterAdopt.state, 'blocked', `adoption retires the held trunk batch: ${trace}`);
+  assert.deepEqual(result.afterAdopt.blocked.filter(row => row.id === entry.item).map(row => row.code), ['ITEM_HELD']);
+  assert.equal(result.afterAdopt.main, result.base, 'main does not move for a held item');
+  assert.deepEqual([result.afterAdopt.status, result.afterAdopt.merged], ['verified', null], 'the held item keeps its accept and stays unmerged');
+  assert.equal(result.afterAdopt.batches, 1, 'no fresh batch takes the held item');
+  assert.notEqual(result.afterOff.main, result.base, `hold --off lands it on the local trunk: ${trace}`);
+  assert.equal(result.afterOff.merged, result.afterOff.main, 'with its merged receipt at the new trunk head');
+});

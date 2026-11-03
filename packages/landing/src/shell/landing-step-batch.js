@@ -176,12 +176,24 @@ async function dropLandedElsewhere(root, board, write, say, batch) {
 }
 
 /**
+ * Whether a batch already reached its trunk: pushed, or a 'trunk' batch whose items carry merged receipts or whose
+ * tip main already names. Why: 'trunk' is saved before its receipts and the trunk move, so a crash there leaves the
+ * items verified and unmerged, and treating it as published let a held item land on adoption (#2648).
+ */
+function batchPublished(root, board, batch) {
+  if (batch.state === 'pushed') return true;
+  if (batch.state !== 'trunk') return false;
+  const entries = batch.items ?? batch.candidates ?? [];
+  return mainCheckout(root)?.commit === batch.tip || (entries.length > 0 && entries.every(entry => store.getItem(board, entry.id)?.item_merged_commit));
+}
+
+/**
  * Retire an unpublished batch that carries a held item or one whose RUNNER_SOURCE retries are used up, keeping why.
  * Why: adopting resumes the batch's recorded items without selection, so a hold or the retry limit never applied to
  * it, and every wake retried the same refused batch (#2648).
  */
-async function retireHeldBatch(board, write, say, batch) {
-  if (['pushed', 'trunk'].includes(batch.state)) return false;
+async function retireHeldBatch(root, board, write, say, batch) {
+  if (batchPublished(root, board, batch)) return false;
   const held = heldBatchEntries(store.landingBatches(board), batch, id => store.getItem(board, id));
   if (!held.length) return false;
   await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', blocked: [...(batch.blocked ?? []), ...held] }, revision: batch.revision }]);
@@ -267,7 +279,7 @@ export async function runLandingBatch({ root, board, config, write, say, owner, 
     await write('recordLandingBatch', [{ agentId: 'coordinator', batch: { ...batch, state: 'blocked', refusal: { code: 'LAND_WORKTREE', message: 'the recorded landing worktree is missing or unfinished', at: board.clock.now().toISOString() } }, revision: batch.revision }]);
     batch = null;
   }
-  if (batch && await retireHeldBatch(board, write, say, batch)) batch = null;
+  if (batch && await retireHeldBatch(root, board, write, say, batch)) batch = null;
   if (!batch && !selected.ready.length) return emptyLanding(selected, say);
   if (!batch) {
     if (!landsOnTrunk(config)) requirePushTarget(root, trunk.branch);

@@ -61,6 +61,8 @@ function publicationInputs(state, batch) {
   for (const entry of batch.items) {
     const item = store.getItem(state.board, entry.id);
     requireOutsideOwner(state.board, item);
+    // A hold placed after the batch merged still stops it here, before any receipt or trunk move [C7].
+    if (item.item_hold_at) throw new Refused('ITEM_HELD', `item #${entry.id} is held by coordinator: ${item.item_hold_reason ?? 'held'}; lift it with pullboard hold ${entry.id} --off, then land again`);
     if (item.item_status !== 'verified' || item.item_commit !== entry.commit
       || store.checkedLandingCommit(state.board, item) !== (entry.reviewedCommit ?? entry.commit)) {
       throw new Refused('LAND_ITEM_MOVED', `item #${entry.id} changed its checked composition; rebuild the landing before publishing`);
