@@ -63,12 +63,18 @@ function gateRepo(box, gate) {
   const repo = join(box.dir, 'gate-repo');
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
-  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate }));
+  const initialized = box.run(repo, 'init');
+  assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+  mkdirSync(join(repo, 'work'));
+  writeFileSync(join(repo, 'work/owner.txt'), 'coordinator lane fixture\n');
+  writeFileSync(join(repo, 'pullboard.json'), JSON.stringify({ gate, spec: 'SPEC.md', verify: 'any', lanes: { coordinator: { owns: ['work/'], specs: ['G1'] } } }, null, 2));
   writeFileSync(join(repo, 'SPEC.md'), '# Demo\n\n## G · Goals\n- G1 [approved, must] It works. | gate: test\n');
   box.git(repo, 'add', '-A');
   box.git(repo, 'commit', '-q', '-m', 'chore: configure timing gate');
-  assert.equal(box.run(repo, 'add', 'coordinator', 'Work').status, 0);
-  assert.equal(box.run(repo, 'claim', '1').status, 0);
+  const added = box.run(repo, 'add', 'coordinator', 'Work');
+  assert.equal(added.status, 0, added.stderr || added.stdout);
+  const claimed = box.run(repo, 'claim', '1');
+  assert.equal(claimed.status, 0, claimed.stderr || claimed.stdout);
   return { repo, ...box };
 }
 
@@ -224,6 +230,11 @@ test('a timing profile records two runner invocations and the real gate-slot wai
 
 test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,V10]', () => {
   const box = project();
+  const projectConfig = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ ...projectConfig, verify: { policy: 'any', unrelatedTrunkMoves: false } }, null, 2) + '\n');
+  box.git(box.repo, 'add', 'pullboard.json');
+  box.git(box.repo, 'commit', '-q', '-m', 'test: preserve unaffected profile review');
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const runner = `'${RUNNER.replaceAll("'", "'\\''")}'`;
   const command = `node ${runner} .timed/fast.test.js .timed/slow.test.js`;
   mkdirSync(join(box.repo, '.timed'));
@@ -251,12 +262,25 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.ok(directProfile.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
   assert.ok(existsSync(directPath.slice(0, -'.profile.json'.length) + '.log'));
 
-  assert.equal(box.run(box.web, 'submit', '1').status, 0);
+  const submitted = box.run(box.web, 'submit', '1', '--json');
+  assert.equal(submitted.status, 0, submitted.stderr || submitted.stdout);
+  const submission = JSON.parse(submitted.stdout);
+  assert.ok(submission.gate.check.profilePath && submission.gate.proofProfilePath, 'native submit retains both authentic phase profiles');
+  for (const profilePath of [submission.gate.check.profilePath, submission.gate.proofProfilePath, submission.gate.profilePath]) {
+    assert.ok(profilePath && existsSync(profilePath), `submit profile is retained: ${profilePath}`);
+    assert.equal(statSync(profilePath).mode & 0o777, 0o600);
+    assert.ok(existsSync(profilePath.slice(0, -'.profile.json'.length)), 'the corresponding sanitized raw log remains beside its profile');
+  }
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs/review-context.md'), 'unrelated main context\n');
+  box.git(box.repo, 'add', 'docs/review-context.md');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance unrelated review context');
   const review = join(box.dir, 'timing-profile-review');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', review, commit);
   assert.match(box.run(review, 'join', 'api').stdout, /joined as api/);
   const accepted = box.run(review, 'verify', '1', 'accept', '--note', 'timings were retained');
-  assert.equal(accepted.status, 0, accepted.stderr);
+  assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
+  assert.match(accepted.stdout, /submit proof not reused: composed main changed/u, 'main advancement creates a new accepted composition and executes its check');
   assert.match(accepted.stdout, /timing \(node\): wall/);
   const verifyPath = /timing profile: ([^\n]+)/.exec(accepted.stdout)?.[1];
   assert.ok(verifyPath, accepted.stdout);
@@ -265,8 +289,13 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
   assert.equal(statSync(verifyPath.slice(0, -'.profile.json'.length)).mode & 0o777, 0o600);
   const verified = JSON.parse(readFileSync(verifyPath, 'utf8'));
   assert.ok(verified.waitMs >= 0 && verified.wallMs > 0);
+  assert.ok(verified.executionSource?.commit, 'the fresh ACCEPT profile names its actual composed source');
+  assert.notEqual(verified.executionSource.commit, commit, 'unrelated main advancement produced a new composed commit');
+  assert.equal(box.git(review, 'show', `${verified.executionSource.commit}:docs/review-context.md`).trim(), 'unrelated main context',
+    'the fresh verification profile was written by the composition that includes the moved main file');
   assert.deepEqual(verified.files, []);
   assert.ok(verified.tests.find(test => test.name === 'slow timing profile check').durationMs >= 30); // budget: declared 40ms slow-test sleep must appear in its timing profile.
+  box.git(box.web, 'merge', '-q', '--ff-only', 'main');
 
   assert.equal(box.run(box.repo, 'add', 'web', 'Shell-only check', '--specs', 'G1', '--criterion', 'shell-only checks still save timings', '--check', 'true').status, 0);
   assert.equal(box.run(box.web, 'claim', '2').status, 0);
@@ -285,12 +314,31 @@ test('item-check and ACCEPT timing profiles sit beside their sanitized logs [C7,
 
   writeFileSync(join(box.web, 'web/shell-only.txt'), 'shell only');
   const shellCommit = featureCommit(box, box.web);
-  assert.equal(box.run(box.web, 'submit', '2').status, 0);
-
+  const shellSubmitted = box.run(box.web, 'submit', '2', '--json');
+  assert.equal(shellSubmitted.status, 0, shellSubmitted.stderr || shellSubmitted.stdout);
+  const shellSubmission = JSON.parse(shellSubmitted.stdout);
+  assert.ok(shellSubmission.gate.check.profilePath && shellSubmission.gate.proofProfilePath, 'shell submit retains the two authentic execution profiles');
+  for (const profilePath of [shellSubmission.gate.check.profilePath, shellSubmission.gate.proofProfilePath, shellSubmission.gate.profilePath]) {
+    assert.ok(profilePath && existsSync(profilePath), `submit profile is retained: ${profilePath}`);
+    assert.equal(statSync(profilePath).mode & 0o777, 0o600);
+    assert.ok(existsSync(profilePath.slice(0, -'.profile.json'.length)));
+  }
+  const shellReviewer = join(box.dir, 'shell-timing-profile-review');
+  box.git(box.repo, 'worktree', 'add', '-q', '--detach', shellReviewer, shellCommit);
+  assert.match(box.run(shellReviewer, 'join', 'api').stdout, /joined as api/);
+  const shellAccepted = box.run(shellReviewer, 'verify', '2', 'accept', '--note', 'reuse the authentic submit profile');
+  assert.equal(shellAccepted.status, 0, shellAccepted.stderr || shellAccepted.stdout);
+  assert.match(shellAccepted.stdout, /reused submit proof/u);
+  assert.doesNotMatch(shellAccepted.stdout, /timing profile:/u, 'reuse does not invent a verifier profile for work it did not run');
   const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'));
   let item;
-  try { item = store.getItem(board, 2); }
-  finally { store.closeBoard(board); }
+  try {
+    item = store.getItem(board, 2);
+    const nativeProofIds = new Set(store.proofReceipts(board, 2).map(receipt => receipt.id));
+    const reusedIds = /reused submit proof ([a-f0-9-]{36}(?:, [a-f0-9-]{36})*)/u.exec(shellAccepted.stdout)?.[1].split(', ') ?? [];
+    assert.ok(reusedIds.length > 0, 'the exact-source ACCEPT cites native submit proof ids');
+    for (const receiptId of reusedIds) assert.ok(nativeProofIds.has(receiptId), `reused verdict cites actual board receipt ${receiptId}`);
+  } finally { store.closeBoard(board); }
   const frozen = JSON.parse(item.item_frozen);
   const shellVerify = checkAtCommit(box.repo, { ...item, item_commit: shellCommit, item_frozen: JSON.stringify({ ...frozen, check: 'true' }) }, { waitMs: 17 });
   assert.equal(shellVerify.state, 'pass');
