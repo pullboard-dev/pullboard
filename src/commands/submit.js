@@ -5,6 +5,7 @@ import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
 import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../packages/merge/index.js';
+import { requireNonEmptySubmit } from '../empty-submit.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../packages/state/index.js';
@@ -226,7 +227,7 @@ export function boundedMainRedShout(id, failures, main) {
  * Which red check cases open Main red repairs' own checks fail on this main. A repair whose recorded baseline names no
  * failing case, or was taken on another main, is re-taken on this main first (#2594).
  */
-function mainRedCheckCases(root, failures, items, id, main, retaken) {
+export function mainRedCheckCases(root, failures, items, id, main, retaken) {
   const files = [...new Set(failures.map(row => row.file))];
   for (const item of mainRedBaselinesToRetake(items, files, id, main)) {
     if (!retaken.has(item.item_id)) retaken.set(item.item_id, retakeCheckBaseline(root, item.item_check, { main }));
@@ -320,6 +321,7 @@ export async function submitHere(ctx, id, infra) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
+  requireNonEmptySubmit(root, id, commit, acceptedMain.commit);
   let trunk;
   let regenerated = null;
   try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
