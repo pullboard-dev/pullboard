@@ -9,7 +9,7 @@ import { serveApi } from '../packages/api/index.js';
 import { refusalDocument } from '../src/next-step-words.js';
 import { main } from './native-cli-fixture.js';
 import { relayPresentation } from '../packages/pages/index.js';
-import { presentationState } from '../relay/browser-model.js';
+import { presentationState } from '../apps/relay/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { apiFetch } from './api-fixture.js';
 import { paths, valueDifferences } from './relay-study-fixture.js';
