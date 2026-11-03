@@ -93,6 +93,11 @@ export async function hookCommand(io, { first, second }) {
   let problems = [];
   if (first === 'pre-commit' || first === 'pre-merge-commit') {
     applyFixers(info.root, ctx.config.fix).forEach((note) => io.err(`pullboard pre-commit: ${note}`));
+    const staticProblems = await stagedStaticProblems(info.root, ctx.config);
+    if (staticProblems.length) {
+      io.err(`pullboard ${first}: blocked\n${staticProblems.map(problem => `  - ${io.guidance(problem)}`).join('\n')}\n${FIX_NOTE}`);
+      return 1;
+    }
     const agent = info.isMain ? null : hookRead(ctx, (board) => (store.agentAt(board, info.root) ?? itemFolderIdentity(board, info.root)?.agent)
       ?? (first === 'pre-merge-commit' ? submitHandoffHookActor(ctx, board) : null));
     const landing = hookRead(ctx, (board) => store.landingBatches(board).some((batch) => landingBatchOwnsRoot(batch, info.root)));
@@ -108,7 +113,6 @@ export async function hookCommand(io, { first, second }) {
     const accepted = tryGit(info.root, ['rev-parse', '--verify', trunkRef(info.root)]).stdout.trim() || 'HEAD';
     const shimImports = options => stagedShimImportProblems({ ...options, accepted, parseImports: importsIn, criterion });
     problems = preCommitProblems({ shimImports, approvedRowPorts, root: info.root, isMain: info.isMain || landing, config: ctx.config, agent, boardFile: ctx.file, preMergeHook: first === 'pre-merge-commit', onNotice: (message) => io.err(`pullboard pre-commit: warning: ${message}`) });
-    if (!problems.length) problems = await stagedStaticProblems(info.root, ctx.config);
   } else if (first === 'commit-msg') {
     const originalMessage = readFileSync(second ?? '', 'utf8');
     const metadataContext = hookRead(ctx, board => {
