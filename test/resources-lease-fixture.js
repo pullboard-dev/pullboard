@@ -284,9 +284,12 @@ function admittedCompletionReplicas(box, id, snapshot) {
         tree: scenario === 'different tree' ? '2'.repeat(receipt.tree.length) : receipt.tree,
         policyCommit: box.git(box.repo, 'rev-parse', 'main'),
         submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'private replay of actual native proof' } }]);
-      if (scenario === 'admission engine') move.engine = SUBMIT_ADMISSION_ENGINE;
-      // Historical means before admission support, regardless of later engine allocations.
-      if (scenario === 'historical engine') move.engine = SUBMIT_ADMISSION_ENGINE - 1;
+      if (['admission engine', 'historical engine'].includes(scenario)) {
+        // These old writers predate clause-inspection fields; retain their actual wire shape.
+        delete move.args[1].clausePolicyCommit;
+        delete move.args[1].inspectClauses;
+        move.engine = scenario === 'admission engine' ? SUBMIT_ADMISSION_ENGINE : SUBMIT_ADMISSION_ENGINE - 1;
+      }
       const result = applyEngineMove(peer, move, { sequence: appliedSequence(peer) + 1, at: clock.now().toISOString() });
       assert.equal(result.error?.code, ['same admission', 'admission engine'].includes(scenario) ? undefined : 'AGENT_GRANT_EXPIRED', scenario);
     } finally { store.closeBoard(peer); }
