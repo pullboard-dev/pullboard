@@ -74,7 +74,7 @@ function project(disableRefresh) {
     "import assert from 'node:assert/strict';",
     "import { test } from 'node:test';",
     "import { existsSync } from 'node:fs';",
-    "import { generatedDocDrift } from '../src/generated-docs.js';",
+    "import { generatedDocDrift } from '../apps/cli/index.js';",
     "import { openBoard } from '../src/native-board.js';",
     `test('merged shared documentation is current [B3,C7,V4]', () => { if (existsSync(${JSON.stringify(armed)})) assert.deepEqual(generatedDocDrift(process.cwd(), undefined, { openBoard }), [], 'stale generated files: ' + generatedDocDrift(process.cwd(), undefined, { openBoard }).join(', ')); });`,
   ].join('\n') + '\n');

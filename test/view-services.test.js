@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { runFixtureChild } from './fixture-child.js';
 import { main } from './native-cli-fixture.js';
-import { cockpitPage } from '../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index.js';
 import { exportView } from '../src/serve.js';
 import { serveView, projectState as unprovidedProjectState } from '../src/serve.js';
 import { cockpitPage as unprovidedPage } from '../apps/cli/index.js';

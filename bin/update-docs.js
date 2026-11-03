@@ -2,9 +2,9 @@
 /** Regenerate committed declaration-derived documentation, or check it without writing [C7]. */
 import { fileURLToPath } from 'node:url';
 const { openBoard } = await import('../src/native-board.js');
-import { generatedDocDrift } from '../src/generated-docs.js';
-import { generatedDocs } from '../src/generated-docs.js';
-import { writeGeneratedDocs } from '../src/generated-docs.js';
+import { generatedDocDrift } from '../apps/cli/index.js';
+import { generatedDocs } from '../apps/cli/index.js';
+import { writeGeneratedDocs } from '../apps/cli/index.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2);

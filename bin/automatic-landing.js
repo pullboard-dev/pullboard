@@ -3,7 +3,7 @@
 import * as nativeBoard from '../src/native-board.js';
 import * as outbox from '../packages/outbox/index.js';
 import { context } from '../apps/cli/index.js';
-import { landAfterAcceptance } from '../src/commands/land.js';
+import { landAfterAcceptance } from '../apps/cli/index.js';
 import { resumeAutomaticLanding } from '../packages/landing/index.js';
 import { AGENT_SESSION_IDS } from '../packages/kernel/index.js';
 import { AGENT_SHELL_MARKERS } from '../packages/kernel/index.js';

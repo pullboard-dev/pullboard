@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cockpitPage } from '../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { MACHINE } from '../packages/state/index.js';
 import { Refused } from '../packages/kernel/index.js';

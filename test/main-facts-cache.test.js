@@ -20,7 +20,7 @@ import { parseSpec } from '../packages/spec/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { claimFreezer } from '../src/cli/claim.js';
+import { cliClaim$claimFreezer as claimFreezer } from '../apps/cli/index.js';
 import { loadConfig } from '../packages/config/index.js';
 
 const e2e = createE2eHelpers();

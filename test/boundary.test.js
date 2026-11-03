@@ -5,7 +5,7 @@
  * the tools that run models, however useful they are. Agent tools are another matter: helping
  * Claude Code, Codex and others read the repo's rules (AGENTS.md, skills) is the core's job.
  */
-import { cockpitPage } from '../src/cli/cockpit-renderer.js';
+import { cliCockpitRenderer$cockpitPage as cockpitPage } from '../apps/cli/index.js';
 import assert from 'node:assert/strict';
 import { workingSourceInventory } from '../bin/checks/scan.js';
 import { spawnSync } from 'node:child_process';

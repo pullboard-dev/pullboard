@@ -17,7 +17,7 @@ import {
 import { startRunnerPhases } from '../packages/gate/index.js';
 import { runnerPhaseFields } from '../packages/gate/index.js';
 import { runnerPhaseLine } from '../packages/gate/index.js';
-import { doctrineExecutionPhases } from '../src/commands/submit.js';
+import { doctrineExecutionPhases } from '../apps/cli/index.js';
 import { runnerUtilization } from '../src/runner-utilization.js';
 import {
   receiptLine,

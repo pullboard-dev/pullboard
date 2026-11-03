@@ -11,7 +11,7 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import * as store from '../src/board.js';
 import { openBoard } from '../src/native-board.js';
-import { claimFreezer } from '../src/cli/claim.js';
+import { cliClaim$claimFreezer as claimFreezer } from '../apps/cli/index.js';
 import { context } from '../apps/cli/index.js';
 import { writeBoardCommand } from '../src/board-command-write.js';
 import { prepareCheckBaseline } from '../packages/gate/index.js';

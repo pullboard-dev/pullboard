@@ -12,7 +12,7 @@ import { declaredProseCommands } from '../apps/cli/index.js';
 import { doctrineReport } from '../packages/doctrine/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { HELP } from '../apps/cli/index.js';
-import { PULLBOARD_COMMANDS } from '../src/cli/cockpit-renderer.js';
+import { PULLBOARD_COMMANDS } from '../apps/cli/index.js';
 import { viewPureGate } from './checks/view-pure.js';
 import { testWaitReport } from './checks/test-waits.js';
 import { testWaitSites } from './checks/test-waits.js';
