@@ -272,7 +272,8 @@ function pathToken(token, path, argument) {
   const fileUrl = token.startsWith('file:');
   const prefix = token.slice(0, -path.length).replace(/^file:/u, '');
   if (prefix && !prefix.endsWith('/')) return false;
-  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || prefix.startsWith('/') || /^\$\{[^}]*\}\//u.test(prefix) : fileUrl || argument;
+  // A lone leading slash is a root-relative URL a server answers, like /relay/x.js; an absolute file path has a root before it.
+  return prefix ? /^(?:\.{1,2}\/)+$/u.test(prefix) || (prefix.startsWith('/') && (prefix !== '/' || fileUrl)) || /^\$\{[^}]*\}\//u.test(prefix) : fileUrl || argument;
 }
 
 /**
