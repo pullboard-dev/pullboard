@@ -154,10 +154,7 @@
   ["src/rework-family-routing.js","packages/store/src/core/rework-family-routing.js","rule"]
  ],
  "reexports": [
-  "src/board-read-open.js",
-  "src/board.js",
-  "src/exchange.js",
-  "src/history.js"
+  "src/board.js"
  ],
  "imports": [
   {"cell":"kernel","imports":33,"before":true},
