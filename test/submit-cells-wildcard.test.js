@@ -32,7 +32,7 @@ function acceptedLoader(t, pattern = '**') {
   writeCellLintBaseline(box.root, cellLintBaseline(cellLintReport(box.root, parsers)), { initialize: true });
   git(box.root, 'add', '-A');
   git(box.root, 'commit', '-q', '-m', 'accepted actual debt');
-  return { ...box, source, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_frozen: JSON.stringify({ criterion: 'Preserve real boundaries.' }) } };
+  return { ...box, source, main: git(box.root, 'rev-parse', 'HEAD').trim(), item: { item_title: 'Cells move 1/1: fixture moves behind shims', item_frozen: JSON.stringify({ criterion: 'Preserve real boundaries.' }) } };
 }
 
 /** Place one actual later-cell module through the canonical writer, retaining all accepted rows. */

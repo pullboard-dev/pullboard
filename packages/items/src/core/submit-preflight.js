@@ -8,8 +8,11 @@ import { tryGit } from "../../../git/index.js";
 import { inPlanScope } from "../../../codemap/index.js";
 import { Refused } from "../../../kernel/index.js";
 
-/** Bind placement to committed source, never an unstaged plan or the process working directory. */
-export function requirePlannedSource(root, base, commit) {
+/**
+ * Bind placement to committed source, never an unstaged plan or the process working directory. With deferUnplaced
+ * a missing placement returns to the cells check, which refuses it only on Cells reorg work (#2473).
+ */
+export function requirePlannedSource(root, base, commit, { deferUnplaced = false } = {}) {
   const index = 'bin/cells-plan.json';
   const accepted = tryGit(root, ['ls-tree', '-z', base, '--', index]);
   if (accepted.status !== 0) throw new Refused('CELLS_PLAN_UNPLACED', 'the accepted cells-plan presence could not be read from Git');
@@ -56,6 +59,7 @@ export function requirePlannedSource(root, base, commit) {
     if (!/^100(?:644|755) blob /u.test(row)) throw new Refused('CELLS_PLAN_UNPLACED', `restore a regular committed source path before placement: ${file}`);
     if (!known.has(file)) missing.push(file);
   }
+  if (missing.length && deferUnplaced) return { unplaced: missing };
   if (missing.length) throw new Refused('CELLS_PLAN_UNPLACED', `source paths have no cells-plan entry: ${missing.join(', ')}; place each with node bin/cells-plan.js --place <path> --cell <cell> (or --stay), then commit the source and plan`);
 }
 

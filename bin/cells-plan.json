@@ -1342,6 +1342,10 @@
     {
       "path": "bin/current-cli.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/cells-reorg.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
