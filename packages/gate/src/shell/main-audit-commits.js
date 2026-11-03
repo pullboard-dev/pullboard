@@ -33,7 +33,7 @@ function auditedBase(git, root, board, directory, activation, tip) {
  *
  * Why: hand landings and hotfixes leave no landing batch, so the commits themselves name what landed.
  */
-function itemsBetween(git, root, board, store, base, tip) {
+export function itemsBetween(git, root, board, store, base, tip) {
   const log = git(root, ['log', '--format=%B%x00', `${base}..${tip}`]);
   const ids = [...new Set([...log.matchAll(/^Pullboard-Item: #(\d+)\s*$/gmu)].map(match => Number(match[1])))];
   return ids.flatMap(id => {
