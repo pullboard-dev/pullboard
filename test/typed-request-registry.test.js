@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MOVE_REGISTRY, minimumMoveEngine } from '../packages/moves/index.js';
-import { nativeBoardPorts } from '../src/native-board.js';
+import { nativeBoardPorts } from '../apps/lib/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { TYPED_REQUESTS_ENGINE } from '../src/typed-requests-engine.js';
 export const TYPED_REQUEST_OPERATIONS=Object.freeze(['fileTypedRequest','answerTypedRequests']);

@@ -29,7 +29,7 @@ export function captureCommandInProcess(command, argv, { cwd = process.cwd(), en
     const stdin = Readable.from([input]);
     try {
       if (environment !== undefined) restoreEnvironment(environment);
-      const status = await command(args, { cwd, stdin, hookWorker: HOOK_WORKER, launchRelaySender, loadNativeBoard: () => import('../src/native-board.js'),
+      const status = await command(args, { cwd, stdin, hookWorker: HOOK_WORKER, launchRelaySender, loadNativeBoard: () => import('../apps/lib/index.js'),
         stdout: { isTTY: false, write(text) { stdout += String(text); return true; } },
         stderr: { isTTY: false, write(text) { stderr += String(text); return true; } },
         ...(personChannel === undefined ? {} : { personChannel }) });

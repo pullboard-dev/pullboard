@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { unseal } from '../packages/kernel/src/core/seal.js';
 import { syncRelay } from '../packages/link/index.js';
 import * as store from '../src/board.js';
-import { openBoardForRead } from '../src/native-board.js';
+import { openBoardForRead } from '../apps/lib/index.js';
 
 /** Read local events directly so inspection itself cannot drain the durable retry queue. */
 export function localEvents(file) {
