@@ -30,7 +30,7 @@ function fixture(t, deterministic = false, companion = false) {
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   config.lanes = { core: { owns: ['src/', 'test/'], specs: [] } };
   config.flakes = { rerun: true, quarantine: true };
-  config.gate = 'node --test test/alternating.test.mjs';
+  config.gate = 'node --test --test-reporter=tap test/alternating.test.mjs';
   config.affectedTests = 'node --test';
   delete config.submitGate;
   delete config.submitDeferAbove;
