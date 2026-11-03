@@ -25,7 +25,7 @@ import { heartbeatSeat } from '../packages/store/index.js';
 import { recurringJobs } from '../src/board-recurring-jobs.js';
 import { scanHealthSentinel } from '../packages/sentinels/index.js';
 import { loadConfig } from '../packages/config/index.js';
-import { gateRuns } from '../packages/gate/index.js';
+import { gateRuns, runGate } from '../packages/gate/index.js';
 import { JSON_SHAPES } from '../packages/config/index.js';
 import { runFixtureChild, runFixtureGit } from './fixture-child.js';
 
@@ -591,7 +591,6 @@ test('a positive control inherits the gate slot it runs under [C7,D1]', async (t
   // The control asks whether it inherited the gate's admission; a child that does not is refused and reads red.
   const probe = `node --input-type=module -e "const { inheritedGateSlot } = await import('${resources}'); process.exit(inheritedGateSlot({ root: process.cwd() }) ? 0 : 1)"`;
   commitPolicy(box, { gate: 'true', positiveControl: probe });
-  const { runGate } = await import('../packages/gate/index.js');
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   const gate = await runGate(box.root, config, { executionServices, trustStamp: false });
   assert.equal(gate.isGreen, true, 'the gate itself is green');

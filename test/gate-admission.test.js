@@ -17,9 +17,7 @@ import {
   safeFixtureDiagnostic,
   startFixtureChild,
 } from './fixture-child.js';
-import { TEST_FILE_CORES_ENV } from '../packages/gate/index.js';
-import { TEST_FILE_POOL_ENV } from '../packages/gate/index.js';
-import { occupiedPlaces } from '../packages/gate/index.js';
+import { TEST_FILE_CORES_ENV, TEST_FILE_POOL_ENV, occupiedPlaces } from '../packages/gate/index.js';
 import { GATE_SLOT_HELD_ENV, GATE_SLOT_POOL_ENV, GATE_SLOT_TOKEN_ENV, BROWSER_SLOT_HELD_ENV } from '../packages/resources/index.js';
 
 const runner = fileURLToPath(new URL('../bin/run-tests.js', import.meta.url));
@@ -33,7 +31,7 @@ test('a shell check is admitted by the test files it runs [C7,Q1,Q3]', async (t)
   writeFileSync(join(root, 'bin/run-tests.js'), "throw new Error('classification must not execute the runner');\n");
   writeFileSync(join(root, 'test/core.test.js'), "import { test } from 'node:test';\nthrow new Error('classification must not execute tests');\n");
   writeFileSync(join(root, 'test/browser.test.js'), browserFixtureSource);
-  const admission = new URL('../packages/gate/index.js', import.meta.url).href;
+  const admission = new URL('../src/browser-admission.js', import.meta.url).href;
   const gate = new URL('../packages/gate/index.js', import.meta.url).href;
   const commands = [
     ['browser', 'out=$(node bin/run-tests.js test/browser.test.js 2>&1); rc=$?; printf "%s\\n" "$out"; [ "$rc" -eq 0 ]', true],
@@ -96,7 +94,7 @@ test('shell admission preserves opaque suffixes and the existing short-slot boun
     [capture('$FILES'), true], [capture('test/core.test.js --unknown'), true],
     [capture('test/core.test.js; node launch-browser.js'), true],
   ];
-  const admission = new URL('../packages/gate/index.js', import.meta.url).href;
+  const admission = new URL('../src/browser-admission.js', import.meta.url).href;
   const source = `import { checkNeedsBrowser, explicitCheckFiles } from ${JSON.stringify(admission)};
 const decisions = [];
 for (const [command] of ${JSON.stringify(commands)}) decisions.push(await checkNeedsBrowser(process.cwd(), command));
@@ -243,8 +241,8 @@ test('busy parent', async () => {
 });
 
 test('an async parent lends its token through awaitNestedRun [C7]', async (t) => {
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
-  const api = await import('../packages/gate/index.js');
+  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
+  const api = await import('../src/test-file-pool.js');
   assert.equal(typeof api.awaitNestedRun, 'function', 'an explicit yielding-wait helper is available');
   const { root, env, log } = fixture(t, 1);
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
@@ -305,7 +303,7 @@ test('parent without the explicit wait', { timeout: 10_000 }, async (t) => {
 
 test('an explicit async loan refuses duplicate and concurrent waits and preserves child failures [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), timedFile('inner.test.js', 0));
   writeFileSync(join(root, 'parent.test.js'), `import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -350,7 +348,7 @@ test('explicit wait contracts', { timeout: 10_000 }, async (t) => {
 
 test('async offers preserve spawn argument overloads and Node validation [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
   const probe = join(root, 'options.sh');
   const marker = join(root, 'options-output');
   writeFileSync(probe, String.raw`#!/bin/sh
@@ -439,7 +437,7 @@ test('offered spawn matches independently loaded Node', async () => {
 
 test('an async loan whose cleanup fails exits without resuming its parent [C7]', async (t) => {
   const { root, env } = fixture(t, 1);
-  const poolModule = new URL('../packages/gate/index.js', import.meta.url).href;
+  const poolModule = new URL('../src/test-file-pool.js', import.meta.url).href;
   writeFileSync(join(root, 'inner.test.js'), `import { existsSync, writeFileSync } from 'node:fs';
 import { test } from 'node:test';
 test('borrowed child', async () => {
