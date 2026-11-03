@@ -39,12 +39,14 @@ function diagnostics(output, root) {
 }
 
 /** Extract the first safe diagnostic line without changing the failure signature. */
-function firstError(lines) {
+function firstError(lines, root) {
   const index = lines.findIndex(line => line.startsWith('error:'));
   if (index < 0) return null;
   let value = lines[index].slice('error:'.length).trim();
   if (!value || /^[|>][-+]?$/u.test(value)) value = lines.slice(index + 1).find(line => line.trim())?.trim() ?? '';
-  value = value.replace(/^['"]|['"]$/gu, '').slice(0, 1024);
+  value = value.replace(/^['"]|['"]$/gu, '');
+  // Normalize before truncating so varying checkout path lengths cannot change the retained prefix.
+  value = normalizedFailureDiagnostics([`error: ${value}`], root)[0].slice('error: '.length).slice(0, 1024);
   if (!value) return null;
   return secretsIn([{ path: 'main failure output', line: 1, text: value }]).length ? '[redacted error]' : value;
 }
@@ -72,8 +74,10 @@ export function failureSignatures(run, root, { raw = false } = {}) {
     .filter(row => !run.blockingVerdict || !row.lines.some(line => /^failureType:\s*['"]?subtestsFailed['"]?\s*$/u.test(line)));
   if (details.length !== failures.length) return null;
   const signed = failures.map((failure, index) => ({ ...failure, signature: details[index].name === failure.name ? details[index].signature : null }))
-    .every(row => row.file && row.signature) ? failures.map((failure, index) => ({ ...failure, signature: details[index].signature,
-      ...(firstError(details[index].lines) ? { firstError: firstError(details[index].lines) } : {}) })) : null;
+    .every(row => row.file && row.signature) ? failures.map((failure, index) => {
+      const error = firstError(details[index].lines, executionRoot);
+      return { ...failure, signature: details[index].signature, ...(error ? { firstError: error } : {}) };
+    }) : null;
   return signed ? raw ? signed : blockingFailures(run, signed) : null;
 }
 

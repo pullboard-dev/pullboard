@@ -1,6 +1,6 @@
 /** @pullboard-test-gui */
 /** Real private CLI restart and upgrade presentation journey, registered by the Items and geometry checks [N26]. */
-import { copyPackageFiles } from '../../src/package-files.js';
+import { copyPackageFiles } from '../../packages/runners/index.js';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';

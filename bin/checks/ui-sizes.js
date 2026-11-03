@@ -6,7 +6,7 @@
  * font sizes, --space-* for padding, margin and gap, and --radius-* for corners. A size typed by hand
  * in px is a problem: a font size, a padding, margin or gap above 1px (a 1px hairline is a border
  * trick, not spacing), or a corner radius. Custom property declarations are where the scale is
- * defined, so they never count, and neither does a comment. Every .css file under src/ and relay/ is
+ * defined, so they never count, and neither does a comment. Every .css file under src/, apps/ and relay/ is
  * read; docs/demo/view.css is a generated copy and is not. One problem per size, at its line.
  */
 import { realpathSync } from 'node:fs';
@@ -39,7 +39,7 @@ function scaleOf(property) {
  */
 export function uiSizeProblems(root) {
   const problems = [];
-  for (const path of walk(root, /^(src|relay|apps\/relay)\/.*\.css$/u)) {
+  for (const path of walk(root, /^(src|relay|apps)\/.*\.css$/u)) {
     const source = readText(root, path);
     // Blank out comments, keeping their length, so offsets still map to lines.
     const code = source.replace(/\/\*[\s\S]*?\*\//gu, (comment) => comment.replace(/[^\n]/gu, ' '));
@@ -61,7 +61,7 @@ export function uiSizeProblems(root) {
 
 /** Count the same raw sizes per actual stylesheet, retaining files with no problems [N26]. */
 export function uiSizeCounts(root) {
-  const counts = Object.fromEntries(walk(root, /^(src|relay|apps\/relay)\/.*\.css$/u).map(path => [path, 0]));
+  const counts = Object.fromEntries(walk(root, /^(src|relay|apps)\/.*\.css$/u).map(path => [path, 0]));
   for (const problem of uiSizeProblems(root)) counts[problem.path] += 1;
   return counts;
 }

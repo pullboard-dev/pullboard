@@ -1398,6 +1398,19 @@
     {
       "path": "src/live-release-placement-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/hook-composed.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "commits"
+    },
+    {
+      "path": "src/pinned-claim-lapse-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/empty-submit.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [

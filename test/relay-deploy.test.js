@@ -687,7 +687,7 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
   for (const omitted of [
     'src/cockpit.js',
     'src/machine.js',
-    'src/view.css',
+    'apps/view/src/shell/view.css',
     'packages/kernel/src/core/seal.js',
     'apps/relay/src/shell/browser-client.js',
     'apps/relay/src/shell/browser-model.js',

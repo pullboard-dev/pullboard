@@ -34,7 +34,7 @@ export { nextWithReleaseCooldown, recentlyReleased } from './src/shell/next-rele
 export { exportBoard, semanticBoardDigest, isInitialBoard, importBoard, restoreRelaySnapshot } from './src/shell/exchange.js';
 export { gitOut, fileVersions, committedIds } from './src/shell/history.js';
 export { normalizeCheckBaseline, saveCheckBaseline } from './src/shell/item-check-baseline.js';
-export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds } from './src/core/known-main-reworks.js';
+export { ownersOf, linkKnownMainReworks, requireKnownMainReworks, unownedMainReds, ambiguousMainReds, splitAmbiguousMainReds, mainRedBaselinesToRetake, mainRedItemCases } from './src/core/known-main-reworks.js';
 export { BASELINE_RECEIPT, pullboardHome, relayMachineDirectory, relayKeyDirectory, relayLinkFile, gitSyncLinked, relayDeletedFile, relayFiles, relayStateExists, baselineReceiptDirectory, syncMayAct } from './src/shell/local-state.js';
 export { mainRedBuildRouting } from './src/shell/main-red-build-routing.js';
 export { memoryHeldRuns } from './src/shell/memory-held.js';
@@ -83,6 +83,7 @@ export { requireSubmitHandoffHookProof, submitHandoff, pendingSubmitHandoff, sub
 export { queuedReds, queuedRedLines, sayQueuedReds } from './src/shell/queued-red-notice.js';
 export { redReturnLeaseHolds } from './src/core/red-return-lease.js';
 export { submitGateInFlight } from './src/core/red-return-lease.js';
+export { itemPinned, PINNED_CLAIM_RELEASE_MS } from './src/core/pinned-claim.js';
 export { nativeRoutingActivity, nativeSeatRouteState, reworkFamilyRoute, sealReworkRoutingPolicy, isReturnedRework } from './src/core/rework-family-routing.js';
 export { HEALTH_SENTINEL_ENGINE } from "../../src/health-sentinel-engine.js";
 export { HEALTH_CAP_ENGINE } from "../../src/health-cap-engine.js";
@@ -94,3 +95,4 @@ export { rejectionReturnEnabled } from './src/core/rework-family-routing.js';
 export { createItemSlice } from "./src/shell/board-item-slice.js";
 
 export { nextIdleChanged } from './src/core/board-stats.js';
+export { checkpointBoard, BOARD_WAL_LIMIT_BYTES } from './src/shell/board-checkpoint.js';
