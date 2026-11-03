@@ -115,7 +115,7 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith(
   const child = spawn('/bin/sh', ['-c', remoteCommand], { cwd: worker, env,
     stdio: ['pipe', 'pipe', 'pipe'] });
   child.stdout.pipe(process.stdout);
-  // READY must stream; deliver the final receipt only after recording this completed transport.
+  // READY and ordinary results stream; only a held-return fault withholds its receipt.
   let pendingStderr = '', receipt = '';
   child.stderr.on('data', part => {
     pendingStderr += part.toString();
@@ -124,7 +124,7 @@ ${dropFirst ? `if (!registrationGuiProbe && !workerHealthProbe && host.endsWith(
       if (newline < 0) break;
       const line = pendingStderr.slice(0, newline + 1);
       pendingStderr = pendingStderr.slice(newline + 1);
-      if (line.startsWith('PULLBOARD_RUNNER_RESULT ')) receipt += line;
+      if (hold === 'return' && line.startsWith('PULLBOARD_RUNNER_RESULT ')) receipt += line;
       else process.stderr.write(line);
     }
   });
