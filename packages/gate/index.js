@@ -29,7 +29,7 @@ export { gateWaitReporter } from "./src/core/gate-wait.js";
 export { performanceCores, testConcurrency, landingShardCount, runShell, sandboxBlockedOperation, sandboxBlockedScanner, runStaticChecks, deferredSelectionNote, submitGateReport, timingDigest, gateReport } from "./src/shell/gate.js";
 export { testsNeedGui, projectNeedsGui, checkNeedsGui } from "./src/shell/gui-admission.js";
 export { guiSession } from "./src/shell/gui-session.js";
-export { nudgeMainAudit } from "./src/shell/main-audit-nudge.js";
+export { mainMovedSinceAudit, nudgeMainAudit } from "./src/shell/main-audit-nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/shell/main-audit-scheduler.js";
 export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/shell/main-audit-state.js";
 export { runMainAudits, mainAuditJobs } from "./src/shell/main-audit-worker.js";
