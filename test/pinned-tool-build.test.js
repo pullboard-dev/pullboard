@@ -2,7 +2,7 @@
 /** Synthetic tool generations exercise real Git, native full-gate receipts and actual CLI dispatch [C7]. */
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -75,6 +75,8 @@ function project(source) {
   mkdirSync(repo);
   box.git(repo, 'init', '-q', '-b', 'main');
   copyPackageFiles(source, repo);
+  mkdirSync(join(repo, 'test'), { recursive: true });
+  copyFileSync(resolve(import.meta.dirname, 'wall-clock-budgets.js'), join(repo, 'test', 'wall-clock-budgets.js'));
   const originalHook = readFileSync(join(repo, 'apps', 'cli', 'src', 'shell', 'commands', 'hook.js'), 'utf8');
   // This private project has one committed test; copied package fixtures are not this project's tests.
   for (const name of readdirSync(join(repo, 'packages'))) rmSync(join(repo, 'packages', name, 'tests'), { recursive: true, force: true });
@@ -200,7 +202,7 @@ test('timer honors committed main opt-out and retains an observed live owner [C7
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   writeFileSync(join(directory, 'timer.guard.sqlite'), '', { mode: 0o600 });
   const started = execFileSync('/bin/ps', ['-p', String(process.pid), '-o', 'lstart='],
-    { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim();
+    { encoding: 'utf8', env: { ...process.env, TZ: 'UTC', LC_ALL: 'C', LANG: 'C' } }).trim().split(/\s+/u).join(' ');
   const owner = { version: 1, token: randomUUID(), pid: process.pid, started,
     dueAt: new Date(Date.now() + 3_600_000).toISOString(), root: realpathSync(box.repo), common: commonDir };
   const marker = join(directory, 'timer.json'), bytes = JSON.stringify(owner) + '\n';
