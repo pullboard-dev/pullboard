@@ -66,7 +66,7 @@ function itemProject() {
   const command = 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap test/output.test.js';
   const configFile = join(box.repo, 'pullboard.json');
   writeFileSync(configFile, JSON.stringify({ ...JSON.parse(readFileSync(configFile, 'utf8')),
-    gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap', submitGate: 'landing' }));
+    gate: command, affectedTests: 'env -u NODE_TEST_CONTEXT node --test --test-reporter=tap' }));
   mkdirSync(join(box.repo, 'test'));
   writeFileSync(join(box.repo, 'test', 'output.test.js'), [
     "import assert from 'node:assert/strict';",
@@ -126,6 +126,10 @@ test('native submit JSON and a red frozen verification expose bounded cases and 
   assert.equal(document.gate.profile.tests, undefined, 'case-level records stay in the full timing profile');
   assert.match(readFileSync(document.gate.logPath, 'utf8'), /passing case 199/u);
   const review = join(box.dir, 'review-output');
+  mkdirSync(join(box.repo, 'docs'), { recursive: true });
+  writeFileSync(join(box.repo, 'docs', 'main-move.txt'), 'advance the fixture trunk after submit\n');
+  box.git(box.repo, 'add', 'docs/main-move.txt');
+  box.git(box.repo, 'commit', '-q', '-m', 'docs: advance fixture trunk');
   box.git(box.repo, 'worktree', 'add', '-q', review, '-b', 'review/output', submittedHead);
   const joined = box.run(review, 'join', 'api', '--model', 'Test Model');
   assert.equal(joined.code, 0, joined.err);
