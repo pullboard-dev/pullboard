@@ -6,6 +6,7 @@ import { serveRunnerController } from '../src/runners.js';
 import { privateCheckEnvelope } from '../src/runner-private-mode.js';
 import { privateCheckPhases } from '../src/runner-private-mode.js';
 import { runnerItemState } from '../packages/resources/index.js';
+import { runnerBoardFile } from '../packages/resources/index.js';
 import { controllerDeadline } from '../packages/resources/index.js';
 import { probeRunnerJob } from '../src/runners.js';
 
@@ -16,5 +17,5 @@ function isRunnerControllerEntry() {
   catch { return false; }
 }
 
-if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, controllerDeadline, probeRunnerJob })
+if (isRunnerControllerEntry()) serveRunnerController({ privateCheckEnvelope, privateCheckPhases, runnerItemState, runnerBoardFile, controllerDeadline, probeRunnerJob })
   .catch(error => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });

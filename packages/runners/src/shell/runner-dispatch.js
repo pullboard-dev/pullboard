@@ -20,6 +20,8 @@ import { statSync } from 'node:fs';
 import { writeSync } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
+import { controllerWake } from './controller-watch.js';
+import { PARENT_PIPE_FD } from './controller-watch.js';
 
 // Budget: 64 MiB bounds worst-case JSON bridge escaping below Node string limits.
 // Budget: after the receipt, wait this long for the last output bytes before ending the transport; the worker finishes cleanup on its own.
@@ -72,12 +74,12 @@ function bridgeResult(request, result, phase) {
 
 /** Keep synchronous callers on the same fresh controller entry without a second bridge. */
 export function runOnRunner(root, command, options) {
-  const request = { root, command, options, parentPid: process.pid };
+  const request = { root, command, options, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
   const installation = committedRunnerController(fileURLToPath(new URL('../../../../', import.meta.url)));
   try {
   const child = spawnSync(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
     cwd: root, input: JSON.stringify(request), encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES * 6 + 1024 ** 2,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   return bridgeResult(request, child, 'sync-bridge');
   } finally { installation?.cleanup(); }
@@ -91,10 +93,10 @@ export async function runOnRunnerAsync(root, command, options) {
   try {
   if (!installation) loadedToolingFiles({ rescan: false });
   const { signal, ...plainOptions } = options;
-  const request = { root, command, options: plainOptions, parentPid: process.pid };
+  const request = { root, command, options: plainOptions, parentPid: process.pid, parentPipe: PARENT_PIPE_FD };
   const input = JSON.stringify(request);
   const child = spawn(process.execPath, [installation?.entry ?? fileURLToPath(new URL('../../../../bin/runner-controller.js', import.meta.url)), '--pullboard-runner-controller'], {
-    cwd: root, stdio: ['pipe', 'pipe', 'pipe'],
+    cwd: root, stdio: ['pipe', 'pipe', 'pipe', 'pipe'],
   });
   const output = [], diagnostics = [];
   let bytes = 0, error;
@@ -188,8 +190,9 @@ export async function serveRunnerController(ports) {
       custody.observationProblem(problem);
     }
   };
-  // Budget: observe the originating process and exact source directories once per second while SSH is active.
-  const parentWatch = setInterval(observe, 1000);
+  let boardFile = null;
+  try { boardFile = item && typeof ports.runnerBoardFile === 'function' ? ports.runnerBoardFile(request.root) : null; } catch { /* The wake falls back to its timer. */ }
+  const stopWatching = controllerWake(request, { roots, boardFile, needsBoard: Boolean(item), abort, observe });
   observe();
   try {
     const result = await runInController(request.root, request.command, { ...request.options, signal: canceled.signal }, { ...ports, controllerCustody: custody });
@@ -204,7 +207,7 @@ export async function serveRunnerController(ports) {
     }
     process.stdout.write(JSON.stringify({ error: { name: error.name, code: error.code, message: error.message, host: error.host, runnerAttempt: error.runnerAttempt, diagnostic: error.diagnostic, runnerCancellation: error.runnerCancellation } }));
     process.exitCode = 1;
-  } finally { clearInterval(parentWatch); custody.close(); }
+  } finally { stopWatching(); custody.close(); }
 }
 
 /** Negotiate missing history objects while the remote cache lease stays held in one SSH session. */
@@ -214,7 +217,7 @@ async function runInController(root, command, options, ports) {
   const deadline = ports.controllerCustody;
   let removeAbort = () => {};
   let runnerWaitTimer;
-  let jobWatch, transport, receiptSeen = false, receiptTimer;
+  let jobWatch, heartbeatWatch, transport, receiptSeen = false, receiptTimer;
   const jobCancellation = new AbortController();
   let rawFd = null;
   try {
@@ -229,7 +232,7 @@ async function runInController(root, command, options, ports) {
     const half = 4 * 1024 ** 2;
     const abort = () => { error ??= new Error('runner transport canceled'); transport.stop(); };
     let heartbeatAt = null, probing = false;
-    // Budget: an exact 5-second worker heartbeat earns 20 seconds of silence before one bounded status observation.
+    // Until READY, watch this runner's lease once a second; the job itself then runs on heartbeat deadlines alone.
     jobWatch = setInterval(async () => {
       if (request.phase !== 'ready' && !error && !options.signal?.aborted) {
         try {
@@ -242,7 +245,13 @@ async function runInController(root, command, options, ports) {
           }
         } catch { /* Unknown or foreign lease observation cannot stop this owned transport. */ }
       }
-      if (request.phase !== 'ready' || heartbeatAt === null || Date.now() - heartbeatAt < 20_000 || probing || error) return;
+    }, 1_000);
+    // Budget: an exact 5-second worker heartbeat earns 20 seconds of silence before one bounded status observation.
+    const silence = () => { clearTimeout(heartbeatWatch); if (!error && !jobCancellation.signal.aborted) heartbeatWatch = setTimeout(probeJob, Math.max(0, heartbeatAt + 20_000 - Date.now())); };
+    /** Ask the runner whether the exact job still has its owner, once the worker has been silent for 20 seconds. */
+    const probeJob = async () => {
+      if (request.phase !== 'ready' || heartbeatAt === null || probing || error) return;
+      if (Date.now() - heartbeatAt < 20_000) return silence();
       probing = true;
       try {
         const state = await ports.probeRunnerJob(request.runner, { job: request.spec.id, recovery: request.spec.recovery }, { signal: jobCancellation.signal });
@@ -255,8 +264,8 @@ async function runInController(root, command, options, ports) {
           host: request.runner.host, job: request.spec.id, owner: state.owner, remoteCleanup: 'unknown' };
         transport.stop();
       } catch { heartbeatAt = Date.now(); /* An unavailable exact-job observer supplies no absence authority. */ }
-      finally { probing = false; }
-    }, 1_000);
+      finally { probing = false; silence(); }
+    };
     // Bound connection, worker admission and checkout, until READY immediately before execution.
     // An executing test keeps its existing test timeout and may outlive the runner wait.
     if (Number.isSafeInteger(options.runnerWaitDeadline)) runnerWaitTimer = setTimeout(() => {
@@ -297,11 +306,11 @@ async function runInController(root, command, options, ports) {
       while ((newline = control.indexOf('\n')) >= 0) {
         const line = control.slice(0, newline); control = control.slice(newline + 1);
         if (line === `PULLBOARD_RUNNER_READY ${request.spec.id}` && request.phase !== 'ready') {
-          request.phase = 'ready'; heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer);
+          request.phase = 'ready'; heartbeatAt = Date.now(); clearTimeout(runnerWaitTimer); clearInterval(jobWatch); silence();
           try { deadline.ready(request.spec.trustedMode?.timeoutMs ?? request.spec.timeoutMs); }
           catch (failure) { error ??= failure; abort(); }
         }
-        if (line === `PULLBOARD_RUNNER_HEARTBEAT ${request.spec.id}`) heartbeatAt = Date.now();
+        if (line === `PULLBOARD_RUNNER_HEARTBEAT ${request.spec.id}`) { heartbeatAt = Date.now(); if (request.phase === 'ready') silence(); }
         const cleanupPrefix = `PULLBOARD_RUNNER_CLEANUP_UNVERIFIED ${request.spec.id} `;
         if (line.startsWith(cleanupPrefix)) cleanupReason = line.slice(cleanupPrefix.length, cleanupPrefix.length + 240);
         const detailsPrefix = `PULLBOARD_RUNNER_CLEANUP_DETAILS ${request.spec.id} `;
@@ -347,7 +356,7 @@ async function runInController(root, command, options, ports) {
     clearTimeout(receiptTimer);
     // A transport ended by us after the receipt completed the job; resultFrom still authenticates that receipt.
     if (receiptSeen && !error && status !== 0) status = 0;
-    clearInterval(jobWatch);
+    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch);
     if (transfer) await transfer;
     if (error instanceof Refused) throw error;
     if (rawFd !== null) { closeSync(rawFd); rawFd = null; }
@@ -355,7 +364,7 @@ async function runInController(root, command, options, ports) {
     return resultFrom(request, { status, signal, error, stdout: bounded, stderr: Buffer.concat(diagnostics),
       ...(request.rawOutputPath ? { rawOutputPath: request.rawOutputPath, rawBytes, rawSha256: rawHash.digest('hex') } : {}) }, ports);
   } finally {
-    jobCancellation.abort(); clearInterval(jobWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
+    jobCancellation.abort(); clearInterval(jobWatch); clearTimeout(heartbeatWatch); transport?.dispose(); clearTimeout(runnerWaitTimer); if (rawFd !== null) closeSync(rawFd); removeAbort();
     request.cleanup();
   }
 }
