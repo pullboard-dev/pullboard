@@ -7,6 +7,9 @@ import { performance } from 'node:perf_hooks';
 import { after, test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { TIMING_RUN_ID_ENV } from '../packages/gate/index.js';
+import { openBoard, closeBoard } from '../apps/lib/index.js';
+import * as store from '../packages/store/index.js';
+import { reviewPacketRerun } from '../packages/verify/index.js';
 
 const helpers = createE2eHelpers();
 // A green submit starts the detached verification comparison, which can still be writing the board directory.
@@ -162,4 +165,19 @@ test('a packet with one uncovered clause runs the frozen check and names the cla
   assert.match(accepted.out, new RegExp(`review packet ${head.slice(0, 12)}: clause 3 has no recorded run; running the frozen check`, 'u'));
   assert.doesNotMatch(accepted.out, /accepted from review packet/u);
   assert.ok(existsSync(marker), 'the frozen check ran its test');
+});
+
+test('a same-head refreeze cannot reuse coverage from the prior criterion digest [V4,C7]', { timeout: 240_000 }, () => {
+  const { box, id, head } = submittedItem({ uncovered: false });
+  const board = openBoard(join(box.repo, '.git/pullboard/board.sqlite'), undefined, { gitRoot: box.repo });
+  try {
+    const before = store.getItem(board, id);
+    const priorDigest = before.item_frozen_digest;
+    store.refreeze(board, id, { agentId: 'coordinator', freeze: () => ({ text: `${before.item_frozen}\nCorrection: revised criterion.`, digest: 'd'.repeat(64) }) });
+    const refrozen = store.getItem(board, id);
+    assert.equal(refrozen.item_commit, head, 'the source head is unchanged');
+    assert.notEqual(refrozen.item_frozen_digest, priorDigest, 'refreeze changes only the criterion digest');
+    assert.equal(reviewPacketRerun(join(box.repo, '.git'), refrozen), null,
+      'the packet for the same commit is stale and cannot authorize skipping the current frozen check');
+  } finally { closeBoard(board); }
 });
