@@ -5,7 +5,7 @@ import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/in
 import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { serveApi } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { repoInfo } from '../src/git.js';
 import { personNeedsState } from '../apps/view/index.js';
 import {
@@ -13,7 +13,7 @@ import {
   NEXT_STEPS,
   blockAudience,
   reportBlock,
-} from '../src/next-steps.js';
+} from '../apps/cli/index.js';
 import { Refused } from '../packages/kernel/core.js';
 import {
   personBlockWords,

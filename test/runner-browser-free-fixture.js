@@ -86,7 +86,7 @@ async function withNoBrowserRunner(t, { cli, git }, body, browserSlots = 0) {
 
 /** Run one command through the repo's own gate API, as an item check does, with no browser slot asked. */
 function gateRun({ repo, env }, command, runnerOnly = false) {
-  const gateUrl = pathToFileURL(join(repo, 'src', 'gate.js')).href;
+  const gateUrl = pathToFileURL(join(repo, 'packages', 'gate', 'index.js')).href;
   const script = `const { runProfiledShell, withGateSlot } = await import(${JSON.stringify(gateUrl)});
 ${executionServicesSource(gateUrl)}
 const result = await withGateSlot(${JSON.stringify(repo)}, lease => runProfiledShell(${JSON.stringify(repo)}, ${JSON.stringify(command)}, { gateLease: lease }),

@@ -1,2 +1,0 @@
-/** Preserve this module's public names through the apps/cli front door [C7]. */
-export { CODEX_MANUAL_NOTE, CODEX_MCP_BLOCK, MCP_COMMAND, RELAY_LATER, RELAY_OFFER_QUESTION, RELAY_ON_ALL, RESUME_HOOK, acceptsRelayOffer, askedLaneNotes, codexConfigEditable, codexHasMcpServer, detectFixers, detectGate, initRepo, laneProposalNotes, machineHomeWriteScopeIsNarrow, mcpSetup, proposeLanes, refreshInitPermissions, relayOfferAtInit, starterLane, starterLaneNotes } from '../apps/cli/index.js';

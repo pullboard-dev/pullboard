@@ -8,7 +8,6 @@ export { CHECKOUT_LEASES as cli$CHECKOUT_LEASES, HELP as cli$HELP, MainSpecMerge
 export { cockpitPage as cockpit$cockpitPage } from "./src/shell/cockpit.js";
 export { COMMANDS, UNLISTED_COMMANDS } from "./src/shell/commands/index.js";
 export { nativeBoardRequired, run as commandsStatus$run } from "./src/shell/commands/status.js";
-export { run as commandsPatch$run } from "./src/shell/commands/patch.js";
 export { claimedItemRoot, itemFolderIdentity, itemFolderPath, seatAt, seatRoot, writeItemMarker } from "./src/shell/item-folder-identity.js";
 export { run as commandsWorktree$run, worktreeFor } from "./src/shell/commands/worktree.js";
 export { HELP as help$HELP, SETTING_FORMS, VERSION as help$VERSION, buildHelp, commandPhrases } from "./src/core/help.js";
@@ -28,3 +27,17 @@ export { boundedMainRedShout, doctrineExecutionPhases, run as commandsSubmit$run
 export { generatedDocDrift, generatedDocs, writeGeneratedDocs } from "./src/shell/generated-docs.js";
 export { bindSubmitHandoffOrigin, copySubmitHandoffOrigin, isSubmitHandoffWorker, requireSubmitHandoffExecution, submitHandoffActor, submitHandoffBoardRoot, submitHandoffHookActor, submitHandoffPolicy, submitHandoffRoot } from "./src/shell/submit-handoff-origin.js";
 export { sealSubmitHandoffQueue } from "./src/shell/submit-handoff-seal.js";
+export { context as context } from "./src/shell/cli.js";
+export { withBoard as withBoard } from "./src/shell/cli.js";
+export { withBoardRead as withBoardRead } from "./src/shell/cli-context.js";
+export { main as main } from "./src/shell/cli.js";
+export { shellWord as shellWord } from "./src/shell/cli-read-context.js";
+export { ordered as ordered } from "./src/shell/cli.js";
+export { HELP as HELP } from "./src/shell/cli.js";
+export { relayOutboxSetting as relayOutboxSetting } from "./src/shell/cli.js";
+export { freezer as freezer } from "./src/shell/cli.js";
+export { cockpitPage as cockpitPage } from "./src/shell/cockpit.js";
+export { run as run } from "./src/shell/commands/status.js";
+export { NEXT_STEPS as NEXT_STEPS } from "./src/shell/next-steps.js";
+export { stopReplacedWorker } from "./src/shell/submit-handoff.js";
+export { knownMainCheck, knownMainCheckNote } from "./src/shell/commands/verify.js";

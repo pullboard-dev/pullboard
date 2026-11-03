@@ -18,7 +18,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createLocalApiHandler } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { performanceCores } from '../packages/gate/index.js';
 import { defaultViewPort, DEFAULT_VIEW_PORT } from '../packages/config/index.js';
 import { defaults } from '../packages/config/index.js';

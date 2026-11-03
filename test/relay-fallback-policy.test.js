@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { relayOutboxSetting } from '../src/cli.js';
+import { relayOutboxSetting } from '../apps/cli/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { outboxFile, outboxQueueable } from '../packages/outbox/index.js';
 import { Refused } from '../packages/kernel/core.js';
