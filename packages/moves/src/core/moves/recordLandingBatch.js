@@ -1,3 +1,4 @@
+import { FLAKE_RATCHET_ENGINE } from '../../../../../src/flake-ratchet-engine.js';
 import { QUARANTINE_VERDICT_ENGINE } from "../../../../../src/quarantine-verdict-engine.js";
 import { quarantineBatchGates } from "../../../../verify/src/core/quarantine-verdict.js";
 import { RIGOR_AUTO_ENGINE } from "../../../../../src/rigor-auto-engine.js";
@@ -42,7 +43,7 @@ function existingEngine(args, board, at) {
 
 /** Optional computed evidence requires its own floor without changing any old first-match rule. */
 function minimumEngine(args, board, at) {
-  return Math.max(existingEngine(args, board, at), (quarantineBatchGates(args[0]?.batch).length || Object.hasOwn(args[0]?.batch?.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
+  return Math.max(args[0]?.batch?.flakeRatchet ? FLAKE_RATCHET_ENGINE : 1, existingEngine(args, board, at), (quarantineBatchGates(args[0]?.batch).length || Object.hasOwn(args[0]?.batch?.proof?.receipt ?? {}, 'blockingVerdict')) ? QUARANTINE_VERDICT_ENGINE : 1);
 }
 
 /** Read precisely the actor argument used by this operation [H2,H16]. */

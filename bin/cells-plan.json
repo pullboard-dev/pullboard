@@ -1354,6 +1354,10 @@
     {
       "path": "src/queued-red-return-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "src/flake-ratchet-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
