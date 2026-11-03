@@ -116,6 +116,7 @@ import {
 import {
   composeReview,
   composesAtAdmission,
+  recordNativeProof,
 } from '../../../../../packages/verify/index.js';
 import {
   captureVerdictReview,
@@ -376,6 +377,15 @@ export async function verifyHere(ctx, id, { second, values }) {
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
             onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
           });
+          if (!knownMain && check.proofReceiptId) {
+            await recordNativeProof(ctx, checkedItem, check, { ordered, withBoard, resourceAgent, proofRunReceipt: store.proofRunReceipt,
+              exitFailures: true }, board);
+            const gap = store.selectorGapCandidate(board, { agentId: me.id, itemId: id, receiptId: check.proofReceiptId, review });
+            if (gap) {
+              const recorded = await ordered(ctx, board, 'recordSelectorGap', [{ agentId: me.id, itemId: id, receiptId: check.proofReceiptId, review }]);
+              return { decision: 'SELECTOR_GAP', repairItem: recorded.item, filed: recorded.filed };
+            }
+          }
           if (!knownMain) throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
         }
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
@@ -451,6 +461,11 @@ export async function verifyHere(ctx, id, { second, values }) {
   });
   const primary = { id, ...result, ...(verificationQuarantine ? { quarantine: verificationQuarantine } : {}), ...(verificationOutput ?? {}), ...(approvalRows.length ? { agentApproved: approvalRows, approvalQualification: agentApprovalLine(approvalRows) } : {}) };
   ctx.io.result?.(primary);
+  if (result.decision === 'SELECTOR_GAP') {
+    ctx.io.say(`Recorded a selector gap for #${id}; repair item #${result.repairItem} is open. #${id} remains submitted for review.`);
+    if (ctx.verdictResult) ctx.verdictResult.value = primary;
+    return 0;
+  }
   const verifiedSummary = timingDigest(verificationProfile);
   const verifiedTiming = result.decision === 'ACCEPT' && verificationProfile && verifiedSummary ? `\n${verifiedSummary}\ntiming profile: ${verificationProfile.profilePath ?? '(not saved)'}` : '';
   ctx.io.say(result.decision === 'ACCEPT'
