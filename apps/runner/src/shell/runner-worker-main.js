@@ -5,6 +5,8 @@ import { scheduledChromeCloneSweep } from './chrome-clone-cleanup.js';
 import { checkoutHistory } from './runner-worker-checkout.js';
 import { installDependencies } from './runner-worker-checkout.js';
 import { beginCleanup } from './runner-worker-cleanup.js';
+import { assertDiskFree } from './runner-disk-sweep.js';
+import { sweepRunnerDiskForWorker } from './runner-disk-sweep.js';
 import { releaseDrainedLease } from './runner-worker-cleanup.js';
 import { reportCleanupTimeout } from './runner-worker-cleanup.js';
 import { outputSink } from './runner-worker-command.js';
@@ -107,6 +109,9 @@ export async function main(S) {
     const base = join(runnerRoot, 'jobs');
     mkdirSync(base, { recursive: true, mode: 0o700 });
     chmodSync(base, 0o700);
+    setupStep = 'disk sweep';
+    assertDiskFree(await sweepRunnerDiskForWorker(runnerRoot, spec.id, Date.now() + 60_000, api, machineHomePath));
+    setupStep = 'job directories';
     runDirectory = mkdtempSync(join(base, `${spec.id}-`));
     S.cleanupDirectory = runDirectory;
     recordRunnerOwner(runDirectory, processCensus);
@@ -116,7 +121,12 @@ export async function main(S) {
     mkdirSync(root, { mode: 0o700 }); mkdirSync(privateHome, { mode: 0o700 }); mkdirSync(temporary, { mode: 0o700 });
     writeFileSync(join(privateHome, 'npm-userconfig'), '', { mode: 0o600 });
     writeFileSync(join(privateHome, 'npm-globalconfig'), '', { mode: 0o600 });
-    pinSourceCacheJob(runDirectory, spec);
+    const pinLease = await acquireResourceApi(api, {
+      name: `repo-${spec.repoId}`, capacity: 1, scope: 'machine', root: runnerRoot,
+      repo: runnerRoot, agent: `pullboard-ssh-pin-${spec.id}`, kind: 'source-cache',
+      onWait: () => assertTransportLive(S),
+    }, join(runnerRoot, 'cache', 'resource-pool'));
+    try { pinSourceCacheJob(runDirectory, spec); } finally { pinLease.release(); }
     const packFile = join(runDirectory, 'source.pack');
     setupStep = 'runner gate admission';
     phases.mark('capacityWaitMs');
@@ -149,7 +159,7 @@ export async function main(S) {
     phases.mark('dependenciesMs');
     if (!spec.trustedMode) {
       setupStep = 'committed dependencies';
-      await installDependencies(S, root, runnerRoot, env, tracker);
+      await installDependencies(S, root, runnerRoot, env, tracker, api);
     }
     setupStep = 'command start';
     const browserRefusal = join(runDirectory, 'browser-refusal.json');
@@ -219,6 +229,8 @@ export async function main(S) {
   // Past the receipt a slow or failed cleanup is only a leftover for the sweep (#2525); it never turns the result red.
   clearTimeout(S.cleanupTimer);
   clearTimeout(S.phaseCleanupTimer);
+  // The result is already delivered, so the cleanup budget no longer applies; sweep leftovers after each job.
+  if (recoveryRoot && api) await sweepRunnerDiskForWorker(recoveryRoot, S.workerId, Date.now() + 60_000, api, process.env.PULLBOARD_MACHINE_HOME ?? join(userInfo().homedir, '.pullboard'));
   process.exitCode = S.resultSent ? 0 : 1;
   stopReading();
 }

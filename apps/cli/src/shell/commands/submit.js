@@ -5,12 +5,14 @@ import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
 import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../../../../packages/merge/index.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { requireNonEmptySubmit } from '../../../../../src/empty-submit.js';
-import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../../../../packages/state/index.js';
 import { clauseInspectionSummary } from '../../../../../packages/state/index.js';
 import { testTierReport } from '../../../../../packages/gate/index.js';
+import { runGateStages } from '../../../../../packages/gate/index.js';
 import { recordedToolCommits } from '../../../../../packages/git/index.js';
 import { toolRegenerationSource } from '../../../../../packages/git/index.js';
 import { receiptLine as cellsReceiptLine } from '../../../../../packages/git/index.js';
@@ -412,90 +414,27 @@ export async function submitHere(ctx, id, infra) {
     if (!admission.id) await submissionWait({ admitted: true });
   };
   const gateAdmission = remoteMode ? { ...runnerAdmission, remote: true, runnerOnly: true } : runnerAdmission, executionServices = { runners: runnerExecutionServices(), landing: landingExecutionServices() };
-  // A queued worker sends every analysis step to one runner job with main's archived tooling; the controller only queues and records.
-  const remote = remoteMode ? await withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot, lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
-    trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '', title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks,
-    config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems: () => withBoard(ctx, board => landedCutItemRows(board.db)) }, lease, ctx.submitHandoffOutput),
-  { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'analysis', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build') })) : null;
-  for (const line of remote ? [...remote.notes, `submit remote analysis on ${remote.runner} (${remote.sha256.slice(0, 12)}): ${Object.entries(remote.steps).map(([step, ms]) => `${step} ${(ms / 1000).toFixed(2)}s`).join(', ')}`] : []) ctx.io.say(line);
-  const placementStart = performance.now();
-  try {
-    const planned = remote ? null : await cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
-      code: [fileURLToPath(new URL('../../../../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
-    () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
-    if (planned?.reused) ctx.io.say(cellsReceiptLine(planned.receipt));
-  } finally { reportSubmitStage(ctx, 'placement', placementStart); }
-  // The repository's per-file lint subset is cheap; keep its full static stage later.
-  const changedStaticStart = performance.now();
-  try {
-    if (!remote && /\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
-      await withItemPatchSubmit(root, companion, async gateRoot => {
-        const checker = fileURLToPath(new URL('../../../../../bin/static-style-checks.js', import.meta.url));
-        const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
-          source: companion?.commit ?? commit, code: [checker] }, () => {
-          const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
-          const run = spawnSync(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' });
-          if (run.error || run.status !== 0) throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${run.stderr || run.error?.message || 'static checker failed'}`);
-        });
-        if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
-      });
-    }
-  } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
-  let cells;
-  const cellsStart = performance.now();
   const readCutItems = () => withBoard(ctx, board => landedCutItemRows(board.db));
-  try { cells = remote ? remote.cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
-    ? await withGateSlot(root, async lease => {
-      try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput); }
-      finally {
-        const admitted = Date.parse(lease.executionAdmission?.admittedAt ?? '');
-        if (Number.isFinite(admitted)) ctx.io.say(`submit runner admitted: ${lease.executionAdmission.admittedAt} (approximately ${((admitted - preflightWallStart) / 1000).toFixed(2)}s from controller start; runner clock)`);
-      }
-    },
-      { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
-        agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, remote: true, runnerOnly: true,
-        onWait: queuedItemLease(ctx, held, me.id, 'build') })
-    : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
-    readCutItems,
-    onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
-    onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
-  finally { reportSubmitStage(ctx, 'cells', cellsStart); }
-  // Reused cells checks have no runner slot; use their own check-receipt formatter.
-  if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
-  if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
-  for (const line of [...(cells.existingCuts ?? []).map(edge => `cell cuts backlog: ${edge}`), ...cells.warnings ?? []]) ctx.io.say(line);
-  // Static and lint checks run once, all at once, before doctrine and before any runner gate (fail fast).
-  const staticStart = performance.now();
-  try { if (!remote) await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
-    onWait: submissionWait, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
-    executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
-  finally { reportSubmitStage(ctx, 'static', staticStart); }
-  // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
-  let doctrine;
-  const doctrineStart = performance.now();
-  try { doctrine = await (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
-    ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
-      ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
-      : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
-      const remoteDoctrine = gateAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
-      try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
-        practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }
-      finally { remoteDoctrine?.finish(); }
-    },
-      { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceiptLine(receipt)}`) }))
-    : []); }
-  finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
-  for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
+  // Each trusted analysis part gets its own runner lease and a main-pinned private check.
+  const runRemotePart = (part) => withItemPatchSubmit(root, companion, gateRoot => withGateSlot(gateRoot,
+    lease => remoteSubmitAnalysis(gateRoot, { main: acceptedMain.commit, source: companion?.commit ?? commit,
+      trunk: trunk.commit, base: claimHead, check: frozenCheck(held), criterion: JSON.parse(held.item_frozen ?? 'null')?.criterion ?? '',
+      title: held.item_title ?? '', composition: requireComposition ? commit : null, staticChecks: submitConfig.staticChecks,
+      config: submitConfig, browserFreeChecks: browserFreeChecksEnabled(), readCutItems, parts: [part] }, lease, ctx.submitHandoffOutput),
+    { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: `analysis-${part}`, ...gateAdmission,
+      onWait: queuedItemLease(ctx, held, me.id, 'build') }));
   const crossRun = await withBoardRead(ctx, board => {
     board.gitRoot = ctx.info.root;
     return itemCollisionPlan(board, held, store.listItems(board, { all: true }));
   });
   for (const warning of crossRun.warnings) ctx.io.say(warning);
-  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, ...(remote && !crossRun.tests.length && check === frozenCheck(held) ? { plan: remote.plan, admission: remote.admission } : {}), outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
+  const runGate = (check) => withItemPatchSubmit(root, companion, gateRoot => runSubmitGate(gateRoot, submitConfig, { executionServices, staticChecked: true, crossRunTests: crossRun.tests, outputRoot: root, outputLog: ctx.submitHandoffOutput ? join(ctx.submitHandoffOutput, 'gate.log') : undefined, runnerAdmission: gateAdmission, signatureCapture: acceptedMain.config.submit?.autoFileMainReds === true ? { version: MAIN_FAILURE_SIGNATURE_VERSION, derive: (run, root) => failureSignatures(run, root, { raw: true }) } : undefined, base: claimHead, trunk: acceptedMain.commit, check, timing: frozenCheckTiming(held), agent: me.id, item: String(id), onWait: submissionWait, onStart: submissionStarted, onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson),
     proofContext: { ...(companion ? { companion: true } : {}), item: id, frozenDigest: held.item_frozen_digest ?? null, seat: me.id, admission, quarantines },
     onFailure: flakeObserver(ctx, { kind: 'submit', main: acceptedMain.commit, commit: companion?.commit ?? commit, privateCheck: Boolean(companion), config: submitConfig }, { ordered, withBoard, resourceAgent, checkAtCommit }) }));
-  ctx.submitAttempt.stage = 'runner';
+  /** Judge the test result, including exact-main comparison, while other independent stages run. */
+  const judgeTests = async (signal) => {
   let gate = await runGate(frozenCheck(held));
+  if (signal.aborted) throw signal.reason;
   const submissionReceiptIds = [...(gate.proofReceiptIds ?? [])];
   for (const proofReceiptId of gate.proofReceiptIds ?? []) {
     await recordNativeProof(ctx, held, { proofReceiptId }, { ordered, withBoard, resourceAgent, proofRunReceipt });
@@ -649,6 +588,88 @@ export async function submitHere(ctx, id, infra) {
     const mainNote = withBoard(ctx, board => mainRedMessage(root, board, gate.profile, comparison));
     throw withTestOutput(new Refused('GATE_RED', `${message}${mainNote ? `\n${mainNote}` : ''}`, 'fix the reported test or gate, commit the change, and run pullboard submit <id> again'), { ...summary, mainFailures });
   }
+  return { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag };
+  };
+  ctx.submitAttempt.stage = 'runner';
+  // Independent stages start together; a red refuses immediately while already-started runner jobs finish.
+  // Test red is decided only after the exact-main comparison, preserving known-main acceptance.
+  const stages = await runGateStages([
+    { name: 'preflight', run: async () => {
+      if (remoteMode) return runRemotePart('preflight');
+      return cachedSubmitSourceStep(root, { kind: 'submit-placement', base: trunk.commit, source: companion?.commit ?? commit,
+        code: [fileURLToPath(new URL('../../packages/items/src/core/submit-preflight.js', import.meta.url))] },
+      () => requirePlannedSource(root, trunk.commit, companion?.commit ?? commit, { deferUnplaced: true }));
+    } },
+    ...(remoteMode ? [{ name: 'selection', run: () => runRemotePart('selection') }] : []),
+    { name: 'cells', run: async () => {
+      const cellsStart = performance.now();
+      try { return remoteMode ? (await runRemotePart('cells')).cells : runnerAdmission.runnerOnly || effectiveRunners(loadMachineSettings()).length > 0
+        ? await withGateSlot(root, async lease => {
+          try { return await remoteSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, lease, readCutItems, ctx.submitHandoffOutput); }
+          finally {
+            const admitted = Date.parse(lease.executionAdmission?.admittedAt ?? '');
+            if (Number.isFinite(admitted)) ctx.io.say(`submit runner admitted: ${lease.executionAdmission.admittedAt} (approximately ${((admitted - preflightWallStart) / 1000).toFixed(2)}s from controller start; runner clock)`);
+          }
+        },
+          { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, itemCheck: true,
+            agent: me.id, item: String(id), kind: 'cells', ...runnerAdmission, remote: true, runnerOnly: true,
+            onWait: queuedItemLease(ctx, held, me.id, 'build') })
+        : await requireSubmitCells(root, acceptedMain.commit, companion?.commit ?? commit, held, { withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache, cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS),
+        readCutItems,
+        onInventory: mode => ctx.io.say(`submit cells inventory: ${mode}`),
+        onAllCells: file => ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${file}`) }); }
+      finally { reportSubmitStage(ctx, 'cells', cellsStart); }
+    } },
+    { name: 'doctrine', run: async () => {
+      // Doctrine counts only fall: accepted main's rules, at this exact commit (D1). No rule, no change.
+      const doctrineStart = performance.now();
+      try { return await (hasSubmitRules(root, acceptedMain.commit, acceptedMain.config.practice)
+        ? submitRulesNarrowable(root, acceptedMain.commit, acceptedMain.config.practice)
+          ? cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }, () => holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, fast: true }))
+          : cachedDoctrineHold(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit, practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs }, () => withGateSlot(root, async lease => {
+          const remoteDoctrine = gateAdmission.runnerOnly ? doctrineRunnerChecks(root, acceptedMain.commit, lease, ctx.submitHandoffOutput) : null;
+          try { return await holdDoctrineAsync(root, { mainCommit: acceptedMain.commit, commit: companion?.commit ?? commit,
+            practice: acceptedMain.config.practice, timeoutMs: acceptedMain.config.check?.timeoutMs, ...(remoteDoctrine ? { runCheck: remoteDoctrine.runCheck } : {}) }); }
+          finally { remoteDoctrine?.finish(); }
+        },
+          { executionServices, itemCheck: true, agent: me.id, item: String(id), kind: 'doctrine', ...gateAdmission, onWait: queuedItemLease(ctx, held, me.id, 'build'), onReceipt: (receipt) => ctx.io.say(`doctrine hold ${gateReceiptLine(receipt)}`) }))
+        : []); }
+      finally { reportSubmitStage(ctx, 'doctrine', doctrineStart); }
+    } },
+    { name: 'static', run: async () => {
+      if (remoteMode) return runRemotePart('static');
+      const changedStaticStart = performance.now();
+      try {
+        if (/\bbin\/static-style-checks\.js\b/u.test(acceptedMain.config.staticChecks ?? '')) {
+          await withItemPatchSubmit(root, companion, async gateRoot => {
+            const checker = fileURLToPath(new URL('../../bin/static-style-checks.js', import.meta.url));
+            const checked = await cachedSubmitSourceStep(gateRoot, { kind: 'submit-changed-static', base: acceptedMain.commit,
+              source: companion?.commit ?? commit, code: [checker] }, () => {
+              const changed = git(gateRoot, ['diff', '--name-only', '-z', '--diff-filter=ACMR', acceptedMain.commit, companion?.commit ?? commit]).split('\0').filter(Boolean);
+              return promisify(execFile)(process.execPath, ['--experimental-vm-modules', '--disable-warning=ExperimentalWarning', checker, '--changed-files', ...changed], { cwd: gateRoot, encoding: 'utf8' })
+                .catch(error => { throw new Refused('GATE_RED', `changed-file static checks are red; fix the named source before cells:\n${error.stderr || error.message || 'static checker failed'}`); });
+            });
+            if (checked.reused) ctx.io.say(cellsReceiptLine(checked.receipt));
+          });
+        }
+      } finally { reportSubmitStage(ctx, 'changed static', changedStaticStart); }
+      // Static and lint checks run once, all at once, alongside the other stages; a red one cancels them.
+      const staticStart = performance.now();
+      try { await withItemPatchSubmit(root, companion, gateRoot => runStaticChecks(gateRoot, submitConfig, { agent: me.id, item: String(id),
+        onWait: queuedItemLease(ctx, held, me.id, 'build'), onBrowserFallback: browserAdmissionReporter(ctx.io, ctx.io.relayJson), runnerAdmission,
+        executionServices, artifactDirectory: ctx.submitHandoffOutput })); }
+      finally { reportSubmitStage(ctx, 'static', staticStart); }
+    } },
+    { name: 'tests', run: judgeTests },
+  ]);
+  const cells = stages.cells;
+  // Reused cells checks have no runner slot; use their own check-receipt formatter.
+  if (cells.reused) ctx.io.say(cellsReceiptLine(cells.receipt));
+  if (cells.reused && cells.allCellsReason) ctx.io.say(`submit cells: checking all cells because shared policy or root-tool file changed: ${cells.allCellsReason}`);
+  for (const line of [...(cells.existingCuts ?? []).map(edge => `cell cuts backlog: ${edge}`), ...cells.warnings ?? []]) ctx.io.say(line);
+  const doctrine = stages.doctrine;
+  for (const rule of doctrine) ctx.io.say(`doctrine: ${ruleLine(rule)}`);
+  let { gate, submissionReceiptIds, mainComparisonReceiptIds, criterionMatched, proofMatched, criterionUnowned, proofUnowned, knownMainFailures, unowned, unownedMain, waived, displayedReport, summary, mainFailures, criterionNames, criterionMainRed, proofMainRed, ambiguous, mechanicalFlag } = stages.tests;
   if (headCommit(root) !== commit || !isClean(root)) {
     throw new Refused(
       'MOVED_DURING_GATE',
