@@ -9,11 +9,12 @@ import { after } from 'node:test';
 import { test } from 'node:test';
 import { selectAffectedTests } from '../src/shell/affected-tests.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
+import { cleanupFixtureChildren } from '../../../test/fixture-child.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
 import { json } from '../../../test/land-board-fixture.js';
 
 const e2e = createE2eHelpers();
-after(e2e.cleanup);
+after(async () => { await cleanupFixtureChildren(); e2e.cleanup(); });
 
 /** A real Node test whose imported value must keep the specified contract. */
 function valueTest(expected) {
@@ -56,12 +57,14 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   box.git(box.web, 'add', '-A');
   box.git(box.web, 'commit', '-q', '-m', 'feat(web): update the value and its test [G1]');
   const commit = box.git(box.web, 'rev-parse', 'HEAD');
-  const submitted = box.run(box.web, 'submit', String(item));
+  process.stderr.write('# land-affected: submit frozen source\n');
+  const submitted = box.run(box.web, 'submit', String(item), '--wait', '--no-next');
   assert.equal(submitted.code, 0, submitted.out + submitted.err);
   const checkLog = box.git(box.web, 'rev-parse', '--git-path', 'pullboard-submit.log.check.log');
   assert.match(readFileSync(resolve(box.web, checkLog), 'utf8'), /# tests 1\b/u, 'submit really executes its frozen test');
   box.git(box.repo, 'switch', '-q', '--detach', commit);
   try {
+    process.stderr.write('# land-affected: verify frozen source\n');
     const verified = box.run(box.repo, 'verify', String(item), 'accept', '--as', 'coordinator', '--note', 'private real affected-test fixture');
     assert.equal(verified.code, 0, verified.out + verified.err);
   } finally { box.git(box.repo, 'switch', '-q', 'main'); }
@@ -70,6 +73,7 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
   const addedTest = e2e.commitFile(box, box.repo, 'web/new-importer.test.js', valueTest(1), 'test(web): retain the original importing contract [G1]');
   assert.equal(addedTest.status, 0, addedTest.stderr);
   const main = box.git(box.repo, 'rev-parse', 'main');
+  process.stderr.write('# land-affected: check accepted main\n');
   const mainGate = box.run(box.repo, 'gate');
   assert.equal(mainGate.code, 0, mainGate.out + mainGate.err);
   assert.match(readFileSync(join(box.repo, '.git/pullboard-gate.log'), 'utf8'), inline ? /# tests 1\b/u : /# tests 3\b/u,
@@ -80,6 +84,7 @@ function affectedBatch(t, { stableBadges = false, inline = false, waive = false,
     assert.match(importer.stdout, /# tests 1\b/u, 'the omitted importer really passes on main');
   }
   if (waive) assert.equal(box.run(box.repo, 'land', '--waive', 'web/new-importer.test.js', '--until', '2099-01-01', '--reason', 'private exact affected-stage waiver').code, 0);
+  process.stderr.write('# land-affected: land candidate with late importer\n');
   const outcome = box.run(box.repo, 'land', '--json');
   assert.equal(outcome.code, 0, outcome.out + outcome.err);
   const landing = JSON.parse(outcome.out);
