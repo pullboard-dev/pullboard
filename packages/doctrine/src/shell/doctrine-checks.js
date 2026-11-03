@@ -363,8 +363,8 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
       : touched.length && rule.mode !== 'watch' ? yield { commit: base, command: rule.command, timeoutMs, candidate: false } : { problems: [], broken: '' };
     // A renamed file is compared with its origin: the origin's problems are carried to the new path.
     const before = { ...ran, problems: ran.problems.map((line) => carryRename(line, origins)) };
-    // Only changed files can differ from main, so a narrowed count is the committed one moved by them.
-    const count = run.partial ? Math.max(0, committed + run.problems.length - (before.broken ? 0 : before.problems.length)) : run.problems.length;
+    // Only changed files can differ from main, so a narrowed count is accepted main's count moved by them; a lowered declaration never lowers the measure.
+    const count = run.partial ? Math.max(0, rule.count + run.problems.length - (before.broken ? 0 : before.problems.length)) : run.problems.length;
     const state = ruleState(rule, count, committed, false);
     results.push({ id: rule.id, text: rule.text, command: rule.command, count, committed,
       holds: state === 'holding' || state === 'watching', state, mode: rule.mode, runs: rule.runs, problems: run.problems, broken: '' });

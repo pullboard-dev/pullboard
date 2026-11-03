@@ -54,6 +54,15 @@ function repo() {
   return { root, git, main: git('rev-parse', 'HEAD') };
 }
 
+/** Commit a new declared count for the rule, with an optional source change. */
+function declare(box, count, file, text) {
+  writeFileSync(join(box.root, 'DOCTRINE.md'), DOCTRINE.replace('count: 2', `count: ${count}`));
+  if (file) writeFileSync(join(box.root, file), text);
+  box.git('add', '-A');
+  box.git('commit', '-q', '-m', 'chore: declare');
+  return { mainCommit: box.main, commit: box.git('rev-parse', 'HEAD'), fast: true };
+}
+
 /** Commit one file change and return the options for a hold of it. */
 function change(box, file, text) {
   writeFileSync(join(box.root, file), text);
@@ -93,4 +102,18 @@ test('a rule that is not file-local keeps the established full run [C7]', () => 
   box.git('add', '-A');
   box.git('commit', '-q', '-m', 'chore: grep rule');
   assert.equal(submitRulesNarrowable(box.root, box.git('rev-parse', 'HEAD'), 'DOCTRINE.md'), false);
+});
+
+test('a lowered declared count cannot hide problems that remain [C7,D1,D3]', async () => {
+  const box = repo();
+  // Only the declaration changes: both TODOs remain, so the count is still 2.
+  await assert.rejects(holdDoctrineAsync(box.root, declare(box, 0)), error => error.code === 'RATCHET_ROSE' && error.message.includes('rose to 2, was 0'));
+  // One TODO removed while the declaration drops to 0: one remains, so it is refused too.
+  await assert.rejects(holdDoctrineAsync(box.root, declare(box, 0, 'src/old.js', '// TODO one\n')), error => error.code === 'RATCHET_ROSE');
+});
+
+test('an honest lowering removes a problem and declares the new count [C7,D1,D3]', async () => {
+  const box = repo();
+  const results = await holdDoctrineAsync(box.root, declare(box, 1, 'src/old.js', '// TODO one\n'));
+  assert.deepEqual(results.map(row => [row.state, row.count, row.committed]), [['holding', 1, 1]]);
 });
