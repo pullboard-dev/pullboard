@@ -128,6 +128,6 @@ test('control: a builder who stages a file of another lane is still refused [C7]
   write(builder, { 'api/own.js': 'export default 2;\n' });
   box.git(builder, 'add', 'api/own.js');
   const refused = box.tryGit(builder, 'commit', '-q', '-m', 'refactor(web): delete the shim [G1]');
-  assert.notEqual(refused.status, 0);
+  assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}${box.git(builder, 'log', '-1', '--format=%s')}`);
   assert.match(`${refused.stdout}${refused.stderr}`, /outside the web lane: .*api/u);
 });
