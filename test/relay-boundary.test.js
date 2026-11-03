@@ -11,8 +11,8 @@ import { styleSources } from '../packages/codemap/index.js';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GITHUB_FETCH = "      try { response = await fetch(url, { method: form || json ? 'POST' : 'GET', headers, body, redirect: 'manual', signal }); }";
 
-test('the moved GitHub client fetch is allowed at apps/relay/src/shell/github.js and the old path [C7]', () => {
-  for (const file of ['apps/relay/src/shell/github.js', 'relay/github.js']) {
+test('the moved GitHub client fetch is allowed at apps/relay/src/shell/github.js [C7]', () => {
+  for (const file of ['apps/relay/src/shell/github.js']) {
     assert.deepEqual(relayBoundaryProblems([{ file, source: `export async function call(url) {\n${GITHUB_FETCH}\n}` }]), [], file);
     const stray = relayBoundaryProblems([{ file, source: `${GITHUB_FETCH}\nfetch('/relay');` }]);
     assert.deepEqual(stray.map(row => [row.file, row.line]), [[file, 2]], 'only the one audited call is allowed there');

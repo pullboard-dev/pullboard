@@ -15,7 +15,7 @@ import { recordBlock } from '../packages/items/index.js';
 import { exportBoard } from '../packages/store/index.js';
 import { resolveCommit, tryGit } from '../src/git.js';
 import { relayPresentation } from '../packages/pages/index.js';
-import { snapshotState } from '../relay/browser-model.js';
+import { snapshotState } from '../apps/relay/index.js';
 import { assertReaderParity } from './relay-parity-reader.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { submitFixture } from './board-submit-fixture.js';

@@ -14,7 +14,7 @@ import { releaseHeadlinesBetween } from '../packages/config/index.js';
 import { ENGINE_VERSION, VERIFIER_STANDING_ENGINE } from '../packages/state/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { githubFixture } from './relay-fixture.js';
-import { createRelayBrowserHandler } from '../relay/browser-page.js';
+import { createRelayBrowserHandler } from '../apps/relay/index.js';
 import { encodeBoardKey, generateBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { lex } from '../packages/kernel/index.js';
 import { createHash, randomBytes } from 'node:crypto';
