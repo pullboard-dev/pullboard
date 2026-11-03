@@ -112,10 +112,13 @@ export function splitAmbiguousMainReds(known, items, exclude) {
   return { clear, ambiguous };
 }
 
-/** Whether a recorded check baseline names the cases its check fails at exactly this main commit. */
+/**
+ * Whether a recorded check baseline names, by file and case, the cases its check fails at exactly this main commit. A
+ * baseline that names failing cases without their files cannot tell the same name in two files apart, so it is re-taken.
+ */
 function namesCasesAt(baseline, main) {
   return baseline?.main === main && (baseline.result === 'green'
-    || baseline.result === 'red' && Array.isArray(baseline.testEvidence?.failed) && baseline.testEvidence.failed.length > 0);
+    || baseline.result === 'red' && Array.isArray(baseline.testEvidence?.failedCases) && baseline.testEvidence.failedCases.length > 0);
 }
 
 /**
@@ -142,8 +145,10 @@ export function mainRedItemCases(failures, items, exclude, main, baselines = new
     const titles = [failure.name, failure.name.replace(/\s*\[[^\]]*\]\s*$/u, '')];
     const owner = items.filter(item => covers(item, failure.file, exclude)).find(item => {
       const baseline = baselines.get(item.item_id) ?? item.item_check_baseline;
+      // A case is the same case only in the same file: X in A failing on main says nothing about X in B (#2594).
       return namesCasesAt(baseline, main) && baseline.result === 'red'
-        && baseline.testEvidence.failed.some(name => titles.includes(name) || titles.includes(name.replace(/\s*\[[^\]]*\]\s*$/u, '')));
+        && baseline.testEvidence.failedCases.some(row => row.file === failure.file
+          && (titles.includes(row.name) || titles.includes(row.name.replace(/\s*\[[^\]]*\]\s*$/u, ''))));
     });
     if (owner) owned.push({ ...failure, item: owner.item_id });
     else rest.push(failure);
