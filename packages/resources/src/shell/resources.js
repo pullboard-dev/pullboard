@@ -1067,6 +1067,9 @@ export async function takeResource(options) {
   let lastRunnerWait = '';
   /** Record an item's lease only after its awaited owner renewal succeeds. */
   const keepItemLease = async (state, table) => {
+    // The claim may have changed while this waiter was asleep. Classify that native
+    // handoff before its renewal callback can fail with a generic NOT_YOURS refusal.
+    await options.beforeAdmission?.();
     const result = await options.onWait?.(state);
     if (result?.leaseUntil !== undefined) {
       if (typeof result.leaseUntil !== 'string' || !Number.isFinite(Date.parse(result.leaseUntil))) {
