@@ -71,7 +71,7 @@ function expandRouteAlternatives(path) {
 /** Collect exact and patterned v1 paths dispatched by the local view and its API router. */
 function routedV1Paths() {
   const sources = [
-    readFileSync(new URL('../src/serve.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../apps/view/src/shell/serve.js', import.meta.url), 'utf8'),
     readFileSync(new URL("../packages/api/src/shell/api-http.js", import.meta.url), 'utf8'),
   ];
   const paths = new Set();

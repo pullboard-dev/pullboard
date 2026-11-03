@@ -1,7 +1,7 @@
 /** Pure lifecycle labels and counts; actual native board and Chrome remain in the chart journey [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { lifecycleChart } from '../../src/view/lifecycle-chart.js';
+import { lifecycleChart } from '../../apps/view/src/core/view/lifecycle-chart.js';
 
 test('every lifecycle route has its own count, plain meaning and rare-route disclosure [N26]', () => {
   const moves = new Map([

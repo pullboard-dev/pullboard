@@ -4,7 +4,7 @@
 import { viewApiPorts } from '../../src/view-api-ports.js';
 /** Cockpit projects checks, using the shared real-board fixtures [N26]. */
 import assert from 'node:assert/strict';
-import { copyPackageFiles } from '../../src/package-files.js';
+import { copyPackageFiles } from '../../packages/runners/index.js';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';

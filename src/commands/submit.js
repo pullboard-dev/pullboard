@@ -5,6 +5,7 @@ import { heartbeatCommand } from '../cli-presence.js';
 import { cachedSubmitSourceStep } from '../submit-controller-cache.js';
 import { remoteSubmitCells } from '../submit-cells-remote.js';
 import { mergeSubmissionMain } from '../../packages/merge/index.js';
+import { requireNonEmptySubmit } from '../empty-submit.js';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { clauseInspectionProblem } from '../../packages/state/index.js';
@@ -320,6 +321,7 @@ export async function submitHere(ctx, id, infra) {
       ctx.io.say(`Merged main ${acceptedMain.commit.slice(0, 12)} into the builder source as ${commit.slice(0, 12)}; checking the composed tree.`);
     }
   }
+  requireNonEmptySubmit(root, id, commit, acceptedMain.commit);
   let trunk;
   let regenerated = null;
   try { trunk = requireTrunkMerge(root, commit, isSubmitHandoffWorker(ctx) ? acceptedMain.commit : undefined); }
