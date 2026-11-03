@@ -38,7 +38,7 @@ async function phoneAnswer(box, phone, { id, ask, args, options }) {
     const {openBoard,nativeBoardPorts}=await import(${JSON.stringify(url("native-board"))});
     const {replay:replayConflictRecord,ACKNOWLEDGED_OPERATIONS,outboxQueueable,...outboxDoors}=await import(${JSON.stringify(outboxUrl)});
     const {loadConfig}=await import(${JSON.stringify(url('config'))});
-    const {laneNames}=await import(${JSON.stringify(url('lanes'))});
+    const {laneNames}=await import(${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../../seats/index.js')).href)});
     const root=process.cwd(), sink={isTTY:false,write(){}};
     const io={...outboxDoors,replayConflictRecord,outboxPolicy:()=>({acknowledgedOperations:ACKNOWLEDGED_OPERATIONS,outboxQueueable}),openBoard,nativeBoardPorts,cwd:root,stdout:sink,stderr:sink,say(){},err(){},onEvent(){},skipPersonRequests:true};
     await syncRelay(root,io);
