@@ -5,6 +5,7 @@
  * against a real board in a separate repository.
  */
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import {
   chmodSync,
   cpSync,
@@ -35,6 +36,7 @@ import {
   runFixtureChildAsync,
   runFixtureGit,
 } from './fixture-child.js';
+import { codeVersion } from '../bin/resident-client.js';
 import { residentSocket } from '../bin/resident-client.js';
 
 const REPO = resolve(import.meta.dirname, '..');
@@ -248,21 +250,27 @@ test('a new main commit makes the next command use the new code [H24]', () => {
 });
 
 test('an idle resident process closes its board connections and exits [H24]', () => {
-  // The next process started here takes this idle limit from the first client's environment.
-  const pid = fx.residentPid();
-  if (pid && fx.alive(pid)) process.kill(pid, 'SIGKILL');
-  fx.env.PULLBOARD_RESIDENT_IDLE_MS = '1500';
-  try {
-    fx.runIn(fx.repo, ['show', '2']);
-    fx.awaitResident();
-    const idle = fx.residentPid();
-    assert.equal(fx.runIn(fx.repo, ['show', '2']).status, 0);
-    // Watch for the observable retirement the process traces; each probe is a real child process, never a timer.
-    const retired = () => traceLines().some(line => line.pid === idle && line.event === 'retire:idle');
-    const deadline = performance.now() + 15_000;
-    while (!retired() && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
-    assert.ok(retired(), `the idle resident process ${idle} retired as idle`);
-    while (fx.residentPid() === idle && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
-    assert.notEqual(fx.residentPid(), idle, 'it removed its pid file on the way out');
-  } finally { fx.env.PULLBOARD_RESIDENT_IDLE_MS = '120000'; }
+  // Start one resident process directly at the board's socket with a short idle limit, after stopping any other.
+  const bin = join(fx.code, 'bin', 'pullboard.js');
+  const place = residentSocket(fx.repo, bin);
+  const running = fx.residentPid();
+  if (running && fx.alive(running)) process.kill(running, 'SIGKILL');
+  rmSync(place.pid, { force: true });
+  rmSync(place.socket, { force: true });
+  const env = { ...fx.env, PULLBOARD_RESIDENT_IDLE_MS: '1500' };
+  const daemon = spawn(process.execPath, [join(fx.code, 'bin', 'resident-board.js'), place.socket, bin, codeVersion(bin).version, place.pid],
+    { cwd: fx.repo, env, detached: true, stdio: 'ignore' });
+  daemon.unref();
+  // Each probe is a real child process, never a timer: wait for the pid file it writes once it listens.
+  const deadline = performance.now() + 15_000;
+  while (fx.residentPid() !== daemon.pid && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
+  assert.equal(fx.residentPid(), daemon.pid, 'the resident process listens and records its pid');
+  const served = fx.runIn(fx.repo, ['show', '2'], { modules: true });
+  assert.equal(served.status, 0, served.stderr);
+  assert.ok(served.loaded.length < 20, 'the read ran in the resident process, on a connection it holds');
+  const retired = () => traceLines().some(line => line.pid === daemon.pid && line.event === 'retire:idle');
+  while (!retired() && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
+  assert.ok(retired(), `the idle resident process retired as idle: ${JSON.stringify(traceLines().filter(line => line.pid === daemon.pid))}`);
+  while (fx.residentPid() === daemon.pid && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
+  assert.notEqual(fx.residentPid(), daemon.pid, 'it removed its pid file on the way out');
 });
