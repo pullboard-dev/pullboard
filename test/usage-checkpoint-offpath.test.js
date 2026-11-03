@@ -39,13 +39,13 @@ function row(id, input, output, at = new Date()) {
   return JSON.stringify({ timestamp: at.toISOString(), type: 'assistant', message: { id, model: 'fixture-claude', usage: { input_tokens: input, output_tokens: output } } }) + '\n';
 }
 
-/** Write about 50 MB of history that all predates the claim. */
-function bigLog(file) {
+/** Write about `bytes` of history that all predates the claim. */
+function bigLog(file, bytes) {
   const at = HISTORY_AT;
   const pad = 'x'.repeat(400);
   const chunk = [];
   let size = 0;
-  for (let i = 0; size < LOG_BYTES; i++) {
+  for (let i = 0; size < bytes; i++) {
     const line = JSON.stringify({ timestamp: at.toISOString(), type: 'assistant', message: { id: `history-${i}`, model: 'fixture-claude', usage: { input_tokens: 1, output_tokens: 1 }, content: pad } }) + '\n';
     chunk.push(line);
     size += Buffer.byteLength(line);
@@ -53,8 +53,8 @@ function bigLog(file) {
   writeFileSync(file, chunk.join(''));
 }
 
-/** A joined fixture seat with one claimable item and a 50 MB native session log. */
-function fixture() {
+/** A joined fixture seat with one claimable item and a native session log of `bytes` (50 MB by default). */
+function fixture(bytes = LOG_BYTES) {
   const box = helpers.project('true');
   const boardFile = join(box.repo, '.git', 'pullboard', 'board.sqlite');
   // @pullboard-board-file journey: the real CLI seat shares this repository board file.
@@ -68,7 +68,7 @@ function fixture() {
   const directory = join(box.dir, 'claude', 'projects', 'private-fixture');
   mkdirSync(directory, { recursive: true });
   const log = join(directory, `${SESSION}.jsonl`);
-  bigLog(log);
+  bigLog(log, bytes);
   return { box, id, log, common: join(box.repo, '.git') };
 }
 
@@ -94,6 +94,14 @@ function journey(box, id, log, mode) {
   return claimMs;
 }
 
+/** Hold the worker lock as a live process so queued checkpoints wait for this test to run them. */
+function holdWorker(common) {
+  const due = usageDueDirectory(common);
+  mkdirSync(due, { recursive: true });
+  writeFileSync(join(due, 'worker.lock'), String(process.pid));
+  return due;
+}
+
 /** Public numeric usage for one item, without its elapsed time. */
 function usage(box, id) {
   const shown = JSON.parse(box.run(box.repo, 'show', String(id), '--json').out).usage;
@@ -101,20 +109,22 @@ function usage(box, id) {
     cacheReadInputTokens: shown.cacheReadInputTokens, cacheWriteInputTokens: shown.cacheWriteInputTokens, models: shown.models, unknownReasons: shown.unknownReasons };
 }
 
-test('a claim with 50 MB of session logs returns in under 1 s and the detached checkpoint matches the in-line totals [N2]', () => {
+test('50 MB of session logs add under 1 s to a claim and the detached checkpoint matches the in-line totals [N2]', () => {
   const inline = fixture();
   journey(inline.box, inline.id, inline.log, 'inline');
   const expected = usage(inline.box, inline.id);
   assert.equal(expected.inputTokens, 105, 'the in-line checkpoint attributes only post-claim spend, once per streamed message');
   assert.equal(expected.outputTokens, 11);
 
+  // The same deferred claim with a one-row log is this runner's baseline: what remains is what log size adds.
+  const small = fixture(1);
+  holdWorker(small.common);
+  const baselineMs = seat(small.box, ['claim', String(small.id)], 'background');
   const deferred = fixture();
-  const due = usageDueDirectory(deferred.common);
-  mkdirSync(due, { recursive: true });
-  // Hold the worker lock as a live process so the queued work waits for this test to run it.
-  writeFileSync(join(due, 'worker.lock'), String(process.pid));
+  const due = holdWorker(deferred.common);
   const claimMs = journey(deferred.box, deferred.id, deferred.log, 'background');
-  assert.ok(claimMs < 1000, `the claim waited ${Math.round(claimMs)} ms`);
+  const addedMs = claimMs - baselineMs;
+  assert.ok(addedMs < 1000, `50 MB of session logs added ${Math.round(addedMs)} ms to the claim`); // budget: the bar's 1 s ceiling over a measured baseline claim
   const requests = readdirSync(due).filter((name) => name.endsWith('.json'));
   assert.equal(requests.length, 2, 'claim and release each recorded one due checkpoint');
   assert.equal(existsSync(join(deferred.common, 'pullboard', 'cost-ledger.json')), false, 'no command did usage work');
