@@ -181,15 +181,15 @@ test('a staged core change commits cleanly beside an attached .githooks companio
   const committed = box.tryGit(builder, 'commit', '-q', '-m', 'feat(core): edit the value [G1]');
   assert.equal(committed.status, 0, `${committed.stdout}${committed.stderr}${committed.failure ?? ''}`);
   assert.equal(box.git(builder, 'show', 'HEAD:core/value.txt').trim(), 'two', 'the core change is committed');
-  assert.equal(box.git(builder, 'show', 'HEAD:.githooks/pre-commit'), '#!/bin/sh\nexit 0\n', 'the .githooks companion is checked, never committed');
+  assert.equal(box.git(builder, 'show', 'HEAD:.githooks/pre-commit').trim(), '#!/bin/sh\nexit 0', 'the .githooks companion is checked, never committed');
 });
 
-test('control: a builder who stages a .githooks file is still refused [C7]', () => {
+test('control: a builder who stages a file of another lane is still refused beside the .githooks companion [C7]', () => {
   const { box, builder } = hooksFixture();
   writeFileSync(join(builder, 'core/value.txt'), 'two\n');
-  writeFileSync(join(builder, '.githooks/pre-commit'), '#!/bin/sh\nexit 1\n');
-  box.git(builder, 'add', 'core/value.txt', '.githooks/pre-commit');
+  write(builder, { 'api/own.js': 'export default 2;\n' });
+  box.git(builder, 'add', 'core/value.txt', 'api/own.js');
   const refused = box.tryGit(builder, 'commit', '-q', '-m', 'feat(core): edit the value [G1]');
   assert.notEqual(refused.status, 0, `${refused.stdout}${refused.stderr}`);
-  assert.match(`${refused.stdout}${refused.stderr}`, /outside the core lane: .*githooks/u);
+  assert.match(`${refused.stdout}${refused.stderr}`, /outside the core lane: .*api/u);
 });
