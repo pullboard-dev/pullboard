@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { DEFAULT_NEXT_STEPS } from '../apps/cli/src/core/next-step-defaults.js';
 import { NEXT_STEPS } from '../apps/cli/src/core/next-step-words.js';
 import { successfulNext } from '../packages/config/src/core/json-output.js';
+import { requireManualLanding } from '../packages/merge/index.js';
 import { fixture, cli } from './next-take-fixture.js';
 import { main } from './native-cli-fixture.js';
 import * as store from '../packages/store/index.js';
@@ -21,6 +22,11 @@ test('defaults, move refusals and the init loop never suggest a timed wait [N42,
   assert.match(template, /When next has nothing for your seat, end your turn/u);
   assert.equal(successfulNext('submit', {}), 'pullboard next');
   assert.equal(successfulNext('next', {}), 'nothing for this seat: end your turn');
+  assert.throws(() => requireManualLanding({}), error => {
+    assert.equal(error.code, 'BOARD_LANDS_ACCEPTED');
+    assert.doesNotMatch(error.next, /--wait|\bwait\b/iu);
+    return true;
+  });
 });
 
 test('plain next reserves an eligible review before a build, even with a held build [N41,V1,C7]', async t => {
