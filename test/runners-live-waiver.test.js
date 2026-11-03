@@ -39,12 +39,12 @@ test('review655 a registered runner honors the same live person waiver at landin
   for (const folder of [fixtureBin, remoteHome, remoteMachineHome, worker, join(repo, 'bin'), join(repo, 'test')]) mkdirSync(folder, { recursive: true });
   const env = { ...box.env, PATH: fixtureBin + ':' + box.env.PATH };
   writeFileSync(join(repo, 'package.json'), JSON.stringify({ private: true, type: 'module' }) + '\n');
-  copyCommittedPackageFiles(box, resolve(import.meta.dirname, '..'));
+  copyCommittedPackageFiles(box, resolve(import.meta.dirname, '..'), { directory: 'tooling' });
   const failing = 'test/review655-waived-red.test.js';
   writeFileSync(join(repo, failing), "import { test } from 'node:test'; test('review655 known waived runner flake', () => { throw new Error('known private flaky failure'); });\n");
   const configPath = join(repo, 'pullboard.json');
   const config = JSON.parse(readFileSync(configPath, 'utf8'));
-  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node bin/run-tests.js --test-concurrency=1 ' + failing }) + '\n');
+  writeFileSync(configPath, JSON.stringify({ ...config, gate: 'node tooling/bin/run-tests.js --test-concurrency=1 ' + failing }) + '\n');
   box.git(repo, 'add', '.');
   box.git(repo, 'commit', '-q', '-m', 'test: commit private registered-runner waiver fixture');
   const store = await import('../src/board.js');
