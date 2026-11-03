@@ -109,6 +109,14 @@ export async function withGateSlot(root, action, options = {}) {
   finally { clearInterval(keepAlive); }
 }
 
+/**
+ * The gate's live-load dispatch policy: on unless gate.loadAwareDispatch is explicitly off (#2509).
+ * refreshRunnerMeasurements reads the same rule, so the gate measures what it dispatches by.
+ */
+export function gateRunnerLoadPolicy(settings) {
+  return { enabled: settings?.gate?.loadAwareDispatch !== false, ceiling: settings?.gate?.runnerBusyCeiling ?? 90 };
+}
+
 /** One gate admission and its action; withGateSlot may call it again for a local rerun. */
 async function withOneGateSlot(root, action, { landing = false, itemCheck = false, shortEligible = false, diagnostic = false, browser = false, gui = false, remote = true, runnerOnly = false, runnerWaitMs, runnerDeadlineAt, requiredExecutor, timing = false, agent, item = '', kind = '', onWait, onReceipt, readMemory = readMachineMemory, executionServices, infrastructureRetry = false } = {}) {
   const browserByLaunch = browserByLaunchEnabled();
@@ -181,7 +189,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
     runnerOnly,
     ...(restriction ? { requiredExecutor: restriction } : {}),
     runnerProvider: () => effectiveRunners(loadMachineSettings()),
-    runnerLoadPolicyProvider: () => ({ enabled: settingsProvider().gate?.loadAwareDispatch === true, ceiling: settingsProvider().gate?.runnerBusyCeiling ?? 90 }),
+    runnerLoadPolicyProvider: () => gateRunnerLoadPolicy(settingsProvider()),
     runnerHealthProbe: probeRunnerHealth,
     /** Keep legacy fallback distinct from the ordinary exact-job health observation. */
     runnerIdleProbe: (runner, previous) => probeRunnerHealth(runner, previous, { idle: true }),

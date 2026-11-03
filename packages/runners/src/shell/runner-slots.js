@@ -49,9 +49,17 @@ export function effectiveRunners(settings) {
 /** Fresh measurements are reused for five minutes; the next actual admission refreshes stale hosts. */
 export const RUNNER_MEASUREMENT_MS = 5 * 60_000;
 
+/**
+ * The machine's live-load dispatch policy: on unless gate.loadAwareDispatch is explicitly off (#2509).
+ * Why on by default: an overloaded runner fails every job it takes, so balancing is the safe default.
+ */
+function runnerLoadPolicy(settings) {
+  return { enabled: settings?.gate?.loadAwareDispatch !== false, ceiling: settings?.gate?.runnerBusyCeiling ?? 90 };
+}
+
 /** Refresh outside resource admission; only an authenticated healthy nonce can replace measured facts. */
 export async function refreshRunnerMeasurements(settings, { measure, record, now = Date.now() }) {
-  const cpu = settings.gate?.loadAwareDispatch === true;
+  const cpu = runnerLoadPolicy(settings).enabled;
   if (settings.gate?.measuredSlots !== true && !cpu) return;
   if (typeof measure !== 'function' || typeof record !== 'function') throw new TypeError('runner measurement requires canonical transport and persistence');
   await Promise.all((settings.runners ?? []).map(async runner => {

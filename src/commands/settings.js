@@ -71,7 +71,7 @@ export function settingsCommand(io, { first, second, rest, values }) {
     const shortSlots = gateShortSlots();
     const runnersOnly = settings.gate?.runnersOnly === true;
     const runnersFirst = settings.gate?.runnersFirst === true;
-    const loadAwareDispatch = settings.gate?.loadAwareDispatch === true;
+    const loadAwareDispatch = settings.gate?.loadAwareDispatch !== false;
     const runnerBusyCeiling = settings.gate?.runnerBusyCeiling ?? 90;
     const measuredSlots = settings.gate?.measuredSlots === true;
     io.result?.({ settings: { ...settings, gate: { ...settings.gate, queue: { ...settings.gate?.queue, ...queue }, shortSlots, runnersFirst, runnersOnly, measuredSlots, loadAwareDispatch, runnerBusyCeiling, runnerWaitMs: gateRunnerWaitMs() }, relay: { ...settings.relay, offerAtInit } }, memoryFloorMB: memoryFloorMB(), descriptions: Object.fromEntries(PRINTED.map(key => [key, describeSetting(key)])) });

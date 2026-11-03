@@ -12,7 +12,7 @@ const ROWS = [
   ['gate.memoryFloorMB', 'Memory floor', 'The queue holds new checks while free memory is below this; blank means it never waits for memory.', 'Capacity', 'MB'],
   ['gate.browserFreeChecks', 'Browser-free checks skip the browser slot', 'A check that never opens a browser takes an ordinary slot instead of waiting for a browser slot.', 'Capacity', 'on/off'],
   ['gate.browserByLaunch', 'Browser work by real launches', 'Counts a test file as browser work only if it actually launches Chrome, not when it merely looks like a browser test.', 'Capacity', 'on/off'],
-  ['gate.loadAwareDispatch', 'Prefer quieter runners', 'Dispatch prefers recent runner-reported CPU readings among compatible free runners.', 'Capacity', 'on/off'],
+  ['gate.loadAwareDispatch', 'Prefer quieter runners', 'On by default: dispatch skips a runner above 1.5x its cores and picks the most headroom by runner-reported load.', 'Capacity', 'on/off'],
   ['gate.runnerBusyCeiling', 'Runner busy ceiling', 'Dispatch avoids runners above this CPU busy percentage when another compatible runner is below it.', 'Capacity', 'percent'],
   // This machine: Order
   ['gate.queue.reviewsFirst', 'Reviews first', 'Queued checks run in the order landing, review, submit, then the rest, instead of landings first and then arrival order.', 'Order', 'on/off'],

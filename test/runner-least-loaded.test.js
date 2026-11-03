@@ -9,6 +9,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { takeResource } from '../packages/resources/index.js';
 import { recordRunnerMeasurement } from '../packages/config/index.js';
 import { loadMachineSettings } from '../packages/config/index.js';
+import { gateRunnerLoadPolicy } from '../packages/gate/index.js';
+import { refreshRunnerMeasurements } from '../packages/runners/index.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 
 /** Scope real machine admission to disposable fixture storage. */
@@ -127,4 +129,21 @@ test('a busy runner records its live load reading instead of being refused as bu
     assert.deepEqual(stored.cpuLoad, cpuLoad);
     assert.equal(stored.cores, 10, 'a busy runner keeps its size so its slots never shrink under admitted jobs');
   } finally { lease.release(); }
+});
+
+test('default machine settings dispatch by live load, measured before admission; only an explicit off disables it [C7]', async t => {
+  const project = box(t);
+  writeFileSync(join(project.env.PULLBOARD_MACHINE_HOME, 'settings.json'), JSON.stringify({ gateSlots: 1, browserSlots: 1 }));
+  const settings = loadMachineSettings();
+  assert.equal(settings.gate?.loadAwareDispatch, undefined, 'nothing is configured');
+  assert.equal(gateRunnerLoadPolicy(settings).enabled, true);
+  assert.equal(gateRunnerLoadPolicy({ gate: { loadAwareDispatch: false } }).enabled, false);
+  const lease = await acquire(project, [runner('overloaded-host', 108), runner('idle-host', 1.4)],
+    { runnerLoadPolicyProvider: () => gateRunnerLoadPolicy(loadMachineSettings()) });
+  try { assert.equal(lease.runner.host, 'idle-host'); } finally { lease.release(); }
+  const probes = [];
+  await refreshRunnerMeasurements({ ...settings, runners: [{ host: 'unread-host', slots: 9, browser: 6 }] }, {
+    measure: async (destination, options) => { probes.push(options); return { healthy: false }; }, record: () => {},
+  });
+  assert.equal(probes[0]?.observeLoad, true, 'the gate reads live load before admission under default settings');
 });
