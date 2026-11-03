@@ -57,8 +57,10 @@ test('CLI spec apply handles seven rows under a peer writer and preserves untarg
   assert.equal(peerAdded.code, 0, peerAdded.err || peerAdded.out);
   const peerId = JSON.parse(peerAdded.out).item.item_id;
   const ids = Array.from({ length: 7 }, (_, index) => `G${index + 3}`);
-  const approved = box.run(box.repo, 'spec', 'approve', ...ids, '--text', 'Updated promise text.', '--json');
-  assert.equal(approved.code, 0, approved.err || approved.out);
+  for (const id of ids) {
+    const approved = box.run(box.repo, 'spec', 'approve', id, '--text', 'Updated promise text.', '--json');
+    assert.equal(approved.code, 0, `approving ${id}: ${approved.err || approved.out}`);
+  }
 
   const changedUnrelated = readFileSync(specPath, 'utf8').replace(
     '- G2 [approved, must] The API answers.', '- G2 [approved, must] Changed unrelated API promise.');
