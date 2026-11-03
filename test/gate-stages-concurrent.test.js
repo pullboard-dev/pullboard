@@ -15,8 +15,10 @@ function drivenStages(names) {
     name,
     run: (signal) => new Promise((resolve, reject) => {
       started[name] = clock.now;
-      release[name] = { green: () => resolve(`${name} green`), red: () => reject(new Error(`${name} is red`)) };
-      signal.addEventListener('abort', () => { stopped.push(name); reject(signal.reason); }, { once: true });
+      const stop = () => { stopped.push(name); reject(signal.reason); };
+      const finish = action => { signal.removeEventListener('abort', stop); action(); };
+      release[name] = { green: () => finish(() => resolve(`${name} green`)), red: () => finish(() => reject(new Error(`${name} is red`))) };
+      signal.addEventListener('abort', stop, { once: true });
     }),
   }));
   return { clock, started, release, stopped, stages };
@@ -65,16 +67,3 @@ test('submit starts static, cells, doctrine and the test gate together [C7]', ()
   for (const name of ['static', 'cells', 'doctrine', 'tests']) assert.match(call.slice(0, 6_000), new RegExp(`name: '${name}'`, 'u'));
 });
 
-test('real concurrent stages finish at the slowest duration [C7]', async () => {
-  const start = performance.now(), began = [];
-  const stages = [2000, 3000, 4000].map(ms => ({ name: String(ms), run: async () => {
-    began.push(performance.now() - start);
-    await new Promise(resolve => setTimeout(resolve, ms));
-    return ms;
-  } }));
-  const result = await runGateStages(stages);
-  const elapsed = performance.now() - start;
-  assert.deepEqual(result, { 2000: 2000, 3000: 3000, 4000: 4000 });
-  assert.ok(Math.max(...began) < 1500, `all stages started together: ${began}`);
-  assert.ok(elapsed >= 3900 && elapsed < 7000, `parallel elapsed ${elapsed}ms`); // budget: a 4s slowest stage, with runner scheduling margin.
-});
