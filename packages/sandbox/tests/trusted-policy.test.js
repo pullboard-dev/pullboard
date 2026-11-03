@@ -46,13 +46,13 @@ test('reclaim at newer main submits only the item edits, without reverting coord
   assert.equal(box.run(box.web, 'claim', '1').code, 0);
   box.git(box.web, 'checkout', '-q', 'web/one');
   const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
-  assert.equal(reclaimed.item_claim_head, newerMain, 'the new claim is bounded by newer main');
-  assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), candidate, 'the item still has its older main parent');
+  assert.equal(reclaimed.item_claim_head, newerMain, `the new claim is bounded by newer main (candidate ${candidate})`);
+  assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), candidate, `the item still has its older main parent (candidate ${candidate}, newer main ${newerMain})`);
   const submitted = box.run(box.web, 'submit', '1', '--json');
   assert.equal(submitted.code, 0, submitted.out + '\n' + submitted.err);
   const record = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(record.item_status, 'submitted');
-  assert.equal(record.item_commit, candidate);
-  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), newerMain, 'submit does not rewrite the coordinator checkout');
+  assert.equal(record.item_commit, candidate, `the submitted commit is the candidate (newer main ${newerMain})`);
+  assert.equal(box.git(box.repo, 'rev-parse', 'HEAD'), newerMain, `submit does not rewrite the coordinator checkout (candidate ${candidate})`);
   assert.deepEqual(submissionPaths(box.web, reclaimed, candidate, { mainCommit: newerMain }), ['web/reclaimed.txt']);
 });
