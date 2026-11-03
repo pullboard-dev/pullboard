@@ -73,7 +73,6 @@ function itemProject() {
     "import assert from 'node:assert/strict';",
     "import { existsSync } from 'node:fs';",
     "import { test } from 'node:test';",
-    'Error.stackTraceLimit = 0;',
     `const red = existsSync(${JSON.stringify(flag)}) && existsSync(new URL('../web/output-summary-candidate.js', import.meta.url));`,
     "for (let n = 0; n < 200; n++) test(`passing case ${n}`, () => {});",
     "test('first failing case', () => assert.ok(!red, 'first failure detail'));",
