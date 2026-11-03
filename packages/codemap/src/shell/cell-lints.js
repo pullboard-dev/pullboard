@@ -106,5 +106,5 @@ export function cellLintReport(root, parsers, { inventory } = {}) {
   const transition = marker.active
     ? { item: 1781, until: 1770, active: true, witness: TRANSITION_FILE }
     : { item: 1527, until: 1395, active: !marker.present && witness === null, witness };
-  return { version: 1, metrics, unknown, transition, shimTargets: Object.fromEntries(metrics.shims.findings.map(row => [row.key, edges.get(row.key)?.[0]?.target ?? row.key])), shimBaseline: files.has('bin/cell-lint-baselines/shim-counts.json') ? JSON.parse(files.get('bin/cell-lint-baselines/shim-counts.json').toString('utf8')) : null, rootMode: rootInfo.mode, roots: rootInfo.roots, pathMap, qualification: 'Known production file and individual export reach from declared transitional entrypoints or real app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
+  return { version: 1, metrics, unknown, transition, shimTargets: Object.fromEntries(metrics.shims.findings.map(row => [row.key, edges.get(row.key)?.[0]?.target ?? row.key])), rootMode: rootInfo.mode, roots: rootInfo.roots, pathMap, qualification: 'Known production file and individual export reach from declared transitional entrypoints or real app front doors; tests never seed reach. Opaque bindings/loaders remain named debt, not proven reachable.' };
 }

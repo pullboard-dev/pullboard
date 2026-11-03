@@ -20,8 +20,10 @@ import { testTierCommand } from '../../packages/gate/index.js';
 import { testTierReport } from '../../packages/gate/index.js';
 import { landAfterAcceptance } from './land.js';
 import { reviewPatchAuthors } from '../../packages/verify/index.js';
+import { itemTrunkMove } from '../../packages/verify/index.js';
 import { boundProofReceipt } from '../../packages/store/index.js';
 import { linkKnownMainReworks } from '../../packages/store/index.js';
+import { splitAmbiguousMainReds } from '../../packages/store/index.js';
 import { sealQuarantineVerdict } from '../../packages/flakes/index.js';
 import { compositionSessionOptions } from '../../packages/verify/index.js';
 import { frozenCheckTiming } from '../check-timing.js';
@@ -30,8 +32,8 @@ import {
   retainTestOutput,
   renderTestSummary,
   withTestOutput,
-} from '../test-output-summary.js';
-import { checkAtCommit } from '../runner-private-check.js';
+} from '../../packages/gate/index.js';
+import { checkAtCommit } from '../../apps/runner/index.js';
 import { runnerExecutionServices } from '../runners.js';
 import { landingExecutionServices } from '../../packages/landing/index.js';
 import { compareMainFailures } from '../../packages/landing/index.js';
@@ -46,6 +48,7 @@ import { agentSessionDigest } from '../../packages/person/index.js';
 import { verifiedPasskeyRowDecision } from '../../packages/person/index.js';
 import { completeMoveHandoff } from '../../packages/verify/index.js';
 import { itemReviewPolicy } from '../../packages/verify/index.js';
+import { reviewPacketReadNote } from '../../packages/verify/index.js';
 import { twoTierReviews } from '../../packages/verify/index.js';
 import { missingCompanionKeys } from '../../packages/items/index.js';
 import { prepareItemPatchReview } from '../../packages/items/index.js';
@@ -86,7 +89,10 @@ import {
 import { checkNeedsGui } from '../../packages/gate/index.js';
 import * as itemSessions from '../../packages/items/index.js';
 import { itemAuthors } from '../../packages/items/index.js';
-import * as nativeFlakes from '../native-flake-cli.js';
+import {
+  recordMainComparison,
+  verify as flakeVerify,
+} from '../../packages/flakes/index.js';
 import {
   Refused,
 } from '../../packages/kernel/index.js';
@@ -140,6 +146,9 @@ import { recordedRecovery } from '../../packages/state/index.js';
 import { retryReviewCommit } from '../../packages/verify/index.js';
 import { readFileSync } from 'node:fs';
 
+/** Ambiguous known-main cases of one comparison, kept beside the sealed record rather than inside it. */
+const AMBIGUOUS_KNOWN = new WeakMap();
+
 /** Compare the complete red check after releasing its slot; unavailable evidence grants nothing. */
 export async function knownMainCheck(root, check, { main, item, items, onWait, onMeasuredReceipt, runnerAdmission }) {
   if (check.state !== 'red' || !check.checked || check.executionSourceUnchanged !== true) return null;
@@ -157,14 +166,19 @@ export async function knownMainCheck(root, check, { main, item, items, onWait, o
       execution: { executor: check.executionRunner ? { kind: 'ssh', host: check.executionRunner } : { kind: 'local' }, environment: check.environment },
     });
     const matched = matchingMainFailures(failures, comparison, main);
-    return linkKnownMainReworks(matched, items(), item);
+    // A case several repairs could own is still red on main, so it never keeps the check red (#2528).
+    const split = matched ? splitAmbiguousMainReds(matched, items(), item) : null;
+    const linked = split ? linkKnownMainReworks(split.clear, items(), item) : null;
+    if (linked && split.ambiguous.length) AMBIGUOUS_KNOWN.set(linked, split.ambiguous); // Kept off the sealed record, shown in the note only.
+    return linked;
   } catch { return null; } // Preserve CHECK_RED when comparison, identity or ownership cannot be established.
 }
 
 /** Retain exact case identities and repair links in the immutable verdict without calling the raw check green. */
 export function knownMainCheckNote(known) {
   return known ? `\nfrozen check remains red; identical on main ${known.main}:\n`
-    + known.failures.map(row => `${row.file} :: ${row.name}; open Main red repair #${row.item}`).join('\n') : '';
+    + [...known.failures.map(row => `${row.file} :: ${row.name}; open Main red repair #${row.item}`),
+      ...(AMBIGUOUS_KNOWN.get(known) ?? []).map(row => `${row.file} :: ${row.name}; several candidate repairs ${row.candidates.map(id => `#${id}`).join(', ')}`)].join('\n') : '';
 }
 
 /** Preserve policy refusals while representing unusable cited criteria as a changed digest. */
@@ -321,7 +335,7 @@ export async function verifyHere(ctx, id, { second, values }) {
                 // Release this slot and classify the actual composition before running anything.
                 if (checkedCommit !== selected) throw reselection;
               }
-              const ran = await nativeFlakes.verify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
+              const ran = await flakeVerify(ctx, checkedItem, frozenCheck(item) || supplement, { board, main: trunk.commit, commit: checkedCommit }, { ordered, withBoard, resourceAgent, checkAtCommit: tierCheck })(lease);
               return ran.state === 'pass' ? { ...ran, guardNote: guardRevertNote(root, checkedItem, lease, { checkAtCommit }) } : ran;
             }, { executionServices: { runners: runnerExecutionServices(), landing: landingExecutionServices() }, browser, gui, remote: gateRunnersFirstEnabled(), ...runnerAdmission, agent: me.id, item: String(id), kind: 'review', timing: frozenCheckTiming(item), itemCheck: true, shortEligible, onWait: queuedItemLease(ctx, item, me.id, 'review') });
           } catch (error) {
@@ -347,19 +361,27 @@ export async function verifyHere(ctx, id, { second, values }) {
           knownMain = await knownMainCheck(root, check, { main: trunk.commit, item: id,
             items: () => store.listItems(board, { all: true }), runnerAdmission,
             onWait: queuedItemLease(ctx, item, me.id, 'review'),
-            onMeasuredReceipt: receiptId => nativeFlakes.recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
+            onMeasuredReceipt: receiptId => recordMainComparison(ctx, receiptId, { ordered, withBoard, resourceAgent }),
           });
           if (!knownMain) throw withTestOutput(new Refused('CHECK_RED', `the frozen item check is red at the ${checkedLabel} (${check.stage}); check.install may be needed for dependencies; reject with the failing behavior or ask the builder to fix and resubmit${evidence}`), verificationOutput);
         }
         const receipt = store.events(board, { itemId: id }).filter(event => event.event_kind === 'submit').map(event => JSON.parse(event.event_detail)).find(event => event.commit === commit);
         submissionPaths(root, item, commit, { mainCommit: receipt?.policyCommit, dependencies: dependencySnapshots(board.db, item) });
         const currentTrunk = requireTrunkMerge(root, checkedCommit); // Re-read after the frozen check, before accepting.
-        // With verify.unrelatedTrunkMoves on, a move through commits that touch nothing this review read keeps its verdict (#928).
-        const judged = check.reused || currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
-          : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles });
         if (headCommit(root) !== head || (reReview && (!isClean(root) || untracked(root).length))) {
           throw new Refused('NOT_AT_COMMIT', 'the reviewed checkout moved during its check; restore the clean reviewed HEAD and retry verification');
         }
+        const moved = currentTrunk.commit === trunk.commit ? null
+          : itemTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, paths: review.paths });
+        if (moved?.overlap.length) throw new Refused('VERDICT_TRUNK_MOVED',
+          `main changed files this item touches during review: ${moved.overlap.map(path => JSON.stringify(path)).join(', ')}; merge current main and re-review`);
+        if (moved && !knownMain) {
+          unaffectedMove += `\nmain moved during this review through ${moved.moved.map(sha => sha.slice(0, 12)).join(', ')}; the reviewed commit still merges and its files are unchanged`;
+          refuseUnverifiedStack(root, board, item, checkedCommit, currentTrunk);
+          break;
+        }
+        const judged = check.reused || currentTrunk.commit === trunk.commit || ctx.config.verify.unrelatedTrunkMoves !== true ? null
+          : await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles });
         if (currentTrunk.commit !== trunk.commit && (knownMain || !judged || judged.overlap)) {
           if (proofRetries++ >= 1) {
             const reach = judged ? (await judgeTrunkMove(root, { from: trunk.commit, to: currentTrunk.commit, item, checkedCommit, check: frozenCheck(item) }, { selectAffectedTests, explicitCheckFiles }, { all: true })).overlaps : [];
@@ -389,7 +411,7 @@ export async function verifyHere(ctx, id, { second, values }) {
       agentId: me.id,
       decision,
       reason: values.reason,
-      note: (textArg(ctx.io, values, 'note') ?? '') + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
+      note: (textArg(ctx.io, values, 'note') ?? '') + reviewPacketReadNote(ctx.info.commonDir, item, values.read, decision) + unaffectedMove + knownMainCheckNote(knownMain) + (check?.guardNote ?? '') + (check?.executionNote ?? '') + (check?.blockingVerdict ? `\ncomputed quarantine verdict; raw exit ${check.exitCode}; events ${check.blockingVerdict.quarantines.slice(0, 8).map(row => row.eventId).join(', ')}` : '') + (approvalNote ? `\n${approvalNote}` : ''),
       ...(decision === 'REJECT' && values.cause !== undefined ? { cause: values.cause } : {}),
       ...(decision === 'REJECT' && values.clause !== undefined ? { clause: values.clause } : {}),
       head,

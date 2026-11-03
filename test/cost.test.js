@@ -14,7 +14,7 @@ import { pathToFileURL } from 'node:url';
 import { after } from 'node:test';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../src/board-milestones.js';
 import { sessionSnapshot, usageDifference } from '../packages/stats/index.js';
 import { usageCheckpoint } from '../packages/stats/index.js';

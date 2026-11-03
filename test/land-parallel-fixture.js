@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runFixtureChild, startFixtureChild } from './fixture-child.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { GATE_SLOT_HELD_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_POOL_ENV } from '../packages/resources/index.js';
 import { GATE_SLOT_TOKEN_ENV } from '../packages/resources/index.js';
@@ -55,7 +55,7 @@ function runBatch(box, enabled) {
     `import { loadConfig } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/config/src/shell/config.js')).href)};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
-    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
+    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/runner/index.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const enabled = process.argv[2] === "true";',
@@ -248,7 +248,7 @@ export function assertParallelNestedGate({ landProject, itemWorktree, submitItem
     `import { openBoard } from ${JSON.stringify(url("native-board.js"))};`,
     `import { runLandingBatch } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../packages/landing/index.js')).href)};`,
     `import { landingPorts } from ${JSON.stringify(new URL('./landing-ports-fixture.js', import.meta.url).href)};`,
-    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-private-check.js')).href)};`,
+    `import { checkAtCommit } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/runner/index.js')).href)};`,
     `const candidateWorkerFile = ${JSON.stringify(join(import.meta.dirname, '../bin/landing-candidate.js'))};`,
     "import { join } from 'node:path';",
     'const root = process.argv[1]; const board = openBoard(join(root, ".git", "pullboard", "board.sqlite"));',

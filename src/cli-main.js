@@ -167,7 +167,7 @@ const OPTIONS = {
   outcome: { type: 'string' },
   item: { type: 'string' },
   for: { type: 'string' },
-  kinds: { type: 'string' }, to: { type: 'string' }, work: { type: 'string' }, 'review-wait': { type: 'string' },
+  kinds: { type: 'string' }, to: { type: 'string' }, work: { type: 'string' }, 'review-wait': { type: 'string' }, review: { type: 'boolean' }, read: { type: 'string' },
   commit: { type: 'string' },
   ref: { type: 'string' },
   supersedes: { type: 'string' },
@@ -440,7 +440,7 @@ async function runMain(argv, streams) {
       if (parsed.values.as === 'person' && !parsed.values.help && !parsed.values.version) {
         await io.prepareProcessPorts();
         io.nativeBoard ??= await io.loadNativeBoard();
-        preflightRelay = await import('./relay.js');
+        preflightRelay = (({ DEFAULT_RELAY, relayStatus }) => ({ DEFAULT_RELAY, relayStatus }))(await import('../packages/link/index.js'));
       }
       const [command, verb] = parsed.positionals;
       const remoteRelayOn = command === 'relay' && verb === 'on' && !parsed.values.all;
@@ -530,7 +530,7 @@ async function runMain(argv, streams) {
       catch { io.err('pullboard: the automatic main-merge worker could not start; run pullboard sentinel run --health-only to retry'); }
     }
     if (auditAfterCommand) {
-      try { await (await import('./main-audit-nudge.js')).nudgeMainAudit(io.cwd, new URL('../bin/main-audit.js', import.meta.url)); }
+      try { await (await import('../packages/gate/index.js')).nudgeMainAudit(io.cwd, new URL('../bin/main-audit.js', import.meta.url)); }
       catch { io.err('pullboard: the full-suite audit could not start; run pullboard land again to retry'); }
     }
   }

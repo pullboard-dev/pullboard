@@ -13,7 +13,7 @@ import {
   prepareEngineMove,
   applyEngineMove,
 } from '../packages/state/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 import {
   exportBoard,
   importBoard,

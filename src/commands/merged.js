@@ -72,7 +72,7 @@ export async function run(io, { first, second, values }) {
     request.batch.flakeRatchet = landingFlakeRatchet(board).snapshot;
     if (codeIsFromMain()) {
       const afterEventId = board.db.prepare('SELECT COALESCE(MAX(event_id),0) AS n FROM event').get().n;
-      await (await import('../main-audit-state.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
+      await (await import('../../packages/gate/index.js')).activateMainAudits(ctx.info.root, afterEventId, store.boardId(board));
     }
     const batch = await ordered(ctx, board, 'recordTrainLanding', [request]);
     io.result?.({ id, ids, commit, batch: batch.id, receiptId: request.receipt.id });

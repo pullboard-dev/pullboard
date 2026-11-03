@@ -1,7 +1,7 @@
 /** Native outbox authority ports retain the original computed-return and actor guards [H16,V4,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { openBoard, nativeBoardPorts } from '../src/native-board.js';
+import { openBoard, nativeBoardPorts } from '../apps/lib/index.js';
 import { closeBoard } from '../packages/store/index.js';
 import { transport } from '../packages/outbox/index.js';
 import { runRelaySender } from '../src/relay-sender-worker.js';

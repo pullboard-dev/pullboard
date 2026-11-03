@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** The public, versioned JSON surface of every pullboard command (A1). */
 import { copyPackageFiles } from '../src/package-files.js';
 import assert from 'node:assert/strict';
@@ -500,7 +500,7 @@ test('[A5, A6] a future-schema worktree cannot migrate the shared board; main ca
   assert.deepEqual(readFileSync(dbFile), before, 'the removed environment override cannot migrate the shared board');
   const relayProbe = join(linked, '.schema-relay-probe.mjs');
   writeFileSync(relayProbe, `
-    import { localRecords } from './src/relay.js';
+    import { localRecords } from './packages/link/index.js';
     import { openBoard } from './src/native-board.js';
     try {
       localRecords(openBoard, process.env.PULLBOARD_FIXTURE_REPO, (board) => board.db.prepare('PRAGMA user_version').get());

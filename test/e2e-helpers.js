@@ -12,7 +12,7 @@ import { request } from 'node:http';
 import { connect } from 'node:net';
 import { join, resolve } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { AGENT_SHELL_MARKERS, SSH_SHELL_MARKERS } from '../packages/kernel/src/core/discovery.js';
 import { fetchFresh } from './http-fixture.js';
 import { fetchPrintedViewLink } from './view-link-fixture.js';
@@ -48,6 +48,8 @@ function sandbox({ declareFamilies = false } = {}) {
     GIT_COMMITTER_EMAIL: 'agent@example.com',
     PULLBOARD_HOME: join(dir, 'pullboard-home'),
     PULLBOARD_MACHINE_HOME: join(dir, 'machine-home'),
+    // Fixtures read usage right after a move; the detached checkpoint has its own proof [N2].
+    PULLBOARD_USAGE_CHECKPOINT: 'inline',
   };
   for (const marker of [...AGENT_SHELL_MARKERS, ...SSH_SHELL_MARKERS]) delete env[marker];
   delete env.PULLBOARD_RELAY_TOKEN;

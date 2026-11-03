@@ -1,65 +1,67 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-input package.json */
-/** The exact moves shims keep the board-move declaration closure free of the registry loader [C7,CD60,H16]. */
+/** Engine history and the move closure read the moves cell, so deleting src/moves changes neither [C7,H16]. */
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join, posix } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname } from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { packageFiles } from '../packages/runners/index.js';
+import { assignEngineNumbers } from '../src/engine-numbers.js';
 import { importsIn } from '../packages/gate/index.js';
-import { readPathMap } from '../packages/codemap/index.js';
-import { workingSourceInventory } from '../bin/checks/scan.js';
-import { packageFiles } from '../src/package-files.js';
-import { sourceDirectories } from './machine-source-functions.fixture.js';
+import { commonJsIn } from '../packages/gate/index.js';
+import { moveDeclarationFiles } from '../bin/cells-move-closure.js';
 
-const ROOT = fileURLToPath(new URL('../', import.meta.url));
-const SHIMS = {
-  'src/bar-ready-setting.js': 'packages/moves/src/core/bar-ready-setting.js',
-  'src/moves/reopen.js': 'packages/moves/src/core/moves/reopen.js',
-  'src/moves/shout.js': 'packages/moves/src/core/moves/shout.js',
-};
-
-/** Read the real literal relative closure of every board-move declaration, keyed by canonical old identity. */
-function closure(read, identities, opaque = null) {
-  const pending = readdirSync(join(ROOT, 'src/moves')).filter(file => file.endsWith('.js')).map(file => `src/moves/${file}`);
-  const seen = new Set();
-  while (pending.length) {
-    const file = pending.shift();
-    if (seen.has(file)) continue;
-    seen.add(file);
-    if (file.endsWith('.json')) { JSON.parse(read(file)); continue; } // Imported data is retained, never executed.
-    assert.match(file, /\.[cm]?js$/u, `every executable dependency is a JavaScript module: ${file}`);
-    for (const specifier of importsIn([read(file)])[0]) {
-      if (specifier.startsWith('node:')) continue;
-      if (opaque && specifier === '(computed)') { opaque.add(file); continue; }
-      assert.ok(specifier.startsWith('.'), `literal relative move dependency: ${specifier}`);
-      pending.push(posix.normalize(posix.join(posix.dirname(file), specifier)));
-    }
+/** Build a tree whose move bodies live in the moves cell, with or without the src/moves shims. */
+function engineTree(t, shims) {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-moves-cell-engine-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  /** Write one synthetic source file. */
+  const put = (file, text) => {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    writeFileSync(join(root, file), text);
+  };
+  put('src/move-history/legacy.json', '{}');
+  put('src/base-engine.js', 'export const BASE_ENGINE = 40;\n');
+  put('src/alpha-engine.js', "import { unassignedEngine } from './engine-next.js';\nexport const ALPHA_ENGINE = unassignedEngine();\n");
+  put('packages/moves/src/core/moves/addThing.js', 'export default { operation: "addThing", engine: 40 };\n');
+  put('packages/moves/src/shell/moves/recordThing.js', 'export default { operation: "recordThing", engine: 40 };\n');
+  if (shims) {
+    put('src/moves/addThing.js', 'export { default } from "../../packages/moves/src/core/moves/addThing.js";\n');
+    put('src/moves/recordThing.js', 'export { default } from "../../packages/moves/src/shell/moves/recordThing.js";\n');
   }
-  return [...new Set([...seen].map(file => identities.get(file) ?? file))].sort();
+  return root;
 }
 
-test('exact moves shims add no registry loader to the move declaration closure; the front door fails the control [C7,CD60,H16]', () => {
-  const sources = new Map(workingSourceInventory(ROOT, sourceDirectories(packageFiles(ROOT)))
-    .map(({ file, body }) => [file, body.toString('utf8')]));
-  const manifest = readFileSync(new URL('../package.json', import.meta.url), 'utf8');
-  const read = file => {
-    if (file === 'package.json') return manifest;
-    assert.ok(sources.has(file), `closure source belongs to the bounded inventory: ${file}`);
-    return sources.get(file);
-  };
-  const identities = new Map([...readPathMap(ROOT)].map(([old, moved]) => [moved, old]));
-  for (const [shim, body] of Object.entries(SHIMS)) {
-    assert.ok(read(shim).includes(posix.relative(posix.dirname(shim), body)), `${shim} targets its own exact body`);
-  }
-  const after = closure(read, identities);
-  assert.ok(after.includes('src/bar-ready-setting.js') && after.includes('src/moves/reopen.js'), 'the shimmed leaves stay in the closure');
-  assert.ok(!after.includes('src/move-registry.js'), 'the registry loader is not reached by any move declaration');
-  assert.ok(!after.includes('packages/moves/index.js'), 'the front door is not reached by any move declaration');
-  const opaque = new Set();
-  const broad = closure(file => file === 'src/bar-ready-setting.js'
-    ? "export * from '../packages/moves/index.js';\n" : read(file), identities, opaque);
-  assert.notDeepEqual(broad, after, 'the front door cannot substitute for the approved exact shim');
-  assert.ok(broad.includes('src/move-registry.js'), 'the negative control reaches the registry loader');
-  assert.deepEqual([...opaque], ['packages/moves/src/shell/move-registry.js'], 'the control reaches the registry computed loader');
+test('engine numbers and their frozen history are the same with or without the src/moves shims [C7,H16]', t => {
+  const results = [true, false].map(shims => {
+    const root = engineTree(t, shims);
+    const { assigned } = assignEngineNumbers(root);
+    return { assigned, history: readFileSync(join(root, 'src/move-history/41.json'), 'utf8') };
+  });
+  assert.deepEqual(results[0].assigned, [{ name: 'ALPHA_ENGINE', number: 41 }]);
+  assert.deepEqual(results[1], results[0], 'a tree without src/moves numbers and records exactly like one with the shims');
+  assert.deepEqual(Object.keys(JSON.parse(results[1].history).declarations), ['addThing.js', 'recordThing.js'],
+    'the record freezes the packaged bodies, never the shims');
+});
+
+test('the real move closure without src/moves is the shimmed closure minus its shims [C7,H16]', t => {
+  const root = join(import.meta.dirname, '..');
+  const fixture = mkdtempSync(join(tmpdir(), 'pullboard-moves-cell-closure-'));
+  t.after(() => rmSync(fixture, { recursive: true, force: true }));
+  const files = packageFiles(root);
+  copyPackageFiles(root, fixture, { files });
+  /** The bounded declaration closure of the fixture tree as a sorted list. */
+  const closure = () => [...moveDeclarationFiles(fixture, { files, importsIn, commonJsIn })].sort();
+  const withShims = closure();
+  assert.ok(withShims.some(file => file.startsWith('packages/moves/src/core/moves/')), 'the packaged bodies are reached');
+  rmSync(join(fixture, 'src/moves'), { recursive: true, force: true });
+  const withoutShims = closure();
+  assert.deepEqual(withoutShims, withShims.filter(file => !file.startsWith('src/moves/')),
+    'deleting src/moves removes only the shims from the closure');
 });

@@ -14,6 +14,7 @@ import { cleanGitEnvironment } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 import { existsSync } from 'node:fs';
 import { redReturnLeaseHolds } from '../../../store/index.js';
+import { submitGateInFlight } from '../../../store/index.js';
 
 /** Capture main-red evidence only on the write maintenance path, retaining fast read-only status. */
 export async function captureStaleState(ctx, board) {
@@ -69,8 +70,10 @@ function recentCommit(row, now) {
  * Capture at most 32 claims before an ordinary write: claims idle past their lapsed lease (#1933), and, since #1225, live
  * claims with no real work for 20 minutes (stalled, told once) or 40 (released with a handoff), and claims waiting on
  * an item that has not landed. Incomplete activity evidence stays unknown and never releases anything.
+ * `lapsedOnly` is the write path's share (#2427): only claims whose lease has already lapsed, which read board rows and
+ * seat presence and never run Git. Live claims, and returns that pin a handoff, wait for background maintenance.
  */
-export function captureLapsedClaims(ctx, board, actor) {
+export function captureLapsedClaims(ctx, board, actor, { lapsedOnly = false } = {}) {
   const at = ctx.clock.now();
   const limit = staleStateLimits(ctx.config).claim;
   const cutoff = new Date(at.getTime() - limit).toISOString();
@@ -79,21 +82,25 @@ export function captureLapsedClaims(ctx, board, actor) {
   const items = board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id>? ORDER BY item_id LIMIT 32").all(actor, cutoff, cursor);
   if (items.length < 32) items.push(...board.db.prepare("SELECT * FROM item WHERE item_status='claimed' AND item_owner<>? AND item_lease_until<=? AND item_id<=? ORDER BY item_id LIMIT ?").all(actor, cutoff, cursor, 32 - items.length));
   const lapsed = new Set(items.map(item => item.item_id));
-  items.push(...liveClaims(board, actor).filter(item => !lapsed.has(item.item_id)));
+  if (!lapsedOnly) items.push(...liveClaims(board, actor).filter(item => !lapsed.has(item.item_id)));
   if (!items.length) return null;
   // A seat whose worktree no longer exists can do no work there, so it reads as idle rather than unknown (#1225 row 7).
   const gone = holder => { const path = board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(holder)?.agent_path; return Boolean(path) && !existsSync(path); };
   const snapshot = staleStateSnapshot(board, ctx.config, { now: at, items, claimsOnly: true, blocker: () => false,
-    workObservation: holder => gone(holder) ? { available: true, at: null } : observeStaleWork(board, holder) });
+    // Lapsed rows read seat presence only; the write path's guard keeps Git out even if that ever changed.
+    workObservation: holder => gone(holder) ? { available: true, at: null } : lapsedOnly ? { available: false, at: null } : observeStaleWork(board, holder) });
   const lapsedItems = items.filter(item => lapsed.has(item.item_id));
   snapshot.claimScan = { previous: cursor, next: lapsedItems.length ? lapsedItems.at(-1).item_id : Math.max(cursor, 1) };
   const byId = new Map(items.map(item => [item.item_id, item]));
   snapshot.claims = snapshot.claims.flatMap(row => {
+    // A queued or running gate is the holder's activity; neither the lapsed-lease sweep nor the idle release takes it (#2561).
+    if (submitGateInFlight(board, byId.get(row.id))) return [];
     // A red queued gate's fresh lease is the builder's to use; idle maintenance waits for it to end (#2454).
     if (!lapsed.has(row.id) && redReturnLeaseHolds(board, byId.get(row.id), at.getTime())) return [];
     if ((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_PROGRESS_ENGINE && row.progress.trigger && row.health !== 'waiting'
       && (row.idleMs === null || row.idleMs < CLAIM_IDLE_RELEASE_MS)
       && !((board.executionEngineVersion ?? ENGINE_VERSION) >= CLAIM_RETURNS_ENGINE && recentCommit(row, at.getTime()))) {
+      if (lapsedOnly) return [];
       return [{ ...row, idle: 'progress', handoff: pinClaimHandoff(board, row, byId.get(row.id)) }];
     }
     if (lapsed.has(row.id)) {

@@ -97,7 +97,7 @@ export function buildLocalBoardState(root, boardId, board, codeIsMain, { previou
       requests: store.openRequests(board),
       personRequests: personRequestStatuses(board),
       milestones: scopeCommonDir === null
-        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard, workQueue } })
+        ? milestoneRoadmap(root, board, { ports: { ...store, roadmap, openBoard, workQueue, listApiProjects } })
         : milestoneRoadmap(root, board, { projects, hideOutOfScope: true, ports: { ...store, roadmap, openBoard, workQueue } }),
       rowDecisions: store.rowDecisions(board),
       proofStats: viewProofSummary(proofStats(board, { now: observedAt }, { events: store.events, counterProofStats })),
