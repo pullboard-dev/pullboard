@@ -1,4 +1,5 @@
 /** gate front door: the cell's public modules behind one entry [C7,CD60]. */
+export { removeTestSandbox } from "./src/shell/test-sandbox-cleanup.js";
 export { sealKnownMainAutofile } from "./src/shell/known-main-autofile-receipts.js";
 export { declaredSourceLoads, declaredSourcePatterns, testClosures, codeMapGraph, selectTestTreeGuards, selectAffectedTests } from "./src/shell/affected-tests.js";
 export { packageBranchCoverage } from "./src/shell/audit-coverage.js";
