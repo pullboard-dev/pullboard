@@ -14,7 +14,7 @@ import {
   join,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runtimeCaptureSource } from '../../../sandbox/src/shell/execution-environment.js';
+import { gateRuntimeCaptureSource } from '../core/preload-policy.js';
 import { childJournalPreloadSource } from './child-journal-source.js';
 
 /** Stands in for the OS account home when machine state falls back to it (packages/resources/src/shell/machine-home.js). */
@@ -55,7 +55,7 @@ function runtimePreload(token) {
   try {
     const file = declared.startsWith('"') ? JSON.parse(declared) : declared;
     return typeof file === 'string' && file.endsWith('/test-runtime-preload.cjs')
-      && readFileSync(file, 'utf8') === runtimeCaptureSource(dirname(file));
+      && readFileSync(file, 'utf8') === gateRuntimeCaptureSource(dirname(file));
   } catch { return false; /* A missing or different recorder remains foreign and retains conservative admission. */ }
 }
 
