@@ -149,7 +149,7 @@ test('every current operation selects its native actor credential without a seco
     { operation: 'recordRowVerification', args: [{ source: '- G1 [approved, must] A credential fixture row. | gate: review', decision: 'accepted', reason: 'credential fixture' }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordFlakeObservation', args: [{ lane: box.lane, observation: syntheticFlakeObservation('missing-actor') }], kind: 'agent', sent: false, expected: 'RELAY_ACTOR' },
     { operation: 'recordGateRun', args: [{ lane: box.lane, receipt: {} }], kind: 'agent', sent: false, expected: 'GATE_RUN_EVIDENCE' },
-    { operation: 'submit', args: [999999, options], kind: 'agent', sent: false, expected: 'SUBMISSION_PROOF' },
+    { operation: 'submit', args: [box.before.tables.item[0].item_id, options], kind: 'agent', sent: false, expected: 'SUBMISSION_PROOF' },
     { operation: 'answerDecision', args: [999999, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
     { operation: 'holdLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
     { operation: 'releaseLane', args: [box.lane, { ...options, asPerson: true, channel: 'terminal' }], kind: 'person', sent: false },
