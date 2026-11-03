@@ -50,19 +50,32 @@ export function registerSeatWake(info, boardId, seat, command) {
   renameSync(pending, file);
 }
 
-/** Wake an idle locally enrolled seat after routing commits, without ever holding the board writer. */
-export async function wakeRoutedSeat(info, { boardId, seat, item }) {
-  if (seat?.presence !== 'idle' || !Number.isSafeInteger(item) || item < 1) return { woke: false };
+/** Read only a capability registered locally for this exact board and checkout. */
+function registeredWake(info, boardId, seat) {
+  if (!seat) return null;
   let registration;
   try {
     registration = JSON.parse(readFileSync(wakeFile(boardId, seat.agent_id), 'utf8'));
     if (registration.version !== 1 || registration.boardId !== boardId || registration.seat !== seat.agent_id
       || registration.root !== realpathSync(seat.agent_path) || registration.commonDir !== realpathSync(info.commonDir)
-      || typeof registration.command !== 'string' || !isAbsolute(registration.command)) return { woke: false };
+      || typeof registration.command !== 'string' || !isAbsolute(registration.command)) return null;
   } catch (error) {
-    if (['ENOENT', 'ENOTDIR', 'EACCES'].includes(error.code) || error instanceof SyntaxError) return { woke: false };
+    if (['ENOENT', 'ENOTDIR', 'EACCES'].includes(error.code) || error instanceof SyntaxError) return null;
     throw error;
   }
+  return registration;
+}
+
+/** Report local wake availability without copying the private executable into shared board state. */
+export function hasSeatWake(info, { boardId, seat }) {
+  return registeredWake(info, boardId, seat) !== null;
+}
+
+/** Wake an idle locally enrolled seat after routing commits, without ever holding the board writer. */
+export async function wakeRoutedSeat(info, { boardId, seat, item }) {
+  if (seat?.presence !== 'idle' || !Number.isSafeInteger(item) || item < 1) return { woke: false };
+  const registration = registeredWake(info, boardId, seat);
+  if (!registration) return { woke: false };
   return new Promise(resolveWake => {
     const child = spawn(registration.command, [String(item)], { cwd: registration.root, shell: false, stdio: 'ignore' });
     let finished = false;
