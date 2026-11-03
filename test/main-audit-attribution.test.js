@@ -5,8 +5,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { board as store, closeBoard, openBoard, openBoardForRead } from '../apps/lib/index.js';
-import { activateMainAudits, attributeAuditFailures, fileAuditRegressions, mainAuditJobs, saveMainAudit } from '../packages/gate/index.js';
+import { board as store, closeBoard, loadConfig, openBoard, openBoardForRead } from '../apps/lib/index.js';
+import { activateMainAudits, attributeAuditFailures, fileAuditRegressions, mainAuditJobs, routeAuditFailures, saveMainAudit } from '../packages/gate/index.js';
 
 /** Run real Git in the fixture with no user or system configuration, optionally at a fixed date. */
 function gitAt(date, root, ...args) {
@@ -119,4 +119,54 @@ test('a bare hotfix with no trailer item files the regression to the coordinator
   assert.equal(row.lane, 'coordinator');
   assert.equal(fixture.items().find(item => item.item_id === row.item).item_lane, 'coordinator');
   assert.match(fixture.items().find(item => item.item_id === row.item).item_criterion, /bare commit/u);
+});
+
+/**
+ * Land `tip` as an automatic landing batch for `item`: claim, submit, accept, record and finish on the real board.
+ * The acceptance is setup for the queue, never runtime proof.
+ */
+function landBatch(fixture, item, base, tip) {
+  const file = join(fixture.repo, '.git/pullboard/board.sqlite');
+  const db = openBoard(file, undefined, { isMain: true, gitRoot: fixture.repo });
+  try {
+    db.executionEngineVersion = 1;
+    const [, builder, reviewer] = (() => { try { return [store.register(db, { lane: 'coordinator', path: fixture.repo }),
+      store.register(db, { lane: 'alpha', path: join(fixture.repo, '..', 'builder') }),
+      store.register(db, { lane: 'beta', path: join(fixture.repo, '..', 'reviewer') })]; } finally { delete db.executionEngineVersion; } })();
+    const tree = git(fixture.repo, 'rev-parse', `${tip}^{tree}`), id = 'automatic-batch';
+    store.claim(db, item, { agentId: builder, lane: 'alpha', leaseMs: 3600000,
+      freeze: () => ({ text: JSON.stringify({ policy: { version: 1, commit: base, verify: { policy: 'any', family: 'off' } } }), digest: 'fixture-bar' }) });
+    store.submit(db, item, { agentId: builder, commit: tip, tree, submissionProof: { version: 1, files: [], full: false, deferred: true, reason: 'fixture acceptance only' } });
+    store.verify(db, item, { agentId: reviewer, head: tip, digest: 'fixture-bar', policy: 'any', decision: 'ACCEPT', note: 'fixture acceptance only' });
+    store.recordLandingBatch(db, { agentId: 'coordinator', batch: { version: 1, id, state: 'trunk', base, tip, root: fixture.repo,
+      branch: 'refs/heads/main', owner: 'coordinator-fixture', logPath: join(fixture.repo, '..', 'batch.log'), items: [{ id: item, commit: tip, merge: tip }] } });
+    store.finishLandingBatch(db, { agentId: 'coordinator', id, tip });
+    return id;
+  } finally { closeBoard(db); }
+}
+
+test('an automatic landed batch that breaks a test the last green audit passed files the repair to its trailer item\'s lane [C7]', async t => {
+  const fixture = await greenAudited(t);
+  const tip = commit(fixture.repo, 'test/b.test.js', "import {test} from 'node:test';test('b',()=>{throw 1});\n",
+    `fix(alpha): touches beta's test\n\nPullboard-Item: #${fixture.alpha}`);
+  const batchId = landBatch(fixture, fixture.alpha, fixture.green, tip);
+  const job = onlyJob(fixture);
+  assert.equal(job.batchId, batchId, 'the landed batch covers the tip, so no main-commit job is queued');
+  assert.equal(job.source, undefined, 'an ordinary automatic batch job carries no main-commit source');
+  const before = fixture.items().length;
+  const receipt = { green: false, failures: [{ file: 'test/b.test.js', name: 'b' }] };
+  const route = () => routeAuditFailures(fixture.repo, job, receipt, loadConfig(fixture.repo), fixture.write, 0, openBoardForRead);
+  await route();
+  const filed = fixture.items().slice(before);
+  assert.equal(filed.length, 1, 'one repair is filed');
+  assert.equal(filed[0].item_lane, 'alpha', 'the repair goes to the trailer item\'s lane, not to beta, which owns the test');
+  assert.match(filed[0].item_criterion, /test\/b\.test\.js/u, 'the bar names the failing test');
+  const notes = () => fixture.read(board => board.db.prepare("SELECT json_extract(event_detail,'$.text') AS text FROM event WHERE event_kind='fact' AND item_id=?").all(filed[0].item_id))
+    .map(row => row.text).filter(text => text.startsWith('Main audit regression:'));
+  assert.equal(notes().length, 1);
+  assert.ok(notes()[0].includes(fixture.green) && notes()[0].includes(tip) && notes()[0].includes(`#${fixture.alpha} (alpha)`),
+    'the repair names both audit tips and the suspect item');
+  await route();
+  assert.equal(fixture.items().length, before + 1, 'a resumed audit never files the same test and tip twice');
+  assert.equal(notes().length, 1, 'nor notes it twice');
 });

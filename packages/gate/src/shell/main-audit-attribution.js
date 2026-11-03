@@ -37,6 +37,16 @@ export function attributeAuditFailures({ git, store }, root, board, directory, j
 }
 
 /**
+ * One sentence naming an attributed failure's test, both audit tips and its suspects.
+ *
+ * Why: a landed batch's repair keeps its native defect bar, and this note puts the trailer attribution on it.
+ */
+export function auditRegressionNote({ test, greenTip, tip, items }) {
+  const suspects = items.length ? items.map(item => `#${item.id} (${item.lane})`).join(', ') : 'none: no Pullboard-Item trailer';
+  return `Main audit regression: ${test} passed in the last green audit at ${greenTip} and failed at ${tip}. Items landed between the two tips: ${suspects}.`;
+}
+
+/**
  * The new item for one attributed failure: three numbered clauses, thirty minutes.
  *
  * Why: the receiving lane needs the test, both tips and the suspects on the bar, with no other context.
