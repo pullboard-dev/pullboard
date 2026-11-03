@@ -11,8 +11,6 @@ import { CHECKOUT_BOARD_ONLY } from './session.js';
 import { traceServeStartup } from './session.js';
 import { asksGitNothing } from './options.js';
 import { parseCommandArgs } from './options.js';
-import { displayedRefusal } from './run-command.js';
-import { runCommand } from './run-command.js';
 
 let startupMainTraced = false;
 
@@ -179,7 +177,7 @@ async function runMain(argv, streams) {
     } catch (error) {
       if (!(error instanceof Refused)) throw error;
       io.refusal(error);
-      io.err(`pullboard: ${await displayedRefusal(io, error)}\nnext: ${io.refusalDocument(error).error.next}`);
+      io.err(`pullboard: ${await (await import('./run-command.js')).displayedRefusal(io, error)}\nnext: ${io.refusalDocument(error).error.next}`);
       (await import('../next-steps.js')).reportBlock(io, error, { command: parsed.positionals[0] });
       io.flush(1);
       return 1;
@@ -200,7 +198,7 @@ async function runMain(argv, streams) {
     };
     await (await syncWork())?.syncBefore(io, io.runCommand);
     traceServeStartup('cli-command-preamble-ready');
-    const code = await runCommand(argv, io);
+    const code = await (await import('./run-command.js')).runCommand(argv, io);
     if (io.submitToolingAttempt?.retry) return code;
     auditAfterCommand = code === 0 && ((parsed?.positionals[0] === 'land'
       && !parsed.values['dry-run'] && parsed.values.waive === undefined)
