@@ -17,7 +17,7 @@ import { scanSource } from '../../../../../packages/codemap/index.js';
 import { repositoryImport } from '../../../../../packages/codemap/index.js';
 import { readPlan } from '../../../../../bin/cells-plan.js';
 import { personNeeds } from '../../../../../packages/spec/index.js';
-import { personNeedsState } from '../../../../../src/needs-state.js';
+import { personNeedsState } from '../../../../view/index.js';
 import { refusalDocument } from '../../core/next-step-words.js';
 
 /** Compose the actual shared person obligations at the CLI boundary, outside the MCP transport. */

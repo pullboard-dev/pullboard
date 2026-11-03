@@ -11,14 +11,14 @@ import { localDependencyIds } from '../../../../../packages/items/index.js';
 /** The pullboard resume command, in its own module so an item adding another command never edits these lines. */
 import {
   keepViewRunning,
-} from '../../../../../src/background-view.js';
+} from '../../../../view/index.js';
 import {
   staleFrozenItems,
   staleItemFinding,
 } from '../../../../../packages/spec/index.js';
 import {
   backgroundViewLine,
-} from '../../../../../src/background-view.js';
+} from '../../../../view/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { requireBoardWriteAccess } from '../../../../../packages/store/index.js';
 import {
@@ -46,7 +46,7 @@ import {
 } from '../../../../../packages/state/index.js';
 import {
   resumeNeeds,
-} from '../../../../../src/resume-needs.js';
+} from '../../../../view/index.js';
 import { personNeeds } from '../../../../../packages/spec/index.js';
 import {
   Refused,

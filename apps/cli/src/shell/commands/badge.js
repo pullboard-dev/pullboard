@@ -1,6 +1,6 @@
 /** Publish board-derived badge endpoint documents in any Pullboard project [B3,V1]. */
-import { badgeCounts } from '../../../../../src/badge.js';
-import { writeBadges } from '../../../../../src/badge.js';
+import { badgeCounts } from '../../../../view/index.js';
+import { writeBadges } from '../../../../view/index.js';
 import { context } from '../cli.js';
 import { withBoardRead } from '../cli.js';
 import { Refused } from '../../../../../packages/kernel/index.js';

@@ -18,7 +18,7 @@ import { relayMachineDirectory } from '../../../../../packages/store/index.js';
 import { withBoardRead } from '../cli-board-read.js';
 /** The pullboard status command, in its own module so an item adding another command never edits these lines. */
 import * as store from '../../../../../packages/store/index.js';
-import { personNeedsSummary } from '../../../../../src/needs-summary.js';
+import { personNeedsSummary } from '../../../../view/index.js';
 import { identifyCaller } from '../cli-read-context.js';
 import { relayStateExists } from '../../../../../packages/store/index.js';
 import { unlinkedRelayStatus } from '../../../../../packages/link/index.js';

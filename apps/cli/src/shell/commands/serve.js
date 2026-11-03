@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../../../../../src/view-api-ports.js';
+import { viewApiPorts } from '../../../../view/index.js';
 import { nativeBoardOpeners } from '../cli-context.js';
 /** The pullboard serve command, in its own module so an item adding another command never edits these lines. */
 import {
