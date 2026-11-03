@@ -63,7 +63,7 @@ test('a quarantined runner with no holders and a leftover job process is restore
 
 test('a quarantined runner with a live holder keeps its leftover process and stays out with that process named [C7]', async t => {
   const m = machine(t), pid = m.leak();
-  m.db.prepare('INSERT INTO holder VALUES(?,?,?)').run('t1', 'runner:fixture-host', 'fixture-host');
+  m.db.prepare('INSERT INTO holder(token,name,runner) VALUES(?,?,?)').run('t1', 'runner:fixture-host', 'fixture-host');
   m.quarantine();
   const recovered = await recoverUnavailableRunners(m.db, [m.runner],
     { probe: async () => ({ healthy: false, step: 'cleanup' }), idleProbe: m.idleProbe, leakProbe: stopLeakedRunnerJobs, now: Date.now() + 2000 });
