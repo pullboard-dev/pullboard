@@ -34,9 +34,10 @@ export const systemClock = { now: () => new Date() };
  * migration, so a writer holding the lock never stalls it (#1047). `current` says whether this
  * code's migration has run on it; only a write open migrates. Null when there is no board yet.
  */
-export function openBoardForRead(file, clock = systemClock) {
+export function openBoardForRead(file, clock = systemClock, { connection = null } = {}) {
   if (file === ':memory:' || !existsSync(file)) return null;
-  const db = openBoardReadOnly(file);
+  // A long-lived caller, the resident board process, may hand back a read-only connection it already holds.
+  const db = connection ?? openBoardReadOnly(file);
   try { readEventLogVersion(db); return { ...readBoardSnapshot(db, clock), readOnly: true, current: boardIsCurrent(db, SCHEMA_DIGEST, SCHEMA_VERSION) }; }
   catch (error) { db.close(); throw error; }
 }

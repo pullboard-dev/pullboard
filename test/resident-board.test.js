@@ -24,6 +24,7 @@ import {
   resolve,
 } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { DatabaseSync } from 'node:sqlite';
 import {
   after,
   before,
@@ -31,6 +32,7 @@ import {
 } from 'node:test';
 import {
   runFixtureChild,
+  runFixtureChildAsync,
   runFixtureGit,
 } from './fixture-child.js';
 import { residentSocket } from '../bin/resident-client.js';
@@ -63,6 +65,35 @@ function moduleHook(dir) {
   return hook;
 }
 
+/**
+ * Grow the fixture board to the measured production scale, as the startup budget fixture does: 1,000 more items,
+ * 800 more seats, 45,000 events and 23,000 shouts, inserted as rows so the timed commands read a board our size.
+ */
+function seedBoardScale(file) {
+  const db = new DatabaseSync(file);
+  try {
+    const at = '2026-11-02T00:00:00.000Z';
+    db.exec('BEGIN');
+    const agent = db.prepare('INSERT INTO agent (agent_id, agent_lane, agent_path, agent_created_at) VALUES (?, ?, ?, ?)');
+    for (let n = 1; n <= 800; n++) agent.run(`scale-${n}`, 'core', join(dirname(file), 'scale-seats', String(n)), at);
+    const item = db.prepare(`INSERT INTO item (item_lane, item_title, item_criterion, item_status, item_created_by, item_created_at, item_updated_at)
+      VALUES ('core', ?, 'The read preserves evidence.', 'open', 'coordinator', ?, ?)`);
+    for (let n = 1; n <= 1000; n++) item.run(`Scale item ${n}`, at, at);
+    const event = db.prepare('INSERT INTO event (event_at, event_by, event_kind, item_id, event_detail) VALUES (?, ?, ?, ?, ?)');
+    for (let n = 0; n < 45000; n++) event.run(at, `scale-${1 + n % 800}`, n % 2 ? 'claim' : 'edit', 3 + n % 1000, '{}');
+    const shout = db.prepare('INSERT INTO shout (shout_from, shout_to, shout_text, shout_at) VALUES (?, ?, ?, ?)');
+    for (let n = 0; n < 23000; n++) shout.run(`scale-${1 + n % 800}`, 'coordinator', `Board activity ${n}`, at);
+    db.exec('COMMIT');
+  } finally { db.close(); }
+}
+
+/** The connection events the resident process traced for the fixture board: how many it opened and reused. */
+function connectionTrace() {
+  const lines = existsSync(fx.traceFile) ? readFileSync(fx.traceFile, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line)) : [];
+  const board = lines.filter(line => line.file === fx.board);
+  return { opened: board.filter(line => line.event === 'open').length, reused: board.filter(line => line.event === 'reuse').length };
+}
+
 before(() => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'pb-resident-')));
   const code = join(dir, 'code'), repo = join(dir, 'repo'), shims = join(dir, 'shims'), home = join(dir, 'home');
@@ -72,7 +103,8 @@ before(() => {
   const env = { ...process.env, HOME: home, PULLBOARD_HOME: join(home, '.pullboard'), PULLBOARD_MACHINE_HOME: join(home, '.pullboard-machine'),
     PATH: `${shims}${delimiter}${process.env.PATH}`, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
     GIT_AUTHOR_NAME: 'Test Agent', GIT_AUTHOR_EMAIL: 'agent@example.com', GIT_COMMITTER_NAME: 'Test Agent', GIT_COMMITTER_EMAIL: 'agent@example.com',
-    PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log') };
+    PULLBOARD_RESIDENT: '1', PULLBOARD_RESIDENT_IDLE_MS: '120000', RESIDENT_MODULE_LOG: join(dir, 'modules.log'),
+    PULLBOARD_RESIDENT_TRACE: join(dir, 'resident-trace.log') };
   for (const name of ['PULLBOARD_RELAY_TOKEN', 'PULLBOARD_RELAY_KEY']) delete env[name];
   copyCode(code, env);
   // The board's git hooks run pullboard from PATH; they must run the copied code.
@@ -123,7 +155,9 @@ before(() => {
   runFixtureGit(['worktree', 'add', '-q', '-b', 'core/one', worktree], { cwd: repo, env });
   const joined = runIn(worktree, ['join', 'core', '--model', 'test-model']);
   assert.equal(joined.status, 0, joined.stdout + joined.stderr);
-  fx = { dir, code, repo, worktree, env, runIn, residentPid, alive, awaitResident };
+  seedBoardScale(join(repo, '.git', 'pullboard', 'board.sqlite'));
+  fx = { dir, code, repo, worktree, env, runIn, residentPid, alive, awaitResident,
+    board: join(repo, '.git', 'pullboard', 'board.sqlite'), traceFile: env.PULLBOARD_RESIDENT_TRACE };
 });
 
 after(() => {
@@ -143,7 +177,7 @@ function median(cwd, args) {
   return times[1];
 }
 
-test('show, inbox, claim and next run through a warm resident process in under 200 ms, from a client of under 20 modules [H24]', () => {
+test('on a board our size, show, inbox, claim and next run through a warm resident process in under 200 ms, from a client of under 20 modules [H24]', () => {
   fx.awaitResident();
   for (const [cwd, args] of [[fx.repo, ['show', '1']], [fx.worktree, ['inbox']], [fx.worktree, ['claim', '1']], [fx.worktree, ['next']]]) {
     // One untimed run loads anything the process has not loaded yet; the client must stay thin on it.
@@ -155,6 +189,25 @@ test('show, inbox, claim and next run through a warm resident process in under 2
   }
   const shown = fx.runIn(fx.repo, ['show', '1']);
   assert.match(shown.stdout, /#1 {2}claimed core-1/u, 'the claim made through the resident process is on the board');
+});
+
+test('the resident process holds the board open: reads reuse its connection, and concurrent commands each own one [H24]', async () => {
+  fx.awaitResident();
+  fx.runIn(fx.repo, ['show', '2']);
+  const before = connectionTrace();
+  for (let round = 0; round < 3; round++) assert.equal(fx.runIn(fx.repo, ['show', '2']).status, 0);
+  const after = connectionTrace();
+  assert.equal(after.opened, before.opened, 'warm reads open no new board connection');
+  assert.ok(after.reused >= before.reused + 3, `each warm read reuses the held connection (${after.reused - before.reused} reuses)`);
+  // Two commands at once run on two connections, and each answers as it would alone.
+  const alone = fx.runIn(fx.repo, ['show', '2', '--json']);
+  const [first, second] = await Promise.all([0, 1].map(() => runFixtureChildAsync(process.execPath,
+    [join(fx.code, 'bin', 'pullboard.js'), 'show', '2', '--json'], { cwd: fx.repo, env: fx.env })));
+  for (const result of [first, second]) {
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), JSON.parse(alone.stdout));
+  }
+  assert.ok(connectionTrace().opened <= after.opened + 2, 'concurrent commands open at most one connection each');
 });
 
 test('a killed resident process falls back in-process with the same output, and a new one starts [H24]', () => {
@@ -187,4 +240,22 @@ test('a new main commit makes the next command use the new code [H24]', () => {
   assert.equal(release(warm), '0.0.0-resident-new', 'the new resident process serves the new code');
   assert.notEqual(fx.residentPid(), old);
   assert.equal(fx.alive(old), false, 'the resident process loaded from the old commit has retired');
+});
+
+test('an idle resident process closes its board connections and exits [H24]', () => {
+  // The next process started here takes this idle limit from the first client's environment.
+  const pid = fx.residentPid();
+  if (pid && fx.alive(pid)) process.kill(pid, 'SIGKILL');
+  fx.env.PULLBOARD_RESIDENT_IDLE_MS = '1500';
+  try {
+    fx.runIn(fx.repo, ['show', '2']);
+    fx.awaitResident();
+    const idle = fx.residentPid();
+    assert.equal(fx.runIn(fx.repo, ['show', '2']).status, 0);
+    // Watch the observable exit: each probe is a real child process, never a timer.
+    const deadline = performance.now() + 15_000;
+    while (fx.alive(idle) && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
+    assert.equal(fx.alive(idle), false, 'the idle resident process exited');
+    assert.equal(fx.residentPid(), null, 'it removed its pid file on the way out');
+  } finally { fx.env.PULLBOARD_RESIDENT_IDLE_MS = '120000'; }
 });

@@ -1,21 +1,26 @@
 #!/usr/bin/env node
 /**
  * The resident board process: one per board checkout and CLI entry, started by the thin client on first use. It keeps
- * the CLI's modules loaded and runs each forwarded command through src/cli-main.js, the same entry the in-process
- * path uses, so a warm command pays only for its own work [H24,C7].
+ * the CLI's modules loaded and the board open, holding read-only connections that read commands reuse, and runs each
+ * forwarded command through src/cli-main.js, the same entry the in-process path uses, so a warm command pays only for
+ * its own work [H24,C7].
  *
  * Commands may run concurrently, so each one's state stays its own: process.env reads and writes go to that command's
  * environment, the real working directory follows the command whose code is running (child processes and relative
  * paths resolve there), and its stdout and stderr, including direct process.stdout writes, stream to its client only.
- * It retires when its code is no longer the entry's code, after an hour, and when idle.
+ * Each command owns the connection it takes until it closes the board. It retires, closing every connection, when its
+ * code is no longer the entry's code, after an hour, and when idle.
  */
 import {
   AsyncLocalStorage,
   createHook,
 } from 'node:async_hooks';
 import {
+  appendFileSync,
   chmodSync,
+  existsSync,
   readFileSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -86,6 +91,7 @@ function retire() {
   retired = true;
   release();
   server.close();
+  closeConnections();
 }
 
 /** Exit a retired process once its running commands have finished. */
@@ -94,7 +100,75 @@ function exitWhenDone() {
 }
 
 const { main, selectedToolEntry } = await import('../src/cli-main.js');
-const { loadNativeBoard, loadProcessPorts } = await import('./process-ports.js');
+const { loadNativeBoard: loadFreshNativeBoard, loadProcessPorts } = await import('./process-ports.js');
+const { openBoardReadOnly } = await import('../packages/store/index.js');
+const TRACE = baseEnv.PULLBOARD_RESIDENT_TRACE;
+const IDLE_CONNECTIONS = 4;
+/** Idle read-only board connections by board file, each with the file identity it was opened on. */
+const connections = new Map();
+
+/** Append one line to the opt-in trace a test reads to see connections opened and reused. */
+function trace(event, file) {
+  if (TRACE) try { appendFileSync(TRACE, JSON.stringify({ event, file, pid: process.pid }) + '\n'); } catch { /* Tracing never changes a command. */ }
+}
+
+/** The identity of a board file now; a replaced file is a different board, whatever its path. */
+function fileIdentity(file) {
+  try { const stat = statSync(file); return `${stat.dev}:${stat.ino}`; } catch { return null; }
+}
+
+/** Really close a held connection. */
+function closeConnection(entry) {
+  try { entry.close(); } catch { /* Already closed. */ }
+}
+
+/**
+ * Take a read-only connection this process holds for the board, or open one. A command owns the connection it takes
+ * until it closes the board, so concurrent commands never share one; closing returns it here instead.
+ */
+function takeConnection(file) {
+  const identity = fileIdentity(file);
+  const idle = connections.get(file) ?? [];
+  while (idle.length) {
+    const entry = idle.pop();
+    if (entry.identity === identity) { entry.idle = false; trace('reuse', file); return entry.db; }
+    closeConnection(entry);
+  }
+  const db = openBoardReadOnly(file);
+  const close = db.close.bind(db);
+  const entry = { db, identity, close };
+  // The command's closeBoard ends any read it left open and gives the connection back for the next command.
+  db.close = () => {
+    // A second close of one command's board must not hand the same connection to two later commands.
+    if (entry.idle) return;
+    try { db.exec('ROLLBACK'); } catch { /* No read transaction was open. */ }
+    const held = connections.get(file) ?? [];
+    if (retired || held.length >= IDLE_CONNECTIONS || fileIdentity(file) !== entry.identity) return close();
+    entry.idle = true;
+    held.push(entry);
+    connections.set(file, held);
+  };
+  trace('open', file);
+  return db;
+}
+
+/** Close every connection this process holds, when it retires. */
+function closeConnections() {
+  for (const idle of connections.values()) for (const entry of idle) closeConnection(entry);
+  connections.clear();
+}
+
+/**
+ * The native board for a command run here: the same module, except that read opens use a connection this process
+ * holds. Writes still open their own connection, with their own lock and write context, as in a fresh process.
+ */
+async function loadNativeBoard() {
+  const native = await loadFreshNativeBoard();
+  return { ...native, openBoardForRead(file, clock, options = {}) {
+    if (file === ':memory:' || !existsSync(file) || options.connection) return native.openBoardForRead(file, clock, options);
+    return native.openBoardForRead(file, clock, { ...options, connection: takeConnection(file) });
+  } };
+}
 
 /** A per-command output stream that frames text to the client and reports the client's terminal. */
 function clientStream(store, frame, isTTY, columns) {
