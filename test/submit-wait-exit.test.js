@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { submitHandoff } from '../src/submit-handoff-read.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { BIN } from './submit-main-red-fixture.js';

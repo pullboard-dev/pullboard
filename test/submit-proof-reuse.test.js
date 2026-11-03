@@ -86,7 +86,7 @@ test('sealed reuse receipt replays its plan and refuses an older engine [C7,H16]
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
   const store = await import('../src/board.js');
-  const { openBoard } = await import('../src/native-board.js');
+  const { openBoard } = await import('../apps/lib/index.js');
   const { boardReceiptStore, receiptBody } = await import('../packages/gate/index.js');
   const { prepareEngineMove, applyEngineMove } = await import('../packages/state/index.js');
   const { SUBMIT_PROOF_REUSE_ENGINE } = await import('../src/submit-proof-reuse-engine.js');

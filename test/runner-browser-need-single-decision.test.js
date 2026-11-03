@@ -2,7 +2,7 @@
 /** @pullboard-module-loads packages/gate/index.js packages/runners/index.js packages/landing/index.js */
 /** Replay the frozen-check plus cockpit-proof file shapes from #2576 and #2521 on a real worker [C7]. */
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -31,14 +31,17 @@ function regressionSources(box) {
 test('review file sets from #2576 and #2521 take a browser lease on their first runner attempt [C7]', async t => {
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
-  const box = e2e.project('true');
+  // This is an ordinary Node project; initialize Git before copying tooling, without installing Pullboard project hooks.
+  const sandbox = e2e.sandbox();
+  const box = { ...sandbox, repo: join(sandbox.dir, 'repo') };
+  mkdirSync(box.repo);
+  box.git(box.repo, 'init', '-q', '-b', 'main');
   for (const name of Object.keys(box.env)) {
     if (/^PULLBOARD_(GATE|BROWSER|TEST|LANDING)_/u.test(name) || ['NODE_OPTIONS', 'NODE_TEST_CONTEXT'].includes(name)) delete box.env[name];
   }
   box.env.PULLBOARD_TEST_REUSE = '0';
-  const config = readFileSync(join(box.repo, 'pullboard.json'));
   copyCommittedPackageFiles(box, join(import.meta.dirname, '..'));
-  writeFileSync(join(box.repo, 'pullboard.json'), config);
+  writeFileSync(join(box.repo, 'pullboard.json'), JSON.stringify({ gate: 'true' }));
   regressionSources(box);
   box.git(box.repo, 'add', '-A');
   box.git(box.repo, 'commit', '-q', '-m', 'test: browser admission regression shapes [C7]');
