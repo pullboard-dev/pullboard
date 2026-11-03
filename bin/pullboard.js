@@ -39,6 +39,12 @@ process.stdout.on('error', (error) => {
   process.exit(process.exitCode ?? 0);
 });
 
+// A self-hosted pre-commit runs from the staged index with the item's companions applied, never the working tree (#2593).
+if (process.argv[2] === 'hook') {
+  const composed = await (await import('./hook-composed.js')).runComposedHook(process.argv[1], process.argv.slice(2), { cwd: process.cwd(), env: process.env });
+  if (composed !== null) process.exit(composed);
+}
+
 // A worktree behind the main checkout runs the main checkout's CLI, so landed fixes reach every agent (B17).
 const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1]);
 if (handed !== null) process.exit(handed);

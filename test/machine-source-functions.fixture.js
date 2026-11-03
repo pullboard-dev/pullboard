@@ -66,7 +66,7 @@ export const MACHINE_CALLBACKS = {
   '../packages/verify/src/shell/reject-clause.js': { deriveRigorCause: '../packages/rigor/src/shell/rigor-auto.js#deriveRigorCause' },
   'board-health.js': {
     normalizedDispatch: '../packages/sentinels/src/shell/dispatch-health.js#normalizedDispatch',
-    rejectedWorkReturns: '../packages/sentinels/src/core/rejected-work-return.js#rejectedWorkReturns',
+    rejectedWorkReturns: '../packages/sentinels/src/shell/rejected-work-return.js#rejectedWorkReturns',
   },
   'outside-verify.js': { verifyOutsideSandbox: '../packages/sandbox/src/shell/sandbox-verify.js#verifyOutsideSandbox' },
   'item-authors.js': { strictReviewProblem: '../packages/verify/src/shell/review-independence.js#strictReviewProblem' },
