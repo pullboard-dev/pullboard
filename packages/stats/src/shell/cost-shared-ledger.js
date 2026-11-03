@@ -30,7 +30,7 @@ export function sharedAfter(state, session, now, advance, changed) {
     return;
   }
   const source = active[0].source;
-  const snapshot = sessionSnapshot(source, undefined, now);
+  const snapshot = sessionSnapshot(source, undefined, now, state.cursors);
   const entry = { sharedId: randomUUID(), allocations: active.map((value) => ({ seat: value.agent, item: value.item })), seats: [...new Set(active.map((value) => value.agent))], session,
     source, snapshot, model: snapshot?.model ?? active[0].model, at: now };
   state.sharedActive[session] = entry;
