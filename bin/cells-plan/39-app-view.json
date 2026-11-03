@@ -94,7 +94,9 @@
   ["src/view/cost-overview.js","apps/view/src/shell/view/cost-overview.js","rule"]
  ],
  "reexports": [
-  "src/serve.js"
+  "src/serve.js",
+  "src/view/test-policy.js",
+  "src/view/test-roles.js"
  ],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},

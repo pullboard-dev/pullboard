@@ -58,7 +58,6 @@ test('one builder lists what needs the person [N26,A9]', async (t) => {
   assert.equal(expected.find(need => need.kind === 'hold').id, 'web');
   assert.equal(expected.find(need => need.kind === 'decision').text, 'Which public interface should we keep?');
   assert.ok(!expected.some(need => ['G4', 'G5'].includes(need.id)), 'approved and declined unapplied rows stay out');
-  const { personNeedsState } = await import('../apps/view/index.js');
   const state = personNeedsState(box.repo);
   assert.deepEqual(personNeeds(state), expected);
   const statusCard = box.run(box.repo, 'status', '--json');
