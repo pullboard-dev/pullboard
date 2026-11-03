@@ -1,5 +1,6 @@
 /** Item lifecycle, source custody and routing behind one front door [C7]. */
 export { criterionSize } from './src/core/criterion-size.js';
+export { itemCollisionPlan } from './src/shell/item-function-planning.js';
 export { criterionCells } from './src/shell/criterion-cells.js';
 export { BLOCKS_FILE, recordBlock, readBlocks, blockMoveKey, blockMoveKeys, blockOwner, clearCompletedBlocks, personBlockWords } from './src/shell/blocks.js';
 export { briefFiles } from './src/core/brief.js';

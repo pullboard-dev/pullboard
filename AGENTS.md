@@ -34,8 +34,8 @@ This repo runs on pullboard: a work board, lanes and a spec that live in git. No
 7. Never end your turn. Whenever you finish, submit, or get blocked, run `pullboard next --wait 30` and act on what it returns. A shout reaches you only while a command runs.
 
 **Speed.** Your time goes on thinking and writing code. Never on waiting.
-- The gate is the proof. Before you submit, run only the one test file your change targets. Never run whole suites or shard runs yourself: submit runs them on the runners, and review reuses that proof.
-- Submit queues the gate and returns at once. Don't wait for the result; start your next item, and `next` tells you the gate's result.
+- The gate is the proof. Commit and submit as soon as the change is written; don't run tests first. Submit runs the tests on the runners in about 10 minutes, and review reuses that proof. Never run whole suites or shard runs yourself.
+- Submit queues the gate and returns at once. Don't wait for the result and never poll `show` for it: run `pullboard next` right away and build your next item. `next` tells you if a gate went red, with the reason; fix it then.
 - Never sit on a long command. Run anything over a minute in the background and keep working.
 - Read `pullboard inbox` once at the start and once after each submit, not in a loop. `show <id>` once per item.
 - Reviewers: the gate's runs on the item are the test proof. Read the diff against the bar and the gate receipts; rerun a test only when the bar's claim isn't covered by a recorded run, or when you suspect the gate.
