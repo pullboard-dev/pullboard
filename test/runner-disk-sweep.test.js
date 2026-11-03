@@ -40,11 +40,15 @@ function fixture() {
   writeFileSync(join(jobs, 'dead-BBBBBB', 'worker-owner.json'), JSON.stringify({ pid: 2 ** 22 - 3, started: 'Mon Jan 1 00:00:00 2001' }));
   fill(join(jobs, 'dead-BBBBBB', 'checkout', 'big.bin'), 4);
   fill(join(jobs, 'ownerless-CCCCCC', 'big.bin'), 4);
+  utimesSync(join(jobs, 'ownerless-CCCCCC'), OLD / 1000, OLD / 1000);
   fill(join(jobs, 'young-DDDDDD', 'big.bin'), 4, Date.now());
   writeFileSync(join(jobs, 'young-DDDDDD', 'extra'), '');
   fill(join(root, 'repos', 'a'.repeat(64) + '.git', 'pack'), 4);
   fill(join(root, 'repos', 'b'.repeat(64) + '.git', 'pack'), 4, OLD - 1000);
   fill(join(root, 'repos', 'c'.repeat(64) + '.git', 'pack'), 4, OLD + 1000);
+  for (const [name, when] of [['a', OLD], ['b', OLD - 1000], ['c', OLD + 1000]]) {
+    utimesSync(join(root, 'repos', name.repeat(64) + '.git'), when / 1000, when / 1000);
+  }
   fill(join(root, 'cache', 'resource-pool', 'db'), 1);
   return { root, jobs, me };
 }
@@ -71,7 +75,8 @@ test('a sweep keeps the leased folder, removes unleased ones and reports at leas
 test('an oversized repos directory is trimmed oldest first and never trims a pinned repo [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: diskOf(root, 1000 * MB), reposBudget: 9 * MB, cacheBudget: 1000 * MB });
+  const pinned = treeBytes(join(root, 'repos', 'a'.repeat(64) + '.git'));
+  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: diskOf(root, 1000 * MB), reposBudget: pinned, cacheBudget: 1000 * MB });
   assert.deepEqual(report.trimmed.slice(0, 2), ['repos/' + 'b'.repeat(64), 'repos/' + 'c'.repeat(64)]);
   assert.ok(existsSync(join(root, 'repos', 'a'.repeat(64) + '.git')), 'the repo a live job pins stays');
 });
@@ -87,7 +92,8 @@ test('a sweep with no process census touches nothing [C7]', async t => {
 test('a job is refused while protected data keeps the disk under 20% free after the sweep [C7]', async t => {
   const { root } = fixture();
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: diskOf(root, 0), reposBudget: 1000 * MB, cacheBudget: 1000 * MB });
+  // The remaining disk is occupied outside the sweep's custody, so reclaiming fixtures cannot reach the floor.
+  const report = await sweepRunnerDisk(root, { api: resources, machineHome: join(root, 'machine'), diskFree: () => ({ free: 10, total: 100 }), reposBudget: 1000 * MB, cacheBudget: 1000 * MB });
   assert.ok(report.freeFraction < 0.2);
   assert.throws(() => assertDiskFree(report), error => error.code === 'RUNNER_DISK_FULL');
   assert.throws(() => assertDiskFree({ freeFraction: null }), { code: 'RUNNER_DISK_FULL' });
