@@ -48,7 +48,7 @@ test('review655 a registered runner honors the same live person waiver at landin
   box.git(repo, 'add', '.');
   box.git(repo, 'commit', '-q', '-m', 'test: commit private registered-runner waiver fixture');
   const store = await import('../src/board.js');
-  const nativeBoard = await import('../src/native-board.js');
+  const nativeBoard = await import('../apps/lib/index.js');
   // @pullboard-board-file persistence: the registered runner reads this committed board's live person waiver.
   const board = nativeBoard.openBoard(join(repo, '.git', 'pullboard', 'board.sqlite'));
   let waiver;

@@ -11,7 +11,7 @@ import { checkLoosening } from '../packages/doctrine/index.js';
 const approvedRowPorts = { boardBusyError, openBoardReadOnly, rowDecisions, checkLoosening };
 import assert from 'node:assert/strict';
 import * as store from '../src/board.js';
-import { openBoard, draftSpecRow, recordRowVerification } from '../src/native-board.js';
+import { openBoard, draftSpecRow, recordRowVerification } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { applyEngineMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';

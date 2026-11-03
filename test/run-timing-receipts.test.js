@@ -21,7 +21,7 @@ import { COLLECTION_REPORT_PREFIX } from '../packages/gate/index.js';
 import { formatCollectionReport } from '../packages/gate/index.js';
 import { randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
-import { openBoardForRead, openBoard } from '../src/native-board.js';
+import { openBoardForRead, openBoard } from '../apps/lib/index.js';
 
 /** Keep a real installed runtime but give the fixture its own two-file committed test universe. */
 function timingProject(t) {

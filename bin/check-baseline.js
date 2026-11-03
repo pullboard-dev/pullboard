@@ -8,7 +8,7 @@ process.emitWarning = (warning, ...rest) => {
 };
 const [root, rawId, request] = process.argv.slice(2);
 if (root && /^[1-9]\d*$/.test(rawId ?? '') && /^[a-f0-9-]{36}$/.test(request ?? '')) {
-  const { openBoard, nativeBoardPorts } = await import('../src/native-board.js');
+  const { openBoard, nativeBoardPorts } = await import('../apps/lib/index.js');
   const { withOutboxGuard } = await import('../packages/outbox/index.js');
   const { replay: replayConflictRecord } = await import('../packages/outbox/index.js');
   const { remoteBoardMissing, uncertainUploadFailure, decideUncertainBaseline } = await import('../packages/outbox/index.js');

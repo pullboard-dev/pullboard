@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
 import * as store from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { addMilestone } from '../packages/store/index.js';
 import { main } from './native-cli-fixture.js';
 import { boardHealth, healthReport } from '../packages/health/index.js';

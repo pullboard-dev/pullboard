@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { recordRunnerGui } from '../packages/resources/index.js';
 import { placeRunner } from '../src/runner-stage.js';
 import { readRunnerStage } from '../src/runner-stage-read.js';

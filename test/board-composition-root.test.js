@@ -37,7 +37,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import * as native from '../src/native-board.js';
 import * as legacy from '../src/board.js';
-import { board as library } from '../src/index.js';
+import { board as library } from '../apps/lib/index.js';
 import { fixtureBoard } from './board-fixture.js';
 import { openBoardStore } from '../src/board-store.js';
 import { recordRowDraft } from '../packages/spec/index.js';

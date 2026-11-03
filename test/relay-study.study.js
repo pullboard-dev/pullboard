@@ -1,4 +1,4 @@
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 /** A measured private relay study, with explicit coverage limits rather than inferred parity [H5,H17]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';

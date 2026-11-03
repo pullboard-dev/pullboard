@@ -16,7 +16,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard, recordGateRun } from '../src/native-board.js';
+import { openBoard, recordGateRun } from '../apps/lib/index.js';
 import { configFromSource } from '../packages/config/index.js';
 import { boardReceiptStore } from '../packages/gate/index.js';
 import { readGateReceipt } from '../packages/gate/index.js';

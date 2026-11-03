@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { nativeUsage } from '../packages/stats/index.js';
 import { sessionSnapshot } from '../packages/stats/index.js';
 import { usageDifference } from '../packages/stats/index.js';

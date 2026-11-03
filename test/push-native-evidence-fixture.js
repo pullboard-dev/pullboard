@@ -9,7 +9,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { git } from '../src/git.js';
 import { runGate } from '../packages/gate/index.js';
 import { boardReceiptStore, readGateReceipt, receiptBinds, receiptStore } from '../packages/gate/index.js';

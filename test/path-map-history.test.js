@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { checkAtCommit } from '../src/runner-private-check.js';
 import { checkBaseline } from '../packages/gate/index.js';
 import { itemsTouching } from '../packages/commits/index.js';
