@@ -3,6 +3,7 @@ import { warnMainMoved } from '../../../../../packages/merge/index.js';
 import * as store from '../../../../../packages/store/index.js';
 import { mainPolicy } from '../../../../../packages/sandbox/index.js';
 import { prepareTrainLanding } from '../../../../../packages/landing/index.js';
+import { runCommitCliSmoke } from '../../../../../packages/landing/index.js';
 import { requireLandingPlanCheck } from '../../../../../packages/landing/index.js';
 import { landingFlakeRatchet } from '../../../../../packages/flakes/index.js';
 import { COORDINATOR } from '../../../../../packages/config/index.js';
@@ -66,6 +67,8 @@ export async function run(io, { first, second, values }) {
   if (!commit) throw new Refused('NO_COMMIT', `no commit "${second ?? ''}" in this repo`);
   const id = idArg(first);
   requireLandingPlanCheck(ctx.info.root, commit);
+  // A hand landing never crosses the landing gate, so it gets the same scratch-board smoke before anything is recorded [C7].
+  runCommitCliSmoke(ctx.info.root, commit);
   if (values['gate-receipt'] !== undefined || mainPolicy(ctx.info.root).config.landing?.requireReceipts === true) {
     if (me.id !== COORDINATOR || !ctx.info.isMain) throw new Refused('COORDINATOR_ONLY', 'only the primary coordinator records a train envelope');
     const ids = values.items === undefined ? [id] : String(values.items).split(',').map(value => idArg(value.trim()));
