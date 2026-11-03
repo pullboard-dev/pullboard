@@ -8,6 +8,7 @@ import {
 import {
   scheduleMainAudit,
 } from './main-audit-scheduler.js';
+import { mainCommitJob } from './main-audit-commits.js';
 /** Finite exact-source main audits, one native admitted run at a time [C7,H16]. */
 import {
   execFileSync,
@@ -112,7 +113,7 @@ function ownerLive(owner) {
       .split('\n').some(value => Number(value.trim()) === owner.pid);
   } catch { return true; }
 }
-/** Build obligations only from genuinely landed receipts whose tip is on actual local main. */
+/** Build obligations from landed batches on local main, then main's own tip however it moved. */
 function snapshot(root, info, activation, openBoardForRead) {
   return readBoard(info, board => {
     const boardId = store.boardId(board);
@@ -133,8 +134,16 @@ function snapshot(root, info, activation, openBoardForRead) {
         items: batch.items.map(entry => ({ id: entry.id, lane: store.getItem(board, entry.id).item_lane })) };
       jobs.set(mainAuditKey(job), job);
     }
+    const tipJob = mainCommitJob({ git, store }, root, board, mainAuditDirectory(info), activation, [...jobs.values()]);
+    if (tipJob) jobs.set(mainAuditKey(tipJob), tipJob);
     return [...jobs.values()];
   }, openBoardForRead);
+}
+/** The audit jobs queued now for an activated main checkout; an unactivated one has none [C7]. */
+export function mainAuditJobs(root, openBoardForRead) {
+  const info = repoInfo(root);
+  const activation = readMainAudit(join(mainAuditDirectory(info), 'activation.json'));
+  return activation ? snapshot(root, info, activation, openBoardForRead) : [];
 }
 /** Publish one ordinary coordinator notice for an incomplete job; failures retain the need to notify. */
 async function notifyIncomplete(file, job, reason, write) {
