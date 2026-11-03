@@ -1,7 +1,7 @@
 /** An attached companion applies three-way from the head it was written against; only a true overlap refuses (#2625, #2087) [C7]. */
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -65,4 +65,42 @@ test('a true overlap is refused, naming the conflicting file and hunk [C7]', t =
   const head = commit(root, lines({ 10: "export const line10 = 'main';" }));
   assert.throws(() => composeItemPatches(root, { item_commit: head }, [record(patch, head, origin)]), error => error.code === 'ITEM_PATCH'
     && /conflicts with the head: file web\/serve\.js; hunk @@ -7,7 \+7,7 @@/u.test(error.message));
+});
+
+test('matching deletions are clean when another companion change remains [C7]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-companion-delete-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
+  mkdirSync(join(root, 'web'));
+  writeFileSync(join(root, 'web/other.js'), 'export const other = 1;\n');
+  const origin = commit(root, lines());
+  rmSync(join(root, FILE));
+  writeFileSync(join(root, 'web/other.js'), 'export const other = 2;\n');
+  const patch = runFixtureGit(['diff', '--', 'web'], { cwd: root }).split('\n').filter(line => !line.startsWith('index ')).join('\n') + '\n';
+  runFixtureGit(['checkout', '-q', '--', 'web'], { cwd: root });
+  rmSync(join(root, FILE));
+  runFixtureGit(['add', '-A'], { cwd: root });
+  runFixtureGit([...IDENTITY, 'commit', '-q', '-m', 'matching deletion'], { cwd: root });
+  const head = runFixtureGit(['rev-parse', 'HEAD'], { cwd: root });
+  const composed = composeItemPatches(root, { item_commit: head }, [record(patch, head, origin)]);
+  assert.equal(runFixtureGit(['ls-tree', composed.commit, '--', FILE], { cwd: root }), '');
+  assert.match(runFixtureGit(['show', `${composed.commit}:web/other.js`], { cwd: root }), /other = 2/u);
+});
+
+test('an executable-bit change survives an unrelated content merge [C7]', t => {
+  const root = mkdtempSync(join(tmpdir(), 'pullboard-companion-mode-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  runFixtureGit(['init', '-q', '-b', 'main'], { cwd: root });
+  mkdirSync(join(root, 'web'));
+  const origin = commit(root, lines());
+  writeFileSync(join(root, FILE), lines({ 10: "export const line10 = 'companion';" }));
+  chmodSync(join(root, FILE), 0o755);
+  const patch = plainDiff(root);
+  runFixtureGit(['checkout', '-q', '--', FILE], { cwd: root });
+  const head = commit(root, lines({ 12: "export const line12 = 'main';" }));
+  const composed = composeItemPatches(root, { item_commit: head }, [record(patch, head, origin)]);
+  assert.match(runFixtureGit(['ls-tree', composed.commit, '--', FILE], { cwd: root }), /^100755 blob /u);
+  const text = runFixtureGit(['show', `${composed.commit}:${FILE}`], { cwd: root });
+  assert.match(text, /line10 = 'companion'/u);
+  assert.match(text, /line12 = 'main'/u);
 });

@@ -80,12 +80,15 @@ function mergeFromOrigin(root, isolated, record, origin, directory) {
   for (const path of itemPatchPaths(record.patch)) {
     const base = entryAt(root, scratch, origin, path), theirs = entryAt(root, scratch, ':index', path), ours = entryAt(root, isolated, ':index', path);
     if (base?.oid === theirs?.oid && base?.mode === theirs?.mode) continue;
+    if (ours?.oid === theirs?.oid && ours?.mode === theirs?.mode) continue;
     if (ours?.oid === base?.oid && ours?.mode === base?.mode) {
       if (theirs) git(root, isolated, ['update-index', '--add', '--cacheinfo', `${theirs.mode},${theirs.oid},${path}`]);
       else git(root, isolated, ['update-index', '--force-remove', '--', path]);
       continue;
     }
     if (!base || !theirs || !ours) refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk added or deleted on both sides; replace it against the current builder head`);
+    const mode = ours.mode === theirs.mode || theirs.mode === base.mode ? ours.mode : ours.mode === base.mode ? theirs.mode : null;
+    if (!mode) refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk incompatible file modes; replace it against the current builder head`);
     const files = ['ours', 'base', 'theirs'].map(name => join(directory, `merge-${name}`));
     [ours, base, theirs].forEach((entry, index) => writeFileSync(files[index], git(root, isolated, ['cat-file', 'blob', entry.oid])));
     const merged = gitSpawnSync(['merge-file', '-p', ...files], { cwd: root, env: isolated, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
@@ -95,7 +98,7 @@ function mergeFromOrigin(root, isolated, record, origin, directory) {
       refuse(`companion ${record.key} conflicts with the head: file ${path}; hunk ${overlappingHunks(record, path, changed)}; replace it against the current builder head`);
     }
     const oid = git(root, isolated, ['hash-object', '-w', '--stdin'], merged.stdout).trim();
-    git(root, isolated, ['update-index', '--cacheinfo', `${ours.mode},${oid},${path}`]);
+    git(root, isolated, ['update-index', '--cacheinfo', `${mode},${oid},${path}`]);
   }
 }
 
