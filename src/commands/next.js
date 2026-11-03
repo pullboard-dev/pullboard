@@ -2,7 +2,7 @@ import { nextIdleChanged } from '../../packages/store/index.js';
 import { sayQueuedReds } from '../../packages/store/index.js';
 import { recordedVerificationComparison } from '../../packages/verify/index.js';
 import { renderVerificationComparison } from '../../packages/verify/index.js';
-import { claimWorktrees } from '../../packages/activity/index.js';
+import { recordedClaimWorktrees } from '../../packages/activity/index.js';
 import { takeWaitShouts } from '../../packages/activity/index.js';
 import { agentSessionDigest } from '../../packages/person/index.js';
 /** The pullboard next command, in its own module so an item adding another command never edits these lines. */
@@ -86,6 +86,8 @@ async function nextWithProgress(io, values, progress) {
   let ctx = context(io);
   withBoardRead(ctx, board => sayQueuedReds(io, board, () => whoAmI(ctx, board)));
   withBoardRead(ctx, board => cleanItemFolders(ctx, board, whoAmI(ctx, board)));
+  // Other seats' worktrees come from the maintenance record; only this seat's own claim is observed live (#2427).
+  const claimWorktrees = (items, agents, board) => recordedClaimWorktrees(items, agents, board, { own: ctx.info.root });
   const takeServices = { MainSpecMerged, checkMainVerifier, claimFreezer, claimOrdered, idArg, ordered,
     whoAmI, withBoard, withBoardRead, mainRedReviewItems, mainRedReworkItems, computedReturnArgs, agentSessionDigest, claimWorktrees };
   if (values.take && (values.build || values.verify || values.verifyId !== undefined || values.as !== undefined)) {
