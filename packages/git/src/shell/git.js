@@ -582,6 +582,18 @@ export function checkoutHead(root) {
 }
 
 /**
+ * A branch's commit in a checkout's repository, read from Git's ref files, or undefined when Git must answer.
+ *
+ * @param {string} root
+ * @param {string} ref a full ref name, such as refs/heads/main
+ * @returns {string | null | undefined}
+ */
+export function checkoutRefCommit(root, ref) {
+  const location = fileLocation(root);
+  return location ? fileRefCommit(location.commonDir, ref) : undefined;
+}
+
+/**
  * This command's one porcelain v1 status of a worktree, untracked files listed, as raw bytes. Every reader of a seat's
  * edits in one command shares it. Throws as Git does when the worktree cannot be read.
  *

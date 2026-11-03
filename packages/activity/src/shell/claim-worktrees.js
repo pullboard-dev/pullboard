@@ -1,4 +1,6 @@
 import { activityWorkingFiles } from './activity-inbox.js';
+import { checkoutHead } from '../../../git/index.js';
+import { checkoutRefCommit } from '../../../git/index.js';
 import { commandObservation } from '../../../git/index.js';
 import { tryGit } from '../../../git/index.js';
 
@@ -11,7 +13,10 @@ export function claimWorktrees(items, agents) {
     // One command reads each seat's worktree once, however many of its steps ask (next asked four times).
     return [item.item_id, commandObservation(JSON.stringify(['claim-worktree', root, item.item_claim_head ?? null]), () => {
       // A merged trunk commit belongs to main, not this claim. Retain the claim anchor when main is unavailable.
-      const common = tryGit(root, ['merge-base', 'HEAD', 'main']);
+      // A checkout sitting at main's own commit has that commit as its merge base, with no Git process to ask.
+      const head = checkoutHead(root);
+      const atMain = head !== undefined && head === checkoutRefCommit(root, 'refs/heads/main');
+      const common = atMain ? { status: 0, stdout: head } : tryGit(root, ['merge-base', 'HEAD', 'main']);
       const base = common.status === 0 ? common.stdout.trim() : '';
       // A commit is its own ancestor, so the common case of an unmoved claim base needs no Git process.
       const validBase = /^[a-f0-9]{40}$/u.test(base) && /^[a-f0-9]{40}$/u.test(item.item_claim_head ?? '')

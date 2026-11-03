@@ -8,10 +8,12 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import {
   chmodSync,
+  closeSync,
   cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -258,13 +260,16 @@ test('an idle resident process closes its board connections and exits [H24]', ()
   rmSync(place.pid, { force: true });
   rmSync(place.socket, { force: true });
   const env = { ...fx.env, PULLBOARD_RESIDENT_IDLE_MS: '1500' };
+  const log = join(fx.dir, 'resident-idle.log');
+  const output = openSync(log, 'w');
   const daemon = spawn(process.execPath, [join(fx.code, 'bin', 'resident-board.js'), place.socket, bin, codeVersion(bin).version, place.pid],
-    { cwd: fx.repo, env, detached: true, stdio: 'ignore' });
+    { cwd: fx.repo, env, detached: true, stdio: ['ignore', output, output] });
+  closeSync(output);
   daemon.unref();
   // Each probe is a real child process, never a timer: wait for the pid file it writes once it listens.
   const deadline = performance.now() + 15_000;
   while (fx.residentPid() !== daemon.pid && performance.now() < deadline) runFixtureChild('sleep', ['0.2']);
-  assert.equal(fx.residentPid(), daemon.pid, 'the resident process listens and records its pid');
+  assert.equal(fx.residentPid(), daemon.pid, `the resident process listens and records its pid: ${readFileSync(log, 'utf8')}`);
   const served = fx.runIn(fx.repo, ['show', '2'], { modules: true });
   assert.equal(served.status, 0, served.stderr);
   assert.ok(served.loaded.length < 20, 'the read ran in the resident process, on a connection it holds');

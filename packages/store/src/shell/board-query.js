@@ -149,6 +149,13 @@ export function itemHold(board, id) {
  */
 export function listItems(board, { lane, all = false } = {}) {
   const hasLane = lane !== undefined && lane !== null;
+  // One command lists the board's items many times (next did 19 times); the same unchanged board answers from memory.
+  const key = `${hasLane ? lane : ''}\0${all}\0${board.executionEngineVersion ?? ENGINE_VERSION}`;
+  const version = boardDataVersion(board);
+  const remembered = LISTED.get(board.db)?.get(key);
+  if (remembered && remembered.clock === board.clock && remembered.version === version && !(remembered.expires <= now(board))) {
+    return remembered.items.map(item => ({ ...item }));
+  }
   const rows = board.db
     .prepare(`SELECT item.*, imported.meta_value AS imported_rehome, family.meta_value AS review_family, expected.meta_value AS expected_build
       FROM item LEFT JOIN board_meta imported ON imported.meta_key='rehome_import:' || item.item_id
@@ -161,7 +168,22 @@ export function listItems(board, { lane, all = false } = {}) {
     ...current(board, item, family),
     ...((board.executionEngineVersion ?? ENGINE_VERSION) < EXPECTED_BUILD_ENGINE || expected === null ? {} : { item_expected_build_minutes: JSON.parse(expected) }),
     ...(imported ? { item_rehome_import: JSON.parse(imported) } : {}) }));
+  // A held claim reads as open once its lease passes, so the remembered list lasts only until the first lease ends.
+  const expires = items.filter(item => item.item_status === 'claimed' && item.item_lease_until).map(item => item.item_lease_until).sort()[0];
+  if (!LISTED.has(board.db)) LISTED.set(board.db, new Map());
+  LISTED.get(board.db).set(key, { clock: board.clock, version, expires, items: items.map(item => ({ ...item })) });
   return items;
+}
+
+/** Remembered item lists by connection and filter; each entry names the board data version it read. */
+const LISTED = new WeakMap();
+
+/**
+ * A value that changes whenever the board's data may have: another connection's commit moves SQLite's data_version,
+ * and this connection's own writes move its total_changes.
+ */
+function boardDataVersion(board) {
+  return `${board.db.prepare('PRAGMA data_version').get().data_version}:${board.db.prepare('SELECT total_changes() AS n').get().n}`;
 }
 
 /** Read a stored status/owner slice, excluding claims whose leases have expired rather than caching items. */

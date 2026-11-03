@@ -8,6 +8,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { gitPath } from '../../../../src/git.js';
+import { checkoutHead } from '../../../git/index.js';
 import { statusPaths } from '../../../git/index.js';
 import { worktreeStatus } from '../../../git/index.js';
 import { agentSessionDigest } from '../../../person/index.js';
@@ -56,8 +57,11 @@ export function activityWorkingFiles(root, builds) {
     for (const path of [...changed, ...untracked]) files.add(path);
   } catch { unknown = true; }
   const commands = [];
+  const head = checkoutHead(root);
   for (const base of new Set(builds.map(item => item.item_claim_head))) {
     if (!/^[a-f0-9]{40}$/u.test(base ?? '')) { unknown = true; continue; }
+    // No commit since the claim's base: its committed changes are empty, with no Git process to say so.
+    if (base === head) continue;
     commands.push(['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--name-only', '-z', base, 'HEAD']);
   }
   for (const args of commands) {

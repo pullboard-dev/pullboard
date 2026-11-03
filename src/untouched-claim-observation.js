@@ -21,9 +21,11 @@ export function claimWorktreeSnapshot(root) {
     const add = data => { const value = Buffer.from(data); hash.update(`${value.length}:`); hash.update(value); };
     const status = worktreeStatus(root);
     add(status);
-    add(git(['diff', '--binary', '--no-ext-diff']));
-    add(git(['diff', '--cached', '--binary', '--no-ext-diff']));
-    const untracked = statusPaths(status).untracked.sort();
+    const { changed, untracked: listed } = statusPaths(status);
+    // With no tracked change both diffs are empty, the same bytes Git would print, so they need no Git process.
+    add(changed.length ? git(['diff', '--binary', '--no-ext-diff']) : '');
+    add(changed.length ? git(['diff', '--cached', '--binary', '--no-ext-diff']) : '');
+    const untracked = listed.sort();
     for (const file of untracked) {
       const path = join(root, file);
       const stat = lstatSync(path);
