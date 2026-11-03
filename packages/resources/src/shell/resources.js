@@ -1252,14 +1252,14 @@ export async function takeResource(options) {
           heartbeat.unref();
         };
         startHeartbeat();
-        /** Commit this holder's deletion before closing; a failed update remains live and retryable. */
-        const release = () => {
+        /** Commit deletion before closing; an owner with its own retry loop can request an immediate lock failure. */
+        const release = ({ retryMs } = {}) => {
           if (released || transferred) return;
           writeWhileLocked(() => update(db, () => {
             if (cancellationDiagnostic) settleControllerCancellation(db, { token, pid, started, repo, host: acquired.runner.host }, cancellationDiagnostic, recordRunnerFailure);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
-          }));
+          }), { retryMs });
           released = true;
           clearInterval(heartbeat);
           db.close();

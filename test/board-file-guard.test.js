@@ -11,7 +11,7 @@ import { boardFileReport } from '../bin/checks/board-files.js';
 
 test('the board-file lint names direct, namespaced and aliased logic file opens [C7]', () => {
   const source = [
-    "import { openBoard as open } from '../src/native-board.js';",
+    "import { openBoard as open } from '../apps/lib/index.js';",
     "const a = store.openBoard(':memory:');",
     "const b = openBoard(file);",
     "const c = open(join(root, 'board.sqlite'));",

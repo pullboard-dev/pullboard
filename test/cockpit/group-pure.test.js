@@ -1,9 +1,9 @@
 /** Cross-repository models and HTML run from supplied observations, without a page or board [N26,C7]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { groupActivityModel } from '../../src/view/group-render.js';
-import { groupNeedsHtml } from '../../src/view/group-render.js';
-import { groupEventHtml } from '../../src/view/group-render.js';
+import { groupActivityModel } from '../../apps/view/src/core/view/group-render.js';
+import { groupNeedsHtml } from '../../apps/view/src/core/view/group-render.js';
+import { groupEventHtml } from '../../apps/view/src/core/view/group-render.js';
 
 test('group history keeps newest eighty events and resolves each title in its own repository [N26,C7]', () => {
   const repos = [1, 2].map(index => ({ name: 'Repo ' + index, root: '/repo-' + index, board: {

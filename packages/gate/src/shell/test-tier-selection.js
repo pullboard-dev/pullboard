@@ -123,14 +123,14 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
     }
   }
   // RFC 0006 A3: a change also runs every package its hashes unseal, so importers of a changed front door run too.
-  const seals = !global && base ? unsealedPackages(root, { base, head: commit }) : null;
+  const seals = base ? unsealedPackages(root, { base, head: commit }) : null;
   for (const row of seals?.unsealed ?? []) if (row.hash) packages.add(row.package);
-  const skipped = seals ? sealedSkips(root, seals, after.manifest, packages) : [];
+  const skipped = !global && seals ? sealedSkips(root, seals, after.manifest, packages) : [];
   const doors = new Set([...(seals?.doors ?? []), ...(actual ?? []).filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);
   const contractRoots = [...doors].map(door => ownerOf(door, after.packageFiles, after.owners)).filter(Boolean).map(name => `${name}/contract/`);
   const contracts = after.manifest.files.map(row => row.file).filter(file => contractRoots.some(prefix => file.startsWith(prefix)));
   // A package's own tests that only cross into what it imports are its units too, so an unsealed importer runs them.
-  const unsealedNames = new Set((seals?.unsealed ?? []).map(row => row.package));
+  const unsealedNames = new Set((seals?.unsealed ?? []).filter(row => row.hash).map(row => row.package));
   const own = row => ownUnit(row, after, unsealedNames);
   const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row)).map(row => row.file), ...contracts])].sort();
   const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
@@ -175,7 +175,7 @@ export function requireSealedSkips(root, plan, { proofFiles, check } = {}) {
   for (const name of unsealed) mustRun.add(name);
   const after = snapshotAt(root, plan.commit);
   // The same rule the selection uses, so a root-owned cross-package journey is never demanded as a unit (#2596).
-  const own = row => ownUnit(row, after, new Set((seals?.unsealed ?? []).map(row => row.package)));
+  const own = row => ownUnit(row, after, new Set((seals?.unsealed ?? []).filter(row => row.hash).map(row => row.package)));
   // Every contract at a changed front door runs too; the doors come from Git, never from the plan's own change list.
   const changed = plan.base ? sourceGit(root, ['diff', '--no-renames', '--name-only', '-z', plan.base, plan.commit]).split('\0').filter(Boolean) : [];
   const doors = new Set([...(seals?.doors ?? []), ...changed.filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);

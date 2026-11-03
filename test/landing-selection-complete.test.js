@@ -93,6 +93,26 @@ test('an ordinary submit touching the same packages passes, and a dropped real u
   commit(root, { 'lib/root.js': 'export const root = 3;\n', 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
   const plan = submitGatePlan(root, { gate: 'true', affectedTests: 'node --test', submitInvariants: [], registryGuards: [] }, { base });
   assert.doesNotThrow(() => requireSealedSkips(root, plan.testTiers, { proofFiles: plan.proofFiles, check: plan.check }));
+  const unrun = plan.proofFiles.filter(file => file !== BASE_TEST);
+  assert.throws(() => requireSealedSkips(root, plan.testTiers, { proofFiles: unrun, check: plan.check }),
+    { code: 'TEST_SELECTION_INCOMPLETE', message: /missing from the submit run: packages\/base\/tests\/base\.test\.js/u });
   const dropped = { ...plan.testTiers, units: plan.testTiers.units.filter(file => file !== BASE_TEST) };
   assert.throws(() => requireSealedSkips(root, dropped), { code: 'TEST_SELECTION_INCOMPLETE', message: /packages\/base\/tests\/base\.test\.js/u });
+});
+
+
+test('global policy changes keep unsealed importer units and defer root cross-package journeys [C7]', t => {
+  const { root, base } = rootFixture(t);
+  const head = commit(root, { 'package.json': '{"type":"module","name":"changed-policy"}\n',
+    'packages/base/index.js': 'export { add } from "./src/core/add.js";\nexport const zero = 0;\n' });
+  const plan = selectTestTiers(root, { base, commit: head });
+  assert.ok(plan.units.includes(USER_TEST), 'a global change retains the unsealed importer unit');
+  assert.ok(plan.units.includes(CONTRACT), 'the changed front door retains its consumer contract');
+  assert.deepEqual(plan.skipped, [], 'global policy changes borrow no seal skip');
+  for (const file of JOURNEYS) assert.ok(!plan.units.includes(file), `${file} remains a root journey`);
+  assert.doesNotThrow(() => requireSealedSkips(root, plan));
+  for (const file of [BASE_TEST, USER_TEST, CONTRACT]) {
+    assert.throws(() => requireSealedSkips(root, { ...plan, units: plan.units.filter(unit => unit !== file) }),
+      error => error.code === 'TEST_SELECTION_INCOMPLETE' && error.message.includes(file));
+  }
 });

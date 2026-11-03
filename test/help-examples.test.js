@@ -29,7 +29,7 @@ test('help example flag groups preserve alternatives and optional nesting [O3]',
 });
 
 test('every help example carries its required flags [O3]', async () => {
-  const { HELP } = await import('../src/help.js');
+  const { help$HELP: HELP } = await import('../apps/cli/index.js');
   for (const [name, declaration] of Object.entries(HELP.commands)) {
     const usage = declaration.usages[0];
     for (const alternatives of requiredFlags(usage)) {

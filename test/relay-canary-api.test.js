@@ -1,4 +1,4 @@
-import { viewApiPorts } from '../src/view-api-ports.js';
+import { viewApiPorts } from '../apps/view/index.js';
 import { apiBoardOpeners } from './board-fixture.js';
 import { nativeBoardPorts as relayPresentationNativePorts } from '../apps/lib/index.js';
 /** Local API projection for private relay-canary alerts; never part of the sealed relay view. */
@@ -9,7 +9,7 @@ import { createServer } from 'node:http';
 import { join } from 'node:path';
 import test from 'node:test';
 import { createLocalApiHandler } from '../packages/api/index.js';
-import { refusalDocument } from '../src/next-step-words.js';
+import { refusalDocument } from '../apps/cli/index.js';
 import { relaySnapshot } from '../packages/pages/index.js';
 import { observeRelayHealth } from '../packages/link/index.js';
 import { main } from './native-cli-fixture.js';

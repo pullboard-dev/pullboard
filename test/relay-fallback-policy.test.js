@@ -1,4 +1,4 @@
-/** @pullboard-test-loads packages/link/src/shell/relay.js src/cli.js */
+/** @pullboard-test-loads packages/link/src/shell/relay.js apps/cli/src/shell/cli.js */
 /** A transient outage never turns an acknowledged-authority exception into a local move [H21,H16]. */
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { relayOutboxSetting } from '../src/cli.js';
+import { relayOutboxSetting } from '../apps/cli/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
 import { outboxFile, outboxQueueable } from '../packages/outbox/index.js';
 import { Refused } from '../packages/kernel/core.js';

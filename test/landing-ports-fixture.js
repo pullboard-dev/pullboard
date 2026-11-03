@@ -1,8 +1,8 @@
 import { landingFlakeRatchet } from '../packages/flakes/index.js';
 import { flakeLedger } from '../packages/flakes/index.js';
 /** Canonical process-local providers for direct private landing components, matching the actual higher CLI roots. */
-import { badgeCounts } from '../src/badge.js';
-import { writeBadges } from '../src/badge.js';
+import { badgeCounts } from '../apps/view/index.js';
+import { writeBadges } from '../apps/view/index.js';
 import { flakeSource } from '../packages/flakes/index.js';
 import { observeNativeFailure } from '../packages/flakes/index.js';
 import { quarantineWaivers, quarantineVerdictSnapshot, validateQuarantineGate, validateQuarantineLandingProof, gateRuns } from '../packages/flakes/index.js';

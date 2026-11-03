@@ -1,8 +1,8 @@
 /** @pullboard-test-input source-tree */
 /** Actual SSH protocol failures retain evidence and recover through the shared queue [C7]. */
 import { executionServicesSource } from './gate-execution-fixture.js';
-import { runnerLossHealth } from '../src/runner-loss-health.js';
-import { runnerLossLines } from '../src/runner-loss-health.js';
+import { runnerLossHealth } from '../apps/cli/src/core/runner-loss-health.js';
+import { runnerLossLines } from '../apps/cli/src/core/runner-loss-health.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdirSync } from 'node:fs';
@@ -13,7 +13,8 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { createE2eHelpers } from './e2e-helpers.js';
-import { copyPackageFiles, toolSourcePath } from '../src/package-files.js';
+import { copyPackageFiles } from '../packages/runners/index.js';
+import { toolSourcePath } from '../packages/runners/index.js';
 import { runFixtureChild } from './fixture-child.js';
 import { HOST } from './runner-ssh-fixture.js';
 import { installSshStandIn } from './runner-ssh-fixture.js';
@@ -158,7 +159,7 @@ test('an SSH-healthy host whose worker misses READY stays held after the admissi
   const configured = JSON.parse(readFileSync(settings, 'utf8'));
   writeFileSync(settings, JSON.stringify({ ...configured, gate: { ...configured.gate, runnerWaitMs: STAND_IN_BOOT_BUDGET_MS } }));
   const gate = pathToFileURL(join(import.meta.dirname, '../packages/gate/index.js')).href;
-  const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
+  const transport = pathToFileURL(join(import.meta.dirname, '../packages/runners/index.js')).href;
   const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
   const result = child(box, `import {withGateSlot,runProfiledShellAsync} from ${JSON.stringify(gate)};
 ${executionServicesSource(gate)}
@@ -209,7 +210,7 @@ test('real pinned worker recovery clears the transport row within seconds [C7]',
   const box = fixture(t);
   const runner = { ...box.runner, host: HOST };
   const recovery = pathToFileURL(join(import.meta.dirname, '../packages/resources/index.js')).href;
-  const transport = pathToFileURL(join(import.meta.dirname, '../src/runner-transport.js')).href;
+  const transport = pathToFileURL(join(import.meta.dirname, '../packages/runners/index.js')).href;
   const result = child(box, `import {DatabaseSync} from 'node:sqlite';
     import {initializeRunnerRecovery,recordRunnerFailure,recoverUnavailableRunners} from ${JSON.stringify(recovery)};
     import {probeRunnerTransport} from ${JSON.stringify(transport)};
