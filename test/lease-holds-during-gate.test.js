@@ -98,8 +98,8 @@ test('a claim with a running queued gate survives the idle release and the lapse
   assert.equal(box.helpers.commitFile(box, folder, 'web/built.js', 'export const built = true;\n', 'feat(web): build it [G1]').status, 0);
   writeFileSync(box.gate.mode, 'hold\n');
   assert.equal(document(box.run(folder, 'submit', String(box.gated), '--no-next', '--json')).queued, true);
-  await box.helpers.waitFor(() => read(box, box.gated).job?.state === 'running' && existsSync(box.gate.started),
-    'the queued gate is running', 60000); // budget: hang ceiling for the real detached worker to start its gate; no elapsed-time assertion.
+  const running = () => read(box, box.gated).job?.state === 'running' && existsSync(box.gate.started);
+  await box.helpers.waitFor(running, 'the queued gate is running', 60000); // budget: hang ceiling for the real detached worker to start its gate; no elapsed-time assertion.
   const claimed = read(box, box.gated).item, other = read(box, box.idle).item;
   const limit = staleStateLimits(loadConfig(box.repo)).claim;
 
