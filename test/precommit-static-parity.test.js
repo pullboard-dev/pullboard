@@ -68,7 +68,7 @@ test('the hook judges the index when working files differ in either direction [C
     writeFileSync(join(box.repo, 'src', 'partial.js'), staged);
     box.git(box.repo, 'add', 'src/partial.js');
     writeFileSync(join(box.repo, 'src', 'partial.js'), working);
-    const result = box.tryGit(box.repo, 'commit', '-q', '-m', 'chore(test): partial staging [C7]');
+    const result = box.tryGit(box.repo, 'commit', '-q', '-m', 'chore: add a source file');
     assert.equal((result.status ?? result.code) === 0, shouldPass, result.stderr ?? result.err);
   }
 });
