@@ -1,7 +1,8 @@
 /** Select committed Node test files through import edges; uncertainty requires the full gate [V4,C7]. */
 import { spawnSync } from 'node:child_process';
 import { cachedAffectedGraph } from './affected-graph-cache.js';
-import { DOCS_TREE_INPUT, documentationInputs } from './affected-doc-inputs.js';
+import { DOCS_TREE_INPUT } from './affected-doc-inputs.js';
+import { documentationInputs } from './affected-doc-inputs.js';
 import { unknownRootTests } from './affected-unknown-roots.js';
 import { posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
