@@ -57,7 +57,10 @@ export function seatAt(board, root) {
   return agentAt(board, root) ?? itemFolderIdentity(board, root)?.agent;
 }
 
-/** The seat's own checkout, so item folders open beside it even when a command runs inside one. */
+/**
+ * The seat's own checkout, so item folders open beside it even when a command runs inside one.
+ * Reads the stored path alone: a full seat read derives the family from sessions and Git [B3].
+ */
 export function seatRoot(ctx, board, me) {
-  return (board && agentById(board, me.id)?.agent_path) ?? ctx.info.root;
+  return (board && board.db.prepare('SELECT agent_path FROM agent WHERE agent_id=?').get(me.id)?.agent_path) ?? ctx.info.root;
 }
