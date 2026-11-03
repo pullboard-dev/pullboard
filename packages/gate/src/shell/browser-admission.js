@@ -65,6 +65,7 @@ const FLAG_OPTIONS = new Set(['--test-only']);
 const SAFE_CHILD_PROCESS_MODULES = new Map([
   ['test/fixture-child.js', 'shared fixture runner for explicit fixture commands'],
   ['src/git.js', 'runs Git commands for repository inspection'],
+  ['packages/gate/src/shell/affected-tests.js', 'runs fixed Git commands to read the committed selection graph'],
   ['packages/gate/src/shell/module-imports.js', 'runs the Node parser in an isolated child'],
   ['packages/resources/index.js', 'reads process identity with /bin/ps'],
 ]);
@@ -273,6 +274,16 @@ function launchFreeChromeImport(source, request) {
   }).join('\n');
   if (!removed) return false;
   try { return !importsIn([remaining])[0].includes(request); } catch { return false; }
+}
+
+/** Admit only the reviewed graph reader's two fixed Git process calls; changes fail closed. */
+function safeSelectionGit(source) {
+  const code = lex(source).code;
+  const bindings = [...code.matchAll(/\bspawnSync\b/gu)].length;
+  const calls = [...code.matchAll(/\bspawnSync\s*\(/gu)];
+  const fixed = calls.filter(call => /^spawnSync\s*\(\s*(['"])git\1\s*,/u.test(source.slice(call.index))).length;
+  return /^import\s*\{\s*spawnSync\s*\}\s*from\s*(['"])node:child_process\1\s*;?\s*$/mu.test(source)
+    && bindings === 3 && fixed === 2;
 }
 
 /** Detect direct literal Chrome launchers without treating help text or refusal messages as launches. */
@@ -641,7 +652,8 @@ async function testsNeedBrowserInTree(root, files, committed = null, onFallback,
           if (byLaunch && PROCESS_STARTERS.has(request)) { starts[index] = true; continue; }
           if (request === 'node:child_process') {
             const policy = SAFE_CHILD_PROCESS_MODULES.get(paths[index]);
-            if (!policy) return browserFallback(onFallback, paths[index], 'child_process use has no reviewed path-and-reason exception');
+            if (!policy || paths[index] === 'packages/gate/src/shell/affected-tests.js' && !safeSelectionGit(sources[index]))
+              return browserFallback(onFallback, paths[index], 'child_process use has no reviewed path-and-reason exception');
             continue;
           }
           if (request === 'node:module') return browserFallback(onFallback, paths[index], 'node:module can create a dynamic loader');

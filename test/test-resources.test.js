@@ -190,6 +190,11 @@ test('module launchers and dynamic builtins keep browser admission conservative 
   assert.equal(parserBrowser, false,
     'the reviewed V8 compile-only import parser may use node:vm without evaluating the test graph');
   assert.deepEqual(parserFallbacks, [], 'the positive control inspects the real complete parser closure');
+  const selector = join(root, 'packages/gate/src/shell/affected-tests.js');
+  const originalSelector = readFileSync(selector, 'utf8');
+  writeFileSync(selector, originalSelector.replace("spawnSync('git',", "spawnSync('node',"));
+  assert.equal(await testsNeedBrowser(root, ['test/parser.test.js']), true, 'a changed process target fails closed');
+  writeFileSync(selector, originalSelector);
   rmSync(join(root, 'src/module-import-cache-state.js'));
   const missingFallbacks = [];
   assert.equal(await testsNeedBrowser(root, ['test/parser.test.js'], { onFallback: decision => missingFallbacks.push(decision) }), true,
@@ -449,9 +454,9 @@ test('only a file that reaches a browser launch takes a browser slot [C7,O5]', a
   const snapshotPaths = spawnSync('git', ['ls-files', '-z'], { cwd: repository, env: plainGitEnvironment(), encoding: 'utf8' });
   assert.equal(snapshotPaths.status, 0, snapshotPaths.stderr);
   const sourceFiles = await snapshotBrowserSourceFiles(repository, snapshotPaths.stdout.split('\0').filter(Boolean));
-  t.diagnostic('browser census started');
+  process.stderr.write('browser census started\n');
   const bound = await withBrowserSourceFiles(sourceFiles, () => browserBoundFiles(repository, tracked, { byLaunch: true }));
-  t.diagnostic('browser census finished');
+  process.stderr.write('browser census finished\n');
   const runnerScenarios = tracked.filter(file => /^test\/runners-.*\.test\.js$/u.test(file));
   assert.ok(runnerScenarios.length > 0, 'the split runner scenarios remain in the browser census');
   for (const file of runnerScenarios) assert.ok(!bound.includes(file), `${file}: runner subprocess fixture source data does not launch a browser in the runner test process`);
@@ -478,9 +483,9 @@ test('launcher starts the stand-in browser inside its slot', async () => {
 });
 `,
   });
-  t.diagnostic('private runner started');
+  process.stderr.write('private runner started\n');
   const on = runner.run(true, ['test/plain.test.js', 'test/launcher.test.js']);
-  t.diagnostic('private runner finished');
+  process.stderr.write('private runner finished\n');
   assert.equal(on.status, 0, on.output);
   assert.deepEqual(on.markers, ['launcher=held', 'plain=none'],
     'by launch, only the launching file takes a browser slot; the child_process file runs without one');
