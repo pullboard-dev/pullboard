@@ -10,7 +10,6 @@ COPY --chown=node:node src/ ./src/
 COPY --chown=node:node bin/ ./bin/
 COPY --chown=node:node apps/ ./apps/
 COPY --chown=node:node packages/ ./packages/
-COPY --chown=node:node apps/ ./apps/
 COPY --chown=node:node relay/ ./relay/
 RUN mkdir -p /data && chown node:node /data && chmod 700 /data
 
