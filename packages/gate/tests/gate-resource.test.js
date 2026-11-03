@@ -686,7 +686,7 @@ test('short slots behave the same with gate.browserByLaunch on [C7]', async () =
   const { explicitCheckFiles } = await import(BROWSER_ADMISSION_MODULE);
   const root = process.cwd();
   const named = `${quote(process.execPath)} bin/run-tests.js packages/gate/tests/gate-resource.test.js`;
-  const guard = pathToFileURL(resolve(root, 'packages/gate/index.js')).href;
+  const guard = pathToFileURL(resolve(root, 'packages/gate/src/shell/browser-slot-guard.js')).href;
   const base = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'NODE_OPTIONS'));
   assert.deepEqual(await explicitCheckFiles(root, named, { env: base }), ['packages/gate/tests/gate-resource.test.js'], 'with gate.browserByLaunch off');
   assert.deepEqual(await explicitCheckFiles(root, named, { env: { ...base, NODE_OPTIONS: `--import=${guard}` } }), ['packages/gate/tests/gate-resource.test.js'], 'with gate.browserByLaunch on');
