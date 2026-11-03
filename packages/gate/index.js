@@ -33,6 +33,7 @@ export { nudgeMainAudit } from "./src/shell/main-audit-nudge.js";
 export { scheduleMainAudit, waitMainAudit } from "./src/shell/main-audit-scheduler.js";
 export { mainAuditDirectory, activateMainAudits, mainAuditKey, readMainAudit, saveMainAudit } from "./src/shell/main-audit-state.js";
 export { runMainAudits, mainAuditJobs } from "./src/shell/main-audit-worker.js";
+export { attributeAuditFailures, fileAuditRegressions, auditRegressionTitle } from "./src/shell/main-audit-attribution.js";
 export { withImportParseCache } from "./src/shell/module-import-cache.js";
 export { withParseScope, importsIn, commonJsIn, cpuLiteralCache, cpuRegistrationExportsIn, cpuCallableExportsIn, cpuLoadOptionsIn } from "./src/shell/module-imports.js";
 export { readPerfReport, evaluatePerfBudgets, perfBudgetTable, PERF_INTERACTIONS, PERF_BUDGETS } from "./src/core/perf-budgets.js";

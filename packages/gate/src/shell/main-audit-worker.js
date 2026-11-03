@@ -9,6 +9,7 @@ import {
   scheduleMainAudit,
 } from './main-audit-scheduler.js';
 import { mainCommitJob } from './main-audit-commits.js';
+import { fileAuditRegressions } from './main-audit-attribution.js';
 /** Finite exact-source main audits, one native admitted run at a time [C7,H16]. */
 import {
   execFileSync,
@@ -158,6 +159,14 @@ async function notifyIncomplete(file, job, reason, write) {
 /** Route every file and named assertion using the normal existing defect operation. */
 async function routeFailures(source, job, receipt, config, write, sinceEventId, openBoardForRead) {
   const files = [...new Set(receipt.failures.map(failure => failure.file))];
+  if (job.source === 'main-commits') { // No landing batch: the range's trailers name the suspects.
+    const read = action => readBoard(repoInfo(source), action, openBoardForRead);
+    const filed = await fileAuditRegressions({ git, store, read, write }, source, mainAuditDirectory(repoInfo(source)), job, receipt.failures);
+    const unrouted = files.filter(file => !filed.some(row => row.test === file));
+    if (unrouted.length) throw new Error(`main audit failures have no green audit to attribute from: ${unrouted.join(', ')}`);
+    if (!receipt.green && !files.length) throw new Error('red main audit has no named failing file; not complete');
+    return;
+  }
   for (const file of files) {
     const bytes = git(source, ['show', `${job.tip}:${file}`], null);
     const blob = git(source, ['rev-parse', `${job.tip}:${file}`]).trim();
