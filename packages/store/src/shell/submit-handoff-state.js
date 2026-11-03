@@ -164,7 +164,7 @@ export function completeSubmitHandoff(board, id, { result, reopenFirstRefusalMin
     }
     if (result.error.code === INFRASTRUCTURE_CODE && item.item_status !== 'submitted') {
       // A Git read that kept failing is the machine's fault: the item stays claimed and the builder gets no red (#2521).
-      insertShout(board, { from: 'coordinator', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once the Git read recovers.`, lanes: [] });
+      insertShout(board, { from: 'sentinel', to: 'coordinator', text: `Queued gate for #${id} stopped on infrastructure (${result.error.code}); nothing is wrong with the builder's source. Resubmit it once the Git read recovers.`, lanes: [] });
       return record(board, id, { ...job, state: 'infrastructure', error: { ...result.error }, completedAt: now(board) });
     }
     const state = item.item_status === 'submitted' ? 'incomplete' : 'red';
