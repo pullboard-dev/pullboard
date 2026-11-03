@@ -6,7 +6,7 @@ export const HEAL_RETRY_MS = 30_000;
 /** How long a heal keeps its reservation of the quarantine generation, covering the ssh stop and the idle proof. */
 export const HEAL_RESERVE_MS = 60_000;
 /** The longer wait for runners that may still be doing work. */
-const CLEANUP_RETRY_MS = 300_000;
+const CLEANUP_RETRY_MS = 60_000;
 
 /** Count controller holders for a host; null when the table cannot be read, which never counts as zero. */
 export function runnerHolders(db, host) {
