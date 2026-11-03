@@ -4,6 +4,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { test } from 'node:test';
 import { createE2eHelpers } from './e2e-helpers.js';
+import { HELP } from '../apps/cli/src/core/help.js';
+import { commandPhrases } from '../apps/cli/src/core/help.js';
+import { HELP_SECTIONS } from '../apps/cli/src/core/help/sections.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
@@ -79,13 +82,11 @@ test('help has no import path back to the CLI [N26]', () => {
 });
 
 test('view help names its fixed loopback port and explicit port 0 [N26]', async () => {
-  const { HELP } = await import('../apps/cli/src/core/help.js');
   assert.match(HELP.all, /pullboard view \[--project\] \[--port N\].*default http:\/\/127\.0\.0\.1:4890/u);
   assert.match(HELP.all, /--port 0 chooses a free port/u);
 });
 
 test('command phrases match help --all, longest first [N26]', async t => {
-  const { HELP, commandPhrases } = await import('../apps/cli/src/core/help.js');
   const e2e = createE2eHelpers();
   t.after(e2e.cleanup);
   const box = e2e.project();
@@ -158,8 +159,6 @@ test('help spec lists every spec subcommand and who runs it [N32]', t => {
 });
 
 test('full help is assembled from the independently editable command groups [C7,N26]', async () => {
-  const { HELP } = await import('../apps/cli/src/core/help.js');
-  const { HELP_SECTIONS } = await import('../apps/cli/src/core/help/sections.js');
   const graph = helpGraph();
   let offset = 0;
   for (const section of HELP_SECTIONS) {
