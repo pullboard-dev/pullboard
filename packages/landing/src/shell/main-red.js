@@ -3,6 +3,7 @@ import { testClosures } from '../../../gate/index.js';
 import { selectAffectedTests } from '../../../gate/index.js';
 import { runnerExecutionServices } from '../../../../src/runners.js';
 import { landingExecutionServices } from './landing-shards.js';
+import { commandFact } from '../../../git/index.js';
 import { gitSpawnSync } from '../../../git/index.js';
 import { randomUUID } from 'node:crypto';
 import { createHash } from 'node:crypto';
@@ -104,11 +105,15 @@ function failingFiles(root, profile, output) {
 
 /** The common Git directory holds local machine evidence shared by this repo's worktrees. */
 function cacheFile(root) {
-  const result = gitSpawnSync(['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], {
-    cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
+  // One command locates the common directory once, however many main-red reads it makes.
+  const common = commandFact(JSON.stringify(['main-red-common-dir', root]), () => {
+    const result = gitSpawnSync(['--no-replace-objects', 'rev-parse', '--path-format=absolute', '--git-common-dir'], {
+      cwd: root, env: cleanGitEnvironment(), encoding: 'utf8',
+    });
+    return result.status === 0 ? result.stdout.trim() : null;
   });
-  if (result.status !== 0) throw new Refused('NO_POLICY', 'the repository common Git directory cannot be read for the local main comparison cache');
-  return join(result.stdout.trim(), CACHE_RELATIVE);
+  if (common === null) throw new Refused('NO_POLICY', 'the repository common Git directory cannot be read for the local main comparison cache');
+  return join(common, CACHE_RELATIVE);
 }
 
 /** Read only well-formed, machine-local cached outcomes; malformed data is treated as a miss. */

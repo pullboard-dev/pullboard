@@ -358,6 +358,18 @@ function fact(key, read) {
   return value;
 }
 
+/**
+ * Reuse one Git-derived observation for the rest of this command, as the built-in facts are reused. A Git write through
+ * git() or tryGit() clears it, and outside a command scope it is computed every time.
+ *
+ * @param {string} key
+ * @param {() => any} read
+ * @returns {any}
+ */
+export function commandFact(key, read) {
+  return fact(`command:${key}`, read);
+}
+
 /** Read one Git config value with its status, reusing the same query for this command.
  *
  * @param {string} root
