@@ -3,12 +3,17 @@ import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { machineHome } from '../../../resources/index.js';
+import { userInfo } from 'node:os';
+import { gateMachineHome } from '../core/preload-policy.js';
 
 const MAX_ROWS = 400_000;
 
 /** The directory every checkout and runner job on this machine shares; tests isolate it with their account home. */
-function storeDirectory() { return join(machineHome(), 'parse-cache'); }
+function storeDirectory() {
+  const override = process.env.PULLBOARD_MACHINE_HOME, accountHome = process.env.PULLBOARD_ACCOUNT_HOME;
+  const home = gateMachineHome({ override, accountHome, osHome: override || accountHome ? undefined : userInfo().homedir });
+  return join(home, 'parse-cache');
+}
 
 /** Digest of one source under one parser epoch; the epoch pins runtime, flags and parser program. */
 function keyOf(epoch, source) {
