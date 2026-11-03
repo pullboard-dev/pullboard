@@ -225,10 +225,11 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           throw error;
         }
         // A cleanup the runner could not verify is the runner's failure, not the run's: rerun it locally (#1063).
+        const setup = error instanceof Refused && error.code === 'RUNNER_SETUP';
         const cleanup = error instanceof Refused && ['RUNNER_CLEANUP_TIMEOUT', 'RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error.code);
-        const boundedRetry = retryInfrastructure || ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error?.code)
+        const boundedRetry = retryInfrastructure || setup || ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(error?.code)
           || infrastructureAttempts.some(attempt => ['RUNNER_JOB_LOST', 'RUNNER_UNAVAILABLE'].includes(attempt.code));
-        if (!(error instanceof RunnerDropped || cleanup) || !lease.runner || !lease.requeueRunner) {
+        if (!(error instanceof RunnerDropped || cleanup || setup) || !lease.runner || !lease.requeueRunner) {
           if (infrastructureAttempts.length) {
             infrastructureAttempts.push({ kind: 'retry', code: error?.code ?? error?.name ?? 'unknown', runner: lease.runner?.host ?? 'local',
               outcome: 'error', at: new Date().toISOString() });
@@ -236,7 +237,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
           }
           throw error;
         }
-        const failure = { kind: cleanup ? 'cleanup-timeout' : 'transport-lost', code: cleanup ? error.code : error.code ?? 'TRANSPORT_LOST',
+        const failure = { kind: cleanup ? 'cleanup-timeout' : setup ? 'runner-setup' : 'transport-lost', code: cleanup || setup ? error.code : error.code ?? 'TRANSPORT_LOST',
           runner: lease.runner.host, at: new Date().toISOString(), diagnostic: error.diagnostic ?? null };
         if (boundedRetry && infrastructureAttempts.length >= 1) {
           lease.infrastructureAttempts = [...infrastructureAttempts, failure];
@@ -249,7 +250,7 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         // A separate Node process cannot prove that a worker which missed READY can accept a job.
         const admissionDeadline = !cleanup && (error.diagnostic?.reason === 'admission-deadline'
           || error.diagnostic?.phase !== 'ready' && Number.isSafeInteger(lease.runnerWaitDeadline) && Date.now() >= lease.runnerWaitDeadline);
-        const health = cleanup || admissionDeadline ? null : await probeRunnerTransport(lease.runner);
+        const health = cleanup || admissionDeadline || setup ? null : await probeRunnerTransport(lease.runner);
         const diagnostic = { ...(error.diagnostic ?? { reason: error.name }), confirmingProbe: health };
         // A persistent receipt/capsule failure must surface; rotating through healthy hosts cannot repair it.
         if (health?.healthy && healthyTransportRetry) {
@@ -260,10 +261,10 @@ async function withOneGateSlot(root, action, { landing = false, itemCheck = fals
         if (health?.healthy) healthyTransportRetry = true;
         const runnerUnavailable = { host: lease.runner.host,
           reason: cleanup ? error.message : admissionDeadline ? 'worker did not become ready before its admission deadline'
-            : health.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
+            : setup ? error.message : health?.healthy ? 'transient failure; confirming SSH and Node observation succeeded' : 'failed call and confirming transport observation failed',
           diagnostic, until: cleanup ? 'the pinned worker verifies exact-job cleanup on its next health probe'
             : admissionDeadline ? 'the pinned worker proves readiness and exact-job cleanup on its next health probe'
-              : health.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
+              : health?.healthy ? 'the original ticket is readmitted' : 'the next successful automatic health observation' };
         if (onWait) await onWait({ holders: [], line: [], position: 0, runnerUnavailable });
         else process.stderr.write(`runner ${runnerUnavailable.host} unavailable: ${runnerUnavailable.reason}; until ${runnerUnavailable.until}; ${cleanup && !runnerOnly && restriction?.kind !== 'ssh' ? 'rerunning it locally' : 'requeueing the run'}\n`);
         try {
