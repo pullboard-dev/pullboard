@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { readdirSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
@@ -22,6 +23,26 @@ function commit(box, cwd, message) {
   return box.git(cwd, 'rev-parse', 'HEAD');
 }
 
+/** Install unchanged runtime bytes in small ordinary commits, each scanned by the fixture's real hooks. */
+function commitRuntime(box, files) {
+  let batch = [], bytes = 0, chunks = 0;
+  /** Commit this exact file batch without staging the rest of the copied runtime. */
+  const flush = () => {
+    if (!batch.length) return;
+    box.git(box.repo, 'add', '--', ...batch);
+    box.git(box.repo, 'commit', '-q', '-m', `test: install canonical runtime chunk ${++chunks} [G1]`);
+    batch = [];
+    bytes = 0;
+  };
+  for (const file of files) {
+    const size = statSync(join(box.repo, file)).size;
+    if (batch.length && (batch.length >= 64 || bytes + size > 1024 * 1024)) flush();
+    batch.push(file);
+    bytes += size;
+  }
+  flush();
+}
+
 /** Run production parsing, native moves and actual check execution, without unrelated next-work dispatch. */
 async function json(box, cwd, ...args) {
   const result = await runCliInProcess([...args, '--json'], { cwd, env: box.env });
@@ -36,7 +57,8 @@ test('a green dot-reporter gate records both selected files and accepts with its
   box = helpers.project('true');
   const runner = 'node bin/run-tests.js --test-reporter=dot';
   const check = `node -e "if (!require('node:fs').readFileSync('packages/alpha/index.js', 'utf8').includes('value = 2')) process.exit(1)"`;
-  copyFixtureRunner(resolve(import.meta.dirname, '..'), box.repo);
+  const runtime = copyFixtureRunner(resolve(import.meta.dirname, '..'), box.repo);
+  commitRuntime(box, runtime);
   writeFileSync(join(box.repo, 'package.json'), '{"type":"module"}\n');
   const config = { ...helpers.CONFIG, gate: runner, affectedTests: runner, submitGate: 'landing',
     submitInvariants: [], registryGuards: [], submit: { handoff: false },
