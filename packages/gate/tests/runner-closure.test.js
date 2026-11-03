@@ -37,3 +37,11 @@ test('every closure shim re-exports exactly its own moved body [C7,doctrine:CD60
     assert.equal(join(dirname(shim), match[1]), moved[shim], `${shim} targets its own body`);
   }
 });
+
+/** The store body replaces only its old forwarding shim in the runner closure [C7]. */
+test('runner reads the native user directory body without widening its closure [C7]', () => {
+  const files = Object.keys(runnerPackage(ROOT).files);
+  assert.ok(files.includes('packages/store/src/shell/native-user-directory.js'));
+  assert.ok(!files.includes('src/native-user-directory.js'));
+  assert.ok(!files.includes('packages/store/index.js'));
+});

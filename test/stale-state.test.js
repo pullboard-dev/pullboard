@@ -10,7 +10,7 @@ import { conditionalHoldFloor } from '../packages/health/index.js';
 import { runFixtureChildAsync, safeFixtureDiagnostic } from './fixture-child.js';
 import { readFileSync, writeFileSync, utimesSync } from 'node:fs';
 
-import { staleStateSnapshot } from '../packages/health/src/core/stale-state-query.js';
+import { staleStateSnapshot } from '../packages/health/src/shell/stale-state-snapshot.js';
 import { planStaleState } from '../src/board-stale-state-maintenance.js';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { submitFixture } from './board-submit-fixture.js';

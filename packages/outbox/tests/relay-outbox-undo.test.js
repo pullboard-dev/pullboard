@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import * as store from '../../../src/board.js';
 import { openBoard } from '../../../src/native-board.js';
-import { undoQueued } from '../src/core/relay-outbox-undo.js';
+import { undoQueued } from '../src/shell/relay-outbox-undo.js';
 import { recordSchemaStamp } from '../../store/index.js';
 import { SCHEMA_DIGEST } from '../../store/index.js';
 
