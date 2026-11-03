@@ -6,6 +6,8 @@ import { mkdtempSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { symlinkSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -15,6 +17,10 @@ import { cellInventory } from '../packages/codemap/index.js';
 import { updateCellInventory } from '../packages/codemap/index.js';
 import { importsIn } from '../packages/gate/index.js';
 import { commonJsIn } from '../packages/gate/index.js';
+import { withImportParseCache } from '../packages/gate/index.js';
+import { foreignNodeOptions } from '../packages/gate/index.js';
+import { withMainCheckout } from '../packages/landing/index.js';
+import { requireSubmitCells } from '../bin/cells-submit-checks.js';
 import { fixture } from './cells-plan-fixture.js';
 import { git } from './cells-plan-fixture.js';
 
@@ -34,7 +40,7 @@ function freshJob(t, root) {
   const parent = mkdtempSync(join(tmpdir(), 'pullboard-cells-job-'));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const checkout = join(parent, 'job');
-  git(parent, 'clone', '-q', root, checkout);
+  git(parent, 'clone', '-q', '--shared', root, checkout);
   return checkout;
 }
 
@@ -103,4 +109,46 @@ test('package.json, the kernel front door and discovery.js keep the full census 
     cache.candidate(box.root, base, [file]);
     assert.equal(modes.at(-1), 'candidate-full-fallback', file);
   }
+});
+
+/** Commit one added test file on top of main in the job checkout and leave it checked out. */
+function addFileCandidate(job, main, name) {
+  git(job, 'checkout', '-q', '--detach', main);
+  writeFileSync(join(job, 'test', name), 'export const probe = true;\n');
+  git(job, 'add', '-A');
+  git(job, 'commit', '-q', '-m', `add ${name}`);
+  return git(job, 'rev-parse', 'HEAD').trim();
+}
+
+/** Run the submit cells check exactly as the remote analysis entry does, returning its inventory modes and seconds. */
+async function cellsStep(job, main, source) {
+  const modes = [], started = performance.now();
+  let result;
+  try {
+    result = await requireSubmitCells(job, main, source, { item_frozen: JSON.stringify({ criterion: 'add one test file' }), item_title: 'add one test file' }, {
+      withMainCheckout, parsers: { importsIn, commonJsIn }, withImportParseCache,
+      cacheEligible: () => !foreignNodeOptions(process.env.NODE_OPTIONS), readCutItems: () => [],
+      onInventory: mode => modes.push(mode) });
+  } catch (error) {
+    // A finding on main is a verdict, not a cost: the step still ran its inventories and the timing stands.
+    if (error?.code !== 'CELLS_SUBMIT') throw error;
+    result = { refused: error.message };
+  }
+  return { modes, seconds: (performance.now() - started) / 1000, result };
+}
+
+test('on this repository, a later item that adds a file runs the cells step in under 60 s from a warm base [C7]', { timeout: 590_000 }, async t => {
+  const repository = fileURLToPath(new URL('..', import.meta.url));
+  const job = freshJob(t, repository), main = git(job, 'rev-parse', 'HEAD').trim();
+  const first = await cellsStep(job, main, addFileCandidate(job, main, `cells-probe-${randomUUID()}.test.js`));
+  t.diagnostic(`first job: ${first.seconds.toFixed(1)} s, inventory ${first.modes.join(', ')}`);
+  assert.ok(!first.modes.includes('candidate-full-fallback'), 'an added file never forces a full census');
+
+  const later = freshJob(t, repository);
+  const warm = await cellsStep(later, main, addFileCandidate(later, main, `cells-probe-${randomUUID()}.test.js`));
+  t.diagnostic(`later job: ${warm.seconds.toFixed(1)} s, inventory ${warm.modes.join(', ')}`);
+  assert.ok(warm.modes.length > 0 && warm.modes.every(mode => mode === 'base-cache' || mode === 'candidate-incremental'),
+    `a later job reads main from the machine cache and updates the candidate in place: ${warm.modes.join(', ')}`);
+  assert.ok(warm.modes.includes('base-cache') && warm.modes.includes('candidate-incremental'));
+  assert.ok(warm.seconds < 60, `the cells step took ${warm.seconds.toFixed(1)} s, over 60 s`);
 });
