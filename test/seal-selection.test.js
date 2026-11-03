@@ -43,7 +43,7 @@ function commit(root, files) {
  * base is imported by user; alone imports nothing. base carries a consumer contract that opens a board (so it is never
  * a plain unit), user's own test crosses into base, and one root journey spans packages. Candidate tests never run here.
  */
-function fixture(t) {
+function fixture(t, { unsealed = [] } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'pullboard-seal-selection-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   runFixtureGit(['init', '-q'], { cwd: root });
@@ -67,7 +67,7 @@ function fixture(t) {
   writeTestTiers(root);
   const first = commit(root, {});
   const store = sealStoreFile(root);
-  for (const row of sealStatus(root, { rev: first, store })) recordSeal(store, { package: row.package, hash: row.hash, receipts: [`receipt-${row.package.replace('packages/', '')}`], tests: [] });
+  for (const row of sealStatus(root, { rev: first, store })) if (!unsealed.includes(row.package)) recordSeal(store, { package: row.package, hash: row.hash, receipts: [`receipt-${row.package.replace('packages/', '')}`], tests: [] });
   return { root, first };
 }
 
@@ -99,4 +99,26 @@ test('control: a plan that hides a real change from its run fails, so skip logic
   const hidden = { ...plan, units: plan.units.filter(file => file !== USER_TEST), skipped: [...plan.skipped, { package: 'packages/user', hash: null, receipt: 'receipt-user' }] };
   assert.throws(() => requireSealedSkips(root, hidden), { code: 'SEAL_STALE', message: /packages\/user/u });
   assert.throws(() => requireSealedSkips(root, { ...plan, base: null }), { code: 'SEAL_STALE' });
+});
+
+test('an unchanged package with no current seal runs its tests, and a skip without a current seal receipt refuses [C7,CD44]', t => {
+  const { root, first } = fixture(t, { unsealed: ['packages/alone'] });
+  const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
+  const plan = selectTestTiers(root, { base: first, commit: head });
+  assert.deepEqual(plan.units, ['packages/alone/tests/alone.test.js', BASE_TEST]);
+  assert.ok(plan.packages.includes('packages/alone'));
+  assert.deepEqual(plan.skipped, []);
+  assert.doesNotThrow(() => requireSealedSkips(root, plan));
+  const forged = { ...plan, units: [BASE_TEST], skipped: [{ package: 'packages/alone', hash: null, receipt: null }] };
+  assert.throws(() => requireSealedSkips(root, forged), { code: 'SEAL_STALE', message: /packages\/alone/u });
+  const borrowed = { ...forged, skipped: [{ package: 'packages/alone', hash: null, receipt: 'receipt-base' }] };
+  assert.throws(() => requireSealedSkips(root, borrowed), { code: 'SEAL_STALE', message: /packages\/alone/u });
+});
+
+test('a sealed skip must cite a receipt its current seal holds [C7,CD44]', t => {
+  const { root, first } = fixture(t);
+  const head = commit(root, { 'packages/base/src/core/add.js': 'export const add = (a, b) => b + a;\n' });
+  const plan = selectTestTiers(root, { base: first, commit: head });
+  const swapped = { ...plan, skipped: plan.skipped.map(row => ({ ...row, receipt: 'receipt-base' })) };
+  assert.throws(() => requireSealedSkips(root, swapped), { code: 'SEAL_STALE', message: /packages\/alone/u });
 });

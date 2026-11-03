@@ -15,6 +15,8 @@ import { TEST_TIERS_FILE } from './test-tiers.js';
 import { unsealedPackages } from './seals.js';
 import { sealOf } from './seals.js';
 import { sealStoreFile } from './seals.js';
+import { sealsExist } from './seals.js';
+import { checkSkippedSeals } from './seals.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
@@ -113,6 +115,7 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
   // RFC 0006 A3: a change also runs every package its hashes unseal, so importers of a changed front door run too.
   const seals = !global && base ? unsealedPackages(root, { base, head: commit }) : null;
   for (const row of seals?.unsealed ?? []) if (row.hash) packages.add(row.package);
+  const skipped = seals ? sealedSkips(root, seals, after.manifest, packages) : [];
   const doors = new Set([...(seals?.doors ?? []), ...(actual ?? []).filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);
   const contractRoots = [...doors].map(door => ownerOf(door, after.packageFiles, after.owners)).filter(Boolean).map(name => `${name}/contract/`);
   const contracts = after.manifest.files.map(row => row.file).filter(file => contractRoots.some(prefix => file.startsWith(prefix)));
@@ -121,26 +124,33 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
     && [ownerOf(row.file, after.packageFiles, after.owners)].some(name => name && name !== '.' && seals?.unsealed.some(unsealed => unsealed.package === name));
   const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row)).map(row => row.file), ...contracts])].sort();
   const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
-  const skipped = seals ? sealedSkips(root, seals, after.manifest, packages) : [];
   return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, runner: runner?.trim() || 'node --test' };
 }
 
-/** Name each skipped package with unit tests by its seal receipt, or as unchanged since the base when none is recorded. */
+/**
+ * Skip each unchanged package with unit tests only by its current seal's receipt; a package with no seal at its current
+ * hash joins the run instead (RFC 0006 A3). Before any seal exists nothing is skipped by name (A6).
+ */
 function sealedSkips(root, seals, manifest, packages) {
-  const tested = new Set(manifest.files.filter(row => row.tier === 'T1').flatMap(row => row.packages));
   const store = sealStoreFile(root);
-  return seals.kept.filter(name => tested.has(name) && !packages.has(name)).map(name => {
-    const hash = seals.hashes.get(name);
-    return { package: name, hash, receipt: sealOf(store, name, hash)?.receipts[0] ?? null };
-  });
+  if (!sealsExist(store)) return [];
+  const tested = new Set(manifest.files.filter(row => row.tier === 'T1').flatMap(row => row.packages));
+  const skipped = [];
+  for (const name of seals.kept) {
+    if (!tested.has(name) || packages.has(name)) continue;
+    const hash = seals.hashes.get(name), receipt = sealOf(store, name, hash)?.receipts[0] ?? null;
+    if (receipt) skipped.push({ package: name, hash, receipt });
+    else packages.add(name);
+  }
+  return skipped;
 }
 
 /**
- * Refuse a plan whose skipped packages include one the change unseals, so a selection that hides a change fails
- * instead of reporting green (RFC 0006 A3 control).
+ * Refuse a plan whose skipped packages include one the change unseals, or one skipped without a current seal holding
+ * its named receipt, so a selection that hides a change fails instead of reporting green (RFC 0006 A3 control).
  *
  * @param {string} root
- * @param {{ base?: string | null, commit: string, skipped?: { package: string }[] }} plan
+ * @param {{ base?: string | null, commit: string, skipped?: { package: string, hash?: string, receipt?: string | null }[] }} plan
  */
 export function requireSealedSkips(root, plan) {
   if (!plan?.skipped?.length) return;
@@ -148,6 +158,12 @@ export function requireSealedSkips(root, plan) {
   const unsealed = new Set(unsealedPackages(root, { base: plan.base, head: plan.commit }).unsealed.map(row => row.package));
   const hidden = plan.skipped.map(row => row.package).filter(name => unsealed.has(name)).sort();
   if (hidden.length) throw new Refused('SEAL_STALE', `the change unseals skipped packages: ${hidden.join(', ')}; run their tests`);
+  const unproven = plan.skipped.filter(row => typeof row.receipt !== 'string' || !row.receipt).map(row => row.package).sort();
+  if (unproven.length) throw new Refused('SEAL_STALE', `skipped without a seal receipt: ${unproven.join(', ')}; run their tests`);
+  const store = sealStoreFile(root);
+  checkSkippedSeals(root, { rev: plan.commit, skipped: plan.skipped.map(row => row.package), store });
+  const moved = plan.skipped.filter(row => !sealOf(store, row.package, row.hash)?.receipts.includes(row.receipt)).map(row => row.package).sort();
+  if (moved.length) throw new Refused('SEAL_STALE', `skipped by a receipt their current seal does not hold: ${moved.join(', ')}; run their tests`);
 }
 
 /** Quote a selected path without permitting shell interpolation. */
@@ -179,7 +195,7 @@ export function testTierCheckCommand(check, plan) {
 export function testTierReport(plan, { names = true } = {}) {
   const units = names ? `T1 unit tests (${plan.units.length}): ${plan.units.join(', ') || 'none'}` : `T1 unit tests: ${plan.units.length} ran; the failing cases follow, the rest are in the full log`;
   const skipped = plan.skipped?.length ? `\nSealed packages skipped (${plan.skipped.length}): ${plan.skipped
-    .map(row => `${row.package} ${row.receipt ? `by receipt ${row.receipt}` : `unchanged since ${String(plan.base).slice(0, 12)}`}`).join(', ')}` : '';
+    .map(row => `${row.package} by receipt ${row.receipt}`).join(', ')}` : '';
   return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}`;
 }
 

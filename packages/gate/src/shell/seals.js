@@ -1,6 +1,7 @@
 /** Each package's verdict is sealed to a content hash, and a change unseals exactly the packages whose hash it changes (RFC 0006 A1, A2) [C7,CD44]. */
 import { createHash } from 'node:crypto';
 import {
+  existsSync,
   mkdirSync,
 } from 'node:fs';
 import {
@@ -189,6 +190,19 @@ export function sealOf(file, name, hash) {
     const row = db.prepare('SELECT package, hash, receipts, tests, sealed_at FROM package_seal WHERE package=? AND hash=?').get(name, hash);
     return row ? { package: row.package, hash: row.hash, receipts: JSON.parse(row.receipts), tests: JSON.parse(row.tests), sealedAt: row.sealed_at } : null;
   } finally { db.close(); }
+}
+
+/**
+ * Whether the store holds any seal at all.
+ * Why: until the first seal exists, selection follows RFC 0006 A6 (touched packages only); after it, A3 applies and a
+ * package with no current seal runs its tests.
+ *
+ * @param {string} file
+ */
+export function sealsExist(file) {
+  if (!existsSync(file)) return false;
+  const db = openSeals(file);
+  try { return Boolean(db.prepare('SELECT 1 FROM package_seal LIMIT 1').get()); } finally { db.close(); }
 }
 
 /**
