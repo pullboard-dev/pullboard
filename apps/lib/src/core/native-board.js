@@ -14,7 +14,8 @@ import {
   localDependencyIds,
   dependencyLabel,
 } from '../../../../packages/items/index.js';
-import { itemFileCollisions, warmFamilyProjection } from '../../../../packages/items/index.js';
+import { itemFileCollisions } from '../../../../packages/items/index.js';
+import { warmFamilyProjection } from '../../../../packages/items/index.js';
 import { withLocalSeatPresence } from '../../../../packages/store/index.js';
 import { policyAt } from '../../../../packages/sandbox/index.js';
 import { mainPolicy } from '../../../../packages/sandbox/index.js';
