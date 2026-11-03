@@ -385,11 +385,13 @@
     },
     {
       "path": "bin/runner-controller.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)", "owner": "app:runner"
+      "reason": "bin/ stays in place during the move (dry run section 1)",
+      "owner": "app:runner"
     },
     {
       "path": "bin/timed-shell.js",
-      "reason": "bin/ stays in place during the move (dry run section 1)", "owner": "app:runner"
+      "reason": "bin/ stays in place during the move (dry run section 1)",
+      "owner": "app:runner"
     },
     {
       "path": "bin/update-docs.js",
@@ -1378,6 +1380,11 @@
     {
       "path": "src/live-release-placement-engine.js",
       "reason": "explicit bounded placement: stays in place during the move"
+    },
+    {
+      "path": "bin/hook-composed.js",
+      "reason": "explicit bounded placement: stays in place during the move",
+      "owner": "commits"
     }
   ],
   "retired": [
