@@ -33,7 +33,7 @@ test('reclaim at newer main submits only the item edits, without reverting coord
   const committed = e2e.commitFile(box, box.web, 'web/reclaimed.txt', 'owned work\n', 'feat(web): reclaimed fixture [G1]');
   assert.equal(committed.status, 0, committed.context);
   const candidate = box.git(box.web, 'rev-parse', 'HEAD');
-  assert.equal(box.run(box.web, 'release', '1', '--reason', 'BLOCKED').code, 0);
+  assert.equal(box.run(box.web, 'release', '1', '--reason', 'BLOCKED', '--no-next').code, 0);
 
   const config = JSON.parse(readFileSync(join(box.repo, 'pullboard.json'), 'utf8'));
   config.lease = '3h';
@@ -48,7 +48,7 @@ test('reclaim at newer main submits only the item edits, without reverting coord
   const reclaimed = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(reclaimed.item_claim_head, newerMain, `the new claim is bounded by newer main (candidate ${candidate})`);
   assert.equal(box.git(box.web, 'rev-parse', 'HEAD'), candidate, `the item still has its older main parent (candidate ${candidate}, newer main ${newerMain})`);
-  const submitted = box.run(box.web, 'submit', '1', '--json');
+  const submitted = box.run(box.web, 'submit', '1', '--json', '--no-next');
   assert.equal(submitted.code, 0, submitted.out + '\n' + submitted.err);
   const record = JSON.parse(box.run(box.web, 'show', '1', '--json').out);
   assert.equal(record.item_status, 'submitted');
