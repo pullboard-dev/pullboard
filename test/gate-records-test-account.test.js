@@ -71,6 +71,10 @@ test('${file} preserves its package value [G1]', () => assert.equal(value, 2));
   const jobs = existsSync(comparisons) ? readdirSync(comparisons).map(job => join(comparisons, job)) : [];
   await waitForCondition(() => jobs.every(job => existsSync(join(job, 'result.json'))),
     'owned automatic comparison to finish before advancing main', { signal: t.signal });
+  const observed = await json(box, box.repo, 'show', String(id));
+  assert.equal(observed.comparison.status, 'unavailable', 'an empty runner pool cannot invent a diagnostic account');
+  assert.match(observed.comparison.error, /no configured runner/u);
+
 
   // Changing accepted main requires a private review run instead of sealed submit-proof reuse.
   mkdirSync(join(box.repo, 'docs'), { recursive: true });
