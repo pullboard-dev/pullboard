@@ -9,7 +9,7 @@ import { draftSpecRow } from '../apps/lib/index.js';
 import { recordRowVerification } from '../apps/lib/index.js';
 import { decideSpecRevisions } from '../apps/lib/index.js';
 import * as milestones from '../src/board-milestones.js';
-import { MOVE_OPERATIONS } from '../src/move-registry.js';
+import { MOVE_OPERATIONS } from '../packages/moves/index.js';
 import { publishLatestCheckpoint } from '../packages/link/index.js';
 import { checkpointPublisher } from '../packages/outbox/index.js';
 import { captureSpecApprovalBaseline } from '../packages/spec/index.js';

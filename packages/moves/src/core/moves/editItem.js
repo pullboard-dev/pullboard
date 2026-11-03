@@ -15,7 +15,7 @@ import {
   carriesBarReason,
 } from "../../../../../src/bar-corrections.js";
 import { BAR_READY_ENGINE } from "../../../../../src/bar-ready-engine.js";
-import { barReadySetting } from "../../../../../src/bar-ready-setting.js";
+import { barReadySetting } from "../bar-ready-setting.js";
 import { LANDING_LEASE_ENGINE } from "../../../../../src/landing-lease-engine.js";
 import { BOARD_SENTINEL_ENGINE } from "../../../../../src/sentinel-engine.js";
 

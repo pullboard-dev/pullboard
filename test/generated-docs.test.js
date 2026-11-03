@@ -23,7 +23,7 @@ import { mechanicalConflictFiles } from '../packages/merge/index.js';
 import { recordedTrunkMerge } from '../packages/merge/index.js';
 import { refreshLandingDocs } from '../packages/landing/index.js';
 import { computedConflictFields } from '../packages/landing/index.js';
-import reopenMove from '../src/moves/reopen.js';
+import { reopen as reopenMove } from '../packages/moves/index.js';
 import { GENERATED_DOCS_ENGINE } from '../src/generated-docs-engine.js';
 import { MECHANICAL_MERGE_ENGINE } from '../src/mechanical-merge-engine.js';
 import { SOURCE_ADVANCE_ENGINE } from '../src/source-advance-engine.js';

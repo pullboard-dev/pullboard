@@ -16,7 +16,7 @@ import { appliedSequence, applyRelayMove, prepareEngineMove } from '../packages/
 import { LEASE_LAPSE_ENGINE } from '../src/lease-lapse-engine.js';
 import { RELEASE_REASONS_ENGINE } from '../src/release-reasons-engine.js';
 import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 
 const MINUTE = 60_000;
 
