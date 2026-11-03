@@ -20,12 +20,13 @@ function state(box, id) {
   finally { board.db.close(); }
 }
 
-/** Wait for a detached worker's recorded terminal state, not elapsed time. */
+/** Wait for a detached worker to finish, then retain unexpected terminal errors in the assertion. */
 async function waitJob(box, id, expected, previous = null) {
-  await box.helpers.waitFor(() => { // budget: detached worker completion ceiling, not a timing assertion.
+  const job = await box.helpers.waitFor(() => { // budget: detached worker completion ceiling, not a timing assertion.
     const job = state(box, id).job;
-    return job?.state === expected && (!previous || job.id !== previous);
-  }, `native ${expected} submit handoff`, 120000);
+    return job && job.id !== previous && ['green', 'submitted', 'red', 'infrastructure', 'incomplete'].includes(job.state) ? job : null;
+  }, `native terminal submit handoff`, 120000);
+  assert.equal(job.state, expected, `native submit handoff ended ${job.state}: ${JSON.stringify(job.error ?? {})}`);
 }
 
 test('default clause inspection notes do not reset two red handoffs; later code or a new fact permits progress [C7]', async t => {
