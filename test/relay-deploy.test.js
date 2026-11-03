@@ -689,8 +689,8 @@ test('[H5,H18] Docker COPY sources boot the relay and serve its browser page, wh
     'src/machine.js',
     'apps/view/src/shell/view.css',
     'packages/kernel/src/core/seal.js',
-    'relay/browser-client.js',
-    'relay/browser-model.js',
+    'apps/relay/src/shell/browser-client.js',
+    'apps/relay/src/shell/browser-model.js',
     'packages/kernel/src/core/refused.js',
   ]) {
     const damagedImage = copiedImage(t, [omitted]);

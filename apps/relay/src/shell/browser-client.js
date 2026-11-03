@@ -1,4 +1,4 @@
-import { realRelayAdapter } from './browser-adapter.js';
+import { realRelayAdapter } from '../../../../relay/browser-adapter.js';
 import { browserPersonBarEffect } from './person-bar-effect.js';
 /** Device-only relay transport: cookie authorization, local keys and authenticated ciphertext [H5,H15,H16,H17]. */
 import {
@@ -28,7 +28,7 @@ import { SNAPSHOT_BODY_BYTES } from './relay-limits.js';
 import {
   enqueueStream,
   followStream,
-} from './browser-stream.js';
+} from '../core/browser-stream.js';
 import {
   recordBrowserReadFailure,
   clearBrowserReadFailure,
@@ -47,19 +47,19 @@ import {
 import {
   browserJSON,
   withBrowserDeadline,
-} from './browser-deadline.js';
+} from '../core/browser-deadline.js';
 import {
   phoneApprovalStatus,
   placePhoneApprovals,
   forgetPhoneApprovals,
-} from './browser-approval-card.js';
-import { phoneSnapshotPages } from './browser-pages.js';
+} from '../core/browser-approval-card.js';
+import { phoneSnapshotPages } from '../core/browser-pages.js';
 import { createPhoneHistory } from './browser-history.js';
 import {
   installPersonPasskeys,
   passkeyPresence,
 } from './browser-passkeys.js';
-import { readUploadSize } from './browser-upload-status.js';
+import { readUploadSize } from '../core/browser-upload-status.js';
 import { deviceExcludedBoards } from './browser-devices.js';
 
 const CHECKPOINT_WAIT_MS = 15_000;
