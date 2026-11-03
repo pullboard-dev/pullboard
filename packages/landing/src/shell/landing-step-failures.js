@@ -13,6 +13,9 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
   const cases = [];
   /** A reported path relative to the root, or null when it lies outside it. */
   const inRoot = (path) => {
+    // A runner reports its own checkout path; the part after checkout/ is the repo file.
+    const runner = /\/\.pullboard-runner\/jobs\/[^/]+\/checkout\/(.+)$/u.exec(path);
+    if (runner) return runner[1];
     const file = isAbsolute(path) ? relative(root, path) : path.replace(/^\.\//u, '');
     return file && !file.startsWith('../') && !file.includes('\\') ? file : null;
   };
@@ -37,6 +40,7 @@ export function landingFailures(output, root, { excludeCancelled = false } = {})
       if (parents.length) active.caseNames = [...parents, active.name];
       failures.push(active);
       if (/^(?:\.\/)?(?:test|tests)\/[^\r\n]+\.(?:[cm]?js|ts|py)$/u.test(active.name)) active.file = active.name.replace(/^\.\//u, '');
+      else if (/\.test\.[cm]?js$/u.test(active.name) && isAbsolute(active.name)) active.file = inRoot(active.name);
     }
     const location = /^\s*location:\s*['"]?(.+?):\d+(?::\d+)?['"]?\s*$/u.exec(line);
     if (active && location) {
@@ -93,7 +97,9 @@ export function waiverLine(failure) {
 
 /** Record every failure's exact live waiver rather than changing which tests the gate runs. */
 export function waivedProof(state, gate) {
-  if (!completeGate(gate) || gate.requiresGreen) return null;
+  if (gate.requiresGreen) return null;
+  if (gate.knownMainProof && completeGate(gate, { allowCancelled: true })) return gate.knownMainProof;
+  if (!completeGate(gate)) return null;
   if (gate.knownMainProof) return gate.knownMainProof; // Red only in cases red on main: nothing to waive (#2586).
   if (gate.knownMain && !gate.accounted?.length) return null; // Own cases left unaccounted cannot become a waived proof.
   const failures = waivedFailures(state.board, gate.accounted, state.landingPorts);
