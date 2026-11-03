@@ -4,8 +4,10 @@ import {
   readFileSync,
 } from 'node:fs';
 import { Refused } from '../../../kernel/index.js';
-import { LINE_SETTING_DEFINITIONS, validateKnownLineSetting } from '../core/line-setting-definitions.js';
-export { LINE_SETTING_DEFINITIONS, validateKnownLineSetting };
+import { LINE_SETTING_DEFINITIONS } from '../core/line-setting-definitions.js';
+import { validateKnownLineSetting } from '../core/line-setting-definitions.js';
+export { LINE_SETTING_DEFINITIONS };
+export { validateKnownLineSetting };
 
 /** A waiting run moves up one class after this many minutes, unless the machine sets agingMinutes. */
 export const DEFAULT_QUEUE_AGING_MINUTES = 30;
