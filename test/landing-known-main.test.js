@@ -29,6 +29,8 @@ test('known-main cancellation accounting excludes only fully accounted cancellat
   ].join('\n');
   const run = { isGreen: false, output, stages: [{ status: 1, output }] };
   const allowed = { allowCancelled: true };
+  assert.equal(completeGate({ complete: true }, allowed), true, 'native positive completion remains sufficient');
+  assert.equal(completeGate({ complete: false }, allowed), false, 'negative metadata without a raw account never permits landing');
   assert.equal(completeGate(run), false);
   assert.equal(failureSignatures(run, root), null);
   assert.equal(completeGate(run, allowed), true);

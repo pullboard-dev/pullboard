@@ -42,7 +42,7 @@ function completionAccount(allowCancelled = false) {
 
 /** Require positive completion evidence; known-main comparisons may opt into fully counted cancellations, never interrupted files. */
 export function completeGate(gate, { allowCancelled = false } = {}) {
-  if (!allowCancelled && typeof gate.complete === 'boolean') return gate.complete;
+  if (gate.complete === true || !allowCancelled && gate.complete === false) return gate.complete;
   const account = completionAccount(allowCancelled);
   if (typeof gate.output === 'string') {
     for (const line of gate.output.split('\n')) account.line(line);
