@@ -13,11 +13,12 @@ function localId(value) {
 export function placementFor(entries, { lane, specIds = [], after = [] }, itemOf, { liveReleases = true } = {}) {
   const catalog = entries.map((entry, index) => ({ entry, index }));
   const open = catalog.filter(({ entry }) => !entry.shipped);
-  // A release never recorded shipped whose items have all landed (verified or withdrawn) is history, not a home: its
-  // old items must not pull new work into it by spec row or lane [C7].
+  // A release never recorded shipped whose items have all landed (merged to main) or been withdrawn is history, not a
+  // home: its old items must not pull new work into it by spec row or lane. An accepted item not yet merged is still
+  // unlanded work, as work progress and milestone ship read it [C7].
   const live = !liveReleases ? open : open.filter(({ entry }) => entry.items.some(ref => {
     const row = itemOf(localId(ref));
-    return Boolean(row) && !['verified', 'withdrawn'].includes(row.item_status);
+    return Boolean(row) && row.item_status !== 'withdrawn' && !row.item_merged_commit;
   }));
   /** Find the first unshipped release still holding unlanded work that contains a live item supplying this input. */
   const holding = matches => live.find(({ entry }) => entry.items.some(ref => {

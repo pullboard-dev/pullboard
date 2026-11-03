@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { placementFor } from '../packages/roadmap/index.js';
 
-/** An earlier release never recorded shipped whose one C7 item landed (verified), and a later release with open work. */
-function catalog({ pending = false } = {}) {
+/**
+ * An earlier release never recorded shipped whose one C7 item landed (verified and merged to main), and a later release
+ * with open work. `pending` adds unlanded C7 work to the earlier release; `accepted` leaves its item accepted but unmerged.
+ */
+function catalog({ pending = false, accepted = false } = {}) {
   const items = new Map([
-    [1, { item_id: 1, item_lane: 'core', item_status: 'verified', item_spec_ids: 'C7' }],
+    [1, { item_id: 1, item_lane: 'core', item_status: 'verified', item_spec_ids: 'C7', item_merged_commit: accepted ? null : 'a'.repeat(40) }],
     [2, { item_id: 2, item_lane: 'core', item_status: 'open', item_spec_ids: '' }],
     [3, { item_id: 3, item_lane: 'core', item_status: 'claimed', item_spec_ids: 'C7' }],
   ]);
@@ -30,6 +33,13 @@ test('an earlier release that still holds unlanded C7 work keeps taking new C7 i
   const { entries, itemOf } = catalog({ pending: true });
   const placed = placementFor(entries, { lane: 'core', specIds: ['C7'] }, itemOf);
   assert.equal(placed.milestone, 'Old release');
+  assert.equal(placed.rule, 'spec rows');
+});
+
+test('an accepted C7 item not yet merged keeps its release live for new C7 items [C7,N26]', () => {
+  const { entries, itemOf } = catalog({ accepted: true });
+  const placed = placementFor(entries, { lane: 'core', specIds: ['C7'] }, itemOf);
+  assert.equal(placed.milestone, 'Old release', 'accepted but unlanded work is still unlanded');
   assert.equal(placed.rule, 'spec rows');
 });
 
