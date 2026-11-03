@@ -84,7 +84,7 @@ process.stdout.write(JSON.stringify(JSON.parse(readFileSync(process.argv[1], 'ut
 
 test('the view files import one name per line [C7]', { timeout: TEST_DEADLINE_MS }, () => {
   const sources = [
-    { file: 'src/cockpit.js', source: readFileSync(new URL('../../src/cockpit.js', import.meta.url), 'utf8') },
+    { file: 'apps/cli/src/shell/cockpit.js', source: readFileSync(new URL('../../apps/cli/src/shell/cockpit.js', import.meta.url), 'utf8') },
     { file: 'apps/view/src/shell/serve.js', source: readFileSync(new URL('../../apps/view/src/shell/serve.js', import.meta.url), 'utf8') },
   ];
   assert.deepEqual(importsSharingLines(sources), [], 'both View-owned files import one binding per line');

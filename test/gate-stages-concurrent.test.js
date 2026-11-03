@@ -62,7 +62,7 @@ test('the first red stage cancels the others and refuses at once [C7]', async ()
 });
 
 test('submit starts static, cells, doctrine and the test gate together [C7]', () => {
-  const source = readFileSync(new URL('../src/commands/submit.js', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../apps/cli/src/shell/commands/submit.js', import.meta.url), 'utf8');
   const start = source.indexOf('await runGateStages(');
   assert.ok(start >= 0, 'submit runs its gate stages through runGateStages');
   const end = source.indexOf('\n  ]);', start);

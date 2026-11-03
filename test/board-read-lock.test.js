@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/cli.js src/board.js src/board-hot.js src/board-migrate.js src/cli-context.js src/commands/status.js src/commands/show.js src/commands/list.js src/commands/version.js */
+/** @pullboard-test-loads apps/cli/src/shell/cli.js src/board.js src/board-hot.js src/board-migrate.js apps/cli/src/shell/cli-context.js apps/cli/src/shell/commands/status.js apps/cli/src/shell/commands/show.js apps/cli/src/shell/commands/list.js apps/cli/src/shell/commands/version.js */
 /** A read command opens the board read-only, so a writer holding the lock never stalls it [C7]. */
 import { copyPackageFiles } from '../packages/runners/index.js';
 import assert from 'node:assert/strict';

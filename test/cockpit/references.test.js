@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { createServer, request } from 'node:http';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
-import { exportView } from '../../src/commands/view.js';
+import { exportView } from '../../apps/cli/src/shell/commands/view.js';
 import { relayPresentation } from '../../packages/pages/index.js';
 import { openShoutConversation, machine, project, build, fetchLive, startView, target, openPage, boardId, chromeExecutable, openSnapshotChrome, closeSnapshotChrome } from './fixture.js';
 
