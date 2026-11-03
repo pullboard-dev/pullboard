@@ -1,8 +1,8 @@
 /** Additive stale maintenance contracts never rewrite the engine107 registry snapshot [B4,H16]. */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MOVE_REGISTRY, minimumMoveEngine } from '../src/move-registry.js';
-import { nativeBoardPorts } from '../src/native-board.js';
+import { MOVE_REGISTRY, minimumMoveEngine } from '../packages/moves/index.js';
+import { nativeBoardPorts } from '../apps/lib/index.js';
 const { relayMoveActor } = nativeBoardPorts().enginePorts;
 import { STALE_STATE_ENGINE } from '../src/stale-state-engine.js';
 

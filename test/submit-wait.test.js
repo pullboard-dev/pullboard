@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { after, test } from 'node:test';
 import * as store from '../src/board.js';
 import * as nativeBoard from '../src/native-board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { loadConfig } from '../packages/config/index.js';
 import { healthReport } from '../packages/health/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';

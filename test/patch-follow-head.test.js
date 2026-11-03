@@ -7,7 +7,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { itemPatchRecords } from '../packages/items/index.js';
 import { itemPatchAuthors } from '../packages/items/index.js';
 import { prepareEngineMove } from '../packages/state/index.js';

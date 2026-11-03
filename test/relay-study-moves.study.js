@@ -1,6 +1,6 @@
 import { viewApiPorts } from '../src/view-api-ports.js';
 import { apiBoardOpeners } from './board-fixture.js';
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard, draftSpecRow } from '../apps/lib/index.js';
 import { proposeSentinel as nativeProposeSentinel } from '../packages/sentinels/index.js';
 import { decideSentinel as nativeDecideSentinel } from '../packages/sentinels/index.js';
 import { beginSentinelRun as nativeBeginSentinelRun } from '../packages/sentinels/index.js';
@@ -15,7 +15,7 @@ import { test } from 'node:test';
 import * as store from '../src/board.js';
 import { addMilestone, editMilestoneItems, orderMilestoneItems, editMilestone, moveMilestone, shipMilestone, removeMilestone } from '../src/board-milestones.js';
 import * as milestones from '../src/board.js';
-import { MOVE_OPERATIONS } from '../src/move-registry.js';
+import { MOVE_OPERATIONS } from '../packages/moves/index.js';
 import { relaySnapshot } from '../packages/pages/index.js';
 import { relayClientFixture } from './relay-client-fixture.js';
 import { differences, paths, readRelay, valueDifferences } from './relay-study-fixture.js';

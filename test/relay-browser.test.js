@@ -1,6 +1,6 @@
 /** @pullboard-test-gui */
 /** Real Chrome reads and follows device-sealed boards; the relay never receives its key [H5,H15,H18]. */
-import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../src/native-board.js';
+import { nativeBoardPorts as relayPresentationNativePorts, openBoard } from '../apps/lib/index.js';
 import assert from 'node:assert/strict';
 import { AssertionError } from 'node:assert';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';

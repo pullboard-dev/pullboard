@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { landingCandidateEntry } from '../packages/landing/index.js';
 const FILE = fileURLToPath(import.meta.url);
 if (process.argv[1] && resolve(process.argv[1]) === FILE && process.argv[2] === 'candidate' && process.send) {
-  const { openBoardForRead } = await import('../src/native-board.js');
-  const { checkAtCommit } = await import('../src/runner-private-check.js');
+  const { openBoardForRead } = await import('../apps/lib/index.js');
+  const { checkAtCommit } = await import('../apps/runner/index.js');
   const { badgeCounts, writeBadges } = await import('../src/badge.js');
   const { flakeLedger } = await import('../packages/flakes/index.js');
   const { flakeSource, observeNativeFailure } = await import('../packages/flakes/index.js');

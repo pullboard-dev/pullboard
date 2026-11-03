@@ -40,7 +40,9 @@ import {
   recordRunnerFailure,
   recoverUnavailableRunners,
   runnerRecoveryStatus,
+  cleanupCharges,
 } from './resource-recovery.js';
+import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import { pickTieredRunner } from './runner-load-pick.js';
 import { troubledRunners } from './runner-load-pick.js';
@@ -527,13 +529,13 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     const remoteHolders = db.prepare('SELECT browser, timing, since FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
     const readAt = Date.parse(runner.cpuLoad?.at);
     return [runner.host, {
-      slots: remoteHolders.length,
+      slots: remoteHolders.length + (cleanupCharges(db).get(runner.host) ?? 0),
       admittedSince: /* started after the reading, so its load average cannot show them yet */ remoteHolders.filter(holder => !(Date.parse(holder.since) <= readAt)).length,
       timing: remoteHolders.some(holder => holder.timing === 1),
       browsers: remoteHolders.filter(holder => holder.browser === 1).length,
     }];
   }));
-  const unavailable = unavailableRunnerHosts(db, now);
+  const unavailable = unavailableRunnerHosts(db, now, runners);
   const troubled = loadPolicy.enabled === true ? troubledRunners(db, now, LEASE_MS) : new Set();
   let drain = currentTimingDrain(db, waiters, runners, unavailable, now);
   /** Keep an already holding process from taking another slot ahead of a different landing. */
@@ -704,23 +706,21 @@ function timingDrainEvents(db) {
 }
 
 /** Start due health work on its own connection so a free executor never waits for another host's probe. */
-function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe) {
+function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe, leakProbe) {
   if (typeof probe !== 'function' || !db.prepare('SELECT 1 FROM runner_unavailable WHERE probe_after<=? AND probe_until<=? LIMIT 1').get(Date.now(), Date.now())) return;
   let recovery;
   try { recovery = open(file); }
   catch { process.stderr.write('runner recovery storage unavailable; failed hosts remain unavailable\n'); return; }
-  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe, restartProbe }).finally(() => recovery.close())
+  void recoverUnavailableRunners(recovery, runners, { probe, idleProbe, restartProbe, leakProbe }).finally(() => recovery.close())
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
-/** Every recorded failure stays unavailable until exact recovery or explicit manual clearance, never merely age. */
-function runnerUnavailable(entry) { return Boolean(entry); }
-
-/** Use the same current transport and draining exclusions for admission and local-memory status. */
-function unavailableRunnerHosts(db, now) {
+/** Exclusions for admission and local-memory status; unverified cleanups exclude a runner only once they cost every slot. */
+function unavailableRunnerHosts(db, now, runners = []) {
+  const charges = cleanupCharges(db), slots = new Map(runners.map(runner => [runner.host, runner.slots]));
   return new Set([
     ...db.prepare('SELECT * FROM runner_unavailable').all()
-      .filter(row => runnerUnavailable(row, now)).map(row => row.host),
+      .filter(row => row.healing === 1 && row.probe_until > now || !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
@@ -761,7 +761,7 @@ export function runnerResourceStatus(runners) {
           .all(runnerResourceName(runner.host));
         if (runner.draining && !holders.length) return [];
         const recorded = db.prepare('SELECT * FROM runner_unavailable WHERE host = ?').get(runner.host);
-        const unavailable = runnerUnavailable(recorded, Date.now()) ? recorded : null;
+        const unavailable = recorded ?? null;
         const transport = db.prepare('SELECT at,diagnostic FROM runner_transport_error WHERE host=?').get(runner.host);
         let transportFailure;
         try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
@@ -810,7 +810,7 @@ export function updateRunnerSettings(host, persist, { drain = false, observation
         db.prepare('INSERT INTO resource(name, capacity) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET capacity = excluded.capacity')
           .run(resourceName, result.slots);
       }
-      db.prepare('DELETE FROM runner_unavailable WHERE host = ?').run(host);
+      db.prepare('DELETE FROM runner_unavailable WHERE host = ? AND probe_until <= ?').run(host, Date.now());
       db.prepare('DELETE FROM runner_draining WHERE host = ?').run(host);
       return result;
     });
@@ -1160,7 +1160,7 @@ export async function takeResource(options) {
         db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
           .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
         waiter.remote = Number(remoteEligible);
-        const unavailable = unavailableRunnerHosts(db, now);
+        const unavailable = unavailableRunnerHosts(db, now, runners);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
           || !runners.some(runner => runnerAllowed(waiter, runner) && runnerCompatible(db, runner, waiter, unavailable))));
         db.prepare('UPDATE waiter SET memory_held = ? WHERE token = ?').run(Number(memoryHeld), token);
@@ -1219,7 +1219,7 @@ export async function takeResource(options) {
       // A missed READY grants one immediate ordered admission, never another queue wait budget.
       if (!acquired.state.rejoined) readinessFailover = false;
       if (acquired.acquired) {
-        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe);
+        if (runnerProvider) startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
         runnerDispatched ||= Boolean(acquired.runner);
         lateRunnerDispatch = acquired.lateRunnerDispatch ?? lateRunnerDispatch;
         if (acquired.state.runnerDeadline && !acquired.runner) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '; running locally\n');
@@ -1255,11 +1255,11 @@ export async function takeResource(options) {
         /** Commit this holder's deletion before closing; a failed update remains live and retryable. */
         const release = () => {
           if (released || transferred) return;
-          update(db, () => {
+          writeWhileLocked(() => update(db, () => {
             if (cancellationDiagnostic) settleControllerCancellation(db, { token, pid, started, repo, host: acquired.runner.host }, cancellationDiagnostic, recordRunnerFailure);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
-          });
+          }));
           released = true;
           clearInterval(heartbeat);
           db.close();
@@ -1321,7 +1321,7 @@ export async function takeResource(options) {
             throw error;
           }
           if (reason === 'worker-unresponsive' && runnerProvider) {
-            startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe);
+            startRunnerRecovery(db, file, validatedRunners(runnerProvider()), options.runnerHealthProbe, options.runnerIdleProbe, options.runnerRestartProbe, options.runnerLeakProbe);
           }
           db.close();
           const retryingInfrastructure = infrastructureRetryCount > 0 && reason !== 'worker-unresponsive';
@@ -1347,7 +1347,7 @@ export async function takeResource(options) {
       }
       if (acquired.state.runnerDeadline) process.stderr.write(runnerDeadlineLine(acquired.state.runnerDeadline) + '\n');
       await keepItemLease(acquired.state, 'waiter');
-      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe })) continue;
+      if (runnerProvider && await recoverUnavailableRunners(db, validatedRunners(runnerProvider()), { probe: options.runnerHealthProbe, idleProbe: options.runnerIdleProbe, restartProbe: options.runnerRestartProbe, leakProbe: options.runnerLeakProbe })) continue;
       await pause(POLL_MS);
     }
   } catch (error) {

@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { isolateTestMachine } from '../packages/gate/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { boardReceiptStore, readGateReceipt } from '../packages/gate/index.js';
 import { proofRunReceipt } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';
@@ -23,7 +23,7 @@ import { writeBoardCommand } from '../src/board-command-write.js';
 import { EXIT_RULES_ENGINE } from '../src/exit-rules-engine.js';
 import { prepareEngineMove, applyEngineMove } from '../packages/state/index.js';
 import { bindRefs, resolveMove, strayItemRefs } from '../packages/outbox/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 
 const policy = { enabled: true, tokens: 100, calls: 3 };
 const summary = 'Done: preserved the candidate and native logs; Failed: named fixture case; Next: inspect the retained failure from a fresh session';

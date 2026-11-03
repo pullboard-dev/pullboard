@@ -12,7 +12,7 @@ import { createE2eHelpers } from './e2e-helpers.js';
 import { composeItemPatches } from '../packages/items/index.js';
 import { normalizeItemPatch } from '../packages/items/index.js';
 import * as store from '../src/board.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { appliedSequence, applyEngineMove, applyRelayMove, prepareEngineMove } from '../packages/state/index.js';
 import { exportBoard, importBoard } from '../packages/store/index.js';
 import { parentSessionDigest } from '../packages/items/index.js';

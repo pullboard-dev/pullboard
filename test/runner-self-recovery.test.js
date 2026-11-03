@@ -128,7 +128,7 @@ test('a job owner outside its job cwd blocks recovery only until that process ex
     const runner = { host: ${JSON.stringify(HOST)}, node: ${JSON.stringify(process.execPath)}, slots: 1, browser: 0 };
     const job = join(${JSON.stringify(root)}, 'jobs', 'owned-job');
     mkdirSync(job);
-    const script = 'import {processCensus} from ' + JSON.stringify(${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/runner-custody.js')).href)}) + ';import {recordRunnerOwner} from ' + JSON.stringify(${JSON.stringify(transport)})
+    const script = 'import {processCensus} from ' + JSON.stringify(${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/runner/index.js')).href)}) + ';import {recordRunnerOwner} from ' + JSON.stringify(${JSON.stringify(transport)})
       + ';recordRunnerOwner(' + JSON.stringify(job) + ',processCensus);setInterval(()=>{},60000);';
     const owner = spawn(process.execPath, ['--input-type=module', '-e', script], { stdio: 'ignore' });
     let held;

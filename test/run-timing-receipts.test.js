@@ -21,7 +21,7 @@ import { COLLECTION_REPORT_PREFIX } from '../packages/gate/index.js';
 import { formatCollectionReport } from '../packages/gate/index.js';
 import { randomUUID } from 'node:crypto';
 import * as store from '../src/board.js';
-import { openBoardForRead, openBoard } from '../src/native-board.js';
+import { openBoardForRead, openBoard } from '../apps/lib/index.js';
 
 /** Keep a real installed runtime but give the fixture its own two-file committed test universe. */
 function timingProject(t) {
@@ -111,9 +111,9 @@ test('a sharded landing retains each actual attempt and immutable board-bound ti
   const replica = fixtureBoard(t);
   const initial = openBoardForRead(join(box.repo, '.git', 'pullboard', 'board.sqlite'));
   try { importBoard(replica, exportBoard(initial)); } finally { store.closeBoard(initial); }
-  const source = `import {runGate} from './src/gate.js';
+  const source = `import {runGate} from './packages/gate/index.js';
 import {runnerExecutionServices} from './src/runners.js';
-import {landingExecutionServices} from './src/landing-shards.js';
+import {landingExecutionServices} from './packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
  import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {readFileSync} from 'node:fs'; import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
@@ -165,10 +165,10 @@ test('a selected real landing failure remains accounted under its native private
     gate: 'node bin/run-tests.js --test-concurrency=1 test/one.test.js' }) + '\n');
   commitFixtureFiles(box, ['pullboard.json']);
   const source = `import {readFileSync,existsSync} from 'node:fs';
-import {runGate} from './src/gate.js'; import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
+import {runGate} from './packages/gate/index.js'; import * as store from './src/board.js'; import {openBoard} from './src/native-board.js';
 import {accountedFailures,waivedFailures,liveWaiverProjection} from './packages/landing/index.js';
 import {runnerExecutionServices} from './src/runners.js';
-import {landingExecutionServices} from './src/landing-shards.js';
+import {landingExecutionServices} from './packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
 import {readGateReceipt,receiptStore} from './src/gate-run-receipt.js';
 import {quarantineWaivers} from './packages/flakes/index.js';
@@ -249,9 +249,9 @@ test('a real red publish preflight retains its board receipt and does not rerun 
 test('a fresh main comparison survives checkout cleanup and cached comparisons add no invented time [C7,H16]', async t => {
   const box = timingProject(t);
   const source = `import assert from 'node:assert/strict'; import {readFileSync} from 'node:fs';
-import {runGate} from './src/gate.js';
+import {runGate} from './packages/gate/index.js';
 import {runnerExecutionServices} from './src/runners.js';
-import {landingExecutionServices} from './src/landing-shards.js';
+import {landingExecutionServices} from './packages/landing/index.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
  import {compareMainFailures} from './packages/landing/index.js';
 import {accountedFailures} from './packages/landing/index.js';

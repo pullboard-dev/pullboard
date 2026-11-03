@@ -1,4 +1,4 @@
-/** @pullboard-test-loads src/gate.js */
+/** @pullboard-test-loads packages/gate/index.js */
 /** @pullboard-test-loads src/commands/status.js */
 /** pullboard test runs named test files on the runner pool, and names a failure main already has [C7]. */
 import assert from 'node:assert/strict';

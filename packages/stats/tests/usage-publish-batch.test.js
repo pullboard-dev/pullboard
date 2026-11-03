@@ -6,7 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { test } from 'node:test';
 import { pathToFileURL } from 'node:url';
 import * as store from '../../../src/board.js';
-import { openBoard } from '../../../src/native-board.js';
+import { openBoard } from '../../../apps/lib/index.js';
 import { logEvent } from '../../store/index.js';
 import { createE2eHelpers } from '../../../test/e2e-helpers.js';
 import { runFixtureChild } from '../../../test/fixture-child.js';
@@ -15,8 +15,8 @@ import { USAGE_BATCH_LIMIT } from '../src/shell/cost-read.js';
 import { USAGE_BATCH_ENGINE } from '../../../src/usage-batch-engine.js';
 import { prepareEngineMove } from '../../state/index.js';
 import { applyEngineMove } from '../../state/index.js';
-import { declaredMoveActor } from '../../../src/move-registry.js';
-import { minimumMoveEngine } from '../../../src/move-registry.js';
+import { declaredMoveActor } from '../../moves/index.js';
+import { minimumMoveEngine } from '../../moves/index.js';
 
 /** A private joined repository and historical events are fixture data, not measured provider usage. */
 function fixture(t, count = 48) {
