@@ -20,7 +20,7 @@ import { isAbsolute } from 'node:path';
 import { relative } from 'node:path';
 import { sep } from 'node:path';
 import { join } from 'node:path';
-import { guiSession } from '../../../../src/gui-session.js';
+import { guiSession } from '../../../gate/src/shell/gui-session.js';
 import { parseProcessCensus } from '../../../kernel/src/core/process-census.js';
 
 /** Give a health observation the same credential-forwarding limits as a worker connection. */

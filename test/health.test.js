@@ -591,7 +591,7 @@ test('a positive control inherits the gate slot it runs under [C7,D1]', async (t
   // The control asks whether it inherited the gate's admission; a child that does not is refused and reads red.
   const probe = `node --input-type=module -e "const { inheritedGateSlot } = await import('${resources}'); process.exit(inheritedGateSlot({ root: process.cwd() }) ? 0 : 1)"`;
   commitPolicy(box, { gate: 'true', positiveControl: probe });
-  const { runGate } = await import('../src/gate.js');
+  const { runGate } = await import('../packages/gate/index.js');
   const config = JSON.parse(readFileSync(join(box.root, 'pullboard.json'), 'utf8'));
   const gate = await runGate(box.root, config, { executionServices, trustStamp: false });
   assert.equal(gate.isGreen, true, 'the gate itself is green');

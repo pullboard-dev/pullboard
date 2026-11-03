@@ -20,7 +20,7 @@ after(e2e.cleanup);
 
 /** Produce a real native full landing receipt, never a caller-written green proof. */
 function gate(box) {
-  const module = new URL('../src/gate.js', import.meta.url).href;
+  const module = new URL('../packages/gate/index.js', import.meta.url).href;
   const script = `import {runGate} from ${JSON.stringify(module)};
 import {loadConfig} from ${JSON.stringify(new URL('../packages/config/src/shell/config.js', import.meta.url).href)};
 ${executionServicesSource(module)}

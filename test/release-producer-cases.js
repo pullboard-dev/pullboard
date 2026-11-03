@@ -121,7 +121,7 @@ import {runReleaseGate,verifyNativeReleaseReceipt} from './.tooling/packages/gat
 import {runnerExecutionServices} from './.tooling/src/runners.js';
 import {landingExecutionServices} from './.tooling/src/landing-shards.js';
 const executionServices={runners:runnerExecutionServices(),landing:landingExecutionServices()};
-import {isStampedGreen} from './.tooling/src/gate.js';
+import {isStampedGreen} from './.tooling/packages/gate/index.js';
 import {releaseReceiptBody,releaseParticipationDigest} from './.tooling/packages/gate/index.js';
 import {closeBoard} from './.tooling/src/board.js';
 import {openBoard} from './.tooling/src/native-board.js';

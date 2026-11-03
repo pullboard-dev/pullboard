@@ -3,7 +3,7 @@
 /** @pullboard-test-loads src/runner-transport.js */
 /** @pullboard-test-loads src/runner-worker.js */
 /** @pullboard-test-loads bin/runner-controller.js */
-/** @pullboard-test-loads src/gate.js */
+/** @pullboard-test-loads packages/gate/index.js */
 /** @pullboard-test-loads src/runners.js */
 /** @pullboard-test-loads src/landing-shards.js */
 /** Exact job observations and owned SSH teardown, registered by the combined orphan-recovery check [C7,H16]. */
@@ -118,7 +118,7 @@ finally{clearInterval(watch);}`;
 
 /** Observe real job loss under its own lease, then verify that one controlled second failure exhausts its retry. */
 function retryContract(box) {
-  const gate = sourceURL('src/gate.js'), good = { ...box.runner, host: `${HOST}-setup`, root: join(box.dir, 'good-root') };
+  const gate = sourceURL('packages/gate/index.js'), good = { ...box.runner, host: `${HOST}-setup`, root: join(box.dir, 'good-root') };
   const settings = join(box.env.PULLBOARD_MACHINE_HOME, 'settings.json');
   const stages = join(box.dir, 'retry-stages.jsonl');
   writeFileSync(stages, '');

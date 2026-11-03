@@ -11,7 +11,7 @@ import { landingExecutionServices } from '../../packages/landing/index.js';
 import {
   CONFIG_FILE,
 } from '../../packages/config/index.js';
-import * as gateConfig from '../gate-config.js';
+import { setHere } from '../../packages/gate/index.js';
 import {
   gateWaitReporter,
 } from '../../packages/gate/index.js';
@@ -49,7 +49,7 @@ import {
 
 /** Run `pullboard gate` and return its exit code. */
 export async function run(io, { first, second, rest, values }) {
-  if (first === 'set') return gateConfig.setHere(io, second, rest, values);
+  if (first === 'set') return setHere(io, second, rest, values);
   if (values.receipt && !values.landing) throw new Refused('USAGE', 'use gate --landing --receipt to produce an exact native landing receipt');
   if (values['runner-only'] && !(values.landing && values.receipt)) throw new Refused('USAGE', 'use gate --landing --receipt --runner-only for a full runner gate');
   if (first !== undefined || second !== undefined || rest.length > 0) {

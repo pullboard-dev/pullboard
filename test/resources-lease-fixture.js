@@ -293,8 +293,8 @@ function inheritedAdmissionProof(box) {
   const program = `
 import assert from 'node:assert/strict';
 import { takeResource, gateSlotEnvironment } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/resources/index.js')).href)};
-import { withGateSlot } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(resolve(import.meta.dirname, '../src/gate.js')).href)}
+import { withGateSlot } from ${JSON.stringify(pathToFileURL(resolve(import.meta.dirname, '../packages/gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(resolve(import.meta.dirname, '../packages/gate/index.js')).href)}
 const root = process.cwd();
 const lease = await takeResource({ name: 'gate', capacity: 2, scope: 'machine', root, agent: 'inherited-admission-control' });
 Object.assign(process.env, gateSlotEnvironment(lease));

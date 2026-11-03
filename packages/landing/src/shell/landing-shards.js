@@ -407,7 +407,7 @@ export async function runLandingShards({ root, runner, files, count, inherited =
   }
   const releaseStartedAt = new Date().toISOString();
   const collectionKey=file=>relative(root,resolve(root,file)).split(sep).join('/');
-  const { withLandingGateSlot } = await import('../../../../src/gate.js');
+  const { withLandingGateSlot } = await import('../../../gate/index.js');
   const runners = await import('../../../../src/runners.js');
   const { RunnerDropped } = runners;
   // A test may stand in for the SSH round trip to make a runner answer with a given refusal.

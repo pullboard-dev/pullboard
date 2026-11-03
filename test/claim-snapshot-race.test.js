@@ -1,5 +1,5 @@
 /** @pullboard-test-input source-tree */
-/** @pullboard-test-loads src/board.js src/cli/claim.js src/check-baseline-worker.js */
+/** @pullboard-test-loads src/board.js src/cli/claim.js packages/gate/src/shell/check-baseline-worker.js */
 /** Native baseline completion must not strand a claim whose source remains valid [B2,C7,V2]. */
 // Recovered unchanged from core-716's eacc75698b7 deterministic baseline-worker reproduction.
 import assert from 'node:assert/strict';

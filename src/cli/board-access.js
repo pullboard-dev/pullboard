@@ -1,5 +1,5 @@
 import { seatAt } from '../item-folder-identity.js';
-import { gateWaitReporter } from '../git-wait-reporter.js';
+import { gateWaitReporter } from '../../packages/gate/index.js';
 import { submitHandoffActor } from '../submit-handoff-origin.js';
 /** Shared board access every command uses: the caller's board, its person mode and its queue seat. Split from src/cli.js, which re-exports it [C7]. */
 import { createQueuedItemLease } from '../../packages/git/index.js';

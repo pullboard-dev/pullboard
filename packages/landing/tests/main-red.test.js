@@ -38,7 +38,7 @@ test('executor-pinned main comparisons run afresh, preserve generic cache and re
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
     `import { matchingMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-failure-matches.js')).href)};`,
     `import { executionEnvironment } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../sandbox/src/shell/execution-environment.js')).href)};`,
-    `import { readGateReceipt, receiptStore } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/gate-run-receipt.js')).href)};`,
+    `import { readGateReceipt, receiptStore } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href)};`,
     'const [root, mode] = process.argv.slice(2);',
     "const profile = {tests:[{file:'test/inherited.test.js',passed:false}, ...(mode === 'recorded-mixed' ? [{file:'test/new-red.test.js',passed:false}] : [])]};",
     'const environment = executionEnvironment();',
@@ -237,8 +237,8 @@ test('main comparisons use the free CPU slot while browser work keeps its browse
   const queue = join(box.env.PULLBOARD_MACHINE_HOME, 'resources.sqlite');
   const driver = join(box.directory, 'cpu-browser-driver.mjs');
   writeFileSync(driver, [
-    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href)};
-${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../../src/gate.js')).href)}`,
+    `import { withGateSlot } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href)};
+${executionServicesSource(pathToFileURL(join(import.meta.dirname, '../../gate/index.js')).href)}`,
     `import { compareMainFailures } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/shell/main-red.js')).href)};`,
     "import { existsSync, writeFileSync } from 'node:fs';",
     "import { join } from 'node:path';",
