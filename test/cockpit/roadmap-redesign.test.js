@@ -93,7 +93,7 @@ test('the Roadmap uses the approved shared release design at phone and desktop w
       if (width === 1280) assert.ok(result.pace.height <= result.paceLineHeight + 1 && result.paceFits, `desktop pace stays on one shared header line without clipping: ${JSON.stringify({ rect: result.pace, lineHeight: result.paceLineHeight, fits: result.paceFits })}`);
       const rowsById = new Map(result.rows.map(row => [row.id, row]));
       assert.equal(rowsById.size, 5, `${width}: the release shows each of its five items once`);
-      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Ready', 'Building', 'In review', 'Sent back'], `${width}: each item shows its approved plain lifecycle stage`);
+      assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.label), ['Ready', 'Gated', 'Building', 'In review', 'Ready'], `${width}: each item shows its approved plain lifecycle stage`);
       assert.equal(queuePositionById.size, 5, `${width}: the roadmap API gives every release item a queue position`);
       assert.deepEqual(['#1', '#2', '#3', '#4', '#5'].map(id => rowsById.get(id)?.order), ['#1', '#2', '#3', '#4', '#5'].map(id => queuePositionById.get(id)), `${width}: each item shows its authoritative queue position`);
       assert.ok(result.rows.every(row => row.icon && row.titleLines === 1), `${width}: each row has a state icon and one-line title`);
