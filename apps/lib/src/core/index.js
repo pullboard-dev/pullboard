@@ -9,5 +9,5 @@ export { parseSpec, lintSpec, frozenCriterion, citedIds } from '../../../../pack
 export { commitMsgProblems, secretsIn, blockedPaths } from '../../../../packages/commits/index.js';
 export { Refused } from '../../../../packages/kernel/index.js';
 export { takeResource, listResources } from '../../../../packages/resources/index.js';
-export { cli$main as main } from '../../../cli/index.js';
+export { main } from '../../../../src/cli.js';
 export { loadDoctrine, standardDoctrine, STANDARD_VERSION } from '../../../../src/doctrine.js';

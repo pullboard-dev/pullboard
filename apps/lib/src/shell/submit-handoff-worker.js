@@ -1,6 +1,6 @@
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
-import { refusalDocument } from '../../../cli/index.js';
+import { refusalDocument } from '../../../../src/next-step-words.js';
 /** A detached continuation runs canonical Submit from its captured private source, never the builder checkout. */
 import {
   readFileSync,
@@ -21,17 +21,17 @@ import { tmpdir } from 'node:os';
 import { gitSpawnSync } from '../../../../src/git-adapter.js';
 import { cleanGitEnvironment } from '../../../../src/git.js';
 import {
-  cliContext$context as context,
-  cliContext$withBoard as withBoard
-} from '../../../cli/index.js';
-import { cliClaim$ordered as ordered } from '../../../cli/index.js';
+  context,
+  withBoard,
+} from '../../../../src/cli-context.js';
+import { ordered } from '../../../../src/cli/claim.js';
 import {
   bindSubmitHandoffOrigin,
   submitHandoffRoot,
-  isSubmitHandoffWorker
-} from '../../../cli/index.js';
+  isSubmitHandoffWorker,
+} from '../../../../src/submit-handoff-origin.js';
 import { submitHandoff } from '../../../../src/submit-handoff-read.js';
-import { submitHere } from '../../../cli/index.js';
+import { submitHere } from '../../../../src/commands/submit.js';
 import { Refused } from '../../../../packages/kernel/index.js';
 
 /** Keep Git operations on the native common repository even if the builder removes its checkout. */

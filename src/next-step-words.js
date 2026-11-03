@@ -1,0 +1,2 @@
+/** Preserve this module's public names through the apps/cli front door [C7]. */
+export { nextStepWords$COORDINATOR_PERSON_REQUEST as COORDINATOR_PERSON_REQUEST, nextStepWords$NEXT_STEPS as NEXT_STEPS, commandOutput, nextStepWords$nextStepFor as nextStepFor, nextStepWords$personRequestGuidance as personRequestGuidance, nextStepWords$personRequestStep as personRequestStep, refusalDocument } from '../apps/cli/index.js';

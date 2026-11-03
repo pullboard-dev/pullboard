@@ -34,8 +34,8 @@ function submitHandoffEngines() { return { current: ENGINE_VERSION, handoff: SUB
 /** Provide exact native engine thresholds for typed pipeline observations. */
 function pipelineCauseEngines() { return { current: ENGINE_VERSION, pipeline: PIPELINE_CAUSE_ENGINE }; }
 
-import { submitHandoffBoardRoot } from '../../../cli/index.js';
-import { sealSubmitHandoffQueue } from '../../../cli/index.js';
+import { submitHandoffBoardRoot } from '../../../../src/submit-handoff-origin.js';
+import { sealSubmitHandoffQueue } from '../../../../src/submit-handoff-seal.js';
 import {
   validateQuarantineProofIds,
   quarantineVerdictSnapshot,
@@ -134,7 +134,7 @@ import {
   newRigorNotices,
   rigorNoticeText,
 } from '../../../../packages/rigor/index.js';
-import { nextStepWords$NEXT_STEPS as NEXT_STEPS } from '../../../cli/index.js';
+import { NEXT_STEPS } from '../../../../src/next-step-words.js';
 import * as landingEnvironment from '../../../../packages/landing/index.js';
 import {
   deriveRigorCause,
