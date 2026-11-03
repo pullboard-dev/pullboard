@@ -7,6 +7,7 @@ import {
 
 export { AUTO_ESCALATE_ENGINE } from './auto-escalate-engine.js';
 export { ROW_DRAFT_ENGINE } from './row-draft-engine.js';
+export { ROUTE_CALIBRATION_ENGINE } from './route-calibration-engine.js';
 export { STRONG_REJECTION_NOTICE_ENGINE } from './strong-rejection-notice-engine.js';
 export { SUBMITTED_CONFLICT_ENGINE } from './submitted-conflict-engine.js';
 export { WITHDRAW_MILESTONE_ENGINE } from './withdraw-milestone-engine.js';
