@@ -253,6 +253,8 @@ export async function checkoutHistory(S, api, runnerRoot, root, packFile, spec, 
       await git(S, root, ['-c', 'protocol.file.allow=always', 'fetch', '--no-tags', ...negotiationTip(measured.reusedCommit), cache, `refs/pullboard/candidates/${spec.commit}`], env);
       await git(S, root, ['checkout', '--detach', 'FETCH_HEAD'], env);
     }
+    // A trunk commit main lands mid-job is fetched from here before a read, never refused as missing (#2534).
+    if (spec.origin) await git(S, root, ['config', '--local', '--replace-all', 'pullboard.fetchSource', spec.origin], env);
     warm = snapshotWarmCheckout({ directory: warmPool, root, commit: spec.commit, tree: spec.tree, lease: cacheLease, borrowed: warm });
     if (spec.trunk) {
       if (candidateHistory.has(spec.trunk.commit)) {
