@@ -1385,6 +1385,10 @@
       "path": "bin/hook-composed.js",
       "reason": "explicit bounded placement: stays in place during the move",
       "owner": "commits"
+    },
+    {
+      "path": "src/pinned-claim-lapse-engine.js",
+      "reason": "explicit bounded placement: stays in place during the move"
     }
   ],
   "retired": [
