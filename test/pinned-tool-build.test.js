@@ -43,12 +43,9 @@ if(!result.isGreen)throw Error(result.output);console.log(JSON.stringify({id:res
 
 /** Commit a complete installable synthetic generation with the ordinary hooks still enabled. */
 function generation(box, label) {
-  writeFileSync(join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'version.js'), `/** Synthetic generation probe for the pin integration fixture. */
+  writeFileSync(join(box.repo, 'apps', 'cli', 'src', 'shell', 'commands', 'status.js'), `/** Synthetic generation probe for the pin integration fixture. */
 import {existsSync,writeFileSync} from 'node:fs';
-import packageData from '../../../../../package.json' with {type:'json'};
-/** Retain this loaded generation while the fixture promotes another build. */
 export async function run(io){
- if(!process.argv.includes('tool-probe')){io.say(packageData.version);return 0;}
  if(process.env.PULLBOARD_PIN_READY)writeFileSync(process.env.PULLBOARD_PIN_READY,'ready');
  while(process.env.PULLBOARD_PIN_RELEASE&&!existsSync(process.env.PULLBOARD_PIN_RELEASE))await new Promise(resolve=>setTimeout(resolve,10));
  io.say('${label}');return 0;
@@ -127,7 +124,8 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   const second = generation(box, 'second');
   const secondReceipt = gate(box);
   assert.throws(() => gatedToolBuild(location, first, secondReceipt), { code: 'TOOL_BUILD_NOT_GATED' });
-  assert.equal(box.run(seat, 'version', '--name', 'tool-probe').out.trim().split('\n')[0], 'first', 'a new trunk commit does not move the claimed seat CLI');
+  // Version-only arguments intentionally bypass pinned-tool selection; probe an ordinary command to test the selected generation.
+  assert.equal(box.run(seat, 'status', '--name', 'tool-probe').out.trim().split('\n')[0], 'first', 'a new trunk commit does not move the claimed seat CLI');
   const hookMarker = join(box.dir, 'hook-generation');
   const hook = runFixtureChild(process.execPath, [join(source, 'bin', 'pullboard.js'), 'hook', 'pre-commit'],
     { cwd: seat, env: { ...box.env, PULLBOARD_PIN_HOOK_MARKER: hookMarker }, encoding: 'utf8' });
@@ -135,7 +133,7 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
   assert.equal(readFileSync(hookMarker, 'utf8'), 'first', 'actual hook implementation comes from the selected generation');
   assert.equal(readToolBuild(location).commit, first, 'the actual hook command retained the same published build');
   const marker = join(box.dir, 'pin-ready'), release = join(box.dir, 'pin-release');
-  const held = startFixtureChild(process.execPath, [join(source, 'bin', 'pullboard.js'), 'version', '--name', 'tool-probe'],
+  const held = startFixtureChild(process.execPath, [join(source, 'bin', 'pullboard.js'), 'status', '--name', 'tool-probe'],
     { cwd: seat, env: { ...box.env, PULLBOARD_PIN_READY: marker, PULLBOARD_PIN_RELEASE: release }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   held.stdout.on('data', chunk => { output += chunk; });
@@ -144,7 +142,7 @@ test('pinned CLI, hooks and loaded generation survive trunk advancement; native 
     await ready(marker);
     result = box.run(box.repo, 'tool-build', 'promote', second, '--gate-receipt', secondReceipt, '--json');
     assert.equal(result.code, 0, result.err + result.out);
-    assert.equal(box.run(seat, 'version', '--name', 'tool-probe').out.trim().split('\n')[0], 'second', 'promotion changes the next command');
+    assert.equal(box.run(seat, 'status', '--name', 'tool-probe').out.trim().split('\n')[0], 'second', 'promotion changes the next command');
     assert.equal(box.git(seat, 'rev-parse', 'HEAD').trim(), first, 'tool promotion does not advance the item source');
     writeFileSync(release, 'release');
     const code = await closed;
