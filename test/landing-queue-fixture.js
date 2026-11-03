@@ -305,7 +305,7 @@ export async function landingQueueCase(t, helpers, { staleAfterFirst = false, ki
   box.env.CODEX_THREAD_ID = 'private-landing-queue-session';
   const first = helpers.launch(box, box.repo, process.execPath, [helpers.BIN, 'land', '--max', '1']);
   children.push(first);
-  await helpers.waitFor(() => existsSync(entered) || first.exitCode !== null, 'first landing reaches its real gate');
+  await helpers.waitFor(() => existsSync(entered) || first.exitCode !== null, 'first landing reaches its real gate', 60_000); // budget: ceiling for a loaded runner starting the first landing CLI; no speed target.
   assert.ok(existsSync(entered), first.failure ?? first.stderrText);
   const firstBatch = readBoard(box, board => store.landingBatches(board).at(-1));
   assert.equal(firstBatch.state, 'gating');
