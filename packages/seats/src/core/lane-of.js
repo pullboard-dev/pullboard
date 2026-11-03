@@ -1,5 +1,5 @@
 /** Which lane owns a path: the longest declared folder prefix wins [L1,L2]. */
-import { COORDINATOR } from '../../../config/index.js';
+import { COORDINATOR } from '../../../queue/core.js';
 
 /**
  * The lane that owns a path: the longest matching prefix wins. Paths no lane owns are the
