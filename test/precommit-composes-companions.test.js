@@ -51,7 +51,8 @@ function fixture() {
   box.git(box.repo, 'commit', '-q', '-m', 'chore: seed a self-hosted entry and a shim');
   const api = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', api, '-b', 'api/one');
-  const author = run(box, api, 'join', 'api').id;
+  assert.match(box.run(api, 'join', 'api').out, /joined as api-/u);
+  const author = run(box, api, 'whoami').id;
   const item = run(box, box.repo, 'add', 'web', 'Delete the web shim', '--specs', 'G1').item.item_id;
   box.git(box.web, 'merge', '-q', '--ff-only', 'main');
   const claimed = run(box, box.web, 'claim', String(item));
