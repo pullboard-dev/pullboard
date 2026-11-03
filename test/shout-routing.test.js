@@ -65,7 +65,7 @@ test('coordinator shouts require explicit kinds while status uses item facts [C7
   const person = runFixtureChild(process.execPath, ['--input-type=module', '-e', `
     const { executeMove } = await import(${JSON.stringify(apiModule)});
     const { main } = await import(${JSON.stringify(cliModule)});
-    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../src/native-board.js', import.meta.url).href)});
+    const { openBoard, openBoardForRead } = await import(${JSON.stringify(new URL('../apps/lib/index.js', import.meta.url).href)});
     const { moveArgs } = await import(${JSON.stringify(new URL('../packages/person/index.js', import.meta.url).href)});
     const apiBoardOpeners = { openBoard, openBoardForRead, moveArgs };
     const response = await executeMove(process.cwd(), { verb: 'shout', args: { to: 'coordinator', text: 'A person asks the coordinator.' } }, main, undefined, undefined, undefined, apiBoardOpeners);

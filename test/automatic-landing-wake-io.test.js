@@ -37,7 +37,7 @@ test('the scheduled wake io lands one accepted item through landAfterAcceptance 
     `import { context } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/cli.js')).href)};`,
     `import { landAfterAcceptance } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/commands/land.js')).href)};`,
     `import * as store from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/board.js')).href)};`,
-    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../src/native-board.js')).href)};`,
+    `import { openBoard } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../apps/lib/index.js')).href)};`,
     "import { join } from 'node:path';",
     'const [root, itemId] = process.argv.slice(1);',
     'let error = null;',

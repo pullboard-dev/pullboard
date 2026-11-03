@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import * as store from '../../src/board.js';
-import { openBoard } from '../../src/native-board.js';
+import { openBoard } from '../../apps/lib/index.js';
 import { chromeExecutable, closeSnapshotChrome, machine, openSnapshotChrome, press, project, startView } from './fixture.js';
 
 test('Dashboard retains offscreen agents and paints their real rows when scrolled into view [N26]', { timeout: 90000 }, async () => {

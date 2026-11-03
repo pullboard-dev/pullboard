@@ -486,6 +486,9 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const reviewer = spawnSync(process.execPath, [BIN, 'join', 'api', '--model', 'fixture-reviewer'], { cwd: review, env: reviewBox.env, encoding: 'utf8' });
   assert.equal(reviewer.status, 0, reviewer.stderr);
 
+  // A moved trunk keeps verify from reusing the submit proof, so its own check must queue for the gate slot.
+  const moved = spawnSync('git', ['commit', '-q', '--allow-empty', '-m', 'chore: move main'], { cwd: root, env: box.env, encoding: 'utf8' });
+  assert.equal(moved.status, 0, moved.stderr);
   writeFileSync(box.events, '');
   const verifyRelease = join(box.dir, 'release-verify-holder');
   const verifyHolderRoot = gateRepo(box, 'verify-holder', 0.1, verifyRelease);
@@ -495,21 +498,26 @@ test('[Q1,Q2,V18] an older item check keeps its place ahead of a later ordinary 
   const verifyHolder = launch(box, verifyHolderRoot);
   await waitFor(() => events(box).includes('verify-holder start') && !events(box).includes('verify-holder end'), 'a gate to hold the slot before accepting an item');
   const verify = launch(reviewBox, review, ['verify', '1', 'accept', '--no-next', '--note', 'queue fixture']);
-  await waitFor(() => verify.exitCode !== null, 'a cached review to finish while the unrelated gate holds its slot');
-  const verifyRun = await verify.closed;
-  assert.equal(verifyRun.code, 0, `${verify.stderrText}${verify.stdoutText}`);
-  assert.match(verify.stdoutText, /reused submit proof/u, 'review uses the sealed submit evidence');
-  assert.equal(events(box).filter(event => event === 'item check start').length, 0, 'review never reruns the completed check');
+  await waitFor(() => verify.stdoutText.includes('place 1') || verify.exitCode !== null, 'verify accept to queue for the gate slot');
+  assert.ok(verify.stdoutText.includes('place 1'), `verify accept prints its queued gate-slot position: ${verify.stdoutText}${verify.stderrText}`);
+  assert.match(verify.stdoutText, /gate waiting:/);
   const verifyNext = launchTestRunner(box, verifyFocusedRoot, ['--test-name-pattern', PROBE_PATTERN, 'test/probe.test.js'], verifyFocusedMarker, verifyFocusedRelease);
   await waitFor(() => /waiting for a gate slot:/u.test(verifyNext.stderrText) || verifyNext.exitCode !== null, 'the later focused run to enter the queue');
   assert.equal(existsSync(verifyFocusedMarker), false, 'the focused run has not started while the holder owns the slot');
+  assert.equal(events(box).includes('item check'), false);
   writeFileSync(verifyRelease, 'release\n');
-  await waitFor(() => existsSync(verifyFocusedMarker), 'the focused run to start after the unrelated holder releases');
+  await waitFor(() => events(box).includes('item check start'), 'the older verify check to acquire the released slot');
+  assert.equal(existsSync(verifyFocusedMarker), false, 'the later focused run stays behind review');
+  writeFileSync(checkRelease, 'release\n');
+  await waitFor(() => events(box).includes('item check'), 'the verify check to release its slot');
+  await waitFor(() => existsSync(verifyFocusedMarker), 'the focused run to start after review releases');
+  const verifyRun = await verify.closed;
+  assert.equal(verifyRun.code, 0, `${verify.stderrText}${verify.stdoutText}`);
   writeFileSync(verifyFocusedRelease, 'release\n');
   const [verifyHolderResult, verifyNextResult] = await Promise.all([verifyHolder.closed, verifyNext.closed]);
   assert.equal(verifyHolderResult.code, 0);
   assert.equal(verifyNextResult.code, 0, verifyNext.stderrText + verifyNext.stdoutText);
-  assert.deepEqual(events(box), ['verify-holder start', 'verify-holder end']);
+  assert.deepEqual(events(box), ['verify-holder start', 'verify-holder end', 'item check start', 'item check']);
 });
 
 test('[Q1,Q2] an older diagnostic stays ahead of a later ordinary gate', async () => {
