@@ -61,8 +61,11 @@ test('page is built', () => {
   const reviewer = join(box.dir, 'api-1');
   box.git(box.repo, 'worktree', 'add', '-q', '--detach', reviewer, box.git(box.web, 'rev-parse', 'HEAD'));
   json(box.run(reviewer, 'join', 'api', '--json'));
+  // A distinct clean reviewer HEAD forces a fresh check instead of reusing submit proof.
+  box.git(reviewer, 'commit', '--allow-empty', '-q', '-m', 'test: force the review check to run');
   writeFileSync(armed, 'armed');
   const verdict = box.run(reviewer, 'verify', '1', 'accept', '--note', 'the page builds', '--json');
+  assert.equal(existsSync(armed), false, 'the check really moved main during verification');
   return { box, verdict, json };
 }
 
