@@ -81,6 +81,7 @@ test('an empty plain next exits zero with a bounded end-turn answer in text and 
     stderr: { write: part => { err += part; } } });
   assert.equal(code, 0, out + err);
   assert.match(out, /nothing for this seat: end your turn/u);
+  assert.equal(out.trim(), 'next: nothing for this seat: end your turn', 'one empty-turn action, without a duplicate footer');
   assert.doesNotMatch(out + err, /--wait|next waiting/u);
   assert.ok(Buffer.byteLength(out + err) <= 2048);
   assert.equal(store.getItem(box.board, ownSession).item_review_by, null);

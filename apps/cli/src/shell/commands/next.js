@@ -213,7 +213,7 @@ async function nextWithProgress(io, values, progress) {
     }
     if (!found.retry && values.defaultLoop) {
       io.result?.({ item: null, review: false, held: false, shared: [] });
-      io.say('nothing for this seat: end your turn');
+      io.say('next: nothing for this seat: end your turn');
       return 0;
     }
     if (!found.retry && (found.laneWork || Date.now() >= deadline)) {
