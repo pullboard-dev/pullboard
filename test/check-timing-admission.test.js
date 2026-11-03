@@ -116,7 +116,7 @@ test('timing is coordinator-only boolean bar data, corrected atomically and abse
 
 import { prepareEngineMove } from '../packages/state/index.js';
 import { applyEngineMove } from '../packages/state/index.js';
-import { minimumMoveEngine } from '../src/move-registry.js';
+import { minimumMoveEngine } from '../packages/moves/index.js';
 
 test('older ordered edits cannot strip timing from a modern bar while historical receipts replay unchanged [C7,V4,H16]', t => {
   const board = fixtureBoard(t);

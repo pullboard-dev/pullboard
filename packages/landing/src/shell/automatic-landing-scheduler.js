@@ -4,11 +4,20 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { setTimeout as pause } from 'node:timers/promises';
 import { repoInfo } from '../../../git/index.js';
 import { readMainAudit } from '../../../gate/index.js';
 import { saveMainAudit } from '../../../gate/index.js';
 import { scheduleMainAudit } from '../../../gate/index.js';
 import { waitMainAudit } from '../../../gate/index.js';
+import { withFileLock } from '../../../outbox/index.js';
+
+/** Wait for a record's own due time, so a deferral this landing wrote keeps its cadence. */
+async function dueBy(dueAt) {
+  for (let remaining = Date.parse(dueAt) - Date.now(); remaining > 0; remaining = Date.parse(dueAt) - Date.now()) {
+    await pause(Math.min(remaining, 2147483647));
+  }
+}
 
 /** Bind live custody to the actual OS process start, never a recycled PID. */
 function processStart(pid) {
@@ -27,32 +36,73 @@ function running(owner) {
 /** A repository-private pending record remains readable after the accepting CLI has exited. */
 export function automaticLandingDirectory(root) { return join(repoInfo(root).commonDir, 'pullboard', 'automatic-landing'); }
 
-/** Persist the obligation before starting its authenticated detached timer. */
+/** One lock orders every pending-record change, so a landing that is finishing never drops a newer accept. */
+function withPending(directory, work) { return withFileLock(join(directory, 'pending.guard.sqlite'), work); }
+
+/**
+ * Persist the obligation before starting its authenticated detached timer. A landing already running keeps its
+ * custody: the newer record carries it, and that run lands the new work when it finishes instead of a second
+ * landing racing it (#2541).
+ */
 export async function scheduleAutomaticLanding(root, dueAt, workerUrl, { schedule = scheduleMainAudit, now = Date.now } = {}) {
   if (!Number.isFinite(Date.parse(dueAt))) throw new TypeError('automatic landing needs its native deferred time');
   if (!(workerUrl instanceof URL) || workerUrl.protocol !== 'file:') throw new TypeError('automatic landing needs its actual worker entry');
   const directory = automaticLandingDirectory(root);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const at = new Date(Math.max(Date.parse(dueAt), now() + 1000)).toISOString();
-  const job = { version: 1, id: randomUUID(), root: repoInfo(root).root, dueAt: at };
-  saveMainAudit(join(directory, 'pending.json'), job);
+  const file = join(directory, 'pending.json');
+  const job = await withPending(directory, () => {
+    const current = readMainAudit(file);
+    const next = { version: 1, id: randomUUID(), root: repoInfo(root).root, dueAt: at, by: process.pid,
+      ...(current?.running && running(current.running) ? { running: current.running } : {}) };
+    saveMainAudit(file, next);
+    return next;
+  });
   await schedule(root, directory, at, workerUrl);
   return job;
 }
 
-/** Resume only an authenticated wake, retaining failed work and any newer deferral written by landing. */
+/**
+ * Resume only an authenticated wake, retaining failed work and any newer deferral written by landing. A wake that
+ * finds another live landing leaves the record to it; the running landing repeats once per newer record, so
+ * accepts that arrive together or mid-landing coalesce into the one landing worker (#2541).
+ */
 export async function resumeAutomaticLanding(root, token, dueAt, run, { wait = waitMainAudit } = {}) {
   const directory = automaticLandingDirectory(root);
   if (!await wait(directory, token, dueAt)) return false;
-  const file = join(directory, 'pending.json'), job = readMainAudit(file);
-  if (!job || job.version !== 1 || repoInfo(job.root).commonDir !== repoInfo(root).commonDir) return false;
-  saveMainAudit(file, { ...job, running: { pid: process.pid, started: processStart(process.pid) } });
-  try { await run(job.root); }
-  catch (error) {
-    if (readMainAudit(file)?.id === job.id) saveMainAudit(file, { ...job, error: error.message });
-    throw error;
+  const file = join(directory, 'pending.json');
+  const self = { pid: process.pid, started: processStart(process.pid) };
+  let job = await withPending(directory, () => {
+    const current = readMainAudit(file);
+    if (!current || current.version !== 1 || repoInfo(current.root).commonDir !== repoInfo(root).commonDir) return null;
+    if (current.running && running(current.running)) return null;
+    saveMainAudit(file, { ...current, running: self });
+    return current;
+  });
+  if (!job) return false;
+  while (job) {
+    try { await run(job.root); }
+    catch (error) {
+      const failed = { ...job, error: error.message };
+      delete failed.running;
+      await withPending(directory, () => { if (readMainAudit(file)?.id === failed.id) saveMainAudit(file, failed); });
+      throw error;
+    }
+    const finished = job;
+    job = await withPending(directory, () => {
+      const current = readMainAudit(file);
+      if (!current) return null;
+      if (current.id === finished.id) { rmSync(file); return null; }
+      if (current.running?.pid !== process.pid || current.error) return null;
+      // An accept made elsewhere while this landing ran is landed by this worker; landing's own deferral goes back to its timer.
+      if (current.by !== process.pid) return current;
+      const deferred = { ...current };
+      delete deferred.running;
+      saveMainAudit(file, deferred);
+      return null;
+    });
+    if (job) await dueBy(job.dueAt);
   }
-  if (readMainAudit(file)?.id === job.id) rmSync(file);
   return true;
 }
 
