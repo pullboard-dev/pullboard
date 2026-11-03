@@ -323,23 +323,37 @@ async function runAtCommitAsync(root, commit, command, timeoutMs) {
 }
 
 /**
- * The main a hold judges against: the primary checkout's commit whenever the candidate contains it, including a
- * candidate that is exactly that main; the handed accepted main only when the primary checkout is behind it, or when the
- * hold runs in the primary checkout itself, whose HEAD is the candidate rather than independent evidence of main.
- * Why: a queued or handed-off submit carries the main it saw first, while current main may be newer (#2575). A candidate
- * that does not contain current main is refused, never measured against an older main.
+ * Compose current main into a candidate that lacks it, the way submit composes: a scratch merge that writes only Git
+ * objects, never a checkout. Refuses MERGE_CONFLICT only when the two really conflict.
+ */
+function composeMain(root, tip, commit) {
+  const merged = spawnSync('git', ['--no-replace-objects', 'merge-tree', '--write-tree', '--no-messages', tip, commit], { cwd: root, env: cleanGitEnvironment(), encoding: 'utf8' });
+  const tree = merged.stdout?.split('\n')[0]?.trim() ?? '';
+  if (merged.status === 1) throw new Refused('MERGE_CONFLICT', `the candidate ${commit.slice(0, 12)} conflicts with current main ${tip.slice(0, 12)}; merge main, resolve the conflicts, commit, and submit again`);
+  if (merged.status !== 0 || !/^[a-f0-9]{40,64}$/u.test(tree)) throw new Refused('RATCHET_UNCOUNTED', 'cannot compose current main into the candidate for the doctrine hold');
+  const composed = (gitOut(root, ['-c', 'user.name=Pullboard doctrine hold', '-c', 'user.email=doctrine@pullboard.invalid',
+    'commit-tree', tree, '-p', commit, '-p', tip, '-m', 'Compose current main for the doctrine hold']) ?? '').trim();
+  if (!/^[a-f0-9]{40,64}$/u.test(composed)) throw new Refused('RATCHET_UNCOUNTED', 'cannot record the composed candidate for the doctrine hold');
+  return composed;
+}
+
+/**
+ * The main a hold judges against, and the candidate it measures: the primary checkout's commit whenever it is newer
+ * than the handed accepted main, with a candidate that lacks it composed with it; the handed main only when the primary
+ * checkout is behind it, or when the hold runs in the primary checkout itself, whose HEAD is the candidate.
+ * Why: main lands every few minutes, so a queued gate's main has usually moved; that alone never refuses (#2575).
  */
 function currentMain(root, mainCommit, commit) {
   let tip = null;
-  try { tip = mainCheckout(root)?.commit ?? null; } catch { return mainCommit; }
-  if (!tip || tip === mainCommit) return mainCommit;
+  try { tip = mainCheckout(root)?.commit ?? null; } catch { return { main: mainCommit, commit }; }
+  if (!tip || tip === mainCommit) return { main: mainCommit, commit };
   const gitDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-dir']) ?? '').trim();
   const commonDir = (gitOut(root, ['rev-parse', '--path-format=absolute', '--git-common-dir']) ?? '').trim();
-  if (gitDir && gitDir === commonDir) return mainCommit;
+  if (gitDir && gitDir === commonDir) return { main: mainCommit, commit };
   const ancestor = (older, newer) => gitOut(root, ['merge-base', '--is-ancestor', older, newer]) !== null;
-  if (ancestor(tip, commit)) return tip;
-  if (ancestor(tip, mainCommit)) return mainCommit;
-  throw new Refused('MAIN_NOT_COMPOSED', `the candidate ${commit.slice(0, 12)} does not contain current main ${tip.slice(0, 12)}, so the doctrine hold cannot count against it; merge current main, commit, and submit again`);
+  if (ancestor(tip, commit)) return { main: tip, commit };
+  if (ancestor(tip, mainCommit)) return { main: mainCommit, commit };
+  return { main: tip, commit: composeMain(root, tip, commit) };
 }
 
 /** The machine-wide file caching one rule's measured problems at one main tree. */
@@ -386,7 +400,8 @@ function* measuredMain(root, mainCommit, command, timeoutMs) {
  */
 function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_FILE, timeoutMs = DEFAULT_TIMEOUT_MS, runCheck }) {
   // Current main is resolved first, so a rule added or changed on main since the frozen base applies.
-  mainCommit = currentMain(root, mainCommit, commit);
+  const submitted = commit;
+  ({ main: mainCommit, commit } = currentMain(root, mainCommit, commit));
   const rules = checkRulesAt(root, mainCommit, practice).filter((rule) => rule.runs === 'submit');
   if (!rules.length) return [];
   const lowered = new Map(checkRulesAt(root, commit, practice).map((rule) => [rule.id, rule.count]));
@@ -415,7 +430,8 @@ function* doctrineHoldExecution(root, { mainCommit, commit, practice = DOCTRINE_
     const committed = declared < rule.count ? Math.min(declared, measured) : measured;
     // A clean checkout lets a file-local rule look only at the changed paths (and the moved paths' origins).
     const scope = canFingerprint ? changed.filter((path) => inScope(rule.files, path)) : undefined;
-    const run = yield { commit, command: rule.command, timeoutMs, candidate: true, scope };
+    // A composed candidate exists only as Git objects, so it runs at its commit like main, never in this checkout.
+    const run = yield { commit, command: rule.command, timeoutMs, candidate: commit === submitted, scope };
     const name = `${rule.id} ${rule.text}`;
     // A broken check never passes, whatever its mode.
     if (run.broken) {
