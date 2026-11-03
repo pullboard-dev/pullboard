@@ -20,7 +20,7 @@ function socketChild(mode, home) {
     import { Socket } from 'node:net';
     import { fetchLocal } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../index.js')).href)};
     import { fetchFresh } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../test/http-fixture.js')).href)};
-    import { rememberView, runningView } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../src/view-session.js')).href)};
+    import { rememberView, runningView } from ${JSON.stringify(pathToFileURL(join(import.meta.dirname, '../../../apps/view/index.js')).href)};
     const mode = ${JSON.stringify(mode)};
     const server = createServer((_request, response) => response.end('ok'));
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

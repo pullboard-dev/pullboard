@@ -22,7 +22,7 @@ import { roadmap } from '../src/board-milestones.js';
 import { eligibilityProblem } from '../packages/verify/index.js';
 import { lineSettings } from '../packages/state/index.js';
 import { routingCapacity } from '../src/routing-capacity.js';
-import { observeWorkers } from '../src/worker-scale.js';
+import { observeWorkers } from '../apps/cli/src/shell/worker-scale.js';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 

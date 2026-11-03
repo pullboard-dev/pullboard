@@ -145,7 +145,7 @@ test('the real next command routes around a live worktree edit [N2]', async t =>
   assert.equal(JSON.parse(next.out).item.item_id, free, `#${blocked} must wait while #${changed} edits web/shared.js`);
   const { createServer } = await import('node:http');
   const { createLocalApiHandler } = await import('../packages/api/index.js');
-  const { viewApiPorts } = await import('../src/view-api-ports.js');
+  const { viewApiPorts } = await import('../apps/view/index.js');
   const { apiBoardOpeners } = await import('./board-fixture.js');
   const { refusalDocument } = await import('../src/next-step-words.js');
   const { main } = await import('./native-cli-fixture.js');

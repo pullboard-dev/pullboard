@@ -57,7 +57,7 @@ const handed = (await import('./current-cli.js')).runCurrentCli(process.argv[1])
 if (handed !== null) process.exit(handed);
 
 // Select immutable tooling before dispatch or parsing a newer trunk's configuration.
-const { main, selectedToolEntry, asksVersion } = await import('../src/cli-main.js');
+const { main, selectedToolEntry, asksVersion } = await import('../apps/cli/src/shell/cli-main.js');
 // Promotion must remain reachable when the published build predates its replacement; --version asks Git nothing.
 if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
   try {
@@ -83,6 +83,12 @@ if (process.argv[2] !== 'tool-build' && !asksVersion(process.argv.slice(2))) {
 process.exitCode = await main(process.argv.slice(2), {
   cwd: process.cwd(),
   loadNativeBoard: () => import('../apps/lib/index.js'),
+  /** The queue-wait reporter is composed here so the CLI never imports the gate; the gate loads on the first wait line. */
+  gateWaitReporter: (io) => {
+    let report;
+    const ready = import('../packages/gate/index.js').then(({ gateWaitReporter }) => { report = gateWaitReporter(io); });
+    return (wait) => { if (report) report(wait); else ready.then(() => report(wait)); };
+  },
   /** Compose process-only capabilities after a command actually requests them. */
   loadProcessPorts: () => Promise.all([import('node:url'), import('../packages/outbox/index.js')]).then(([{ fileURLToPath }, { outboxFields }]) => ({
     outboxFields,
