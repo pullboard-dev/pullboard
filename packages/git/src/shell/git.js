@@ -73,9 +73,16 @@ export function setResumeSourceFacts(enabled) {
   if (cache?.active) cache.resumeSources = enabled === true;
 }
 
-/** Drop facts after this command changes Git state such as refs, configuration, or worktrees. */
-export function invalidateGitFacts() {
-  scopedFacts()?.clear();
+/**
+ * Drop facts after this command changes Git state such as refs, configuration, or worktrees. `keepIdentity` keeps
+ * where each checkout and its Git directories are: a reread of policy before a board write needs fresh refs, and no
+ * read of a checkout's location can change without a Git write, which drops everything.
+ */
+export function invalidateGitFacts({ keepIdentity = false } = {}) {
+  const facts = scopedFacts();
+  if (facts && keepIdentity) {
+    for (const key of [...facts.keys()]) if (!key.startsWith('repoInfo:')) facts.delete(key);
+  } else facts?.clear();
   if (currentGitAdapter() === realGitAdapter) persistentReadFacts.clear();
 }
 

@@ -326,7 +326,7 @@ function installWritePolicy(ctx, board) {
     let preparedContext;
     try { preparedContext = ctx.info.commonDir && ctx.info.gitDir ? ctx : { ...ctx, info: repoInfo(ctx.info.root) }; }
     catch { return fallback(); }
-    invalidateGitFacts();
+    invalidateGitFacts({ keepIdentity: true });
     // Resolve source selection outside BEGIN; the under-lock witness reads only these exact owned metadata files.
     let ref;
     try { ref = mainCheckout(ctx.info.root)?.branch ?? trunkRef(ctx.info.root); }

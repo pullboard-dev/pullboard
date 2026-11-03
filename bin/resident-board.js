@@ -243,13 +243,19 @@ function listen(retry = true) {
   server.listen(socketPath, () => {
     if (process.platform !== 'win32') try { chmodSync(socketPath, 0o600); } catch { /* The board folder is already private to its owner. */ }
     try { writeFileSync(pidFile, `${process.pid}\n`); } catch { /* The pid file only helps people and tests find it. */ }
+    // Idle time counts from when the process can serve, never from a slow start under load.
+    lastActive = Date.now();
+    watchIdle();
   });
 }
 listen();
 
-setInterval(() => {
-  if (!inFlight.size && Date.now() - lastActive > IDLE_MS) { retire('idle'); exitWhenDone(); }
-}, Math.min(IDLE_MS, 30_000)).unref();
+/** Retire once nothing has run for the idle limit; the watch starts only when the process is listening. */
+function watchIdle() {
+  setInterval(() => {
+    if (!inFlight.size && Date.now() - lastActive > IDLE_MS) { retire('idle'); exitWhenDone(); }
+  }, Math.min(IDLE_MS, 30_000)).unref();
+}
 
 // Load each served command's modules now, so the first command after a start is warm too.
 void (async () => {
@@ -258,4 +264,5 @@ void (async () => {
   await loadNativeBoard();
   await loadProcessPorts();
   for (const name of RESIDENT_COMMANDS) await COMMANDS[name]?.().catch(() => {});
+  lastActive = Math.max(lastActive, Date.now());
 })().catch(() => {});
