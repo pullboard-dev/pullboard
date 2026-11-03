@@ -128,7 +128,7 @@ test('50 MB of session logs add under 1 s to a claim and the detached checkpoint
   const requests = readdirSync(due).filter((name) => name.endsWith('.json'));
   assert.equal(requests.length, 2, 'claim and release each recorded one due checkpoint');
   assert.equal(existsSync(join(deferred.common, 'pullboard', 'cost-ledger.json')), false, 'no command did usage work');
-  assert.equal(usage(deferred.box, deferred.id).inputTokens, null, 'nothing is attributed until the worker runs');
+  assert.equal(JSON.parse(deferred.box.run(deferred.box.repo, 'show', String(deferred.id), '--json').out).usage, undefined, 'nothing is attributed until the worker runs');
 
   rmSync(join(due, 'worker.lock'));
   const env = { ...deferred.box.env };
