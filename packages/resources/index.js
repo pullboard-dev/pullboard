@@ -3,3 +3,4 @@ export * from './src/shell/resources.js';
 export * from './src/shell/machine-home.js';
 export * from './src/shell/resource-recovery.js';
 export * from './src/shell/runner-wait-reasons.js';
+export * from './src/shell/pool-lock.js';

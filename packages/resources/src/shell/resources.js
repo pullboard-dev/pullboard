@@ -40,7 +40,9 @@ import {
   recordRunnerFailure,
   recoverUnavailableRunners,
   runnerRecoveryStatus,
+  cleanupCharges,
 } from './resource-recovery.js';
+import { writeWhileLocked } from './pool-lock.js';
 import { readGateQueueSettings } from '../../../queue/index.js';
 import {
   localWaitBranch,
@@ -524,12 +526,12 @@ function gateAdmission(db, ticket, capacity, shortCapacity, runners, runnersFirs
     // predates the name guard and has no runner column value.
     const remoteHolders = db.prepare('SELECT browser, timing FROM holder WHERE name = ?').all(runnerResourceName(runner.host));
     return [runner.host, {
-      slots: remoteHolders.length,
+      slots: remoteHolders.length + (cleanupCharges(db).get(runner.host) ?? 0),
       timing: remoteHolders.some(holder => holder.timing === 1),
       browsers: remoteHolders.filter(holder => holder.browser === 1).length,
     }];
   }));
-  const unavailable = unavailableRunnerHosts(db, now);
+  const unavailable = unavailableRunnerHosts(db, now, runners);
   let drain = currentTimingDrain(db, waiters, runners, unavailable, now);
   /** Keep an already holding process from taking another slot ahead of a different landing. */
   const blockedByLanding = waiter => holders.some(holder => holder.pid === waiter.pid)
@@ -720,14 +722,12 @@ function startRunnerRecovery(db, file, runners, probe, idleProbe, restartProbe) 
     .catch(() => process.stderr.write('runner recovery observation unavailable; failed hosts remain unavailable\n'));
 }
 
-/** Every recorded failure stays unavailable until exact recovery or explicit manual clearance, never merely age. */
-function runnerUnavailable(entry) { return Boolean(entry); }
-
-/** Use the same current transport and draining exclusions for admission and local-memory status. */
-function unavailableRunnerHosts(db, now) {
+/** Exclusions for admission and local-memory status; unverified cleanups exclude a runner only once they cost every slot. */
+function unavailableRunnerHosts(db, now, runners = []) {
+  const charges = cleanupCharges(db), slots = new Map(runners.map(runner => [runner.host, runner.slots]));
   return new Set([
     ...db.prepare('SELECT * FROM runner_unavailable').all()
-      .filter(row => runnerUnavailable(row, now)).map(row => row.host),
+      .filter(row => !(charges.get(row.host) < (slots.get(row.host) ?? 0))).map(row => row.host),
     ...db.prepare('SELECT host FROM runner_draining').all().map(row => row.host),
   ]);
 }
@@ -768,7 +768,7 @@ export function runnerResourceStatus(runners) {
           .all(runnerResourceName(runner.host));
         if (runner.draining && !holders.length) return [];
         const recorded = db.prepare('SELECT * FROM runner_unavailable WHERE host = ?').get(runner.host);
-        const unavailable = runnerUnavailable(recorded, Date.now()) ? recorded : null;
+        const unavailable = recorded ?? null;
         const transport = db.prepare('SELECT at,diagnostic FROM runner_transport_error WHERE host=?').get(runner.host);
         let transportFailure;
         try { if (transport) transportFailure = { at: transport.at, ...JSON.parse(transport.diagnostic) }; } catch { /* Malformed legacy diagnostics remain unreported, never guessed. */ }
@@ -1167,7 +1167,7 @@ export async function takeResource(options) {
         db.prepare('UPDATE waiter SET heartbeat = ?, classed = ?, runner_only = ?, remote = ?, runner_deadline = ? WHERE token = ?')
           .run(Date.now(), classedMarker(order), Number(runnerOnly), Number(remoteEligible), runnerDeadlineAt, token);
         waiter.remote = Number(remoteEligible);
-        const unavailable = unavailableRunnerHosts(db, now);
+        const unavailable = unavailableRunnerHosts(db, now, runners);
         const memoryHeld = Boolean(memory?.held && (name !== 'gate' || waiter.remote !== 1
           || !runners.some(runner => runnerAllowed(waiter, runner) && runnerCompatible(db, runner, waiter, unavailable))));
         db.prepare('UPDATE waiter SET memory_held = ? WHERE token = ?').run(Number(memoryHeld), token);
@@ -1262,11 +1262,11 @@ export async function takeResource(options) {
         /** Commit this holder's deletion before closing; a failed update remains live and retryable. */
         const release = () => {
           if (released || transferred) return;
-          update(db, () => {
+          writeWhileLocked(() => update(db, () => {
             if (cancellationDiagnostic) settleControllerCancellation(db, { token, pid, started, repo, host: acquired.runner.host }, cancellationDiagnostic, recordRunnerFailure);
             db.prepare('DELETE FROM holder WHERE token = ?').run(token);
             removeEmptyViewPortResource(db, name);
-          });
+          }));
           released = true;
           clearInterval(heartbeat);
           db.close();

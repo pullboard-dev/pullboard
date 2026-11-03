@@ -252,7 +252,7 @@ function testEnvironment(sandbox, gateMarkers = {}) {
   for (const key of AGENT_SHELL_MARKERS) delete env[key];
   for (const key of SSH_SHELL_MARKERS) delete env[key];
   // A test that starts its own run-tests is never a shard of this landing.
-  delete env[LANDING_SHARD_ENV];
+  delete env[LANDING_SHARD_ENV]; delete env.PULLBOARD_RUNNER_JOB; // #2513: tests see a plain machine, not the runner job.
   delete env[TIMING_RUN_ID_ENV];
   delete env[COLLECTION_ID_ENV];
   env.HOME = home;
