@@ -51,7 +51,7 @@ function project(disableRefresh) {
   const box = helpers.project('node --test --test-reporter=tap web/docs.test.js');
   delete box.env.NODE_TEST_CONTEXT;
   const env = box.env;
-  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'package.json'],
+  const archive = runFixtureChild('git', ['archive', 'HEAD', 'src', 'bin', 'packages', 'apps', 'docs', 'relay', 'skills', 'package.json'],
     { cwd: join(import.meta.dirname, '..'), env, maxBuffer: 32 * 1024 * 1024 });
   assert.equal(archive.status, 0, archive.context);
   const extracted = runFixtureChild('tar', ['--exclude', '*/tests/*', '-xf', '-', '-C', box.repo], { input: archive.stdout, env });
