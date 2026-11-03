@@ -3,6 +3,7 @@ import { requireTestTierAccount } from './test-tier-selection.js';
 import { selectTestTiers } from './test-tier-selection.js';
 import { testTierProofFiles } from './test-tier-selection.js';
 import { testTierReport } from './test-tier-selection.js';
+import { requireSealedSkips } from './test-tier-selection.js';
 import { startReceipt } from './gate-receipt.js';
 import { dirname } from 'node:path';
 /** Concern-specific gate stage; public callers keep the gate facade. */
@@ -84,7 +85,7 @@ export function submitGatePlan(root, config, { base, trunk, changed, check, sour
   const advancePlan = sourceAdvance ? sourceAdvancePlan(root, config, { base, changed, check }, { selectAffectedTests, selectTestTreeGuards }) : null;
   check = advancePlan ? advancePlan.criterion : check ? mappedCheck(root, check, { commit }) : check;
   const testTiers = sourceAdvance ? null : selectTestTiers(root, { base, trunk, commit, changed, runner: config.affectedTests });
-  const selection = testTiers ? { full: false, reason: 'T1 units of changed packages; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
+  const selection = testTiers ? { full: false, reason: 'units of unsealed packages and contracts at changed front doors; T3 journeys run per landing batch', files: testTiers.units } : advancePlan?.selection ?? (config.affectedTests
     ? placementSubmitSelection(root, selectAffectedTests(root, { base, trunk, commit, changed }), changed ?? [])
     : { full: true, reason: 'affected-test selection is not enabled for this project', files: [] });
   const deferred = Boolean(testTiers) || !sourceAdvance && config.submitGate === 'landing';
@@ -163,7 +164,7 @@ export async function runSubmitGate(root, config, { base, trunk, changed, check,
     proofFiles, fullConfig, hasFinalProof } = plan;
   check = plan.check;
   const reusePlan = submitReusePlanDigest({ check, files: proofFiles, full: selection.full, deferred, proofCommand: plan.proofCommand });
-  if (plan.testTiers) config = { ...config, affectedTests: plan.testRunner };
+  if (plan.testTiers) { requireSealedSkips(root, plan.testTiers); config = { ...config, affectedTests: plan.testRunner }; }
   for (const path of [...invariants, ...registryGuards]) {
     let file = false;
     try { file = statSync(join(root, path)).isFile(); } catch { /* Missing or unreadable invariants refuse rather than silently disappearing. */ }

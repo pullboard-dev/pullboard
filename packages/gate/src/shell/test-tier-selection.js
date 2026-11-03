@@ -12,6 +12,9 @@ import { literalShellWords } from '../../../kernel/index.js';
 import { generateTestTiers } from './test-tiers.js';
 import { ownerOf } from './test-tiers.js';
 import { TEST_TIERS_FILE } from './test-tiers.js';
+import { unsealedPackages } from './seals.js';
+import { sealOf } from './seals.js';
+import { sealStoreFile } from './seals.js';
 
 const snapshots = new Map();
 const TEST_HELPER = /(?:^|\/)(?:test|tests)\//u;
@@ -107,9 +110,44 @@ export function selectTestTiers(root, { base, trunk, commit = 'HEAD', changed, r
       }
     }
   }
-  const units = after.manifest.files.filter(row => row.tier === 'T1' && row.packages.some(name => packages.has(name))).map(row => row.file);
-  const journeys = after.manifest.files.filter(row => row.tier === 'T3').map(row => row.file);
-  return { version: 1, commit, packages: [...packages].sort(), changed: actual ?? [], units, journeys, runner: runner?.trim() || 'node --test' };
+  // RFC 0006 A3: a change also runs every package its hashes unseal, so importers of a changed front door run too.
+  const seals = !global && base ? unsealedPackages(root, { base, head: commit }) : null;
+  for (const row of seals?.unsealed ?? []) if (row.hash) packages.add(row.package);
+  const doors = new Set([...(seals?.doors ?? []), ...(actual ?? []).filter(file => /^(?:packages|apps)\/[^/]+\/index\.js$/u.test(file))]);
+  const contractRoots = [...doors].map(door => ownerOf(door, after.packageFiles, after.owners)).filter(Boolean).map(name => `${name}/contract/`);
+  const contracts = after.manifest.files.map(row => row.file).filter(file => contractRoots.some(prefix => file.startsWith(prefix)));
+  // A package's own tests that only cross into what it imports are its units too, so an unsealed importer runs them.
+  const own = row => row.reasons.every(reason => reason.startsWith('cross-package:'))
+    && [ownerOf(row.file, after.packageFiles, after.owners)].some(name => name && name !== '.' && seals?.unsealed.some(unsealed => unsealed.package === name));
+  const units = [...new Set([...after.manifest.files.filter(row => (row.tier === 'T1' && row.packages.some(name => packages.has(name))) || own(row)).map(row => row.file), ...contracts])].sort();
+  const journeys = after.manifest.files.filter(row => row.tier === 'T3' && !units.includes(row.file)).map(row => row.file);
+  const skipped = seals ? sealedSkips(root, seals, after.manifest, packages) : [];
+  return { version: 1, commit, base, packages: [...packages].sort(), changed: actual ?? [], units, journeys, skipped, runner: runner?.trim() || 'node --test' };
+}
+
+/** Name each skipped package with unit tests by its seal receipt, or as unchanged since the base when none is recorded. */
+function sealedSkips(root, seals, manifest, packages) {
+  const tested = new Set(manifest.files.filter(row => row.tier === 'T1').flatMap(row => row.packages));
+  const store = sealStoreFile(root);
+  return seals.kept.filter(name => tested.has(name) && !packages.has(name)).map(name => {
+    const hash = seals.hashes.get(name);
+    return { package: name, hash, receipt: sealOf(store, name, hash)?.receipts[0] ?? null };
+  });
+}
+
+/**
+ * Refuse a plan whose skipped packages include one the change unseals, so a selection that hides a change fails
+ * instead of reporting green (RFC 0006 A3 control).
+ *
+ * @param {string} root
+ * @param {{ base?: string | null, commit: string, skipped?: { package: string }[] }} plan
+ */
+export function requireSealedSkips(root, plan) {
+  if (!plan?.skipped?.length) return;
+  if (!plan.base) throw new Refused('SEAL_STALE', 'a plan that skips sealed packages needs its base; select tests from the committed diff');
+  const unsealed = new Set(unsealedPackages(root, { base: plan.base, head: plan.commit }).unsealed.map(row => row.package));
+  const hidden = plan.skipped.map(row => row.package).filter(name => unsealed.has(name)).sort();
+  if (hidden.length) throw new Refused('SEAL_STALE', `the change unseals skipped packages: ${hidden.join(', ')}; run their tests`);
 }
 
 /** Quote a selected path without permitting shell interpolation. */
@@ -140,7 +178,9 @@ export function testTierCheckCommand(check, plan) {
  */
 export function testTierReport(plan, { names = true } = {}) {
   const units = names ? `T1 unit tests (${plan.units.length}): ${plan.units.join(', ') || 'none'}` : `T1 unit tests: ${plan.units.length} ran; the failing cases follow, the rest are in the full log`;
-  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})`;
+  const skipped = plan.skipped?.length ? `\nSealed packages skipped (${plan.skipped.length}): ${plan.skipped
+    .map(row => `${row.package} ${row.receipt ? `by receipt ${row.receipt}` : `unchanged since ${String(plan.base).slice(0, 12)}`}`).join(', ')}` : '';
+  return `${units}\nT3 journeys deferred to the landing batch (${plan.journeys.length})${skipped}`;
 }
 
 /** A green exit with no observed test account cannot prove a selected unit or journey. */
