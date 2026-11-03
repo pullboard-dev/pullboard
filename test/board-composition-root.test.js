@@ -18,7 +18,7 @@ import { relayPresentation, relaySnapshot, relayPresentationShout } from '../pac
 import { verifiedPasskeyRowDecision as presentation_verifiedPasskeyRowDecision } from '../packages/person/index.js';
 import { pendingFit as presentation_pendingFit } from '../packages/blueprints/index.js';
 import { projectFit as presentation_projectFit } from '../packages/blueprints/index.js';
-import { projectState as presentation_projectState } from '../src/serve.js';
+import { projectState as presentation_projectState } from '../apps/view/index.js';
 import { personRequestStatuses as presentation_personRequestStatuses } from '../packages/link/index.js';
 import { personSigningPresentation as presentation_personSigningPresentation } from '../packages/person/index.js';
 import { activeViewAgents as presentation_activeViewAgents } from '../apps/view/index.js';

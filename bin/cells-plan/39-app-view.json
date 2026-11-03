@@ -94,30 +94,7 @@
   ["src/view/cost-overview.js","apps/view/src/shell/view/cost-overview.js","rule"]
  ],
  "reexports": [
-  "src/serve.js",
-  "src/view/agent-approval.js",
-  "src/view/dashboard-model.js",
-  "src/view/dashboard-render.js",
-  "src/view/dashboard-runtime.js",
-  "src/view/history-loading.js",
-  "src/view/home.js",
-  "src/view/hosted-release.js",
-  "src/view/hosted.js",
-  "src/view/lan-address.js",
-  "src/view/needs-list.js",
-  "src/view/page-dialog.js",
-  "src/view/page-script-1.js",
-  "src/view/page-script-2.js",
-  "src/view/page-script-3.js",
-  "src/view/page-script-4.js",
-  "src/view/page-startup.js",
-  "src/view/release-notice.js",
-  "src/view/roadmap-block.js",
-  "src/view/roadmap-summary.js",
-  "src/view/settings-page.js",
-  "src/view/sharing-invitation.js",
-  "src/view/stale.js",
-  "src/view/star.js"
+  "src/serve.js"
  ],
  "imports": [
   {"cell":"kernel","imports":5,"before":true},

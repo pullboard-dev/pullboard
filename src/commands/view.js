@@ -26,7 +26,7 @@ import {
 import {
   exportView as exportProvidedView,
   serveView as serveProvidedView,
-} from '../serve.js';
+} from '../../apps/view/index.js';
 import {
   defaultViewPort,
 } from '../../packages/config/index.js';
