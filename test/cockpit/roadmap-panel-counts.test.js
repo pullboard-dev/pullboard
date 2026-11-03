@@ -50,11 +50,11 @@ test('the roadmap panel counts the next release by stage [N26]', {
   const read = async () => JSON.parse(await chrome.stable(`JSON.stringify((() => {
     const card=document.querySelector('#roadmap-panel'), rect=e=>{const r=e?.getBoundingClientRect();return r ? {top:r.top,bottom:r.bottom,height:r.height} : {top:0,bottom:0,height:0};};
     const last=[...document.querySelectorAll('#roadmap .roadmap-last-shipped')].find(e=>e.getBoundingClientRect().height>0);
-    return {next:document.querySelector('#roadmap-list > .milestone > .milestone-head h2').textContent,
+    return {next:document.querySelector('#roadmap-list > .milestone > .release-header .release-name').textContent,
       counts:[...document.querySelectorAll('#roadmap [data-shipping-stage]')].filter(e=>e.getBoundingClientRect().height>0).map(e=>[e.dataset.shippingStage,e.querySelector('dd').textContent]),
       shipped:last ? [...last.children].map(e=>e.textContent) : null,
       panel:rect(card),desktop:rect(card.querySelector('.roadmap-desktop-shipping')),mobile:rect(document.querySelector('.roadmap-list .roadmap-summary')),
-      heading:rect(document.querySelector('#roadmap-list > .milestone > .milestone-head h2')),
+      heading:rect(document.querySelector('#roadmap-list > .milestone > .release-header .release-name')),
       mobileCounts:rect(document.querySelector('#roadmap-list > .milestone > .roadmap-summary .roadmap-summary-legend')),
       headerCounts:[...document.querySelector('#roadmap-list > .milestone').querySelectorAll('[data-summary-state]')].map(e=>[e.dataset.summaryState,e.querySelector('b').textContent]),
       documentWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth),viewport:document.documentElement.clientWidth,viewportHeight:document.documentElement.clientHeight};
