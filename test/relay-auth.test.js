@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { test } from 'node:test';
-import { createAuthHandler } from '../relay/auth-http.js';
-import { createGitHubClient } from '../relay/github.js';
+import { createAuthHandler } from '../apps/relay/index.js';
+import { createGitHubClient } from '../apps/relay/index.js';
 import { githubFixture } from './relay-fixture.js';
 
 test('a GitHub rate limit is named as one [H5,H16]', async (t) => {

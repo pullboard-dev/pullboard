@@ -35,7 +35,7 @@ function helpGraph() {
   while (pending.length) {
     const chain = pending.pop();
     const file = chain.at(-1);
-    assert.ok(![resolve(ROOT, 'src/cli.js'), resolve(ROOT, 'src/serve.js')].includes(file)
+    assert.ok(![resolve(ROOT, 'src/cli.js'), resolve(ROOT, 'src/serve.js'), resolve(ROOT, 'apps/view/src/shell/serve.js')].includes(file)
       && !file.startsWith(resolve(ROOT, 'relay') + '/'), `help reaches a forbidden dependency: ${chain.join(' -> ')}`);
     if (visited.has(file)) continue;
     visited.add(file);

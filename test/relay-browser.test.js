@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 import { gunzipSync } from 'node:zlib';
-import { snapshotState, presentationState } from '../relay/browser-model.js';
+import { snapshotState, presentationState } from '../apps/relay/index.js';
 import { decodeBoardKey, seal, unseal } from '../packages/kernel/src/core/seal.js';
 import { relaySnapshot } from '../packages/pages/index.js';
 import { ENGINE_VERSION } from '../packages/state/index.js';
