@@ -10,7 +10,7 @@
   ["test/local-fetch.test.js","packages/sync/tests/local-fetch.test.js","seed"],
   ["src/git-sync-repair.js","packages/sync/src/shell/git-sync-repair.js","rule"]
  ],
- "reexports": ["src/sync.js"],
+ "reexports": [],
  "imports": [
   {"cell":"kernel","imports":2,"before":true},
   {"cell":"git","imports":2,"before":true},

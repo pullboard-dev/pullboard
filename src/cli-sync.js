@@ -92,9 +92,9 @@ export async function retrySync(io) {
   try {
     if (io.relayCommand?.cliOperation !== 'sync' && gitSyncLinked(io.cwd)) {
       const ctx = context(io);
-      const sync = await import('./sync.js');
-      const compatible = withBoardRead(ctx, board => sync.gitSyncCompatibility(io.cwd, board).compatible);
-      if (compatible) await withBoard(ctx, board => sync.syncGitBoard(io.cwd, board, io));
+      const { gitSyncCompatibility, syncGitBoard } = await import('../packages/sync/index.js');
+      const compatible = withBoardRead(ctx, board => gitSyncCompatibility(io.cwd, board).compatible);
+      if (compatible) await withBoard(ctx, board => syncGitBoard(io.cwd, board, io));
     }
     io.relayOutbox ??= () => relayOutboxSetting(io.cwd);
     await syncRelay(io.cwd, io);
