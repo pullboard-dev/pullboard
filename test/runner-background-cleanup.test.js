@@ -25,7 +25,8 @@ test('a job whose cleanup sleeps reports its result at once and its cleanup stil
   writeFileSync(join(bin, 'package.json'), JSON.stringify({ type: 'module' }));
   // The worker's final job-directory removal blocks for SLOW_CLEANUP_MS, as a slow disk or a stuck unlink would.
   const slow = join(dir, 'slow-cleanup.mjs');
-  writeFileSync(slow, `import fs, { syncBuiltinESMExports } from 'node:fs';
+  writeFileSync(slow, `import fs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { dirname } from 'node:path';
 const real = fs.rmSync;
 fs.rmSync = (path, options) => {
