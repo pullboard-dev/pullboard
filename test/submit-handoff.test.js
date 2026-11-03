@@ -420,7 +420,7 @@ for (const mode of ['relaunch', 'missing', 'silent']) test(`a dead queued handof
     }, 'actual recovery worker exit', 120000);
     document(box.run(box.web, 'next', '--json'));
   }
-  await waitJob(box, mode === 'relaunch' ? 'green' : 'red');
+  await waitJob(box, mode === 'relaunch' ? 'green' : 'infrastructure');
   const ended = state(box, box.id);
   assert.equal(ended.job.id, current.job.id, 'recovery retains the original immutable queue');
   if (mode !== 'relaunch') {

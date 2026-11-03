@@ -1,3 +1,4 @@
+import { prepareDeadHandoffRetry } from '../../../../packages/items/index.js';
 import { withFileLock } from '../../../../packages/outbox/index.js';
 import { git } from '../../../../packages/git/index.js';
 import { once } from 'node:events';
@@ -111,14 +112,17 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
   try { worker = JSON.parse(readFileSync(join(directory, 'worker.json'), 'utf8')); }
   catch { return; }
   if (!deadWorker(worker, observed)) return;
+  let owned = false;
   const current = withBoardRead(ctx, board => {
     const item = board.db.prepare('SELECT item_status,item_owner,item_frozen_digest FROM item WHERE item_id=?').get(itemId);
     const job = submitHandoff(board, itemId);
-    return item?.item_status === 'claimed' && item.item_owner === actor && item.item_frozen_digest === observed.digest
-      && job?.id === observed.id && job.state === observed.state ? job : null;
+    owned = item?.item_status === 'claimed' && item.item_owner === actor && item.item_frozen_digest === observed.digest;
+    return job?.id === observed.id && job.state === observed.state ? job : null;
   });
   if (!current) return;
   try {
+    // A dead job on an item its seat no longer holds (released, withdrawn) still ends; it never shows running (#2627).
+    if (!owned) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the item is no longer claimed by the seat that queued it');
     // A running job may have written its private source and board moves; only a queued one is safe to relaunch.
     if (current.state === 'running') throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the running worker exited without a terminal result');
     if (worker.relaunches >= 1) throw new Refused('SUBMIT_HANDOFF_RECOVERY', 'the captured worker exited again after its recovery launch');
@@ -133,12 +137,44 @@ async function recoverDeadSubmitHandoff(ctx, itemId, actor, observed, directory)
     ctx.io.say(`relaunched queued submit #${itemId} from its captured tools`);
     return;
   } catch (error) {
+    let retry = null;
+    if (owned && current.state === 'running') {
+      try { retry = prepareDeadHandoffRetry(ctx.info.commonDir, itemId, current, directory); }
+      catch (preparation) { ctx.io.err(`stopped submit #${itemId} cannot retry captured tools: ${preparation.message}`); }
+    }
     const failure = { code: 1, ...refusalDocument(new Refused('SUBMIT_HANDOFF_DEAD',
-      `${current.state} submit worker is dead and cannot be relaunched: ${error.message}; read its worker.log, then claim and resubmit the captured source`), { caller: 'seat' }) };
+      `${current.state} submit worker is dead and cannot be relaunched: ${error.message}; the gate stopped on infrastructure, never a builder red`,
+      'the health sweep retries the captured candidate within its retry budget; the coordinator restores missing tools'), { caller: 'seat' }) };
     writeFileSync(join(directory, 'refusal.json'), JSON.stringify(failure) + '\n', { mode: 0o600 });
-    await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
-      { agentId: actor, job: current.id, result: failure, reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
+    let ended;
+    try {
+      ended = await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+        { agentId: actor, job: current.id, result: failure, ...(retry ? { retryJob: retry.id } : {}), reopenFirstRefusalMinutes: ctx.config.claim?.reopenFirstRefusalMinutes }]));
+    } catch (completion) { retry?.discard(); throw completion; }
+    if (retry && (ended?.id !== retry.id || ended.state !== 'queued')) retry.discard();
+    if (retry && ended?.id === retry.id && ended.state === 'queued') {
+      try { await launchCapturedWorker(retry.directory, retry.tools, ctx.info.commonDir, ended); }
+      catch (launch) {
+        ctx.io.err(`stopped submit #${itemId} recovery launch failed: ${launch.message}`);
+        await withBoard(ctx, board => ordered(ctx, board, 'completeSubmitHandoff', [itemId,
+          { agentId: actor, job: ended.id, result: failure }]));
+      }
+    }
   }
+}
+
+/**
+ * The health sweep ends every queued or running handoff on the board whose worker process is gone, whichever seat
+ * queued it and whatever its item's state now. Why: recovery ran only when the queuing seat itself ran next or submit
+ * on an item it still held, so a seat that stopped, or an item released or withdrawn, left its job running for hours
+ * (#2627). A live worker, or one whose identity cannot be read, is left alone.
+ */
+export async function sweepDeadSubmitHandoffs(ctx) {
+  const jobs = withBoardRead(ctx, board => board.db.prepare("SELECT meta_key FROM board_meta WHERE meta_key GLOB 'submit_handoff:*'").all()
+    .map(row => Number(row.meta_key.slice('submit_handoff:'.length))).filter(Number.isSafeInteger)
+    .map(itemId => ({ itemId, job: submitHandoff(board, itemId) })).filter(row => ['queued', 'running'].includes(row.job?.state)));
+  for (const { itemId, job } of jobs) await recoverSubmitHandoff(ctx, itemId, job.agentId, job);
+  return jobs.length;
 }
 
 /** Next may recover this seat's queued or running claims whose worker is gone, never another seat's or a live gate. */
