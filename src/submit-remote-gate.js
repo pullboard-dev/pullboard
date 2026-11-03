@@ -91,14 +91,14 @@ try {
   if (head !== input.source) throw refuse('RUNNER_SOURCE', 'the runner checkout is not the queued candidate; resubmit the captured source');
   for (const name of ['requirePlannedSource', 'requireSubmitComposition']) if (typeof items[name] !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks ' + name);
   if (typeof cells.requireSubmitCells !== 'function' || typeof gate.submitGatePlan !== 'function') throw refuse('RUNNER_TOOLING_FILES', 'accepted main lacks the submit cells or selection tooling');
-  await step('placement', () => items.requirePlannedSource(root, input.trunk, input.source));
+  await step('placement', () => items.requirePlannedSource(root, input.trunk, input.source, { deferUnplaced: true }));
   if (input.staticChecks) await step('static', () => {
     const run = spawnSync('/bin/sh', ['-c', trusted(input.staticChecks)], { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 ** 2 });
     const output = String(run.stdout ?? '') + String(run.stderr ?? '');
     if (run.error || run.status !== 0) throw refuse('GATE_RED', 'static checks are red; fix the named source before running proof:\\n' + (output.slice(-4000) || run.error?.message || 'static checker failed'));
   });
   if (input.composition) await step('composition', () => items.requireSubmitComposition(root, input.composition, { commit: input.main }, input.main));
-  result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }) }, {
+  result.cells = await step('cells', () => cells.requireSubmitCells(root, input.main, input.source, { item_frozen: JSON.stringify({ criterion: input.criterion }), item_title: input.title ?? '' }, {
     withMainCheckout: landing.withMainCheckout, parsers: { importsIn: gate.importsIn, commonJsIn: gate.commonJsIn },
     withImportParseCache: gate.withImportParseCache, cacheEligible: () => !gate.foreignNodeOptions(process.env.NODE_OPTIONS),
     readCutItems: () => input.cutRows,
@@ -185,7 +185,7 @@ const ANALYSIS_INFRA_ATTEMPTS = 3;
 export async function remoteSubmitAnalysis(root, request, lease, artifactDirectory) {
   const { main, source, readCutItems } = request;
   const cutRows = readCutItems();
-  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion,
+  const data = { main, source, trunk: request.trunk, base: request.base, check: request.check, criterion: request.criterion, title: request.title ?? '',
     composition: request.composition ?? null, staticChecks: request.staticChecks ?? '', config: request.config,
     browserFreeChecks: request.browserFreeChecks === true, cutRows };
   let step;
