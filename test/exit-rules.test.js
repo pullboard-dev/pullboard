@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { createE2eHelpers } from './e2e-helpers.js';
 import { isolateTestMachine } from '../packages/gate/index.js';
 import { heartbeatSeat } from '../packages/store/index.js';
-import { openBoard } from '../src/native-board.js';
+import { openBoard } from '../apps/lib/index.js';
 import { boardReceiptStore, readGateReceipt } from '../packages/gate/index.js';
 import { proofRunReceipt } from '../packages/store/index.js';
 import { fixtureBoard } from './board-fixture.js';

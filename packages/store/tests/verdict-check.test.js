@@ -30,7 +30,7 @@ import {
 } from 'node:path';
 import { test } from 'node:test';
 import * as store from "../src/shell/board.js";
-import { openBoard } from "../../../src/native-board.js";
+import { openBoard } from "../../../apps/lib/index.js";
 
 const BIN = resolve(import.meta.dirname, "../../../bin/pullboard.js");
 const SPEC = '# Fixture\n\n## G · Goals\n- G1 [approved, must] The fixture item is complete. | gate: none\n';
